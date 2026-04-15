@@ -43,10 +43,12 @@ import {
     Mutex,
     RetrySchedule,
     Seconds,
+    ServerAddressUdp,
     Time,
     Timer,
 } from "@matter/general";
-import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
+import { Status, TlvAttributeReport, TlvOfModel, TlvSchema, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
+import { TlvVoid } from "@matter/types/tlv";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -224,6 +226,72 @@ export class ClientInteraction<
     }
 
     /**
+     * Probe the peer with an empty read to verify session liveness.
+     *
+     * Optionally sends to a different address than the session's current one via {@link addressOverride},
+     * without affecting other exchanges on the session.
+     *
+     * @returns true if the probe succeeded, false otherwise
+     */
+    async probe(options?: ClientProbeOptions): Promise<boolean> {
+        if (this.#abort.aborted) {
+            return false;
+        }
+
+        const abort = new Abort({ abort: [options?.abort, this.#abort] });
+
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: options?.network ?? this.#network,
+                abort,
+                addressOverride: options?.addressOverride,
+                requireExistingSession: true,
+            });
+        } catch {
+            abort[Symbol.dispose]();
+            return false;
+        }
+
+        logger.info("Probe", Mark.OUTBOUND, messenger.exchange.via);
+
+        try {
+            await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
+            for await (const _report of messenger.readDataReports({ abort }));
+            logger.info(
+                "Probe",
+                Mark.INBOUND,
+                messenger.exchange.via,
+                messenger.exchange.diagnostics,
+                Diagnostic.weak("(success)"),
+            );
+            return true;
+        } catch {
+            if (abort.aborted) {
+                logger.debug(
+                    "Probe",
+                    Mark.INBOUND,
+                    messenger.exchange.via,
+                    messenger.exchange.diagnostics,
+                    Diagnostic.weak("(aborted)"),
+                );
+            } else {
+                logger.info(
+                    "Probe",
+                    Mark.INBOUND,
+                    messenger.exchange.via,
+                    messenger.exchange.diagnostics,
+                    Diagnostic.weak("(failed)"),
+                );
+            }
+            return false;
+        } finally {
+            await messenger.close();
+            abort[Symbol.dispose]();
+        }
+    }
+
+    /**
      * Write to node attributes.
      */
     async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
@@ -330,22 +398,29 @@ export class ClientInteraction<
                                     `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
-                            const responseSchema = Invoke.commandOf(cmd).responseSchema;
-                            if (commandFields === undefined && responseSchema !== TlvNoResponse) {
+                            let responseSchema: TlvSchema<any>;
+                            if (Invoke.isLegacy(cmd)) {
+                                responseSchema = cmd.command.responseSchema ?? TlvVoid;
+                            } else {
+                                const command = Invoke.commandOf(cmd);
+                                const responseModel = command.schema.responseModel;
+                                responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
+                            }
+                            if (commandFields === undefined && responseSchema !== TlvVoid) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
 
                             const data =
-                                commandFields === undefined ? undefined : responseSchema.decodeTlv(commandFields);
+                                commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
                             logger.info(
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
                                 messenger.exchange.diagnostics,
-                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
 
@@ -385,7 +460,7 @@ export class ClientInteraction<
                                     Mark.INBOUND,
                                     messenger.exchange.via,
                                     messenger.exchange.diagnostics,
-                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                    Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                     Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
                                 );
                             }
@@ -436,7 +511,7 @@ export class ClientInteraction<
                             const { commandRef } = cmd;
                             const fields = "fields" in cmd ? cmd.fields : undefined;
                             return [
-                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                 "with",
                                 isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
                                 commandRef !== undefined ? `(ref ${commandRef})` : "",
@@ -659,7 +734,11 @@ export class ClientInteraction<
             const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            const batchRequest = { ...Invoke({ commands: invokeRequests }), network: batchNetwork } as ClientInvoke;
+            // Always skip validation here — commands were already validated when originally submitted
+            const batchRequest = {
+                ...Invoke({ commands: invokeRequests, skipValidation: true }),
+                network: batchNetwork,
+            } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
@@ -714,7 +793,7 @@ export class ClientInteraction<
      * Subscribe to attribute values and events.
      */
     async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
-        let interactionSession: InteractionSession | undefined = session;
+        let interactionSession = session;
 
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (subscriptionPathsCount === 0) {
@@ -814,18 +893,22 @@ export class ClientInteraction<
         };
 
         const read = (request: Read, extraAbort?: AbortSignal, logContext?: ExchangeLogContext) => {
-            let readSession = session;
+            let readSession = interactionSession;
             if (logContext !== undefined) {
                 readSession = {
-                    ...session,
-                    logContext: session?.logContext ? { ...session.logContext, ...logContext } : logContext,
-                } as unknown as SessionT;
+                    ...readSession,
+                    logContext: readSession?.logContext ? { ...readSession.logContext, ...logContext } : logContext,
+                } as SessionT;
             }
             return this.read(request, readSession, extraAbort);
         };
 
         let subscription: ClientSubscription;
         if (request.sustain) {
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort.
+            // Update interactionSession BEFORE constructing SustainedSubscription so closures see the correct value
+            interactionSession = { ...interactionSession, connectionTimeout: Forever } as SessionT;
+
             subscription = new SustainedSubscription({
                 lifetime: this.subscriptions,
                 subscribe,
@@ -835,14 +918,8 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
                 read,
+                probe: abort => this.probe({ abort }),
             });
-
-            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
-            if (interactionSession === undefined) {
-                interactionSession = { connectionTimeout: Forever };
-            } else {
-                interactionSession = { ...interactionSession, connectionTimeout: Forever };
-            }
         } else {
             subscription = await subscribe(request);
         }
@@ -901,21 +978,36 @@ export class ClientInteraction<
         session: InteractionSession | undefined,
         extraAbort?: AbortSignal,
     ) {
-        using lifetime = this.#lifetime.join(what);
+        // Ownership of lifetime transfers to the returned context; do not use `using` here as
+        // that would dispose prematurely when #begin returns, creating a zombie in the spans Set
+        const lifetime = this.#lifetime.join(what);
 
-        if (this.#abort.aborted) {
-            throw new ImplementationError(
-                `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
-            );
+        let abort: Abort;
+        let messenger: InteractionClientMessenger;
+        try {
+            if (this.#abort.aborted) {
+                throw new ImplementationError(
+                    `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+                );
+            }
+
+            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+
+            try {
+                messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                    network: request.network ?? this.#network,
+                    abort,
+                    connectionTimeout: session?.connectionTimeout,
+                    addressOverride: request.addressOverride,
+                });
+            } catch (e) {
+                abort[Symbol.dispose]();
+                throw e;
+            }
+        } catch (e) {
+            lifetime[Symbol.dispose]();
+            throw e;
         }
-
-        const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
-
-        const messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-            network: request.network ?? this.#network,
-            abort: session?.abort,
-            connectionTimeout: session?.connectionTimeout,
-        });
 
         this.#interactions.add(request);
 
@@ -969,6 +1061,20 @@ export interface RequestContext<M extends InteractionClientMessenger | BdxMessen
     messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
+}
+
+/**
+ * Options for {@link ClientInteraction.probe}.
+ */
+export interface ClientProbeOptions {
+    /** Network profile to use for the probe exchange. */
+    network?: string;
+
+    /** Override the destination address for the probe without changing the session's channel. */
+    addressOverride?: ServerAddressUdp;
+
+    /** Abort signal for the probe. */
+    abort?: AbortSignal;
 }
 
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {

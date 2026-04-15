@@ -99,9 +99,13 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
 
         try {
             if (!this.storage) {
-                // Use StorageService driver selection (respects MATTER_STORAGE_DRIVER)
+                // Use StorageService driver selection (respects MATTER_STORAGE_DRIVER), then clone to get a raw driver.
+                // StorageService wraps drivers in a StorageDriverHandle that can't re-initialize after close.  Cloning
+                // gives us a raw MemoryStorageDriver that restore() also produces, so all paths behave consistently.
                 const manager = await this.#env.get(StorageService).open(this.id);
-                this.storage = manager.driver;
+                CloneableStorage.assert(manager.driver);
+                this.storage = await manager.driver.clone();
+                await manager.close();
             }
             // Install MockStorageService so restore() can swap storage via this.storage
             new MockStorageService(this.#env, () => this.storage!);

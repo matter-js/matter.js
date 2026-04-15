@@ -52,7 +52,7 @@ jobs:
       - name: Check out matter.js
         uses: actions/checkout@v6
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: changes
         with:
           filters: |
@@ -457,7 +457,7 @@ jobs:
 
       # Remove once https://github.com/project-chip/connectedhomeip/pull/38788 got merged + 1 day
       - name: Patch Test runner backchannel waiting times
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           result-encoding: string
           script: |
@@ -469,7 +469,7 @@ jobs:
 
       # remove once https://github.com/project-chip/connectedhomeip/issues/33735 is clarified
       - name: Patch ACE 2.2 testcase
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           result-encoding: string
           script: |

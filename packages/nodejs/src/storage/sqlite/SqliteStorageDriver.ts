@@ -5,12 +5,10 @@
  */
 
 import {
-    type Bytes,
     type CloneableStorage,
     type DataNamespace,
     FilesystemStorageDriver,
     fromJson,
-    NoProviderError,
     type StorageDriver,
     StorageTransaction,
     type SupportedStorageTypes,
@@ -18,7 +16,7 @@ import {
 } from "@matter/general";
 import { resolve } from "node:path";
 
-import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
+import { platformDatabaseCreator } from "./SqlitePlatform.js";
 import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 import type { DatabaseCreator, DatabaseLike, SafeUint8Array, SqlRunnable } from "./SqliteTypes.js";
 import { SqliteTransaction as Transaction } from "./SqliteTypes.js";
@@ -93,11 +91,6 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
     #queryContextSub!: SqlRunnable<{ contextGlob: string }, { context: string }>;
     #queryClearAll!: SqlRunnable<{ context: string; contextGlob: string }, void>;
     #queryHas!: SqlRunnable<{ context: string; key: string }, { has_record: 1 }>;
-    #queryOpenBlob!: SqlRunnable<
-        Pick<KVStoreType, "context" | "key">,
-        Pick<KVStoreType, "value_type" | "value_json" | "value_blob">
-    >;
-    #queryWriteBlob!: SqlRunnable<Pick<KVStoreType, "context" | "key" | "value_blob">, void>;
 
     /**
      * Create sqlite-based disk storage.
@@ -225,24 +218,6 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
       SELECT DISTINCT context FROM ${this.tableName} WHERE
         context GLOB $contextGlob
     `);
-
-        // Blob Operations
-        this.#queryOpenBlob = this.#database.prepare(`
-      SELECT value_type, value_json, value_blob FROM ${this.tableName} WHERE
-        context=$context AND
-        key=$key
-    `);
-
-        this.#queryWriteBlob = this.#database.prepare(`
-      INSERT INTO ${this.tableName}
-        (context, key, value_type, value_json, value_blob)
-      VALUES($context, $key, 'blob', NULL, $value_blob)
-      ON CONFLICT(context, key)
-      DO UPDATE SET
-        value_type = 'blob',
-        value_json = NULL,
-        value_blob = excluded.value_blob
-    `);
     }
 
     /**
@@ -303,6 +278,9 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
     }
 
     override async initialize(): Promise<void> {
+        if (this.isInitialized) {
+            throw new SqliteStorageDriverError("initialize", this.tableName, "Storage already initialized!");
+        }
         if (!this.#databaseCreator) {
             this.#openDatabase(await platformDatabaseCreator());
         }
@@ -547,75 +525,9 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
         return result?.has_record === 1;
     }
 
-    override openBlob(contexts: string[], key: string): Blob {
-        const queryResult = this.#queryOpenBlob.get(buildContextKeyPair(contexts, key));
-        if (queryResult == null) {
-            return new Blob();
-        }
-        if (queryResult.value_type === "blob" && queryResult.value_blob != null) {
-            return new Blob([new Uint8Array(queryResult.value_blob)]);
-        }
-        if (queryResult.value_type === "json" && queryResult.value_json != null) {
-            return new Blob([queryResult.value_json]);
-        }
-
-        // Corrupted context$key
-        this.delete(contexts, key);
-        return new Blob();
-    }
-
-    override async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>) {
-        const arrayBuffer = await new Response(stream).arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-
-        const queryResult = this.#queryWriteBlob.run({
-            ...buildContextKeyPair(contexts, key),
-            value_blob: bytes,
-        });
-        if (Number(queryResult.changes) <= 0) {
-            throw new SqliteStorageDriverError(
-                "writeBlob",
-                buildContextKeyLog(contexts, key),
-                `Something went wrong! Value wasn't changed.`,
-            );
-        }
-    }
-
     override begin(): StorageTransaction {
         return new SqliteStorageDriverTransaction(this);
     }
-}
-
-/**
- * Get the platform-appropriate SQLite database creator.
- *
- * Handles both ESM and CJS module formats via {@link findDefaultExport}.
- */
-async function platformDatabaseCreator(): Promise<DatabaseCreator> {
-    if (!supportsSqlite()) {
-        throw new NoProviderError("SQLite requires Node.js 22+ or Bun");
-    }
-
-    if (isBunjs()) {
-        const module = await import("./platform/BunSqlite.js");
-        return findDefaultExport(module, "createBunDatabase");
-    }
-
-    const module = await import("./platform/NodeJsSqlite.js");
-    return findDefaultExport(module, "createNodeJsDatabase");
-}
-
-/**
- * Find named export from dynamically imported module.
- *
- * Handles both ESM and CJS module formats when using `await import()`:
- *
- * - **ESM**: `{ ExportName: [value] }`
- * - **CJS (wrapped)**: `{ default: { ExportName: [value] } }`
- * - **CJS (direct)**: `{ default: [value] }`
- */
-function findDefaultExport<T, N extends keyof T>(moduleLike: T, name: N): T[N] {
-    return moduleLike[name] || (moduleLike as any).default?.[name] || (moduleLike as any).default;
 }
 
 class SqliteStorageDriverTransaction extends StorageTransaction {

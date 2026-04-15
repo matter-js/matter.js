@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./MessagesInterface.js";
 export * from "./MessagesBehavior.js";
 export * from "./MessagesServer.js";
 export * from "./MessagesClient.js";

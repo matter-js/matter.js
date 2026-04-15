@@ -6,6 +6,7 @@
 
 import { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
+import type { Supervision } from "../../supervision/Supervision.js";
 
 /**
  * Contextual information tracked during validation.
@@ -32,6 +33,18 @@ export interface ValidationLocation {
      * Path used to create fully-qualified name for diagnostic messages.
      */
     location?: string[];
+
+    /**
+     * Fallback resolver for cross-struct references.  When a name cannot be resolved in siblings or the ownership
+     * hierarchy, the validator calls this function.
+     */
+    outerResolve?: (name: string) => Val;
+
+    /**
+     * Per-instance validation configuration.  When set, controls which validation phases run for the value and its
+     * children.
+     */
+    config?: Supervision.Config;
 }
 
 export namespace ValidationLocation {

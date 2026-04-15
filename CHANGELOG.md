@@ -11,23 +11,37 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/\*
+    - RAM usage reductions and improvements
+
 - @matter/model
-    - Enhancement: First Model preparations for Matter 1.5
+    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
+    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
+    - Enhancement: The fluent API for manipulating the Matter data model is improved
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
+    - Feature: DoorLockServer is fully implemented except for Aliro features
+    - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands and arbitrary JS values
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
+    - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to respond to mDNS queries, we increased the discovery time for commissioning targets to 3 minutes (previously 1 minute)
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
     - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
     - Fix: Try to preserve clusters in the structure even if they are not specified in the serverList of the endpoint but reported data ("Schrödinger's cluster")
+    - Fix: You can now assign bare objects composed of managed values to state properties
 
 - @matter/nodejs-shell
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
 
+- @matter/types
+    - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
+    - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
+    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
+
 - @matter/protocol
-    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterwards
+    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterward
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
     - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
@@ -40,6 +54,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Several enhancements around session management when nodes reconnect or new sessions get pushed by the device
     - Enhancement: Several enhancements around OTA updates and transfers, also when nodes restart in the middle of the process
     - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
+    - Enhancement: Probes discovered addresses and potentially updates session addresses when they change even when we have a valid working session
+    - Enhancement: Optimizes operational connection logic during commissioning when multiple IPs are discovered
+    - Enhancement: Uses a minimum of 60 seconds for thread/wifi network scan or connect timeouts even if devices announce lower values
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
@@ -54,6 +71,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @project-chip/matter.js
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
+
+## 0.16.11 (2026-04-10)
+
+- @project-chip/matter.js
+    - Fix: (Pierre-Gilles) Added fallback discoveredAt to node migration in case discoveryData doesn't have one
 
 ## 0.16.10 (2026-02-22)
 

@@ -7,29 +7,22 @@
 import { ImplementationError } from "@matter/general";
 import { FabricIndex as FabricIndexElement } from "@matter/model";
 import { NoAssociatedFabricError } from "@matter/protocol";
-import {
-    Attribute,
-    AttributeError,
-    AttributeId,
-    ClusterId,
-    EndpointNumber,
-    FabricIndex,
-    TlvSchema,
-} from "@matter/types";
+import { AttributeId, ClusterId, ClusterType, EndpointNumber, FabricIndex, TlvOfModel, TlvSchema } from "@matter/types";
 import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an AttributeClient for a given attribute.
  */
 export function createAttributeClient<T>(
-    attribute: Attribute<T, any>,
+    attribute: ClusterType.Attribute<T>,
     name: string,
     endpointId: EndpointNumber | undefined,
     clusterId: ClusterId,
     interactionClient: InteractionClient,
     present = false,
+    unknown = false,
 ): AttributeClient<T> {
-    if (attribute.unknown) {
+    if (unknown) {
         return new UnknownSupportedAttributeClient(attribute, name, endpointId, clusterId, interactionClient);
     }
     if (present) {
@@ -51,18 +44,18 @@ export class AttributeClient<T = any> {
     readonly #interactionClient: InteractionClient;
 
     constructor(
-        readonly attribute: Attribute<T, any>,
+        readonly attribute: ClusterType.Attribute<T>,
         readonly name: string,
         readonly endpointId: EndpointNumber | undefined,
         readonly clusterId: ClusterId,
         interactionClient: InteractionClient,
     ) {
-        const { schema, writable, fabricScoped, id, omitChanges } = attribute;
-        this.schema = schema;
-        this.#isWritable = writable;
-        this.#isFabricScoped = fabricScoped;
-        this.#updatedBySubscriptions = !omitChanges;
-        this.id = id;
+        const model = attribute.schema;
+        this.schema = TlvOfModel(model);
+        this.id = attribute.id;
+        this.#isWritable = model.writable;
+        this.#isFabricScoped = model.fabricScoped;
+        this.#updatedBySubscriptions = !(model.effectiveQuality.changesOmitted ?? false);
         this.#interactionClient = interactionClient;
     }
 
@@ -71,7 +64,7 @@ export class AttributeClient<T = any> {
      * cluster dataVersion of the server matches. If it does not match it is rejected with an Error.
      */
     async set(value: T, dataVersion?: number) {
-        if (!this.#isWritable) throw new AttributeError(`Attribute ${this.name} is not writable`);
+        if (!this.#isWritable) throw new ImplementationError(`Attribute ${this.name} is not writable`);
 
         value = this.schema.injectField(
             value,
@@ -177,7 +170,7 @@ export class AttributeClient<T = any> {
             maxIntervalCeilingSeconds,
             isFabricFiltered,
             knownDataVersion,
-            listener: this.update.bind(this),
+            listener: (value: T) => this.update(value),
         });
     }
 

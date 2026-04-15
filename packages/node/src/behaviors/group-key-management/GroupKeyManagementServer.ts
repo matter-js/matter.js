@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { deepCopy, ImplementationError, Logger } from "@matter/general";
-import { DatatypeModel, FieldElement } from "@matter/model";
+import { FieldElement } from "@matter/model";
 import {
     assertRemoteActor,
     Fabric,
@@ -26,7 +26,7 @@ const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 const GroupKeyManagementBase = GroupKeyManagementBehavior.with("Groupcast");
 
 // Enhance the schema by a fabric scoped structure for the GroupKeySetStruct to enable persistence
-const groupKeySetStruct = GroupKeyManagementBase.schema.get(DatatypeModel, "GroupKeySetStruct")!;
+const groupKeySetStruct = GroupKeyManagementBase.schema.datatypes.require("GroupKeySetStruct");
 const groupKeySetStructFS = groupKeySetStruct.extend(
     {
         name: "GroupKeySetStructFS",
@@ -52,7 +52,7 @@ const schema = GroupKeyManagementBase.schema.extend(
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
  */
 export class GroupKeyManagementServer extends GroupKeyManagementBase {
-    declare state: GroupKeyManagementServer.State;
+    declare readonly state: GroupKeyManagementServer.State;
     static override readonly schema = schema;
 
     override initialize() {
@@ -437,8 +437,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
 
         // If there exist any entries for the accessing fabric within the GroupKeyMap attribute that refer to the
         // GroupKeySetID just removed, then these entries SHALL be removed from that list.
-        const groupKeyMap = deepCopy(this.state.groupKeyMap);
-        this.state.groupKeyMap = groupKeyMap.filter(({ groupKeySetId: entryId }) => groupKeySetId !== entryId);
+        this.state.groupKeyMap = this.state.groupKeyMap.filter(
+            ({ groupKeySetId: entryId }) => groupKeySetId !== entryId,
+        );
 
         // Sync to Fabric group manager to remove too
         await fabric.groups.removeGroupKeySet(groupKeySetId);

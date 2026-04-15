@@ -19,7 +19,7 @@ import {
     uint32,
     uint8,
 } from "#index.js";
-import { AttributeModel, ClusterModel, DatatypeModel, FieldModel, MatterModel, Model } from "#models/index.js";
+import { AttributeModel, ClusterModel, DatatypeModel, MatterModel, Model } from "#models/index.js";
 
 const struct = realStruct.clone();
 const FeatureMap = RealFeatureMap.clone();
@@ -200,7 +200,7 @@ describe("Scope", () => {
     });
 
     it("finds members of extended base", () => {
-        const ModeTag = ModeBase.get(DatatypeModel, "ModeTag");
+        const ModeTag = ModeBase.datatypes("ModeTag");
         expect(ModeTag).not.undefined;
 
         const baseModeTagCount = ModeBase.scope.membersOf(ModeTag!).length;
@@ -208,9 +208,9 @@ describe("Scope", () => {
 
         expect(modeTagCount).greaterThan(baseModeTagCount);
 
-        const ModeTagStruct = ModeBase.get(DatatypeModel, "ModeTagStruct");
+        const ModeTagStruct = ModeBase.datatypes("ModeTagStruct");
         expect(ModeTagStruct).not.undefined;
-        const Value = ModeTagStruct!.get(FieldModel, "Value");
+        const Value = ModeTagStruct!.fields("Value");
         expect(Value).not.undefined;
 
         const valueTagCount = EnergyEvseMode.scope.membersOf(Value!).length;

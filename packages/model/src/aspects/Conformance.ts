@@ -168,10 +168,15 @@ export namespace Conformance {
               param: Ast.Option;
           }
         | {
+              type: Special.Revision;
+              param: number;
+          }
+        | {
               type:
                   | Operator.AND
                   | Operator.OR
                   | Operator.XOR
+                  | Operator.DOT
                   | Operator.EQ
                   | Operator.NE
                   | Operator.LT
@@ -212,6 +217,9 @@ export namespace Conformance {
         Choice = "choice",
         Otherwise = "otherwise",
         OptionalIf = "optionalIf",
+
+        /** Revision conformance (spec 1.5.1+): "Rev >= vN" — element present at cluster revision ≥ N */
+        Revision = "revision",
     }
 
     export enum Flag {
@@ -284,7 +292,7 @@ export namespace Conformance {
         | "y"
         | "z";
 
-    export type ReferenceResolver = (name: string) => Model | undefined;
+    export type ReferenceResolver = (name: string | string[]) => Model | undefined;
     export type ErrorTarget = { error(code: string, message: string): void };
 
     /**
@@ -333,10 +341,12 @@ export namespace Conformance {
                         // Find the actual enum definition with children (may be the referenced model itself,
                         // or its defining type for fields typed as enums)
                         const enumDef = referenced.definingModel ?? referenced;
-                        operatorResolver = (name: string) => {
-                            const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
-                            if (enumValue) {
-                                return enumValue as ValueModel;
+                        operatorResolver = (name: string | string[]) => {
+                            if (typeof name === "string") {
+                                const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
+                                if (enumValue) {
+                                    return enumValue as ValueModel;
+                                }
                             }
                             return resolver(name);
                         };
@@ -356,6 +366,17 @@ export namespace Conformance {
                 }
                 break;
 
+            case Operator.DOT: {
+                const segments = collectDotSegments(ast);
+                if (segments !== undefined && !resolver(segments)) {
+                    errorTarget.error(
+                        "UNRESOLVED_CONFORMANCE_NAME",
+                        `Conformance name reference "${segments.join(".")}" does not resolve`,
+                    );
+                }
+                break;
+            }
+
             case Special.Name:
                 if (!resolver(ast.param)) {
                     errorTarget.error(
@@ -364,11 +385,18 @@ export namespace Conformance {
                     );
                 }
                 break;
+
+            case Special.Revision:
+                // Self-contained — no external references to resolve
+                break;
         }
     }
 
     export function serialize(ast: Ast): string {
         switch (ast.type) {
+            case Operator.DOT:
+                return `${serializeAtomic(ast.param.lhs, ast.type)}.${serializeAtomic(ast.param.rhs, ast.type)}`;
+
             case Operator.OR:
             case Operator.XOR:
             case Operator.AND:
@@ -410,6 +438,9 @@ export namespace Conformance {
 
             case Special.OptionalIf:
                 return `[${serialize(ast.param)}]`;
+
+            case Special.Revision:
+                return `Rev >= v${ast.param}`;
 
             case Special.Name:
             case Special.Value:
@@ -558,6 +589,22 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
         return { name: name as Conformance.ChoiceName, num };
     }
 
+    function isChoiceIndicator(value: string) {
+        if (value.length === 0 || value.length > 2) {
+            return false;
+        }
+        if (value[0] < "a" || value[0] > "z") {
+            return false;
+        }
+        if (value.length === 2) {
+            const d = value.charCodeAt(1) - 0x30; // '0'
+            if (d < 0 || d > 9) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     function parseChoice(expr: Conformance.Ast): Conformance.Ast {
         if (!atOperator(".")) {
             return expr;
@@ -570,17 +617,24 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
             conformance.error("INVALID_CHOICE", 'Choice indicator (".") not followed by identifier');
             name = "?" as Conformance.ChoiceName;
             num = 1;
-        } else if (
-            tokens.token.value.length > 2 &&
-            tokens.token.value[0] >= "A" &&
-            tokens.token.value[0] <= "Z" &&
-            (expr as { type?: string }).type === Conformance.Special.Name
-        ) {
-            // Uppercase multi-char identifier after "." on a name node — this is a field reference
-            // (e.g. SolicitOffer.VideoStreamID), not a choice indicator
-            const fieldRef = `${(expr as { param: string }).param}.${tokens.token.value}`;
+        } else if (!isChoiceIndicator(tokens.token.value)) {
+            // Not a choice indicator after "." — qualified field reference (e.g. SolicitOffer.VideoStreamID).  Build a
+            // DOT AST node.  Loop for deeper paths (A.B.C).
+            let dotExpr: Conformance.Ast = {
+                type: Conformance.Operator.DOT,
+                param: { lhs: expr, rhs: { type: Conformance.Special.Name, param: tokens.token.value } },
+            };
             tokens.next();
-            return { type: Conformance.Special.Name, param: fieldRef } as Conformance.Ast;
+            while (atOperator(".") && tokens.peeked?.type === "word" && !isChoiceIndicator(tokens.peeked.value)) {
+                tokens.next();
+                dotExpr = {
+                    type: Conformance.Operator.DOT,
+                    param: { lhs: dotExpr, rhs: { type: Conformance.Special.Name, param: tokens.token!.value } },
+                };
+                tokens.next();
+            }
+            // Check for a trailing choice indicator on the qualified name
+            return parseChoice(dotExpr);
         } else {
             ({ name, num } = extractChoiceNameAndNumber(tokens.token.value));
             tokens.next();
@@ -639,6 +693,18 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
                     return { type: Conformance.Special.Value, param: false };
             }
 
+            // Revision conformance "Rev >= vN" (spec 1.5.1+) — parse as atomic Revision node
+            if (name === "Rev" && atOperator(">=")) {
+                tokens.next(); // consume ">="
+                if (tokens.token?.type === "word") {
+                    const versionMatch = tokens.token.value.match(/^v(\d+)$/);
+                    if (versionMatch) {
+                        tokens.next(); // consume "vN"
+                        return { type: Conformance.Special.Revision, param: Number.parseInt(versionMatch[1]) };
+                    }
+                }
+            }
+
             return { type: Conformance.Special.Name, param: name };
         }
 
@@ -667,6 +733,25 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
         conformance.error("UNEXPECTED_CONFORMANCE_TOKEN", `Unexpected "${tokens.token.type}"`);
         tokens.next();
     }
+}
+
+/**
+ * Collect name segments from a DOT AST chain.
+ *
+ * Returns `undefined` if the chain contains non-name nodes.
+ */
+export function collectDotSegments(ast: Conformance.Ast): string[] | undefined {
+    if (ast.type === Conformance.Special.Name) {
+        return [ast.param];
+    }
+    if (ast.type === Conformance.Operator.DOT) {
+        const lhs = collectDotSegments(ast.param.lhs);
+        const rhs = collectDotSegments(ast.param.rhs);
+        if (lhs !== undefined && rhs !== undefined) {
+            return [...lhs, ...rhs];
+        }
+    }
+    return undefined;
 }
 
 namespace Parser {
@@ -736,6 +821,7 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 return Mandatory;
 
             case Conformance.Special.Desc:
+            case Conformance.Special.Revision:
                 return Conditional;
         }
 
@@ -744,6 +830,10 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
     function assessInnerExpression(ast: Conformance.Ast): Conformance.Applicability {
         switch (ast.type) {
+            case Conformance.Special.Revision:
+            case Conformance.Operator.DOT:
+                return Conditional;
+
             case Conformance.Special.Name:
                 // Assess features based on configured flags
                 if (features.has(ast.param)) {
@@ -803,6 +893,7 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
 function freezeAst(ast: Conformance.Ast) {
     switch (ast.type) {
+        case Conformance.Operator.DOT:
         case Conformance.Operator.OR:
         case Conformance.Operator.XOR:
         case Conformance.Operator.AND:

@@ -23,7 +23,6 @@ import {
 } from "@matter/general";
 import {
     ChangeNotificationService,
-    ClusterState,
     ContinuousDiscovery,
     Endpoint,
     NetworkClient,
@@ -60,7 +59,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { BasicInformation } from "@matter/types/clusters";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -220,7 +219,7 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      * Options for the BasicInformation cluster of the Controller node.
      * The vendorId is determined by the adminVendorId!
      */
-    readonly basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+    readonly basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
 };
 
 /**
@@ -404,7 +403,7 @@ export class CommissioningController {
                 continue;
             }
             const networkState = peer.stateOf(NetworkClient);
-            const desiredDisabled = !!this.#options.autoConnect;
+            const desiredDisabled = this.#options.autoConnect === false;
             if (desiredDisabled !== networkState.isDisabled) {
                 await peer.set({ network: { isDisabled: desiredDisabled } });
             }

@@ -387,15 +387,12 @@ export class DclVendorInfoService {
     async close() {
         if (this.#closed) return;
         this.#closed = true;
-
-        await this.#fetchPromise;
-
-        if (this.#updateTimer) {
-            this.#updateTimer.stop();
+        await this.#construction.close(async () => {
+            await this.#fetchPromise;
+            this.#updateTimer?.stop();
             this.#updateTimer = undefined;
-        }
-
-        await this.#storageManager?.close();
+            await this.#storageManager?.close();
+        });
     }
 }
 

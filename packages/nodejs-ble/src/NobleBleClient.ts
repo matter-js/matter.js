@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger } from "@matter/general";
+import { Bytes, Diagnostic, Instant, Logger, Time } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { BLE_MATTER_SERVICE_UUID_SHORT } from "@matter/protocol";
+import { MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { platform } from "node:process";
 import { BleOptions } from "./NodeJsBle.js";
@@ -87,7 +87,7 @@ export class NobleBleClient {
         this.shouldScan = true;
         if (this.nobleState === "poweredOn") {
             logger.debug("Start BLE scanning for Matter Services ...");
-            await noble.startScanningAsync([BLE_MATTER_SERVICE_UUID_SHORT], true);
+            await noble.startScanningAsync([MatterBle.SERVICE_UUID_SHORT], true);
         } else {
             logger.debug("noble state is not poweredOn ... delay scanning till poweredOn");
         }
@@ -111,7 +111,7 @@ export class NobleBleClient {
         //  see https://github.com/stoprocent/noble/issues/20
         if (
             process.platform === "win32" &&
-            !peripheral.advertisement.serviceData.some(({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT)
+            !peripheral.advertisement.serviceData.some(({ uuid }) => MatterBle.isServiceUuid(uuid))
         ) {
             return;
         }
@@ -127,8 +127,8 @@ export class NobleBleClient {
             logger.debug(`Peripheral ${address} is not connectable ... ignoring`);
             return;
         }
-        const matterServiceData = peripheral.advertisement.serviceData.find(
-            ({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT,
+        const matterServiceData = peripheral.advertisement.serviceData.find(({ uuid }) =>
+            MatterBle.isServiceUuid(uuid),
         );
         if (matterServiceData === undefined || matterServiceData.data.length !== 8) {
             logger.info(`Peripheral ${address} does not advertise Matter Service ... ignoring`);
@@ -148,14 +148,33 @@ export class NobleBleClient {
         this.#closing = true;
         logger.debug("Stopping Noble");
 
-        // This is a hack because it can else happen that stop is hanging because it needs response data when the HCI
-        // based driver is used. Also Check for Win32 is not 100% correct, but likely good enough for now.
-        // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
-        if (platform !== "win32" && platform !== "darwin") {
-            noble.startScanning();
-        }
+        if (this.nobleState === "poweredOn") {
+            // noble.stop() hangs when BLE isn't powered on (https://github.com/stoprocent/noble/issues/30).
+            // Only attempt the full stop sequence when BLE is actually available.
+            try {
+                // Workaround: start scanning first so stop gets the HCI response it needs (Linux HCI driver).
+                // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
+                if (platform !== "win32" && platform !== "darwin") {
+                    noble.startScanning();
+                }
+            } catch (error) {
+                logger.info("Error starting scan during close, proceeding to stop:", error);
+            }
 
-        noble.stop();
+            try {
+                noble.stop();
+            } catch (error) {
+                logger.info("Error stopping Noble:", error);
+            }
+
+            // Defer listener removal so noble.stop() can finish its internal event roundtrip
+            Time.getTimer("noble-cleanup", Instant, () => noble.removeAllListeners()).start();
+        } else {
+            logger.debug(`Skipping noble.stop() because state is "${this.nobleState}"`);
+
+            // No stop needed — remove listeners immediately to release the event loop
+            noble.removeAllListeners();
+        }
     }
 
     [Diagnostic.name] = "BLE client";

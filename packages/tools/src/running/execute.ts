@@ -47,7 +47,15 @@ export async function execute(bin: string, argv: string[], env?: typeof process.
 }
 
 export async function executeNode(script: string, argv: string[], nodeArgv = Array<string>()) {
-    argv = ["--enable-source-maps", ...nodeArgv, script, ...argv];
+    const defaultNodeArgv = ["--enable-source-maps"];
+
+    // Suppress "ExperimentalWarning" for features like node:sqlite that are stable enough for our use
+    const [major] = process.versions.node.split(".");
+    if (Number(major) >= 22) {
+        defaultNodeArgv.push("--disable-warning=ExperimentalWarning");
+    }
+
+    argv = [...defaultNodeArgv, ...nodeArgv, script, ...argv];
     if (process.env.MATTER_RUN_ECHO) {
         const command = colors.whiteBright(`node ${argv.join(" ")}`);
         process.stdout.write(`${colors.greenBright("Matter execute:")} ${command}\n`);

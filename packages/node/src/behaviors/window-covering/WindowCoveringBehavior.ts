@@ -8,8 +8,6 @@
 
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { WindowCoveringInterface } from "./WindowCoveringInterface.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +16,7 @@ import { Identity } from "@matter/general";
  * WindowCovering.Cluster requires you to enable one or more optional features. You can do so using
  * {@link WindowCoveringBehavior.with}.
  */
-export const WindowCoveringBehaviorConstructor = ClusterBehavior
-    .withInterface<WindowCoveringInterface>()
-    .for(ClusterType(WindowCovering.Base));
+export const WindowCoveringBehaviorConstructor = ClusterBehavior.for(WindowCovering);
 
 export interface WindowCoveringBehaviorConstructor extends Identity<typeof WindowCoveringBehaviorConstructor> {}
 export const WindowCoveringBehavior: WindowCoveringBehaviorConstructor = WindowCoveringBehaviorConstructor;

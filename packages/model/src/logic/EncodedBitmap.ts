@@ -20,9 +20,9 @@ export function EncodedBitmap(model: ValueModel, value: number | bigint | Decode
     if (model.tag === ElementTag.Attribute && model.id === FeatureMap.id) {
         // Special case for feature map; use the long name as the key rather than the name
         nameGenerator = (model: ValueModel) =>
-            (model as FieldModel).title === undefined ? camelize(model.name) : camelize((model as FieldModel).title!);
+            (model as FieldModel).title === undefined ? model.propertyName : camelize((model as FieldModel).title!);
     } else {
-        nameGenerator = (model: ValueModel) => camelize(model.name);
+        nameGenerator = (model: ValueModel) => model.propertyName;
     }
 
     let bitmap = 0n;

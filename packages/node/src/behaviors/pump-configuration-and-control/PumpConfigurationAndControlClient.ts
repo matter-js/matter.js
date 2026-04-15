@@ -10,7 +10,7 @@ import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configu
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const PumpConfigurationAndControlClientConstructor = ClientBehavior(PumpConfigurationAndControl.Complete);
+export const PumpConfigurationAndControlClientConstructor = ClientBehavior(PumpConfigurationAndControl);
 export interface PumpConfigurationAndControlClient extends InstanceType<typeof PumpConfigurationAndControlClientConstructor> {}
 export interface PumpConfigurationAndControlClientConstructor extends Identity<typeof PumpConfigurationAndControlClientConstructor> {}
 export const PumpConfigurationAndControlClient: PumpConfigurationAndControlClientConstructor = PumpConfigurationAndControlClientConstructor;

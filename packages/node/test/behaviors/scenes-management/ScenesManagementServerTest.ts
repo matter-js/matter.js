@@ -84,7 +84,7 @@ describe("ScenesManagementServer", () => {
                     Read(
                         Read.Attribute({
                             endpoint: EndpointNumber(1),
-                            cluster: OnOff.Complete,
+                            cluster: OnOff,
                             attributes: ["onOff"],
                         }),
                     ),

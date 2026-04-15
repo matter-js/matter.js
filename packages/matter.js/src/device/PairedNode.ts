@@ -24,7 +24,15 @@ import {
     Seconds,
     Time,
 } from "@matter/general";
-import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AggregatorDt,
+    AttributeList,
+    ClusterModel,
+    ClusterRevision,
+    FeatureMap,
+    Matter,
+} from "@matter/model";
 import {
     Behavior,
     ChangeNotificationService,
@@ -49,7 +57,6 @@ import {
 } from "@matter/protocol";
 import {
     AttributeId,
-    Attributes,
     CaseAuthenticatedTag,
     ClusterId,
     ClusterType,
@@ -57,30 +64,23 @@ import {
     DiscoveryCapabilitiesSchema,
     EndpointNumber,
     EventId,
-    getClusterAttributeById,
-    getClusterById,
     ManualPairingCodeCodec,
     NodeId,
     QrPairingCodeCodec,
     StatusCode,
     StatusResponseError,
 } from "@matter/types";
-import { AdministratorCommissioning, BasicInformation, Descriptor } from "@matter/types/clusters";
-import { ClusterServer } from "../cluster/server/ClusterServer.js";
-import { AttributeInitialValues, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { CommissioningController } from "../CommissioningController.js";
 import { Aggregator } from "./Aggregator.js";
 import { ComposedDevice } from "./ComposedDevice.js";
 import { PairedDevice, RootEndpoint } from "./Device.js";
 import { DeviceInformation, DeviceInformationData } from "./DeviceInformation.js";
-import {
-    DeviceTypeDefinition,
-    DeviceTypes,
-    getDeviceTypeDefinitionFromModelByCode,
-    UnknownDeviceType,
-} from "./DeviceTypes.js";
+import { DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode, UnknownDeviceType } from "./DeviceTypes.js";
 import { Endpoint } from "./Endpoint.js";
-import { asClusterClientInternal, isClusterClient } from "./TypeHelpers.js";
+import { asClusterClientInternal } from "./TypeHelpers.js";
 
 const logger = Logger.get("PairedNode");
 
@@ -610,7 +610,7 @@ export class PairedNode {
                 }
 
                 const state = endpoint.stateOf(behavior);
-                const attributes = behavior.cluster.attributes;
+                const attributes = behavior.cluster.attributes ?? {};
                 for (const attribute of properties ?? Object.keys(attributes)) {
                     let attributeId = parseInt(attribute, 10);
                     if (isNaN(attributeId)) {
@@ -624,9 +624,9 @@ export class PairedNode {
                     // We need to determine the attribute name for the API
                     let attributeName = this.#attributeIdToNameMap.get(attrKey);
                     if (attributeName === undefined) {
-                        const clusterDef = getClusterById(clusterId);
-                        const attributeDef = getClusterAttributeById(clusterDef, attributeId as AttributeId);
-                        attributeName = attributeDef?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
+                        const clusterModel = Matter.clusters(clusterId);
+                        const attrModel = clusterModel?.attributes(attributeId);
+                        attributeName = attrModel ? attrModel.propertyName : `Unknown (${Diagnostic.hex(attributeId)})`;
                         this.#attributeIdToNameMap.set(attrKey, attributeName);
                     }
                     const value = (state as Val.Struct)[attribute];
@@ -649,7 +649,7 @@ export class PairedNode {
                     }
                     logger.debug(
                         this.#peerAddress,
-                        `Trigger attribute update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${attributeId} to ${Diagnostic.json(value)}`,
+                        `Trigger attribute update for ${endpointId}.${cluster?.name ?? Matter.clusters(clusterId)?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(value)}`,
                     );
                     if (cluster !== undefined) {
                         asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId as AttributeId, value);
@@ -681,7 +681,7 @@ export class PairedNode {
                         endpointId,
                         clusterId,
                         eventId,
-                        eventName: camelize(event.name),
+                        eventName: event.propertyName,
                     },
                     events: [{ eventNumber: number, epochTimestamp, priority, data: payload }],
                 };
@@ -693,7 +693,7 @@ export class PairedNode {
                 }
                 logger.debug(
                     this.#peerAddress,
-                    `Trigger event update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${eventId} for ${data.events.length} events`,
+                    `Trigger event update for ${endpointId}.${cluster?.name ?? Matter.clusters(clusterId)?.name ?? Diagnostic.hex(clusterId)}.${eventId} for ${data.events.length} events`,
                 );
                 if (cluster !== undefined) {
                     asClusterClientInternal(cluster)._triggerEventUpdate(eventId, data.events);
@@ -818,16 +818,16 @@ export class PairedNode {
         _value: any,
     ) {
         // Any change in the Descriptor Cluster partsList attribute requires a reinitialization of the endpoint structure
-        if (clusterId === Descriptor.Complete.id) {
+        if (clusterId === Descriptor.id) {
             switch (attributeId) {
-                case Descriptor.Complete.attributes.partsList.id:
-                case Descriptor.Complete.attributes.serverList.id:
-                case Descriptor.Complete.attributes.clientList.id:
-                case Descriptor.Complete.attributes.deviceTypeList.id:
+                case Descriptor.attributes.partsList.id:
+                case Descriptor.attributes.serverList.id:
+                case Descriptor.attributes.clientList.id:
+                case Descriptor.attributes.deviceTypeList.id:
                     this.#registeredEndpointStructureChanges.set(endpointId, null); // full endpoint update needed
                     return;
             }
-        } else if (clusterId === BasicInformation.Cluster.id) {
+        } else if (clusterId === BasicInformation.id) {
             this.#deviceInformationUpdateNeeded = true;
         }
         switch (attributeId) {
@@ -848,8 +848,8 @@ export class PairedNode {
         /*
         TODO: Do we want to move the "longer reconnection timeframe for OTA reboots into new logic?
         if (
-            clusterId === OtaSoftwareUpdateRequestor.Cluster.id &&
-            attributeId == OtaSoftwareUpdateRequestor.Cluster.attributes.updateState.id
+            clusterId === OtaSoftwareUpdateRequestor.id &&
+            attributeId == OtaSoftwareUpdateRequestor.attributes.updateState.id
         ) {
             if (value === OtaSoftwareUpdateRequestor.UpdateState.Applying) {
                 this.#nodeShutdownReason = NodeShutDownReason.ForUpdate;
@@ -860,7 +860,7 @@ export class PairedNode {
 
     #checkEventsForNeededStructureUpdate(_endpointId: EndpointNumber, clusterId: ClusterId, eventId: EventId) {
         // When we subscribe all data here then we can also catch this case and handle it
-        if (clusterId === BasicInformation.Cluster.id && eventId === BasicInformation.Cluster.events.shutDown.id) {
+        if (clusterId === BasicInformation.id && eventId === BasicInformation.events.shutDown.id) {
             this.#handleNodeShutdown();
         }
     }
@@ -939,11 +939,6 @@ export class PairedNode {
             areNumberListsSame(
                 device.getAllClusterClients().map(({ id }) => id),
                 descriptorData.serverList,
-            ) &&
-            // Check if the cluster servers are the same - they map to the clientList attribute
-            areNumberListsSame(
-                device.getAllClusterServers().map(({ id }) => id),
-                descriptorData.clientList,
             )
         );
     }
@@ -1181,74 +1176,38 @@ export class PairedNode {
             throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
         }
 
-        const endpointClusters = Array<ClusterServerObj | ClusterClientObj>();
+        const endpointClusters = Array<ClusterClientObj>();
 
         // Add ClusterClients for all server clusters of the device
         for (const clusterId of descriptorData.serverList) {
-            const cluster = getClusterById(clusterId);
-            let clusterName = cluster.name;
-            if (cluster.unknown) {
-                clusterName = `Cluster$${cluster.id.toString(16)}`;
-            }
-            const data = (endpoint.state as any)[camelize(clusterName)];
-            const clusterClient = ClusterClient(cluster, endpointId, interactionClient, data);
-            endpointClusters.push(clusterClient);
-        }
-
-        // TODO use the attributes attributeList, acceptedCommands, generatedCommands to create the ClusterClient/Server objects
-        // Add ClusterServers for all client clusters of the device
-        for (const clusterId of descriptorData.clientList) {
-            const cluster = getClusterById(clusterId);
-            const clusterData = {} as AttributeInitialValues<Attributes>; // TODO correct typing
-            // Todo add logic for Events
-            endpointClusters.push(
-                ClusterServer(
-                    cluster,
-                    /*clusterData.featureMap,*/ clusterData,
-                    {},
-                    undefined,
-                    true,
-                ) as ClusterServerObj,
-            ); // TODO Add Default handler!
+            const clusterModel = Matter.clusters(clusterId);
+            const cluster = (
+                clusterModel !== undefined
+                    ? ClusterType(clusterModel)
+                    : ClusterType(new ClusterModel({ id: clusterId, name: `Cluster$${clusterId.toString(16)}` }))
+            ) as ClusterType.Concrete;
+            const data = (endpoint.state as any)[camelize(cluster.name)];
+            endpointClusters.push(ClusterClient(cluster, endpointId, interactionClient, data) as ClusterClientObj);
         }
 
         if (endpointId === 0) {
             // Endpoint 0 is the root endpoint, so we use a RootEndpoint object
             const rootEndpoint = new RootEndpoint(endpoint);
             rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
-            endpointClusters.forEach(cluster => {
-                if (isClusterServer(cluster)) {
-                    rootEndpoint.addClusterServer(cluster);
-                } else if (isClusterClient(cluster)) {
-                    rootEndpoint.addClusterClient(cluster);
-                }
-            });
+            endpointClusters.forEach(cluster => rootEndpoint.addClusterClient(cluster));
             return rootEndpoint;
-        } else if (deviceTypes.find(deviceType => deviceType.code === DeviceTypes.AGGREGATOR.code) !== undefined) {
+        } else if (deviceTypes.find(deviceType => deviceType.code === AggregatorDt.id) !== undefined) {
             // When AGGREGATOR is in the device type list, this is an aggregator
             const aggregator = new Aggregator(endpoint, [], { endpointId });
             aggregator.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
-            endpointClusters.forEach(cluster => {
-                // TODO There should be none?
-                if (isClusterServer(cluster)) {
-                    aggregator.addClusterServer(cluster);
-                } else if (isClusterClient(cluster)) {
-                    aggregator.addClusterClient(cluster);
-                }
-            });
+            endpointClusters.forEach(cluster => aggregator.addClusterClient(cluster));
             return aggregator;
         } else {
             // It seems to be device but has a partsList, so it is a composed device
             if (descriptorData.partsList.length > 0) {
                 const composedDevice = new ComposedDevice(endpoint, deviceTypes[0], [], { endpointId });
                 composedDevice.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
-                endpointClusters.forEach(cluster => {
-                    if (isClusterServer(cluster)) {
-                        composedDevice.addClusterServer(cluster);
-                    } else if (isClusterClient(cluster)) {
-                        composedDevice.addClusterClient(cluster);
-                    }
-                });
+                endpointClusters.forEach(cluster => composedDevice.addClusterClient(cluster));
                 return composedDevice;
             } else {
                 // else it's a normal Device
@@ -1328,11 +1287,11 @@ export class PairedNode {
      * this case! Better use openEnhancedCommissioningWindow() instead.
      */
     async openBasicCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
-        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning.Cluster.with("Basic"));
+        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
         if (adminCommissioningCluster === undefined) {
             throw new ImplementationError(`AdministratorCommissioningCluster for node ${this.nodeId} not found.`);
         }
-        if (adminCommissioningCluster.supportedFeatures.basic === false) {
+        if (adminCommissioningCluster.supportedFeatures?.basic === false) {
             throw new ImplementationError(
                 `AdministratorCommissioningCluster for node ${this.nodeId} does not support basic commissioning.`,
             );
@@ -1355,7 +1314,7 @@ export class PairedNode {
 
     /** Opens an Enhanced Commissioning Window (uses a generated random Passcode) with the device. */
     async openEnhancedCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
-        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning.Cluster);
+        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
         if (adminCommissioningCluster === undefined) {
             throw new ImplementationError(`AdministratorCommissioningCluster for node ${this.nodeId} not found.`);
         }
@@ -1372,7 +1331,7 @@ export class PairedNode {
             }
         }
 
-        const basicInformationCluster = this.getRootClusterClient(BasicInformation.Cluster);
+        const basicInformationCluster = this.getRootClusterClient(BasicInformation);
         if (basicInformationCluster === undefined) {
             throw new ImplementationError(`BasicInformationCluster for node ${this.nodeId} not found.`);
         }
@@ -1442,46 +1401,26 @@ export class PairedNode {
     }
 
     /**
-     * Get a cluster server from the root endpoint. This is mainly used internally and not needed to be called by the user.
-     *
-     * @param cluster ClusterServer to get or undefined if not existing
-     */
-    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined {
-        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterServer(cluster);
-    }
-
-    /**
      * Get a cluster client from the root endpoint. This is mainly used internally and not needed to be called by the user.
      *
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined {
+    getRootClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
+    getRootClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterClient(cluster);
     }
 
     /**
-     * Get a cluster server from the root endpoint. This is mainly used internally and not needed to be called by the user.
-     *
-     * @param endpointId EndpointNumber to get the cluster from
-     * @param cluster ClusterServer to get or undefined if not existing
-     */
-    getClusterServerForDevice<const T extends ClusterType>(
-        endpointId: EndpointNumber,
-        cluster: T,
-    ): ClusterServerObj<T> | undefined {
-        return this.getDeviceById(endpointId)?.getClusterServer(cluster);
-    }
-
-    /**
      * Get a cluster client from the root endpoint. This is mainly used internally and not needed to be called by the user.
      *
      * @param endpointId EndpointNumber to get the cluster from
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getClusterClientForDevice<const T extends ClusterType>(
+    getClusterClientForDevice<const N extends ClusterType.Concrete>(
         endpointId: EndpointNumber,
-        cluster: T,
-    ): ClusterClientObj<T> | undefined {
+        cluster: N,
+    ): ClusterClientObj<N["Typing"]> | undefined;
+    getClusterClientForDevice(endpointId: EndpointNumber, cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.getDeviceById(endpointId)?.getClusterClient(cluster);
     }
 

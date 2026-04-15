@@ -477,7 +477,7 @@ export class ModelTraversal {
     /**
      * Search inherited scope for a named member.
      */
-    findMember(scope: Model | undefined, key: Children.Selector, allowedTags: ElementTag[]): Model | undefined {
+    findMember(scope: Model | undefined, key: Children.Selector, allowedTags?: ElementTag[]): Model | undefined {
         return this.operation(() => {
             while (scope) {
                 const result = scope.children.select(key, allowedTags, this.#dismissed);
@@ -583,28 +583,49 @@ export class ModelTraversal {
     }
 
     /**
-     * Similar to findType but operates with a qualified type name.
+     * Generic qualified path resolution.  Walks scope hierarchy searching for a dotted path.
      *
-     * Unlike findType, a qualified type may reference an element parented by any other, not just those within
-     * ScopeModels.
+     * {@link scope} is the starting point for the search — the equivalent of "cwd" were this a filesystem.
      *
-     * This is quite complicated and would be painfully slow except in practice we don't use many qualified types and
-     * those we do use resolve with few failing branches in the search once the root qualifier of the name matches.
+     * The {@link match} closure determines how each path segment resolves within a candidate parent.  It receives the
+     * segment name, the parent model to search, and whether this is the leaf (final) segment.  For type resolution,
+     * the leaf filters by element tag.  For member resolution, this walks inheritance via member().
+     *
+     * {@link options.boundary}, if provided, is a predicate that stops the parent walk.  When a scope matches the
+     * boundary, its inherited scopes are still searched but its parent is not.  After all scopes within the boundary
+     * are exhausted, {@link options.outerResolve} is called as a fallback.
+     *
+     * {@link options.outerResolve}, if provided, is the outermost fallback resolver — called after all natural scopes
+     * (within the boundary) are exhausted.  It receives the full path and the boundary scope (the last scope searched
+     * before the walk stopped).
      */
-    findQualifiedType(scope: Model | undefined, path: string[], tag: ElementTag): Model | undefined {
+    findQualified(
+        scope: Model | undefined,
+        path: string[],
+        match: (name: string, parent: Model, isLeaf: boolean) => Model | undefined,
+        options?: {
+            boundary?: (scope: Model) => boolean;
+            outerResolve?: (path: string[], boundaryScope: Model | undefined) => Model | undefined;
+        },
+    ): Model | undefined {
         if (!scope) {
             return;
         }
 
-        function resolve(scope: Model, position = 0): Model | undefined {
-            // The last position is the target model and must match tag type
-            if (position === path.length - 1) {
-                return scope.children.select(path[position], tag);
-            }
+        const lastPosition = path.length - 1;
 
-            // Intermediate positions are just namespaces into which we recurse
-            for (const subscope of scope.children.selectAll(path[position])) {
-                const result = resolve(subscope, position + 1);
+        function resolve(scope: Model, position = 0): Model | undefined {
+            const isLeaf = position === lastPosition;
+            const matched = match(path[position], scope, isLeaf);
+
+            if (matched) {
+                // If this is the last segment, we found our target
+                if (isLeaf) {
+                    return matched;
+                }
+
+                // Otherwise recurse into the matched model for the next segment
+                const result = resolve(matched, position + 1);
                 if (result) {
                     return result;
                 }
@@ -613,18 +634,24 @@ export class ModelTraversal {
             // Special case for "Matter" element which normally cannot be referenced.  This allows for creating
             // "absolute" paths by prefixing with "Matter.".
             if (position === 0 && scope.tag === ElementTag.Matter && path[0] === "Matter") {
-                const result = resolve(scope, position + 1);
-                if (result) {
-                    return result;
-                }
+                return resolve(scope, position + 1);
             }
 
             // Path is not resolvable in this scope
         }
 
+        const boundary = options?.boundary;
+        const outerResolve = options?.outerResolve;
+
         return this.operation(() => {
+            let boundaryScope: Model | undefined;
             const queue = Array<Model>(scope as Model);
+
             for (scope = queue.shift(); scope; scope = queue.shift()) {
+                if (!boundaryScope && boundary?.(scope)) {
+                    boundaryScope = scope;
+                }
+
                 // First attempt to resolve in the current scope
                 const resolved = resolve(scope);
                 if (resolved) {
@@ -637,12 +664,37 @@ export class ModelTraversal {
                     queue.unshift(inheritedScope);
                 }
 
-                // Search parent scope once all inherited scope is searched
-                const parent = this.findParent(scope);
-                if (parent) {
-                    queue.push(parent);
+                // Search parent scope once all inherited scope is searched (unless we hit the boundary)
+                if (!boundaryScope) {
+                    const parent = this.findParent(scope);
+                    if (parent) {
+                        queue.push(parent);
+                    }
                 }
             }
+
+            // outerResolve is the outermost fallback, called after all scopes within the boundary
+            if (outerResolve) {
+                return outerResolve(path, boundaryScope);
+            }
+        });
+    }
+
+    /**
+     * Similar to findType but operates with a qualified type name.
+     *
+     * Unlike findType, a qualified type may reference an element parented by any other, not just those within
+     * ScopeModels.
+     *
+     * Delegates to {@link findQualified}.  Intermediate segments match by name only; the leaf segment filters by
+     * element tag.
+     */
+    findQualifiedType(scope: Model | undefined, path: string[], tag: ElementTag): Model | undefined {
+        return this.findQualified(scope, path, (name, parent, isLeaf) => {
+            if (isLeaf) {
+                return parent.children.select(name, tag);
+            }
+            return parent.children.select(name);
         });
     }
 

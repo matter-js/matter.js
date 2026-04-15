@@ -48,6 +48,7 @@ import {
     systimeMs,
     systimeUs,
     uint16,
+    uint24,
     uint32,
     uint64,
     uint8,
@@ -57,6 +58,7 @@ import {
 import { TlvAny } from "./TlvAny.js";
 import { TlvArray } from "./TlvArray.js";
 import { TlvBoolean } from "./TlvBoolean.js";
+import { TlvNoArguments } from "./TlvNoArguments.js";
 import { TlvNullable } from "./TlvNullable.js";
 import {
     TlvBitmap,
@@ -76,23 +78,31 @@ import {
     TlvSysTimeMS,
     TlvSysTimeUs,
     TlvUInt16,
+    TlvUInt24,
     TlvUInt32,
     TlvUInt64,
     TlvUInt8,
 } from "./TlvNumber.js";
-import { TlvObject } from "./TlvObject.js";
+import { TlvField, TlvObject, TlvOptionalField } from "./TlvObject.js";
 import { TlvSchema } from "./TlvSchema.js";
 import { TlvByteString, TlvString } from "./TlvString.js";
 
 const cache = new WeakMap<ClusterModel | ValueModel, TlvSchema<unknown>>();
 
-export function TlvOfModel(model: ClusterModel | ValueModel) {
-    let tlv = cache.get(model);
-    if (tlv === undefined) {
-        tlv = generateTlv(model);
-        cache.set(model, tlv);
+/**
+ * Obtain the TLV schema for a model or namespace element.
+ *
+ * Accepts a {@link ClusterModel}, {@link ValueModel}, or an object with a `schema` property (e.g. a
+ * {@link ClusterType.Attribute}).
+ */
+export function TlvOfModel(source: ClusterModel | ValueModel | { schema: ClusterModel | ValueModel }) {
+    const model = "schema" in source && !(source instanceof ValueModel) ? source.schema : source;
+    let result = cache.get(model);
+    if (result === undefined) {
+        result = generateTlv(model);
+        cache.set(model, result);
     }
-    return tlv;
+    return result;
 }
 
 const NumberMapping: Record<string, TlvSchema<unknown>> = {
@@ -105,6 +115,7 @@ const NumberMapping: Record<string, TlvSchema<unknown>> = {
     // Unsigned int
     [uint8.name]: TlvUInt8,
     [uint16.name]: TlvUInt16,
+    [uint24.name]: TlvUInt24,
     [uint32.name]: TlvUInt32,
     [uint64.name]: TlvUInt64,
 
@@ -138,34 +149,48 @@ const NumberMapping: Record<string, TlvSchema<unknown>> = {
     [systimeUs.name]: TlvSysTimeUs,
     [systimeMs.name]: TlvSysTimeMS,
 
-    // The following are defined in the specification but we don't support them so they're apparently unused
+    // The following are defined in the specification but have no corresponding TlvSchema
     //[int24.name]: TlvInt24,
     //[int40.name]: TlvInt40,
     //[int48.name]: TlvInt48,
-    //[uint24.name]: TlvInt24,
-    //[uint40.name]: TlvInt40,
-    //[uint48.name]: TlvInt48,
+    //[uint40.name]: TlvUInt40,
+    //[uint48.name]: TlvUInt48,
     //[map64.name]: TlvUInt64,
 };
 
 function generateTlv(model: ClusterModel | ValueModel): TlvSchema<unknown> {
     const metatype = model.effectiveMetatype;
 
-    // Handle structs first because then we can exclude ClusterModel as type
+    // No type information (e.g. unknown attributes on custom clusters) — accept any TLV
+    if (metatype === undefined && model instanceof ValueModel) {
+        return TlvAny;
+    }
+
+    // Structs can be ClusterModel or ValueModel; handle separately since they don't require metabase
     if (metatype === Metatype.object) {
-        return generateStruct(model);
+        if (!(model instanceof ValueModel)) {
+            return generateStruct(model);
+        }
+
+        let tlv: TlvSchema<unknown> = generateStruct(model);
+
+        if (model.quality.nullable) {
+            tlv = TlvNullable(tlv);
+        }
+
+        return tlv;
     }
 
     if (!(model instanceof ValueModel)) {
         throw new InternalError(`Inappropriate use of ${model.tag} model as datatype`);
     }
 
-    let tlv: TlvSchema<unknown>;
-
     const metabase = model.metabase;
     if (metabase === undefined) {
         throw new InternalError(`No metabase for model ${model.name}`);
     }
+
+    let tlv: TlvSchema<unknown>;
 
     switch (metatype) {
         case Metatype.any:
@@ -221,19 +246,35 @@ function generateTlv(model: ClusterModel | ValueModel): TlvSchema<unknown> {
 }
 
 function generateStruct(model: ClusterModel | ValueModel) {
-    const entries = model.conformant.properties.map(p => [camelize(p.name), TlvOfModel(model)]);
-    const fields = Object.fromEntries(entries);
+    // TODO - opportunity to deduplicate struct schemas: when a model extends a defining model without changing
+    // conformant fields, we could reuse the TlvSchema from the defining model via definingModel lookup
+
+    // Use all fields without conformance filtering — struct fields represent physical TLV positions that must always
+    // be present in the TLV schema regardless of conformance (which is a logical constraint, not a wire-format one).
+    // Same reasoning as generateBitmap.
+    const properties = model.properties;
+
+    // Events and commands with no fields use TlvNoArguments which accepts both empty structs and void
+    if (!properties.length && model instanceof ValueModel) {
+        return TlvNoArguments;
+    }
+
+    const fields = {} as Record<string, any>;
+    for (const p of properties) {
+        const schema = TlvOfModel(p);
+        const id = p.id ?? 0;
+        fields[p.propertyName] = p.mandatory ? TlvField(id, schema) : TlvOptionalField(id, schema);
+    }
     return TlvObject(fields);
 }
 
 function generateBitmap(model: ValueModel) {
-    const { fields } = model.conformant;
-    if (!fields.length) {
-        return primitiveFallbackOf(model);
-    }
+    // Use all fields without conformance filtering — bitmap entries represent physical bit positions that must always
+    // be present in the TLV schema regardless of conformance (which is a logical constraint, not a wire-format one)
+    const fields = model.fields;
 
     const entries = fields.map(field => {
-        const name = camelize(field.name);
+        const name = camelize(field.title ?? field.name);
         const { constraint } = field;
 
         if (typeof constraint.value === "number") {
@@ -257,7 +298,7 @@ function generateBitmap(model: ValueModel) {
 }
 
 function generateList(model: ValueModel) {
-    const entry = model.conformant.fields.for("entry");
+    const entry = model.conformant.fields("entry");
 
     const bounds = ModelBounds.createLengthBounds(model);
 
@@ -265,7 +306,7 @@ function generateList(model: ValueModel) {
         return TlvArray(TlvAny, bounds);
     }
 
-    return TlvArray(TlvOfModel(model), bounds);
+    return TlvArray(TlvOfModel(entry), bounds);
 }
 
 function generateString(base: typeof TlvByteString | typeof TlvString, model: ValueModel) {
@@ -277,14 +318,20 @@ function generateString(base: typeof TlvByteString | typeof TlvString, model: Va
 }
 
 function generateInteger(model: ValueModel): TlvSchema<unknown> {
-    const base = model.metabase;
-    if (base === undefined) {
-        throw new InternalError(`No metabase for model ${model.path} type ${model.type}`);
+    // Walk the type chain checking each ancestor against NumberMapping.
+    // This finds specialized types like epoch-us before reaching the
+    // root primitive (uint64).  Mirrors the codegen approach in
+    // specializedNumberTypeFor() (NumberConstants.ts).
+    let tlv: TlvSchema<unknown> | undefined;
+    for (let base: ValueModel | undefined = model; base; base = base.base as ValueModel | undefined) {
+        tlv = NumberMapping[base.name];
+        if (tlv !== undefined) {
+            break;
+        }
     }
 
-    const tlv = NumberMapping[base.name];
     if (tlv === undefined) {
-        throw new InternalError(`No mapping for model ${model.path} metabase ${base.name}`);
+        throw new InternalError(`No numeric TLV mapping for model ${model.path} type ${model.type}`);
     }
 
     if ("bound" in tlv) {
@@ -295,18 +342,4 @@ function generateInteger(model: ValueModel): TlvSchema<unknown> {
     }
 
     return tlv;
-}
-
-/**
- * For bitmaps, if we have no fields defined, the element would be useless from matter.js if so constrained. So instead
- * revert to the primitive type.
- */
-function primitiveFallbackOf(model: ValueModel) {
-    const primitive = model.metabase?.primitiveBase;
-
-    if (primitive === undefined) {
-        throw new ImplementationError(`Could not determine primitive base for ${model.path}`);
-    }
-
-    return TlvOfModel(primitive);
 }

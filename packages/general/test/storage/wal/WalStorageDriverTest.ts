@@ -118,11 +118,102 @@ describe("WalStorageDriver", () => {
         await storage.close();
     });
 
+    it("allows root-level keys with empty context", async () => {
+        const storage = await createStorage();
+        await storage.set([], "key", "value");
+        expect(await storage.get([], "key")).equal("value");
+        expect(await storage.keys([])).deep.equal(["key"]);
+        await storage.delete([], "key");
+        expect(await storage.keys([])).deep.equal([]);
+        await storage.close();
+    });
+
+    it("root-level keys coexist with context keys", async () => {
+        const storage = await createStorage();
+
+        await storage.set([], "rootKey", "rootValue");
+        await storage.set([], { rootA: "a", rootB: "b" });
+        await storage.set(["ctx"], "ctxKey", "ctxValue");
+        await storage.set(["ctx", "sub"], "subKey", "subValue");
+
+        // Root-level keys are isolated
+        expect((await storage.keys([])).sort()).deep.equal(["rootA", "rootB", "rootKey"]);
+        expect(await storage.get([], "rootKey")).equal("rootValue");
+        expect(await storage.values([])).deep.equal({ rootKey: "rootValue", rootA: "a", rootB: "b" });
+
+        // Context keys are unaffected
+        expect(await storage.keys(["ctx"])).deep.equal(["ctxKey"]);
+        expect(await storage.get(["ctx"], "ctxKey")).equal("ctxValue");
+
+        // contexts([]) still returns top-level contexts
+        expect(await storage.contexts([])).deep.members(["ctx"]);
+
+        // Delete root key doesn't affect context keys
+        await storage.delete([], "rootKey");
+        expect((await storage.keys([])).sort()).deep.equal(["rootA", "rootB"]);
+        expect(await storage.keys(["ctx"])).deep.equal(["ctxKey"]);
+
+        await storage.close();
+    });
+
+    it("root-level keys persist across restart", async () => {
+        const storageDir = fs.directory("storage");
+        const opts: WalStorageDriver.Options = {
+            storageDir,
+            fsync: false,
+            snapshotInterval: Seconds(600),
+            cleanInterval: Seconds(1200),
+        };
+
+        const storage = new WalStorageDriver(undefined, opts);
+        await storage.initialize();
+        await storage.set([], "rootKey", "persisted");
+        await storage.set(["ctx"], "ctxKey", "alsoHere");
+        await storage.close();
+
+        const storage2 = new WalStorageDriver(undefined, opts);
+        await storage2.initialize();
+        expect(await storage2.get([], "rootKey")).equal("persisted");
+        expect(await storage2.get(["ctx"], "ctxKey")).equal("alsoHere");
+        expect(await storage2.keys([])).deep.equal(["rootKey"]);
+        await storage2.close();
+    });
+
     it("supports nested contexts", async () => {
         const storage = await createStorage();
         await storage.set(["a", "b", "c"], "key", "deep");
         expect(await storage.get(["a", "b", "c"], "key")).equal("deep");
         await storage.close();
+    });
+
+    it("handles concurrent writes without data loss", async () => {
+        const storageDir = fs.directory("storage");
+        const storage = new WalStorageDriver(undefined, {
+            storageDir,
+            fsync: false,
+            snapshotInterval: Seconds(600),
+            cleanInterval: Seconds(1200),
+        });
+        await storage.initialize();
+
+        // Fire 20 concurrent set() calls to different keys
+        const count = 20;
+        await Promise.all(Array.from({ length: count }, (_, i) => storage.set(["ctx"], `key${i}`, `value${i}`)));
+        await storage.close();
+
+        // Reopen and verify every write landed
+        const storage2 = new WalStorageDriver(undefined, {
+            storageDir,
+            fsync: false,
+            snapshotInterval: Seconds(600),
+            cleanInterval: Seconds(1200),
+        });
+        await storage2.initialize();
+
+        for (let i = 0; i < count; i++) {
+            expect(await storage2.get(["ctx"], `key${i}`)).equal(`value${i}`);
+        }
+        await storage2.close();
     });
 
     describe("transactions", () => {
@@ -581,34 +672,6 @@ describe("WalStorageDriver", () => {
 
             await expect(storage.snapshotAtCommit()).rejectedWith("No data available");
 
-            await storage.close();
-        });
-    });
-
-    describe("blobs", () => {
-        it("writes and reads a blob", async () => {
-            const storage = await createStorage();
-
-            const data = new Uint8Array([1, 2, 3, 4, 5]);
-            const stream = new ReadableStream<Uint8Array>({
-                start(controller) {
-                    controller.enqueue(data);
-                    controller.close();
-                },
-            });
-            await storage.writeBlobFromStream(["ctx"], "blob-key", stream);
-
-            const blob = await storage.openBlob(["ctx"], "blob-key");
-            const bytes = new Uint8Array(await blob.arrayBuffer());
-            expect(bytes).deep.equal(data);
-
-            await storage.close();
-        });
-
-        it("returns empty blob for nonexistent key", async () => {
-            const storage = await createStorage();
-            const blob = await storage.openBlob(["ctx"], "missing");
-            expect(blob.size).equal(0);
             await storage.close();
         });
     });

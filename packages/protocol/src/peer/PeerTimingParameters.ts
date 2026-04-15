@@ -57,9 +57,60 @@ export interface PeerTimingParameters {
     delayAfterUnhandledError: Duration;
 
     /**
-     * Minimum delay between MRP loop "kicks".
+     * Minimum interval between kick signals reaching the connection handler.
+     *
+     * Rapid-fire kicks (e.g. from mDNS bursts) are throttled at the observable level so only one
+     * signal per interval is delivered.
      */
-    minimumTimeBetweenMrpKicks: Duration;
+    kickThrottleInterval: Duration;
+
+    /**
+     * Minimum number of MRP retransmissions before a kick may restart the exchange.
+     *
+     * Gives the peer a fair chance to respond before aborting. A kick arriving while the exchange
+     * has retransmitted fewer than this many times is suppressed.
+     */
+    kickMinRetransmissions: number;
+
+    /**
+     * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
+     *
+     * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
+     * These cooldowns prevent restarts from happening too frequently.
+     */
+    kickRestartCooldown: {
+        /** Cooldown after a restart triggered by DNS-SD address change. */
+        addressChange: Duration;
+
+        /** Cooldown after a restart triggered by an explicit {@link Peer.kick} call. */
+        connect: Duration;
+    };
+
+    /**
+     * Delay after detecting mDNS address changes before probing the session.
+     *
+     * Address changes can arrive in bursts (e.g. Thread network rekey).  We wait this long after the last
+     * change before checking whether the session's IP is still valid.
+     */
+    addressChangeStabilizationDelay: Duration;
+
+    /**
+     * Probe cooldown range for address-change probes on the same IP.
+     *
+     * When mDNS keeps reporting the session IP as gone but probes succeed, the cooldown grows
+     * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  The cooldown
+     * resets when the probed IP changes or a probe fails.
+     *
+     * Probes are also suppressed while the session is actively receiving data — the cooldown
+     * is measured from whichever is more recent: the last probe or the last received message.
+     */
+    addressChangeProbeCooldown: {
+        /** Minimum delay before sending a probe (first two probes use this). */
+        minimum: Duration;
+
+        /** Upper bound — cooldown stops growing beyond this. */
+        maximum: Duration;
+    };
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -111,6 +162,16 @@ export namespace PeerTimingParameters {
         delayAfterNetworkError: Seconds(15),
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
-        minimumTimeBetweenMrpKicks: Seconds(3),
+        kickThrottleInterval: Seconds(3),
+        kickMinRetransmissions: 2,
+        kickRestartCooldown: {
+            addressChange: Minutes(30),
+            connect: Minutes(10),
+        },
+        addressChangeStabilizationDelay: Seconds(10),
+        addressChangeProbeCooldown: {
+            minimum: Minutes(2),
+            maximum: Minutes(60),
+        },
     };
 }

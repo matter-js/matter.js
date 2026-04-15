@@ -112,14 +112,14 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     async #nodeOnline() {
         for (const peer of this) {
-            if (!peer.lifecycle.isCommissioned) {
+            if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
                 continue;
             }
             try {
                 await peer.start();
             } catch (e) {
                 MatterError.accept(e);
-                logger.error(`Error starting peer ${peer}:`, e);
+                logger.warn(`Error starting peer ${peer}:`, e);
             }
         }
         this.#manageExpiration();

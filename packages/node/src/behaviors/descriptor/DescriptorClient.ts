@@ -10,7 +10,7 @@ import { Descriptor } from "@matter/types/clusters/descriptor";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const DescriptorClientConstructor = ClientBehavior(Descriptor.Complete);
+export const DescriptorClientConstructor = ClientBehavior(Descriptor);
 export interface DescriptorClient extends InstanceType<typeof DescriptorClientConstructor> {}
 export interface DescriptorClientConstructor extends Identity<typeof DescriptorClientConstructor> {}
 export const DescriptorClient: DescriptorClientConstructor = DescriptorClientConstructor;

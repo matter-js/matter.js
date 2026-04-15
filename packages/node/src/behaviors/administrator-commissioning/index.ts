@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./AdministratorCommissioningInterface.js";
 export * from "./AdministratorCommissioningBehavior.js";
 export * from "./AdministratorCommissioningServer.js";
 export * from "./AdministratorCommissioningClient.js";

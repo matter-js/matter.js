@@ -8,7 +8,6 @@
 
 import { ElectricalPowerMeasurement } from "@matter/types/clusters/electrical-power-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,8 +17,7 @@ import { Identity } from "@matter/general";
  * ElectricalPowerMeasurement.Cluster requires you to enable one or more optional features. You can do so using
  * {@link ElectricalPowerMeasurementBehavior.with}.
  */
-export const ElectricalPowerMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(ElectricalPowerMeasurement.Base));
+export const ElectricalPowerMeasurementBehaviorConstructor = ClusterBehavior.for(ElectricalPowerMeasurement);
 
 export interface ElectricalPowerMeasurementBehaviorConstructor extends Identity<typeof ElectricalPowerMeasurementBehaviorConstructor> {}
 export const ElectricalPowerMeasurementBehavior: ElectricalPowerMeasurementBehaviorConstructor = ElectricalPowerMeasurementBehaviorConstructor;

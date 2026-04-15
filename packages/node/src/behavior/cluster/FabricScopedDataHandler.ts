@@ -8,9 +8,10 @@ import type { Behavior } from "#behavior/Behavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { createPromise, deepCopy, isObject, Logger, MaybePromise, Seconds, withTimeout } from "@matter/general";
+import { createPromise, isObject, Logger, MaybePromise, Seconds, withTimeout } from "@matter/general";
+import { Access, ClusterModel, Schema } from "@matter/model";
 import { OccurrenceManager, Val } from "@matter/protocol";
-import type { ClusterType, FabricIndex, ObjectSchema } from "@matter/types";
+import type { ClusterType, FabricIndex } from "@matter/types";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
 
 const logger = Logger.get("FabricScopedDataHandler");
@@ -45,15 +46,25 @@ async function sanitizeAttributeData(
 ) {
     const stateUpdatePromises = new Array<Promise<void>>();
 
+    // Build a set of fabric-scoped attribute names from the schema
+    const fabricScopedAttrs = new Set<string>();
+    const schema = Schema(type) as ClusterModel;
+    if (schema.tag === "cluster") {
+        for (const attr of schema.attributes) {
+            if (attr.effectiveAccess.fabric === Access.Fabric.Scoped) {
+                fabricScopedAttrs.add(attr.propertyName);
+            }
+        }
+    }
+
     const stateUpdate = {} as Val.Struct;
     // Iterate over all attributes and check if they are fabric-scoped
     for (const attributeName of supportedAttributes) {
-        const attr = cluster.attributes[attributeName];
-        if (attr.fabricScoped) {
+        if (fabricScopedAttrs.has(attributeName)) {
             const value = (endpoint.stateOf(type) as Val.Struct)[attributeName];
             // If the value contains data for the fabric being removed, remove the data
             if (Array.isArray(value) && value.length > 0) {
-                const filtered = deepCopy(value).filter(entry => allowedIndices.includes(entry.fabricIndex));
+                const filtered = value.filter(entry => allowedIndices.includes(entry.fabricIndex));
                 if (filtered.length !== value.length) {
                     stateUpdate[attributeName] = filtered;
                 }
@@ -96,10 +107,22 @@ export async function limitNodeDataToAllowedFabrics(node: ServerNode, allowedInd
             }
             if (elements.events.size) {
                 // If we have events also check if they are fabric scoped and collect them
-                for (const eventName of elements.events) {
-                    const event = cluster.events[eventName];
-                    if ((event.schema as ObjectSchema<any>).isFabricScoped) {
-                        fabricRelevantEvents.add(`${cluster.id}-${event.id}`);
+                const clusterSchema = Schema(type) as ClusterModel;
+                const nsEvents = cluster.events as Record<string, ClusterType.Event> | undefined;
+                if (nsEvents && clusterSchema.tag === "cluster") {
+                    // Build set of fabric-scoped event names from schema
+                    const fabricScopedEvents = new Set<string>();
+                    for (const event of clusterSchema.events) {
+                        const fabric = event.effectiveAccess.fabric;
+                        if (fabric === Access.Fabric.Scoped || fabric === Access.Fabric.Sensitive) {
+                            fabricScopedEvents.add(event.propertyName);
+                        }
+                    }
+                    for (const eventName of elements.events) {
+                        const nsEvent = nsEvents[eventName];
+                        if (nsEvent && fabricScopedEvents.has(eventName)) {
+                            fabricRelevantEvents.add(`${(cluster as { id?: number }).id}-${nsEvent.id}`);
+                        }
                     }
                 }
             }

@@ -13,6 +13,7 @@ import type { Filesystem } from "./Filesystem.js";
 export abstract class FilesystemNode {
     abstract readonly kind: "file" | "directory";
     abstract readonly name: string;
+    abstract readonly path: string;
 
     /**
      * Back-reference to the root {@link Filesystem} that owns this node.

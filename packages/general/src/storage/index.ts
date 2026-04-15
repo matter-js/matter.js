@@ -4,13 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./BaseStorageDriver.js";
+export * from "./BlobStorageDriver.js";
 export * from "./BytesStreamReader.js";
 export * from "./DatafileRoot.js";
 export * from "./DataNamespace.js";
+export * from "./MemoryBlobStorageDriver.js";
 export * from "./MemoryStorageDriver.js";
 export * from "./MockStorageService.js";
 export * from "./StorageContext.js";
 export * from "./StorageDriver.js";
+export * from "./StorageDriverHandle.js";
 export * from "./StorageManager.js";
 export * from "./StorageMigration.js";
 export * from "./StorageService.js";
@@ -22,3 +26,5 @@ import { MemoryStorageDriver } from "./MemoryStorageDriver.js";
 
 /** @deprecated Use {@link MemoryStorageDriver} */
 export const StorageBackendMemory = MemoryStorageDriver;
+/** @deprecated Use {@link MemoryStorageDriver} */
+export type StorageBackendMemory = MemoryStorageDriver;

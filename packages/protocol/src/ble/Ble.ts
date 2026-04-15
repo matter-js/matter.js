@@ -6,7 +6,7 @@
 
 import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, MatterError } from "@matter/general";
 import { Scanner } from "../common/Scanner.js";
-import { BLE_MAX_MATTER_PAYLOAD_SIZE } from "./BleConsts.js";
+import { MatterBle } from "./BleConsts.js";
 
 export class BleError extends MatterError {}
 
@@ -26,7 +26,7 @@ export interface BlePeripheralInterface extends ConnectionlessTransport {
 }
 
 export abstract class BleChannel<T> implements Channel<T> {
-    readonly maxPayloadSize = BLE_MAX_MATTER_PAYLOAD_SIZE;
+    readonly maxPayloadSize = MatterBle.MAX_MATTER_PAYLOAD_SIZE;
     readonly isReliable = true; // BLE uses BTP which is reliable
     readonly supportsLargeMessages = false;
     readonly type = ChannelType.BLE;

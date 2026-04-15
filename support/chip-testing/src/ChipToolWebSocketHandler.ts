@@ -162,13 +162,13 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
         return null;
     }
     if (Array.isArray(value) && model.type === "list") {
-        return value.map(v => convertMatterToWebSocketTagBased(v, model.members[0], clusterModel));
+        return value.map(v => convertMatterToWebSocketTagBased(v, model.members.at(0)!, clusterModel));
     }
     if (isObject(value) && model.metabase?.name === "struct") {
         const valueKeys = Object.keys(value);
         const result: { [key: string]: any } = {};
         for (const member of model.members) {
-            const name = camelize(member.name);
+            const name = member.propertyName;
             if (member.name !== undefined && member.id !== undefined && valueKeys.includes(name)) {
                 result[member.id] = convertMatterToWebSocketTagBased(value[name], member, clusterModel);
             }
@@ -180,8 +180,8 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
 
         for (const member of clusterModel.scope.membersOf(model)) {
             const memberValue =
-                member.name !== undefined && value[camelize(member.name)]
-                    ? value[camelize(member.name)]
+                member.name !== undefined && value[member.propertyName]
+                    ? value[member.propertyName]
                     : member.description !== undefined && value[camelize(member.description)]
                       ? value[camelize(member.description)]
                       : undefined;
@@ -249,7 +249,7 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
             value = parseChipJSON(value);
         }
         if (Array.isArray(value)) {
-            return value.map(v => convertWebsocketDataToMatter(v, model.members[0]));
+            return value.map(v => convertWebsocketDataToMatter(v, model.members.at(0)!));
         }
     }
 
@@ -272,7 +272,7 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
             valueKeys.forEach(key => {
                 const member = members[camelize(key).toLowerCase()];
                 if (member !== undefined) {
-                    result[camelize(member.name)] = convertWebsocketDataToMatter(value[key], member);
+                    result[member.propertyName] = convertWebsocketDataToMatter(value[key], member);
                 }
             });
             return result;
@@ -309,7 +309,7 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
                     member.name !== undefined &&
                     numberValue & (1 << parseInt(member.constraint as unknown as string))
                 ) {
-                    bitmapValue[camelize(member.name)] = true;
+                    bitmapValue[member.propertyName] = true;
                 }
             });
             return bitmapValue;
@@ -1197,7 +1197,7 @@ export class ChipToolWebSocketHandler {
                 nodeId,
                 endpointId: GroupId.isGroupNodeId(nodeId) ? undefined : EndpointNumber(parseInt(endpointId)),
                 clusterId: clusterData.clusterId,
-                attributeName: camelize(attributeModel.name),
+                attributeName: attributeModel.propertyName,
                 value: matterValue,
             });
             return { results: [] };

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes, fromJson, toJson } from "./StringifyTools.js";
 
@@ -44,6 +43,9 @@ export class WebStorageDriver extends StorageDriver {
     }
 
     initialize() {
+        if (this.#initialized) {
+            throw new StorageError("Storage already initialized!");
+        }
         this.#initialized = true;
     }
 
@@ -55,18 +57,13 @@ export class WebStorageDriver extends StorageDriver {
         return this.#storage.clear();
     }
 
-    getContextBaseKey(contexts: string[], allowEmptyContext = false) {
-        const contextKey = contexts.join(".");
-        if (
-            (!contextKey.length && !allowEmptyContext) ||
-            contextKey.includes("..") ||
-            contextKey.startsWith(".") ||
-            contextKey.endsWith(".")
-        )
-            throw new StorageError(
-                "Context must not be empty and must not contain empty segments or leading or trailing dots.",
-            );
-        return contextKey;
+    getContextBaseKey(contexts: string[]) {
+        for (const ctx of contexts) {
+            if (!ctx.length || ctx.includes(".")) {
+                throw new StorageError("Context must not contain empty segments or leading or trailing dots.");
+            }
+        }
+        return contexts.join(".");
     }
 
     buildStorageKey(contexts: string[], key: string) {
@@ -74,21 +71,13 @@ export class WebStorageDriver extends StorageDriver {
             throw new StorageError("Key must not be an empty string.");
         }
         const contextKey = this.getContextBaseKey(contexts);
-        return `${contextKey}.${key}`;
+        return contextKey.length ? `${contextKey}.${key}` : key;
     }
 
     async get<T extends SupportedStorageTypes>(contexts: string[], key: string): Promise<T | undefined> {
         const value = await this.#storage.getItem(this.buildStorageKey(contexts, key));
         if (value === null) return undefined;
         return fromJson(value) as T;
-    }
-
-    async openBlob(_contexts: string[], _key: string): Promise<Blob> {
-        throw new StorageError("Blob storage is not supported by WebStorageDriver.");
-    }
-
-    async writeBlobFromStream(_contexts: string[], _key: string, _stream: ReadableStream<Bytes>): Promise<void> {
-        throw new StorageError("Blob storage is not supported by WebStorageDriver.");
     }
 
     set(contexts: string[], key: string, value: SupportedStorageTypes): Promise<void>;
@@ -116,11 +105,19 @@ export class WebStorageDriver extends StorageDriver {
     async keys(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts);
         const keys = [];
-        const contextKeyStart = `${contextKey}.`;
         const allKeys = await this.#storage.getAllKeys();
-        for (const key of allKeys) {
-            if (key.startsWith(contextKeyStart) && !key.includes(".", contextKeyStart.length)) {
-                keys.push(key.substring(contextKeyStart.length));
+        if (contextKey.length) {
+            const contextKeyStart = `${contextKey}.`;
+            for (const key of allKeys) {
+                if (key.startsWith(contextKeyStart) && !key.includes(".", contextKeyStart.length)) {
+                    keys.push(key.substring(contextKeyStart.length));
+                }
+            }
+        } else {
+            for (const key of allKeys) {
+                if (!key.includes(".")) {
+                    keys.push(key);
+                }
             }
         }
         return keys;
@@ -141,7 +138,7 @@ export class WebStorageDriver extends StorageDriver {
     }
 
     async contexts(contexts: string[]) {
-        const contextKey = this.getContextBaseKey(contexts, true);
+        const contextKey = this.getContextBaseKey(contexts);
         const startContextKey = contextKey.length ? `${contextKey}.` : "";
         const foundContexts = new Set<string>();
         const allKeys = await this.#storage.getAllKeys();
@@ -157,7 +154,7 @@ export class WebStorageDriver extends StorageDriver {
     }
 
     async clearAll(contexts: string[]) {
-        const contextKey = this.getContextBaseKey(contexts, true);
+        const contextKey = this.getContextBaseKey(contexts);
         const startContextKey = contextKey.length ? `${contextKey}.` : "";
         const allKeys = await this.#storage.getAllKeys();
         const keysToDelete = [];

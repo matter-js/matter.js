@@ -10,7 +10,7 @@ import { NetworkCommissioning } from "@matter/types/clusters/network-commissioni
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const NetworkCommissioningClientConstructor = ClientBehavior(NetworkCommissioning.Complete);
+export const NetworkCommissioningClientConstructor = ClientBehavior(NetworkCommissioning);
 export interface NetworkCommissioningClient extends InstanceType<typeof NetworkCommissioningClientConstructor> {}
 export interface NetworkCommissioningClientConstructor extends Identity<typeof NetworkCommissioningClientConstructor> {}
 export const NetworkCommissioningClient: NetworkCommissioningClientConstructor = NetworkCommissioningClientConstructor;

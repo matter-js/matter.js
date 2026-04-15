@@ -38,32 +38,18 @@ export class BehaviorFile extends TsFile {
 
         const builder = this.builder(`export const ${constructorName} = ClusterBehavior`);
 
-        // Install the interface if there are commands
-        const definingCluster = this.#variance.cluster;
-        if (definingCluster.commands.length) {
-            const interfaceName = `${definingCluster.name}Interface`;
+        // Just pass the namespace — for() infers N from the namespace's Typing phantom
+        const nsName = this.cluster.name;
 
-            if (definingCluster === this.cluster) {
-                // The cluster defines its own interface
-                this.addImport(`./${interfaceName}.js`, interfaceName);
-            } else {
-                // This is an alias so just import the interface of the base cluster
-                this.addImport(`../${decamelize(definingCluster.name)}/${interfaceName}.js`, interfaceName);
-            }
-
-            builder.atom(`withInterface<${interfaceName}>()`);
-        }
-
-        // Inject the cluster and appropriate documentation
+        // Inject the cluster namespace and appropriate documentation
         let extraDocs;
         if (this.#variance.requiresFeatures) {
-            this.addImport(`@matter/types`, "ClusterType");
-            builder.atom(`for(ClusterType(${this.cluster.name}.Base))`);
+            builder.atom(`for(${nsName})`);
             extraDocs =
                 `${this.cluster.name}.Cluster requires you to enable one or more optional features.  ` +
                 `You can do so using {@link ${this.definitionName}.with}.`;
         } else {
-            builder.atom(`for(${this.cluster.name}.Cluster)`);
+            builder.atom(`for(${nsName})`);
             if (Object.keys(this.#variance.components).length) {
                 extraDocs =
                     `This class does not have optional features of ${this.cluster.name}.Cluster enabled.  ` +

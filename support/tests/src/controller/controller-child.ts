@@ -7,6 +7,7 @@
 import { Environment } from "@matter/main";
 import { CommissioningController } from "@project-chip/matter.js";
 import { boot, nodeIdFor } from "../common/process-child.js";
+import "../common/test-environment.js";
 
 boot({
     async commission(message) {

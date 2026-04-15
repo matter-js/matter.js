@@ -5,13 +5,10 @@
  */
 
 import type { Directory } from "../../fs/Directory.js";
-import type { SupportedStorageTypes } from "../StringifyTools.js";
-import { type WalCommitId, parseSegmentFilename } from "./WalCommit.js";
+import { type StoreData, type WalCommitId, parseSegmentFilename } from "./WalCommit.js";
 import type { WalReader } from "./WalReader.js";
 import { WalSnapshot } from "./WalSnapshot.js";
 import { applyCommit } from "./WalTransaction.js";
-
-type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 
 /**
  * Prunes old WAL segments that have been fully captured in a snapshot.

@@ -15,6 +15,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -99,7 +100,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         store.write = RemoteWriter(this, initializer.structure);
 
-        initializer.structure.loadCache();
+        ClientCacheBuffer.configure(this, store);
+
+        initializer.structure.loadCache(store.endpointStores);
 
         const promise = super.initialize();
 

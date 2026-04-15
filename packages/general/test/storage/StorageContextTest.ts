@@ -28,8 +28,7 @@ const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
 async function create(contexts = CONTEXTx1) {
-    const storage = new MemoryStorageDriver();
-    storage.initialize();
+    const storage = MemoryStorageDriver.create();
     const storageContext = new StorageContext(storage, contexts);
     return { storage, storageContext };
 }
@@ -253,61 +252,5 @@ describe("StorageContext", () => {
         expect(storageContext.has("key3")).equal(false);
         expect(storageContext.has("key4")).equal(false);
         expect(subContext.has("subkey")).equal(false);
-    });
-
-    describe("Blob storage functions", () => {
-        let storage: MemoryStorageDriver;
-        let blobContext: StorageContext;
-
-        const CONTEXT = ["test"];
-        const KEY = "blobkey";
-
-        beforeEach(async () => {
-            storage = new MemoryStorageDriver();
-            storage.initialize();
-            blobContext = new StorageContext(storage, CONTEXT);
-        });
-
-        it("should write and read a blob", async () => {
-            const data = new Uint8Array([1, 2, 3, 4]);
-            const stream = new ReadableStream<Bytes>({
-                start(controller) {
-                    controller.enqueue(data);
-                    controller.close();
-                },
-            });
-
-            await blobContext.writeBlobFromStream(KEY, stream);
-
-            const blob = await blobContext.openBlob(KEY);
-            const reader = blob.stream().getReader();
-            const chunks: Bytes[] = [];
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                chunks.push(value);
-            }
-            expect(chunks[0]).deep.equal(data);
-        });
-
-        it("should return correct blob size", async () => {
-            const data = new Uint8Array([5, 6, 7]);
-            storage.set(CONTEXT, KEY, data);
-
-            const size = (await blobContext.openBlob(KEY)).size;
-            expect(size).equal(3);
-        });
-
-        it("should return empty stream for missing key", async () => {
-            const blob = await blobContext.openBlob("missingkey");
-            const reader = blob.stream().getReader();
-            const { done } = await reader.read();
-            expect(done).equal(true);
-        });
-
-        it("should throw error for non-Uint8Array value on openBlob", () => {
-            storage.set(CONTEXT, "notblob", "stringvalue");
-            expect(() => blobContext.openBlob("notblob")).throw(StorageError);
-        });
     });
 });

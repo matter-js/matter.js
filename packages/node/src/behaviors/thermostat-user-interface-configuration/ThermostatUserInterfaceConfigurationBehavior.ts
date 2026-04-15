@@ -15,7 +15,7 @@ import { Identity } from "@matter/general";
  * {@link ThermostatUserInterfaceConfiguration.Cluster}.
  */
 export const ThermostatUserInterfaceConfigurationBehaviorConstructor = ClusterBehavior
-    .for(ThermostatUserInterfaceConfiguration.Cluster);
+    .for(ThermostatUserInterfaceConfiguration);
 
 export interface ThermostatUserInterfaceConfigurationBehaviorConstructor extends Identity<typeof ThermostatUserInterfaceConfigurationBehaviorConstructor> {}
 export const ThermostatUserInterfaceConfigurationBehavior: ThermostatUserInterfaceConfigurationBehaviorConstructor = ThermostatUserInterfaceConfigurationBehaviorConstructor;

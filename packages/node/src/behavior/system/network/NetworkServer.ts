@@ -5,7 +5,7 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Duration, Logger } from "@matter/general";
+import { Duration, Logger, Minutes } from "@matter/general";
 import { duration, field, uint16 } from "@matter/model";
 import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
@@ -22,7 +22,7 @@ const logger = Logger.get("NetworkingServer");
  * implementation.
  */
 export class NetworkServer extends NetworkBehavior {
-    declare state: NetworkServer.State;
+    declare readonly state: NetworkServer.State;
     declare internal: NetworkServer.Internal;
 
     override initialize() {
@@ -129,6 +129,9 @@ export namespace NetworkServer {
 
         @field(LimitsConfig)
         unlimited?: LimitsConfig;
+
+        @field(LimitsConfig)
+        unknown?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {
@@ -146,5 +149,12 @@ export namespace NetworkServer {
 
         @field(ProfilesConfig)
         profiles?: ProfilesConfig;
+
+        /**
+         * Interval at which dirty client cache data is flushed to storage.  Set to `undefined` to disable buffering
+         * and persist every change immediately.
+         */
+        @field(duration)
+        clientCacheFlushInterval?: Duration = Minutes(20);
     }
 }

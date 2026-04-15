@@ -88,6 +88,14 @@ export class HeapDumpSet {
         this.#dir = TestRunner.current.pkg.resolve(`build/heaps/${name}-${this.#startedAt.toISOString()}`);
     }
 
+    get(name: string) {
+        const path = this.#dumps[name];
+        if (path === undefined) {
+            throw new Error(`No dump named "${name}"`);
+        }
+        return path;
+    }
+
     async create(name = "dump") {
         await TestRunner.current.progress.subtask(`heap dump ${name}`, async () => {
             if (!isDirectory(this.#dir)) {

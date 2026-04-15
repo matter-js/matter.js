@@ -84,6 +84,10 @@ export async function testNodejs(runner: TestRunner, format: "cjs" | "esm", repe
                     url.searchParams.set("run", String(run));
                     await import(url.href);
                 }
+
+                // Clear files so Mocha.run() doesn't try to require() them again (which fails on ESM modules
+                // with top-level await)
+                mocha.files = [];
             } else {
                 // CJS: clear require cache for test files so they re-execute
                 const cjsRequire = createRequire(resolvePath(process.cwd(), "index.js"));
@@ -94,7 +98,10 @@ export async function testNodejs(runner: TestRunner, format: "cjs" | "esm", repe
                 await mocha.loadFilesAsync();
             }
 
-            await runMocha(mocha);
+            await runMocha(mocha, {
+                skipBeforeHooks: run > 0,
+                skipAfterHooks: run < repeat - 1,
+            });
 
             // Mocha leaks listeners; clean them up between runs to avoid MaxListenersExceededWarning
             for (const name of ["unhandledRejection", "uncaughtException"]) {

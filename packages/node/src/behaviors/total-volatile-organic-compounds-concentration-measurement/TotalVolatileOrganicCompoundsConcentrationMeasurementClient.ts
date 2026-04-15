@@ -13,7 +13,7 @@ import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor = ClientBehavior(
-    TotalVolatileOrganicCompoundsConcentrationMeasurement.Complete
+    TotalVolatileOrganicCompoundsConcentrationMeasurement
 );
 export interface TotalVolatileOrganicCompoundsConcentrationMeasurementClient extends InstanceType<typeof TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor> {}
 export interface TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor extends Identity<typeof TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor> {}

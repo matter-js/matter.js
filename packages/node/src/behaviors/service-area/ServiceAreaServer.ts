@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { deepCopy, isDeepEqual, MaybePromise } from "@matter/general";
+import { isDeepEqual, MaybePromise } from "@matter/general";
 import { ValidationError } from "@matter/types";
 import { ServiceArea } from "@matter/types/clusters/service-area";
 import { ServiceAreaBehavior } from "./ServiceAreaBehavior.js";
@@ -257,14 +257,14 @@ export class ServiceAreaBaseServer extends ServiceAreaBase {
         if (supportedAreas === undefined || supportedAreas.length === 0) {
             return;
         }
-        this.state.selectedAreas = deepCopy(this.state.selectedAreas.filter(area => area !== areaId));
+        this.state.selectedAreas = this.state.selectedAreas.filter(area => area !== areaId);
         if (this.state.currentArea === areaId) {
             this.state.currentArea = null;
         }
         if (this.state.progress !== undefined) {
-            this.state.progress = deepCopy(this.state.progress.filter(area => area.areaId !== areaId));
+            this.state.progress = this.state.progress.filter(area => area.areaId !== areaId);
         }
-        this.state.supportedAreas = deepCopy(supportedAreas.filter(area => area.areaId !== areaId));
+        this.state.supportedAreas = supportedAreas.filter(area => area.areaId !== areaId);
     }
 
     /**
@@ -282,7 +282,7 @@ export class ServiceAreaBaseServer extends ServiceAreaBase {
             if (affectedArea !== undefined) {
                 this.removeSupportedAreasEntry(affectedArea.areaId);
             }
-            this.state.supportedMaps = deepCopy(supportedMaps.filter(map => map.mapId !== mapToRemove.mapId));
+            this.state.supportedMaps = supportedMaps.filter(map => map.mapId !== mapToRemove.mapId);
         }
     }
 }

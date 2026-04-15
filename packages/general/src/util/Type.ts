@@ -143,3 +143,49 @@ export function isObject(it: unknown): it is Record<string, unknown> {
     return Object.prototype.toString.call(it) === "[object Object]"; // this code is 25% faster than below one
     // return it && typeof it === 'object' && !(it instanceof Array);
 }
+
+/**
+ * Tests whether two types are exactly equal.
+ */
+export type IfEquals<X, Y, A = X, B = never> =
+    (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? A : B;
+
+/**
+ * Extract keys of writable (non-readonly) properties from an interface.
+ */
+export type WritableKeys<T> = {
+    [P in keyof T]-?: IfEquals<{ [Q in P]: T[P] }, { -readonly [Q in P]: T[P] }, P>;
+}[keyof T];
+
+/**
+ * Extract keys of readonly properties from an interface.
+ */
+export type ReadonlyKeys<T> = Exclude<keyof T, WritableKeys<T>>;
+
+/**
+ * Extract keys of required (non-optional) properties from an interface.
+ */
+export type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T];
+
+/**
+ * Extract keys of optional properties from an interface.
+ */
+export type OptionalKeys<T> = Exclude<keyof T & string, RequiredKeys<T>>;
+
+/**
+ * Recursive deep-partial type with array index key support.
+ *
+ * Primitives and functions pass through unchanged; objects become deeply optional; arrays accept either a partial array
+ * or an object keyed by numeric string indices.
+ */
+export type DeepPartial<V> = V extends (infer E)[]
+    ? { readonly [K in `${number}`]: DeepPartial<E> } | Readonly<DeepPartial<E>[]>
+    : V extends boolean | number | bigint | string
+      ? V
+      : V extends object
+        ? V extends (...args: any[]) => any
+            ? never
+            : {
+                  readonly [K in keyof V]?: DeepPartial<V[K]>;
+              }
+        : V;

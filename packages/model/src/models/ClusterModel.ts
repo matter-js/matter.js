@@ -61,6 +61,23 @@ export class ClusterModel
         return this.scope.membersOf(this, { tags: [ElementTag.Datatype] }) as ModelIndex<DatatypeModel>;
     }
 
+    /**
+     * Fields on a cluster are not part of the standard Matter data model.  They are used for internal extensions that
+     * should not be served via the Matter protocol.
+     */
+    get fields() {
+        return this.scope.membersOf(this, { tags: [ElementTag.Field] }) as ModelIndex<FieldModel>;
+    }
+
+    /**
+     * Attributes and fields, for treating a cluster as a struct.
+     */
+    get properties() {
+        return this.scope.membersOf(this, {
+            tags: [ElementTag.Attribute, ElementTag.Field],
+        }) as ModelIndex<AttributeModel | FieldModel>;
+    }
+
     get conformant() {
         return new ClusterModel.Conformant(this);
     }
@@ -86,7 +103,7 @@ export class ClusterModel
 
     get revision() {
         let revision = 1;
-        const revisionAttr = this.get(AttributeModel, ClusterRevision.id);
+        const revisionAttr = this.attributes(ClusterRevision.id);
         if (typeof revisionAttr?.default === "number") {
             revision = revisionAttr.default;
         }

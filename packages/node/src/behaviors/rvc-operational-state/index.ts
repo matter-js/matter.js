@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./RvcOperationalStateInterface.js";
 export * from "./RvcOperationalStateBehavior.js";
 export * from "./RvcOperationalStateServer.js";
 export * from "./RvcOperationalStateClient.js";

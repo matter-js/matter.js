@@ -5,7 +5,6 @@
  */
 
 import {
-    type Bytes,
     type DataNamespace,
     FilesystemStorageDriver,
     fromJson,
@@ -45,8 +44,15 @@ export class JsonFileStorageDriver extends FilesystemStorageDriver {
         this.#store = new MemoryStorageDriver();
     }
 
-    static create(namespace: DataNamespace, _descriptor?: StorageDriver.Descriptor) {
-        return new JsonFileStorageDriver(namespace);
+    static async create(namespace: DataNamespace, _descriptor?: StorageDriver.Descriptor) {
+        const storage = new JsonFileStorageDriver(namespace);
+        try {
+            await storage.initialize();
+        } catch (error) {
+            await storage.close().catch(() => {});
+            throw error;
+        }
+        return storage;
     }
 
     override get initialized() {
@@ -112,14 +118,6 @@ export class JsonFileStorageDriver extends FilesystemStorageDriver {
 
     override clearAll(contexts: string[]): void {
         this.#store.clearAll(contexts);
-    }
-
-    override openBlob(contexts: string[], key: string): Blob {
-        return this.#store.openBlob(contexts, key);
-    }
-
-    override writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
-        return this.#store.writeBlobFromStream(contexts, key, stream);
     }
 
     async #commit() {

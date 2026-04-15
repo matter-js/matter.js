@@ -9,7 +9,9 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { InternalError, StorageContext, StorageContextFactory } from "@matter/general";
 import { EndpointNumber } from "@matter/types";
 import { NodeStore } from "../NodeStore.js";
+import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
 import { ClientEndpointStore } from "./ClientEndpointStore.js";
+import { LocalWriter } from "./LocalWriter.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
 
 /**
@@ -20,6 +22,8 @@ export class ClientNodeStore extends NodeStore {
     #storage?: StorageContext;
     #stores = new Map<EndpointNumber, ClientEndpointStore>();
     #write?: RemoteWriter;
+    #localWriter?: LocalWriter;
+    #buffer?: ClientCacheBuffer;
     #isPreexisting: boolean;
     #onErase?: () => void;
 
@@ -54,8 +58,31 @@ export class ClientNodeStore extends NodeStore {
         this.#write = write;
     }
 
+    get localWriter() {
+        if (this.#localWriter === undefined) {
+            this.#localWriter = new LocalWriter(this);
+        }
+        return this.#localWriter;
+    }
+
+    get buffer() {
+        return this.#buffer;
+    }
+
+    set buffer(buffer: ClientCacheBuffer | undefined) {
+        this.#buffer = buffer;
+    }
+
     get endpointStores() {
         return this.#stores.values();
+    }
+
+    storeForEndpointNumber(endpointNumber: EndpointNumber) {
+        const store = this.#stores.get(endpointNumber);
+        if (store === undefined) {
+            throw new InternalError(`No endpoint store for endpoint ${endpointNumber}`);
+        }
+        return store;
     }
 
     override async erase() {

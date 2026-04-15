@@ -44,6 +44,7 @@ import {
     TlvNoArguments,
     TlvNullable,
     TlvObject,
+    TlvOfModel,
     TlvOptionalField,
     TlvStatusResponse,
     TlvString,
@@ -60,7 +61,12 @@ import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
 import { createDummyMessageExchange } from "./InteractionTestUtils.js";
-import TlvOpenBasicCommissioningWindowRequest = AdministratorCommissioning.TlvOpenBasicCommissioningWindowRequest;
+
+const TlvStartUpEvent = TlvOfModel(BasicInformation.events.startUp);
+const TlvBootReasonEvent = TlvOfModel(GeneralDiagnostics.events.bootReason);
+const TlvOpenBasicCommissioningWindowRequest = TlvOfModel(
+    AdministratorCommissioning.commands.openBasicCommissioningWindow,
+);
 
 /**
  * Helper to decode pre-encoded InvokeResponseForSend back to InvokeResponse for test comparison.
@@ -208,7 +214,7 @@ const READ_RESPONSE: DataReportPayload = {
             hasFabricSensitiveData: true,
             attributeData: {
                 path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), attributeId: AttributeId(2) },
-                schema: TlvVendorId,
+                tlv: TlvVendorId,
                 payload: 1,
                 dataVersion: 0x80808081,
             },
@@ -217,7 +223,7 @@ const READ_RESPONSE: DataReportPayload = {
             hasFabricSensitiveData: true,
             attributeData: {
                 path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), attributeId: AttributeId(4) },
-                schema: TlvUInt16,
+                tlv: TlvUInt16,
                 payload: 2,
                 dataVersion: 0x80808081,
             },
@@ -227,7 +233,7 @@ const READ_RESPONSE: DataReportPayload = {
             hasFabricSensitiveData: true,
             attributeData: {
                 path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), attributeId: AttributeId(3) },
-                schema: TlvString.bound({ maxLength: 32 }),
+                tlv: TlvString.bound({ maxLength: 32 }),
                 payload: "product",
                 dataVersion: 0x80808081,
             },
@@ -240,7 +246,7 @@ const READ_RESPONSE: DataReportPayload = {
                     clusterId: ClusterId(0x1d),
                     attributeId: AttributeId(1),
                 },
-                schema: TlvArray(TlvClusterId),
+                tlv: TlvArray(TlvClusterId),
                 payload: [
                     ClusterId(40),
                     ClusterId(31),
@@ -285,7 +291,7 @@ const READ_RESPONSE: DataReportPayload = {
                     clusterId: ClusterId(0x28),
                     eventId: EventId(0),
                 },
-                schema: BasicInformation.TlvStartUpEvent,
+                tlv: TlvStartUpEvent,
                 payload: {
                     softwareVersion: 1,
                 },
@@ -302,7 +308,7 @@ const READ_RESPONSE: DataReportPayload = {
                     clusterId: ClusterId(0x28),
                     eventId: EventId(0),
                 },
-                schema: BasicInformation.TlvStartUpEvent,
+                tlv: TlvStartUpEvent,
                 payload: {
                     softwareVersion: 2,
                 },
@@ -347,7 +353,7 @@ const READ_RESPONSE_WITH_FILTER: DataReportPayload = {
                     clusterId: ClusterId(0x1d),
                     attributeId: AttributeId(1),
                 },
-                schema: TlvArray(TlvClusterId),
+                tlv: TlvArray(TlvClusterId),
                 payload: [
                     ClusterId(40),
                     ClusterId(31),
@@ -392,7 +398,7 @@ const READ_RESPONSE_WITH_FILTER: DataReportPayload = {
                     clusterId: ClusterId(0x28),
                     eventId: EventId(0),
                 },
-                schema: BasicInformation.TlvStartUpEvent,
+                tlv: TlvStartUpEvent,
                 payload: {
                     softwareVersion: 2,
                 },
@@ -415,7 +421,7 @@ const READ_RESPONSE_WILDCARD_EVENTS: DataReportPayload = {
                 priority: 2,
                 epochTimestamp: MockTime.epoch.getTime(),
                 payload: { softwareVersion: 1 },
-                schema: BasicInformation.TlvStartUpEvent,
+                tlv: TlvStartUpEvent,
             },
             hasFabricSensitiveData: true,
         },
@@ -426,7 +432,7 @@ const READ_RESPONSE_WILDCARD_EVENTS: DataReportPayload = {
                 priority: 2,
                 epochTimestamp: MockTime.epoch.getTime(),
                 payload: { bootReason: 0 },
-                schema: GeneralDiagnostics.TlvBootReasonEvent,
+                tlv: TlvBootReasonEvent,
             },
             hasFabricSensitiveData: true,
         },
@@ -441,7 +447,7 @@ const READ_RESPONSE_WILDCARD_EVENTS: DataReportPayload = {
                 priority: 2,
                 epochTimestamp: MockTime.epoch.getTime(),
                 payload: { softwareVersion: 2 },
-                schema: BasicInformation.TlvStartUpEvent,
+                tlv: TlvStartUpEvent,
             },
             hasFabricSensitiveData: true,
         },
@@ -460,7 +466,7 @@ const READ_RESPONSE_WILDCARD_EVENTS_WITH_FILTER: DataReportPayload = {
                     clusterId: ClusterId(0x28),
                     eventId: EventId(0),
                 },
-                schema: BasicInformation.TlvStartUpEvent,
+                tlv: TlvStartUpEvent,
                 payload: {
                     softwareVersion: 2,
                 },

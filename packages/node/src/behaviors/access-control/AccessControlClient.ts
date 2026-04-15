@@ -10,7 +10,7 @@ import { AccessControl } from "@matter/types/clusters/access-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const AccessControlClientConstructor = ClientBehavior(AccessControl.Complete);
+export const AccessControlClientConstructor = ClientBehavior(AccessControl);
 export interface AccessControlClient extends InstanceType<typeof AccessControlClientConstructor> {}
 export interface AccessControlClientConstructor extends Identity<typeof AccessControlClientConstructor> {}
 export const AccessControlClient: AccessControlClientConstructor = AccessControlClientConstructor;

@@ -75,3 +75,34 @@ export namespace DeviceMessage {
         kind: "stop";
     }
 }
+
+/**
+ * Messages sent to the controller heap-profiling process.
+ */
+export type ControllerMessage =
+    | ControllerMessage.Start
+    | ControllerMessage.Commission
+    | ControllerMessage.Snapshot
+    | ControllerMessage.Stop;
+
+export namespace ControllerMessage {
+    export interface Start extends Message.Acknowledged {
+        kind: "start";
+    }
+
+    export interface Commission extends Message.Acknowledged {
+        kind: "commission";
+        discriminator: number;
+        passcode: number;
+        nodeId: number;
+    }
+
+    export interface Snapshot extends Message.Acknowledged {
+        kind: "snapshot";
+        path: string;
+    }
+
+    export interface Stop extends Message.Acknowledged {
+        kind: "stop";
+    }
+}

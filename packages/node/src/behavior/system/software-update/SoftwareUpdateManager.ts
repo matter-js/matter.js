@@ -151,9 +151,9 @@ export interface PendingUpdateInfo {
 export class SoftwareUpdateManager extends Behavior {
     static override readonly id = "softwareupdates";
 
-    declare state: SoftwareUpdateManager.State;
+    declare readonly state: SoftwareUpdateManager.State;
     declare internal: SoftwareUpdateManager.Internal;
-    declare events: SoftwareUpdateManager.Events;
+    declare readonly events: SoftwareUpdateManager.Events;
 
     override async initialize() {
         const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;

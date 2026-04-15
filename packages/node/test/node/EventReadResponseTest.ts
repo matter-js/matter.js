@@ -12,7 +12,7 @@ import { Bytes, Seconds } from "@matter/general";
 import { AccessLevel, Specification } from "@matter/model";
 import { EventReadResponse, Read, ReadResult } from "@matter/protocol";
 import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "@matter/types";
-import { BasicInformation, BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Messages } from "@matter/types/clusters/messages";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
@@ -39,7 +39,7 @@ describe("EventReadResponse", () => {
                     await MockServerNode.createOnline(),
                     fabricScoped,
                     Read.Event({
-                        cluster: BasicInformationCluster,
+                        cluster: BasicInformation,
                         events: "startUp",
                     }),
                 );
@@ -75,7 +75,7 @@ describe("EventReadResponse", () => {
                     node,
                     fabricScoped,
                     Read.Event({
-                        cluster: BasicInformationCluster,
+                        cluster: BasicInformation,
                         events: "leave",
                     }),
                 );
@@ -108,7 +108,7 @@ describe("EventReadResponse", () => {
                     node,
                     fabricScoped,
                     Read.Event({
-                        cluster: BasicInformationCluster,
+                        cluster: BasicInformation,
                         events: "shutDown",
                     }),
                 );
@@ -152,7 +152,7 @@ describe("EventReadResponse", () => {
                     node,
                     fabricScoped,
                     Read.Event({
-                        cluster: Messages.Cluster,
+                        cluster: Messages,
                         events: "messageComplete",
                     }),
                 );
@@ -193,7 +193,7 @@ describe("EventReadResponse", () => {
             await MockServerNode.createOnline(),
             true,
             Read.Event({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 events: "startUp",
             }),
         );
@@ -239,7 +239,7 @@ describe("EventReadResponse", () => {
             false,
             Read.Event({
                 endpoint: new Endpoint(OnOffLightDevice, { id: "test", number: 1 }),
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 events: "startUp",
             }),
         );
@@ -267,7 +267,7 @@ describe("EventReadResponse", () => {
             false,
             Read.Event({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 events: "reachableChanged",
             }),
         );
@@ -295,7 +295,7 @@ describe("EventReadResponse", () => {
             false,
             Read.Event({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
             }),
         );
 
@@ -316,7 +316,7 @@ describe("EventReadResponse", () => {
             false,
             Read.Event({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
             }),
         );
 
@@ -370,7 +370,7 @@ describe("EventReadResponse", () => {
                     },
                     Read.Event({
                         endpoint: EndpointNumber(0),
-                        cluster: BasicInformation.Complete,
+                        cluster: BasicInformation,
                         events: ["startUp"],
                     }),
                 ),

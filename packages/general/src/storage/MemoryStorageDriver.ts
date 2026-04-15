@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { deepCopy } from "#util/DeepCopy.js";
 import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -29,10 +28,12 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
     }
 
     private createContextKey(contexts: string[]) {
-        const key = contexts.join(".");
-        if (!key.length || key.includes("..") || key.startsWith(".") || key.endsWith("."))
-            throw new StorageError("Context must not be an empty string.");
-        return key;
+        for (const ctx of contexts) {
+            if (!ctx.length || ctx.includes(".")) {
+                throw new StorageError("Context must not contain empty segments or leading or trailing dots.");
+            }
+        }
+        return contexts.join(".");
     }
 
     initialize() {
@@ -58,54 +59,12 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
 
     get(contexts: string[], key: string): SupportedStorageTypes | undefined {
         this.#assertInitialized();
-        if (!contexts.length || !key.length) throw new StorageError("Context and key must not be empty.");
+        if (!key.length) throw new StorageError("Key must not be empty.");
         return this.store[this.createContextKey(contexts)]?.[key];
     }
 
-    openBlob(contexts: string[], key: string): Blob {
-        const value = this.get(contexts, key);
-        if (value === undefined) {
-            return new Blob([]);
-        }
-        if (!Bytes.isBytes(value)) {
-            throw new StorageError("Value must be Bytes to read as blob stream.");
-        }
-        return new Blob([Bytes.exclusive(value)]);
-    }
-
-    async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
-        this.#assertInitialized();
-        const reader = stream.getReader();
-        const chunks: Uint8Array[] = [];
-
-        try {
-            let length = 0;
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const data = Bytes.of(value);
-                chunks.push(data);
-                length += data.length;
-            }
-            const combined = new Uint8Array(length);
-            let offset = 0;
-            for (const chunk of chunks) {
-                combined.set(chunk, offset);
-                offset += chunk.length;
-            }
-            this.#setKey(contexts, key, combined);
-        } catch (error: any) {
-            throw new StorageError(`Error reading stream: ${error.message}`);
-        } finally {
-            if (stream.locked) {
-                reader.releaseLock(); // Release the reader lock
-            }
-            await stream.cancel();
-        }
-    }
-
     #setKey(contexts: string[], key: string, value: SupportedStorageTypes) {
-        if (!contexts.length || !key.length) throw new StorageError("Context and key must not be empty.");
+        if (!key.length) throw new StorageError("Key must not be empty.");
         const contextKey = this.createContextKey(contexts);
         if (this.store[contextKey] === undefined) {
             this.store[contextKey] = {};
@@ -130,13 +89,12 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
 
     delete(contexts: string[], key: string) {
         this.#assertInitialized();
-        if (!contexts.length || !key.length) throw new StorageError("Context and key must not be empty.");
+        if (!key.length) throw new StorageError("Key must not be empty.");
         delete this.store[this.createContextKey(contexts)]?.[key];
     }
 
     keys(contexts: string[]) {
         this.#assertInitialized();
-        if (!contexts.length) throw new StorageError("Context must not be empty!");
         return Object.keys(this.store[this.createContextKey(contexts)] ?? {});
     }
 
@@ -159,7 +117,7 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
                 const subKeys = key.substring(startContextKey.length).split(".");
                 if (subKeys.length < 1) return; // should never happen
                 const context = subKeys[0];
-                if (!foundContexts.includes(context)) {
+                if (context.length && !foundContexts.includes(context)) {
                     foundContexts.push(context);
                 }
             }

@@ -8,7 +8,6 @@
 
 import { RadonConcentrationMeasurement } from "@matter/types/clusters/radon-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,8 +17,7 @@ import { Identity } from "@matter/general";
  * RadonConcentrationMeasurement.Cluster requires you to enable one or more optional features. You can do so using
  * {@link RadonConcentrationMeasurementBehavior.with}.
  */
-export const RadonConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(RadonConcentrationMeasurement.Base));
+export const RadonConcentrationMeasurementBehaviorConstructor = ClusterBehavior.for(RadonConcentrationMeasurement);
 
 export interface RadonConcentrationMeasurementBehaviorConstructor extends Identity<typeof RadonConcentrationMeasurementBehaviorConstructor> {}
 export const RadonConcentrationMeasurementBehavior: RadonConcentrationMeasurementBehaviorConstructor = RadonConcentrationMeasurementBehaviorConstructor;

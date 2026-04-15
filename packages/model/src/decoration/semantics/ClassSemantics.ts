@@ -172,7 +172,7 @@ export class ClassSemantics extends Semantics {
             ? new Set(
                   Scope(this.semanticModel)
                       .membersOf(this.semanticModel)
-                      .map(model => camelize(model.name)),
+                      .map(model => model.propertyName),
               )
             : new Set();
 

@@ -47,18 +47,20 @@ export class SustainedSubscription extends ClientSubscription {
     #retries: RetrySchedule;
     #subscribe: (request: Subscribe, abort: AbortSignal) => Promise<PeerSubscription>;
     #read: (request: Read, abort: AbortSignal, logContext?: ExchangeLogContext) => ReadResult;
+    #probe: (abort: AbortSignal) => Promise<boolean>;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
     constructor(config: SustainedSubscription.Configuration) {
         super(config);
 
-        const { request, read, retries, subscribe } = config;
+        const { request, read, probe, retries, subscribe } = config;
 
         this.#request = request;
         this.#retries = retries;
         this.#subscribe = subscribe;
         this.#read = read;
+        this.#probe = probe;
         this.done = this.#run();
     }
 
@@ -101,23 +103,11 @@ export class SustainedSubscription extends ClientSubscription {
             });
 
             if (!sessionTrusted) {
-                try {
-                    const response = this.#read(
-                        Read({
-                            fabricFilter: false,
-                        }),
-                        this.abort,
-                        Diagnostic.asFlags({ probe: true }),
-                    );
-                    for await (const _chunk of response);
-                } catch (e) {
-                    if (!causedBy(e, AbortedError) || !this.abort.aborted) {
+                if (!(await this.#probe(this.abort))) {
+                    if (!this.abort.aborted) {
                         // Probing failed, so we get a new session anyway
                         sessionTrusted = true;
-                        logger.error(
-                            `Failed to probe reachability of peer ${this.peer}, resubscribe with new session:`,
-                            Diagnostic.errorMessage(asError(e)),
-                        );
+                        logger.error(`Failed to probe reachability of peer ${this.peer}, resubscribe with new session`);
                     }
                 }
                 if (this.abort.aborted) {
@@ -230,6 +220,11 @@ export namespace SustainedSubscription {
          * Performs bootstrap read.
          */
         read: (request: Read, abort: AbortSignal) => ReadResult;
+
+        /**
+         * Probe the peer with an empty read to verify session liveness.
+         */
+        probe: (abort: AbortSignal) => Promise<boolean>;
 
         /**
          * The schedule we use for retrying subscription connections.

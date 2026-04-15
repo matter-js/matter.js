@@ -9,8 +9,9 @@ import { DefinitionError, ElementTag, Metatype, Specification } from "../common/
 import { AnyElement, BaseElement } from "../elements/index.js";
 import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { Children, InternalChildren } from "./Children.js";
-import type { MatterModel } from "./MatterModel.js";
+import { ModelTreePosition } from "./ModelTreePosition.js";
 import { Resource, ResourceBundle } from "./Resource.js";
+import type { ScopeModel } from "./ScopeModel.js";
 
 /**
  * Thrown when model API is used incorrectly.
@@ -59,8 +60,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     #isFinal?: boolean;
     #resource?: Resource;
     #children?: InternalChildren<C>;
-    #parent?: Model;
-    #root?: MatterModel;
+    #position: ModelTreePosition;
 
     get id(): E["id"] {
         return this.#id;
@@ -69,7 +69,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     set id(value: E["id"]) {
         const oldId = this.effectiveId;
         this.#id = value;
-        (this.#parent?.children as InternalChildren | undefined)?.updateId(this, oldId);
+        (this.#position.parent?.children as InternalChildren | undefined)?.updateId(this, oldId);
     }
 
     get name() {
@@ -79,7 +79,14 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     set name(value: string) {
         const oldName = this.#name;
         this.#name = value;
-        (this.#parent?.children as InternalChildren | undefined)?.updateName(this, oldName);
+        (this.#position.parent?.children as InternalChildren | undefined)?.updateName(this, oldName);
+    }
+
+    /**
+     * The camelCase form of {@link name}, suitable for use as a JS property key.
+     */
+    get propertyName(): string {
+        return camelize(this.name);
     }
 
     /**
@@ -97,19 +104,19 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     get path(): string {
         if (this.parent && this.parent.tag !== ElementTag.Matter) {
             if (this.parent.tag === ElementTag.Field) {
-                return `${this.parent.path}.${camelize(this.name)}`;
+                return `${this.parent.path}.${this.propertyName}`;
             }
 
             if (this.parent.tag === ElementTag.Cluster) {
                 switch (this.tag) {
                     case ElementTag.Attribute:
-                        return `${this.parent.path}.state.${camelize(this.name, false)}`;
+                        return `${this.parent.path}.state.${this.propertyName}`;
 
                     case ElementTag.Command:
-                        return `${this.parent.path}.${camelize(this.name, false)}`;
+                        return `${this.parent.path}.${this.propertyName}`;
 
                     case ElementTag.Event:
-                        return `${this.parent.path}.events.${camelize(this.name, false)}`;
+                        return `${this.parent.path}.events.${this.propertyName}`;
                 }
             }
 
@@ -117,7 +124,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
             if (parent.tag !== ElementTag.Cluster) {
                 const parentMetatype = (parent as { effectiveMetatype?: Metatype })?.effectiveMetatype;
                 if (parentMetatype === Metatype.object || parentMetatype === Metatype.array) {
-                    return `${parent.path}.${camelize(this.name, false)}`;
+                    return `${parent.path}.${this.propertyName}`;
                 }
             }
 
@@ -138,14 +145,21 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
      * The structural parent.  This is the model for the element that contains this element's definition.
      */
     get parent(): Model | undefined {
-        return this.#parent;
+        return this.#position.parent;
+    }
+
+    /**
+     * The tree position object for this model.  Used by {@link Children} to manage parent/root state.
+     */
+    get treePosition(): ModelTreePosition {
+        return this.#position;
     }
 
     /**
      * The structural root.  This is the MatterModel that owns this model.
      */
     get root() {
-        return this.#root;
+        return this.#position.root;
     }
 
     set parent(parent: Model | undefined) {
@@ -216,44 +230,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
      * Set the children of the model.
      */
     set children(children: Children.InputIterable<C>) {
-        this.#children = Children(
-            children,
-
-            child => {
-                if (child.#parent === this) {
-                    return;
-                }
-
-                if (child.#parent) {
-                    const position = child.#parent.children.indexOf(child);
-                    if (position !== -1) {
-                        child.#parent.children.splice(position, 1);
-                    }
-                }
-
-                child.#parent = this;
-            },
-
-            (child, sharesRoot) => {
-                const root = sharesRoot ? this.root : undefined;
-
-                if (child.#root === root) {
-                    return false;
-                }
-
-                child.#root = root;
-
-                return true;
-            },
-
-            child => {
-                if (child.#parent === this) {
-                    child.#parent = undefined;
-                    return true;
-                }
-                return false;
-            },
-        );
+        this.#children = Children(children, this.#position);
     }
 
     /**
@@ -388,7 +365,14 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     /**
      * Retrieve a specific child by ID or name.
      */
-    get<T extends Model>(type: Model.Type<T>, key: number | string): T | undefined {
+    get<T extends Model>(type: Model.Type<T>, key: undefined): undefined;
+    get<T extends Model>(type: Model.Type<T>, key: number | string): T | undefined;
+    get<T extends Model>(type: Model.Type<T>, key: number | string | undefined): T | undefined;
+
+    get<T extends Model>(type: Model.Type<T>, key: number | string | undefined): T | undefined {
+        if (key === undefined) {
+            return undefined;
+        }
         return this.children.get(type, key);
     }
 
@@ -487,8 +471,32 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     /**
      * Search the inheritance chain for a child property.
      */
-    member(key: Children.Selector, allowedTags = [ElementTag.Field, ElementTag.Attribute]): Model | undefined {
+    member(
+        key: Children.Selector,
+        allowedTags: ElementTag[] = [ElementTag.Field, ElementTag.Attribute],
+    ): Model | undefined {
         return new ModelTraversal().findMember(this, key, allowedTags);
+    }
+
+    /**
+     * Resolve a qualified name (e.g., "Foo.Bar") to a model.
+     *
+     * Searches for a member by name within this model's scope.  For qualified paths, each segment narrows into the
+     * previous match's children.
+     */
+    resolve(name: string | string[], options?: Model.ResolveOptions): Model | undefined {
+        const path = typeof name === "string" ? name.split(".") : name;
+        const leafTags = options?.tags ?? [ElementTag.Field, ElementTag.Attribute];
+        const traversal = new ModelTraversal();
+        return traversal.findQualified(
+            this,
+            path,
+            (name, scope, isLeaf) => traversal.findMember(scope, name, isLeaf ? leafTags : undefined),
+            {
+                boundary: options?.boundary ?? (scope => !!(scope as ScopeModel).isScope),
+                outerResolve: options?.outerResolve,
+            },
+        );
     }
 
     /**
@@ -573,6 +581,8 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
             throw new StructuralModelError(`Model definition must be an object, not ${typeof definition}`);
         }
 
+        this.#position = new ModelTreePosition(this);
+
         const isClone = definition instanceof Model;
 
         this.#id = definition.id;
@@ -650,7 +660,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     get resource() {
-        return this.#resource || (this.#root?.resources || ResourceBundle.default).get(this);
+        return this.#resource || (this.#position.root?.resources || ResourceBundle.default).get(this);
     }
 
     set resource(resource: Resource | undefined) {
@@ -722,7 +732,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     get hasLocalResource() {
-        return !!(this.#resource || (this.#root?.resources || ResourceBundle.default).get(this));
+        return !!(this.#resource || (this.#position.root?.resources || ResourceBundle.default).get(this));
     }
 }
 
@@ -820,6 +830,28 @@ export namespace Model {
         operationalBase?: Model;
         operationalShadow?: Model;
     };
+
+    /**
+     * Options for {@link Model.resolve}.
+     */
+    export interface ResolveOptions {
+        /**
+         * Allowed element tags for member matching.  Defaults to member()'s default of [Field, Attribute].
+         */
+        tags?: ElementTag[];
+
+        /**
+         * Predicate that stops the parent walk.  When a scope matches the boundary, its inherited scopes are
+         * still searched but its parent is not.  Defaults to stopping at Cluster or Matter elements.
+         */
+        boundary?: (scope: Model) => boolean;
+
+        /**
+         * Outermost fallback resolver, called after all scopes within the boundary are exhausted.  Receives
+         * the full path segments and the boundary scope (the last scope searched before the walk stopped).
+         */
+        outerResolve?: (path: string[], boundaryScope: Model | undefined) => Model | undefined;
+    }
 
     export type LookupPredicate<T extends Model> = Type<T> | { type: Type<T>; test: (model: Model) => boolean };
 

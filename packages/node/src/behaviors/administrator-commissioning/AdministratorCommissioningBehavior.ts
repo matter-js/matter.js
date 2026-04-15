@@ -8,7 +8,6 @@
 
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { AdministratorCommissioningInterface } from "./AdministratorCommissioningInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of AdministratorCommissioning.Cluster enabled. You can enable additional
  * features using AdministratorCommissioningBehavior.with.
  */
-export const AdministratorCommissioningBehaviorConstructor = ClusterBehavior
-    .withInterface<AdministratorCommissioningInterface>()
-    .for(AdministratorCommissioning.Cluster);
+export const AdministratorCommissioningBehaviorConstructor = ClusterBehavior.for(AdministratorCommissioning);
 
 export interface AdministratorCommissioningBehaviorConstructor extends Identity<typeof AdministratorCommissioningBehaviorConstructor> {}
 export const AdministratorCommissioningBehavior: AdministratorCommissioningBehaviorConstructor = AdministratorCommissioningBehaviorConstructor;

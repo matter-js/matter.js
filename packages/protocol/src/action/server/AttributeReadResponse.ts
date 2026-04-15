@@ -17,7 +17,6 @@ import {
     AttributePath,
     ClusterId,
     EndpointNumber,
-    GlobalAttributes,
     NodeId,
     Status,
     StatusCode,
@@ -27,7 +26,7 @@ import {
 
 const logger = Logger.get("AttributeReadResponse");
 
-export const GlobalAttrIds = new Set(Object.values(GlobalAttributes({})).map(attr => attr.id));
+export const GlobalAttrIds = AttributeModel.globalIds;
 
 /**
  * Implements read of attribute data for Matter "read" and "subscribe" interactions.

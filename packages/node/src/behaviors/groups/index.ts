@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./GroupsInterface.js";
 export * from "./GroupsBehavior.js";
 export * from "./GroupsServer.js";
 export * from "./GroupsClient.js";

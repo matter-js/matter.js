@@ -8,18 +8,14 @@ import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import {
-    asError,
     AsyncObservable,
     BasicObservable,
-    camelize,
     EventEmitter,
     ImplementationError,
     InternalError,
     Logger,
     MaybePromise,
     Observable,
-    ObserverErrorHandler,
-    ObserverPromiseHandler,
     QuietObservable,
     Time,
     type Observer,
@@ -28,7 +24,6 @@ import { ElementTag, EventElement, EventModel, type AttributeElement, type Value
 import { NumberedOccurrence, Occurrence, OccurrenceManager, Val } from "@matter/protocol";
 import { ClusterId, EventId, Priority } from "@matter/types";
 import type { Behavior } from "./Behavior.js";
-import { NodeActivity } from "./context/NodeActivity.js";
 
 const logger = Logger.get("Events");
 
@@ -48,17 +43,33 @@ export class Events extends EventEmitter {
     /**
      * Emitted when state associated with this behavior is first mutated by a specific interaction.
      */
-    interactionBegin = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+    declare interactionBegin: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
 
     /**
      * Emitted when a mutating interaction completes.
      */
-    interactionEnd = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+    declare interactionEnd: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
 
     /**
      * Emitted when the state of this behavior changes at the end after all concrete $Changed events were emitted.
      */
-    stateChanged = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+    declare stateChanged: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
+
+    static {
+        for (const name of ["interactionBegin", "interactionEnd", "stateChanged"]) {
+            Object.defineProperty(this.prototype, name, {
+                get(this: EventEmitter) {
+                    if (this.hasEvent(name, true)) {
+                        return this.getEvent(name);
+                    }
+                    const event = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+                    this.addEvent(name, event);
+                    return event;
+                },
+                enumerable: true,
+            });
+        }
+    }
 
     get endpoint() {
         return this.#endpoint;
@@ -106,13 +117,8 @@ export class ElementEvent<T extends any[] = any[], S extends ValueModel = ValueM
     #schema: S;
     #owner: Events;
 
-    constructor(
-        schema: S,
-        owner: Events,
-        errorHandler?: ObserverErrorHandler,
-        promiseHandler?: ObserverPromiseHandler,
-    ) {
-        super(errorHandler, promiseHandler);
+    constructor(schema: S, owner: Events) {
+        super();
 
         this.#schema = schema;
         this.#owner = owner;
@@ -137,17 +143,7 @@ export class ElementEvent<T extends any[] = any[], S extends ValueModel = ValueM
  */
 export class OfflineEvent<T extends any[] = any[], S extends ValueModel = ValueModel> extends ElementEvent<T> {
     constructor(schema: S, owner: Events) {
-        super(
-            schema,
-            owner,
-
-            undefined,
-
-            async (promise, observer) => {
-                using _actor = this.owner.endpoint?.env.get(NodeActivity).begin(descriptionOf(this, observer));
-                await promise;
-            },
-        );
+        super(schema, owner);
     }
 }
 
@@ -162,24 +158,12 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
     readonly #baseOccurrence: Omit<Occurrence, "epochTimestamp" | "payload"> | undefined;
     #occurrenceTrigger?: (payload: any) => void;
 
+    protected override handleError(error: Error, observer: Observer) {
+        logger.error(`Error in ${descriptionOf(this, observer)}`, error);
+    }
+
     constructor(schema: S, owner: Events) {
-        super(
-            schema,
-            owner,
-
-            (error, observer) => {
-                logger.error(`Error in ${descriptionOf(this, observer)}`, error);
-            },
-
-            async (promise, observer) => {
-                using _actor = this.owner.endpoint?.env.get(NodeActivity).begin(descriptionOf(this, observer));
-                try {
-                    await promise;
-                } catch (e) {
-                    this.handleError(asError(e), observer);
-                }
-            },
-        );
+        super(schema, owner);
 
         // If it is a "real" Matter event, then we connect this event instance with the OccurrenceManager and
         // ChangeNotificationService
@@ -261,7 +245,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
     }
 
     override toString() {
-        const base = `${this.owner.toString()}.${camelize(this.schema.name)}`;
+        const base = `${this.owner.toString()}.${this.schema.propertyName}`;
         if (this.schema.tag === ElementTag.Attribute || this.schema.tag === ElementTag.Field) {
             return `${base}$Changed`;
         }

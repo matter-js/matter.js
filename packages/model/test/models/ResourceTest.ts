@@ -106,10 +106,10 @@ describe("Resource", () => {
 
         expect(cluster.resource).deep.equals(LandingGearResource);
 
-        expect(cluster.attributes[0].description).equals("Life is better with features");
-        expect(cluster.attributes[0].fields[0].description).equals("Use this if you can");
-        expect(cluster.attributes[0].fields[1].description).equals("Use this if you must");
-        expect(cluster.attributes[2].description).equals("Wheel diameter in meters");
-        expect(cluster.attributes[3].description).equals("Wheel diameter in inches");
+        expect(cluster.attributes.at(0)?.description).equals("Life is better with features");
+        expect(cluster.attributes.at(0)?.fields.at(0)?.description).equals("Use this if you can");
+        expect(cluster.attributes.at(0)?.fields.at(1)?.description).equals("Use this if you must");
+        expect(cluster.attributes.at(2)?.description).equals("Wheel diameter in meters");
+        expect(cluster.attributes.at(3)?.description).equals("Wheel diameter in inches");
     });
 });

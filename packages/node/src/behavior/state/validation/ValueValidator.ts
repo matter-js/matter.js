@@ -10,6 +10,7 @@ import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, Valu
 import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
 import { Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
+import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { Internal } from "../managed/Internal.js";
 import {
@@ -89,16 +90,16 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
                     // them
                     break;
                 }
-                throw new SchemaImplementationError(DataModelPath(schema.path), `No type defined`);
+                throw new SchemaImplementationError(new DataModelPath(schema.path), `No type defined`);
             }
             throw new SchemaImplementationError(
-                DataModelPath(schema.path),
+                new DataModelPath(schema.path),
                 `Cannot determine metatype for type "${type}"`,
             );
 
         default:
             throw new SchemaImplementationError(
-                DataModelPath((schema as unknown as Schema).path),
+                new DataModelPath((schema as unknown as Schema).path),
                 `Unsupported validation metatype ${metabase?.metatype}`,
             );
     }
@@ -164,7 +165,7 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
         if (field?.parent?.id === FeatureMap.id) {
             name = camelize(field.title ?? field.name);
         } else {
-            name = camelize(field.name);
+            name = field.propertyName;
         }
         fields[name] = {
             schema: field,
@@ -257,16 +258,21 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
         }
         const validate = supervisor.get(field).validate;
         if (validate) {
-            validators[camelize(field.name)] = validate;
+            validators[field.propertyName] = validate;
         }
     }
 
     const validateStruct: ValueSupervisor.Validate = (struct, session, location) => {
         assertObject(struct, location);
+
+        const config = location.config ?? maybeConfigOf(struct);
+
         const sublocation = {
             path: location.path.at(""),
             siblings: struct,
             choices: {},
+            outerResolve: location.outerResolve,
+            config,
         } as ValidationLocation;
 
         for (const name in validators) {
@@ -285,6 +291,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
             }
 
             sublocation.path.id = name;
+            sublocation.config = config?.readonlyChild?.(name);
             validators[name](value, session, sublocation);
         }
 
@@ -326,10 +333,13 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                     throw new DatatypeError(location, "a list", list);
                 }
 
+                // Entry-level config: per-index overrides fall back to the "entry" key
+                const entryConfig = location.config?.readonlyChild?.("entry");
+
                 let index = 0;
                 const sublocation = {
                     path: location.path.at(""),
-                };
+                } as ValidationLocation;
                 for (const e of list as Iterable<unknown>) {
                     if (e === undefined || e === null) {
                         // Accept nullish
@@ -337,6 +347,7 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                     }
 
                     sublocation.path.id = index;
+                    sublocation.config = location.config?.readonlyChild?.(index) ?? entryConfig;
                     entryValidator(e, session, sublocation);
 
                     index++;

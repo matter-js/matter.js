@@ -51,6 +51,11 @@ export interface NetworkProfile extends ConcreteNetworkProfile {
      * An additional profile that applies only to the establishment of new CASE sessions.
      */
     connect?: ConcreteNetworkProfile;
+
+    /**
+     * An additional profile that applies only to address probe reads.
+     */
+    probeAddress?: ConcreteNetworkProfile;
 }
 
 /**
@@ -72,10 +77,16 @@ export class NetworkProfiles {
         for (const key of Object.keys(options) as (keyof NetworkProfiles.Templates)[]) {
             const override = options[key];
             if (override !== undefined) {
-                const { connect, ...rest } = override;
+                const { connect, probeAddress, ...rest } = override;
                 const merged = merge(base[key], rest);
                 if (connect !== undefined) {
                     merged.connect = merge(base[key].connect ?? {}, connect) as NetworkProfiles.ConcreteLimits;
+                }
+                if (probeAddress !== undefined) {
+                    merged.probeAddress = merge(
+                        base[key].probeAddress ?? {},
+                        probeAddress,
+                    ) as NetworkProfiles.ConcreteLimits;
                 }
                 base[key] = merged;
             }
@@ -122,9 +133,24 @@ export class NetworkProfiles {
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
         };
         if (limits.connect) {
-            network.connect = this.configure(`${id}:connect`, { ...limits.connect, connect: undefined });
+            network.connect = this.configure(`${id}:connect`, {
+                ...limits.connect,
+                connect: undefined,
+                probeAddress: undefined,
+            });
         }
-        logger.info("Configure profile", id, Diagnostic.dict({ ...limits, connect: undefined }));
+        if (limits.probeAddress) {
+            network.probeAddress = this.configure(`${id}:probe`, {
+                ...limits.probeAddress,
+                connect: undefined,
+                probeAddress: undefined,
+            });
+        }
+        logger.info(
+            "Configure profile",
+            id,
+            Diagnostic.dict({ ...limits, connect: undefined, probeAddress: undefined }),
+        );
         this.#networks.set(id, network);
         return network;
     }
@@ -138,7 +164,7 @@ export class NetworkProfiles {
             defaults = this.#defaults.fast;
         } else if (pp === undefined) {
             id = "unknown";
-            defaults = this.#defaults.conservative;
+            defaults = this.#defaults.unknown;
         } else if (pp.threadActive || (pp.threadActive === undefined && pp.supportsThread)) {
             if (pp.threadChannel) {
                 id = `thread:${pp.threadChannel}`;
@@ -156,7 +182,7 @@ export class NetworkProfiles {
             defaults = this.#defaults.fast;
         } else {
             id = "unknown";
-            defaults = this.#defaults.conservative;
+            defaults = this.#defaults.unknown;
         }
 
         return this.#networks.get(id) ?? this.configure(id, defaults);
@@ -170,7 +196,10 @@ export namespace NetworkProfiles {
      * Like {@link Options} but allows partially specifying individual profiles, including nested connect limits.
      */
     export type PartialOptions = {
-        [K in keyof Templates]?: Partial<Omit<Limits, "connect">> & { connect?: Partial<ConcreteLimits> };
+        [K in keyof Templates]?: Partial<Omit<Limits, "connect" | "probeAddress">> & {
+            connect?: Partial<ConcreteLimits>;
+            probeAddress?: Partial<ConcreteLimits>;
+        };
     };
 
     export interface ConcreteLimits {
@@ -200,6 +229,13 @@ export namespace NetworkProfiles {
          * If present, any values here act as limits specifically for CASE session establishment.
          */
         connect?: ConcreteLimits;
+
+        /**
+         * Overrides specifically for address probe reads.
+         *
+         * If present, any values here act as limits specifically for probing peer addresses.
+         */
+        probeAddress?: ConcreteLimits;
     }
 
     /**
@@ -222,9 +258,18 @@ export namespace NetworkProfiles {
         thread: Limits;
 
         /**
-         * Fallback limits for unknown profiles.
+         * Conservative limits used as the base for constrained networks.
          */
         conservative: Limits;
+
+        /**
+         * Limits for peers with unknown physical properties.
+         *
+         * Defaults to {@link conservative}.  Note that this template is automatically overwritten at startup for
+         * device nodes based on the node's network capabilities.  Manually setting this may have no effect.  To
+         * adjust limits, override {@link fast}, {@link thread} or {@link conservative} instead.
+         */
+        unknown: Limits;
 
         /**
          * Limit for "unlimited" networks.
@@ -245,6 +290,11 @@ export namespace NetworkProfiles {
             exchanges: 4,
             timeout: Seconds(10), // Release slot for connections after 15s latest
         },
+
+        probeAddress: {
+            exchanges: 2,
+            timeout: Seconds(15),
+        },
     };
 
     export const defaults: Templates = {
@@ -252,5 +302,6 @@ export namespace NetworkProfiles {
         fast: { exchanges: 200 },
         thread: conservative,
         conservative,
+        unknown: conservative,
     };
 }
