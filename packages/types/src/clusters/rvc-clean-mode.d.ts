@@ -334,7 +334,7 @@ export declare namespace RvcCleanMode {
     /**
      * @deprecated Use {@link RvcCleanMode}.
      */
-    export const Cluster: typeof RvcCleanMode;
+    export const Cluster: ClusterType.WithCompat<typeof RvcCleanMode, RvcCleanMode>;
 
     /**
      * @deprecated Use {@link RvcCleanMode}.

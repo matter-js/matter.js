@@ -460,7 +460,7 @@ export declare namespace ApplicationLauncher {
     /**
      * @deprecated Use {@link ApplicationLauncher}.
      */
-    export const Cluster: typeof ApplicationLauncher;
+    export const Cluster: ClusterType.WithCompat<typeof ApplicationLauncher, ApplicationLauncher>;
 
     /**
      * @deprecated Use {@link ApplicationLauncher}.

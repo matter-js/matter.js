@@ -63,6 +63,12 @@ export class NamedPipeCommandHandler extends CommandPipe {
         }
         this.#namedPipe = undefined;
         this.#namedPipeSocket = undefined;
-        await unlink(this.filename);
+        try {
+            await unlink(this.filename);
+        } catch (error: any) {
+            if (error.code !== "ENOENT") {
+                throw error;
+            }
+        }
     }
 }

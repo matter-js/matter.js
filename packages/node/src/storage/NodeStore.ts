@@ -5,7 +5,13 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { Construction, MaybePromise, StorageContext, StorageContextFactory } from "@matter/general";
+import {
+    type BlobStorageDriver,
+    Construction,
+    ImplementationError,
+    MaybePromise,
+    StorageContextFactory,
+} from "@matter/general";
 import type { Node } from "../node/Node.js";
 import { EndpointStore } from "./EndpointStore.js";
 
@@ -18,14 +24,13 @@ import { EndpointStore } from "./EndpointStore.js";
 export abstract class NodeStore {
     #storageFactory: StorageContextFactory;
     #construction: Construction<NodeStore>;
-    #bdxStore?: StorageContext;
 
-    get bdxStore(): StorageContext {
-        this.construction.assert("BDX storage context");
-        if (!this.#bdxStore) {
-            this.#bdxStore = this.createStorageContext("bdx");
-        }
-        return this.#bdxStore;
+    /**
+     * Obtain the BDX blob storage driver for this node.  Lazily opened on first call.
+     * Override in subclasses that support blob storage.
+     */
+    async bdxStore(): Promise<BlobStorageDriver> {
+        throw new ImplementationError("Blob storage is not available for this node store");
     }
 
     get construction() {

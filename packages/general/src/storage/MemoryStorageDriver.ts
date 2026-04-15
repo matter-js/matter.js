@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { deepCopy } from "#util/DeepCopy.js";
 import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -62,48 +61,6 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
         this.#assertInitialized();
         if (!key.length) throw new StorageError("Key must not be empty.");
         return this.store[this.createContextKey(contexts)]?.[key];
-    }
-
-    openBlob(contexts: string[], key: string): Blob {
-        const value = this.get(contexts, key);
-        if (value === undefined) {
-            return new Blob([]);
-        }
-        if (!Bytes.isBytes(value)) {
-            throw new StorageError("Value must be Bytes to read as blob stream.");
-        }
-        return new Blob([Bytes.exclusive(value)]);
-    }
-
-    async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
-        this.#assertInitialized();
-        const reader = stream.getReader();
-        const chunks: Uint8Array[] = [];
-
-        try {
-            let length = 0;
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const data = Bytes.of(value);
-                chunks.push(data);
-                length += data.length;
-            }
-            const combined = new Uint8Array(length);
-            let offset = 0;
-            for (const chunk of chunks) {
-                combined.set(chunk, offset);
-                offset += chunk.length;
-            }
-            this.#setKey(contexts, key, combined);
-        } catch (error: any) {
-            throw new StorageError(`Error reading stream: ${error.message}`);
-        } finally {
-            if (stream.locked) {
-                reader.releaseLock(); // Release the reader lock
-            }
-            await stream.cancel();
-        }
     }
 
     #setKey(contexts: string[], key: string, value: SupportedStorageTypes) {

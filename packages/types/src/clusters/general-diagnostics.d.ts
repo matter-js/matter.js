@@ -956,7 +956,7 @@ export declare namespace GeneralDiagnostics {
     /**
      * @deprecated Use {@link GeneralDiagnostics}.
      */
-    export const Cluster: typeof GeneralDiagnostics;
+    export const Cluster: ClusterType.WithCompat<typeof GeneralDiagnostics, GeneralDiagnostics>;
 
     /**
      * @deprecated Use {@link GeneralDiagnostics}.

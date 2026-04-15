@@ -163,6 +163,26 @@ function installLazyProperties(ns: object, model: ClusterModel) {
             }
             return Object.freeze(result);
         });
+
+        // Compat shim for pre-PR #3466 call sites: `PowerSource.Cluster.with(Feature.X, Feature.Y)`.
+        // Returns a shallow prototype-based clone of the namespace with `supportedFeatures` set.  Feature
+        // selection has no other runtime effect (attribute maps are not culled by conformance).
+        // @deprecated Removal tracked for 0.18.
+        lazy("with", () => (...features: string[]) => {
+            const clone = Object.create(ns) as Record<string, unknown>;
+            const supportedFeatures: Record<string, true> = {};
+            for (const feature of features) {
+                // Feature enum values are PascalCase; SupportedFeatures keys are camelCase.
+                supportedFeatures[feature.charAt(0).toLowerCase() + feature.slice(1)] = true;
+            }
+            clone.supportedFeatures = Object.freeze(supportedFeatures);
+            // Preserve the `Cluster`/`Complete` self-reference invariant on the clone; prototype-chain lookup would
+            // otherwise resolve these to the source namespace and drop the `supportedFeatures` marker.  Must use
+            // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
+            Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
+            Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
+            return clone;
+        });
     }
 
     // Enum values, error classes, struct/bitmap classes from all datatypes in the cluster
@@ -305,6 +325,24 @@ export namespace ClusterType {
      */
     export type WithSupportedFeatures<N extends ClusterTyping, S> = Omit<N, "SupportedFeatures"> & {
         SupportedFeatures: S;
+    };
+
+    /**
+     * Compat layer for pre-PR #3466 call sites that pin features via `Cluster.with(...)`.  Returns the namespace
+     * shape with a `with()` method that shifts `Typing.SupportedFeatures`.  Feature selection has no further runtime
+     * effect; the shim exists only to keep existing call sites typing correctly during the 0.17 → 0.18 migration.
+     *
+     * @deprecated Scheduled for removal in 0.18.  New code should type the cluster via
+     * {@link WithSupportedFeatures} directly.
+     */
+    export type WithCompat<NS, T extends ClusterTyping> = NS & {
+        /**
+         * @deprecated Feature selection is a typing-only compat shim for pre-PR #3466 call sites.
+         * Scheduled for removal in 0.18.  Prefer typing the cluster via {@link WithSupportedFeatures} directly.
+         */
+        with<const F extends readonly (T extends { Features: infer All extends string } ? All : never)[]>(
+            ...features: F
+        ): Omit<NS, "Typing"> & { Typing: WithSupportedFeatures<T, FeaturesAsFlags<T, F>> };
     };
 
     /**

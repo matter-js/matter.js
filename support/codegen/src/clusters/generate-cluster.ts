@@ -108,7 +108,10 @@ function generateComponents(file: ClusterFile) {
     // --- Deprecated ---
 
     if (cluster.id !== undefined) {
-        file.ns.atom(`export const Cluster: typeof ${name}`).document(`@deprecated Use {@link ${name}}.`);
+        // Clusters with features get a pre-PR #3466 compat shim (`.with(Feature.X, ...)`) via
+        // ClusterType.WithCompat.  See ClusterType.WithCompat JSDoc; scheduled for removal in 0.18.
+        const clusterType = hasFeatures ? `ClusterType.WithCompat<typeof ${name}, ${name}>` : `typeof ${name}`;
+        file.ns.atom(`export const Cluster: ${clusterType}`).document(`@deprecated Use {@link ${name}}.`);
     }
     file.ns.atom(`export const Complete: typeof ${name}`).document(`@deprecated Use {@link ${name}}.`);
 

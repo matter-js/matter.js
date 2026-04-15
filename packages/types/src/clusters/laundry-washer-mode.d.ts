@@ -315,7 +315,7 @@ export declare namespace LaundryWasherMode {
     /**
      * @deprecated Use {@link LaundryWasherMode}.
      */
-    export const Cluster: typeof LaundryWasherMode;
+    export const Cluster: ClusterType.WithCompat<typeof LaundryWasherMode, LaundryWasherMode>;
 
     /**
      * @deprecated Use {@link LaundryWasherMode}.

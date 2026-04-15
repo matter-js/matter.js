@@ -248,7 +248,7 @@ export declare namespace TimeFormatLocalization {
     /**
      * @deprecated Use {@link TimeFormatLocalization}.
      */
-    export const Cluster: typeof TimeFormatLocalization;
+    export const Cluster: ClusterType.WithCompat<typeof TimeFormatLocalization, TimeFormatLocalization>;
 
     /**
      * @deprecated Use {@link TimeFormatLocalization}.

@@ -7,7 +7,10 @@
 import { config } from "#config.js";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
+import { DirectoryBlobStorageDriver } from "#storage/fs/DirectoryBlobStorageDriver.js";
 import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
+import { FlatFileBlobStorageDriver } from "#storage/fs/FlatFileBlobStorageDriver.js";
+import { WalBlobStorageDriver } from "#storage/fs/WalBlobStorageDriver.js";
 import {
     asError,
     Boot,
@@ -218,13 +221,35 @@ function configureStorage(env: Environment) {
                 },
             });
 
+            // Register blob drivers
+            service.registerBlobDriver(FlatFileBlobStorageDriver);
+            service.registerBlobDriver(DirectoryBlobStorageDriver);
+            service.registerBlobDriver(WalBlobStorageDriver); // Backward compatibility only
+
+            service.registerBlobDriver({
+                id: "sqlite",
+
+                async create(namespace: DataNamespace) {
+                    const { SqliteBlobStorageDriver } = await import("#storage/sqlite/index.js");
+                    return new SqliteBlobStorageDriver({ namespaceOrPath: namespace });
+                },
+            });
+
+            // Default to "file" in nodejs (temporary until DIR is proven)
+            service.defaultBlobDriver = "file";
+
             // Default to "file" in nodejs (temporary until WAL is proven)
             service.defaultDriver = "file";
 
-            // Apply user-configured driver
-            let storageDriver = env.vars.string("storage.driver");
+            // Apply user-configured drivers
+            const storageDriver = env.vars.string("storage.driver");
             if (storageDriver && storageDriver.length > 0) {
                 service.configuredDriver = storageDriver;
+            }
+
+            const blobDriver = env.vars.string("storage.blobDriver");
+            if (blobDriver && blobDriver.length > 0) {
+                service.configuredBlobDriver = blobDriver;
             }
 
             return;
