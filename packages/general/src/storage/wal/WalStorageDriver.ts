@@ -16,6 +16,8 @@ import { type CloneableStorage, FilesystemStorageDriver, StorageDriver, StorageE
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import {
+    type StoreData,
+    type WalCommit,
     type WalCommitId,
     compareCommitIds,
     compressedSegmentFilename,
@@ -29,13 +31,11 @@ import { WalWriter } from "./WalWriter.js";
 
 const logger = Logger.get("WalStorageDriver");
 
-type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
-
 /**
  * Transactional storage backend using a write-ahead log (WAL).
  *
- * Data is loaded from the snapshot + WAL on first read and cached until a write invalidates the cache.  This keeps
- * memory free during steady-state operation when only writes occur.
+ * Data is loaded from the snapshot + WAL on first read and cached.  Writes update the cache incrementally so
+ * subsequent reads avoid a full reload.
  */
 export class WalStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
     static readonly id = "wal";
@@ -61,6 +61,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
     readonly #options: WalStorageDriver.Options;
     #cache?: StoreData;
     #cacheLoading?: Promise<StoreData>;
+    #pendingOps?: WalCommit[];
     #abort = new Abort();
     #workers = new BasicMultiplex();
     #initialized = false;
@@ -92,6 +93,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
         this.#abort = new Abort();
         this.#workers = new BasicMultiplex();
         this.#cache = undefined;
+        this.#pendingOps = undefined;
         this.#lastCommitId = undefined;
         this.#lastCommitTs = undefined;
         this.#lastSnapshotCommitId = undefined;
@@ -256,10 +258,16 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
 
     override async begin(): Promise<WalTransaction> {
         this.#assertInitialized();
-        return new WalTransaction(this, this.#writer!, (id, ts) => {
+        return new WalTransaction(this, this.#writer!, (id, ts, ops) => {
             this.#lastCommitId = id;
             this.#lastCommitTs = ts;
-            this.#cache = undefined;
+
+            if (this.#cache !== undefined) {
+                applyCommit(this.#cache, { ts, ops });
+            } else if (this.#cacheLoading !== undefined || this.#pendingOps !== undefined) {
+                // Load in-flight — buffer so #doLoadCache can reconcile after replay
+                (this.#pendingOps ??= []).push({ ts, ops });
+            }
             this.#cacheLoading = undefined;
         });
     }
@@ -349,6 +357,15 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             logger.debug(`Replayed ${replayCount} WAL commits`);
         } else if (afterCommitId) {
             this.#lastCommitId = afterCommitId;
+        }
+
+        // Reconcile commits that arrived during the load (idempotent if already replayed)
+        const pending = this.#pendingOps;
+        if (pending !== undefined) {
+            this.#pendingOps = undefined;
+            for (const commit of pending) {
+                applyCommit(store, commit);
+            }
         }
 
         this.#cache = store;
