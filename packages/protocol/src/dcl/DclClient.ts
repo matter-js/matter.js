@@ -9,6 +9,7 @@ import {
     DclModelModelsWithVidPidResponse,
     DclModelVersionsWithVidPidResponse,
     DclModelVersionWithVidPidSoftwareVersionResponse,
+    DclPkiAllCertificatesBySkidResponse,
     DclPkiCertificateResponse,
     DclPkiRevocationDistributionPointRaw,
     DclPkiRevocationPointsByIssuerResponse,
@@ -17,7 +18,7 @@ import {
     DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
 import { Duration, Logger, MatterError, Seconds } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, VendorId } from "@matter/types";
+import { DeviceAttestationPkiRevocationDclSchema, ProductAttestationDclSchema, VendorId } from "@matter/types";
 
 const logger = new Logger("DclClient");
 
@@ -113,6 +114,29 @@ export class DclClient {
             );
         }
         return certList.approvedRootCertificates.certs;
+    }
+
+    /**
+     * Fetch certificates by their SubjectKeyIdentifier from the DCL. Useful for looking up
+     * certificates without knowing their subject DN (e.g. CD signer certificates referenced
+     * only by SKID in Certification Declarations).
+     *
+     * Returns an empty array if no matching certificates exist.
+     */
+    async fetchCertificatesBySubjectKeyId(subjectKeyId: string, options?: DclClient.Options) {
+        // DCL expects SKID as colon-separated uppercase hex (e.g. "FE:34:3F:...")
+        const normalized = subjectKeyId.replace(/:/g, "").toUpperCase();
+        const skidWithColons = normalized.match(/.{1,2}/g)?.join(":") ?? normalized;
+        const path = `/dcl/pki/all-certificates?subjectKeyId=${encodeURIComponent(skidWithColons)}`;
+        const response = await this.#fetchJson<DclPkiAllCertificatesBySkidResponse>(path, options);
+        const groups = response?.certificates ?? [];
+        const results: ProductAttestationDclSchema[] = [];
+        for (const group of groups) {
+            for (const cert of group.certs ?? []) {
+                results.push(cert);
+            }
+        }
+        return results;
     }
 
     async fetchRootCertificateBySubject(subject: DclPkiRootCertificateSubjectReference, options?: DclClient.Options) {

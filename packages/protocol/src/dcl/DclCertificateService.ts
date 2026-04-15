@@ -32,6 +32,7 @@ import {
 } from "@matter/general";
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
+import { Certificate } from "../certificate/kinds/Certificate.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
@@ -314,6 +315,95 @@ export class DclCertificateService {
     }
 
     /**
+     * Inject a certificate (PAA or CD signer) into the trust store.
+     *
+     * Returns `true` if the certificate was newly added, `false` if a certificate with the same
+     * SubjectKeyIdentifier already exists (in which case the store is unchanged).
+     *
+     * @param derBytes DER-encoded X.509 certificate
+     * @param kind "PAA" (self-signed root) or "CDSigner" (CMS Certification Declaration signer)
+     * @param options.isProduction  mark as production-trust; defaults to `false`
+     */
+    async addCertificate(
+        derBytes: Bytes,
+        kind: DclCertificateService.CertificateKind,
+        options?: { isProduction?: boolean },
+    ): Promise<boolean> {
+        this.construction.assert();
+
+        const cert = Certificate.parseAsn1Certificate(
+            derBytes,
+            kind === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+        );
+        const skid = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
+
+        if (this.#certificateIndex.has(skid)) {
+            return false;
+        }
+
+        const isProduction = options?.isProduction ?? false;
+        const vid = (cert.subject as { vendorId?: number }).vendorId ?? 0;
+
+        await this.#storeCertificate(this.#storage!, skid, Bytes.of(derBytes), {
+            subject: (cert.subject as { commonName?: string }).commonName,
+            subjectKeyId: skid,
+            serialNumber: Bytes.toHex(cert.serialNumber),
+            vid,
+            isRoot: kind === "PAA",
+            isProduction,
+            kind,
+        });
+        await this.#saveIndex();
+
+        logger.info(`Added ${kind} certificate`, Diagnostic.dict({ skid, isProduction }));
+        return true;
+    }
+
+    /**
+     * Look up a CD signer certificate by its SubjectKeyIdentifier.
+     *
+     * Checks the local trust store first. On miss, queries the production DCL
+     * (`/dcl/pki/all-certificates?subjectKeyId=<skid>`) and caches the result as a
+     * CDSigner entry with `isProduction: true`.
+     *
+     * Returns `undefined` if no matching CD signer can be found either locally or on DCL.
+     */
+    async getOrFetchCdSigner(
+        subjectKeyId: Bytes | string,
+    ): Promise<{ publicKey: Bytes; isProduction: boolean } | undefined> {
+        this.construction.assert();
+
+        const normalizedSkid = this.#normalizeSubjectKeyId(subjectKeyId);
+
+        // Local lookup first
+        const existing = this.#certificateIndex.get(normalizedSkid);
+        if (existing !== undefined && (existing.kind ?? "PAA") === "CDSigner") {
+            const derBytes = await this.#getCertificateDer(normalizedSkid);
+            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
+            return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        }
+
+        // DCL fallback
+        try {
+            const config = this.#options.dclConfig ?? DclConfig.production;
+            const dclClient = new DclClient(config);
+            const certs = await dclClient.fetchCertificatesBySubjectKeyId(normalizedSkid, this.#options);
+            if (certs.length === 0) {
+                return undefined;
+            }
+
+            const derBytes = Pem.asDer(certs[0].pemCert);
+            await this.addCertificate(derBytes, "CDSigner", { isProduction: true });
+
+            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
+            return { publicKey: cert.ellipticCurvePublicKey, isProduction: true };
+        } catch (error) {
+            logger.info(`Failed to fetch CD signer ${normalizedSkid} from DCL:`, error);
+            return undefined;
+        }
+    }
+
+    /**
      * Close the service and stop all timers.
      */
     async close() {
@@ -420,6 +510,12 @@ export class DclCertificateService {
             // Also fetch certificates from GitHub (unless explicitly disabled)
             if (this.#options.fetchGithubCertificates !== false) {
                 await this.#fetchGitHubCertificates(storage, force);
+
+                if (this.#closed) {
+                    return;
+                }
+
+                await this.#fetchGitHubCdSignerCertificates(storage, force);
             }
         }
 
@@ -528,6 +624,7 @@ export class DclCertificateService {
                     vid,
                     isRoot,
                     isProduction,
+                    kind: "PAA",
                 });
 
                 logger.debug(`Stored certificate`, Diagnostic.dict({ skid: normalizedSubjectKeyId, vid: cert.vid }));
@@ -568,6 +665,72 @@ export class DclCertificateService {
     }
 
     /**
+     * Fetch CD signer certificates from the configured GitHub directory.
+     * Stores each as a CDSigner entry with isProduction=false (user may promote via addCertificate).
+     */
+    async #fetchGitHubCdSignerCertificates(storage: StorageContext, force: boolean) {
+        try {
+            logger.debug("Fetching CD signer certificates from GitHub");
+
+            const { owner, repo, branch, cdSignerCertPath } = this.#options.githubConfig ?? DclGithubConfig.defaults;
+            const repoClient = new Github.Repo(owner, repo, branch, this.#options);
+            const certDir = await repoClient.cd(cdSignerCertPath);
+
+            const files = await certDir.ls();
+            const certFiles = files.filter(name => name.endsWith(".der"));
+            logger.debug(`Found ${certFiles.length} CD signer certificate files on GitHub`);
+
+            for (const filename of certFiles) {
+                if (this.#closed) {
+                    return;
+                }
+                await this.#fetchGitHubCdSignerCertificate(storage, certDir, filename, force);
+            }
+        } catch (error) {
+            logger.info("Failed to fetch CD signer certificates from GitHub", error);
+        }
+    }
+
+    /**
+     * Fetch a single CD signer certificate from GitHub.
+     */
+    async #fetchGitHubCdSignerCertificate(
+        storage: StorageContext,
+        certDir: Github.Directory,
+        filename: string,
+        force: boolean,
+    ) {
+        try {
+            const derBytes = await certDir.getBinary(filename);
+            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
+            const subjectKeyId = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
+
+            if (!force && this.#certificateIndex.has(subjectKeyId)) {
+                logger.debug(`CD signer certificate already exists, skipping`, Diagnostic.dict({ skid: subjectKeyId }));
+                return;
+            }
+
+            const subject = filename.replace(".der", "");
+            const serialNumber = Bytes.toHex(cert.serialNumber);
+            const vid = (cert.subject as { vendorId?: number }).vendorId ?? 0;
+
+            await this.#storeCertificate(storage, subjectKeyId, Bytes.of(derBytes), {
+                subject,
+                subjectKeyId,
+                serialNumber,
+                vid,
+                isRoot: false,
+                isProduction: false,
+                kind: "CDSigner",
+            });
+
+            logger.debug(`Stored GitHub CD signer certificate`, Diagnostic.dict({ skid: subjectKeyId, filename }));
+        } catch (error) {
+            logger.info(`Failed to fetch GitHub CD signer certificate ${filename}`, error);
+        }
+    }
+
+    /**
      * Fetch a single certificate from GitHub by filename.
      */
     async #fetchGitHubCertificate(
@@ -602,6 +765,7 @@ export class DclCertificateService {
                 vid,
                 isRoot: true,
                 isProduction: false,
+                kind: "PAA",
             });
 
             logger.debug(`Stored GitHub certificate`, Diagnostic.dict({ skid: subjectKeyId, filename }));
@@ -1036,6 +1200,9 @@ export namespace DclCertificateService {
         githubConfig?: DclGithubConfig;
     }
 
+    /** Kind of certificate stored in the trust store. */
+    export type CertificateKind = "PAA" | "CDSigner";
+
     /**
      * Metadata for a stored certificate.
      */
@@ -1047,6 +1214,9 @@ export namespace DclCertificateService {
         vid: number;
         isRoot: boolean;
         isProduction: boolean;
+
+        /** Kind of certificate. Defaults to "PAA" when absent (backward compat). */
+        kind?: CertificateKind;
 
         /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
         fetchedAt?: number;

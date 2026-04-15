@@ -38,16 +38,22 @@ describe("DclGithubConfig", () => {
         expect(DclGithubConfig.defaults.certPath).to.equal("credentials/development/paa-root-certs");
     });
 
+    it("defaults has correct cdSignerCertPath", () => {
+        expect(DclGithubConfig.defaults.cdSignerCertPath).to.equal("credentials/development/cd-certs");
+    });
+
     it("custom config satisfies interface", () => {
         const custom: DclGithubConfig = {
             owner: "my-org",
             repo: "my-repo",
             branch: "main",
             certPath: "certs/paa",
+            cdSignerCertPath: "certs/cd-signers",
         };
         expect(custom.owner).to.equal("my-org");
         expect(custom.repo).to.equal("my-repo");
         expect(custom.branch).to.equal("main");
         expect(custom.certPath).to.equal("certs/paa");
+        expect(custom.cdSignerCertPath).to.equal("certs/cd-signers");
     });
 });

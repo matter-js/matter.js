@@ -15,16 +15,7 @@ import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
-import {
-    Bytes,
-    Crypto,
-    Environment,
-    MockFetch,
-    MockStorageService,
-    PrivateKey,
-    PublicKey,
-    StandardCrypto,
-} from "@matter/general";
+import { Bytes, Crypto, Environment, MockFetch, MockStorageService, PrivateKey, StandardCrypto } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { pemEncode, setupDclFetchMock } from "./TestHelpers.js";
 
@@ -36,12 +27,6 @@ describe("DeviceAttestationValidator", () => {
     // Fixed attestation challenge (16 bytes) and nonce (32 bytes) for tests
     const attestationChallenge = crypto.randomBytes(16);
     const attestationNonce = crypto.randomBytes(32);
-
-    // CD signer info for tests
-    const cdSigner = CertificationDeclaration.testSignerInfo();
-    const cdSignerPublicKeys = new Map<string, PublicKey>([
-        [Bytes.toHex(cdSigner.subjectKeyId), PublicKey(cdSigner.publicKey)],
-    ]);
 
     let fetchMock: MockFetch;
     let environment: Environment;
@@ -114,12 +99,19 @@ describe("DeviceAttestationValidator", () => {
     async function setupDclService(
         paaCert: Bytes = TestCert_PAA_NoVID_Cert,
         revocation?: { issuerSkid: string; revokedSerials: string[]; issuerDnDer?: Bytes },
+        options?: { injectTestCdSigner?: boolean },
     ) {
         setupDclFetchMock(fetchMock, paaCert, revocation && { ...revocation, signerCertPem: pemEncode(paiDer) });
         fetchMock.install();
 
         service = new DclCertificateService(environment, { updateInterval: null });
         await service.construction;
+
+        // Inject the Matter test CD signer certificate by default so CD sig verification works
+        if (options?.injectTestCdSigner !== false) {
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+        }
+
         return service;
     }
 
@@ -153,7 +145,7 @@ describe("DeviceAttestationValidator", () => {
         };
     }
 
-    /** Build a Context object with valid attestation challenge and CD signer keys by default. */
+    /** Build a Context object with valid attestation challenge and DCL service by default. */
     function buildContext(
         dclService: DclCertificateService,
         overrides?: Partial<DeviceAttestationValidator.Context>,
@@ -162,7 +154,6 @@ describe("DeviceAttestationValidator", () => {
             crypto,
             dclCertificateService: dclService,
             attestationChallenge,
-            cdSignerPublicKeys,
             ...overrides,
         };
     }
@@ -362,14 +353,13 @@ describe("DeviceAttestationValidator", () => {
             await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
 
-        it("skips CD signature verification when cdSignerPublicKeys is not provided", async () => {
-            const dclService = await setupDclService();
+        it("skips CD signature verification when no CD signer is available", async () => {
+            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, undefined, {
+                injectTestCdSigner: false,
+            });
 
-            // No cdSignerPublicKeys in context - should still pass (skips verification with warning)
-            await DeviceAttestationValidator.validate(
-                buildContext(dclService, { cdSignerPublicKeys: undefined }),
-                buildData(),
-            );
+            // DCL lookup for the test signer returns 404 on prod DCL — validator skips verification
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
 
         it("throws CertificationDeclarationSignatureInvalid for CD signed with wrong key", async () => {
@@ -390,7 +380,7 @@ describe("DeviceAttestationValidator", () => {
                     versionNumber: 1,
                     certificationType: 0,
                 },
-                cdSigner.subjectKeyId,
+                CertificationDeclaration.testSignerInfo().subjectKeyId,
             );
             const wrongSignedCdBytes = await wrongSignedCd.asSignedAsn1(crypto, wrongKey);
 
@@ -540,13 +530,12 @@ describe("DeviceAttestationValidator", () => {
             expect(result.findings).to.be.an("array");
         });
 
-        it("returns CdSignerVerificationSkipped warning when no cdSignerPublicKeys provided", async () => {
-            const dclService = await setupDclService();
+        it("returns CdSignerVerificationSkipped warning when no CD signer is available", async () => {
+            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, undefined, {
+                injectTestCdSigner: false,
+            });
 
-            const result = await DeviceAttestationValidator.validate(
-                buildContext(dclService, { cdSignerPublicKeys: undefined }),
-                buildData(),
-            );
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
 
             const cdFinding = result.findings.find(f => f.type === DeviceAttestationCheck.CdSignerVerificationSkipped);
             expect(cdFinding).to.not.be.undefined;

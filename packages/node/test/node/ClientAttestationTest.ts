@@ -7,6 +7,7 @@
 import { Bytes, Crypto, DerCodec, DerType, MockCrypto, MockFetch, ObjectId, Pem, Seconds } from "@matter/general";
 import {
     AttestationFinding,
+    CertificationDeclaration,
     DclCertificateService,
     DeviceAttestationCheck,
     DeviceAttestationValidator,
@@ -175,6 +176,8 @@ async function runAttestationTest(options: AttestationTestOptions) {
         if (options.dclPaaCert !== undefined) {
             dclService = new DclCertificateService(controller.env, { updateInterval: null });
             await dclService.construction;
+            // Inject the Matter test CD signer so CD signature verification works for test CDs
+            await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
         }
 
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
@@ -307,7 +310,9 @@ describe("device attestation during commissioning", () => {
                 assertFindings: findings => {
                     const types = findings.map(f => f.type);
                     expect(types).to.include(DeviceAttestationCheck.CertificationTypeTest);
-                    expect(types).to.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
+                    // CD signer is auto-injected from the well-known Matter test signer, so CD
+                    // signature verification succeeds (no CdSignerVerificationSkipped expected)
+                    expect(types).to.not.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
 
                     const certType = findings.find(f => f.type === DeviceAttestationCheck.CertificationTypeTest);
                     expect(certType!.level).equals("info");

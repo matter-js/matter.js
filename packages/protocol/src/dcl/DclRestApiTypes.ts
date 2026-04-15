@@ -49,6 +49,16 @@ export interface DclPkiRootCertificatesResponse {
     };
 }
 
+/** Response for /dcl/pki/all-certificates?subjectKeyId=<skid> */
+export interface DclPkiAllCertificatesBySkidResponse {
+    certificates: Array<{
+        subject: string;
+        subjectKeyId: string;
+        certs: ProductAttestationDclSchema[];
+        schemaVersion: number;
+    }>;
+}
+
 /** Response for /dcl/pki/certificates/{subject}/{subjectKeyId} */
 export interface DclPkiCertificateResponse {
     approvedCertificates: {

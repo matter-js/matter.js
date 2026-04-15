@@ -61,22 +61,12 @@ export namespace DeviceAttestationValidator {
         attestationChallenge: Bytes;
 
         /**
-         * DclCertificateService for PAA trust store, chain validation, and revocation checks.
-         * When absent, DCL-dependent checks are skipped (PAA lookup, chain verification,
-         * revocation) but local checks still run (nonce, signature, VendorID, CD fields).
+         * DclCertificateService for PAA trust store, chain validation, revocation checks, and
+         * CD signer lookup. When absent, DCL-dependent checks are skipped (PAA lookup, chain
+         * verification, revocation, CD signature) but local checks still run (nonce, signature,
+         * VendorID, CD fields).
          */
         dclCertificateService?: DclCertificateService;
-
-        /**
-         * Optional map of known CD signer public keys, keyed by subject key identifier hex (lowercase).
-         *
-         * If provided, the validator uses this map to verify the CD signature.
-         * If the signer's SKID is not found in this map (or the map is not provided),
-         * CD signature verification is skipped with a warning.
-         *
-         * In the future, the CD signer certificate will be fetched from DCL by SKID.
-         */
-        cdSignerPublicKeys?: Map<string, PublicKey>;
     }
 
     export interface DeviceAttestationData {
@@ -291,11 +281,11 @@ export namespace DeviceAttestationValidator {
         const cd = CertificationDeclaration.parse(attestationInfo.declaration);
         const cdSignerSkidHex = Bytes.toHex(cd.signerSubjectKeyId);
 
-        if (context.cdSignerPublicKeys !== undefined) {
-            const cdSignerPublicKey = context.cdSignerPublicKeys.get(cdSignerSkidHex);
-            if (cdSignerPublicKey !== undefined) {
+        if (dclCertificateService !== undefined) {
+            const cdSigner = await dclCertificateService.getOrFetchCdSigner(cd.signerSubjectKeyId);
+            if (cdSigner !== undefined) {
                 try {
-                    await crypto.verifyEcdsa(cdSignerPublicKey, cd.signedData, cd.signature);
+                    await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
                 } catch {
                     throw new DeviceAttestationError(
                         DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
@@ -306,15 +296,14 @@ export namespace DeviceAttestationValidator {
                 findings.push({
                     level: "warning",
                     type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                    message: `CD signer SKID ${cdSignerSkidHex} not found in cdSignerPublicKeys map; skipping CD signature verification`,
+                    message: `CD signer SKID ${cdSignerSkidHex} not found in trust store or DCL; skipping CD signature verification`,
                 });
             }
         } else {
-            // TODO: Fetch CD signer certificate from DCL by cd.signerSubjectKeyId
             findings.push({
                 level: "warning",
                 type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                message: "No cdSignerPublicKeys provided in context; skipping CD signature verification",
+                message: "No DclCertificateService provided; skipping CD signature verification",
             });
         }
 
