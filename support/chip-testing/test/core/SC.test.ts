@@ -33,6 +33,11 @@ describe("SC", () => {
         );
     }).timeout(10000);
 
+    chip("SC/3.4/run1");
+    chip("SC/3.4/run2");
+    chip("SC/5.1/run1");
+    chip("SC/5.2/run1");
+
     chip("SC/*").exclude(
         // These require additional configuration below
         "SC/4.1/*",
