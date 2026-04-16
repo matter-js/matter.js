@@ -568,7 +568,9 @@ export class StorageService {
     }) {
         const { label, storageType, fs, namespace, sourceDir, fromKind, toKind } = args;
 
-        logger.notice(`Migrating ${label} "${namespace}" from "${fromKind}" to "${toKind}"`);
+        logger.notice(
+            `Migrating ${label} "${namespace}" from "${fromKind}" to "${toKind}". Be patient, this may take a while...`,
+        );
 
         const migrationsDir = fs.directory(".migrations");
         await migrationsDir.mkdir();

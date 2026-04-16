@@ -18,70 +18,58 @@
  * If this file fails to compile, the variance issue has regressed.
  */
 
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
-import { ColorControlServer as BaseColorControlServer } from "../behaviors/color-control/ColorControlServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
-import { ThermostatServer as BaseThermostatServer } from "../behaviors/thermostat/ThermostatServer.js";
-import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { ColorControlServer as BaseColorControlServer } from "#behaviors/color-control";
+import { IdentifyServer as BaseIdentifyServer } from "#behaviors/identify";
+import { LevelControlServer as BaseLevelControlServer } from "#behaviors/level-control";
+import { OnOffServer as BaseOnOffServer } from "#behaviors/on-off";
+import { ThermostatServer as BaseThermostatServer } from "#behaviors/thermostat";
 
 /**
  * LevelControl .with().alter() — the original failing pattern from device files.
  */
 export namespace TestLevelControl {
-    export const LevelControlServer = BaseLevelControlServer
-        .with("Lighting", "OnOff")
-        .alter({
-            attributes: {
-                currentLevel: { min: 1, max: 254 },
-            },
-        });
+    export const LevelControlServer = BaseLevelControlServer.with("Lighting", "OnOff").alter({
+        attributes: {
+            currentLevel: { min: 1, max: 254 },
+        },
+    });
 }
 
 /**
  * ColorControl .with().alter().
  */
 export namespace TestColorControl {
-    export const ColorControlServer = BaseColorControlServer
-        .with("ColorTemperature")
-        .alter({
-            attributes: {
-                startUpColorTemperatureMireds: { default: 0 },
-            },
-        });
+    export const ColorControlServer = BaseColorControlServer.with("ColorTemperature").alter({
+        attributes: {
+            startUpColorTemperatureMireds: { default: 0 },
+        },
+    });
 }
 
 /**
  * OnOff .with().alter().
  */
 export namespace TestOnOff {
-    export const OnOffServer = BaseOnOffServer
-        .with("Lighting")
-        .alter({ attributes: {} });
+    export const OnOffServer = BaseOnOffServer.with("Lighting").alter({ attributes: {} });
 }
 
 /**
  * Thermostat .with().alter().
  */
 export namespace TestThermostat {
-    export const ThermostatServer = BaseThermostatServer
-        .with("Heating")
-        .alter({ attributes: {} });
+    export const ThermostatServer = BaseThermostatServer.with("Heating").alter({ attributes: {} });
 }
 
 /**
  * Identify .with().alter() — minimal cluster.
  */
 export namespace TestIdentify {
-    export const IdentifyServer = BaseIdentifyServer
-        .with()
-        .alter({ attributes: {} });
+    export const IdentifyServer = BaseIdentifyServer.with().alter({ attributes: {} });
 }
 
 /**
  * Chained .with().with().
  */
 export namespace TestDoubleWith {
-    export const LevelControlServer = BaseLevelControlServer
-        .with("Lighting", "OnOff")
-        .with();
+    export const LevelControlServer = BaseLevelControlServer.with("Lighting", "OnOff").with();
 }
