@@ -79,6 +79,9 @@ describe("CADMIN", () => {
     // test (see equivalent in Discovery.test.ts)
     before(() => chip.testFor("CADMIN/1.22").edit(edit.sed("s/timeout=179/timeout=0/")));
 
+    chip("CADMIN/1.3/run1", "CADMIN/1.3/run2");
+    chip("CADMIN/1.4/run1", "CADMIN/1.4/run2");
+
     chip("CADMIN/*").exclude(
         // Handled below
         "CADMIN/1.19",
