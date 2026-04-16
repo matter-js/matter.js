@@ -84,6 +84,7 @@ export class AccessControlServer extends AccessControlBase {
                 fabricAcls.push(fallbackAcl);
             }
             fabric.accessControl.aclList = fabricAcls;
+            fabric.accessControl.auxiliaryFeatureEnabled = this.features.auxiliary;
             fabric.accessControl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);
         }
 
@@ -434,6 +435,7 @@ export class AccessControlServer extends AccessControlBase {
         const fabricIndex = fabric.fabricIndex;
         const realAcl = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
         const syntheticAcl = this.state.auxiliaryAcl.filter(entry => entry.fabricIndex === fabricIndex);
+        fabric.accessControl.auxiliaryFeatureEnabled = this.features.auxiliary;
         fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
     }
 
