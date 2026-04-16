@@ -24,11 +24,29 @@ const logger = Logger.get("GroupsServer");
 const { commands } = Groups.schema;
 const addGroup = commands.require("AddGroup");
 const addGroupIfIdentifying = commands.require("AddGroupIfIdentifying");
+const addGroupResponse = commands.require("AddGroupResponse");
+const viewGroupResponse = commands.require("ViewGroupResponse");
+const removeGroupResponse = commands.require("RemoveGroupResponse");
 
 const GroupsSchema = Groups.schema.extend(
     undefined,
-    addGroup.extend(undefined, addGroup.fields.extend("GroupName", { constraint: "none" })),
-    addGroupIfIdentifying.extend(undefined, addGroupIfIdentifying.fields.extend("GroupName", { constraint: "none" })),
+    addGroup.extend(
+        undefined,
+        addGroup.fields.extend("GroupId", { constraint: "none" }),
+        addGroup.fields.extend("GroupName", { constraint: "none" }),
+    ),
+    addGroupIfIdentifying.extend(
+        undefined,
+        addGroupIfIdentifying.fields.extend("GroupId", { constraint: "none" }),
+        addGroupIfIdentifying.fields.extend("GroupName", { constraint: "none" }),
+    ),
+    addGroupResponse.extend(undefined, addGroupResponse.fields.extend("GroupId", { constraint: "none" })),
+    viewGroupResponse.extend(
+        undefined,
+        viewGroupResponse.fields.extend("GroupId", { constraint: "none" }),
+        viewGroupResponse.fields.extend("GroupName", { constraint: "none" }),
+    ),
+    removeGroupResponse.extend(undefined, removeGroupResponse.fields.extend("GroupId", { constraint: "none" })),
 );
 
 // We enable group names by default

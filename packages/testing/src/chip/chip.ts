@@ -131,7 +131,7 @@ function createBuilder(initial: {
         include(...glob: string[]) {
             const includePaths = new Set<string>();
             for (const pattern of glob) {
-                const paths = globSync(glob, chip.tests);
+                const paths = globSync(pattern, chip.tests);
 
                 if (!paths.length) {
                     throw new Error(`No tests included for glob ${pattern}`);

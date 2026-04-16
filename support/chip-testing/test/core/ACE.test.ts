@@ -21,4 +21,5 @@ describe("ACE", () => {
     );
 
     chip("ACE/*");
+    chip("ACE/*/run1");
 });
