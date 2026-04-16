@@ -56,7 +56,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
 
     if (config.isSender) {
         // We are Sender and Responder
-        if (!config.fileDesignator.exists()) {
+        if (!(await config.fileDesignator.exists())) {
             throw new BdxError(
                 `File designator ${config.fileDesignator.text} does not point to an existing file in the storage to send data`,
                 BdxStatusCode.FileDesignatorUnknown,

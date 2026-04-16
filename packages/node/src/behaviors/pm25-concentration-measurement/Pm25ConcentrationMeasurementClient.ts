@@ -10,7 +10,7 @@ import { Pm25ConcentrationMeasurement } from "@matter/types/clusters/pm25-concen
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const Pm25ConcentrationMeasurementClientConstructor = ClientBehavior(Pm25ConcentrationMeasurement.Complete);
+export const Pm25ConcentrationMeasurementClientConstructor = ClientBehavior(Pm25ConcentrationMeasurement);
 export interface Pm25ConcentrationMeasurementClient extends InstanceType<typeof Pm25ConcentrationMeasurementClientConstructor> {}
 export interface Pm25ConcentrationMeasurementClientConstructor extends Identity<typeof Pm25ConcentrationMeasurementClientConstructor> {}
 export const Pm25ConcentrationMeasurementClient: Pm25ConcentrationMeasurementClientConstructor = Pm25ConcentrationMeasurementClientConstructor;

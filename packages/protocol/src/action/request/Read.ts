@@ -6,15 +6,7 @@
 
 import { camelize, Diagnostic } from "@matter/general";
 import { Specification } from "@matter/model";
-import {
-    AttributePath,
-    ClusterType,
-    DataVersionFilter,
-    EventFilter,
-    EventPath,
-    GlobalAttributes,
-    ReadRequest,
-} from "@matter/types";
+import { AttributePath, ClusterType, DataVersionFilter, EventFilter, EventPath, ReadRequest } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 
@@ -266,7 +258,7 @@ export namespace Read {
         | EventSelector.WildcardEvent
         | EventSelector.Endpoint;
 
-    export function Attribute<const C extends ClusterType>(
+    export function Attribute<const C extends Specifier.ClusterLike>(
         selector?: AttributeSelector<C>,
     ): { kind: "attribute" } & AttributeSelector<C> {
         return {
@@ -293,7 +285,7 @@ export namespace Read {
         skipChangesOmitted?: boolean;
     }
 
-    export type GlobalAttributeSpecifier = ClusterType.Attribute | keyof GlobalAttributes<any>;
+    export type GlobalAttributeSpecifier = ClusterType.Attribute | Specifier.GlobalAttributeName;
 
     export namespace AttributeSelector {
         export interface Concrete<C extends Specifier.Cluster> {

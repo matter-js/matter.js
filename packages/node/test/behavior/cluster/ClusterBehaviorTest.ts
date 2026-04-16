@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { FeatureMismatchError } from "#behavior/internal/ServerBehaviorBacking.js";
 import { StateType } from "#behavior/state/StateType.js";
@@ -23,12 +24,12 @@ import {
     MaybePromise,
     Observable,
 } from "@matter/general";
-import { AttributeElement, ClusterModel } from "@matter/model";
+import { AttributeElement, ClusterModel, CommandElement } from "@matter/model";
 import {
     Attribute,
     ClusterId,
     ClusterType,
-    ClusterTypeModifier,
+    CommandId,
     TlvBoolean,
     TlvInt32,
     TlvNullable,
@@ -265,16 +266,8 @@ describe("ClusterBehavior", () => {
 
     describe("alter", () => {
         it("recreates ID", () => {
-            // Test constituent parts
             MyCluster.name satisfies "MyCluster";
 
-            const AlteredCluster = new ClusterTypeModifier(MyCluster).alter({});
-            AlteredCluster.name satisfies "MyCluster";
-
-            const BehaviorForAlteredCluster = MyBehavior.for(AlteredCluster);
-            BehaviorForAlteredCluster.id satisfies "myCluster";
-
-            // Now test all together
             const AlteredBehavior = MyBehavior.alter({});
             AlteredBehavior.id satisfies "myCluster";
             expect(AlteredBehavior.id).equals("myCluster");
@@ -321,7 +314,7 @@ describe("ClusterBehavior", () => {
                 };
             };
 
-            expect(AwesomeBehavior.cluster.supportedFeatures).deep.equals({ awesome: true });
+            expect(AwesomeBehavior.features).deep.equals({ awesome: true });
             expect(AwesomeBehavior.schema.supportedFeatures).deep.equals(new Set(["AWE"]));
         });
 
@@ -340,9 +333,9 @@ describe("ClusterBehavior", () => {
         it("adds feature elements on NetworkCommissioningServer", () => {
             const EthernetCommissioningServer = NetworkCommissioningServer.with("EthernetNetworkInterface");
 
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.ethernetNetworkInterface).true;
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.wiFiNetworkInterface).false;
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.threadNetworkInterface).false;
+            expect(EthernetCommissioningServer.features.ethernetNetworkInterface).true;
+            expect(EthernetCommissioningServer.features.wiFiNetworkInterface).false;
+            expect(EthernetCommissioningServer.features.threadNetworkInterface).false;
         });
 
         it("prevents feature mismatch", async () => {
@@ -366,6 +359,67 @@ describe("ClusterBehavior", () => {
                     'The featureMap for node0.part0.myCluster does not match the implementation; please use MyClusterBehavior.with("FeatureName") to configure features',
                 );
             }
+        });
+    });
+
+    describe("non-Matter methods", () => {
+        it("excludes CommandId.NONE from accepted and generated command lists", async () => {
+            interface TestInterface {
+                Components: [
+                    {
+                        flags: {};
+                        commands: {
+                            realCommand(request: number): MaybePromise<number>;
+                            nonMatterMethod(request: number): MaybePromise;
+                        };
+                    },
+                ];
+            }
+
+            const TestSchema = new ClusterModel({
+                id: 0xfff1_fc99,
+                name: "TestWithMethod",
+                children: [
+                    CommandElement({
+                        id: 0x01,
+                        name: "RealCommand",
+                        response: "RealCommandResponse",
+                        type: "uint8",
+                        conformance: "M",
+                    }),
+                    CommandElement({
+                        id: 0x02,
+                        name: "RealCommandResponse",
+                        direction: "response",
+                        type: "uint8",
+                        conformance: "M",
+                    }),
+                    CommandElement({
+                        id: CommandElement.NO_ID,
+                        name: "NonMatterMethod",
+                        type: "uint8",
+                        conformance: "M",
+                    }),
+                ],
+            });
+
+            const TestNs = ClusterType(TestSchema) as ClusterType.Concrete & { Typing: TestInterface };
+            const TestBehavior = ClusterBehavior.for(TestNs);
+
+            class MyTestBehavior extends TestBehavior {
+                override realCommand() {
+                    return 42;
+                }
+
+                override nonMatterMethod() {}
+            }
+
+            const endpoint = await MockEndpoint.createWith(MyTestBehavior);
+            await endpoint.act(agent => {
+                const state = agent.testWithMethod.state as unknown as GlobalAttributeState;
+                expect(state.acceptedCommandList).deep.equals([CommandId(0x01)]);
+                expect(state.generatedCommandList).deep.equals([CommandId(0x02)]);
+            });
         });
     });
 

@@ -32,7 +32,7 @@ type FullAttributePath = {
 
 /** Type for TlvAttributeReportData where the real data are represented with the schema and the JS value. */
 type AttributeDataPayload = Omit<TypeFromSchema<typeof TlvAttributeReportData>, "data"> & {
-    schema: TlvSchema<any>;
+    tlv: TlvSchema<any>;
     payload: any;
 };
 
@@ -44,7 +44,7 @@ export type AttributeReportPayload = Omit<TypeFromSchema<typeof TlvAttributeRepo
 
 /** Type for TlvEventData where the real data are represented with the schema and the JS value. */
 export type EventDataPayload = Omit<TypeFromSchema<typeof TlvEventData>, "data"> & {
-    schema: TlvSchema<any>;
+    tlv: TlvSchema<any>;
     payload: any;
 };
 
@@ -81,8 +81,8 @@ export function encodeAttributePayloadData(
         );
     }
 
-    const { schema, payload } = attributeData;
-    return schema.encodeTlv(payload, options);
+    const { tlv, payload } = attributeData;
+    return tlv.encodeTlv(payload, options);
 }
 
 /** Encodes an AttributeReportPayload into a TlvStream (used for TlvAny type). */
@@ -95,9 +95,9 @@ export function encodeAttributePayload(
         return TlvAttributeReport.encodeTlv({ attributeStatus });
     }
 
-    const { path, schema, payload, dataVersion } = attributeData;
+    const { path, tlv, payload, dataVersion } = attributeData;
     return TlvAttributeReport.encodeTlv({
-        attributeData: { path, data: schema.encodeTlv(payload, options), dataVersion },
+        attributeData: { path, data: tlv.encodeTlv(payload, options), dataVersion },
     });
 }
 
@@ -110,7 +110,7 @@ export function encodeEventPayload(eventPayload: EventReportPayload, options?: T
 
     const {
         path,
-        schema,
+        tlv,
         payload,
         eventNumber,
         deltaEpochTimestamp,
@@ -122,7 +122,7 @@ export function encodeEventPayload(eventPayload: EventReportPayload, options?: T
     return TlvEventReport.encodeTlv({
         eventData: {
             path,
-            data: schema.encodeTlv(payload, options),
+            data: tlv.encodeTlv(payload, options),
             priority,
             systemTimestamp,
             deltaSystemTimestamp,
@@ -140,11 +140,11 @@ export function canAttributePayloadBeChunked(attributePayload: AttributeReportPa
         return false;
     }
     const {
-        schema,
+        tlv,
         payload,
         path: { listIndex },
     } = attributeData;
-    return schema instanceof ArraySchema && Array.isArray(payload) && payload.length > 0 && listIndex === undefined;
+    return tlv instanceof ArraySchema && Array.isArray(payload) && payload.length > 0 && listIndex === undefined;
 }
 
 /** Chunk an AttributeReportPayload into multiple AttributeReportPayloads. */
@@ -155,8 +155,8 @@ export function chunkAttributePayload(attributePayload: AttributeReportPayload):
             `Cannot chunk an AttributePayload with just a attributeStatus: ${Diagnostic.json(attributePayload)}`,
         );
     }
-    const { schema, path, dataVersion, payload } = attributeData;
-    if (!(schema instanceof ArraySchema) || !Array.isArray(payload)) {
+    const { tlv, path, dataVersion, payload } = attributeData;
+    if (!(tlv instanceof ArraySchema) || !Array.isArray(payload)) {
         throw new MatterFlowError(
             `Cannot chunk an AttributePayload with attributeData that is not an array: ${Diagnostic.json(
                 attributePayload,
@@ -166,13 +166,13 @@ export function chunkAttributePayload(attributePayload: AttributeReportPayload):
     const chunks = new Array<AttributeReportPayload>();
     chunks.push({
         hasFabricSensitiveData: hasFabricSensitiveData,
-        attributeData: { schema, path: { ...path, listIndex: undefined }, payload: [], dataVersion },
+        attributeData: { tlv, path: { ...path, listIndex: undefined }, payload: [], dataVersion },
     });
     payload.forEach(element => {
         chunks.push({
             hasFabricSensitiveData: hasFabricSensitiveData,
             attributeData: {
-                schema: schema.elementSchema,
+                tlv: tlv.elementSchema,
                 path: { ...path, listIndex: null },
                 payload: element,
                 dataVersion,

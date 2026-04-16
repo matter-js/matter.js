@@ -8,7 +8,6 @@
 
 import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { TimeSynchronizationInterface } from "./TimeSynchronizationInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of TimeSynchronization.Cluster enabled. You can enable additional features
  * using TimeSynchronizationBehavior.with.
  */
-export const TimeSynchronizationBehaviorConstructor = ClusterBehavior
-    .withInterface<TimeSynchronizationInterface>()
-    .for(TimeSynchronization.Cluster);
+export const TimeSynchronizationBehaviorConstructor = ClusterBehavior.for(TimeSynchronization);
 
 export interface TimeSynchronizationBehaviorConstructor extends Identity<typeof TimeSynchronizationBehaviorConstructor> {}
 export const TimeSynchronizationBehavior: TimeSynchronizationBehaviorConstructor = TimeSynchronizationBehaviorConstructor;

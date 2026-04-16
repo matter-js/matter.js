@@ -10,7 +10,7 @@ import { JointFabricDatastore } from "@matter/types/clusters/joint-fabric-datast
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const JointFabricDatastoreClientConstructor = ClientBehavior(JointFabricDatastore.Complete);
+export const JointFabricDatastoreClientConstructor = ClientBehavior(JointFabricDatastore);
 export interface JointFabricDatastoreClient extends InstanceType<typeof JointFabricDatastoreClientConstructor> {}
 export interface JointFabricDatastoreClientConstructor extends Identity<typeof JointFabricDatastoreClientConstructor> {}
 export const JointFabricDatastoreClient: JointFabricDatastoreClientConstructor = JointFabricDatastoreClientConstructor;

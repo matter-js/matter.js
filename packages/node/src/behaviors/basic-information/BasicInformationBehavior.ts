@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * BasicInformationBehavior is the base class for objects that support interaction with
  * {@link BasicInformation.Cluster}.
  */
-export const BasicInformationBehaviorConstructor = ClusterBehavior.for(BasicInformation.Cluster);
+export const BasicInformationBehaviorConstructor = ClusterBehavior.for(BasicInformation);
 
 export interface BasicInformationBehaviorConstructor extends Identity<typeof BasicInformationBehaviorConstructor> {}
 export const BasicInformationBehavior: BasicInformationBehaviorConstructor = BasicInformationBehaviorConstructor;

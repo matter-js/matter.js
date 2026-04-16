@@ -69,6 +69,12 @@ export class VariableService {
 
     get<T extends VariableService.Value>(name: string): T | undefined;
 
+    /**
+     * Get a variable value.
+     * The name is first checked as defined, if no value is found and the name contains non-alphanumeric characters,
+     * the name is parsed with all "non-environment-var chars" replaced by dots and checked again.
+     * If the name is still not found, the {@link fallback} value is returned.
+     */
     get(name: string, fallback?: VariableService.Value) {
         for (const collector of this.#usageCollectors) {
             collector.add(name);
@@ -85,14 +91,36 @@ export class VariableService {
                 return this.boolean(name) ?? fallback;
         }
 
+        let value = this.#maybeValue(name);
+
+        if (value === undefined && name.match(/[^A-Z0-9.]/gi)) {
+            // Try to parse the name with all "non-environment-var chars" replaced by dots.
+            // Skip if the result starts or ends with "." (e.g. "_foo" → ".foo") as that
+            // would produce empty segments and is not a valid alternate key.
+            const sanitizedName = name.replaceAll(/[^A-Z0-9.]+/gi, ".");
+            if (!sanitizedName.startsWith(".") && !sanitizedName.endsWith(".")) {
+                value = this.#maybeValue(sanitizedName);
+                if (value !== undefined) {
+                    // Track the sanitized name so changes to it trigger re-evaluation
+                    for (const collector of this.#usageCollectors) {
+                        collector.add(sanitizedName);
+                    }
+                }
+            }
+        }
+
+        return value ?? fallback;
+    }
+
+    #maybeValue(name: string) {
         let value: VariableService.Value = this.#vars;
         for (const segment of this.#parseName(name)) {
             if (value === null || typeof value !== "object" || Array.isArray(value)) {
-                return fallback;
+                return undefined;
             }
             value = value[segment];
         }
-        return value ?? fallback;
+        return value ?? undefined;
     }
 
     has(name: string) {

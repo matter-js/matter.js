@@ -111,6 +111,13 @@ function addBehaviors(target: SupportedBehaviors, types: SupportedBehaviors.List
         if (typeof type.id !== "string") {
             throw new ImplementationError("Behavior type has no ID");
         }
-        target[camelize(type.id)] = type;
+
+        if (!/^[a-z]/.test(type.id)) {
+            throw new ImplementationError(
+                `Behavior ID "${type.id}" must start with a lowercase letter (for example "${camelize(type.id)}")`,
+            );
+        }
+
+        target[type.id] = type;
     }
 }

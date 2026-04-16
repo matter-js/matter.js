@@ -10,7 +10,7 @@ import { ContentAppObserver } from "@matter/types/clusters/content-app-observer"
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ContentAppObserverClientConstructor = ClientBehavior(ContentAppObserver.Complete);
+export const ContentAppObserverClientConstructor = ClientBehavior(ContentAppObserver);
 export interface ContentAppObserverClient extends InstanceType<typeof ContentAppObserverClientConstructor> {}
 export interface ContentAppObserverClientConstructor extends Identity<typeof ContentAppObserverClientConstructor> {}
 export const ContentAppObserverClient: ContentAppObserverClientConstructor = ContentAppObserverClientConstructor;

@@ -42,3 +42,25 @@ if (typeof crypto !== "undefined" && crypto.subtle) {
         };
     }
 }
+
+// Node.js's callback-based crypto methods (hkdf, pbkdf2) also resolve on macrotask boundaries via libuv's thread
+// pool. Wrap the callbacks so MockTime stays in macrotask mode while they're pending.
+const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
+if (nodeCrypto) {
+    for (const name of ["hkdf", "pbkdf2"]) {
+        const original = nodeCrypto[name];
+        if (typeof original !== "function") {
+            continue;
+        }
+        nodeCrypto[name] = function (...args: any[]) {
+            const callback = args[args.length - 1];
+            let resolve: () => void;
+            void MockTime.requireMacrotasks(new Promise<void>(r => (resolve = r)));
+            args[args.length - 1] = (...cbArgs: any[]) => {
+                resolve();
+                callback(...cbArgs);
+            };
+            return original.apply(this, args);
+        };
+    }
+}

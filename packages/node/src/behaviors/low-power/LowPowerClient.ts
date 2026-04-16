@@ -10,7 +10,7 @@ import { LowPower } from "@matter/types/clusters/low-power";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const LowPowerClientConstructor = ClientBehavior(LowPower.Complete);
+export const LowPowerClientConstructor = ClientBehavior(LowPower);
 export interface LowPowerClient extends InstanceType<typeof LowPowerClientConstructor> {}
 export interface LowPowerClientConstructor extends Identity<typeof LowPowerClientConstructor> {}
 export const LowPowerClient: LowPowerClientConstructor = LowPowerClientConstructor;

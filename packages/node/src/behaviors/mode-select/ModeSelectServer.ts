@@ -8,7 +8,7 @@ import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { OnOffServer } from "#behaviors/on-off";
 import { ServerNode } from "#node/ServerNode.js";
 import { Logger, MaybePromise } from "@matter/general";
-import { ClusterType, StatusCode, StatusResponseError } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ModeSelect } from "@matter/types/clusters/mode-select";
 import { OnOff } from "@matter/types/clusters/on-off";
@@ -108,4 +108,4 @@ export class ModeSelectBaseServer extends ModeSelectBase {
     }
 }
 
-export class ModeSelectServer extends ModeSelectBaseServer.for(ClusterType(ModeSelect.Base)) {}
+export class ModeSelectServer extends ModeSelectBaseServer.for(ModeSelect) {}

@@ -8,7 +8,6 @@
 
 import { Switch } from "@matter/types/clusters/switch";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -16,7 +15,7 @@ import { Identity } from "@matter/general";
  *
  * Switch.Cluster requires you to enable one or more optional features. You can do so using {@link SwitchBehavior.with}.
  */
-export const SwitchBehaviorConstructor = ClusterBehavior.for(ClusterType(Switch.Base));
+export const SwitchBehaviorConstructor = ClusterBehavior.for(Switch);
 
 export interface SwitchBehaviorConstructor extends Identity<typeof SwitchBehaviorConstructor> {}
 export const SwitchBehavior: SwitchBehaviorConstructor = SwitchBehaviorConstructor;

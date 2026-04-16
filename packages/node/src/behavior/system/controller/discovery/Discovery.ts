@@ -8,7 +8,7 @@ import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { CancelablePromise, Diagnostic, Duration, Logger, MaybePromise, withTimeout } from "@matter/general";
-import { CommissionableDeviceIdentifiers, ScannerSet } from "@matter/protocol";
+import { CommissionableDeviceIdentifiers, Scanner, ScannerSet } from "@matter/protocol";
 import { ControllerBehavior } from "../ControllerBehavior.js";
 import { ActiveDiscoveries } from "./ActiveDiscoveries.js";
 import { DiscoveryAggregateError } from "./DiscoveryError.js";
@@ -185,36 +185,48 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         }
 
         const scanners = this.#owner.env.get(ScannerSet);
+        const { timeout: _, scannerFilter, id, ...identifier } = this.#options as Discovery.InstanceOptions;
 
         const factory = this.#owner.env.get(ClientNodeFactory);
         const promises = new Array<PromiseLike<unknown>>();
         const cancelSignal = new Promise<void>(resolve => (this.#stopDiscovery = resolve));
         for (const scanner of scanners) {
+            if (scannerFilter && !scannerFilter(scanner)) continue;
             promises.push(
                 scanner.findCommissionableDevicesContinuously(
-                    this.#options,
+                    identifier,
                     descriptor => {
-                        // Identify a known node that matches the descriptor
+                        // Identify a known node that matches the descriptor.
+                        // Skip nodes that are already commissioned — they cannot be re-commissioned and
+                        // should not be surfaced by a new commissioning discovery flow.
                         let node = factory.find(descriptor);
+                        if (node?.lifecycle.isCommissioned) {
+                            node = undefined;
+                        }
 
                         if (node) {
-                            // Found a known node; update its commissioning metadata
+                            // Found a known uncommissioned node; update its commissioning metadata
                             const updatePromise = node.act(agent => {
                                 agent.commissioning.descriptor = descriptor;
                             });
                             if (MaybePromise.is(updatePromise)) {
                                 promises.push(updatePromise);
                             }
+                            this.onDiscovered(node);
                         } else {
-                            // This node is new to us
+                            // This node is new to us — defer onDiscovered until construction completes
+                            // so that node.state.commissioning is committed and readable by listeners.
                             node = factory.create({
-                                id: (this.#options as Discovery.InstanceOptions).id,
+                                id,
                                 environment: this.#owner.env,
                                 commissioning: { descriptor },
                             });
+                            const newNode = node;
+                            Promise.resolve(newNode.construction.ready).then(
+                                () => this.onDiscovered(newNode),
+                                () => {},
+                            );
                         }
-
-                        this.onDiscovered(node);
                     },
                     undefined,
                     cancelSignal,
@@ -261,6 +273,12 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
 export namespace Discovery {
     export type Options = CommissionableDeviceIdentifiers & {
         timeout?: Duration;
+
+        /**
+         * Optional filter to restrict which scanners participate in discovery.  When omitted all available scanners
+         * are used.  Use this to limit discovery to a specific transport (e.g. only UDP/mDNS or only BLE).
+         */
+        scannerFilter?: (scanner: Scanner) => boolean;
     };
 
     export type InstanceOptions = Options & {

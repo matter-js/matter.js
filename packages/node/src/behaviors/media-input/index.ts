@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./MediaInputInterface.js";
 export * from "./MediaInputBehavior.js";
 export * from "./MediaInputServer.js";
 export * from "./MediaInputClient.js";

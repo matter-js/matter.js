@@ -34,6 +34,7 @@ import {
     MatterFlowError,
     Millis,
     NetworkError,
+    ServerAddressUdp,
     Time,
     TimeoutError,
     Timer,
@@ -183,6 +184,7 @@ export class MessageExchange {
     readonly #lifetime: Lifetime;
     readonly #onSend?: MessageExchange.SendNotifier;
     #onReceive?: MessageExchange.ReceiveNotifier;
+    readonly #addressOverride?: ServerAddressUdp;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -220,7 +222,6 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
-    #kick?: () => void;
 
     constructor(config: MessageExchange.Config) {
         const {
@@ -234,6 +235,7 @@ export class MessageExchange {
             onSend,
             onReceive,
             network,
+            addressOverride,
         } = config;
 
         this.#context = context;
@@ -245,6 +247,7 @@ export class MessageExchange {
         this.#protocolId = protocolId;
         this.#onSend = onSend;
         this.#onReceive = onReceive;
+        this.#addressOverride = addressOverride;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -323,6 +326,11 @@ export class MessageExchange {
         return this.context.session;
     }
 
+    /** Number of retransmissions of the current outstanding message (resets on ack or new send). */
+    get retransmissionCount() {
+        return this.#retransmissionCounter;
+    }
+
     get channel() {
         if (this.#channel === undefined) {
             this.#channel = this.session.channel;
@@ -381,7 +389,7 @@ export class MessageExchange {
             // Resending the previous reply message which contains the ack
             using _acking = this.join("resending ack");
             this.#messageSendCounter++;
-            await this.channel.send(this.#sentMessageToAck, this);
+            await this.channel.send(this.#sentMessageToAck, { exchange: this, addressOverride: this.#addressOverride });
             return;
         }
         const sentMessageIdToAck = this.#sentMessageToAck?.packetHeader.messageId;
@@ -439,13 +447,17 @@ export class MessageExchange {
         try {
             await this.#send(messageType, payload);
         } catch (e) {
-            if (causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)) {
+            // Only declare the peer as lost when this exchange has never received a response.  If we already
+            // exchanged messages, the peer was reachable, and the later send-failure may be transient — declaring
+            // peer loss would unnecessarily close sessions and tear down subscriptions.
+            if (
+                this.#messageReceivedCounter === 0 &&
+                causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)
+            ) {
                 await this.#context.peerLost(this, asError(e));
             }
 
             throw e;
-        } finally {
-            this.#kick = undefined;
         }
     }
 
@@ -570,12 +582,6 @@ export class MessageExchange {
             this.#retransmissionTimer = Time.getTimer(`retransmitting ${Message.via(this, message)}`, backOff, () =>
                 this.#retransmitMessage(message, expectedProcessingTime),
             );
-            this.#kick = () => {
-                if (this.#retransmissionTimer?.isRunning) {
-                    this.#retransmissionTimer.stop();
-                    this.#retransmitMessage(message, expectedProcessingTime);
-                }
-            };
             const { promise, resolver } = createPromise<Message | undefined>();
             ackPromise = promise;
             this.#sentMessageAckSuccess = resolver;
@@ -588,9 +594,11 @@ export class MessageExchange {
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         if (isStandaloneAck) {
-            await this.channel.send(message, this, logContext);
+            await this.channel.send(message, { exchange: this, addressOverride: this.#addressOverride });
         } else {
-            await abort.attempt(this.channel.send(message, this, logContext));
+            await abort.attempt(
+                this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }),
+            );
         }
         if (abort.aborted) {
             return;
@@ -600,12 +608,18 @@ export class MessageExchange {
             this.#retransmissionCounter = 0;
             this.#retransmissionTimer?.start();
 
-            // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout
+            // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout.
+            // Use race (not attempt) so that on abort we fall through to the cleanup block below
+            // instead of throwing immediately — we need to stop the retransmission timer first.
             using _waiting = sending.join("waiting for ack");
-            const responseMessage = await abort.attempt(ackPromise);
+            const responseMessage = await abort.race(ackPromise);
             if (abort.aborted) {
-                // Aborted exchange caused to return undefined, any other
-                // error is thrown
+                // Aborted — stop the retransmission timer immediately so we don't keep sending
+                // packets to an unreachable peer while the exchange is being torn down.
+                // Leave #sentMessageToAck and the ack callbacks intact so that exchange.close()
+                // still sees the pending ack and can handle cleanup properly.
+                this.#retransmissionTimer?.stop();
+
                 if (!causedBy(abort.reason, AbortedError)) {
                     throw abort.reason;
                 }
@@ -631,7 +645,10 @@ export class MessageExchange {
         try {
             return await this.#nextMessage(options);
         } catch (e) {
-            if (causedBy(e, TransientPeerCommunicationError)) {
+            // Only declare the peer as lost when this exchange has never received a message.  Receiving at least
+            // one message confirms the peer was reachable; a later timeout waiting for the next message in a
+            // multi-message exchange should not be treated as permanent peer absence.
+            if (this.#messageReceivedCounter === 0 && causedBy(e, TransientPeerCommunicationError)) {
                 await this.#context.peerLost(this, asError(e));
             }
 
@@ -644,10 +661,7 @@ export class MessageExchange {
 
         if (options?.timeout !== undefined) {
             timeout = options.timeout;
-        } else if (
-            !this.session.isClosed &&
-            ((!this.#sendOptions.abort && !options?.abort) || options?.expectedProcessingTime !== undefined)
-        ) {
+        } else if (!this.session.isClosed) {
             timeout = this.channel.calculateMaximumPeerResponseTime(
                 this.session.parameters,
                 this.context.localSessionParameters,
@@ -665,13 +679,6 @@ export class MessageExchange {
         });
 
         return await this.#messagesQueue.read(localAbort);
-    }
-
-    /**
-     * If a transmission using MRP is active, short-circuits the MRP loop and sends the next packet immediately.
-     */
-    kick() {
-        this.#kick?.();
     }
 
     async sendStandaloneAckForMessage(message: Message) {
@@ -744,9 +751,13 @@ export class MessageExchange {
 
         // TODO await
         this.channel
-            .send(message, this, {
-                "retrans#": this.#retransmissionCounter,
-                backoff: Duration.format(resubmissionBackoffTime),
+            .send(message, {
+                exchange: this,
+                logContext: {
+                    "retrans#": this.#retransmissionCounter,
+                    backoff: Duration.format(resubmissionBackoffTime),
+                },
+                addressOverride: this.#addressOverride,
             })
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
@@ -884,8 +895,8 @@ export class MessageExchange {
             } catch (error) {
                 logger.error(this.via, `Unhandled error closing exchange`, error);
             }
-            if (cause) {
-                // We have sent the Ack, so close here, no retries needed
+            if (cause || this.#sentMessageToAck === undefined) {
+                // We have sent the Ack and there's nothing left waiting for a peer ack, close directly
                 await this.#close(cause);
                 return;
             }
@@ -920,14 +931,17 @@ export class MessageExchange {
             this.#closeCause = cause;
         }
 
-        this.#retransmissionTimer?.stop();
-        this.#sentMessageAckSuccess?.(undefined);
+        try {
+            this.#retransmissionTimer?.stop();
+            this.#receivedMessageAckTimer.stop();
+            this.#sentMessageAckSuccess?.(undefined);
 
-        this.#closeTimer?.stop();
-        this.#timedInteractionTimer?.stop();
-        this.#messagesQueue.close(this.#closeCause);
-
-        await this.#closed.emit(true);
+            this.#closeTimer?.stop();
+            this.#timedInteractionTimer?.stop();
+            this.#messagesQueue.close(this.#closeCause);
+        } finally {
+            await this.#closed.emit(true);
+        }
     }
 
     get via() {
@@ -978,6 +992,12 @@ export namespace MessageExchange {
          * Network Profile used
          */
         network?: NetworkProfile;
+
+        /**
+         * Optional address override for this exchange.  When set, messages are sent to this address
+         * instead of the session's default peer address.
+         */
+        addressOverride?: ServerAddressUdp;
     }
 
     export interface Config extends Options {

@@ -10,7 +10,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
-import { Environment, StorageBackendMemory, StorageService } from "@matter/general";
+import { Environment, MockStorageService } from "@matter/general";
 import { BridgedLightDevice, createBridge } from "./bridge-helpers.js";
 
 function expectBridgedLight(bridge: Endpoint) {
@@ -59,18 +59,7 @@ describe("a bridge", () => {
 
         it("with multiple dynamic endpoints in different re-init order on restart", async () => {
             const environment = new Environment("test");
-            const storages = new Map<string, StorageBackendMemory>();
-            const storage = environment.get(StorageService);
-            storage.location = "(memory-for-test)";
-            storage.factory = namespace => {
-                const existing = storages.get(namespace);
-                if (existing) {
-                    return existing;
-                }
-                const store = new StorageBackendMemory();
-                storages.set(namespace, store);
-                return store;
-            };
+            new MockStorageService(environment);
 
             // Have a bridge with 4 endpoints
             const bridge = await createBridge(AggregatorEndpoint, { environment });
@@ -145,18 +134,7 @@ describe("a bridge", () => {
 
         it("with multiple dynamic endpoints in different re-init order with reset nextNumber on restart", async () => {
             const environment = new Environment("test");
-            const storages = new Map<string, StorageBackendMemory>();
-            const storage = environment.get(StorageService);
-            storage.location = "(memory-for-test)";
-            storage.factory = namespace => {
-                const existing = storages.get(namespace);
-                if (existing) {
-                    return existing;
-                }
-                const store = new StorageBackendMemory();
-                storages.set(namespace, store);
-                return store;
-            };
+            const mockStorage = new MockStorageService(environment);
 
             // Have a bridge with 4 endpoints
             const bridge = await createBridge(AggregatorEndpoint, { environment });
@@ -193,7 +171,7 @@ describe("a bridge", () => {
 
             await bridge.owner?.close();
 
-            const store = storages.get("node0")!;
+            const store = mockStorage.store("node0");
             store.initialize();
             expect(store.get(["root"], "__nextNumber__")).equals(6);
             store.delete(["root"], "__nextNumber__");
@@ -232,10 +210,10 @@ describe("a bridge", () => {
             expect(bridge2.parts.require("light2").number).equals(light2);
             expect(bridge2.parts.require("light3").number).equals(light3);
             expect(store.get(["root", "parts", "part0", "parts", "light1"], "__number__")).deep.equals(light1);
-            expect(store.get(["root.parts.part0.parts.light2"], "__number__")).deep.equals(light2);
-            expect(store.get(["root.parts.part0.parts.light3"], "__number__")).deep.equals(light3);
-            expect(store.get(["root.parts.part0.parts.light2-1"], "__number__")).deep.equals(light21);
-            expect(store.get(["root.parts.part0.parts.light4"], "__number__")).deep.equals(light3 + 1);
+            expect(store.get(["root", "parts", "part0", "parts", "light2"], "__number__")).deep.equals(light2);
+            expect(store.get(["root", "parts", "part0", "parts", "light3"], "__number__")).deep.equals(light3);
+            expect(store.get(["root", "parts", "part0", "parts", "light2-1"], "__number__")).deep.equals(light21);
+            expect(store.get(["root", "parts", "part0", "parts", "light4"], "__number__")).deep.equals(light3 + 1);
 
             await bridge2.owner?.close();
 
@@ -290,18 +268,7 @@ describe("a bridge", () => {
 
         it("with multiple dynamic endpoints close and re-add during runtime", async () => {
             const environment = new Environment("test");
-            const storages = new Map<string, StorageBackendMemory>();
-            const storage = environment.get(StorageService);
-            storage.location = "(memory-for-test)";
-            storage.factory = namespace => {
-                const existing = storages.get(namespace);
-                if (existing) {
-                    return existing;
-                }
-                const store = new StorageBackendMemory();
-                storages.set(namespace, store);
-                return store;
-            };
+            const mockStorage = new MockStorageService(environment);
 
             // Have a bridge with 4 endpoints
             const bridge = await createBridge(AggregatorEndpoint, { environment });
@@ -336,7 +303,7 @@ describe("a bridge", () => {
             await MockTime.yield();
 
             // Verify data are still existing in storage
-            const store = storages.get("node0")!;
+            const store = mockStorage.store("node0");
             expect(store.get(["root", "parts", "part0", "parts", "light1"], "__number__")).deep.equals(light1);
             expect(store.get(["root", "parts", "part0", "parts", "light2"], "__number__")).deep.equals(light2);
             expect(store.get(["root", "parts", "part0", "parts", "light3"], "__number__")).deep.equals(light3);
@@ -373,18 +340,7 @@ describe("a bridge", () => {
 
         it("with multiple dynamic endpoints delete and re-add during runtime", async () => {
             const environment = new Environment("test");
-            const storages = new Map<string, StorageBackendMemory>();
-            const storage = environment.get(StorageService);
-            storage.location = "(memory-for-test)";
-            storage.factory = namespace => {
-                const existing = storages.get(namespace);
-                if (existing) {
-                    return existing;
-                }
-                const store = new StorageBackendMemory();
-                storages.set(namespace, store);
-                return store;
-            };
+            const mockStorage = new MockStorageService(environment);
 
             // Have a bridge with 4 endpoints
             const bridge = await createBridge(AggregatorEndpoint, { environment });
@@ -413,7 +369,7 @@ describe("a bridge", () => {
             const light3 = bridge.parts.require("light3").number;
 
             // Verify the entries are existing in storage
-            const store = storages.get("node0")!;
+            const store = mockStorage.store("node0");
             expect(store.get(["root", "parts", "part0", "parts", "light1"], "__number__")).deep.equals(light1);
             expect(store.get(["root", "parts", "part0", "parts", "light2"], "__number__")).deep.equals(light2);
             expect(store.get(["root", "parts", "part0", "parts", "light3"], "__number__")).deep.equals(light3);

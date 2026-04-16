@@ -12,7 +12,7 @@ import { ValidationLocation } from "./location.js";
 export class UnsupportedConformanceNodeError extends SchemaImplementationError {
     constructor(schema: Schema, compiledNode: DynamicNode) {
         super(
-            DataModelPath(schema.path),
+            new DataModelPath(schema.path),
             `Unknown or unsupported top-level conformance node type ${compiledNode.code}`,
         );
     }
@@ -188,7 +188,7 @@ function performComparison(
 ): StaticNode {
     const operator = ComparisonOperators[operatorName];
     if (operator === undefined) {
-        throw new SchemaImplementationError(DataModelPath(schema.path), `Unknown binary operator ${operatorName}`);
+        throw new SchemaImplementationError(new DataModelPath(schema.path), `Unknown binary operator ${operatorName}`);
     }
 
     assertValue(location, lhs, `Left-hand side of "${operatorName}"`);
@@ -218,7 +218,7 @@ export function createComparison(
 ): DynamicNode {
     // If both sides are static evaluate statically
     if (isStatic(lhs) && isStatic(rhs)) {
-        return performComparison(operatorName, lhs, rhs, schema, DataModelPath(schema.path));
+        return performComparison(operatorName, lhs, rhs, schema, new DataModelPath(schema.path));
     }
 
     // Evaluate at runtime

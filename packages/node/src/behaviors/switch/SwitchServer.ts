@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { Duration, Logger, MaybePromise, Millis, Observable, Seconds, Time, Timer } from "@matter/general";
 import { FieldElement } from "@matter/model";
-import { ClusterType, StatusCode, StatusResponseError } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { Switch } from "@matter/types/clusters/switch";
 import { SwitchBehavior } from "./SwitchBehavior.js";
 
@@ -16,13 +16,12 @@ const DEFAULT_LONG_PRESS_DELAY = Seconds(2);
 
 const logger = Logger.get("SwitchServer");
 
-const SwitchServerBase = SwitchBehavior.for(Switch.Complete).with(
+const SwitchServerBase = SwitchBehavior.with(
     Switch.Feature.LatchingSwitch,
     Switch.Feature.MomentarySwitch,
     Switch.Feature.MomentarySwitchRelease,
     Switch.Feature.MomentarySwitchLongPress,
     Switch.Feature.MomentarySwitchMultiPress,
-    Switch.Feature.ActionSwitch,
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes
@@ -73,8 +72,8 @@ const schema = SwitchServerBase.schema.extend({
  */
 export class SwitchBaseServer extends SwitchServerBase {
     declare protected internal: SwitchBaseServer.Internal;
-    declare state: SwitchBaseServer.State;
-    declare events: SwitchBaseServer.Events;
+    declare readonly state: SwitchBaseServer.State;
+    declare readonly events: SwitchBaseServer.Events;
     static override readonly schema = schema;
 
     override initialize(): MaybePromise {
@@ -360,4 +359,4 @@ export namespace SwitchBaseServer {
 }
 
 // Reset all Features
-export class SwitchServer extends SwitchBaseServer.for(ClusterType(Switch.Base)) {}
+export class SwitchServer extends SwitchBaseServer.for(Switch) {}

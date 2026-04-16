@@ -14,12 +14,12 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
-import { NodeStore } from "#storage/NodeStore.js";
+import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructure } from "./ClientStructure.js";
 
 export class ClientEndpointInitializer extends EndpointInitializer {
     #node: ClientNode;
-    #store: NodeStore;
+    #store: ClientNodeStore;
     #structure?: ClientStructure;
 
     constructor(node: ClientNode) {
@@ -49,7 +49,7 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     override createBacking(endpoint: Endpoint, type: Behavior.Type): BehaviorBacking {
         // Non-cluster behaviors are local, operating the same server behaviors
         if ((type as ClusterBehavior.Type).cluster === undefined) {
-            const store = this.structure.storeForLocal(endpoint, type);
+            const store = this.#store.storeForEndpoint(endpoint).createStoreForLocalBehavior(type.id);
             return new ServerBehaviorBacking(endpoint, type, store, endpoint.behaviors.optionsFor(type));
         }
 
@@ -64,7 +64,11 @@ export class ClientEndpointInitializer extends EndpointInitializer {
 
     get structure() {
         if (this.#structure === undefined) {
-            this.#structure = new ClientStructure(this.#node);
+            const nodeStore = this.#store;
+            this.#structure = new ClientStructure(this.#node, (endpoint, behaviorId) =>
+                nodeStore.storeForEndpoint(endpoint).createStoreForBehavior(behaviorId),
+            );
+            this.#structure.eventEmitter = ClientEventEmitter(this.#node as ClientNode, this.#structure);
         }
         return this.#structure;
     }

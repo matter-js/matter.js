@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./GeneralCommissioningInterface.js";
 export * from "./GeneralCommissioningBehavior.js";
 export * from "./GeneralCommissioningServer.js";
 export * from "./GeneralCommissioningClient.js";

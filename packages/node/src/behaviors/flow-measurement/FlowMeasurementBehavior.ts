@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * FlowMeasurementBehavior is the base class for objects that support interaction with {@link FlowMeasurement.Cluster}.
  */
-export const FlowMeasurementBehaviorConstructor = ClusterBehavior.for(FlowMeasurement.Cluster);
+export const FlowMeasurementBehaviorConstructor = ClusterBehavior.for(FlowMeasurement);
 
 export interface FlowMeasurementBehaviorConstructor extends Identity<typeof FlowMeasurementBehaviorConstructor> {}
 export const FlowMeasurementBehavior: FlowMeasurementBehaviorConstructor = FlowMeasurementBehaviorConstructor;

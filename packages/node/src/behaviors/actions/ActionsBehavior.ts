@@ -8,15 +8,12 @@
 
 import { Actions } from "@matter/types/clusters/actions";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ActionsInterface } from "./ActionsInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * ActionsBehavior is the base class for objects that support interaction with {@link Actions.Cluster}.
  */
-export const ActionsBehaviorConstructor = ClusterBehavior
-    .withInterface<ActionsInterface>()
-    .for(Actions.Cluster);
+export const ActionsBehaviorConstructor = ClusterBehavior.for(Actions);
 
 export interface ActionsBehaviorConstructor extends Identity<typeof ActionsBehaviorConstructor> {}
 export const ActionsBehavior: ActionsBehaviorConstructor = ActionsBehaviorConstructor;

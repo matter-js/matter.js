@@ -35,7 +35,7 @@ const REESTABLISH_SUBSCRIPTIONS_TIMEOUT = Seconds(2);
 export class SubscriptionsServer extends Behavior {
     static override readonly id = "subscriptions";
 
-    declare state: SubscriptionsServer.State;
+    declare readonly state: SubscriptionsServer.State;
     declare internal: SubscriptionsServer.Internal;
 
     override initialize() {

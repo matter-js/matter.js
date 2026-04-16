@@ -83,7 +83,10 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
         return this.#server.maxPayloadSize;
     }
 
-    send(data: Bytes) {
+    send(data: Bytes, addressOverride?: ServerAddressUdp) {
+        if (addressOverride) {
+            return this.#server.send(addressOverride.ip, addressOverride.port, data);
+        }
         return this.#server.send(this.#peerAddress, this.#peerPort, data);
     }
 

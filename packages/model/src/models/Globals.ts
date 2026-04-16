@@ -24,7 +24,7 @@ import * as TheGlobals from "../standard/elements/models.js";
  * ```typescript
  * import { Matter } from "@matter/model";
  *
- * const uint16 = Matter.get(DatatypeModel, "uint16");
+ * const uint16 = Matter.datatypes("uint16");
  * ```
  *
  * Note that for purposes of disambiguation we suffix device types with "DT" and semantic namespaces with "NS" in

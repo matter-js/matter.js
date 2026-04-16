@@ -330,6 +330,24 @@ export class Block extends Entry {
         return section;
     }
 
+    /**
+     * Add an `export interface Name extends A, B, C {}` declaration.
+     *
+     * When there is only one clause, emits a single line.  With multiple clauses, wraps each onto its
+     * own indented line for readability.
+     */
+    extendsInterface(name: string, clauses: string[]) {
+        if (clauses.length === 1) {
+            return this.atom(`export interface ${name} extends ${clauses[0]} {}`);
+        }
+
+        const joined = clauses.map(c => `${INDENT}${c},`);
+        // Remove trailing comma from last clause
+        joined[joined.length - 1] = joined[joined.length - 1].slice(0, -1);
+
+        return this.atom(`export interface ${name} extends\n${joined.join("\n")}\n{}`);
+    }
+
     /** Add a block with separate statements terminated by ";" */
     statements(prefix = "", suffix = "") {
         const block = new StatementBlock(this, prefix, suffix);
@@ -615,6 +633,7 @@ export class TsFile extends Block {
     #imports = new Map<string, Array<string>>();
     #header!: Block;
     #packageRoot: string;
+    fileExtension = ".ts";
 
     constructor(
         public name: string,
@@ -684,7 +703,7 @@ export class TsFile extends Block {
     }
 
     save() {
-        const filename = `${this.name}.ts`;
+        const filename = `${this.name}${this.fileExtension}`;
 
         if (this.editable) {
             try {
@@ -701,11 +720,12 @@ export class TsFile extends Block {
 
         if (this.#imports.size) {
             const importBlock = this.#header.section();
+            const importKw = this.fileExtension === ".d.ts" ? "import type" : "import";
             this.#imports.forEach((symbols, name) => {
                 if (symbols[0]?.startsWith("*")) {
-                    importBlock.atom(`import ${symbols[0]} from "${name}"`);
+                    importBlock.atom(`${importKw} ${symbols[0]} from "${name}"`);
                 } else if (symbols.length) {
-                    const imp = importBlock.expressions("import {", `} from "${name}"`);
+                    const imp = importBlock.expressions(`${importKw} {`, `} from "${name}"`);
                     imp.shouldGroup = true;
                     symbols.forEach(s => imp.atom(s));
                 } else {

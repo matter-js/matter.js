@@ -20,8 +20,5 @@ if (globalThis.SuppressedError === undefined) {
         }
     }
 
-    const factory = (error: any, suppressed: any, message?: string) => new SuppressedError(error, suppressed, message);
-    factory.prototype = SuppressedError.prototype;
-
-    globalThis.SuppressedError = factory as typeof globalThis.SuppressedError;
+    globalThis.SuppressedError = SuppressedError as typeof globalThis.SuppressedError;
 }

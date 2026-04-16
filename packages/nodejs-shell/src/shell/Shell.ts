@@ -107,6 +107,20 @@ export class Shell {
                         process.exit(1);
                     });
             })
+            .on("SIGINT", () => {
+                // Readline in terminal mode intercepts CTRL-C as a keypress and does not
+                // propagate it as a process signal, so we need to handle it explicitly.
+                console.log("\nGoodbye.");
+                try {
+                    this.writeStream?.end();
+                } catch (e) {
+                    process.stderr.write(`Error happened during history file write: ${e}\n`);
+                }
+                exit().catch(e => {
+                    process.stderr.write(`Exit error: ${e}\n`);
+                    process.exit(1);
+                });
+            })
             .on("close", () => {
                 try {
                     this.writeStream?.end();
@@ -115,12 +129,10 @@ export class Shell {
                 }
                 // only exit if we are running in a terminal
                 if (this.input === process.stdin && this.output === process.stdout) {
-                    exit()
-                        .then(() => process.exit(0))
-                        .catch(e => {
-                            process.stderr.write(`Close error: ${e}\n`);
-                            process.exit(1);
-                        });
+                    exit().catch(e => {
+                        process.stderr.write(`Close error: ${e}\n`);
+                        process.exit(1);
+                    });
                 }
             });
 

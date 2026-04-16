@@ -10,7 +10,7 @@ import { SmokeCoAlarm } from "@matter/types/clusters/smoke-co-alarm";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const SmokeCoAlarmClientConstructor = ClientBehavior(SmokeCoAlarm.Complete);
+export const SmokeCoAlarmClientConstructor = ClientBehavior(SmokeCoAlarm);
 export interface SmokeCoAlarmClient extends InstanceType<typeof SmokeCoAlarmClientConstructor> {}
 export interface SmokeCoAlarmClientConstructor extends Identity<typeof SmokeCoAlarmClientConstructor> {}
 export const SmokeCoAlarmClient: SmokeCoAlarmClientConstructor = SmokeCoAlarmClientConstructor;

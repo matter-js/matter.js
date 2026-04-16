@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Diagnostic } from "@matter/general";
-import { AttributeModel, ClusterModel, MatterModel } from "@matter/model";
+import { Diagnostic } from "@matter/general";
+import { AttributeModel, ClusterModel, Matter } from "@matter/model";
 import { AttributeId, ClusterId, EndpointNumber, ValidationError } from "@matter/types";
 import { SupportedAttributeClient } from "@project-chip/matter.js/cluster";
 import type { Argv } from "yargs";
@@ -13,7 +13,7 @@ import { MatterNode } from "../MatterNode.js";
 import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode) {
-    MatterModel.standard.clusters.forEach(cluster => {
+    Matter.clusters.forEach(cluster => {
         yargs = generateClusterAttributeHandlers(yargs, cluster, theNode);
     });
 
@@ -136,7 +136,7 @@ function generateClusterAttributeHandlers(yargs: Argv, cluster: ClusterModel, th
                                 `Attribute values for cluster ${cluster.name} (${node.nodeId.toString()}/${endpointId}/${clusterId}):`,
                             );
                             for (const attribute of cluster.attributes) {
-                                const attributeName = camelize(attribute.name);
+                                const attributeName = attribute.propertyName;
                                 const attributeClient = clusterClient.attributes[attributeName];
                                 if (!remote && !(attributeClient instanceof SupportedAttributeClient)) {
                                     continue;
@@ -194,7 +194,7 @@ function generateAttributeReadHandler(
     attribute: AttributeModel,
     theNode: MatterNode,
 ) {
-    const attributeName = camelize(attribute.name);
+    const attributeName = attribute.propertyName;
     return yargs.command(
         [`${attribute.name.toLowerCase()} <node-id> <endpoint-id>`, `0x${attribute.id.toString(16)}`],
         `Read ${clusterName}.${attribute.name} attribute`,
@@ -255,7 +255,7 @@ function generateAttributeWriteHandler(
 ) {
     //console.log("Generating attribute handler for ", attribute.name, attribute);
     //console.log(attribute.definingModel);
-    const attributeName = camelize(attribute.name);
+    const attributeName = attribute.propertyName;
     const typeHint = `${attribute.type}${attribute.definingModel === undefined ? "" : " as JSON string"}`;
     return yargs.command(
         [`${attribute.name.toLowerCase()} <value> <nodeId> <endpointId>`, `0x${attribute.id.toString(16)}`],

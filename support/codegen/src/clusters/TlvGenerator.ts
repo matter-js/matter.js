@@ -10,6 +10,7 @@ import {
     CommandModel,
     DatatypeModel,
     ElementTag,
+    GeneratorScope,
     MatterModel,
     Metatype,
     Model,
@@ -21,7 +22,6 @@ import { ModelBounds } from "@matter/types";
 import { ScopeFile } from "../util/ScopeFile.js";
 import { Block, Entry } from "../util/TsFile.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
-import { GeneratorScope } from "./GeneratorScope.js";
 import { SpecializedNumbers, specializedNumberTypeFor } from "./NumberConstants.js";
 
 /**
@@ -32,6 +32,18 @@ export class TlvGenerator {
     #file: ScopeFile;
     #definitions: Block;
     #definedDatatypes = new Set<Model>();
+
+    /**
+     * When true, enum definitions, struct interfaces, and bitmap consts are not generated — they are handled by
+     * ComponentGenerator.generateTypes() instead.  TLV schemas (TlvObject) are still generated.
+     */
+    skipTypeDefinitions = false;
+
+    /**
+     * When {@link skipTypeDefinitions} is true, models whose definitions were skipped are collected here so
+     * ComponentGenerator can generate them.
+     */
+    skippedTypes = new Map<string, ValueModel>();
 
     constructor(file: ScopeFile, definitions?: Block) {
         this.#scope = file.scope;
@@ -343,7 +355,7 @@ export class TlvGenerator {
 
                 this.importTlv("tlv/TlvObject", tlv);
                 struct
-                    .atom(camelize(field.name), `${tlv}(${field.effectiveId}, ${this.reference(field)})`)
+                    .atom(field.propertyName, `${tlv}(${field.effectiveId}, ${this.reference(field)})`)
                     .document(field);
             });
         });
@@ -354,11 +366,14 @@ export class TlvGenerator {
         }
 
         this.importTlv("tlv", "TlvObject");
-        this.file.addImport("!types/tlv/TlvSchema.js", "TypeFromSchema");
-        const intf = this.definitions.atom(
-            `export interface ${name.slice(3)} extends TypeFromSchema<typeof ${name}> {}`,
-        );
-        this.#documentType(model, intf);
+
+        if (!this.skipTypeDefinitions) {
+            this.file.addImport("!types/tlv/TlvSchema.js", "TypeFromSchema");
+            const intf = this.definitions.atom(
+                `export interface ${name.slice(3)} extends TypeFromSchema<typeof ${name}> {}`,
+            );
+            this.#documentType(model, intf);
+        }
 
         return struct;
     }
@@ -396,7 +411,7 @@ export class TlvGenerator {
                 continue;
             }
 
-            bitmap.atom(camelize(child.name), type).document(child);
+            bitmap.atom(child.propertyName, type).document(child);
         }
 
         return bitmap;
@@ -458,14 +473,27 @@ export class TlvGenerator {
         let definition: Entry | undefined;
         switch (model.effectiveMetatype) {
             case Metatype.enum:
+                if (this.skipTypeDefinitions) {
+                    // Enum type definition is handled by ComponentGenerator.generateTypes().
+                    this.skippedTypes.set(name, model);
+                    return name;
+                }
                 definition = this.#defineEnum(name, model);
                 break;
 
             case Metatype.object:
                 definition = this.#defineStruct(name, model);
+                if (this.skipTypeDefinitions) {
+                    this.skippedTypes.set(name.slice(3), model);
+                }
                 break;
 
             case Metatype.bitmap:
+                if (this.skipTypeDefinitions) {
+                    // Bitmap definition is handled by ComponentGenerator.generateTypes()
+                    this.skippedTypes.set(name, model);
+                    return name;
+                }
                 definition = this.#defineBitmap(name, model);
                 break;
 
@@ -489,7 +517,7 @@ export class TlvGenerator {
         switch (model.tag) {
             case ElementTag.Attribute:
                 definition.document({
-                    details: `The value of the ${this.owner.name} ${camelize(model.name)} attribute`,
+                    details: `The value of the ${this.owner.name} ${model.propertyName} attribute`,
                     xref: model.xref,
                 });
                 break;
@@ -500,7 +528,7 @@ export class TlvGenerator {
                     definition.document(model);
                 } else {
                     definition.document({
-                        details: `Input to the ${this.owner.name} ${camelize(model.name)} command`,
+                        details: `Input to the ${this.owner.name} ${model.propertyName} command`,
                         xref: model.xref,
                     });
                 }
@@ -508,7 +536,7 @@ export class TlvGenerator {
 
             case ElementTag.Event:
                 definition.document({
-                    details: `Body of the ${this.owner.name} ${camelize(model.name)} event`,
+                    details: `Body of the ${this.owner.name} ${model.propertyName} event`,
                     xref: model.xref,
                 });
                 break;
@@ -519,7 +547,7 @@ export class TlvGenerator {
                     definition.document(model);
                 } else {
                     definition.document({
-                        details: `The value of ${this.owner.name}.${camelize(model.name)}`,
+                        details: `The value of ${this.owner.name}.${model.propertyName}`,
                         xref: model.xref,
                     });
                 }

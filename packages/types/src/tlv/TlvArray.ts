@@ -5,6 +5,7 @@
  */
 
 import { deepCopy, serialize, UnexpectedDataError } from "@matter/general";
+import { FieldElement } from "@matter/model";
 import {
     ValidationDatatypeMismatchError,
     ValidationError,
@@ -37,6 +38,29 @@ export class ArraySchema<T> extends TlvSchema<T[]> {
         readonly maxLength: number = 65535,
     ) {
         super();
+    }
+
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element {
+        const result: TlvSchema.Element = { type: "list" };
+
+        const entryElement = this.elementSchema.element;
+        if (entryElement) {
+            result.children = [FieldElement({ name: "entry", ...entryElement })];
+        }
+
+        const constraint: { min?: number; max?: number } = {};
+        if (this.minLength > 0) {
+            constraint.min = this.minLength;
+        }
+        if (this.maxLength < 65535) {
+            constraint.max = this.maxLength;
+        }
+        if (constraint.min !== undefined || constraint.max !== undefined) {
+            result.constraint = constraint;
+        }
+
+        return result;
     }
 
     override encodeTlvInternal(writer: TlvWriter, value: T[], tag?: TlvTag, options?: TlvEncodingOptions): void {
@@ -140,6 +164,27 @@ export class ArraySchema<T> extends TlvSchema<T[]> {
     }
 }
 
+const arrayCache = new WeakMap<TlvSchema<any>, Map<string, ArraySchema<any>>>();
+
 /** Array TLV schema. */
-export const TlvArray = <T>(elementSchema: TlvSchema<T>, { minLength, maxLength, length }: LengthConstraints = {}) =>
-    new ArraySchema(elementSchema, length ?? minLength, length ?? maxLength);
+export const TlvArray = <T>(
+    elementSchema: TlvSchema<T>,
+    { minLength, maxLength, length }: LengthConstraints = {},
+): ArraySchema<T> => {
+    const effectiveMin = length ?? minLength;
+    const effectiveMax = length ?? maxLength;
+    const key = `${effectiveMin}:${effectiveMax}`;
+
+    let inner = arrayCache.get(elementSchema);
+    if (inner === undefined) {
+        inner = new Map();
+        arrayCache.set(elementSchema, inner);
+    }
+
+    let result = inner.get(key) as ArraySchema<T> | undefined;
+    if (result === undefined) {
+        result = new ArraySchema(elementSchema, effectiveMin, effectiveMax);
+        inner.set(key, result);
+    }
+    return result;
+};

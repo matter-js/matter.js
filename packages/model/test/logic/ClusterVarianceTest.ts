@@ -77,6 +77,29 @@ describe("ClusterVariance", () => {
         });
     });
 
+    describe("revision conformance", () => {
+        it("treats bare Rev >= vN as mandatory", () => {
+            expectComponents(attrs({ name: "attr", conformance: "Rev >= v3" }), { mandatory: ["attr"] });
+        });
+
+        it("treats [Rev >= vN] as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "[Rev >= v2]" }), { optional: ["attr"] });
+        });
+
+        it("treats Rev >= vN, [Rev >= vM] as mandatory", () => {
+            expectComponents(attrs({ name: "attr", conformance: "Rev >= v4, [Rev >= v2]" }), {
+                mandatory: ["attr"],
+            });
+        });
+
+        it("strips Rev from feature conformance", () => {
+            expectComponents(attrs(["FOO"], { name: "attr", conformance: "FOO, Rev >= v3" }), {
+                mandatory: ["attr"],
+                condition: { allOf: ["FOO"] },
+            });
+        });
+    });
+
     describe("complex variance", () => {
         it("parses FOO | BAR", () => {
             expectComponents(attrs(["FOO", "BAR"], { name: "attr", conformance: "FOO | BAR" }), {

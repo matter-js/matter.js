@@ -8,6 +8,9 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     asyncNew,
+    type BlobStorageDriver,
+    type BlobStorageHandle,
+    DatafileRoot,
     Destructable,
     Diagnostic,
     Environment,
@@ -27,15 +30,15 @@ const logger = Logger.get("ServerNodeStore");
  *
  * Each {@link ServerNode} has an instance of this store.
  *
- * TODO - create global locking mechanism to ensure single reader/writer across host
+ * Exclusive access is enforced by {@link Directory.lock} when a filesystem-backed storage driver is in use.
  */
 export class ServerNodeStore extends NodeStore implements Destructable {
     #env: Environment;
     #nodeId: string;
-    #location: string;
     #endpointStores: ServerEndpointStores;
     #storageManager?: StorageManager;
     #clientStores?: ClientNodeStores;
+    #bdxHandle?: BlobStorageHandle;
 
     constructor(environment: Environment, nodeId: string) {
         super({
@@ -53,7 +56,6 @@ export class ServerNodeStore extends NodeStore implements Destructable {
 
         this.#env = environment;
         this.#nodeId = nodeId;
-        this.#location = this.#env.get(StorageService).location ?? "(unknown location)";
 
         this.construction.start();
     }
@@ -64,8 +66,11 @@ export class ServerNodeStore extends NodeStore implements Destructable {
 
     async close() {
         await this.construction.close(async () => {
+            await this.#endpointStores.close();
             await this.#clientStores?.close();
+            await this.#bdxHandle?.close();
             await this.#storageManager?.close();
+            await this.#env.get(StorageService).close(this.#nodeId);
             this.#logChange("Closed");
         });
     }
@@ -92,11 +97,34 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     }
 
     #logChange(what: "Opened" | "Closed") {
-        logger.info(what, Diagnostic.strong(this.#nodeId ?? "node"), "storage at", `${this.#location}/${this.#nodeId}`);
+        const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
+        logger.info(
+            what,
+            Diagnostic.strong(this.#nodeId ?? "node"),
+            "storage",
+            Diagnostic.dict({
+                location: root?.path ?? "(unknown location)",
+                driver: this.#storageManager?.driverId ?? "unknown",
+            }),
+        );
     }
 
     storeForEndpoint(endpoint: Endpoint) {
         return this.#endpointStores.storeForEndpoint(endpoint);
+    }
+
+    /**
+     * Lazily opens and returns the BDX blob storage driver using a dedicated namespace.
+     */
+    override async bdxStore(): Promise<BlobStorageDriver> {
+        if (!this.#bdxHandle) {
+            const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
+            const blobNamespace = root
+                ? new DatafileRoot(root.directory.directory(`${this.#nodeId}-bdx`))
+                : `${this.#nodeId}-bdx`;
+            this.#bdxHandle = await this.#env.get(StorageService).openBlobStorage(blobNamespace);
+        }
+        return this.#bdxHandle.driver;
     }
 
     erase() {
@@ -104,7 +132,8 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     }
 
     async load() {
-        this.#storageManager = await this.#env.get(StorageService).open(this.#nodeId);
+        const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
+        this.#storageManager = await this.#env.get(StorageService).open(root ?? this.#nodeId);
         this.#env.set(StorageManager, this.#storageManager);
 
         this.#clientStores = await asyncNew(ClientNodeStores, this.#storageManager.createContext("nodes"));

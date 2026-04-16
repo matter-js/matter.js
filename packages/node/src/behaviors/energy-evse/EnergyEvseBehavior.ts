@@ -8,7 +8,6 @@
 
 import { EnergyEvse } from "@matter/types/clusters/energy-evse";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { EnergyEvseInterface } from "./EnergyEvseInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of EnergyEvse.Cluster enabled. You can enable additional features using
  * EnergyEvseBehavior.with.
  */
-export const EnergyEvseBehaviorConstructor = ClusterBehavior
-    .withInterface<EnergyEvseInterface>()
-    .for(EnergyEvse.Cluster);
+export const EnergyEvseBehaviorConstructor = ClusterBehavior.for(EnergyEvse);
 
 export interface EnergyEvseBehaviorConstructor extends Identity<typeof EnergyEvseBehaviorConstructor> {}
 export const EnergyEvseBehavior: EnergyEvseBehaviorConstructor = EnergyEvseBehaviorConstructor;

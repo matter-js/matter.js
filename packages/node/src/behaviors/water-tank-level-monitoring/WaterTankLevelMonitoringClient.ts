@@ -10,7 +10,7 @@ import { WaterTankLevelMonitoring } from "@matter/types/clusters/water-tank-leve
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const WaterTankLevelMonitoringClientConstructor = ClientBehavior(WaterTankLevelMonitoring.Complete);
+export const WaterTankLevelMonitoringClientConstructor = ClientBehavior(WaterTankLevelMonitoring);
 export interface WaterTankLevelMonitoringClient extends InstanceType<typeof WaterTankLevelMonitoringClientConstructor> {}
 export interface WaterTankLevelMonitoringClientConstructor extends Identity<typeof WaterTankLevelMonitoringClientConstructor> {}
 export const WaterTankLevelMonitoringClient: WaterTankLevelMonitoringClientConstructor = WaterTankLevelMonitoringClientConstructor;

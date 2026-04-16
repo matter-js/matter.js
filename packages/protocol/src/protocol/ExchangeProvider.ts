@@ -9,7 +9,7 @@ import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { ChannelType, Duration } from "@matter/general";
+import { ChannelType, Duration, ServerAddressUdp } from "@matter/general";
 import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { MRP } from "./MRP.js";
 
@@ -27,10 +27,22 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
     /**
      * The name of the logical {@link PeerNetwork}.
      *
-     * By default matter.js selects a network based on the node's physical properties.  Use "unlimited" to disable
+     * By default, matter.js selects a network based on the node's physical properties.  Use "unlimited" to disable
      * rate limiting.
      */
     network?: string;
+
+    /**
+     * Optional address override for the exchange.  When set, messages are sent to this address
+     * instead of the session's default peer address.
+     */
+    addressOverride?: ServerAddressUdp;
+
+    /**
+     * When true, requires an existing session and does not attempt to establish a new one.
+     * The exchange creation fails if no active session is available.
+     */
+    requireExistingSession?: boolean;
 }
 
 /**

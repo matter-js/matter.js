@@ -8,7 +8,8 @@ import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { Bytes, deepCopy, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
-import { assertRemoteActor, Fabric, FabricManager } from "@matter/protocol";
+import { AccessLevel, DataModelPath } from "@matter/model";
+import { AccessControl, assertRemoteActor, Fabric, FabricManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId, StatusCode, StatusResponseError } from "@matter/types";
 import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
 import { Groupcast } from "@matter/types/clusters/groupcast";
@@ -55,6 +56,9 @@ export class GroupcastServer extends GroupcastBehavior {
         // Migrate legacy Groups cluster data to Groupcast Membership
         await this.#migrate();
 
+        // Reconcile key sets that may have been removed via GKM somehow
+        this.#reconcileUnmappedKeys();
+
         // Update the derived state once after all sync/migration is done
         this.#updateUsedMcastAddrCount();
         this.#emitAuxAcl();
@@ -62,6 +66,33 @@ export class GroupcastServer extends GroupcastBehavior {
         // Keep in sync as fabrics are added or removed
         this.reactTo(fabrics.events.added, this.#handleFabricAdded);
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
+
+        // When GKM key sets are removed, groupKeyMap is also cleaned up — use that as trigger
+        // to reconcile membership entries whose key set no longer exists (mark as 0xFFFF)
+        const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
+        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys);
+    }
+
+    /**
+     * Check whether the current session has Admin privileges for this cluster/endpoint.
+     * Key and useAuxiliaryACL fields in Manage-access commands require Admin
+     * privilege to prevent privilege escalation.
+     */
+    #requireAdmin() {
+        // Called only from handlers that already asserted remote actor, safe to narrow
+        const session = this.context as AccessControl.RemoteActorSession;
+        const location: AccessControl.Location = {
+            path: DataModelPath.none,
+            endpoint: this.endpoint.number,
+            cluster: GroupcastBehavior.cluster.id,
+            owningFabric: session.fabric,
+        };
+        if (session.authorityAt(AccessLevel.Administer, location) !== AccessControl.Authority.Granted) {
+            throw new StatusResponseError(
+                "Admin privilege required for key or ACL operations",
+                StatusCode.UnsupportedAccess,
+            );
+        }
     }
 
     override async joinGroup(request: Groupcast.JoinGroupRequest) {
@@ -72,6 +103,11 @@ export class GroupcastServer extends GroupcastBehavior {
         // Validate groupId range
         if (groupId < 1 || groupId > 0xfff7) {
             throw new StatusResponseError("Invalid group ID", StatusCode.ConstraintError);
+        }
+
+        // Privilege escalation prevention: key and useAuxiliaryACL require Admin
+        if (key !== undefined || useAuxiliaryAcl !== undefined) {
+            this.#requireAdmin();
         }
 
         // Validate endpoints: ep 0 (root) and ep > 0xFFFE are invalid per spec
@@ -95,7 +131,6 @@ export class GroupcastServer extends GroupcastBehavior {
             );
         }
 
-        const gkm = this.agent.get(GroupKeyManagementServer);
         await this.#applyKeySet(fabricIndex, keySetId, key);
 
         const membership = deepCopy(this.state.membership);
@@ -161,8 +196,10 @@ export class GroupcastServer extends GroupcastBehavior {
         this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
         this.#emitAuxAcl();
 
-        // Mark fabric as having adopted Groupcast (makes GKM GroupKeyMap read-only)
+        /* Provisional in Matter 1.6.0:
+        const gkm = this.agent.get(GroupKeyManagementServer);
         gkm.setGroupcastAdopted(fabricIndex, true);
+        */
     }
 
     override leaveGroup(request: Groupcast.LeaveGroupRequest): Groupcast.LeaveGroupResponse {
@@ -228,6 +265,11 @@ export class GroupcastServer extends GroupcastBehavior {
         assertRemoteActor(this.context);
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const { groupId, keySetId, key } = request;
+
+        // Privilege escalation prevention: key requires Admin
+        if (key !== undefined) {
+            this.#requireAdmin();
+        }
 
         const membership = deepCopy(this.state.membership);
         const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
@@ -323,6 +365,32 @@ export class GroupcastServer extends GroupcastBehavior {
     }
 
     /**
+     * Mark membership entries as unmapped (KeySetId=0xFFFF) when their referenced key set no longer exists in GKM.
+     * Runs at startup to reconcile state after potential GKM KeySetRemove operations.
+     */
+    #reconcileUnmappedKeys() {
+        const gkmState = this.endpoint.stateOf(GroupKeyManagementServer);
+        const membership = this.state.membership;
+        let dirty = false;
+
+        for (const m of membership) {
+            if (m.keySetId !== 0xffff && m.keySetId !== 0) {
+                const exists = gkmState.groupKeySets.some(
+                    ks => ks.fabricIndex === m.fabricIndex && ks.groupKeySetId === m.keySetId,
+                );
+                if (!exists) {
+                    m.keySetId = 0xffff;
+                    dirty = true;
+                }
+            }
+        }
+
+        if (dirty) {
+            this.state.membership = [...membership];
+        }
+    }
+
+    /**
      * Validate and apply a key set for a group operation.
      * If `key` is provided, validates and creates a new key set in GKM.
      * Otherwise, validates that the key set already exists.
@@ -350,7 +418,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const entries: AccessControlTypes.AccessControlEntry[] = this.state.membership
             .filter(m => m.hasAuxiliaryAcl)
             .map(m => ({
-                privilege: AccessControlTypes.AccessControlEntryPrivilege.View,
+                privilege: AccessControlTypes.AccessControlEntryPrivilege.Operate,
                 authMode: AccessControlTypes.AccessControlEntryAuthMode.Group,
                 subjects: [NodeId(BigInt(m.groupId))],
                 targets:
@@ -362,7 +430,8 @@ export class GroupcastServer extends GroupcastBehavior {
                 auxiliaryType: AccessControlTypes.AccessControlAuxiliaryType.Groupcast,
                 fabricIndex: m.fabricIndex,
             }));
-        this.internal.auxAcl.emit(entries);
+
+        this.internal.auxAcl.emit(entries, this.context);
     }
 
     /**
@@ -398,7 +467,6 @@ export class GroupcastServer extends GroupcastBehavior {
     async #migrate() {
         const fabrics = this.env.get(FabricManager);
         const gkmState = this.endpoint.stateOf(GroupKeyManagementServer);
-        const gkm = this.agent.get(GroupKeyManagementServer);
         let migrated = false;
 
         for (const fabric of fabrics) {
@@ -434,7 +502,10 @@ export class GroupcastServer extends GroupcastBehavior {
 
             this.state.membership = [...this.state.membership, ...newEntries];
             this.#syncFabricGroups(fabric);
+            /* Provisional in Matter 1.6.0:
+            const gkm = this.agent.get(GroupKeyManagementServer);
             gkm.setGroupcastAdopted(fi, true);
+            */
             migrated = true;
         }
 
@@ -458,7 +529,7 @@ export namespace GroupcastServer {
          * Observable that holds all auxiliary ACL entries supplied by this cluster.
          * AccessControlServer subscribes to this and rebuilds its ACL cache whenever it emits.
          */
-        auxAcl = ObservableValue<[AccessControlTypes.AccessControlEntry[]]>([]);
+        auxAcl: AccessControlServer.AuxAclObservable = ObservableValue([]);
     }
 
     /** Default state overrides for GroupcastServer. */

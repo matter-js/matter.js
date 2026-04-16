@@ -10,7 +10,6 @@ import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Abort, deepCopy, Duration, Gate, Millis, Timer } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import { ChangeNotificationService } from "./ChangeNotificationService.js";
 
@@ -103,14 +102,17 @@ export function StateStream(
                     // Property update
                     const state = stateOfBehavior(node.id, endpoint.number, behavior.id);
                     state.queueEntry = undefined;
-                    let changes = endpoint.stateOf(behavior);
+
+                    let changes: Record<string, unknown>;
                     if (state.dirty) {
-                        changes = Object.fromEntries(
-                            [...state.dirty].map(name => [name, (changes as Val.Struct)[name]]),
-                        );
+                        const allState = endpoint.stateOf(behavior) as Record<string, unknown>;
+                        changes = {};
+                        for (const name of state.dirty) {
+                            changes[name] = deepCopy(allState[name]);
+                        }
                         state.dirty = undefined;
                     } else {
-                        changes = deepCopy(changes);
+                        changes = deepCopy(endpoint.stateOf(behavior));
                     }
                     yield {
                         kind: "update",

@@ -10,7 +10,7 @@ import { TemperatureControl } from "@matter/types/clusters/temperature-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const TemperatureControlClientConstructor = ClientBehavior(TemperatureControl.Complete);
+export const TemperatureControlClientConstructor = ClientBehavior(TemperatureControl);
 export interface TemperatureControlClient extends InstanceType<typeof TemperatureControlClientConstructor> {}
 export interface TemperatureControlClientConstructor extends Identity<typeof TemperatureControlClientConstructor> {}
 export const TemperatureControlClient: TemperatureControlClientConstructor = TemperatureControlClientConstructor;

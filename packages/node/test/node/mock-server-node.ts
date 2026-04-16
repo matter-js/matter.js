@@ -20,9 +20,9 @@ import {
     Identity,
     MaybePromise,
     MockCrypto,
+    MockStorageService,
     Network,
     NetworkSimulator,
-    StorageBackendMemory,
     StorageService,
 } from "@matter/general";
 import { AccessLevel } from "@matter/model";
@@ -58,10 +58,9 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         environment.set(Entropy, crypto);
         environment.set(Crypto, crypto);
 
-        const storage = environment.get(StorageService);
-        if (storage.location !== "(memory-for-test)") {
-            storage.location = "(memory-for-test)";
-            storage.factory = () => new StorageBackendMemory();
+        // Set storage if not already configured by the test
+        if (!environment.get(StorageService).isConfigured) {
+            new MockStorageService(environment);
         }
 
         const simulator = config.simulator ?? new NetworkSimulator();

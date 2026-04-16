@@ -120,6 +120,14 @@ export class DeviceAdvertiser {
                 return;
             }
 
+            // Only PASE sessions (commissioning sessions) should resume commissioning advertisement.
+            // CASE sessions on fabrics being deleted (decommissioning teardown) must NOT trigger
+            // commissionable re-advertisement.  The factory reset following decommissioning of the
+            // last fabric will advertise at the appropriate time.
+            if (!session.isPase) {
+                return;
+            }
+
             // If we're in commissioning mode, resume advertising for commissioning
             this.#startCommissioningAdvertisement();
         });

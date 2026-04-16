@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClusterType, TypeFromSchema } from "@matter/types";
+import type { ClusterType, ClusterTyping } from "@matter/types";
 import { AttributeId, BitSchema, CommandId, TypeFromPartialBitSchema } from "@matter/types";
 import type { Behavior } from "../Behavior.js";
-import type { ClusterOf } from "./cluster-behavior-utils.js";
 
 /**
  * Instance type for complete (endpoint + fabric) state.
  */
-export type ClusterState<C extends ClusterType, B extends Behavior.Type> = ClusterState.Type<C, B>;
+export type ClusterState<
+    N extends ClusterTyping = ClusterTyping,
+    B extends Behavior.Type = Behavior.Type,
+> = ClusterState.Type<N, B>;
 
 /**
  * State values for global attributes.
@@ -33,40 +35,80 @@ export namespace ClusterState {
     /**
      * Instance type for ClusterBehavior state.
      */
-    export type Type<C extends ClusterType, B extends Behavior.Type> =
+    export type Type<N extends ClusterTyping = ClusterTyping, B extends Behavior.Type = Behavior.Type> =
         // Keep properties *not* from attributes of the old cluster
-        Omit<InstanceType<B["State"]>, keyof PropertiesOf<ClusterOf<B>>> &
-            // Add properties from attributes of the old cluster
-            PropertiesOf<C>;
+        Omit<InstanceType<B["State"]>, ClusterType.AttrKeysOf<N>> &
+            // Add properties from attributes of the new cluster
+            AttributeProperties<N>;
 
     /**
-     * Properties a cluster contributes state.
+     * Extract Components tuple from namespace.
      */
-    export type PropertiesOf<C> = PropertiesOfAttributes<ClusterType.AttributesOf<C>>;
+    type ComponentsOf<N extends ClusterTyping> = N extends {
+        Components: infer C extends ClusterType.Component[];
+    }
+        ? C
+        : [];
 
-    export type PropertiesOfAttributes<A extends Record<string, ClusterType.Attribute>> = {
-        -readonly [N in keyof A as A[N] extends { fixed: true }
-            ? never
-            : A[N] extends { optional: true }
-              ? never
-              : N]: TypeFromSchema<A[N]["schema"]>;
-    } & {
-        -readonly [N in keyof A as A[N] extends { fixed: true }
-            ? never
-            : A[N] extends { optional: true }
-              ? N
-              : never]?: TypeFromSchema<A[N]["schema"]>;
-    } & {
-        -readonly [N in keyof A as A[N] extends { fixed: true }
-            ? A[N] extends { optional: true }
-                ? never
-                : N
-            : never]: TypeFromSchema<A[N]["schema"]>;
-    } & {
-        -readonly [N in keyof A as A[N] extends { fixed: true }
-            ? A[N] extends { optional: true }
-                ? N
-                : never
-            : never]?: TypeFromSchema<A[N]["schema"]>;
-    };
+    /**
+     * Attribute properties derived from applicable Components.
+     *
+     * When components carry per-component attribute interfaces (`attrs`), compose them via recursive intersection
+     * — this preserves IDE go-to-definition and JSDoc.  Otherwise fall back to key classification from the flat
+     * `Attributes` interface (for hand-crafted clusters without per-component interfaces).
+     */
+    type AttributeProperties<N extends ClusterTyping> = AppliedAttrsOf<
+        ComponentsOf<N>,
+        ClusterType.SupportedFeaturesOf<N>
+    >;
+
+    /**
+     * Recursively intersect per-component attribute interfaces from applicable components.
+     *
+     * Mirrors {@link ClusterInterface.AppliedMethodsOf} for commands.
+     */
+    type AppliedAttrsOf<CA extends ClusterType.Component[], S> = CA extends [
+        infer C extends ClusterType.Component,
+        ...infer R extends ClusterType.Component[],
+    ]
+        ? (S extends C["flags"] ? (C extends { attributes: infer A } ? A : {}) : {}) & AppliedAttrsOf<R, S>
+        : {};
+
+    /**
+     * Instance type for "complete" state — all components included.
+     *
+     * Base-component (flags: {}) attrs are intersected directly (preserving their mandatory/optional modifiers).
+     * Non-base component attrs are wrapped in Partial.
+     */
+    export type Complete<N extends ClusterTyping = ClusterTyping, B extends Behavior.Type = Behavior.Type> = Omit<
+        InstanceType<B["State"]>,
+        ClusterType.AttrKeysOf<N>
+    > &
+        CompleteAttributeProperties<N>;
+
+    /**
+     * Intersect base-component attribute interfaces directly, Partial all non-base.
+     */
+    type CompleteAttributeProperties<N extends ClusterTyping> = AppliedBaseAttrs<ComponentsOf<N>> &
+        Partial<AppliedNonBaseAttrs<ComponentsOf<N>>>;
+
+    /**
+     * Intersect attribute interfaces from base components (flags: {}).
+     */
+    type AppliedBaseAttrs<CA extends ClusterType.Component[]> = CA extends [
+        infer C extends ClusterType.Component,
+        ...infer R extends ClusterType.Component[],
+    ]
+        ? ({} extends C["flags"] ? (C extends { attributes: infer A } ? A : {}) : {}) & AppliedBaseAttrs<R>
+        : {};
+
+    /**
+     * Intersect attribute interfaces from non-base components (flags !== {}).
+     */
+    type AppliedNonBaseAttrs<CA extends ClusterType.Component[]> = CA extends [
+        infer C extends ClusterType.Component,
+        ...infer R extends ClusterType.Component[],
+    ]
+        ? ({} extends C["flags"] ? {} : C extends { attributes: infer A } ? A : {}) & AppliedNonBaseAttrs<R>
+        : {};
 }

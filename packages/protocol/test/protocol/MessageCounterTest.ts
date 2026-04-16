@@ -8,8 +8,8 @@ import { MAX_COUNTER_VALUE_32BIT, MessageCounter, PersistedMessageCounter } from
 import {
     b$,
     InternalError,
+    MemoryStorageDriver,
     StandardCrypto,
-    StorageBackendMemory,
     StorageContext,
     StorageManager,
 } from "@matter/general";
@@ -20,7 +20,7 @@ describe("MessageCounter", () => {
 
     beforeEach(async () => {
         crypto.randomBytes = () => b$`12345678`;
-        const testStorage = new StorageBackendMemory();
+        const testStorage = new MemoryStorageDriver();
         const testStorageManager = new StorageManager(testStorage);
         await testStorageManager.initialize();
         testStorageContext = testStorageManager.createContext("TestContext");

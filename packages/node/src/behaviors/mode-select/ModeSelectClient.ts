@@ -10,7 +10,7 @@ import { ModeSelect } from "@matter/types/clusters/mode-select";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ModeSelectClientConstructor = ClientBehavior(ModeSelect.Complete);
+export const ModeSelectClientConstructor = ClientBehavior(ModeSelect);
 export interface ModeSelectClient extends InstanceType<typeof ModeSelectClientConstructor> {}
 export interface ModeSelectClientConstructor extends Identity<typeof ModeSelectClientConstructor> {}
 export const ModeSelectClient: ModeSelectClientConstructor = ModeSelectClientConstructor;

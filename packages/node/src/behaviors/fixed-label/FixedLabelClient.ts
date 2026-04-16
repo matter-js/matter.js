@@ -10,7 +10,7 @@ import { FixedLabel } from "@matter/types/clusters/fixed-label";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const FixedLabelClientConstructor = ClientBehavior(FixedLabel.Complete);
+export const FixedLabelClientConstructor = ClientBehavior(FixedLabel);
 export interface FixedLabelClient extends InstanceType<typeof FixedLabelClientConstructor> {}
 export interface FixedLabelClientConstructor extends Identity<typeof FixedLabelClientConstructor> {}
 export const FixedLabelClient: FixedLabelClientConstructor = FixedLabelClientConstructor;

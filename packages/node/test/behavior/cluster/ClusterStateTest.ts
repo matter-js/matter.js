@@ -6,72 +6,18 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterState } from "#behavior/cluster/ClusterState.js";
-import { ClusterType } from "@matter/types";
-import { MyCluster } from "./cluster-behavior-test-util.js";
+import { ClusterTyping } from "@matter/types";
+import { MyClusterTyping } from "./cluster-behavior-test-util.js";
 
 describe("ClusterState", () => {
     describe("base class", () => {
         it("is an object", () => {
-            ({}) as ClusterState<ClusterType, Behavior.Type> satisfies {};
+            ({}) as ClusterState<ClusterTyping, Behavior.Type> satisfies {};
         });
     });
 
-    describe("AttributeProperties", () => {
-        type Ap = ClusterState.PropertiesOfAttributes<ClusterType.AttributesOf<MyCluster>>;
-
-        it("requires mandatory", () => {
-            ({
-                reqAttr: "foo",
-            }) satisfies Ap;
-            ({}) as Ap satisfies {
-                reqAttr: string;
-            };
-        });
-
-        it("allows optional", () => {
-            undefined satisfies Ap["optAttr"];
-            true satisfies Ap["optAttr"];
-        });
-    });
-
-    describe("PropertiesOfAttributes", () => {
-        type Poa = ClusterState.PropertiesOfAttributes<ClusterType.AttributesOf<MyCluster>>;
-
-        it("requires mandatory", () => {
-            ({
-                reqAttr: "foo",
-            }) satisfies Poa;
-            ({}) as Poa satisfies {
-                reqAttr: string;
-            };
-        });
-
-        it("allows optional", () => {
-            undefined satisfies Poa["optAttr"];
-            true satisfies Poa["optAttr"];
-        });
-    });
-
-    describe("EndpointProperties", () => {
-        type Ep = ClusterState.PropertiesOf<MyCluster>;
-
-        it("requires mandatory", () => {
-            ({
-                reqAttr: "foo",
-            }) satisfies Ep;
-            ({}) as Ep satisfies {
-                reqAttr: string;
-            };
-        });
-
-        it("allows optional", () => {
-            undefined satisfies Ep["optAttr"];
-            true satisfies Ep["optAttr"];
-        });
-    });
-
-    describe("Endpoint", () => {
-        type E = ClusterState.Type<MyCluster, Behavior.Type>;
+    describe("Type", () => {
+        type E = ClusterState.Type<MyClusterTyping, Behavior.Type>;
 
         it("is an object", () => {
             ({}) as E satisfies {};
@@ -88,7 +34,7 @@ describe("ClusterState", () => {
     });
 
     describe("state instance", () => {
-        type Si = ClusterState<MyCluster, Behavior.Type>;
+        type Si = ClusterState<MyClusterTyping, Behavior.Type>;
 
         it("requires mandatory", () => {
             ({}) as Si satisfies {

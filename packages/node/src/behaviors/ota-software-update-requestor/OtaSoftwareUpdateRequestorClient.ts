@@ -10,7 +10,7 @@ import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OtaSoftwareUpdateRequestorClientConstructor = ClientBehavior(OtaSoftwareUpdateRequestor.Complete);
+export const OtaSoftwareUpdateRequestorClientConstructor = ClientBehavior(OtaSoftwareUpdateRequestor);
 export interface OtaSoftwareUpdateRequestorClient extends InstanceType<typeof OtaSoftwareUpdateRequestorClientConstructor> {}
 export interface OtaSoftwareUpdateRequestorClientConstructor extends Identity<typeof OtaSoftwareUpdateRequestorClientConstructor> {}
 export const OtaSoftwareUpdateRequestorClient: OtaSoftwareUpdateRequestorClientConstructor = OtaSoftwareUpdateRequestorClientConstructor;

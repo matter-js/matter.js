@@ -5,35 +5,52 @@
  */
 
 import { MaybePromise } from "../util/Promises.js";
-import { Storage, StorageError } from "./Storage.js";
 import { StorageContext, StorageContextFactory } from "./StorageContext.js";
+import { StorageDriver, StorageError } from "./StorageDriver.js";
 
 export class StorageManager implements StorageContextFactory {
-    private initialized = false;
+    #driver: StorageDriver;
+    #isInitialized = false;
 
-    constructor(private storage: Storage) {}
+    constructor(driver: StorageDriver) {
+        this.#driver = driver;
+    }
+
+    get driver() {
+        return this.#driver;
+    }
+
+    get driverId() {
+        return this.#driver.id;
+    }
 
     initialize(): MaybePromise<void> {
-        if (!this.storage.initialized) {
-            const init = this.storage.initialize();
+        if (!this.#driver.initialized) {
+            const init = this.#driver.initialize();
             if (MaybePromise.is(init)) {
                 return init.then(() => {
-                    this.initialized = true;
+                    this.#isInitialized = true;
                 });
             }
         }
-        this.initialized = true;
+        this.#isInitialized = true;
     }
 
     close() {
-        this.initialized = false;
-        return this.storage.close();
+        this.#isInitialized = false;
+        return this.#driver.close();
     }
 
     createContext(context: string): StorageContext {
-        if (!this.initialized) throw new StorageError("The storage needs to be initialized first!");
-        if (!context.length) throw new StorageError("Context must not be an empty string!");
-        if (context.includes(".")) throw new StorageError("Context must not contain dots!");
-        return new StorageContext(this.storage, [context]);
+        if (!this.#isInitialized) {
+            throw new StorageError("The storage needs to be initialized first!");
+        }
+        if (!context.length) {
+            throw new StorageError("Context must not be an empty string!");
+        }
+        if (context.includes(".")) {
+            throw new StorageError("Context must not contain dots!");
+        }
+        return new StorageContext(this.#driver, [context]);
     }
 }

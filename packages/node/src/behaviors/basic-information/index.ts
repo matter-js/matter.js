@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
-
 export * from "./BasicInformationBehavior.js";
 export * from "./BasicInformationServer.js";
 export * from "./BasicInformationClient.js";
+export * from "./basic-information-validators.js";

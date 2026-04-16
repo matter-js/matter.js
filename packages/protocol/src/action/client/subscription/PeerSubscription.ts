@@ -42,6 +42,8 @@ export class PeerSubscription extends ClientSubscription {
         this.logger.info(
             "Subscription",
             Diagnostic.strong(Subscription.idStrOf(this.subscriptionId)),
+            "to peer",
+            this.peer.toString(),
             "timed out after",
             Diagnostic.strong(Duration.format(this.timeout)),
         );

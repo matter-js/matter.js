@@ -175,6 +175,13 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     }
 
     /**
+     * An alias for {@link members} that offers compatibility with the same field for clusters.
+     */
+    get properties() {
+        return this.members;
+    }
+
+    /**
      * Collect constraints and conformance for this type and all base types.
      */
     get validationAspects() {

@@ -26,6 +26,7 @@ import {
 } from "@matter/protocol";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Node } from "./Node.js";
+import { Plugins } from "./Plugins.js";
 import { Peers } from "./client/Peers.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
@@ -47,6 +48,7 @@ class FactoryResetError extends MatterError {
 export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint> extends Node<T> {
     #peers?: Peers;
     #interaction?: Interactable<ActionContext>;
+    #plugins: Plugins;
 
     /**
      * Construct a new ServerNode.
@@ -68,7 +70,11 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     constructor(config: Partial<Node.Configuration<T>>);
 
     constructor(definition?: T | Node.Configuration<T>, options?: Node.Options<T>) {
-        super(Node.nodeConfigFor(ServerNode.RootEndpoint as T, definition, options ?? ({} as Node.Options<T>)));
+        const config = Node.nodeConfigFor(ServerNode.RootEndpoint as T, definition, options ?? ({} as Node.Options<T>));
+
+        super(config);
+
+        this.#plugins = new Plugins(this);
 
         this.env.set(Node, this);
         this.env.set(ServerNode, this);
@@ -192,7 +198,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
 
     protected override async initialize() {
         await ServerEnvironment.initialize(this);
-
+        await this.#plugins.load();
         await super.initialize();
     }
 

@@ -26,8 +26,8 @@ import { IdentifyBehavior } from "./IdentifyBehavior.js";
  */
 export class IdentifyServer extends IdentifyBehavior {
     declare protected internal: IdentifyServer.Internal;
-    declare state: IdentifyServer.State;
-    declare events: IdentifyServer.Events;
+    declare readonly state: IdentifyServer.State;
+    declare readonly events: IdentifyServer.Events;
 
     override initialize(): MaybePromise {
         if (this.state.identifyType === undefined) {

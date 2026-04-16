@@ -34,16 +34,27 @@ export function createConstraintValidator(
             }
 
             if (name in nameResolvers) {
-                return nameResolvers[name]?.(location.siblings);
+                return nameResolvers[name]?.(location.siblings) ?? location.outerResolve?.(name);
             }
 
             const resolver = NameResolver(supervisor, schema.parent, name);
             nameResolvers[name] = resolver;
-            return resolver?.(location.siblings);
+            return resolver?.(location.siblings) ?? location.outerResolve?.(name);
         };
     };
 
-    return create(constraint, schema, nameResolverFactory);
+    const inner = create(constraint, schema, nameResolverFactory);
+    if (!inner) {
+        return undefined;
+    }
+
+    return (value, session, location) => {
+        const cfg = location.config?.supervision;
+        if (cfg?.validate === false || cfg?.constraint === false) {
+            return;
+        }
+        inner(value, session, location);
+    };
 }
 
 function create(

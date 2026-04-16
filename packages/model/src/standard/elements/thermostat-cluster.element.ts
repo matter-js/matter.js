@@ -361,7 +361,10 @@ export const Thermostat = Cluster(
     ),
 
     Command(
-        { name: "AtomicRequest", id: 0xfe, access: "O", direction: "request", response: "AtomicResponse" },
+        {
+            name: "AtomicRequest", id: 0xfe, access: "O", conformance: "PRES | MSCH", direction: "request",
+            response: "AtomicResponse"
+        },
 
         Field(
             { name: "RequestType", id: 0x0, type: "enum8", conformance: "M" },

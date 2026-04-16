@@ -10,7 +10,7 @@ import { LevelControl } from "@matter/types/clusters/level-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const LevelControlClientConstructor = ClientBehavior(LevelControl.Complete);
+export const LevelControlClientConstructor = ClientBehavior(LevelControl);
 export interface LevelControlClient extends InstanceType<typeof LevelControlClientConstructor> {}
 export interface LevelControlClientConstructor extends Identity<typeof LevelControlClientConstructor> {}
 export const LevelControlClient: LevelControlClientConstructor = LevelControlClientConstructor;

@@ -31,7 +31,7 @@
     "dependencies": {
         "@matter/general": "*",
         "@matter/nodejs": "*",
-        "ws": "^8.19.0"
+        "ws": "^8.20.0"
     },
     "devDependencies": {
         "@matter/tools": "*",

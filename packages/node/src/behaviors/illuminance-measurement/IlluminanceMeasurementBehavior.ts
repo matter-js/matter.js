@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * IlluminanceMeasurementBehavior is the base class for objects that support interaction with
  * {@link IlluminanceMeasurement.Cluster}.
  */
-export const IlluminanceMeasurementBehaviorConstructor = ClusterBehavior.for(IlluminanceMeasurement.Cluster);
+export const IlluminanceMeasurementBehaviorConstructor = ClusterBehavior.for(IlluminanceMeasurement);
 
 export interface IlluminanceMeasurementBehaviorConstructor extends Identity<typeof IlluminanceMeasurementBehaviorConstructor> {}
 export const IlluminanceMeasurementBehavior: IlluminanceMeasurementBehaviorConstructor = IlluminanceMeasurementBehaviorConstructor;

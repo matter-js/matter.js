@@ -10,55 +10,29 @@ import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
 import { InternalError, Logger } from "@matter/general";
-import { AccessLevel } from "@matter/model";
 import { assertRemoteActor, Fabric } from "@matter/protocol";
-import {
-    Command,
-    FabricIndex,
-    StatusCode,
-    StatusResponseError,
-    TlvField,
-    TlvGroupId,
-    TlvNoResponse,
-    TlvObject,
-    TlvString,
-} from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { Groups } from "@matter/types/clusters/groups";
 import { GroupsBehavior } from "./GroupsBehavior.js";
 
 const logger = Logger.get("GroupsServer");
 
 /**
- * Monkey patching Tlv Structure of addGroup* commands to prevent data validation of the groupName field to be
- * handled as ConstraintError because we need to return a special error.
- * We do this to leave the model in fact for other validations and only apply the change for our Schema-aware Tlv parsing.
+ * Extend the Groups model to relax constraints on command request fields.  This prevents the interaction layer from
+ * rejecting with ConstraintError so the behavior can validate and return proper Status responses.
  */
-Groups.Cluster.commands = {
-    ...Groups.Cluster.commands,
-    addGroup: Command(
-        0x0,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            groupName: TlvField(1, TlvString),
-        }),
-        0x0,
-        Groups.TlvAddGroupResponse,
-        { invokeAcl: AccessLevel.Manage },
-    ),
-    addGroupIfIdentifying: Command(
-        0x5,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            groupName: TlvField(1, TlvString),
-        }),
-        0x5,
-        TlvNoResponse,
-        { invokeAcl: AccessLevel.Manage },
-    ),
-};
+const { commands } = Groups.schema;
+const addGroup = commands.require("AddGroup");
+const addGroupIfIdentifying = commands.require("AddGroupIfIdentifying");
+
+const GroupsSchema = Groups.schema.extend(
+    undefined,
+    addGroup.extend(undefined, addGroup.fields.extend("GroupName", { constraint: "none" })),
+    addGroupIfIdentifying.extend(undefined, addGroupIfIdentifying.fields.extend("GroupName", { constraint: "none" })),
+);
 
 // We enable group names by default
-const GroupsBase = GroupsBehavior.with(Groups.Feature.GroupNames);
+const GroupsBase = GroupsBehavior.for(Groups, GroupsSchema).with(Groups.Feature.GroupNames);
 
 /**
  * This is the default server implementation of {@link GroupsBehavior}.
@@ -89,10 +63,9 @@ export class GroupsServer extends GroupsBase {
         return act(this.context.session.associatedFabric, gkm);
     }
 
-    /**
-     * Returns whether the accessing fabric has adopted Groupcast cluster for group management (Groups cluster rev 5).
-     * When true, management commands (Add/View/GetMembership) return INVALID_IN_STATE.
-     */
+    /* Provisional in Matter 1.6.0: Groups cluster rev 5 adoption checks deferred.
+     * When active, management commands return INVALID_IN_STATE for Groupcast-adopted fabrics.
+     *
     #isGroupcastAdopted(fabricIndex: FabricIndex): boolean {
         const groupcastAdoption = this.#rootEndpoint.stateOf(GroupKeyManagementServer).groupcastAdoption;
         if (!groupcastAdoption) {
@@ -100,6 +73,7 @@ export class GroupsServer extends GroupsBase {
         }
         return groupcastAdoption.some(e => e.fabricIndex === fabricIndex && e.groupcastAdopted);
     }
+    */
 
     override async addGroup({ groupId, groupName }: Groups.AddGroupRequest): Promise<Groups.AddGroupResponse> {
         assertRemoteActor(this.context);
@@ -112,10 +86,11 @@ export class GroupsServer extends GroupsBase {
             return { status: StatusCode.ConstraintError, groupId };
         }
 
-        // Groups cluster rev 5: management commands return INVALID_IN_STATE when fabric has adopted Groupcast
+        /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
             return { status: StatusCode.InvalidInState, groupId };
         }
+        */
 
         if (!fabric.groups.groupKeyIdMap.has(groupId)) {
             return { status: StatusCode.UnsupportedAccess, groupId };
@@ -144,10 +119,11 @@ export class GroupsServer extends GroupsBase {
             return { status: StatusCode.ConstraintError, groupId, groupName: "" };
         }
 
-        // Groups cluster rev 5: management commands return INVALID_IN_STATE when fabric has adopted Groupcast
+        /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
             return { status: StatusCode.InvalidInState, groupId, groupName: "" };
         }
+        */
 
         const fabricIndex = fabric.fabricIndex;
         const endpointNumber = this.endpoint.number;
@@ -166,10 +142,11 @@ export class GroupsServer extends GroupsBase {
         assertRemoteActor(this.context);
         const fabric = this.context.session.associatedFabric;
 
-        // Groups cluster rev 5: management commands return INVALID_IN_STATE when fabric has adopted Groupcast
+        /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
             throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", StatusCode.InvalidInState);
         }
+        */
 
         const fabricIndex = fabric.fabricIndex;
         const endpointNumber = this.endpoint.number;
@@ -231,10 +208,11 @@ export class GroupsServer extends GroupsBase {
 
     override async addGroupIfIdentifying({ groupId, groupName }: Groups.AddGroupIfIdentifyingRequest) {
         assertRemoteActor(this.context);
-        // Groups cluster rev 5: management commands return INVALID_IN_STATE when fabric has adopted Groupcast
+        /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(this.context.session.associatedFabric.fabricIndex)) {
             throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", StatusCode.InvalidInState);
         }
+        */
         if (this.endpoint.stateOf(IdentifyBehavior).identifyTime > 0) {
             // We identify ourselves currently
             const { status } = await this.addGroup({ groupId, groupName });

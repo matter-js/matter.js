@@ -18,7 +18,7 @@ import {
     UnexpectedDataError,
     UninitializedDependencyError,
 } from "@matter/general";
-import { CaseAuthenticatedTag, NodeId, ValidationError, VendorId } from "@matter/types";
+import { CaseAuthenticatedTag, NodeId, SubjectId, ValidationError, VendorId } from "@matter/types";
 import { Fabric, FabricBuilder } from "../fabric/Fabric.js";
 import { FabricManager } from "../fabric/FabricManager.js";
 import { SessionManager } from "../session/SessionManager.js";
@@ -223,7 +223,7 @@ export abstract class FailsafeContext {
         icacValue: Bytes | undefined;
         adminVendorId: VendorId;
         ipkValue: Bytes;
-        caseAdminSubject: NodeId;
+        caseAdminSubject: SubjectId;
     }) {
         const builder = this.#builder;
 
@@ -257,7 +257,7 @@ export abstract class FailsafeContext {
         this.#associatedFabric = await builder
             .setRootVendorId(adminVendorId)
             .setIdentityProtectionKey(ipkValue)
-            .setRootNodeId(caseAdminSubject)
+            .setRootNodeId(caseAdminSubject as NodeId)
             .build(this.#fabrics.allocateFabricIndex());
         this.#fabrics.addFabric(this.#associatedFabric);
 

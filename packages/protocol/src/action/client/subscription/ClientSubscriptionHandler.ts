@@ -10,7 +10,7 @@ import { Subscription, SubscriptionId } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { Diagnostic, InternalError, Logger } from "@matter/general";
+import { AbortedError, causedBy, Diagnostic, InternalError, Logger } from "@matter/general";
 import { DataReport, INTERACTION_PROTOCOL_ID, Status, TlvAttributeReport, TypeFromSchema } from "@matter/types";
 import { InputChunk } from "../InputChunk.js";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
@@ -31,9 +31,41 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
     }
 
     async onNewExchange(exchange: MessageExchange) {
+        // During shutdown, reject immediately so the remote device can clean up its subscription state
+        if (this.#subscriptions.isBlocked) {
+            const messenger = new IncomingInteractionClientMessenger(exchange);
+            try {
+                await sendInvalid(messenger);
+            } finally {
+                await messenger.close();
+            }
+            return;
+        }
+
+        // Track this read so blockNewActivity() can await its completion
+        using _reading = this.#subscriptions.beginReading();
+
+        try {
+            await this.#handleExchange(exchange);
+        } catch (error) {
+            // During shutdown the abort signal terminates reads at any point — initial read, chunked reports,
+            // or inside the updated() callback.  Only suppress errors that are both (a) during our shutdown
+            // abort and (b) actually caused by an abort — real bugs during shutdown still propagate.
+            if (this.#subscriptions.readingAbortSignal.aborted && causedBy(error, AbortedError)) {
+                logger.debug(exchange.via, "Data report processing aborted during shutdown");
+                return;
+            }
+            throw error;
+        }
+    }
+
+    async #handleExchange(exchange: MessageExchange) {
         const messenger = new IncomingInteractionClientMessenger(exchange);
-        // Read the initial report
-        const reports = messenger.readDataReports();
+        const abort = this.#subscriptions.readingAbortSignal;
+
+        // Read the initial report — the abort signal lets us terminate promptly during shutdown instead of
+        // waiting for the full (potentially multi-chunk) data report to complete
+        const reports = messenger.readDataReports({ abort });
 
         const initialIteration = await reports.next();
         if (initialIteration.done) {
@@ -45,7 +77,11 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         const { subscriptionId } = initialReport;
         if (subscriptionId === undefined) {
             logger.debug(exchange.via, "Ignoring unsolicited data report with no subscription ID");
-            await sendInvalid(messenger, undefined);
+            try {
+                await sendInvalid(messenger);
+            } finally {
+                await messenger.close();
+            }
             return;
         }
 
@@ -59,7 +95,11 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                 "Ignoring data report for unknown subscription ID",
                 Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
             );
-            await sendInvalid(messenger, subscriptionId);
+            try {
+                await sendInvalid(messenger, subscriptionId);
+            } finally {
+                await messenger.close();
+            }
             return;
         }
 
@@ -100,12 +140,12 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
     async close() {}
 }
 
+/** Sends an InvalidSubscription status report. */
 async function sendInvalid(messenger: IncomingInteractionClientMessenger, subscriptionId?: SubscriptionId) {
     await messenger.sendStatus(Status.InvalidSubscription, {
         multipleMessageInteraction: true,
         logContext: Subscription.diagnosticOf(subscriptionId),
     });
-    await messenger.close();
 }
 
 /**
@@ -129,7 +169,7 @@ async function* processReports(
         if (reportSubscriptionId === undefined) {
             logger.debug(messenger.exchange.via, "Ignoring data report with missing subscription id");
             await sendInvalid(messenger, reportSubscriptionId);
-            continue;
+            return;
         }
 
         if (reportSubscriptionId !== subscriptionId) {
@@ -141,7 +181,7 @@ async function* processReports(
                 Subscription.idStrOf(subscriptionId),
             );
             await sendInvalid(messenger, reportSubscriptionId);
-            continue;
+            return;
         }
 
         yield InputChunk(report, leftOverData);

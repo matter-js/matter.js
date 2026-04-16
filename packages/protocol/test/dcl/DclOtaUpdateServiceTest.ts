@@ -11,14 +11,16 @@ import {
 } from "#dcl/DclOtaUpdateService.js";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import {
+    type BlobStorageHandle,
+    Bytes,
     Crypto,
     DataWriter,
     Endian,
     Environment,
     HashFipsAlgorithmId,
     MockFetch,
+    MockStorageService,
     StandardCrypto,
-    StorageBackendMemory,
     StorageService,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
@@ -27,23 +29,21 @@ import { createOtaImage, createVersionMetadata, mockVersionsList } from "./dcl-o
 describe("DclOtaUpdateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
-    let storage: StorageBackendMemory;
     const crypto = new StandardCrypto();
 
     beforeEach(async () => {
         fetchMock = new MockFetch();
         environment = new Environment("test");
 
-        // Set up storage - just create the backend, StorageService will manage initialization
-        storage = new StorageBackendMemory();
-
-        // Add services to environment
-        new StorageService(environment, (_namespace: string) => storage);
+        new MockStorageService(environment);
         environment.set(Crypto, crypto);
     });
 
     afterEach(async () => {
         fetchMock.uninstall();
+        if (environment.has(DclOtaUpdateService)) {
+            await environment.get(DclOtaUpdateService).close();
+        }
     });
 
     describe("checkForUpdate", () => {
@@ -1221,15 +1221,32 @@ describe("DclOtaUpdateService", () => {
     });
 
     describe("migration", () => {
+        let testBlobHandle: BlobStorageHandle | undefined;
+
+        afterEach(async () => {
+            await testBlobHandle?.close();
+            testBlobHandle = undefined;
+        });
+
+        async function writeBlobToStorage(contexts: string[], key: string, data: Bytes) {
+            if (!testBlobHandle) {
+                testBlobHandle = await environment.get(StorageService).openBlobStorage("ota");
+            }
+            const stream = new ReadableStream<Bytes>({
+                start(controller) {
+                    controller.enqueue(data);
+                    controller.close();
+                },
+            });
+            await testBlobHandle.driver.writeBlobFromStream(contexts, key, stream);
+        }
+
         it("migrates old bare keys to version-keyed format", async () => {
-            // Pre-populate storage with old-format data
+            // Pre-populate blob storage with old-format data
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            // Initialize storage so we can write directly to it
-            storage.initialize();
-
-            // Write directly to storage in old format: bin/fff1/8000/prod
-            storage.set(["bin", "fff1", "8000"], "prod", otaImage);
+            // Write directly to blob storage in old format: bin/fff1/8000/prod
+            await writeBlobToStorage(["bin", "fff1", "8000"], "prod", otaImage);
 
             // Creating the service triggers migration
             const service = new DclOtaUpdateService(environment);
@@ -1246,11 +1263,8 @@ describe("DclOtaUpdateService", () => {
         it("migrates test mode bare keys", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 2);
 
-            // Initialize storage so we can write directly to it
-            storage.initialize();
-
             // Write in old format: bin/fff1/8000/test
-            storage.set(["bin", "fff1", "8000"], "test", otaImage);
+            await writeBlobToStorage(["bin", "fff1", "8000"], "test", otaImage);
 
             const service = new DclOtaUpdateService(environment);
             await service.construction;
@@ -1262,11 +1276,8 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("handles corrupt files during migration gracefully", async () => {
-            // Initialize storage so we can write directly to it
-            storage.initialize();
-
             // Write garbage data in old format
-            storage.set(["bin", "fff1", "8000"], "prod", new Uint8Array([0x00, 0x01, 0x02]));
+            await writeBlobToStorage(["bin", "fff1", "8000"], "prod", new Uint8Array([0x00, 0x01, 0x02]));
 
             // Service should start without error
             const service = new DclOtaUpdateService(environment);

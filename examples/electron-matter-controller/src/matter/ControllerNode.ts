@@ -6,7 +6,6 @@
 import { Crypto, Diagnostic, Environment, Logger, StandardCrypto, StorageService } from "@matter/main";
 import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning, OnOff } from "@matter/main/clusters";
 // import { Ble, ClusterClientObj } from "@matter/main/protocol";
-import { ClusterClientObj } from "@matter/main/protocol";
 import { NodeId } from "@matter/main/types";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 // // import { CommissioningController } from "@project-chip/matter.js";
@@ -281,7 +280,7 @@ export class ControllerNode {
                 //    console.log("Subscribe-All Data:", Diagnostic.json(data));
                 //});
 
-                const onOff: ClusterClientObj<OnOff.Complete> | undefined = devices[0].getClusterClient(OnOff.Complete);
+                const onOff = devices[0].getClusterClient(OnOff.Complete);
                 if (onOff !== undefined) {
                     let onOffStatus = await onOff.getOnOffAttribute();
                     console.log("initial onOffStatus", onOffStatus);

@@ -5,10 +5,9 @@
  */
 
 import {
-    Bytes,
     InternalError,
+    MemoryStorageDriver,
     Storage,
-    StorageBackendMemory,
     SupportedStorageTypes,
     Time,
     createPromise,
@@ -20,7 +19,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 export class StorageBackendAsyncJsonFile extends Storage {
     /** We store changes after a value was set to the storage, but not more often than this setting (in ms). */
     private closed = false;
-    private store?: StorageBackendMemory;
+    private store?: MemoryStorageDriver;
     private currentStoreItPromise?: Promise<void>;
     private lastStoredTime = 0;
 
@@ -37,10 +36,10 @@ export class StorageBackendAsyncJsonFile extends Storage {
             if (error.code !== "ENOENT") {
                 throw error;
             }
-            console.log("StorageBackendSyncJsonFile: File does not exist yet, initializing with empty store.");
+            console.log("StorageBackendAsyncJsonFile: File does not exist yet, initializing with empty store.");
         }
-        this.store = new StorageBackendMemory(data);
-        this.store.initialize();
+        this.store = new MemoryStorageDriver(data);
+        this.store.initialize(); // Internal usage — creates from pre-loaded data
         this.lastStoredTime = Time.nowMs;
     }
 
@@ -60,21 +59,6 @@ export class StorageBackendAsyncJsonFile extends Storage {
             throw new InternalError("Storage not initialized.");
         }
         return this.store.get(contexts, key);
-    }
-
-    async openBlob(contexts: string[], key: string): Promise<Blob> {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        return this.store.openBlob(contexts, key);
-    }
-
-    async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>) {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        await this.store.writeBlobFromStream(contexts, key, stream);
-        await this.commit();
     }
 
     set(contexts: string[], key: string, value: SupportedStorageTypes): Promise<void>;
@@ -100,14 +84,6 @@ export class StorageBackendAsyncJsonFile extends Storage {
             throw new InternalError("Storage not initialized.");
         }
         this.store.delete(contexts, key);
-        await this.commit();
-    }
-
-    async clear() {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        this.store.clear();
         await this.commit();
     }
 

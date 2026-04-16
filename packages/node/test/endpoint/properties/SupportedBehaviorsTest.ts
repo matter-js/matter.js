@@ -4,16 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 
-const WC1 = ClusterBehavior.for(WindowCovering.Cluster.with("Lift"));
-const WC2 = ClusterBehavior.for(WindowCovering.Cluster.with("Tilt", "PositionAwareTilt"));
-const CC = ClusterBehavior.for(ColorControl.Cluster.with("Xy", "HueSaturation", "EnhancedHue"));
-const OO = ClusterBehavior.for(OnOff.Cluster);
+const WC1 = ClusterBehavior.for(WindowCovering).with("Lift");
+const WC2 = ClusterBehavior.for(WindowCovering).with("Tilt", "PositionAwareTilt");
+const CC = ClusterBehavior.for(ColorControl).with("Xy", "HueSaturation", "EnhancedHue");
+const OO = ClusterBehavior.for(OnOff);
 
 type WC1 = typeof WC1;
 type WC2 = typeof WC2;
@@ -61,5 +62,33 @@ describe("SupportedBehaviors", () => {
         sb satisfies { windowCovering: WC2; colorControl: CC; onOff: OO };
         ({}) as IsNever<typeof sb> satisfies false;
         expect(sb).deep.equal({ windowCovering: WC2, colorControl: CC, onOff: OO });
+    });
+
+    it("rejects behavior ID starting with uppercase", () => {
+        class UpperBehavior extends Behavior {
+            static override readonly id = "GCEvents";
+        }
+
+        expect(() => {
+            SupportedBehaviors(UpperBehavior);
+        }).throws('Behavior ID "GCEvents" must start with a lowercase letter');
+    });
+
+    it("accepts behavior ID starting with lowercase", () => {
+        class LowerBehavior extends Behavior {
+            static override readonly id = "gcEvents";
+        }
+
+        const sb = SupportedBehaviors(LowerBehavior);
+        expect(sb).deep.equal({ gcEvents: LowerBehavior });
+    });
+
+    it("accepts hyphenated behavior ID", () => {
+        class HyphenBehavior extends Behavior {
+            static override readonly id = "test-plugin";
+        }
+
+        const sb = SupportedBehaviors(HyphenBehavior);
+        expect(sb).deep.equal({ "test-plugin": HyphenBehavior });
     });
 });

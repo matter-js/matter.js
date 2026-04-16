@@ -10,7 +10,7 @@ import { OvenCavityOperationalState } from "@matter/types/clusters/oven-cavity-o
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OvenCavityOperationalStateClientConstructor = ClientBehavior(OvenCavityOperationalState.Complete);
+export const OvenCavityOperationalStateClientConstructor = ClientBehavior(OvenCavityOperationalState);
 export interface OvenCavityOperationalStateClient extends InstanceType<typeof OvenCavityOperationalStateClientConstructor> {}
 export interface OvenCavityOperationalStateClientConstructor extends Identity<typeof OvenCavityOperationalStateClientConstructor> {}
 export const OvenCavityOperationalStateClient: OvenCavityOperationalStateClientConstructor = OvenCavityOperationalStateClientConstructor;

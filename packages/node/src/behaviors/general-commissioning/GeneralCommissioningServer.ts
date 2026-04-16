@@ -30,7 +30,7 @@ const logger = Logger.get("GeneralCommissioningClusterHandler");
  * This is the default server implementation of GeneralCommissioningBehavior.
  */
 export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
-    declare state: GeneralCommissioningServer.State;
+    declare readonly state: GeneralCommissioningServer.State;
 
     static override lockOnInvoke = false;
 

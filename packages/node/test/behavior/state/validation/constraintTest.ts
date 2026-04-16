@@ -160,4 +160,6 @@ const AllTests = Tests({
     }),
 });
 
-testValidation("constraint", AllTests);
+describe("constraint", () => {
+    testValidation("constraint", AllTests);
+});

@@ -8,7 +8,6 @@
 
 import { ActivatedCarbonFilterMonitoring } from "@matter/types/clusters/activated-carbon-filter-monitoring";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ResourceMonitoringInterface } from "../resource-monitoring/ResourceMonitoringInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ActivatedCarbonFilterMonitoring.Cluster enabled. You can enable
  * additional features using ActivatedCarbonFilterMonitoringBehavior.with.
  */
-export const ActivatedCarbonFilterMonitoringBehaviorConstructor = ClusterBehavior
-    .withInterface<ResourceMonitoringInterface>()
-    .for(ActivatedCarbonFilterMonitoring.Cluster);
+export const ActivatedCarbonFilterMonitoringBehaviorConstructor = ClusterBehavior.for(ActivatedCarbonFilterMonitoring);
 
 export interface ActivatedCarbonFilterMonitoringBehaviorConstructor extends Identity<typeof ActivatedCarbonFilterMonitoringBehaviorConstructor> {}
 export const ActivatedCarbonFilterMonitoringBehavior: ActivatedCarbonFilterMonitoringBehaviorConstructor = ActivatedCarbonFilterMonitoringBehaviorConstructor;

@@ -70,7 +70,15 @@ export class MockHost {
     }
 
     configureNames(config?: Partial<DnssdNames.Context>) {
-        return (this.#names = new DnssdNames({ socket: this.mdns, entropy: MockCrypto(this.#index), ...config }));
+        // Close any prior DnssdNames so its socket observers and periodic timers don't leak across reconfigurations
+        void this.#names?.close();
+        // Default grace=1.0 so MockTime.resolve's 1h virtual cap doesn't interfere with Hours(1)-TTL fixtures
+        return (this.#names = new DnssdNames({
+            socket: this.mdns,
+            entropy: MockCrypto(this.#index),
+            ttlGraceFactor: 1.0,
+            ...config,
+        }));
     }
 
     get names() {

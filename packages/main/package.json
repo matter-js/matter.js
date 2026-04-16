@@ -25,8 +25,7 @@
         "clean": "matter-build clean",
         "build": "matter-build",
         "build-clean": "matter-build --clean",
-        "coverage": "c8 matter-test esm",
-        "embed-examples": "embedme **/README.md"
+        "coverage": "c8 matter-test esm"
     },
     "imports": {
         "#platform": "@matter/main/platform",

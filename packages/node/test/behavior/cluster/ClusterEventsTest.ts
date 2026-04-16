@@ -5,7 +5,6 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { ClusterOf } from "#behavior/cluster/cluster-behavior-utils.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
@@ -14,18 +13,16 @@ import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/bas
 import { AsyncObservable, EventEmitter, MaybePromise, Observable } from "@matter/general";
 import { ClusterType } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MyCluster, MySchema } from "./cluster-behavior-test-util.js";
+import { MyCluster, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
 
-const MyClusterWithOptEvent = MyCluster.enable({ events: { optEv: true } });
-type MyClusterWithOptEvent = typeof MyClusterWithOptEvent;
+type MyClusterWithOptEvent = ClusterType.WithEnabledEvents<MyClusterTyping, "optEv">;
+type BiWithStartup = ClusterType.WithEnabledEvents<BasicInformation, "startUp">;
+
 const MyClusterBehavior = ClusterBehavior.for(MyCluster, MySchema);
-const MyClusterWithOptEventBehavior = MyClusterBehavior.for(MyClusterWithOptEvent);
-const BiWithStartup = BasicInformation.Cluster.enable({ events: { startUp: true } });
-type BiWithStartup = typeof BiWithStartup;
 
 describe("ClusterEvents", () => {
     describe("ClusterEvents type", () => {
-        type Ep = ClusterEvents<MyCluster, Behavior.Type>;
+        type Ep = ClusterEvents<MyClusterTyping, Behavior.Type>;
 
         it("extends EventEmitter", () => {
             ({}) as Ep satisfies EventEmitter;
@@ -33,10 +30,6 @@ describe("ClusterEvents", () => {
 
         it("extends EventEmitter within ClusterBehavior", () => {
             ({}) as InstanceType<typeof MyClusterBehavior.Events> satisfies EventEmitter;
-        });
-
-        it("extends EventEmitter after swapping clusters", () => {
-            ({}) as InstanceType<typeof MyClusterWithOptEventBehavior.Events> satisfies EventEmitter;
         });
 
         it("extends EventEmitter with enabled", () => {
@@ -63,7 +56,7 @@ describe("ClusterEvents", () => {
     });
 
     describe("EventsInstance", () => {
-        type Ei = ClusterEvents<MyCluster, Behavior.Type>;
+        type Ei = ClusterEvents<MyClusterTyping, Behavior.Type>;
 
         it("extends EventEmitter", () => {
             ({}) as Ei satisfies EventEmitter;
@@ -72,18 +65,15 @@ describe("ClusterEvents", () => {
         it("extends EventEmitter with swapped cluster", () => {
             ({}) as InstanceType<typeof MyClusterBehavior.Events> satisfies EventEmitter;
 
-            ({}) as InstanceType<typeof MyClusterBehavior> satisfies { cluster: ClusterType };
+            ({}) as InstanceType<typeof MyClusterBehavior> satisfies { cluster: ClusterType.Concrete };
 
-            type Cluster = ClusterOf<typeof MyClusterBehavior>;
-            ({}) as Cluster satisfies ClusterType;
-
-            type ToOmit = keyof ClusterEvents.Properties<Cluster>;
+            type ToOmit = keyof ClusterEvents.Properties<MyClusterTyping>;
 
             type EquivalentToClusterEvents = Omit<InstanceType<typeof MyClusterBehavior.Events>, ToOmit> &
-                keyof ClusterEvents.Properties<MyCluster>;
+                keyof ClusterEvents.Properties<MyClusterTyping>;
             ({}) as EquivalentToClusterEvents satisfies EventEmitter;
 
-            type Ei = ClusterEvents<MyCluster, typeof MyClusterBehavior>;
+            type Ei = ClusterEvents<MyClusterTyping, typeof MyClusterBehavior>;
             ({}) as Ei satisfies EventEmitter;
         });
 
@@ -93,13 +83,13 @@ describe("ClusterEvents", () => {
         });
 
         it("extends EventEmitter for real-world behavior", () => {
-            type Events = ClusterEvents<typeof BasicInformationBehavior.cluster, typeof BasicInformationBehavior>;
+            type Events = ClusterEvents<BasicInformation, typeof BasicInformationBehavior>;
             ({}) as InstanceType<typeof BasicInformationBehavior.Events> satisfies EventEmitter;
             ({}) as Events satisfies EventEmitter;
         });
 
         it("extends EventEmitter for real-world server", () => {
-            type Events = ClusterEvents<typeof BasicInformationServer.cluster, typeof BasicInformationServer>;
+            type Events = ClusterEvents<BasicInformation, typeof BasicInformationServer>;
             ({}) as InstanceType<typeof BasicInformationServer.Events> satisfies EventEmitter;
             ({}) as Events satisfies EventEmitter;
         });
@@ -124,13 +114,13 @@ describe("ClusterEvents", () => {
 
     describe("Type", () => {
         it("extends EventEmitter on base behavior", () => {
-            type Events = ClusterEvents.Type<MyCluster, typeof ClusterBehavior>;
+            type Events = ClusterEvents.Type<MyClusterTyping, typeof ClusterBehavior>;
             (({}) as InstanceType<Events>).addListener;
             ({}) as InstanceType<Events> satisfies EventEmitter;
         });
 
         it("extends EventEmitter on behavior with swapped cluster", () => {
-            type Events = ClusterEvents.Type<MyCluster, typeof MyClusterBehavior>;
+            type Events = ClusterEvents.Type<MyClusterTyping, typeof MyClusterBehavior>;
             (({}) as InstanceType<Events>).addListener;
             ({}) as InstanceType<Events> satisfies EventEmitter;
         });
@@ -142,7 +132,7 @@ describe("ClusterEvents", () => {
         });
 
         it("extends EventEmitter on real-world behavior", () => {
-            type Events = ClusterEvents.Type<BasicInformation.Cluster, typeof BasicInformationBehavior>;
+            type Events = ClusterEvents.Type<BasicInformation, typeof BasicInformationBehavior>;
             ({}) as InstanceType<Events> satisfies EventEmitter;
         });
     });
@@ -150,6 +140,7 @@ describe("ClusterEvents", () => {
     describe("Properties", () => {
         it("specifies correct properties with enabled", () => {
             type Props = ClusterEvents.Properties<MyClusterWithOptEvent>;
+            // Non-applicable component events (awesomeSauce, becameAwesome) are absent
             ({}) as keyof Props satisfies
                 | "reqEv"
                 | "optEv"
@@ -172,13 +163,6 @@ describe("ClusterEvents", () => {
             type Props = ClusterEvents.Properties<MyClusterWithOptEvent>;
 
             type Events = Omit<InstanceType<typeof MyClusterBehavior.Events>, keyof Props>;
-            ({}) as Events satisfies EventEmitter;
-        });
-
-        it("leaves behind EventEmitter when omitted from existing events of swapped cluster", () => {
-            type Props = ClusterEvents.Properties<MyClusterWithOptEvent>;
-
-            type Events = Omit<InstanceType<typeof MyClusterWithOptEventBehavior.Events>, keyof Props>;
             ({}) as Events satisfies EventEmitter;
         });
     });

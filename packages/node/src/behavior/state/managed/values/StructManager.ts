@@ -15,6 +15,7 @@ import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
 import { NameResolver } from "../NameResolver.js";
+import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 const AUTHORIZE_READ = Symbol("authorize-read");
@@ -24,7 +25,7 @@ const AUTHORIZE_READ = Symbol("authorize-read");
  */
 interface Struct extends Val.Struct {
     [Internal.session]: ValueSupervisor.Session;
-    [Internal.reference]: Val.Reference<Val.Struct>;
+    [Internal.reference]: ValReference<Val.Struct>;
 
     /**
      * Direct read authorization.
@@ -79,7 +80,7 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
 
     // Scan the schema and configure each member (field or attribute) as a property
     for (const member of owner.membersOf(schema)) {
-        const name = camelize(member.name);
+        const name = member.propertyName;
 
         const { access, descriptor } = configureProperty(owner, member);
 
@@ -102,10 +103,10 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
     const Wrapper = GeneratedClass({
         name,
 
-        initialize(this: Struct, ref: Val.Reference, session: ValueSupervisor.Session) {
+        initialize(this: Struct, ref: ValReference, session: ValueSupervisor.Session) {
             Object.defineProperties(this, {
                 [Internal.reference]: {
-                    value: ref as Val.Reference<Val.Struct>,
+                    value: ref as ValReference<Val.Struct>,
                 },
                 [Internal.session]: {
                     value: session,
@@ -168,7 +169,7 @@ export namespace StructManager {
 }
 
 function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
-    const name = camelize(schema.name);
+    const name = schema.propertyName;
     const id = schema.id;
 
     const { access, manage, validate } = supervisor.get(schema);
@@ -230,10 +231,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     target = struct;
                 }
 
-                // Unwrap if incoming value is managed
-                if (value && (value as Internal.Collection)[Internal.reference]) {
-                    value = (value as Internal.Collection)[Internal.reference].value;
-                }
+                // Unwrap if incoming value (or nested children) is managed
+                value = Internal.unmanage(value);
 
                 // Modify the value
                 if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
@@ -396,7 +395,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             };
 
             // Clone the container before write
-            const ref = ManagedReference(
+            const ref = new ManagedReference(
                 this[Internal.reference],
                 pk,
                 name,

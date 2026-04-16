@@ -8,16 +8,13 @@
 
 import { MicrowaveOvenMode } from "@matter/types/clusters/microwave-oven-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { MicrowaveOvenModeInterface } from "./MicrowaveOvenModeInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * MicrowaveOvenModeBehavior is the base class for objects that support interaction with
  * {@link MicrowaveOvenMode.Cluster}.
  */
-export const MicrowaveOvenModeBehaviorConstructor = ClusterBehavior
-    .withInterface<MicrowaveOvenModeInterface>()
-    .for(MicrowaveOvenMode.Cluster);
+export const MicrowaveOvenModeBehaviorConstructor = ClusterBehavior.for(MicrowaveOvenMode);
 
 export interface MicrowaveOvenModeBehaviorConstructor extends Identity<typeof MicrowaveOvenModeBehaviorConstructor> {}
 export const MicrowaveOvenModeBehavior: MicrowaveOvenModeBehaviorConstructor = MicrowaveOvenModeBehaviorConstructor;

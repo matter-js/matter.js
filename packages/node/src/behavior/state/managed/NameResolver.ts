@@ -5,7 +5,6 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { camelize } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { ClusterModel, Model, ValueModel, type FieldValue } from "@matter/model";
 import { Val } from "@matter/protocol";
@@ -23,6 +22,12 @@ export function NameResolver(
 ): ((val: Val) => Val) | undefined {
     if (model === undefined) {
         return;
+    }
+
+    // Handle qualified names (e.g. "fooField.bar") — resolve first segment via hierarchy, chain property accesses for
+    // remaining segments
+    if (name.includes(".")) {
+        return resolveQualifiedName(supervisor, model, name);
     }
 
     // Optimization for root schema
@@ -44,7 +49,7 @@ export function NameResolver(
     // Read directly if the named property is supported by this schema.  This is not indexed which is fine because:
     //   1. The spec uses this very lightly as of 1.4, and
     //   2. We only do this once and only for schema that utilizes this feature
-    if (supervisor.membersOf(model as Schema).find(model => camelize(model.name, false) === name)) {
+    if (supervisor.membersOf(model as Schema).find(model => model.propertyName === name)) {
         return createDirectResolver();
     }
 
@@ -79,4 +84,32 @@ export function NameResolver(
             }
         };
     }
+}
+
+/**
+ * Resolve a qualified (dotted) name like "opts.enable".  The first segment resolves via the normal hierarchy; remaining
+ * segments are plain property accesses on the resolved value.
+ */
+function resolveQualifiedName(
+    supervisor: RootSupervisor,
+    model: Model | undefined,
+    name: string,
+): ((val: Val) => Val) | undefined {
+    const segments = name.split(".");
+    const baseResolver = NameResolver(supervisor, model, segments[0]);
+    if (!baseResolver) {
+        return;
+    }
+
+    const rest = segments.slice(1);
+    return (val: Val) => {
+        let result = baseResolver(val);
+        for (const segment of rest) {
+            if (result === undefined || result === null) {
+                return undefined;
+            }
+            result = (result as Val.Struct)?.[segment];
+        }
+        return result;
+    };
 }

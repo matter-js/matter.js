@@ -361,14 +361,6 @@ Resource.add({
                         "given GroupId on any Endpoint via the Groups cluster."
                 }
             ]
-        },
-
-        {
-            tag: "datatype", name: "GroupcastAdoptionStruct",
-            children: [{
-                tag: "field", name: "GroupcastAdopted",
-                details: "Indicates whether Groupcast was adopted by the associated Fabric's administrators."
-            }]
         }
     ]
 });

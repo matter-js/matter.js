@@ -10,7 +10,7 @@ import { TestFabric } from "#fabric/TestFabric.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { b$, Bytes, MockCrypto, StorageBackendMemory, StorageManager } from "@matter/general";
+import { b$, Bytes, MemoryStorageDriver, MockCrypto, StorageManager } from "@matter/general";
 import { FabricId, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const GLOBAL_ID = GlobalFabricId(0x6cf78388a7e78e3dn);
@@ -229,7 +229,7 @@ describe("Fabric", () => {
 });
 
 async function createManager() {
-    const storage = new StorageManager(new StorageBackendMemory());
+    const storage = new StorageManager(new MemoryStorageDriver());
     await storage.initialize();
     return new SessionManager({
         fabrics: new FabricManager(crypto),

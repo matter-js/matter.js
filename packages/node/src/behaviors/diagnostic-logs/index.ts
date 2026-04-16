@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./DiagnosticLogsInterface.js";
 export * from "./DiagnosticLogsBehavior.js";
 export * from "./DiagnosticLogsServer.js";
 export * from "./DiagnosticLogsClient.js";

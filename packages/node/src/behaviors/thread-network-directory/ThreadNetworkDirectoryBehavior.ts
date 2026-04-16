@@ -8,16 +8,13 @@
 
 import { ThreadNetworkDirectory } from "@matter/types/clusters/thread-network-directory";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ThreadNetworkDirectoryInterface } from "./ThreadNetworkDirectoryInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * ThreadNetworkDirectoryBehavior is the base class for objects that support interaction with
  * {@link ThreadNetworkDirectory.Cluster}.
  */
-export const ThreadNetworkDirectoryBehaviorConstructor = ClusterBehavior
-    .withInterface<ThreadNetworkDirectoryInterface>()
-    .for(ThreadNetworkDirectory.Cluster);
+export const ThreadNetworkDirectoryBehaviorConstructor = ClusterBehavior.for(ThreadNetworkDirectory);
 
 export interface ThreadNetworkDirectoryBehaviorConstructor extends Identity<typeof ThreadNetworkDirectoryBehaviorConstructor> {}
 export const ThreadNetworkDirectoryBehavior: ThreadNetworkDirectoryBehaviorConstructor = ThreadNetworkDirectoryBehaviorConstructor;

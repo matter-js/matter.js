@@ -10,7 +10,7 @@ import { FanControl } from "@matter/types/clusters/fan-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const FanControlClientConstructor = ClientBehavior(FanControl.Complete);
+export const FanControlClientConstructor = ClientBehavior(FanControl);
 export interface FanControlClient extends InstanceType<typeof FanControlClientConstructor> {}
 export interface FanControlClientConstructor extends Identity<typeof FanControlClientConstructor> {}
 export const FanControlClient: FanControlClientConstructor = FanControlClientConstructor;

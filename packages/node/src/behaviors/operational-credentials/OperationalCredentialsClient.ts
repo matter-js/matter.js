@@ -10,7 +10,7 @@ import { OperationalCredentials } from "@matter/types/clusters/operational-crede
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OperationalCredentialsClientConstructor = ClientBehavior(OperationalCredentials.Complete);
+export const OperationalCredentialsClientConstructor = ClientBehavior(OperationalCredentials);
 export interface OperationalCredentialsClient extends InstanceType<typeof OperationalCredentialsClientConstructor> {}
 export interface OperationalCredentialsClientConstructor extends Identity<typeof OperationalCredentialsClientConstructor> {}
 export const OperationalCredentialsClient: OperationalCredentialsClientConstructor = OperationalCredentialsClientConstructor;

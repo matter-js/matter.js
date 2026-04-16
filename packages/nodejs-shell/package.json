@@ -43,7 +43,7 @@
         "@matter/tools": "*",
         "@matter/types": "*",
         "@project-chip/matter.js": "*",
-        "ws": "^8.19.0",
+        "ws": "^8.20.0",
         "yargs": "^18.0.0"
     },
     "engines": {

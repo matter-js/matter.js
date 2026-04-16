@@ -99,9 +99,18 @@ export namespace Constants {
     ];
 
     /**
+     * Container-side paths for restart flag file communication.  The directory is bind-mounted from a host
+     * temp dir so our monitor can detect the file without docker exec polling.  The test framework writes a
+     * command string ("restart", "factory reset", etc.) to the file; our monitor deletes it after completing
+     * the action.
+     */
+    export const RestartFlagDir = "/restart-flags";
+    export const RestartFlagFile = `${RestartFlagDir}/flag`;
+
+    /**
      * Default arguments provided to the Python runner.
      */
-    export const PythonRunnerArgs = ["--app-pipe", FIFO_PATH];
+    export const PythonRunnerArgs = ["--app-pipe", FIFO_PATH, "--restart-flag-file", RestartFlagFile];
 
     export const defaultPics: PicsSource = {
         kind: "composite",

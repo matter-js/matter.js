@@ -41,6 +41,14 @@ import { PeerTimingParameters } from "./PeerTimingParameters.js";
 const logger = Logger.get("PeerConnection");
 
 /**
+ * Identifies who triggered an MRP exchange restart kick.
+ *
+ * - `"discover"` — triggered by DNS-SD address discovery (mDNS resolution completed)
+ * - `"connect"` — triggered explicitly via `peer.kick()` or `Peer.ConnectOptions.kick`
+ */
+export type KickOrigin = "discover" | "connect";
+
+/**
  * Establishes a CASE session with a peer.
  *
  * Returns a session or undefined if aborted.
@@ -82,6 +90,8 @@ export async function PeerConnection(
     options?: PeerConnection.Options,
 ): Promise<NodeSession | undefined> {
     const via = Diagnostic.via(peer.address.toString());
+
+    const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -134,6 +144,10 @@ export async function PeerConnection(
 
     // Exchange "kick" driver
     const kicker = options?.kicker;
+
+    // Shared timestamp of the last kick-triggered exchange restart.
+    // Scoped to this PeerConnection call so all concurrent address attempts share one rate-limit clock.
+    let lastRestartAt: Timestamp | undefined;
 
     // Start the attempt scheduler
     workers.add(scheduleAttempts());
@@ -189,7 +203,7 @@ export async function PeerConnection(
             // Delay if within the delay window of last initiation attempt
             if (lastAttemptAt !== undefined) {
                 const timeSinceLastAttempt = Timestamp.delta(lastAttemptAt);
-                const delayInterval = Millis(context.timing.delayBeforeNextAddress - timeSinceLastAttempt);
+                const delayInterval = Millis(timing.delayBeforeNextAddress - timeSinceLastAttempt);
                 if (delayInterval > 0) {
                     using _delaying = scheduling.join("delaying");
 
@@ -229,7 +243,7 @@ export async function PeerConnection(
             if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
                 // The "fallback" is now a "real" address
                 attemptingFallback = undefined;
-                kicker?.emit(); // ... and kick the MRP loop
+                kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
             }
 
             return;
@@ -411,18 +425,43 @@ export async function PeerConnection(
 
         let kick: Disposable | undefined;
 
+        // localAbort wraps addressAbort; firing it aborts only this single attempt so connect() can
+        // loop back and open a fresh exchange (fresh MRP backoff) without aborting the address entirely.
+        using localAbort = new Abort({ abort: addressAbort });
+
         try {
             using _pairing = attemptLifetime.join("pairing");
 
-            kick = kicker?.use(() => exchange.kick());
+            kick = kicker?.use((origin: KickOrigin) => {
+                if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+                    return;
+                }
+
+                const threshold =
+                    origin === "discover"
+                        ? context.timing.kickRestartCooldown.addressChange
+                        : context.timing.kickRestartCooldown.connect;
+
+                if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
+                    info(via, address, `Restarting exchange on "${origin}" kick`);
+                    lastRestartAt = Time.nowMs;
+                    localAbort();
+                } else {
+                    debug(
+                        via,
+                        address,
+                        `Suppressing "${origin}" kick, last restart was ${Duration.format(Timestamp.delta(lastRestartAt))} ago`,
+                    );
+                }
+            });
 
             const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
                 ...options,
-                abort: addressAbort,
+                abort: localAbort,
                 caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
                 maxInitialRetransmissions: Infinity,
-                maxInitialRetransmissionTime: context.timing.maxDelayBetweenInitialContactRetries,
-                initialRetransmissionTime: isFallback ? context.timing.maxDelayBetweenInitialContactRetries : undefined,
+                maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
+                initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
             });
 
             // Success
@@ -446,38 +485,33 @@ export async function PeerConnection(
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
+        let category: "busy" | "resumption" | "peer" | "network" | "general" | undefined;
         const csre = ChannelStatusResponseError.of(e);
         if (csre) {
             if (csre.generalStatusCode === GeneralStatusCode.Busy && csre.busyDelay !== undefined) {
-                delay = Millis(csre.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
-                info(
-                    via,
-                    address,
-                    `Peer requested to delay and retry no earlier than ${Duration.format(csre.busyDelay)} from now (retry in ${Duration.format(delay)})`,
-                );
+                delay = Millis(csre.busyDelay + Math.round(Math.random() * timing.delayAfterNetworkError));
+                category = "busy";
             } else if (
                 csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
                 (await context.sessions.deleteResumptionRecord(peer.address))
             ) {
-                warn(
-                    address,
-                    "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
-                );
+                category = "resumption";
             } else {
-                delay = context.timing.delayAfterPeerError;
-                error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
+                delay = timing.delayAfterPeerError;
+                category = "peer";
             }
         } else if (causedBy(e, TransientPeerCommunicationError)) {
-            delay = context.timing.delayAfterNetworkError;
-            error(address, `Connection error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
+            delay = timing.delayAfterNetworkError;
+            category = "network";
         } else {
-            delay = context.timing.delayAfterUnhandledError;
-            error(address, `General connection error (retry in ${Duration.format(delay)}):`, e);
+            delay = timing.delayAfterUnhandledError;
+            category = "general";
         }
 
-        if (delay !== undefined && context.handleError) {
+        const handleError = options?.handleError ?? context.handleError;
+        if (delay !== undefined && handleError) {
             try {
-                const result = context.handleError(e);
+                const result = handleError(e);
                 if (result !== undefined) {
                     delay = result;
                 }
@@ -487,6 +521,32 @@ export async function PeerConnection(
                 overallAbort();
                 return;
             }
+        }
+
+        // Log after handleError so the reported delay is accurate
+        switch (category) {
+            case "busy":
+                info(
+                    via,
+                    address,
+                    `Peer requested to delay and retry no earlier than ${Duration.format(csre!.busyDelay!)} from now (retry in ${Duration.format(delay!)})`,
+                );
+                break;
+            case "resumption":
+                warn(
+                    address,
+                    "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
+                );
+                break;
+            case "peer":
+                error(address, `Peer error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                break;
+            case "network":
+                error(address, `Connection error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                break;
+            case "general":
+                error(address, `General connection error (retry in ${Duration.format(delay!)}):`, e);
+                break;
         }
 
         if (addressAbort.aborted) {
@@ -525,7 +585,20 @@ export namespace PeerConnection {
     export interface Options {
         abort?: AbortSignal;
         network?: string;
-        kicker?: Observable<[]>;
+        kicker?: Observable<[KickOrigin]>;
+
+        /**
+         * Per-call overrides for timing parameters.
+         *
+         * Merged on top of the global {@link PeerConnection.Context.timing} for this connection only.
+         * Other concurrent or future connections are not affected.
+         */
+        timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Per-call error handler, overrides {@link Context.handleError} for this connection only.
+         */
+        handleError?: (error: Error) => Duration | void;
     }
 
     export function createExchange(
@@ -534,8 +607,9 @@ export namespace PeerConnection {
         session: Session,
         network: NetworkProfile,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
+        addressOverride?: ServerAddressUdp,
     ) {
-        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network });
+        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network, addressOverride });
 
         function onSend(_message: Message, retransmission: number) {
             if (retransmission) {

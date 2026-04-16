@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./EthernetNetworkDiagnosticsInterface.js";
 export * from "./EthernetNetworkDiagnosticsBehavior.js";
 export * from "./EthernetNetworkDiagnosticsServer.js";
 export * from "./EthernetNetworkDiagnosticsClient.js";

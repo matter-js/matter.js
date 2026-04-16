@@ -12,13 +12,12 @@ import {
     Entropy,
     Environment,
     MatterAggregateError,
+    MemoryStorageDriver,
     MockCrypto,
+    MockStorageService,
     Network,
     NetworkSimulator,
     Seconds,
-    Storage,
-    StorageBackendMemory,
-    StorageService,
 } from "@matter/general";
 import { FabricId } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
@@ -30,7 +29,7 @@ export class MockSite {
     #simulator = new NetworkSimulator();
     #nodes = new Set<ServerNode>();
     #nextNetworkIndex = 1;
-    #storage = {} as Record<string, Storage>;
+    #storage = {} as Record<string, Record<string, any>>;
 
     addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,
@@ -62,12 +61,7 @@ export class MockSite {
             env.set(Network, (config.simulator ?? this.#simulator).addHost(index));
         }
 
-        const storage = env.get(StorageService);
-        const location = `/memory/${id}`;
-        if (storage.location !== location) {
-            storage.location = location;
-            storage.factory = () => this.storageFor(id);
-        }
+        new MockStorageService(env, () => new MemoryStorageDriver(this.storageFor(id)));
 
         // Note that we don't use MockServerNode as we don't actually want anything mocked
         const node = new ServerNode(config);
@@ -133,6 +127,10 @@ export class MockSite {
         // We end up with session collisions without entropy so enable during pairing
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
+        if (!controller.lifecycle.isOnline) {
+            await controller.start();
+        }
+
         const { passcode, discriminator } = device.state.commissioning;
         await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
             macrotasks: true,
@@ -161,7 +159,7 @@ export class MockSite {
             id = id.id;
         }
         if (!(id in this.#storage)) {
-            this.#storage[id] = new StorageBackendMemory();
+            this.#storage[id] = {};
         }
         return this.#storage[id];
     }

@@ -8,7 +8,6 @@
 
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,7 +17,7 @@ import { Identity } from "@matter/general";
  * OccupancySensing.Cluster requires you to enable one or more optional features. You can do so using
  * {@link OccupancySensingBehavior.with}.
  */
-export const OccupancySensingBehaviorConstructor = ClusterBehavior.for(ClusterType(OccupancySensing.Base));
+export const OccupancySensingBehaviorConstructor = ClusterBehavior.for(OccupancySensing);
 
 export interface OccupancySensingBehaviorConstructor extends Identity<typeof OccupancySensingBehaviorConstructor> {}
 export const OccupancySensingBehavior: OccupancySensingBehaviorConstructor = OccupancySensingBehaviorConstructor;

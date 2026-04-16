@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * BindingBehavior is the base class for objects that support interaction with {@link Binding.Cluster}.
  */
-export const BindingBehaviorConstructor = ClusterBehavior.for(Binding.Cluster);
+export const BindingBehaviorConstructor = ClusterBehavior.for(Binding);
 
 export interface BindingBehaviorConstructor extends Identity<typeof BindingBehaviorConstructor> {}
 export const BindingBehavior: BindingBehaviorConstructor = BindingBehaviorConstructor;

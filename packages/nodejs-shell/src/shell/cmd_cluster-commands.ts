@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Diagnostic } from "@matter/general";
-import { ClusterModel, CommandModel, MatterModel } from "@matter/model";
+import { Diagnostic } from "@matter/general";
+import { ClusterModel, CommandModel, Matter } from "@matter/model";
 import { ClusterId, ValidationError } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllCommandHandlersForCluster(yargs: Argv, theNode: MatterNode) {
-    MatterModel.standard.clusters.forEach(cluster => {
+    Matter.clusters.forEach(cluster => {
         yargs = generateClusterCommandHandlers(yargs, cluster, theNode);
     });
     return yargs;
@@ -124,7 +124,7 @@ async function executeCommand(
     command: CommandModel,
     requestData?: any,
 ) {
-    const commandName = camelize(command.name);
+    const commandName = command.propertyName;
 
     const node = (await theNode.connectAndGetNodes(nodeId))[0];
 

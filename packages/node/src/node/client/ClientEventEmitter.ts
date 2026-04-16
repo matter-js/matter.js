@@ -8,8 +8,8 @@ import type { ElementEvent, Events } from "#behavior/Events.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { camelize, Diagnostic, isObject, Logger, Timestamp } from "@matter/general";
-import { ClusterModel, EventModel, MatterModel } from "@matter/model";
+import { Diagnostic, isObject, Logger, Timestamp } from "@matter/general";
+import { EventModel, MatterModel } from "@matter/model";
 import type { ReadResult, Val } from "@matter/protocol";
 import type { ClusterId, EventId } from "@matter/types";
 import type { ClientStructure } from "./ClientStructure.js";
@@ -97,18 +97,19 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             return;
         }
 
-        logger.info(
-            "Received event",
-            Diagnostic.strong(`${clusterName}.${eventName}`),
-            " on ",
-            Diagnostic.strong(endpoint.toString()),
-            Diagnostic.weak(isObject(value) ? Diagnostic.dict(value) : value),
-        );
-
         const event = events[eventName];
         if (event) {
+            logger.info(
+                "Received event",
+                Diagnostic.strong(`${clusterName}.${eventName}`),
+                " on ",
+                Diagnostic.strong(endpoint.toString()),
+                Diagnostic.weak(isObject(value) ? Diagnostic.dict(value) : value),
+            );
             return { endpoint, event };
         }
+
+        logger.warn(`Received unknown event ${clusterName}.${eventName} on ${endpoint}`);
     }
 }
 
@@ -124,7 +125,7 @@ function getNames(matter: MatterModel, { path: { clusterId, eventId } }: ReadRes
         return matterCache[key];
     }
 
-    const cluster = matter.get(ClusterModel, clusterId);
+    const cluster = matter.clusters(clusterId);
     if (cluster === undefined) {
         if (!warnedForUnknown.has(clusterId)) {
             logger.warn(`Ignoring events for unknown cluster #${clusterId}`);
@@ -134,7 +135,7 @@ function getNames(matter: MatterModel, { path: { clusterId, eventId } }: ReadRes
         return;
     }
 
-    const event = cluster.get(EventModel, eventId);
+    const event = cluster.events(eventId);
     if (event === undefined) {
         if (!warnedForUnknown.has(key)) {
             logger.warn(`Ignoring unknown event #${eventId} for ${cluster.name} cluster`);
@@ -144,5 +145,5 @@ function getNames(matter: MatterModel, { path: { clusterId, eventId } }: ReadRes
         return;
     }
 
-    return (matterCache[key] = { cluster: camelize(cluster.name), event: camelize(event.name) });
+    return (matterCache[key] = { cluster: cluster.propertyName, event: event.propertyName });
 }

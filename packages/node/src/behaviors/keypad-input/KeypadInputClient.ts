@@ -10,7 +10,7 @@ import { KeypadInput } from "@matter/types/clusters/keypad-input";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const KeypadInputClientConstructor = ClientBehavior(KeypadInput.Complete);
+export const KeypadInputClientConstructor = ClientBehavior(KeypadInput);
 export interface KeypadInputClient extends InstanceType<typeof KeypadInputClientConstructor> {}
 export interface KeypadInputClientConstructor extends Identity<typeof KeypadInputClientConstructor> {}
 export const KeypadInputClient: KeypadInputClientConstructor = KeypadInputClientConstructor;

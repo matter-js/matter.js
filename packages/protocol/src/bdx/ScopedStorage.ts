@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageContext } from "@matter/general";
+import { BlobStorageDriver } from "@matter/general";
 
 /**
  * Storage Scopes allow flagging a context for a specific usage.
@@ -15,11 +15,20 @@ export type StorageScope = "ota" | "log";
 
 export class ScopedStorage {
     readonly scope: StorageScope;
+    readonly #blobDriver: BlobStorageDriver;
+    readonly #baseContexts: string[];
 
-    constructor(
-        public readonly context: StorageContext,
-        scope: StorageScope,
-    ) {
+    constructor(blobDriver: BlobStorageDriver, baseContexts: string[], scope: StorageScope) {
+        this.#blobDriver = blobDriver;
+        this.#baseContexts = baseContexts;
         this.scope = scope;
+    }
+
+    get blobDriver(): BlobStorageDriver {
+        return this.#blobDriver;
+    }
+
+    get baseContexts(): readonly string[] {
+        return this.#baseContexts;
     }
 }

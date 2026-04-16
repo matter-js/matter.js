@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * TemperatureMeasurementBehavior is the base class for objects that support interaction with
  * {@link TemperatureMeasurement.Cluster}.
  */
-export const TemperatureMeasurementBehaviorConstructor = ClusterBehavior.for(TemperatureMeasurement.Cluster);
+export const TemperatureMeasurementBehaviorConstructor = ClusterBehavior.for(TemperatureMeasurement);
 
 export interface TemperatureMeasurementBehaviorConstructor extends Identity<typeof TemperatureMeasurementBehaviorConstructor> {}
 export const TemperatureMeasurementBehavior: TemperatureMeasurementBehaviorConstructor = TemperatureMeasurementBehaviorConstructor;

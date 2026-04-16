@@ -8,7 +8,6 @@
 
 import { AudioOutput } from "@matter/types/clusters/audio-output";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { AudioOutputInterface } from "./AudioOutputInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of AudioOutput.Cluster enabled. You can enable additional features using
  * AudioOutputBehavior.with.
  */
-export const AudioOutputBehaviorConstructor = ClusterBehavior
-    .withInterface<AudioOutputInterface>()
-    .for(AudioOutput.Cluster);
+export const AudioOutputBehaviorConstructor = ClusterBehavior.for(AudioOutput);
 
 export interface AudioOutputBehaviorConstructor extends Identity<typeof AudioOutputBehaviorConstructor> {}
 export const AudioOutputBehavior: AudioOutputBehaviorConstructor = AudioOutputBehaviorConstructor;

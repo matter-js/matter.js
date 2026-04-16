@@ -29,21 +29,40 @@ import { Semantics } from "../decoration/semantics/Semantics.js";
  */
 export type Schema = ClusterModel | ValueModel;
 
+const schemaMap = new WeakMap<object, ValueModel | (() => ValueModel)>();
+
 /**
  * Obtain {@link Schema} for a {@link Schema.Source} if present.
  */
-export function Schema(source: Model.Source) {
+export function Schema(source: Schema.Source) {
     let model;
-    if ("tag" in source) {
+    if (typeof source === "object" && source !== null && "tag" in source) {
         source.finalize();
 
         model = source;
+    } else if (typeof source === "function" && "Tag" in source) {
+        // Model constructor, not a user class
+        model = undefined;
     } else {
-        const semantics = Semantics.classOf(source);
+        // Check the schema map first (covers classes with Schema.set and enum objects)
+        const mapped = schemaMap.get(source as object);
+        if (mapped !== undefined) {
+            if (typeof mapped === "function") {
+                const resolved = mapped();
+                resolved.finalize();
+                schemaMap.set(source as object, resolved);
+                model = resolved;
+            } else {
+                mapped.finalize();
+                model = mapped;
+            }
+        } else if (typeof source === "function") {
+            const semantics = Semantics.classOf(source as NewableFunction);
 
-        semantics.finalize();
+            semantics.finalize();
 
-        model = semantics.semanticModel;
+            model = semantics.semanticModel;
+        }
     }
 
     if (!model) {
@@ -81,7 +100,16 @@ export namespace Schema {
         return schema;
     }
 
-    export type Source = Schema | NewableFunction;
+    export type Source = Schema | NewableFunction | object;
+
+    /**
+     * Associate schema with an arbitrary object (class constructor or enum object).
+     *
+     * The factory form enables lazy resolution — the factory is invoked on first access and the result cached.
+     */
+    export function set(target: object, source: ValueModel | (() => ValueModel)) {
+        schemaMap.set(target, source);
+    }
 
     export const empty = new DatatypeModel({ name: "Empty", type: "struct" });
 

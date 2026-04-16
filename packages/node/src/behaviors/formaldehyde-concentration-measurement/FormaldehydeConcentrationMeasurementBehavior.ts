@@ -8,7 +8,6 @@
 
 import { FormaldehydeConcentrationMeasurement } from "@matter/types/clusters/formaldehyde-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -19,7 +18,7 @@ import { Identity } from "@matter/general";
  * using {@link FormaldehydeConcentrationMeasurementBehavior.with}.
  */
 export const FormaldehydeConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(FormaldehydeConcentrationMeasurement.Base));
+    .for(FormaldehydeConcentrationMeasurement);
 
 export interface FormaldehydeConcentrationMeasurementBehaviorConstructor extends Identity<typeof FormaldehydeConcentrationMeasurementBehaviorConstructor> {}
 export const FormaldehydeConcentrationMeasurementBehavior: FormaldehydeConcentrationMeasurementBehaviorConstructor = FormaldehydeConcentrationMeasurementBehaviorConstructor;

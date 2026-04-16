@@ -10,6 +10,7 @@ import {
     Environment,
     ImplementationError,
     InternalError,
+    MockStorageService,
     Node,
     Seconds,
     StorageService,
@@ -97,7 +98,17 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
         }
 
         try {
-            this.#env.set(StorageService, new StorageService(this.#env, () => this.storage));
+            if (!this.storage) {
+                // Use StorageService driver selection (respects MATTER_STORAGE_DRIVER), then clone to get a raw driver.
+                // StorageService wraps drivers in a StorageDriverHandle that can't re-initialize after close.  Cloning
+                // gives us a raw MemoryStorageDriver that restore() also produces, so all paths behave consistently.
+                const manager = await this.#env.get(StorageService).open(this.id);
+                CloneableStorage.assert(manager.driver);
+                this.storage = await manager.driver.clone();
+                await manager.close();
+            }
+            // Install MockStorageService so restore() can swap storage via this.storage
+            new MockStorageService(this.#env, () => this.storage!);
             await this.#setupServer();
         } catch (error) {
             // Catch and log error, else the test framework hides issues here
@@ -163,8 +174,12 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
     }
 
     async snapshot() {
-        CloneableStorage.assert(this.storage);
-        return this.storage.clone();
+        const storage = this.storage;
+        if (!storage) {
+            throw new InternalError("No storage to snapshot");
+        }
+        CloneableStorage.assert(storage);
+        return storage.clone();
     }
 
     override async backchannel(command: BackchannelCommand) {

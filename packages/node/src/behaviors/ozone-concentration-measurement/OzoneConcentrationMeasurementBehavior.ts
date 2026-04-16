@@ -8,7 +8,6 @@
 
 import { OzoneConcentrationMeasurement } from "@matter/types/clusters/ozone-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,8 +17,7 @@ import { Identity } from "@matter/general";
  * OzoneConcentrationMeasurement.Cluster requires you to enable one or more optional features. You can do so using
  * {@link OzoneConcentrationMeasurementBehavior.with}.
  */
-export const OzoneConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(OzoneConcentrationMeasurement.Base));
+export const OzoneConcentrationMeasurementBehaviorConstructor = ClusterBehavior.for(OzoneConcentrationMeasurement);
 
 export interface OzoneConcentrationMeasurementBehaviorConstructor extends Identity<typeof OzoneConcentrationMeasurementBehaviorConstructor> {}
 export const OzoneConcentrationMeasurementBehavior: OzoneConcentrationMeasurementBehaviorConstructor = OzoneConcentrationMeasurementBehaviorConstructor;

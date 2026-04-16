@@ -10,9 +10,7 @@ import { CarbonDioxideConcentrationMeasurement } from "@matter/types/clusters/ca
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const CarbonDioxideConcentrationMeasurementClientConstructor = ClientBehavior(
-    CarbonDioxideConcentrationMeasurement.Complete
-);
+export const CarbonDioxideConcentrationMeasurementClientConstructor = ClientBehavior(CarbonDioxideConcentrationMeasurement);
 export interface CarbonDioxideConcentrationMeasurementClient extends InstanceType<typeof CarbonDioxideConcentrationMeasurementClientConstructor> {}
 export interface CarbonDioxideConcentrationMeasurementClientConstructor extends Identity<typeof CarbonDioxideConcentrationMeasurementClientConstructor> {}
 export const CarbonDioxideConcentrationMeasurementClient: CarbonDioxideConcentrationMeasurementClientConstructor = CarbonDioxideConcentrationMeasurementClientConstructor;

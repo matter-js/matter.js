@@ -35,6 +35,7 @@ LocalMatter.children.push({
             name: "AtomicRequest",
             id: 0xfe,
             access: "O",
+            conformance: "PRES | MSCH",
             direction: "request",
             response: "AtomicResponse",
             children: [

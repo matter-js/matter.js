@@ -144,6 +144,7 @@ export class Abort
             reason = new AbortedError(reason);
         }
         this.#controller.abort(reason ?? new AbortedError("Operation aborted with no reason given"));
+        this.close();
     }
 
     get signal() {
@@ -164,6 +165,13 @@ export class Abort
      */
     async attempt<T>(...promises: Array<T | PromiseLike<T>>) {
         return await Abort.attempt(this, ...promises);
+    }
+
+    /**
+     * Sleep for a duration, returning early if aborted.
+     */
+    sleep(description: string, duration: Duration) {
+        return Abort.sleep(description, this, duration);
     }
 
     /**
@@ -248,7 +256,7 @@ export class Abort
         options?: boolean | EventListenerOptions,
     ): void;
     removeEventListener(type: any, listener: any, options?: any) {
-        this.signal.addEventListener(type, listener, options);
+        this.signal.removeEventListener(type, listener, options);
     }
 
     dispatchEvent(event: Event) {
@@ -329,17 +337,19 @@ export namespace Abort {
                 signal = signal.signal;
             }
 
-            let off: () => void;
-            const aborted = new Promise<void>(resolve => {
-                const onabort = () => resolve();
-                (signal as AbortSignal).addEventListener("abort", onabort);
-                off = () => (signal as AbortSignal).removeEventListener("abort", onabort);
-            });
+            let off: (() => void) | undefined;
+            const aborted = signal.aborted
+                ? Promise.resolve()
+                : new Promise<void>(resolve => {
+                      const onabort = () => resolve();
+                      (signal as AbortSignal).addEventListener("abort", onabort);
+                      off = () => (signal as AbortSignal).removeEventListener("abort", onabort);
+                  });
 
             try {
                 return await SafePromise.race([aborted, ...promises]);
             } finally {
-                off!();
+                off?.();
             }
         }
 

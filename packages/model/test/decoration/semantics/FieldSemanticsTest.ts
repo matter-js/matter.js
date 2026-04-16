@@ -8,7 +8,7 @@
 import "#decoration/semantics/index.js";
 
 import { attribute } from "#decoration/decorators/attribute.js";
-import { command } from "#decoration/decorators/command.js";
+import { command, method } from "#decoration/decorators/command.js";
 import { datatype } from "#decoration/decorators/datatype.js";
 import { field } from "#decoration/decorators/field.js";
 import { listOf } from "#decoration/decorators/listOf.js";
@@ -17,7 +17,7 @@ import { nullable } from "#decoration/decorators/nullable.js";
 import { response } from "#decoration/decorators/response.js";
 import { writable } from "#decoration/index.js";
 import { AttributeModel } from "#models/AttributeModel.js";
-import { CommandModel, FieldModel } from "#models/index.js";
+import { CommandModel } from "#models/index.js";
 import { Schema } from "#models/Schema.js";
 import { uint16, uint32, uint8 } from "#standard/elements/models.js";
 
@@ -30,7 +30,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.name).equals("bar");
     });
@@ -57,7 +57,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).true;
         expect(bar!.quality.nonvolatile).not.true;
@@ -73,7 +73,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).not.true;
         expect(bar!.quality.nonvolatile).true;
@@ -110,11 +110,11 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Obj2);
 
-        const foo = schema.conformant.properties.for("foo");
+        const foo = schema.conformant.properties("foo");
         expect(foo).not.undefined;
         expect(foo!.base).equals(uint16);
 
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.base).equals(uint32);
     });
@@ -132,7 +132,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Container);
 
-        const items = schema.get(FieldModel, "items");
+        const items = schema.fields("items");
         expect(items).not.undefined;
 
         const entry = items!.member("entry");
@@ -162,6 +162,29 @@ describe("FieldSemantics", () => {
         expect(rsp).not.undefined;
         expect(rsp.id).equals(2);
         expect(rsp.name).equals("workResponse");
+        expect(rsp.isResponse).true;
+    });
+
+    it("adds a method with implicit ID -1", () => {
+        class Foo {
+            @method(uint8)
+            @response(2, uint32)
+            doSomething() {}
+        }
+
+        const schema = Schema.Required(Foo);
+        expect(schema.children.length).equals(2);
+
+        const doSomething = schema.get(CommandModel, "doSomething")!;
+        expect(doSomething).not.undefined;
+        expect(doSomething.id).equals(-1);
+        expect(doSomething.name).equals("doSomething");
+        expect(doSomething.isRequest).true;
+
+        const rsp = doSomething.responseModel!;
+        expect(rsp).not.undefined;
+        expect(rsp.id).equals(2);
+        expect(rsp.name).equals("doSomethingResponse");
         expect(rsp.isResponse).true;
     });
 

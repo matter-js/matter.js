@@ -10,7 +10,7 @@ import { ThreadNetworkDirectory } from "@matter/types/clusters/thread-network-di
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ThreadNetworkDirectoryClientConstructor = ClientBehavior(ThreadNetworkDirectory.Complete);
+export const ThreadNetworkDirectoryClientConstructor = ClientBehavior(ThreadNetworkDirectory);
 export interface ThreadNetworkDirectoryClient extends InstanceType<typeof ThreadNetworkDirectoryClientConstructor> {}
 export interface ThreadNetworkDirectoryClientConstructor extends Identity<typeof ThreadNetworkDirectoryClientConstructor> {}
 export const ThreadNetworkDirectoryClient: ThreadNetworkDirectoryClientConstructor = ThreadNetworkDirectoryClientConstructor;

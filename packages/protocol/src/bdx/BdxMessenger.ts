@@ -100,7 +100,9 @@ export class BdxMessenger {
     }
 
     async send(bdxMessage: BdxMessage<any>) {
-        await this.exchange.send(bdxMessage.kind, BdxMessage.encode(bdxMessage));
+        await this.exchange.send(bdxMessage.kind, BdxMessage.encode(bdxMessage), {
+            expectedProcessingTime: this.#messageTimeout,
+        });
     }
 
     /** Sends a Bdx SendInit message and waits for the SendAccept message as a response and returns it decoded. */

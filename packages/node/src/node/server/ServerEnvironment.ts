@@ -9,8 +9,17 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { Crypto, Environment, Observable, SharedEnvironmentServices } from "@matter/general";
+import {
+    Crypto,
+    DatafileRoot,
+    Environment,
+    Filesystem,
+    Observable,
+    SharedEnvironmentServices,
+    StorageService,
+} from "@matter/general";
 import {
     FabricAuthority,
     FabricManager,
@@ -32,6 +41,18 @@ export namespace ServerEnvironment {
         const { env } = node;
 
         await SharedNodeServices.install(env);
+
+        // Create the datafile root — locking is now ref-counted and acquired by individual consumers
+        if (env.get(StorageService).hasFilesystem) {
+            const fs = env.get(Filesystem);
+            const root = new DatafileRoot(fs.directory(node.id));
+            env.set(DatafileRoot, root);
+
+            // When storage.lock is enabled, hold a lock for the node's lifetime (for CLI PID file management)
+            if (env.vars.boolean("storage.lock")) {
+                env.set(DatafileRoot.Lock, await root.lock());
+            }
+        }
 
         const store = await ServerNodeStore.create(env, node.id);
         env.set(ServerNodeStore, store);
@@ -67,9 +88,20 @@ export namespace ServerEnvironment {
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
+
+        // Flush and stop client cache buffering before closing storage
+        if (env.has(ClientCacheBuffer)) {
+            await env.get(ClientCacheBuffer).close();
+        }
+
         await env.close(ServerNodeStore);
         await env.close(SharedNodeServices);
         env.close(FabricAuthority);
+
+        // Release the env-held lock (from storage.lock) if one was acquired
+        if (env.has(DatafileRoot.Lock)) {
+            await env.get(DatafileRoot.Lock).close();
+        }
     }
 }
 

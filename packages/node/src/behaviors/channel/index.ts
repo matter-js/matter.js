@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./ChannelInterface.js";
 export * from "./ChannelBehavior.js";
 export * from "./ChannelServer.js";
 export * from "./ChannelClient.js";

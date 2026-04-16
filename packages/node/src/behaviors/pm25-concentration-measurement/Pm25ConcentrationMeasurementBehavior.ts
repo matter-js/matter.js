@@ -8,7 +8,6 @@
 
 import { Pm25ConcentrationMeasurement } from "@matter/types/clusters/pm25-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,8 +17,7 @@ import { Identity } from "@matter/general";
  * Pm25ConcentrationMeasurement.Cluster requires you to enable one or more optional features. You can do so using
  * {@link Pm25ConcentrationMeasurementBehavior.with}.
  */
-export const Pm25ConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(Pm25ConcentrationMeasurement.Base));
+export const Pm25ConcentrationMeasurementBehaviorConstructor = ClusterBehavior.for(Pm25ConcentrationMeasurement);
 
 export interface Pm25ConcentrationMeasurementBehaviorConstructor extends Identity<typeof Pm25ConcentrationMeasurementBehaviorConstructor> {}
 export const Pm25ConcentrationMeasurementBehavior: Pm25ConcentrationMeasurementBehaviorConstructor = Pm25ConcentrationMeasurementBehaviorConstructor;

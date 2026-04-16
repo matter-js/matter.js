@@ -18,7 +18,7 @@ import { Behavior } from "../../Behavior.js";
 export class ProductDescriptionServer extends Behavior {
     static override readonly id = "productDescription";
 
-    declare state: ProductDescriptionServer.State;
+    declare readonly state: ProductDescriptionServer.State;
 
     override initialize() {
         const pd = this.state;

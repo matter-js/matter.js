@@ -4,57 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WindowCoveringCluster } from "#clusters/window-covering.js";
+import { WindowCovering } from "#clusters/window-covering.js";
 
 describe("Window Covering Cluster", () => {
-    const WindowCovering_LF_PALF = WindowCoveringCluster.with("Lift", "PositionAwareLift");
+    it("verifies attribute metadata via schema model", () => {
+        const schema = WindowCovering.schema;
 
-    it("correctly initializes elements for LF & PA_LF", () => {
-        const NONE = [false, false, false, false];
-        const OPTIONAL = [true, false, false, false];
-        const WRITABLE = [false, true, false, false];
-        const FIXED = [false, false, true, false];
+        const configStatus = schema.attributes.require("ConfigStatus");
+        expect(configStatus.mandatory).true;
+        expect(configStatus.writable).false;
 
-        expect(
-            Object.fromEntries(
-                Object.entries(WindowCovering_LF_PALF.attributes).map(
-                    ([k, { optional, writable, fixed, fabricScoped }]) => [
-                        k,
-                        [optional, writable, fixed, fabricScoped],
-                    ],
-                ),
-            ),
-        ).deep.equal({
-            // TODO - make strict after updating web tester
-            acceptedCommandList: NONE,
-            attributeList: NONE,
-            clusterRevision: NONE,
-            configStatus: NONE,
-            currentPositionLiftPercent100ths: NONE,
-            currentPositionLiftPercentage: OPTIONAL,
-            endProductType: FIXED,
-            featureMap: NONE,
-            generatedCommandList: NONE,
-            mode: WRITABLE,
-            numberOfActuationsLift: OPTIONAL,
-            operationalStatus: NONE,
-            safetyStatus: OPTIONAL,
-            targetPositionLiftPercent100ths: NONE,
-            type: FIXED,
-        });
+        const mode = schema.attributes.require("Mode");
+        expect(mode.writable).true;
 
-        expect(
-            Object.fromEntries(
-                Object.entries(WindowCovering_LF_PALF.commands).map(([k, { optional }]) => [
-                    k,
-                    [optional, false, false, false],
-                ]),
-            ),
-        ).deep.equal({
-            downOrClose: NONE,
-            goToLiftPercentage: NONE,
-            stopMotion: NONE,
-            upOrOpen: NONE,
-        });
+        const endProductType = schema.attributes.require("EndProductType");
+        expect(endProductType.fixed).true;
+
+        const numberOfActuationsLift = schema.attributes.require("NumberOfActuationsLift");
+        expect(numberOfActuationsLift.mandatory).false;
+    });
+
+    it("runtime commands has expected commands", () => {
+        expect(WindowCovering.commands.upOrOpen).exist;
+        expect(WindowCovering.commands.downOrClose).exist;
+        expect(WindowCovering.commands.stopMotion).exist;
     });
 });

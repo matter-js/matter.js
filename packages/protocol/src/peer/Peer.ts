@@ -35,13 +35,14 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
+import { PeerAddressMonitor } from "./PeerAddressMonitor.js";
 import { PeerUnreachableError } from "./PeerCommunicationError.js";
-import { PeerConnection } from "./PeerConnection.js";
+import { type KickOrigin, PeerConnection } from "./PeerConnection.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerExchangeProvider } from "./PeerExchangeProvider.js";
+import { PeerTimingParameters } from "./PeerTimingParameters.js";
 import type { PhysicalDeviceProperties } from "./PhysicalDeviceProperties.js";
 
 const logger = Logger.get("Peer");
@@ -65,6 +66,7 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
+    #addressMonitor?: PeerAddressMonitor;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#lifetime = context.join(descriptor.address.toString());
@@ -103,17 +105,15 @@ export class Peer {
                 ...this.#descriptor.discoveryData,
                 ...DiscoveryData(this.#service.parameters),
             };
+
+            // Schedule address validity check if we have an active session
+            this.#addressCheck.schedule();
         });
 
         this.#observers.on(this.#sessions.added, session => {
             const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
                 this.#descriptor.operationalAddress = networkAddress;
             };
-
-            // Remove session when destroyed
-            session.closing.on(() => {
-                this.#sessions.delete(session);
-            });
 
             // Ensure the operational address is always set to the most recent IP
             if (!session.isClosed) {
@@ -123,6 +123,15 @@ export class Peer {
                     channel.networkAddressChanged.on(updateNetworkAddress);
                 }
             }
+
+            // Remove session and detach listener when destroyed
+            session.closing.on(() => {
+                this.#sessions.delete(session);
+                const { channel } = session.channel;
+                if (isIpNetworkChannel(channel)) {
+                    channel.networkAddressChanged.off(updateNetworkAddress);
+                }
+            });
 
             // Ensure session parameters reflect those most recently reported by peer
             this.#descriptor.sessionParameters = session.parameters;
@@ -169,7 +178,7 @@ export class Peer {
     }
 
     get basicInformation() {
-        return this.#protocol?.[0]?.[BasicInformation.Cluster.id]?.readState({}) as Peer.BasicInformation | undefined;
+        return this.#protocol?.[0]?.[BasicInformation.id]?.readState({}) as Peer.BasicInformation | undefined;
     }
 
     get limits() {
@@ -290,10 +299,12 @@ export class Peer {
     /**
      * Kick the connection process.
      *
-     * This will temporarily increase MRP responsiveness of any ongoing connection attempt.
+     * Aborts the current CASE handshake exchange and restarts it from scratch with a fresh MRP
+     * backoff. Rate-limited; repeated calls within {@link PeerTimingParameters.kickRestartCooldown}
+     * are suppressed.
      */
     kick() {
-        this.#connecting?.kick();
+        this.#connecting?.kick("connect");
     }
 
     /**
@@ -303,7 +314,11 @@ export class Peer {
         if (this.#connecting) {
             using _disconnecting = this.#lifetime.join("disconnecting");
             this.#connecting.abort();
-            await this.#connecting.done;
+            try {
+                await this.#connecting.done;
+            } catch (error) {
+                AbortedError.accept(error);
+            }
         }
 
         // TODO - need to shutdown exchanges and sessions here too so you can cleanly take down a single peer, but
@@ -331,6 +346,9 @@ export class Peer {
         using _lifetime = this.#lifetime.closing();
 
         this.#observers.close();
+
+        // Cancel pending address check
+        this.#addressMonitor?.stop();
 
         this.#abort(new ClosedError("Peer closed"));
 
@@ -376,6 +394,19 @@ export class Peer {
         return found;
     }
 
+    get #addressCheck() {
+        if (this.#addressMonitor === undefined) {
+            this.#addressMonitor = new PeerAddressMonitor(
+                this,
+                this.#context.timing.addressChangeStabilizationDelay,
+                this.#context.timing.addressChangeProbeCooldown,
+                this.#abort,
+                work => this.#workers.add(work),
+            );
+        }
+        return this.#addressMonitor;
+    }
+
     #initiateConnection(options?: Peer.ConnectOptions) {
         if (this.#connecting) {
             if (options?.kick) {
@@ -389,8 +420,12 @@ export class Peer {
         // Abort connection if a session is established from any source
         const added = this.#sessions.added.use(() => abort());
 
-        const kicker = new QuietObservable({
-            minimumEmitInterval: this.#context.timing.minimumTimeBetweenMrpKicks,
+        const timing = options?.timing
+            ? PeerTimingParameters.merge(this.#context.timing, options.timing)
+            : this.#context.timing;
+
+        const kicker = new QuietObservable<[KickOrigin]>({
+            minimumEmitInterval: timing.kickThrottleInterval,
             skipSuppressedEmits: true,
         });
 
@@ -399,6 +434,8 @@ export class Peer {
 
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
+                timing: options?.timing,
+                handleError: options?.handleError,
                 abort,
                 kicker,
             }).finally(() => {
@@ -407,8 +444,8 @@ export class Peer {
                 added[Symbol.dispose]();
             }),
 
-            kick() {
-                kicker.emit();
+            kick(origin: KickOrigin) {
+                kicker.emit(origin);
             },
         };
         this.#workers.add(this.#connecting);
@@ -423,10 +460,7 @@ export namespace Peer {
     }
 
     export interface BasicInformation extends Identity<{
-        readonly [N in keyof Omit<
-            typeof BasicInformation.Complete.attributes,
-            keyof typeof GlobalAttributes
-        >]?: TypeFromSchema<(typeof BasicInformation.Complete.attributes)[N]["schema"]>;
+        readonly [N in keyof BasicInformation.Attributes]?: BasicInformation.Attributes[N];
     }> {}
 
     export interface ConnectOptions {
@@ -453,11 +487,30 @@ export namespace Peer {
          * If true, {@link connectionTimeout} is not reduced if already connecting.
          */
         kick?: boolean;
+
+        /**
+         * Per-call overrides for timing parameters.
+         *
+         * Merged on top of the global {@link PeerSet.timing} for this connection only.
+         * Other concurrent or future connections are not affected.
+         *
+         * Note: if a connection process is already in progress for this peer, these overrides are not applied to the
+         * ongoing attempt.
+         */
+        timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.
+         *
+         * Note: if a connection process is already in progress for this peer, this handler is not applied to the
+         * ongoing attempt.
+         */
+        handleError?: (error: Error) => Duration | void;
     }
 }
 
 interface ConnectionProcess {
     done: Promise<NodeSession | void>;
     abort: Abort;
-    kick: () => void;
+    kick: (origin: KickOrigin) => void;
 }

@@ -11,7 +11,7 @@ import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
 export const NitrogenDioxideConcentrationMeasurementClientConstructor = ClientBehavior(
-    NitrogenDioxideConcentrationMeasurement.Complete
+    NitrogenDioxideConcentrationMeasurement
 );
 export interface NitrogenDioxideConcentrationMeasurementClient extends InstanceType<typeof NitrogenDioxideConcentrationMeasurementClientConstructor> {}
 export interface NitrogenDioxideConcentrationMeasurementClientConstructor extends Identity<typeof NitrogenDioxideConcentrationMeasurementClientConstructor> {}

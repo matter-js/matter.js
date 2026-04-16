@@ -87,7 +87,7 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
         location: {
             endpoint: EndpointNumber(1),
             cluster: ClusterId(1),
-            path: DataModelPath("TestStruct"),
+            path: new DataModelPath("TestStruct"),
         },
         type: TestState,
         supervisor,

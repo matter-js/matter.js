@@ -9,6 +9,7 @@ import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
+    ClosedError,
     Diagnostic,
     Duration,
     hex,
@@ -149,6 +150,7 @@ export class ServerSubscription implements Subscription {
     #sendNextUpdateImmediately = false;
     #sendUpdateErrorCounter = 0;
     #currentUpdatePromise?: Promise<void>;
+    #currentSendExchange?: MessageExchange;
 
     constructor(options: {
         id: number;
@@ -243,7 +245,15 @@ export class ServerSubscription implements Subscription {
 
     async handlePeerCancel() {
         this.#isCanceledByPeer = true;
-        await this.close();
+        // Force-close any in-flight send exchange so MRP retransmissions stop immediately.
+        // Use try/finally so this.close() always runs even if the exchange close throws.
+        try {
+            await this.#currentSendExchange?.close(new ClosedError("Subscription cancelled by peer"));
+        } catch (error) {
+            logger.debug("Error closing in-flight send exchange on peer cancel:", error);
+        } finally {
+            await this.close();
+        }
     }
 
     #determineSendingIntervals(
@@ -453,9 +463,8 @@ export class ServerSubscription implements Subscription {
                     this.#sendUpdateErrorCounter = 0;
                 }
             } catch (error) {
-                if (this.#isClosed) {
-                    // No need to care about resubmissions when the server is closing
-                    // TODO - implement proper abort so we don't need to ignore errors
+                if (this.#isClosed || this.#isCanceledByPeer) {
+                    // No need to care about resubmissions when the server is closing or peer cancelled us
                     return;
                 }
 
@@ -753,8 +762,11 @@ export class ServerSubscription implements Subscription {
         session?: Session,
     ) {
         const exchange = this.#context.initiateExchange(session ?? this.#peerAddress, INTERACTION_PROTOCOL_ID);
-        if (exchange === undefined) return false;
+        if (exchange === undefined) {
+            return false;
+        }
 
+        this.#currentSendExchange = exchange;
         const messenger = new InteractionServerMessenger(exchange);
 
         try {
@@ -798,6 +810,7 @@ export class ServerSubscription implements Subscription {
             using _canceling = lifetime?.join("canceling");
             await this.#cancel();
         } finally {
+            this.#currentSendExchange = undefined;
             using _closing = lifetime?.join("closing messenger");
             await messenger.close();
         }

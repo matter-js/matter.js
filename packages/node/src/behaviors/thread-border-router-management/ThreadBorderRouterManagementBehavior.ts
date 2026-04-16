@@ -8,7 +8,6 @@
 
 import { ThreadBorderRouterManagement } from "@matter/types/clusters/thread-border-router-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ThreadBorderRouterManagementInterface } from "./ThreadBorderRouterManagementInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ThreadBorderRouterManagement.Cluster enabled. You can enable additional
  * features using ThreadBorderRouterManagementBehavior.with.
  */
-export const ThreadBorderRouterManagementBehaviorConstructor = ClusterBehavior
-    .withInterface<ThreadBorderRouterManagementInterface>()
-    .for(ThreadBorderRouterManagement.Cluster);
+export const ThreadBorderRouterManagementBehaviorConstructor = ClusterBehavior.for(ThreadBorderRouterManagement);
 
 export interface ThreadBorderRouterManagementBehaviorConstructor extends Identity<typeof ThreadBorderRouterManagementBehaviorConstructor> {}
 export const ThreadBorderRouterManagementBehavior: ThreadBorderRouterManagementBehaviorConstructor = ThreadBorderRouterManagementBehaviorConstructor;

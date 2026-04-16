@@ -8,7 +8,6 @@
 
 import { LaundryWasherControls } from "@matter/types/clusters/laundry-washer-controls";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,7 +17,7 @@ import { Identity } from "@matter/general";
  * LaundryWasherControls.Cluster requires you to enable one or more optional features. You can do so using
  * {@link LaundryWasherControlsBehavior.with}.
  */
-export const LaundryWasherControlsBehaviorConstructor = ClusterBehavior.for(ClusterType(LaundryWasherControls.Base));
+export const LaundryWasherControlsBehaviorConstructor = ClusterBehavior.for(LaundryWasherControls);
 
 export interface LaundryWasherControlsBehaviorConstructor extends Identity<typeof LaundryWasherControlsBehaviorConstructor> {}
 export const LaundryWasherControlsBehavior: LaundryWasherControlsBehaviorConstructor = LaundryWasherControlsBehaviorConstructor;

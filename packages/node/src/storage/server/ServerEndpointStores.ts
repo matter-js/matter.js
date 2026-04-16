@@ -24,7 +24,7 @@ export class ServerEndpointStores {
     #preAllocatedNumbers = new Set<number>();
     #persistedNextNumber?: number;
     #numbersPersisted?: Promise<void>;
-    #numbersToPersist?: Array<Endpoint>;
+    #numbersToPersist?: Array<ServerEndpointStore>;
     #nextNumber = 1;
     #root?: ServerEndpointStore;
 
@@ -59,9 +59,7 @@ export class ServerEndpointStores {
             return;
         }
 
-        if (this.#numbersPersisted) {
-            await this.#numbersPersisted;
-        }
+        await this.#awaitPendingPersistence();
 
         this.#storage = undefined;
 
@@ -75,7 +73,10 @@ export class ServerEndpointStores {
     }
 
     async close() {
-        // We can't dispose until number persistence completes
+        await this.#awaitPendingPersistence();
+    }
+
+    async #awaitPendingPersistence() {
         if (this.#numbersPersisted) {
             await this.#numbersPersisted;
         }
@@ -100,7 +101,7 @@ export class ServerEndpointStores {
         if (endpoint.lifecycle.hasNumber) {
             // Reserve number
             if (this.#allocatedNumbers.has(endpoint.number)) {
-                if (this.storeForEndpoint(endpoint).number !== endpoint.number) {
+                if (store.number !== endpoint.number) {
                     throw new IdentityConflictError(
                         `Endpoint ${endpoint.id} number ${endpoint.number} is allocated to another endpoint`,
                     );
@@ -142,7 +143,7 @@ export class ServerEndpointStores {
 
         this.#allocatedNumbers.add(endpoint.number);
         store.number = endpoint.number;
-        this.#persistNumber(endpoint);
+        this.#persistNumber(store);
     }
 
     /**
@@ -201,15 +202,15 @@ export class ServerEndpointStores {
     /**
      * Lazily persist a newly allocated number and the next number.
      */
-    #persistNumber(endpoint: Endpoint) {
+    #persistNumber(store: ServerEndpointStore) {
         // If there's already a set of numbers to persist there will be an outstanding promise that will do the work
         // for us
         if (this.#numbersToPersist) {
-            this.#numbersToPersist.push(endpoint);
+            this.#numbersToPersist.push(store);
             return;
         }
 
-        this.#numbersToPersist = [endpoint];
+        this.#numbersToPersist = [store];
 
         const numberPersister = async () => {
             const numbersToPersist = this.#numbersToPersist;
@@ -218,14 +219,13 @@ export class ServerEndpointStores {
             }
 
             this.#numbersToPersist = undefined;
-            for (const endpoint of numbersToPersist) {
-                const store = this.storeForEndpoint(endpoint);
+            for (const store of numbersToPersist) {
                 await store.saveNumber();
             }
 
             if (this.#nextNumber !== this.#persistedNextNumber) {
                 if (this.#storage === undefined) {
-                    this.#premature("Numer persistance");
+                    this.#premature("Number persistence");
                 }
                 await this.#storage.set(NEXT_NUMBER_KEY, this.#nextNumber);
                 this.#persistedNextNumber = this.#nextNumber;

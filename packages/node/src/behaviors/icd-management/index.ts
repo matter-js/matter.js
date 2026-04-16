@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./IcdManagementInterface.js";
 export * from "./IcdManagementBehavior.js";
 export * from "./IcdManagementServer.js";
 export * from "./IcdManagementClient.js";

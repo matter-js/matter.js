@@ -5,8 +5,9 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Logger } from "@matter/general";
-import { Ble, FabricManager } from "@matter/protocol";
+import { Duration, Logger, Minutes } from "@matter/general";
+import { duration, field, uint16 } from "@matter/model";
+import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -21,7 +22,7 @@ const logger = Logger.get("NetworkingServer");
  * implementation.
  */
 export class NetworkServer extends NetworkBehavior {
-    declare state: NetworkServer.State;
+    declare readonly state: NetworkServer.State;
     declare internal: NetworkServer.Internal;
 
     override initialize() {
@@ -77,6 +78,62 @@ export namespace NetworkServer {
         declare runtime: ServerNetworkRuntime;
     }
 
+    export class TimingConfig implements Partial<PeerTimingParameters> {
+        @field(duration)
+        defaultConnectionTimeout?: Duration;
+
+        @field(duration)
+        maxDelayBetweenInitialContactRetries?: Duration;
+
+        @field(duration)
+        delayBeforeNextAddress?: Duration;
+
+        @field(duration)
+        delayAfterNetworkError?: Duration;
+
+        @field(duration)
+        delayAfterPeerError?: Duration;
+
+        @field(duration)
+        delayAfterUnhandledError?: Duration;
+
+        @field(duration)
+        minimumTimeBetweenMrpKicks?: Duration;
+    }
+
+    export class ConcreteLimitsConfig implements Partial<NetworkProfiles.ConcreteLimits> {
+        @field(uint16)
+        exchanges?: number;
+
+        @field(duration)
+        delay?: Duration;
+
+        @field(duration)
+        timeout?: Duration;
+    }
+
+    export class LimitsConfig extends ConcreteLimitsConfig {
+        @field(ConcreteLimitsConfig)
+        connect?: ConcreteLimitsConfig;
+    }
+
+    export class ProfilesConfig implements NetworkProfiles.PartialOptions {
+        @field(LimitsConfig)
+        fast?: LimitsConfig;
+
+        @field(LimitsConfig)
+        thread?: LimitsConfig;
+
+        @field(LimitsConfig)
+        conservative?: LimitsConfig;
+
+        @field(LimitsConfig)
+        unlimited?: LimitsConfig;
+
+        @field(LimitsConfig)
+        unknown?: LimitsConfig;
+    }
+
     export class State extends NetworkBehavior.State {
         listeningAddressIpv4?: string = undefined;
         listeningAddressIpv6?: string = undefined;
@@ -86,5 +143,18 @@ export namespace NetworkServer {
             onIpNetwork: true,
         };
         subscriptionOptions?: ServerSubscriptionConfig = undefined;
+
+        @field(TimingConfig)
+        timing?: TimingConfig;
+
+        @field(ProfilesConfig)
+        profiles?: ProfilesConfig;
+
+        /**
+         * Interval at which dirty client cache data is flushed to storage.  Set to `undefined` to disable buffering
+         * and persist every change immediately.
+         */
+        @field(duration)
+        clientCacheFlushInterval?: Duration = Minutes(20);
     }
 }

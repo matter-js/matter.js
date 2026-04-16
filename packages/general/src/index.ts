@@ -7,6 +7,7 @@
 export * from "./codec/index.js";
 export * from "./crypto/index.js";
 export * from "./environment/index.js";
+export * from "./fs/index.js";
 export * from "./log/index.js";
 export * from "./math/index.js";
 export * from "./MatterError.js";

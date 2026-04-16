@@ -8,7 +8,7 @@ import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionTy
 import { Mark } from "#common/Mark.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
-import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     Bytes,

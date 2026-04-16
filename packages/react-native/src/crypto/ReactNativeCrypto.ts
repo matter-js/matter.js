@@ -19,7 +19,7 @@ if (!("Buffer" in globalThis)) {
 }
 
 /**
- * Crypto implementation for React Native should work with a WebCrypto basis with 1.x
+ * Crypto implementation for React Native using WebCrypto via QuickCrypto.
  */
 export class ReactNativeCrypto extends StandardCrypto {
     override implementationName = "ReactNativeCrypto";

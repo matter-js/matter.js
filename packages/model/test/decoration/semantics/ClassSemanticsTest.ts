@@ -119,7 +119,7 @@ describe("ClassSemantics", () => {
 
         const schema = Schema.Required(Bar);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.base).equals(any);
     });

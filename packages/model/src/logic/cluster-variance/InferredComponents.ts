@@ -223,7 +223,7 @@ const VarianceMatchers: VarianceMatcher[] = [
     {
         pattern: pattern(NOT, FEATURE, AND, "(", DISJUNCT_FEATURES, ")"),
         processor(add, match) {
-            add(true, { allOf: splitDisjunction(match[1]), not: match[0] });
+            add(false, { anyOf: splitDisjunction(match[1]), not: match[0] });
         },
     },
 
@@ -303,6 +303,24 @@ function addElement(components: InferredComponents, element: ValueModel) {
         text = "O";
     } else if (text === "M, D" || text === "P") {
         text = "M";
+    }
+
+    // Revision conformance (Rev >= vN) indicates when an element was introduced.
+    // Strip it for variance purposes — it doesn't affect feature-based components.
+    // Bare "Rev >= vN" is mandatory; bracketed "[Rev >= vN]" is optional.
+    // Only apply fallback if Rev was actually present and stripping left nothing.
+    let hasRevision = false;
+    let hasBareRevision = false;
+    const stripped = text
+        .replace(/(\[?)Rev >= v\d+]?(?:, )?/g, (_, bracket) => {
+            hasRevision = true;
+            if (!bracket) hasBareRevision = true;
+            return "";
+        })
+        .replace(/,\s*$/, "")
+        .trim();
+    if (hasRevision) {
+        text = stripped || (hasBareRevision ? "M" : "O");
     }
 
     for (const matcher of VarianceMatchers) {

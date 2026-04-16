@@ -8,7 +8,6 @@
 
 import { HepaFilterMonitoring } from "@matter/types/clusters/hepa-filter-monitoring";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ResourceMonitoringInterface } from "../resource-monitoring/ResourceMonitoringInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of HepaFilterMonitoring.Cluster enabled. You can enable additional
  * features using HepaFilterMonitoringBehavior.with.
  */
-export const HepaFilterMonitoringBehaviorConstructor = ClusterBehavior
-    .withInterface<ResourceMonitoringInterface>()
-    .for(HepaFilterMonitoring.Cluster);
+export const HepaFilterMonitoringBehaviorConstructor = ClusterBehavior.for(HepaFilterMonitoring);
 
 export interface HepaFilterMonitoringBehaviorConstructor extends Identity<typeof HepaFilterMonitoringBehaviorConstructor> {}
 export const HepaFilterMonitoringBehavior: HepaFilterMonitoringBehaviorConstructor = HepaFilterMonitoringBehaviorConstructor;

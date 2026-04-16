@@ -8,7 +8,6 @@
 
 import { ApplicationLauncher } from "@matter/types/clusters/application-launcher";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ApplicationLauncherInterface } from "./ApplicationLauncherInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ApplicationLauncher.Cluster enabled. You can enable additional features
  * using ApplicationLauncherBehavior.with.
  */
-export const ApplicationLauncherBehaviorConstructor = ClusterBehavior
-    .withInterface<ApplicationLauncherInterface>()
-    .for(ApplicationLauncher.Cluster);
+export const ApplicationLauncherBehaviorConstructor = ClusterBehavior.for(ApplicationLauncher);
 
 export interface ApplicationLauncherBehaviorConstructor extends Identity<typeof ApplicationLauncherBehaviorConstructor> {}
 export const ApplicationLauncherBehavior: ApplicationLauncherBehaviorConstructor = ApplicationLauncherBehaviorConstructor;

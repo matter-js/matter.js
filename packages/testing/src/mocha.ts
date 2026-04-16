@@ -188,24 +188,28 @@ function instrumentSuites(mocha: Mocha) {
     }
 }
 
-export async function runMocha(mocha: Mocha) {
+export async function runMocha(mocha: Mocha, options?: { skipBeforeHooks?: boolean; skipAfterHooks?: boolean }) {
     instrumentSuites(mocha);
 
-    await onlyLogFailure(async () => {
-        for (const hook of beforeRunHooks) {
-            await hook();
-        }
-    });
+    if (!options?.skipBeforeHooks) {
+        await onlyLogFailure(async () => {
+            for (const hook of beforeRunHooks) {
+                await hook();
+            }
+        });
+    }
 
     await new Promise<Mocha.Runner>(resolve => {
         const runner = mocha.run(() => resolve(runner));
     });
 
-    await onlyLogFailure(async () => {
-        for (const hook of afterRunHooks) {
-            await hook();
-        }
-    });
+    if (!options?.skipAfterHooks) {
+        await onlyLogFailure(async () => {
+            for (const hook of afterRunHooks) {
+                await hook();
+            }
+        });
+    }
 
     wtf.dump();
 }
@@ -246,7 +250,7 @@ export function adaptReporter(
             });
 
             runner.on(RUNNER.EVENT_SUITE_BEGIN, suite => {
-                reporter.beginSuite(suite.titlePath(), this.translatedStats);
+                reporter.beginSuite(suite.titlePath(), this.translatedStats, suite.file);
             });
 
             runner.on(RUNNER.EVENT_TEST_BEGIN, test => {
@@ -257,16 +261,13 @@ export function adaptReporter(
                 reporter.beginTest(test.title, this.translatedStats);
             });
 
-            if (updateStats) {
-                runner.on(RUNNER.EVENT_TEST_PASS, test => {
-                    if (!test.descriptor) {
-                        return;
-                    }
-
+            runner.on(RUNNER.EVENT_TEST_PASS, test => {
+                if (updateStats && test.descriptor) {
                     test.descriptor.durationMs = test.duration;
                     test.descriptor.passed = true;
-                });
-            }
+                }
+                reporter.passTest(test.title);
+            });
 
             runner.on(RUNNER.EVENT_TEST_FAIL, (test, error) => {
                 let diagnostics: undefined | string;
@@ -278,7 +279,11 @@ export function adaptReporter(
                     test.descriptor.passed = false;
                 }
                 const logs = (test as any).logs as string[];
-                reporter.failTest(test.title, FailureDetail(error, undefined, logs, undefined, diagnostics));
+                reporter.failTest(
+                    test.title,
+                    FailureDetail(error, undefined, logs, undefined, diagnostics),
+                    test.descriptor,
+                );
                 wtf.dump();
             });
 

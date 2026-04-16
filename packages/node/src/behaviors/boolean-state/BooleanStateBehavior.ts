@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * BooleanStateBehavior is the base class for objects that support interaction with {@link BooleanState.Cluster}.
  */
-export const BooleanStateBehaviorConstructor = ClusterBehavior.for(BooleanState.Cluster);
+export const BooleanStateBehaviorConstructor = ClusterBehavior.for(BooleanState);
 
 export interface BooleanStateBehaviorConstructor extends Identity<typeof BooleanStateBehaviorConstructor> {}
 export const BooleanStateBehavior: BooleanStateBehaviorConstructor = BooleanStateBehaviorConstructor;

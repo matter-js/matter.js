@@ -6,13 +6,12 @@
 
 import { ClientFile } from "#endpoints/ClientFile.js";
 import { decamelize } from "#general";
-import { ClusterModel, ClusterVariance, CommandModel, MatterModel } from "#model";
+import { ClusterModel, ClusterVariance, MatterModel } from "#model";
 import "@matter/model/resources";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { BehaviorFile } from "./endpoints/BehaviorFile.js";
 import { EndpointFile } from "./endpoints/EndpointFile.js";
-import { InterfaceFile } from "./endpoints/InterfaceFile.js";
 import { SemanticNamespaceFile } from "./endpoints/SemanticNamespaceFile.js";
 import { ServerFile } from "./endpoints/ServerFile.js";
 import { TsFile } from "./util/TsFile.js";
@@ -20,7 +19,6 @@ import "./util/setup.js";
 
 const args = await yargs(hideBin(process.argv))
     .usage("Generates behaviors, behavior servers, endpoint definitions and interfaces")
-    .option("interfaces", { type: "boolean", describe: "generate interface files" })
     .option("behaviors", { type: "boolean", describe: "generate behavior files" })
     .option("servers", { type: "boolean", describe: "generate server files" })
     .option("clients", { type: "boolean", describe: "generate client files" })
@@ -29,11 +27,11 @@ const args = await yargs(hideBin(process.argv))
     .option("save", { type: "boolean", default: true, describe: "writes the generated model to disk" })
     .strict().argv;
 
-if (!args.interfaces && !args.behaviors && !args.server && !args.endpoints && !args.tags) {
-    args.interfaces = args.behaviors = args.servers = args.clients = args.endpoints = args.tags = true;
+if (!args.behaviors && !args.server && !args.endpoints && !args.tags) {
+    args.behaviors = args.servers = args.clients = args.endpoints = args.tags = true;
 }
 
-if (args.behaviors || args.interfaces || args.clients || args.servers) {
+if (args.behaviors || args.clients || args.servers) {
     const index = new TsFile(`!behaviors/index`);
 
     for (const cluster of MatterModel.standard.clusters) {
@@ -46,11 +44,6 @@ if (args.behaviors || args.interfaces || args.clients || args.servers) {
         const dir = `!behaviors/${decamelize(cluster.name)}`;
 
         const exports = new TsFile(`${dir}/index`, true);
-        if (!isAlias && cluster.all(CommandModel).length) {
-            if (args.interfaces) {
-                generateClusterFile(dir, InterfaceFile, cluster, exports, variance);
-            }
-        }
 
         if (!isAbstract) {
             if (args.behaviors) {

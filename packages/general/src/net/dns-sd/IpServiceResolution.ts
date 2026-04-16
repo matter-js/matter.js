@@ -116,12 +116,12 @@ export async function IpServiceResolution(service: IpService, abort: AbortSignal
         }
     });
 
-    // Begin discovering SVC records
+    // Query TXT explicitly because some responders omit it from the additional-records section
     workers.add(
         service.names.solicitor.discover({
             abort: localAbort,
             name: service.name,
-            recordTypes: [DnsRecordType.SRV],
+            recordTypes: [DnsRecordType.SRV, DnsRecordType.TXT],
 
             get associatedNames() {
                 return hosts;

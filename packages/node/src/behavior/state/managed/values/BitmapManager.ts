@@ -13,6 +13,7 @@ import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { assertBoolean, assertNumber } from "../../validation/assertions.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
+import type { ValReference } from "../ValReference.js";
 
 const SESSION = Symbol("options");
 
@@ -20,7 +21,7 @@ interface Wrapper extends Val.Struct, Internal.Collection {
     /**
      * A reference to the raw value.
      */
-    [Internal.reference]: Val.Reference<Val.Struct>;
+    [Internal.reference]: ValReference<Val.Struct>;
 
     /**
      * Information regarding the current user session.
@@ -36,7 +37,7 @@ export function BitmapManager(owner: RootSupervisor, schema: Schema): ValueSuper
 
     const byteSize = (schema as ValueModel).metabase?.byteSize;
     if (byteSize === undefined) {
-        throw new SchemaImplementationError(DataModelPath(schema.path), `Base bitmap type has no byteSize defined`);
+        throw new SchemaImplementationError(new DataModelPath(schema.path), `Base bitmap type has no byteSize defined`);
     }
     const maxBit = byteSize * 8;
 
@@ -47,7 +48,7 @@ export function BitmapManager(owner: RootSupervisor, schema: Schema): ValueSuper
             // and model uses "code".  The model should probably be inverted but we just special case for now
             name = camelize((member as FieldModel).title ?? member.name);
         } else {
-            name = camelize(member.name);
+            name = member.propertyName;
         }
 
         const descriptor = configureProperty(name, maxBit, member);
@@ -58,7 +59,7 @@ export function BitmapManager(owner: RootSupervisor, schema: Schema): ValueSuper
     const Wrapper = GeneratedClass({
         name: schema.name,
 
-        initialize(this: Wrapper, ref: Val.Reference<Val.Struct>, session: ValueSupervisor.Session) {
+        initialize(this: Wrapper, ref: ValReference<Val.Struct>, session: ValueSupervisor.Session) {
             // Only objects are acceptable
             if (!isObject(ref.value)) {
                 throw new SchemaImplementationError(
@@ -105,12 +106,12 @@ function configureProperty(name: string, maxBit: number, schema: ValueModel) {
             stopBit = temp;
         }
     } else {
-        throw new SchemaImplementationError(DataModelPath(schema.path), `Bitfield is not properly constrained`);
+        throw new SchemaImplementationError(new DataModelPath(schema.path), `Bitfield is not properly constrained`);
     }
 
     if (stopBit > maxBit) {
         throw new SchemaImplementationError(
-            DataModelPath(schema.path),
+            new DataModelPath(schema.path),
             `Bitfield range end ${stopBit} is too large for a ${maxBit}-bit bitmap`,
         );
     }

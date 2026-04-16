@@ -55,12 +55,30 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
         get isThreadSleepyEndDevice() {
             return props().isThreadSleepyEndDevice;
         },
+
+        get threadActive() {
+            return props().threadActive;
+        },
+
+        get threadPan() {
+            return props().threadPan;
+        },
+
+        get threadChannel() {
+            return props().threadChannel;
+        },
     };
 
     cache.set(node, result);
 
     const structure = (node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
     structure.changed.on(() => (properties = undefined));
+
+    // WeakMap entries are GC'd automatically but appear as strong references in heap snapshots, causing false
+    // positives in leak detection.  Explicit deletion avoids this
+    node.lifecycle.destroyed.once(() => {
+        cache.delete(node);
+    });
 
     return result;
 

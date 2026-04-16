@@ -32,6 +32,11 @@ export namespace CommandElement {
     export type Properties = BaseElement.Properties<CommandElement>;
 
     /**
+     * Sentinel ID for non-Matter commands that should be invisible to the Matter protocol layer.
+     */
+    export const NO_ID = -1;
+
+    /**
      * Indicates request vs response command.
      */
     export enum Direction {

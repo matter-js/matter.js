@@ -4,11 +4,48 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PaseClient } from "#session/pase/PaseClient.js";
 import { SPAKE_CONTEXT } from "#session/pase/PaseMessenger.js";
 import { Bytes, Spake2p, StandardCrypto } from "@matter/general";
 
 describe("PasePairing", () => {
     const crypto = new StandardCrypto();
+
+    describe("random passcode generation", () => {
+        it("uses 27-bit candidates and rejects out-of-range and forbidden values", () => {
+            let reads = 0;
+            const testCrypto = {
+                get randomUint32() {
+                    reads++;
+                    switch (reads) {
+                        case 1:
+                            return 0; // rejected: minimum
+                        case 2:
+                            return 100_000_000; // rejected: above Matter maximum
+                        case 3:
+                            return 11_111_111; // rejected: forbidden
+                        default:
+                            return 12_345_679; // accepted
+                    }
+                },
+            };
+
+            const passcode = PaseClient.generateRandomPasscode(testCrypto as any);
+            expect(passcode).equal(12_345_679);
+        });
+
+        it("fails after too many invalid candidates", () => {
+            const brokenEntropy = {
+                get randomUint32() {
+                    return 0; // always rejected
+                },
+            };
+
+            expect(() => PaseClient.generateRandomPasscode(brokenEntropy as any)).throw(
+                "Unable to generate valid passcode in 100 tries; entropy source is broken",
+            );
+        });
+    });
 
     describe("Test PASE Spake2 process", () => {
         it("test fix for elliptic library failure", async () => {

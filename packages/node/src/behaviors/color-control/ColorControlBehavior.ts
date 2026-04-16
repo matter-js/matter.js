@@ -8,7 +8,6 @@
 
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ColorControlInterface } from "./ColorControlInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ColorControl.Cluster enabled. You can enable additional features using
  * ColorControlBehavior.with.
  */
-export const ColorControlBehaviorConstructor = ClusterBehavior
-    .withInterface<ColorControlInterface>()
-    .for(ColorControl.Cluster);
+export const ColorControlBehaviorConstructor = ClusterBehavior.for(ColorControl);
 
 export interface ColorControlBehaviorConstructor extends Identity<typeof ColorControlBehaviorConstructor> {}
 export const ColorControlBehavior: ColorControlBehaviorConstructor = ColorControlBehaviorConstructor;

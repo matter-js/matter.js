@@ -83,7 +83,11 @@ export namespace Commands {
     export type CommandContext = ActionContext | LocalActorContext.Options;
 
     export interface Command<C extends (arg: unknown) => unknown = (arg: unknown) => unknown> {
-        (input: Parameters<C>[0], context?: CommandContext): Promise<Awaited<ReturnType<C>>>;
+        (
+            ...args: Parameters<C> extends []
+                ? [input?: void, context?: CommandContext]
+                : [input: Parameters<C>[0], context?: CommandContext]
+        ): Promise<Awaited<ReturnType<C>>>;
     }
 
     export type OfBehavior<T extends Behavior.Type> = {

@@ -10,7 +10,7 @@ import { OnOff } from "@matter/types/clusters/on-off";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OnOffClientConstructor = ClientBehavior(OnOff.Complete);
+export const OnOffClientConstructor = ClientBehavior(OnOff);
 export interface OnOffClient extends InstanceType<typeof OnOffClientConstructor> {}
 export interface OnOffClientConstructor extends Identity<typeof OnOffClientConstructor> {}
 export const OnOffClient: OnOffClientConstructor = OnOffClientConstructor;

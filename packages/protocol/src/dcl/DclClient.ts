@@ -72,7 +72,7 @@ export class DclClient {
 
     async #fetchJson<ResponseT>(path: string, options?: DclClient.Options): Promise<ResponseT> {
         const url = new URL(path, this.#baseUrl).toString();
-        logger.debug(`Fetching for DCL:`, url);
+        logger.debug(`Fetching from DCL:`, url);
         try {
             const timeoutMs = options?.timeout ?? DEFAULT_DCL_TIMEOUT;
             const response = await fetch(url, {

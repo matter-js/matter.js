@@ -16,11 +16,11 @@ Specification](https://csa-iot.org/developer-resource/specifications-download-re
 
 Subfolders support specific functions:
 
--   [elements/](src/elements) - types describing the data model
--   [models/](src/models) - classes implementing an operational version of the data model
--   [standard/](src/standard) - the full data model defined by the Matter Specification
--   [aspects/](src/aspects) - parsers and ASTs for fields that utilize domain specific languages
--   [logic/](src/logic) - various algorithms that operate on models
+- [elements/](src/elements) - types describing the data model
+- [models/](src/models) - classes implementing an operational version of the data model
+- [standard/](src/standard) - the full data model defined by the Matter Specification
+- [aspects/](src/aspects) - parsers and ASTs for fields that utilize domain specific languages
+- [logic/](src/logic) - various algorithms that operate on models
 
 The datatypes in [elements](src/elements) model Matter elements using TypeScript types. _Elements_ are a formal
 component of the Matter specification that describe individual structures in the data model. Our element definitions are
@@ -30,8 +30,8 @@ For each element definition, a class in [models](src/models) offers a concrete o
 API to use if you need to work with the data model beyond simple data modeling. Our models are all subtypes of
 [Model](src/models/Model.ts).
 
-For a richer model you can load `@matter/model/resources`.  This package installs additional human-facing details for
-data elements, such as long-form descriptions and cross references.  These fields will be `undefined` in the model if
+For a richer model you can load `@matter/model/resources`. This package installs additional human-facing details for
+data elements, such as long-form descriptions and cross references. These fields will be `undefined` in the model if
 you do not load the resources module.
 
 [MatterModel](src/models/MatterModel.ts) is the primary entrypoint to the API.
@@ -41,16 +41,14 @@ you do not load the resources module.
 Obtain a working instance of the model:
 
 ```ts
-import { MatterModel } from "@matter/model";
-const matter = MatterModel.standard;
+import { Matter } from "@matter/model";
 ```
 
-Retrieve standard definitions from the model:
+Retrieve standard definitions from the model.  Indices are callable:
 
 ```ts
-import { DatatypeModel, ClusterModel } from "@matter/model";
-const OnOffCluster = matter.get(ClusterModel, "OnOff");
-const uint8 = matter.get(DatatypeModel, "uint8");
+const OnOffCluster = Matter.clusters("OnOff");
+const uint8 = Matter.datatypes("uint8");
 ```
 
 Iterate over attributes of a cluster:
@@ -59,6 +57,12 @@ Iterate over attributes of a cluster:
 for (const attribute of OnOffCluster.attributes) {
     // Do something
 }
+```
+
+Use `propertyName` to get the camelCase JS property key:
+
+```ts
+const name = attribute.propertyName; // e.g. "onOff" for "OnOff"
 ```
 
 ## Implementation
@@ -114,6 +118,7 @@ The CHIP generator is [generate-chip](../../support/codegen/src/generate-chip.ts
 cd matter.js/support/codegen
 npm run generate-chip
 ```
+
 We still include the CHIP generator and model in our repository but no longer use it as input for the matter.js model.
 
 ### Standard (final) data model

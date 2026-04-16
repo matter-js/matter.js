@@ -91,7 +91,7 @@ export const Groupcast = Cluster(
             { name: "Endpoints", id: 0x1, type: "list", conformance: "M", constraint: "desc" },
             Field({ name: "entry", type: "endpoint-no" })
         ),
-        Field({ name: "KeySetId", id: 0x2, type: "uint16", conformance: "M" }),
+        Field({ name: "KeySetId", id: 0x2, type: "uint16", conformance: "M", constraint: "min 1" }),
         Field({ name: "Key", id: 0x3, type: "octstr", conformance: "O", constraint: "16" }),
         Field({ name: "UseAuxiliaryAcl", id: 0x4, type: "bool", conformance: "[LN]" }),
         Field({ name: "ReplaceEndpoints", id: 0x5, type: "bool", conformance: "[LN]" }),
@@ -125,7 +125,7 @@ export const Groupcast = Cluster(
             response: "status"
         },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M", constraint: "min 1" }),
-        Field({ name: "KeySetId", id: 0x1, type: "uint16", conformance: "M" }),
+        Field({ name: "KeySetId", id: 0x1, type: "uint16", conformance: "M", constraint: "min 1" }),
         Field({ name: "Key", id: 0x2, type: "octstr", conformance: "O", constraint: "16" })
     ),
 

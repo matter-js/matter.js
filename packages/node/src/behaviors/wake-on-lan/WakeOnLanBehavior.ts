@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * WakeOnLanBehavior is the base class for objects that support interaction with {@link WakeOnLan.Cluster}.
  */
-export const WakeOnLanBehaviorConstructor = ClusterBehavior.for(WakeOnLan.Cluster);
+export const WakeOnLanBehaviorConstructor = ClusterBehavior.for(WakeOnLan);
 
 export interface WakeOnLanBehaviorConstructor extends Identity<typeof WakeOnLanBehaviorConstructor> {}
 export const WakeOnLanBehavior: WakeOnLanBehaviorConstructor = WakeOnLanBehaviorConstructor;

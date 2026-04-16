@@ -95,6 +95,7 @@ LocalMatter.children.push({
             access: "R A F",
             conformance: "P, AUX",
             constraint: "max 2000",
+            quality: "C",
             children: [{ tag: "field", name: "entry", type: "AccessControlEntryStruct" }],
         },
 

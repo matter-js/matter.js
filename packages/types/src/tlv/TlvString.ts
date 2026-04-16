@@ -20,6 +20,8 @@ type LengthConstraints = {
  *
  * @see {@link MatterSpecification.v10.Core} § A.11.2
  */
+const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
+
 export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> extends TlvSchema<TlvToPrimitive[T]> {
     constructor(
         readonly type: T,
@@ -63,12 +65,43 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
             );
     }
 
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element {
+        const result: TlvSchema.Element = {
+            type: this.type === TlvType.Utf8String ? "string" : "octstr",
+        };
+
+        const constraint: { min?: number; max?: number } = {};
+        if (this.minLength > 0) {
+            constraint.min = this.minLength;
+        }
+        if (this.maxLength !== 1024) {
+            constraint.max = this.maxLength;
+        }
+        if (constraint.min !== undefined || constraint.max !== undefined) {
+            result.constraint = constraint;
+        }
+
+        return result;
+    }
+
     bound({ minLength, maxLength, length }: LengthConstraints) {
-        return new StringSchema(
-            this.type,
-            length ?? minLength ?? this.minLength,
-            length ?? maxLength ?? this.maxLength,
-        );
+        const effectiveMin = length ?? minLength ?? this.minLength;
+        const effectiveMax = length ?? maxLength ?? this.maxLength;
+        const key = `${effectiveMin}:${effectiveMax}`;
+
+        let inner = stringBoundCache.get(this);
+        if (inner === undefined) {
+            inner = new Map();
+            stringBoundCache.set(this, inner);
+        }
+
+        let result = inner.get(key);
+        if (result === undefined) {
+            result = new StringSchema(this.type, effectiveMin, effectiveMax);
+            inner.set(key, result);
+        }
+        return result;
     }
 }
 

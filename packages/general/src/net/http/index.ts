@@ -9,3 +9,6 @@ export * from "./HttpEndpointFactory.js";
 export * from "./HttpEndpointGroup.js";
 export * from "./HttpService.js";
 export * from "./HttpSharedEndpoint.js";
+export * from "./MockHttpEndpointFactory.js";
+export * from "./MockWsConnection.js";
+export * from "./WebSocketClient.js";

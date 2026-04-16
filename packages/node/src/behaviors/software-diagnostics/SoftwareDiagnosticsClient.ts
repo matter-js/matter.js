@@ -10,7 +10,7 @@ import { SoftwareDiagnostics } from "@matter/types/clusters/software-diagnostics
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const SoftwareDiagnosticsClientConstructor = ClientBehavior(SoftwareDiagnostics.Complete);
+export const SoftwareDiagnosticsClientConstructor = ClientBehavior(SoftwareDiagnostics);
 export interface SoftwareDiagnosticsClient extends InstanceType<typeof SoftwareDiagnosticsClientConstructor> {}
 export interface SoftwareDiagnosticsClientConstructor extends Identity<typeof SoftwareDiagnosticsClientConstructor> {}
 export const SoftwareDiagnosticsClient: SoftwareDiagnosticsClientConstructor = SoftwareDiagnosticsClientConstructor;

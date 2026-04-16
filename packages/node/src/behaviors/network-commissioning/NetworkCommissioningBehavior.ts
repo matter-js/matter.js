@@ -8,8 +8,6 @@
 
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { NetworkCommissioningInterface } from "./NetworkCommissioningInterface.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -19,9 +17,7 @@ import { Identity } from "@matter/general";
  * NetworkCommissioning.Cluster requires you to enable one or more optional features. You can do so using
  * {@link NetworkCommissioningBehavior.with}.
  */
-export const NetworkCommissioningBehaviorConstructor = ClusterBehavior
-    .withInterface<NetworkCommissioningInterface>()
-    .for(ClusterType(NetworkCommissioning.Base));
+export const NetworkCommissioningBehaviorConstructor = ClusterBehavior.for(NetworkCommissioning);
 
 export interface NetworkCommissioningBehaviorConstructor extends Identity<typeof NetworkCommissioningBehaviorConstructor> {}
 export const NetworkCommissioningBehavior: NetworkCommissioningBehaviorConstructor = NetworkCommissioningBehaviorConstructor;

@@ -10,7 +10,7 @@ import { EnergyEvse } from "@matter/types/clusters/energy-evse";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const EnergyEvseClientConstructor = ClientBehavior(EnergyEvse.Complete);
+export const EnergyEvseClientConstructor = ClientBehavior(EnergyEvse);
 export interface EnergyEvseClient extends InstanceType<typeof EnergyEvseClientConstructor> {}
 export interface EnergyEvseClientConstructor extends Identity<typeof EnergyEvseClientConstructor> {}
 export const EnergyEvseClient: EnergyEvseClientConstructor = EnergyEvseClientConstructor;

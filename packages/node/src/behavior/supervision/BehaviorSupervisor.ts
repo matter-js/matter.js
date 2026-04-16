@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "@matter/general";
 import { Access, FieldModel, Schema, Scope } from "@matter/model";
 import type { Val } from "@matter/protocol";
 import type { Behavior } from "../Behavior.js";
@@ -62,7 +61,7 @@ function addExtensionFields(schema: Schema, defaultState: Val.Struct) {
     const props = new Set<string>();
     const scope = Scope(schema, { forceOwner: true });
     for (const field of scope.membersOf(schema, { conformance: "deconflicted" })) {
-        props.add(camelize(field.name));
+        props.add(field.propertyName);
     }
 
     let newProperties: Record<string, boolean> | undefined;

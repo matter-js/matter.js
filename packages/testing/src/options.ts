@@ -13,6 +13,7 @@ export type TestOptions = {
     allLogs?: boolean;
     wtf?: boolean;
     debug?: boolean;
+    machine?: boolean;
 };
 
 function option<T extends keyof TestOptions>(options: TestOptions, name: T) {

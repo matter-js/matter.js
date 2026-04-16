@@ -8,6 +8,7 @@ import { ansi } from "@matter/tools";
 import Mocha from "mocha";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { Session } from "node:inspector/promises";
+import { createRequire } from "node:module";
 import { relative, resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 import { adaptReporter, afterRun, beforeRun, extendApi, generalSetup, runMocha } from "./mocha.js";
@@ -83,16 +84,24 @@ export async function testNodejs(runner: TestRunner, format: "cjs" | "esm", repe
                     url.searchParams.set("run", String(run));
                     await import(url.href);
                 }
+
+                // Clear files so Mocha.run() doesn't try to require() them again (which fails on ESM modules
+                // with top-level await)
+                mocha.files = [];
             } else {
                 // CJS: clear require cache for test files so they re-execute
+                const cjsRequire = createRequire(resolvePath(process.cwd(), "index.js"));
                 for (let i = supportFileCount; i < resolvedFiles.length; i++) {
-                    const resolved = require.resolve(resolvePath(process.cwd(), resolvedFiles[i]));
-                    delete require.cache[resolved];
+                    const resolved = cjsRequire.resolve(resolvePath(process.cwd(), resolvedFiles[i]));
+                    delete cjsRequire.cache[resolved];
                 }
                 await mocha.loadFilesAsync();
             }
 
-            await runMocha(mocha);
+            await runMocha(mocha, {
+                skipBeforeHooks: run > 0,
+                skipAfterHooks: run < repeat - 1,
+            });
 
             // Mocha leaks listeners; clean them up between runs to avoid MaxListenersExceededWarning
             for (const name of ["unhandledRejection", "uncaughtException"]) {

@@ -64,8 +64,8 @@ const logger = Logger.get("Commissioning");
 export class CommissioningServer extends Behavior {
     static override readonly id = "commissioning";
 
-    declare state: CommissioningServer.State;
-    declare events: CommissioningServer.Events;
+    declare readonly state: CommissioningServer.State;
+    declare readonly events: CommissioningServer.Events;
     declare internal: CommissioningServer.Internal;
 
     static override early = true;

@@ -10,7 +10,7 @@ import { ServiceArea } from "@matter/types/clusters/service-area";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ServiceAreaClientConstructor = ClientBehavior(ServiceArea.Complete);
+export const ServiceAreaClientConstructor = ClientBehavior(ServiceArea);
 export interface ServiceAreaClient extends InstanceType<typeof ServiceAreaClientConstructor> {}
 export interface ServiceAreaClientConstructor extends Identity<typeof ServiceAreaClientConstructor> {}
 export const ServiceAreaClient: ServiceAreaClientConstructor = ServiceAreaClientConstructor;

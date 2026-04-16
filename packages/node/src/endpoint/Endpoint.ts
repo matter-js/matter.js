@@ -765,6 +765,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Erase all persisted data and destroy the endpoint.
      */
     async delete() {
+        this.construction.assert(this.toString());
         this.lifecycle.change(EndpointLifecycle.Change.Destroying);
         await this.erase();
         await this.close();
@@ -828,7 +829,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             return this.#owner.path.at(this.identity, this.#type.name);
         }
 
-        return DataModelPath(this.identity, this.type?.name);
+        return new DataModelPath(this.identity, this.type?.name);
     }
 
     /**

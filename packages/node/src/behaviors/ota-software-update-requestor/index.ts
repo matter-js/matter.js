@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./OtaSoftwareUpdateRequestorInterface.js";
 export * from "./OtaSoftwareUpdateRequestorBehavior.js";
 export * from "./OtaSoftwareUpdateRequestorServer.js";
 export * from "./OtaSoftwareUpdateRequestorClient.js";

@@ -8,11 +8,17 @@ import { DnsRecord, DnsRecordType, SrvRecordValue } from "#codec/DnsCodec.js";
 import { Logger } from "#log/Logger.js";
 import { Time } from "#time/Time.js";
 import type { Timestamp } from "#time/Timestamp.js";
+import { Millis } from "#time/TimeUnit.js";
 import { AsyncObserver, BasicObservable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
 import type { DnssdNames } from "./DnssdNames.js";
 
 const logger = Logger.get("DnssdName");
+
+/**
+ * Grace factor applied to record TTLs so timing jitter doesn't cause premature expiry and spurious re-queries.
+ */
+export const DEFAULT_TTL_GRACE_FACTOR = 1.05;
 
 /**
  * Manages records associated with a single DNS-SD qname.
@@ -71,7 +77,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return !!this.#recordCount;
     }
 
-    installRecord(record: DnsRecord<any>) {
+    installRecord(record: DnsRecord<any>, installedAt?: Timestamp) {
         // For TXT records, extract the standard DNS-SD k/v's
         if (record.recordType === DnsRecordType.TXT) {
             const entries = record.value;
@@ -98,18 +104,21 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             this.#recordCount++;
         }
 
-        const recordWithExpire = { ...record, expiresAt: Time.nowMs + record.ttl } as DnssdName.Record;
+        const at = installedAt ?? Time.nowMs;
+        const recordWithExpire = {
+            ...record,
+            installedAt: at,
+            expiresAt: at + Millis(Math.round(record.ttl * this.#context.ttlGraceFactor)),
+        } as DnssdName.Record;
 
         this.#records.set(key, recordWithExpire);
 
         this.#context.registerForExpiration(recordWithExpire);
 
-        // For PTR records, add a dependency
+        // Keep hostname alive as long as any SRV references it
         if (record.recordType === DnsRecordType.SRV && !this.#dependencies?.has(key)) {
             const dependency = this.#context.get((record.value as SrvRecordValue).target);
 
-            // We use the "null observer" to mark the name as observed; we don't actually react to changes because we
-            // want to observe so long as its a dependency
             dependency.on((this.#nullObserver ??= () => undefined));
 
             (this.#dependencies ??= new Map()).set(key, dependency);
@@ -131,7 +140,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             return;
         }
 
-        if (ifOlderThan !== undefined && recordWithExpire.expiresAt - recordWithExpire.ttl >= ifOlderThan) {
+        if (ifOlderThan !== undefined && recordWithExpire.installedAt >= ifOlderThan) {
             return;
         }
 
@@ -250,9 +259,15 @@ export namespace DnssdName {
         registerForExpiration(record: Record): void;
         unregisterForExpiration(record: Record): void;
         get(qname: string): DnssdName;
+
+        /**
+         * Multiplier applied to TTL when computing record expiry.  Always provided by {@link DnssdNames}.
+         */
+        ttlGraceFactor: number;
     }
 
     export interface Expiration {
+        installedAt: Timestamp;
         expiresAt: Timestamp;
     }
 
@@ -268,7 +283,11 @@ export namespace DnssdName {
         recordType: DnsRecordType.SRV;
     }
 
-    export type Record = PointerRecord | ServiceRecord | HostRecord;
+    export interface TextRecord extends DnsRecord<string[]>, Expiration {
+        recordType: DnsRecordType.TXT;
+    }
+
+    export type Record = PointerRecord | ServiceRecord | HostRecord | TextRecord;
 
     export interface Changes {
         name: DnssdName;

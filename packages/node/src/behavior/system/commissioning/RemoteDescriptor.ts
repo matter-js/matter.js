@@ -33,7 +33,10 @@ export namespace RemoteDescriptor {
             return PeerAddress.is(subject.peerAddress, object.peerAddress);
         }
 
-        if (object.deviceIdentifier !== undefined) {
+        // An empty deviceIdentifier means the scanner could not determine the device's identity
+        // (e.g. macOS CoreBluetooth hides real BLE addresses).  Treat it the same as absent —
+        // an empty string must not be used to match unrelated devices.
+        if (object.deviceIdentifier !== undefined && object.deviceIdentifier !== "") {
             return subject.deviceIdentifier === object.deviceIdentifier;
         }
 

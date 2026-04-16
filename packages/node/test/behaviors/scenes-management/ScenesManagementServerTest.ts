@@ -15,9 +15,6 @@ import { MockSite } from "../../node/mock-site.js";
 describe("ScenesManagementServer", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("add and recall onoff boolean scene value", async () => {
@@ -87,7 +84,7 @@ describe("ScenesManagementServer", () => {
                     Read(
                         Read.Attribute({
                             endpoint: EndpointNumber(1),
-                            cluster: OnOff.Complete,
+                            cluster: OnOff,
                             attributes: ["onOff"],
                         }),
                     ),

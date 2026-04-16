@@ -10,7 +10,7 @@ import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-stat
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const RvcOperationalStateClientConstructor = ClientBehavior(RvcOperationalState.Complete);
+export const RvcOperationalStateClientConstructor = ClientBehavior(RvcOperationalState);
 export interface RvcOperationalStateClient extends InstanceType<typeof RvcOperationalStateClientConstructor> {}
 export interface RvcOperationalStateClientConstructor extends Identity<typeof RvcOperationalStateClientConstructor> {}
 export const RvcOperationalStateClient: RvcOperationalStateClientConstructor = RvcOperationalStateClientConstructor;

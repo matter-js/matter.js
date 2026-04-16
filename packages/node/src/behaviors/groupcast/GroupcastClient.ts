@@ -10,7 +10,7 @@ import { Groupcast } from "@matter/types/clusters/groupcast";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const GroupcastClientConstructor = ClientBehavior(Groupcast.Complete);
+export const GroupcastClientConstructor = ClientBehavior(Groupcast);
 export interface GroupcastClient extends InstanceType<typeof GroupcastClientConstructor> {}
 export interface GroupcastClientConstructor extends Identity<typeof GroupcastClientConstructor> {}
 export const GroupcastClient: GroupcastClientConstructor = GroupcastClientConstructor;

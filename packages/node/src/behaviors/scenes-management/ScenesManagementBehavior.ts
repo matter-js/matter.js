@@ -8,16 +8,13 @@
 
 import { ScenesManagement } from "@matter/types/clusters/scenes-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ScenesManagementInterface } from "./ScenesManagementInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * ScenesManagementBehavior is the base class for objects that support interaction with
  * {@link ScenesManagement.Cluster}.
  */
-export const ScenesManagementBehaviorConstructor = ClusterBehavior
-    .withInterface<ScenesManagementInterface>()
-    .for(ScenesManagement.Cluster);
+export const ScenesManagementBehaviorConstructor = ClusterBehavior.for(ScenesManagement);
 
 export interface ScenesManagementBehaviorConstructor extends Identity<typeof ScenesManagementBehaviorConstructor> {}
 export const ScenesManagementBehavior: ScenesManagementBehaviorConstructor = ScenesManagementBehaviorConstructor;

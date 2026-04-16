@@ -8,7 +8,6 @@
 
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { GroupKeyManagementInterface } from "./GroupKeyManagementInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of GroupKeyManagement.Cluster enabled. You can enable additional features
  * using GroupKeyManagementBehavior.with.
  */
-export const GroupKeyManagementBehaviorConstructor = ClusterBehavior
-    .withInterface<GroupKeyManagementInterface>()
-    .for(GroupKeyManagement.Cluster);
+export const GroupKeyManagementBehaviorConstructor = ClusterBehavior.for(GroupKeyManagement);
 
 export interface GroupKeyManagementBehaviorConstructor extends Identity<typeof GroupKeyManagementBehaviorConstructor> {}
 export const GroupKeyManagementBehavior: GroupKeyManagementBehaviorConstructor = GroupKeyManagementBehaviorConstructor;

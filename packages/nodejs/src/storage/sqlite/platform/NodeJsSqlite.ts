@@ -3,33 +3,40 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { rm } from "node:fs/promises";
+import { Logger } from "@matter/general";
 import { DatabaseSync } from "node:sqlite";
 
-import { SqliteStorage } from "../SqliteStorage.js";
-import { DatabaseLike } from "../SqliteTypes.js";
+import type { DatabaseLike } from "../SqliteTypes.js";
+
+const logger = Logger.get("NodeJsSqlite");
 
 /**
- * `StorageSqliteDisk` for Node.js
+ * Create a Node.js SQLite database.
  *
- * DO NOT IMPORT DIRECTLY
- * (should import `PlatformSqlite.js`)
+ * DO NOT IMPORT DIRECTLY — use {@link SqliteStorageDriver.create} instead.
  */
-export class NodeJsSqlite extends SqliteStorage {
-    constructor(path: string | null, clear = false) {
-        super({
-            databaseCreator: path => new DatabaseSync(path) as DatabaseLike,
-            path,
-            clear,
-        });
+export function createNodeJsDatabase(path: string): DatabaseLike {
+    const db = new DatabaseSync(path);
+
+    // Cast needed: node:sqlite's StatementSync doesn't satisfy DatabaseLike's generic prepare signature
+    if (path === ":memory:") {
+        return db as unknown as DatabaseLike;
     }
 
-    override async clear(completely?: boolean) {
-        await super.clear();
-        if (completely ?? false) {
-            this.close();
-            await rm(this.dbPath, { force: true });
-            this.isInitialized = false;
-        }
-    }
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA synchronous = NORMAL");
+
+    return {
+        prepare: db.prepare.bind(db) as DatabaseLike["prepare"],
+        exec: db.exec.bind(db),
+        close: () => {
+            try {
+                db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            } catch (error) {
+                logger.warn("WAL checkpoint failed, WAL will be replayed on next open:", error);
+            } finally {
+                db.close();
+            }
+        },
+    };
 }

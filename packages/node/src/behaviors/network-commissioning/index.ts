@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./NetworkCommissioningInterface.js";
 export * from "./NetworkCommissioningBehavior.js";
 export * from "./NetworkCommissioningServer.js";
 export * from "./NetworkCommissioningClient.js";

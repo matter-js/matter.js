@@ -10,7 +10,7 @@ import { MediaInput } from "@matter/types/clusters/media-input";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const MediaInputClientConstructor = ClientBehavior(MediaInput.Complete);
+export const MediaInputClientConstructor = ClientBehavior(MediaInput);
 export interface MediaInputClient extends InstanceType<typeof MediaInputClientConstructor> {}
 export interface MediaInputClientConstructor extends Identity<typeof MediaInputClientConstructor> {}
 export const MediaInputClient: MediaInputClientConstructor = MediaInputClientConstructor;

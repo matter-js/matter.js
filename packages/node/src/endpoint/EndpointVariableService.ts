@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { Environment, Environmental, isObject, VariableService } from "@matter/general";
+import { Environment, isObject, VariableService } from "@matter/general";
 import { Endpoint } from "./Endpoint.js";
 
 /**
@@ -94,12 +94,6 @@ export class EndpointVariableService {
 
     constructor(env: Environment) {
         this.#env = env;
-    }
-
-    static [Environmental.create](env: Environment) {
-        const service = new EndpointVariableService(env);
-        env.set(EndpointVariableService, service);
-        return service;
     }
 
     /**

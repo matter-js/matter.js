@@ -33,7 +33,7 @@ export class ClientFile extends TsFile {
         this.addImport(`@matter/types/clusters/${decamelize(this.cluster.name)}`, this.cluster.name);
         this.addImport("!node/behavior/cluster/ClientBehavior.js", "ClientBehavior");
         const constructor = this.expressions(`export const ${constructorName} = ClientBehavior(`, ")");
-        constructor.atom(`${this.cluster.name}.Complete`);
+        constructor.atom(`${this.cluster.name}`);
         this.atom(`export interface ${this.definitionName} extends InstanceType<typeof ${constructorName}> {}`);
 
         this.addImport("@matter/general", "Identity");

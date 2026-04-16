@@ -4,20 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterType, EndpointNumber, GlobalAttributeNames, GlobalAttributes } from "@matter/types";
+import type { ClusterId, CommandId } from "@matter/types";
+import { ClusterType, EndpointNumber, Global, TlvSchema } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
-
-const GlobalAttrMap = GlobalAttributes({}) as Record<string, ClusterType.Attribute>;
 
 /**
  * A "specifier" addresses a specific element of the Matter data model in the context of a request.
  */
 export namespace Specifier {
     /**
+     * Minimal structural type for clusters used in requests.  {@link ClusterType.Concrete} satisfies this.
+     */
+    export interface ClusterLike {
+        readonly id: ClusterId;
+        readonly name: string;
+        readonly attributes?: Record<string, ClusterType.Attribute>;
+        readonly commands?: Record<string, ClusterType.Command>;
+        readonly events?: Record<string, ClusterType.Event>;
+    }
+
+    /**
      * Clusters we designate with an object to convey structural and type information.  The second form of this union
      * allows for specification with a host object (such as a ClusterBehavior instance or class).
      */
-    export type Cluster = ClusterType | { cluster: ClusterType };
+    export type Cluster = ClusterLike | { cluster: ClusterLike };
 
     /**
      * You may address endpoints with a bare ID but the object form allows an "endpoint object" as input and optionally
@@ -30,27 +40,44 @@ export namespace Specifier {
     /**
      * An attribute specifier may be the name of a cluster attribute or the name of a cluster or global attribute.
      */
-    export type Attribute<C extends ClusterType = ClusterType> =
+    export type Attribute<C extends ClusterLike = ClusterLike> =
         | ClusterType.Attribute
-        | (string & keyof C["attributes"])
-        | GlobalAttributeNames<any>;
+        | (string & keyof NonNullable<C["attributes"]>)
+        | GlobalAttributeName;
 
     /**
-     * A command specifier may be the name of a cluster attribute or the name of a cluster command.
+     * A command specifier may be the name of a cluster command or a command object.
      */
-    export type Command<C extends ClusterType = ClusterType> = ClusterType.Command | (string & keyof C["commands"]);
+    export type Command<C extends ClusterLike = ClusterLike> =
+        | ClusterType.Command
+        | (string & keyof NonNullable<C["commands"]>);
+
+    /**
+     * @deprecated
+     * Legacy command specifier from ClusterType.  Use {@link ClusterType.Command}.
+     */
+    export interface ClusterTypeCommand {
+        requestId: CommandId;
+        requestSchema: TlvSchema<any>;
+        responseSchema: TlvSchema<any>;
+        timed: boolean;
+    }
 
     /**
      * An event specifier may be the name of a cluster event or an event object.
      */
-    export type Event<C extends ClusterType = ClusterType> = ClusterType.Event | (string & keyof C["events"]);
+    export type Event<C extends ClusterLike = ClusterLike> =
+        | ClusterType.Event
+        | (string & keyof NonNullable<C["events"]>);
+
+    export type GlobalAttributeName = keyof typeof Global.attributes;
 
     /**
      * Extract a cluster type from a cluster specifier type.
      */
-    export type ClusterFor<T extends Cluster> = T extends ClusterType
+    export type ClusterFor<T extends Cluster> = T extends ClusterLike
         ? T
-        : T extends { cluster: ClusterType }
+        : T extends { cluster: ClusterLike }
           ? T["cluster"]
           : never;
 
@@ -70,20 +97,20 @@ export namespace Specifier {
     /**
      * Extract an attribute object from a cluster and attribute specifier.
      */
-    export function attributeFor(cluster: ClusterType | undefined, specifier: Specifier.Attribute) {
+    export function attributeFor(cluster: ClusterLike | undefined, specifier: Specifier.Attribute) {
         if (typeof specifier === "object") {
             return specifier;
         }
 
         if (cluster === undefined) {
-            const attr = GlobalAttrMap[specifier];
+            const attr = Global.attributes[specifier as GlobalAttributeName];
             if (attr === undefined) {
-                throw new MalformedRequestError(`Cannot designate event "${specifier}" without a cluster`);
+                throw new MalformedRequestError(`Cannot designate attribute "${specifier}" without a cluster`);
             }
             return attr;
         }
 
-        const attr = cluster.attributes?.[specifier];
+        const attr = cluster.attributes?.[specifier] ?? Global.attributes[specifier as GlobalAttributeName];
         if (attr === undefined) {
             throw new MalformedRequestError(`Cluster ${cluster.name} does not define attribute ${specifier}`);
         }
@@ -94,13 +121,15 @@ export namespace Specifier {
     /**
      * Extract a command type from a cluster type and command specifier.
      */
-    export type CommandFor<C extends ClusterType, CMD extends Specifier.Command<C>> = CMD extends string
-        ? C["commands"][CMD]
+    export type CommandFor<C extends ClusterLike, CMD extends Specifier.Command<C>> = CMD extends string
+        ? C["commands"] extends Record<string, ClusterType.Command>
+            ? C["commands"][CMD]
+            : ClusterType.Command
         : CMD extends ClusterType.Command
           ? CMD
-          : never;
+          : ClusterType.Command;
 
-    export function commandFor<const C extends ClusterType, const CMD extends Specifier.Command<C>>(
+    export function commandFor<const C extends ClusterLike, const CMD extends Specifier.Command<C>>(
         cluster: C | undefined,
         specifier: CMD,
     ): CommandFor<C, CMD> {
@@ -123,7 +152,7 @@ export namespace Specifier {
     /**
      * Extract an event object from a cluster and event specifier.
      */
-    export function eventFor(cluster: ClusterType | undefined, specifier: Specifier.Event) {
+    export function eventFor(cluster: ClusterLike | undefined, specifier: Specifier.Event) {
         if (typeof specifier === "object") {
             return specifier;
         }
@@ -179,7 +208,7 @@ export function toWildcardOrHexPath(name: string, value: number | bigint | undef
  * Resolve a path into a human readable textual form for logging
  * TODO: Add a Diagnostic display formatter for this
  */
-export function resolvePathForSpecifier<const C extends ClusterType>(location: {
+export function resolvePathForSpecifier<const C extends Specifier.ClusterLike>(location: {
     endpoint?: Specifier.Endpoint;
     cluster?: Specifier.Cluster;
     attribute?: Specifier.Attribute<Specifier.ClusterFor<C>>;
@@ -198,7 +227,7 @@ export function resolvePathForSpecifier<const C extends ClusterType>(location: {
     const postString = `${listIndexString}${isUrgentString}`;
 
     const clusterId = cluster?.id;
-    const elementId = attribute ? attribute.id : event ? event.id : command ? command.requestId : undefined;
+    const elementId = attribute ? attribute.id : event ? event.id : command ? command.id : undefined;
 
     if (endpointId === undefined) {
         return `*.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;

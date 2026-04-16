@@ -37,8 +37,8 @@ export abstract class BaseEventStore implements EventStore {
 
     clear() {
         return MaybePromise.then(this.close(), () =>
-            MaybePromise.then(this.#storage.clear(), () =>
-                MaybePromise.then(this.#eventStorage.clear(), () => {
+            MaybePromise.then(this.#storage.clearAll(), () =>
+                MaybePromise.then(this.#eventStorage.clearAll(), () => {
                     this.#nextNumber = 1n;
                 }),
             ),

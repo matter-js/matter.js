@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * UserLabelBehavior is the base class for objects that support interaction with {@link UserLabel.Cluster}.
  */
-export const UserLabelBehaviorConstructor = ClusterBehavior.for(UserLabel.Cluster);
+export const UserLabelBehaviorConstructor = ClusterBehavior.for(UserLabel);
 
 export interface UserLabelBehaviorConstructor extends Identity<typeof UserLabelBehaviorConstructor> {}
 export const UserLabelBehavior: UserLabelBehaviorConstructor = UserLabelBehaviorConstructor;

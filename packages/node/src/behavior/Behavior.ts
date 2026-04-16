@@ -7,6 +7,7 @@
 import { type Agent, INSTALL_BEHAVIOR } from "#endpoint/Agent.js";
 import {
     AsyncObservable,
+    type DeepPartial,
     EventEmitter,
     GeneratedClass,
     Lifetime,
@@ -16,7 +17,6 @@ import {
     Transaction,
 } from "@matter/general";
 import { ClassSemantics, Schema, Semantics } from "@matter/model";
-import type { ClusterType } from "@matter/types";
 import { Reactor } from "./Reactor.js";
 import type { BehaviorBacking } from "./internal/BehaviorBacking.js";
 import { DerivedState, EmptyState } from "./state/StateType.js";
@@ -413,7 +413,7 @@ export namespace Behavior {
     /**
      * Patch variant of StateOf.
      */
-    export type PatchStateOf<B extends Type> = ClusterType.PatchType<StateOf<B>>;
+    export type PatchStateOf<B extends Type> = DeepPartial<StateOf<B>>;
 
     /**
      * The events type of a behavior {@link Type}.

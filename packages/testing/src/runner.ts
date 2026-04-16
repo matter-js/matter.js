@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { FailureDetail } from "./failure-detail.js";
 import { FailureReporter } from "./failure-reporter.js";
+import { MachineReporter } from "./machine-reporter.js";
 import { NodejsReporter } from "./nodejs-reporter.js";
 import { testNodejs } from "./nodejs.js";
 import { TestOptions } from "./options.js";
@@ -47,18 +48,22 @@ export class TestRunner {
     ) {
         TestRunner.#current = this;
 
-        this.reporter = new (class extends NodejsReporter {
-            constructor() {
-                super(progress);
-            }
+        if (options.machine) {
+            this.reporter = new MachineReporter(progress);
+        } else {
+            this.reporter = new (class extends NodejsReporter {
+                constructor() {
+                    super(progress);
+                }
 
-            override failRun(detail: FailureDetail) {
-                std.err.write("\n");
-                FailureReporter.report(std.err, detail, "Test suite crash");
-                std.err.write("\n");
-                process.exit(1);
-            }
-        })();
+                override failRun(detail: FailureDetail) {
+                    std.err.write("\n");
+                    FailureReporter.report(std.err, detail, "Test suite crash");
+                    std.err.write("\n");
+                    process.exit(1);
+                }
+            })();
+        }
 
         if (options.spec === undefined) {
             this.#spec = ["test/**/*Test.ts"];

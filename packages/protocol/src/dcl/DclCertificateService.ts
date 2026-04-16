@@ -9,12 +9,11 @@ import {
     Construction,
     Days,
     Diagnostic,
-    Directory,
     Duration,
     Environment,
+    Github,
     Logger,
     Pem,
-    Repo,
     StorageContext,
     StorageManager,
     StorageService,
@@ -45,8 +44,16 @@ export class DclCertificateService {
     #fetchPromise?: Promise<void>;
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
-        environment.set(DclCertificateService, this);
+        environment.root.set(DclCertificateService, this);
         this.#options = options;
+        logger.info(
+            "Initialize CertificateService",
+            Diagnostic.dict({
+                prod: options.dclConfig?.url ?? DclConfig.production.url,
+                test: options.fetchTestCertificates ? (options.testDclConfig?.url ?? DclConfig.test.url) : undefined,
+                github: options.fetchTestCertificates && options.fetchGithubCertificates ? "yes" : undefined,
+            }),
+        );
 
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");
@@ -217,10 +224,10 @@ export class DclCertificateService {
     async close() {
         this.#closed = true;
         this.#updateTimer?.stop();
-        if (this.#fetchPromise !== undefined) {
+        await this.#construction.close(async () => {
             await this.#fetchPromise;
-        }
-        await this.#storageManager?.close();
+            await this.#storageManager?.close();
+        });
     }
 
     /**
@@ -443,7 +450,7 @@ export class DclCertificateService {
 
             // Create GitHub repo client with timeout option
             const { owner, repo, branch, certPath } = this.#options.githubConfig ?? DclGithubConfig.defaults;
-            const repoClient = new Repo(owner, repo, branch, this.#options);
+            const repoClient = new Github.Repo(owner, repo, branch, this.#options);
             const certDir = await repoClient.cd(certPath);
 
             // List files in the certificate directory
@@ -467,7 +474,12 @@ export class DclCertificateService {
     /**
      * Fetch a single certificate from GitHub by filename.
      */
-    async #fetchGitHubCertificate(storage: StorageContext, certDir: Directory, filename: string, force: boolean) {
+    async #fetchGitHubCertificate(
+        storage: StorageContext,
+        certDir: Github.Directory,
+        filename: string,
+        force: boolean,
+    ) {
         try {
             // Download DER certificate directly as binary using GitHub client
             const derBytes = await certDir.getBinary(filename);

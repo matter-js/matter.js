@@ -102,6 +102,16 @@ export function element<
                         semantics.mutableModel = modifier;
                         continue;
                     }
+
+                    // Schema-carrying object (e.g. enum with Schema.set)
+                    {
+                        const model = Schema(modifier as object);
+                        if (model !== undefined) {
+                            model.finalize();
+                            semantics.mutableModel = model;
+                            continue;
+                        }
+                    }
                     break;
             }
 

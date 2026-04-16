@@ -7,7 +7,6 @@
 import { Transaction } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
-import type { ClientNodeStore } from "./ClientNodeStore.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
 
 /**
@@ -17,13 +16,13 @@ import type { RemoteWriter } from "./RemoteWriter.js";
  */
 export class RemoteWriteParticipant implements Transaction.Participant {
     #request: RemoteWriter.Request = [];
-    #store: ClientNodeStore;
+    #writer: RemoteWriter;
 
     /**
-     * There is one participant for each transaction/client node pair.  We therefore use the store as the role.
+     * There is one participant for each transaction/writer pair.  We use the writer function itself as the dedup key.
      */
     get role() {
-        return this.#store;
+        return this.#writer;
     }
 
     /**
@@ -45,7 +44,7 @@ export class RemoteWriteParticipant implements Transaction.Participant {
         const request = this.#request;
         this.#request = [];
 
-        await this.#store.write(request);
+        await this.#writer(request);
     }
 
     rollback() {
@@ -53,10 +52,10 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     }
 
     toString() {
-        return `writer#${this.#store.id}`;
+        return `remote-writer`;
     }
 
-    constructor(store: ClientNodeStore) {
-        this.#store = store;
+    constructor(writer: RemoteWriter) {
+        this.#writer = writer;
     }
 }

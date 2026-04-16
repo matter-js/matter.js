@@ -30,6 +30,7 @@ config.externalLeakFilter = {
             case "#wrapPrefix":
             case "#dumps":
             case "_playwrightInstance":
+            case "logs":
                 // Skip stashed log messages, etc. from testing infrastructure
                 return false;
         }
@@ -85,6 +86,14 @@ export class HeapDumpSet {
 
     constructor(name: string) {
         this.#dir = TestRunner.current.pkg.resolve(`build/heaps/${name}-${this.#startedAt.toISOString()}`);
+    }
+
+    get(name: string) {
+        const path = this.#dumps[name];
+        if (path === undefined) {
+            throw new Error(`No dump named "${name}"`);
+        }
+        return path;
     }
 
     async create(name = "dump") {

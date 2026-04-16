@@ -103,7 +103,7 @@ export class FabricManager {
         await this.#construction;
         this.#nextFabricIndex = 1;
         this.#fabrics.clear();
-        await this.#storage?.clear();
+        await this.#storage?.clearAll();
     }
 
     /**

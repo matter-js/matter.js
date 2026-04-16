@@ -8,7 +8,6 @@
 
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { AccessControlInterface } from "./AccessControlInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of AccessControl.Cluster enabled. You can enable additional features using
  * AccessControlBehavior.with.
  */
-export const AccessControlBehaviorConstructor = ClusterBehavior
-    .withInterface<AccessControlInterface>()
-    .for(AccessControl.Cluster);
+export const AccessControlBehaviorConstructor = ClusterBehavior.for(AccessControl);
 
 export interface AccessControlBehaviorConstructor extends Identity<typeof AccessControlBehaviorConstructor> {}
 export const AccessControlBehavior: AccessControlBehaviorConstructor = AccessControlBehaviorConstructor;

@@ -10,7 +10,7 @@ import { LaundryWasherControls } from "@matter/types/clusters/laundry-washer-con
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const LaundryWasherControlsClientConstructor = ClientBehavior(LaundryWasherControls.Complete);
+export const LaundryWasherControlsClientConstructor = ClientBehavior(LaundryWasherControls);
 export interface LaundryWasherControlsClient extends InstanceType<typeof LaundryWasherControlsClientConstructor> {}
 export interface LaundryWasherControlsClientConstructor extends Identity<typeof LaundryWasherControlsClientConstructor> {}
 export const LaundryWasherControlsClient: LaundryWasherControlsClientConstructor = LaundryWasherControlsClientConstructor;

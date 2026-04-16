@@ -4,13 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterType } from "@matter/types";
 import { ElectricalEnergyMeasurement } from "@matter/types/clusters/electrical-energy-measurement";
 import { ElectricalEnergyMeasurementBehavior } from "./ElectricalEnergyMeasurementBehavior.js";
 
-const ElectricalEnergyMeasurementBase = ElectricalEnergyMeasurementBehavior.for(
-    ElectricalEnergyMeasurement.Complete,
-).with(
+const ElectricalEnergyMeasurementBase = ElectricalEnergyMeasurementBehavior.with(
     ElectricalEnergyMeasurement.Feature.CumulativeEnergy,
     ElectricalEnergyMeasurement.Feature.PeriodicEnergy,
     ElectricalEnergyMeasurement.Feature.ImportedEnergy,
@@ -49,10 +46,10 @@ export class ElectricalEnergyMeasurementBaseServer extends ElectricalEnergyMeasu
             const useImported = measurement.cumulativeEnergy?.imported !== undefined && this.features.importedEnergy;
             const useExported = measurement.cumulativeEnergy?.exported !== undefined && this.features.exportedEnergy;
             if (useImported) {
-                this.state.cumulativeEnergyImported = measurement.cumulativeEnergy!.imported;
+                this.state.cumulativeEnergyImported = measurement.cumulativeEnergy!.imported ?? null;
             }
             if (useExported) {
-                this.state.cumulativeEnergyExported = measurement.cumulativeEnergy!.exported;
+                this.state.cumulativeEnergyExported = measurement.cumulativeEnergy!.exported ?? null;
             }
             if (useImported || useExported) {
                 this.events.cumulativeEnergyMeasured?.emit(
@@ -68,10 +65,10 @@ export class ElectricalEnergyMeasurementBaseServer extends ElectricalEnergyMeasu
             const useImported = measurement.periodicEnergy?.imported !== undefined && this.features.importedEnergy;
             const useExported = measurement.periodicEnergy?.exported !== undefined && this.features.exportedEnergy;
             if (useImported) {
-                this.state.periodicEnergyImported = measurement.periodicEnergy!.imported;
+                this.state.periodicEnergyImported = measurement.periodicEnergy!.imported ?? null;
             }
             if (useExported) {
-                this.state.periodicEnergyExported = measurement.periodicEnergy!.exported;
+                this.state.periodicEnergyExported = measurement.periodicEnergy!.exported ?? null;
             }
             if (useImported || useExported) {
                 this.events.periodicEnergyMeasured?.emit(
@@ -94,5 +91,5 @@ export namespace ElectricalEnergyMeasurementBaseServer {
 
 // Reset all Features
 export class ElectricalEnergyMeasurementServer extends ElectricalEnergyMeasurementBaseServer.for(
-    ClusterType(ElectricalEnergyMeasurement.Base),
+    ElectricalEnergyMeasurement,
 ) {}

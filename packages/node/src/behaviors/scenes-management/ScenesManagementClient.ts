@@ -10,7 +10,7 @@ import { ScenesManagement } from "@matter/types/clusters/scenes-management";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ScenesManagementClientConstructor = ClientBehavior(ScenesManagement.Complete);
+export const ScenesManagementClientConstructor = ClientBehavior(ScenesManagement);
 export interface ScenesManagementClient extends InstanceType<typeof ScenesManagementClientConstructor> {}
 export interface ScenesManagementClientConstructor extends Identity<typeof ScenesManagementClientConstructor> {}
 export const ScenesManagementClient: ScenesManagementClientConstructor = ScenesManagementClientConstructor;

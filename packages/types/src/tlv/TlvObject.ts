@@ -5,7 +5,7 @@
  */
 
 import { Bytes, ImplementationError, InternalError, Merge, UnexpectedDataError } from "@matter/general";
-import { FabricIndex } from "@matter/model";
+import { FabricIndex, FieldElement } from "@matter/model";
 import {
     ValidationDatatypeMismatchError,
     ValidationError,
@@ -86,6 +86,27 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
             }
         }
         this.isFabricScoped = isFabricScoped;
+    }
+
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element {
+        const children: FieldElement[] = [];
+
+        for (const name in this.fieldDefinitions) {
+            const field = this.fieldDefinitions[name];
+            const inner = field.schema.element;
+
+            children.push(
+                FieldElement({
+                    name,
+                    id: field.id,
+                    ...inner,
+                    ...(field.optional && { conformance: "O" }),
+                }),
+            );
+        }
+
+        return { type: "struct", children };
     }
 
     #encodeEntryToTlv(writer: TlvWriter, name: string, value: TypeFromFields<F>, options?: TlvEncodingOptions) {

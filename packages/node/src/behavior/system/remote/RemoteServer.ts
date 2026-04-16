@@ -12,6 +12,7 @@ import {
     AppAddress,
     Crypto,
     CurveType,
+    DatafileRoot,
     Diagnostic,
     ImplementationError,
     InternalError,
@@ -45,7 +46,7 @@ export abstract class RemoteServer extends Behavior {
     static interfaceType: RemoteInterface.Type;
 
     declare internal: RemoteServer.Internal;
-    declare state: RemoteServer.State;
+    declare readonly state: RemoteServer.State;
 
     override async initialize() {
         if (this.state.key === undefined) {
@@ -86,7 +87,19 @@ export abstract class RemoteServer extends Behavior {
             throw new InternalError(`Remote server ${this.constructor.name} does not define a remote interface`);
         }
 
-        const address = new AppAddress(this.state.address);
+        // Replace {node} token and resolve relative unix socket paths against DatafileRoot
+        let addressStr = this.state.address.replace(/\{node\}/g, (this.endpoint as ServerNode).id);
+        const address = new AppAddress(addressStr);
+        const { transport } = address;
+        if (transport.kind === "unix" && !transport.path.startsWith("/")) {
+            const root = this.env.has(DatafileRoot) ? this.env.get(DatafileRoot) : undefined;
+            if (root) {
+                const absolutePath = `${root.path}/${transport.path}`;
+                address.hostname = encodeURIComponent(absolutePath);
+                this.internal.lock = await root.lock();
+            }
+        }
+
         const { key, certificate } = this.state;
         const intf = await interfaceType.create({
             node: this.endpoint as ServerNode,
@@ -101,13 +114,18 @@ export abstract class RemoteServer extends Behavior {
     }
 
     async #stop() {
-        const { interface: intf } = this.internal;
+        const { interface: intf, lock } = this.internal;
         if (!intf) {
             return;
         }
 
         this.internal.interface = undefined;
         await intf.close();
+
+        if (lock) {
+            this.internal.lock = undefined;
+            await lock.close();
+        }
     }
 
     async #onOffline() {
@@ -167,6 +185,7 @@ export abstract class RemoteServer extends Behavior {
 export namespace RemoteServer {
     export class Internal {
         interface?: RemoteInterface;
+        lock?: DatafileRoot.Lock;
     }
 
     export class State {

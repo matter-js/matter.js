@@ -8,15 +8,12 @@
 
 import { DishwasherMode } from "@matter/types/clusters/dishwasher-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { DishwasherModeInterface } from "./DishwasherModeInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * DishwasherModeBehavior is the base class for objects that support interaction with {@link DishwasherMode.Cluster}.
  */
-export const DishwasherModeBehaviorConstructor = ClusterBehavior
-    .withInterface<DishwasherModeInterface>()
-    .for(DishwasherMode.Cluster);
+export const DishwasherModeBehaviorConstructor = ClusterBehavior.for(DishwasherMode);
 
 export interface DishwasherModeBehaviorConstructor extends Identity<typeof DishwasherModeBehaviorConstructor> {}
 export const DishwasherModeBehavior: DishwasherModeBehaviorConstructor = DishwasherModeBehaviorConstructor;

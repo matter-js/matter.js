@@ -8,7 +8,6 @@
 
 import { PowerTopology } from "@matter/types/clusters/power-topology";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,7 +16,7 @@ import { Identity } from "@matter/general";
  * PowerTopology.Cluster requires you to enable one or more optional features. You can do so using
  * {@link PowerTopologyBehavior.with}.
  */
-export const PowerTopologyBehaviorConstructor = ClusterBehavior.for(ClusterType(PowerTopology.Base));
+export const PowerTopologyBehaviorConstructor = ClusterBehavior.for(PowerTopology);
 
 export interface PowerTopologyBehaviorConstructor extends Identity<typeof PowerTopologyBehaviorConstructor> {}
 export const PowerTopologyBehavior: PowerTopologyBehaviorConstructor = PowerTopologyBehaviorConstructor;

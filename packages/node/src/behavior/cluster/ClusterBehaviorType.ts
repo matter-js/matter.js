@@ -5,14 +5,7 @@
  */
 
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import {
-    AsyncObservable,
-    camelize,
-    EventEmitter,
-    GeneratedClass,
-    ImplementationError,
-    Observable,
-} from "@matter/general";
+import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError } from "@matter/general";
 import {
     ClassSemantics,
     ClusterModel,
@@ -41,58 +34,79 @@ import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
  * This factory performs runtime class generation of behaviors associated with a Matter cluster.  It implements
  * ClusterBehavior.for() directly and is a core component of PeerBehavior().
  */
-export function ClusterBehaviorType<const C extends ClusterType>({
-    cluster,
+export function ClusterBehaviorType({
+    namespace,
     base,
+    features,
     schema,
     name,
     forClient,
     commandFactory,
-}: ClusterBehaviorType.Configuration<C>) {
+}: ClusterBehaviorType.Configuration) {
+    // Resolve schema: from param, from base, from namespace, or from Matter model.  Base takes priority over
+    // namespace because it may have extended the schema (e.g. to relax constraints for custom validation).
     if (schema === undefined) {
-        if (base.schema.tag === ElementTag.Cluster) {
+        if (base.schema?.tag === ElementTag.Cluster) {
             schema = base.schema;
         }
-        if (!schema) {
-            schema = schemaForCluster(cluster);
+        if (!schema && namespace) {
+            schema = (namespace as ClusterType).schema;
+        }
+        if (!schema && namespace) {
+            const nsId = (namespace as { id?: number }).id;
+            if (nsId !== undefined) {
+                schema = schemaForId(nsId);
+            }
         }
     }
 
-    schema = syncFeatures(schema, cluster);
+    if (!schema) {
+        throw new ImplementationError("ClusterBehaviorType: no schema available");
+    }
+
+    // Apply feature selection to schema
+    if (features !== undefined) {
+        schema = applyFeatureSelection(schema, features);
+    } else {
+        schema = syncFeatures(schema, namespace);
+    }
+
+    // Construct namespace from schema if not provided
+    if (!namespace) {
+        namespace = ClusterType(schema);
+    }
 
     const useCache = name === undefined;
 
-    // If we are provided a name, the caller is creating a specialized version of the behavior.  Disable caching and
-    // do not create a name automatically
     if (useCache) {
-        const cached = ClusterBehaviorCache.get(cluster, base, schema, forClient);
+        const cached = ClusterBehaviorCache.get(base, schema, forClient);
         if (cached) {
             return cached;
         }
 
-        if (base.name.startsWith(cluster.name)) {
+        if (base.name.startsWith(schema.name)) {
             name = base.name;
         } else {
-            name = `${cluster.name}Behavior`;
+            name = `${schema.name}Behavior`;
         }
     }
 
     const context: DerivationContext = {
         scope: Scope(schema),
-        cluster,
+        namespace,
         base,
         newProps: {},
         forClient,
         commandFactory,
     };
 
+    // Compute supported features as a flags object for the instance getter
+    const supportedFeatures = computeFeatureFlags(schema);
+
     const type = GeneratedClass({
         name,
         base,
 
-        // These are really read-only but installing as getters on the prototype prevents us from overriding using
-        // namespace overrides.  If we instead override as static properties then we lose the automatic interface type.
-        // So just publish as static properties.
         staticProperties: {
             State: createDerivedState(context),
 
@@ -101,12 +115,17 @@ export function ClusterBehaviorType<const C extends ClusterType>({
 
         staticDescriptors: {
             id: {
-                value: camelize(cluster.name) as Uncapitalize<string>,
+                value: schema.propertyName as Uncapitalize<string>,
                 enumerable: true,
             },
 
             cluster: {
-                value: cluster,
+                value: namespace,
+                enumerable: true,
+            },
+
+            features: {
+                value: supportedFeatures,
                 enumerable: true,
             },
         },
@@ -126,18 +145,18 @@ export function ClusterBehaviorType<const C extends ClusterType>({
     schema.finalize();
 
     if (useCache) {
-        ClusterBehaviorCache.set(cluster, base, schema, type);
+        ClusterBehaviorCache.set(base, schema, type);
     }
 
-    return type as ClusterBehavior.Type<C>;
+    return type as ClusterBehavior.Type;
 }
 
 export namespace ClusterBehaviorType {
-    export interface Configuration<C extends ClusterType> {
+    export interface Configuration {
         /**
-         * The ClusterType for the new behavior.
+         * The cluster namespace for the new behavior.  If omitted, a minimal namespace is constructed from schema.
          */
-        cluster: C;
+        namespace?: object;
 
         /**
          * The behavior to extend.
@@ -145,9 +164,15 @@ export namespace ClusterBehaviorType {
         base: Behavior.Type;
 
         /**
+         * Feature selection.  A list of feature names, or `true` for "complete" (all elements regardless of
+         * conformance).
+         */
+        features?: readonly string[] | true;
+
+        /**
          * The schema for the new behavior.
          *
-         * If omitted uses the schema from the standard Matter data model.
+         * If omitted uses the schema from the namespace or the standard Matter data model.
          */
         schema?: Schema.Cluster;
 
@@ -180,7 +205,7 @@ export namespace ClusterBehaviorType {
 }
 
 interface DerivationContext {
-    cluster: ClusterType;
+    namespace: object;
     scope: Scope;
     base: Behavior.Type;
     newProps: Record<string, ValueModel>;
@@ -204,13 +229,15 @@ interface HasKnownDefaults {
  * Create a new state subclass that inherits relevant default values from a base Behavior.Type and adds new default
  * values from cluster attributes.
  *
- * Note - we only use the cluster here for default values
+ * Note - we only use the schema for default values, not the cluster
  */
-function createDerivedState({ cluster, scope, base, newProps }: DerivationContext) {
+function createDerivedState({ scope, base, newProps }: DerivationContext) {
     const BaseState = base["State"];
     if (BaseState === undefined) {
         throw new ImplementationError(`No state class defined for behavior class ${base.name}`);
     }
+
+    const schema = scope.owner as Schema.Cluster;
 
     const oldDefaults = new BaseState() as Record<string, any>;
     let knownDefaults = (BaseState as HasKnownDefaults)[KNOWN_DEFAULTS];
@@ -218,7 +245,7 @@ function createDerivedState({ cluster, scope, base, newProps }: DerivationContex
     // Index schema members by name
     const props = {} as Record<string, ValueModel[]>;
     for (const member of scope.membersOf(scope.owner, { conformance: "deconflicted" })) {
-        const name = camelize(member.name);
+        const name = member.propertyName;
         if (props[name]) {
             props[name].push(member as ValueModel);
         } else {
@@ -267,12 +294,10 @@ function createDerivedState({ cluster, scope, base, newProps }: DerivationContex
 
         // Attribute applies
         newProps[name] = propSchema;
-        const attribute = cluster.attributes[name];
 
-        // The feature map value requires a special case because it's encoded in the "supportedFeatures" cluster
-        // property
-        if (attribute?.id === FeatureMap.id) {
-            defaults[name] = cluster.supportedFeatures;
+        // The feature map value requires a special case because it's encoded in the schema's supportedFeatures
+        if (propSchema.id === FeatureMap.id) {
+            defaults[name] = computeFeatureFlags(schema as ClusterModel);
             continue;
         }
 
@@ -286,7 +311,7 @@ function createDerivedState({ cluster, scope, base, newProps }: DerivationContex
     }
 
     const StateType = DerivedState({
-        name: `${cluster.name}$State`,
+        name: `${schema.name}$State`,
         base: base.State,
         values: defaults,
     });
@@ -317,7 +342,7 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
         conformance: "conformant",
         tags: [ElementTag.Event],
     })) {
-        const name = camelize(event.name);
+        const name = event.propertyName;
         applicableClusterEvents.add(name);
 
         // Do not implement if already supported
@@ -370,10 +395,6 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
         instanceDescriptors,
 
         initialize(this: EventEmitter) {
-            (this as unknown as Record<string, Observable>).interactionBegin = new Observable();
-            (this as unknown as Record<string, Observable>).interactionEnd = new Observable();
-            (this as unknown as Record<string, Observable>).stateChanged = new Observable();
-
             for (const name of eventNames) {
                 this.addEvent(name);
             }
@@ -382,29 +403,15 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
 }
 
 /**
- * Obtain schema for a particular cluster.
- *
- * Currently we model TLV and TypeScript types with ClusterType and use ClusterModel for logical operations.  This dual
- * mode could probably be improved but we will continue to need a source for type information (ClusterType) and more
- * exhaustive operational metadata (ClusterModel).
- *
- * This acts as an adapter to load the appropriate {@link ClusterModel} for a {@link ClusterType}.
+ * Obtain schema for a particular cluster by ID.
  */
-function schemaForCluster(cluster: ClusterType) {
-    let schema: ClusterModel | undefined;
-
+function schemaForId(id: number) {
     for (const child of Matter.children) {
-        if (child.tag === ElementTag.Cluster && child.id === cluster.id) {
-            schema = child;
-            break;
+        if (child.tag === ElementTag.Cluster && child.id === id) {
+            return child as ClusterModel;
         }
     }
-
-    if (schema === undefined) {
-        throw new ImplementationError(`Cannot locate schema for cluster ${cluster.id}, please supply manually`);
-    }
-
-    return schema;
+    return undefined;
 }
 
 /**
@@ -414,12 +421,22 @@ function schemaForCluster(cluster: ClusterType) {
 const configuredSchemaCache = new Map<Schema.Cluster, Record<string, Schema.Cluster>>();
 
 /**
- * Ensure the supported features enumerated by schema align with a cluster definition.
+ * Ensure the supported features enumerated by schema align with a namespace's feature selection.
  */
-function syncFeatures(schema: Schema.Cluster, cluster: ClusterType) {
-    // If features are unchanged, return original schema
-    const incomingFeatures = new FeatureSet(cluster.supportedFeatures);
-    if (new FeatureSet(cluster.supportedFeatures).is(schema.supportedFeatures)) {
+function syncFeatures(schema: Schema.Cluster, namespace: object | undefined) {
+    // Determine features from namespace's supportedFeatures or schema
+    let incomingFeatures: FeatureSet;
+
+    const nsSupportedFeatures = (namespace as { supportedFeatures?: Record<string, boolean> } | undefined)
+        ?.supportedFeatures;
+    if (nsSupportedFeatures) {
+        incomingFeatures = new FeatureSet(nsSupportedFeatures);
+    } else {
+        // No feature override — use schema's defaults
+        return schema;
+    }
+
+    if (incomingFeatures.is(schema.supportedFeatures)) {
         return schema;
     }
 
@@ -445,6 +462,71 @@ function syncFeatures(schema: Schema.Cluster, cluster: ClusterType) {
     return schema;
 }
 
+/**
+ * Apply a feature selection to a schema.  If `features` is `true`, all elements are included regardless of
+ * conformance ("complete" mode).  Otherwise, maps feature names to the schema's FeatureSet short codes.
+ */
+function applyFeatureSelection(schema: Schema.Cluster, features: readonly string[] | true): Schema.Cluster {
+    if (features === true) {
+        // "Complete" mode — clone schema and mark all features as supported
+        const featureSet = new FeatureSet();
+        for (const feature of (schema as ClusterModel).features) {
+            featureSet.add(feature.name);
+        }
+        return syncFeaturesFromSet(schema, featureSet);
+    }
+
+    // Map user-facing feature names to schema short codes
+    const featureSet = new FeatureSet();
+    const model = schema as ClusterModel;
+    for (const name of features) {
+        for (const feature of model.features) {
+            if ((feature.title ?? feature.name) === name || feature.name === name) {
+                featureSet.add(feature.name);
+                break;
+            }
+        }
+    }
+
+    return syncFeaturesFromSet(schema, featureSet);
+}
+
+/**
+ * Apply a FeatureSet to a schema, using the cache.
+ */
+function syncFeaturesFromSet(schema: Schema.Cluster, featureSet: FeatureSet): Schema.Cluster {
+    if (featureSet.is(schema.supportedFeatures)) {
+        return schema;
+    }
+
+    const featureKey = [...featureSet].sort().join(",");
+    let schemaBucket = configuredSchemaCache.get(schema);
+    if (schemaBucket === undefined) {
+        schemaBucket = {};
+        configuredSchemaCache.set(schema, schemaBucket);
+    } else if (featureKey in schemaBucket) {
+        return schemaBucket[featureKey];
+    }
+
+    schema = schema.clone();
+    schema.supportedFeatures = featureSet;
+    schemaBucket[featureKey] = schema;
+
+    return schema;
+}
+
+/**
+ * Compute the feature flags object from a schema's supported features.
+ */
+function computeFeatureFlags(schema: ClusterModel): Record<string, boolean> {
+    const flags: Record<string, boolean> = {};
+    for (const child of schema.featureMap.children) {
+        const key = camelize(child.title ?? child.name);
+        flags[key] = schema.supportedFeatures.has(child.name);
+    }
+    return flags;
+}
+
 const sourceFactory = Symbol("source-factory");
 
 interface MarkedCommand {
@@ -462,13 +544,13 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
     // compatible with the "client" clusters.  Commands that are nonconformant will not appear in the type and if
     // somehow invoked will result in an "unimplemented" error
     const names = new Set(
-        scope.membersOf(scope.owner, { tags: [ElementTag.Command] }).map(command => camelize(command.name)),
+        scope.membersOf(scope.owner, { tags: [ElementTag.Command] }).map(command => command.propertyName),
     );
 
     const conformantNames = new Set(
         scope
             .membersOf(scope.owner, { tags: [ElementTag.Command], conformance: "conformant" })
-            .map(command => camelize(command.name)),
+            .map(command => command.propertyName),
     );
 
     for (const name of names) {

@@ -5,7 +5,17 @@
  */
 
 import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { Bytes, DataReader, Diagnostic, Duration, Endian, Millis, Seconds, UnexpectedDataError } from "@matter/general";
+import {
+    Bytes,
+    DataReader,
+    DataWriter,
+    Diagnostic,
+    Duration,
+    Endian,
+    Millis,
+    Seconds,
+    UnexpectedDataError,
+} from "@matter/general";
 import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema, VendorId } from "@matter/types";
 import { Message } from "../codec/MessageCodec.js";
 import { ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";
@@ -34,8 +44,8 @@ export class ChannelStatusResponseError extends TransientPeerCommunicationError 
     }
 }
 
-/** This value is used by chip SDK when performance wise heavy crypto operations are expected. */
-export const EXPECTED_CRYPTO_PROCESSING_TIME = Seconds(30);
+/** Chip SDK uses this value when performance wise heavy crypto operations are expected. */
+export const EXPECTED_CRYPTO_PROCESSING_TIME = Seconds(35);
 
 /** This value is used by chip SDK when normal processing time is expected. */
 export const DEFAULT_NORMAL_PROCESSING_TIME = Seconds(2);
@@ -85,7 +95,7 @@ export class SecureChannelMessenger {
     /**
      * Waits for the next message and decodes it.
      *
-     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME_MS is used.
+     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME is used.
      */
     async nextMessageDecoded<T>(schema: TlvSchema<T>, options?: SecureChannelMessenger.ReadOptions) {
         return schema.decode((await this.nextMessage(options)).payload);
@@ -94,7 +104,7 @@ export class SecureChannelMessenger {
     /**
      * Waits for the next message and returns it.
      *
-     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME_MS is used.
+     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME is used.
      */
     async waitForSuccess(options?: Omit<SecureChannelMessenger.ReadOptions, "type">) {
         // If the status is not Success, this would throw an Error.
@@ -108,7 +118,7 @@ export class SecureChannelMessenger {
      * Sends a message of the given type with the given payload.
      *
      * If no ExchangeSendOptions are provided, the expectedProcessingTimeMs will be set to
-     * EXPECTED_CRYPTO_PROCESSING_TIME_MS.
+     * EXPECTED_CRYPTO_PROCESSING_TIME.
      */
     async send<T>(message: T, type: number, schema: TlvSchema<T>, options?: ExchangeSendOptions) {
         options = {
@@ -126,6 +136,21 @@ export class SecureChannelMessenger {
 
     sendSuccess(abort?: AbortSignal) {
         return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.Success, abort);
+    }
+
+    sendBusy(minimumRetryInterval: Duration, abort?: AbortSignal) {
+        if (minimumRetryInterval <= 0) {
+            throw new Error("Busy minimum retry interval must be greater than 0ms");
+        }
+        const writer = new DataWriter(Endian.Little);
+        writer.writeUInt16(Math.min(minimumRetryInterval, 0xffff));
+        return this.#sendStatusReport(
+            GeneralStatusCode.Busy,
+            SecureChannelStatusCode.Busy,
+            abort,
+            undefined,
+            writer.toByteArray(),
+        );
     }
 
     sendCloseSession(abort?: AbortSignal) {
@@ -149,12 +174,14 @@ export class SecureChannelMessenger {
         protocolStatus: SecureChannelStatusCode,
         abort?: AbortSignal,
         requiresAck?: boolean,
+        protocolData?: Bytes,
     ) {
         await this.exchange.send(
             SecureMessageType.StatusReport,
             SecureChannelStatusMessage.encode({
                 generalStatus,
                 protocolStatus,
+                protocolData,
             }),
             {
                 requiresAck,

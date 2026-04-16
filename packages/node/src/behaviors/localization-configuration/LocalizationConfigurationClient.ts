@@ -10,7 +10,7 @@ import { LocalizationConfiguration } from "@matter/types/clusters/localization-c
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const LocalizationConfigurationClientConstructor = ClientBehavior(LocalizationConfiguration.Complete);
+export const LocalizationConfigurationClientConstructor = ClientBehavior(LocalizationConfiguration);
 export interface LocalizationConfigurationClient extends InstanceType<typeof LocalizationConfigurationClientConstructor> {}
 export interface LocalizationConfigurationClientConstructor extends Identity<typeof LocalizationConfigurationClientConstructor> {}
 export const LocalizationConfigurationClient: LocalizationConfigurationClientConstructor = LocalizationConfigurationClientConstructor;

@@ -29,7 +29,7 @@ import { DEFAULT_PASSCODE_ID, PaseServerMessenger, SPAKE_CONTEXT } from "./PaseM
 
 const logger = Logger.get("PaseServer");
 
-const PASE_PAIRING_TIMEOUT_MS = Seconds(60);
+const PASE_PAIRING_TIMEOUT = Seconds(60);
 const PASE_COMMISSIONING_MAX_ERRORS = 20;
 
 export class MaximumPasePairingErrorsReachedError extends MatterFlowError {}
@@ -108,6 +108,8 @@ export class PaseServer implements ProtocolHandler {
                     );
                 }
             } finally {
+                this.#pairingTimer?.stop();
+                this.#pairingTimer = undefined;
                 this.#pairingMessenger = undefined;
                 // Detach and Destroy the unsecure session used to establish the Pase session
                 exchange.session.detachChannel();
@@ -121,7 +123,7 @@ export class PaseServer implements ProtocolHandler {
 
         logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
-        this.#pairingTimer = Time.getTimer("PASE pairing timeout", PASE_PAIRING_TIMEOUT_MS, () =>
+        this.#pairingTimer = Time.getTimer("PASE pairing timeout", PASE_PAIRING_TIMEOUT, () =>
             this.cancelPairing(messenger),
         ).start();
 
@@ -197,15 +199,9 @@ export class PaseServer implements ProtocolHandler {
 
         await messenger.sendSuccess();
         await messenger.close();
-
-        this.#pairingTimer?.stop();
-        this.#pairingTimer = undefined;
     }
 
     async cancelPairing(messenger: PaseServerMessenger, sendError = true) {
-        this.#pairingTimer?.stop();
-        this.#pairingTimer = undefined;
-
         if (sendError) {
             await messenger.sendError(SecureChannelStatusCode.InvalidParam);
         }

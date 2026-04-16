@@ -209,7 +209,7 @@ LocalMatter.children.push({
                     constraint: "desc",
                     children: [{ tag: "field", name: "entry", type: "endpoint-no" }],
                 },
-                { tag: "field", id: 0x2, name: "KeySetId", type: "uint16", conformance: "M" },
+                { tag: "field", id: 0x2, name: "KeySetId", type: "uint16", conformance: "M", constraint: "min 1" },
                 { tag: "field", id: 0x3, name: "Key", type: "octstr", conformance: "O", constraint: "16" },
                 { tag: "field", id: 0x4, name: "UseAuxiliaryAcl", type: "bool", conformance: "[LN]" },
                 { tag: "field", id: 0x5, name: "ReplaceEndpoints", type: "bool", conformance: "[LN]" },
@@ -275,7 +275,7 @@ LocalMatter.children.push({
             response: "status",
             children: [
                 { tag: "field", id: 0x0, name: "GroupId", type: "group-id", conformance: "M", constraint: "min 1" },
-                { tag: "field", id: 0x1, name: "KeySetId", type: "uint16", conformance: "M" },
+                { tag: "field", id: 0x1, name: "KeySetId", type: "uint16", conformance: "M", constraint: "min 1" },
                 { tag: "field", id: 0x2, name: "Key", type: "octstr", conformance: "O", constraint: "16" },
             ],
         },

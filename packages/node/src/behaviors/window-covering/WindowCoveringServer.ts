@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "@matter/general";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { WindowCoveringBehavior } from "./WindowCoveringBehavior.js";
 
@@ -106,7 +106,7 @@ const WC_PERCENT100THS_COEFFICIENT = 100;
  */
 export class WindowCoveringBaseServer extends WindowCoveringBase {
     declare protected internal: WindowCoveringBaseServer.Internal;
-    declare state: WindowCoveringBaseServer.State;
+    declare readonly state: WindowCoveringBaseServer.State;
 
     override initialize(): MaybePromise {
         // Initialize Internal state from the Mode attribute and keep in sync
@@ -159,7 +159,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
     /**
      * Sync the mode attribute with the configStatus attribute and the internal state.
      */
-    #handleModeChanging(mode: TypeFromPartialBitSchema<typeof WindowCovering.Mode>) {
+    #handleModeChanging(mode: WindowCovering.Mode) {
         // According to chip implementation maintenance mode has priority over calibration mode
         if (mode.maintenanceMode && mode.calibrationMode) {
             mode.calibrationMode = false;
@@ -198,9 +198,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
     }
 
     /** Update the global operational status based on the lift or tilt status. */
-    #handleOperationalStatusChanging(
-        operationalStatus: TypeFromPartialBitSchema<typeof WindowCovering.OperationalStatus>,
-    ) {
+    #handleOperationalStatusChanging(operationalStatus: WindowCovering.OperationalStatus) {
         // Global tracks lift if moving otherwise it follows tilt
         const globalStatus =
             operationalStatus.lift !== WindowCovering.MovementStatus.Stopped
@@ -650,4 +648,4 @@ export namespace WindowCoveringBaseServer {
     };
 }
 
-export class WindowCoveringServer extends WindowCoveringBaseServer.for(ClusterType(WindowCovering.Base)) {}
+export class WindowCoveringServer extends WindowCoveringBaseServer.for(WindowCovering) {}

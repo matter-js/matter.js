@@ -10,7 +10,7 @@ import { WaterHeaterMode } from "@matter/types/clusters/water-heater-mode";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const WaterHeaterModeClientConstructor = ClientBehavior(WaterHeaterMode.Complete);
+export const WaterHeaterModeClientConstructor = ClientBehavior(WaterHeaterMode);
 export interface WaterHeaterModeClient extends InstanceType<typeof WaterHeaterModeClientConstructor> {}
 export interface WaterHeaterModeClientConstructor extends Identity<typeof WaterHeaterModeClientConstructor> {}
 export const WaterHeaterModeClient: WaterHeaterModeClientConstructor = WaterHeaterModeClientConstructor;

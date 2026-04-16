@@ -9,6 +9,7 @@ import { Branded, Crypto, hex, UnexpectedDataError } from "@matter/general";
 import { TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
 import { CaseAuthenticatedTag } from "./CaseAuthenticatedTag.js";
+import type { SubjectId } from "./SubjectId.js";
 
 /**
  * A Node Identifier (Node ID) is a 64-bit number that uniquely identifies an individual Node or a
@@ -53,7 +54,7 @@ export namespace NodeId {
     /**
      * Returns whether the given Node ID is an Operational Node ID.
      */
-    export const isOperationalNodeId = (nodeId: NodeId): boolean => {
+    export const isOperationalNodeId = (nodeId: SubjectId): nodeId is NodeId => {
         return nodeId >= OPERATIONAL_NODE_MIN && nodeId <= OPERATIONAL_NODE_MAX;
     };
 
@@ -85,12 +86,12 @@ export namespace NodeId {
         return NodeId(BigInt("0xFFFFFFFD" + hex.fixed(id, 8)));
     };
 
-    export const isCaseAuthenticatedTag = (nodeId: NodeId): boolean => {
+    export const isCaseAuthenticatedTag = (nodeId: SubjectId): nodeId is SubjectId => {
         const nodeIdHex = nodeId.toString(16);
         return nodeIdHex.startsWith("fffffffd") && nodeIdHex.length === 16;
     };
 
-    export const extractAsCaseAuthenticatedTag = (nodeId: NodeId): CaseAuthenticatedTag => {
+    export const extractAsCaseAuthenticatedTag = (nodeId: SubjectId): CaseAuthenticatedTag => {
         if (!isCaseAuthenticatedTag(nodeId)) {
             throw new UnexpectedDataError(`Invalid CASE Authenticated tag: ${nodeId}`);
         }

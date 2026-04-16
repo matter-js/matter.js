@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { deepCopy, ImplementationError, Logger } from "@matter/general";
-import { DatatypeModel, FieldElement } from "@matter/model";
+import { FieldElement } from "@matter/model";
 import {
     assertRemoteActor,
     Fabric,
@@ -26,7 +26,7 @@ const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 const GroupKeyManagementBase = GroupKeyManagementBehavior.with("Groupcast");
 
 // Enhance the schema by a fabric scoped structure for the GroupKeySetStruct to enable persistence
-const groupKeySetStruct = GroupKeyManagementBase.schema.get(DatatypeModel, "GroupKeySetStruct")!;
+const groupKeySetStruct = GroupKeyManagementBase.schema.datatypes.require("GroupKeySetStruct");
 const groupKeySetStructFS = groupKeySetStruct.extend(
     {
         name: "GroupKeySetStructFS",
@@ -52,7 +52,7 @@ const schema = GroupKeyManagementBase.schema.extend(
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
  */
 export class GroupKeyManagementServer extends GroupKeyManagementBase {
-    declare state: GroupKeyManagementServer.State;
+    declare readonly state: GroupKeyManagementServer.State;
     static override readonly schema = schema;
 
     override initialize() {
@@ -165,7 +165,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
     }
 
     #validateGroupKeyMap(groupKeyMap: GroupKeyManagement.GroupKeyMap[]) {
-        // When GCAST is active and the fabric has adopted Groupcast, GroupKeyMap is read-only
+        /* Provisional in Matter 1.6.0: GroupcastAdoption read-only enforcement deferred.
+         * When GCAST is active and the fabric has adopted Groupcast, GroupKeyMap would be read-only.
+         *
         if (this.features.groupcast && hasRemoteActor(this.context)) {
             const fabricIndex = this.context.session?.fabric?.fabricIndex;
             if (fabricIndex !== undefined && this.#isGroupcastAdoptedForFabric(fabricIndex)) {
@@ -175,6 +177,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                 );
             }
         }
+        */
 
         const knownGroupKeys = new Set<string>();
         for (const keySetId of this.state.groupKeySets) {
@@ -437,8 +440,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
 
         // If there exist any entries for the accessing fabric within the GroupKeyMap attribute that refer to the
         // GroupKeySetID just removed, then these entries SHALL be removed from that list.
-        const groupKeyMap = deepCopy(this.state.groupKeyMap);
-        this.state.groupKeyMap = groupKeyMap.filter(({ groupKeySetId: entryId }) => groupKeySetId !== entryId);
+        this.state.groupKeyMap = this.state.groupKeyMap.filter(
+            ({ groupKeySetId: entryId }) => groupKeySetId !== entryId,
+        );
 
         // Sync to Fabric group manager to remove too
         await fabric.groups.removeGroupKeySet(groupKeySetId);
@@ -530,19 +534,16 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         return existing;
     }
 
-    /**
-     * Check whether the accessing fabric has adopted Groupcast (GroupcastAdopted=true in GroupcastAdoption).
-     * When true, GroupKeyMap is auto-managed by the Groupcast cluster and must not be written externally.
-     */
+    /* Provisional in Matter 1.6.0: GroupcastAdoption feature deferred.
+     *
     #isGroupcastAdoptedForFabric(fabricIndex: FabricIndex): boolean {
-        if (!this.features.groupcast) {
-            return false;
-        }
-        if (!this.state.groupcastAdoption) {
-            return false;
-        }
-        return this.state.groupcastAdoption.some(entry => entry.fabricIndex === fabricIndex && entry.groupcastAdopted);
+        if (!this.features.groupcast) return false;
+        if (!this.state.groupcastAdoption) return false;
+        return this.state.groupcastAdoption.some(
+            entry => entry.fabricIndex === fabricIndex && entry.groupcastAdopted,
+        );
     }
+    */
 
     /**
      * Returns whether a GroupKeySetId exists for a given fabric. Called by GroupcastServer to validate KeySetIDs.
@@ -589,13 +590,10 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         return fabric.groups.setFromGroupKeySet(groupKeySet);
     }
 
-    /**
-     * Sets GroupcastAdopted flag for a fabric. Called by GroupcastServer after data migration is complete.
-     */
+    /* Provisional in Matter 1.6.0: setGroupcastAdopted deferred.
+     *
     setGroupcastAdopted(fabricIndex: FabricIndex, adopted: boolean) {
-        if (!this.state.groupcastAdoption) {
-            return;
-        }
+        if (!this.state.groupcastAdoption) return;
         const existing = this.state.groupcastAdoption.findIndex(e => e.fabricIndex === fabricIndex);
         if (existing !== -1) {
             this.state.groupcastAdoption[existing] = {
@@ -606,6 +604,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             this.state.groupcastAdoption.push({ fabricIndex, groupcastAdopted: adopted });
         }
     }
+    */
 }
 
 export namespace GroupKeyManagementServer {

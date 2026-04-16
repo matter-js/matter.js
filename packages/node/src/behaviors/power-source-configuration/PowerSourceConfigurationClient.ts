@@ -10,7 +10,7 @@ import { PowerSourceConfiguration } from "@matter/types/clusters/power-source-co
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const PowerSourceConfigurationClientConstructor = ClientBehavior(PowerSourceConfiguration.Complete);
+export const PowerSourceConfigurationClientConstructor = ClientBehavior(PowerSourceConfiguration);
 export interface PowerSourceConfigurationClient extends InstanceType<typeof PowerSourceConfigurationClientConstructor> {}
 export interface PowerSourceConfigurationClientConstructor extends Identity<typeof PowerSourceConfigurationClientConstructor> {}
 export const PowerSourceConfigurationClient: PowerSourceConfigurationClientConstructor = PowerSourceConfigurationClientConstructor;

@@ -8,7 +8,6 @@
 
 import { ContentControl } from "@matter/types/clusters/content-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ContentControlInterface } from "./ContentControlInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ContentControl.Cluster enabled. You can enable additional features
  * using ContentControlBehavior.with.
  */
-export const ContentControlBehaviorConstructor = ClusterBehavior
-    .withInterface<ContentControlInterface>()
-    .for(ContentControl.Cluster);
+export const ContentControlBehaviorConstructor = ClusterBehavior.for(ContentControl);
 
 export interface ContentControlBehaviorConstructor extends Identity<typeof ContentControlBehaviorConstructor> {}
 export const ContentControlBehavior: ContentControlBehaviorConstructor = ContentControlBehaviorConstructor;

@@ -11,6 +11,7 @@ import { IdentityService } from "#node/server/IdentityService.js";
 import {
     ConnectionlessTransportSet,
     Crypto,
+    DnsRecordType,
     ImplementationError,
     Logger,
     SharedEnvironmentServices,
@@ -18,20 +19,18 @@ import {
 import {
     Ble,
     ClientSubscriptions,
+    CommissionableMdnsScanner,
     Fabric,
     FabricAuthority,
     FabricAuthorityConfiguration,
     FabricManager,
-    MdnsClient,
-    MdnsScannerTargetCriteria,
     MdnsService,
     PeerAddress,
     PeerSet,
-    Scanner,
     ScannerSet,
+    getFabricQname,
 } from "@matter/protocol";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
-import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
 import { ActiveDiscoveries } from "./discovery/ActiveDiscoveries.js";
@@ -51,7 +50,7 @@ export class ControllerBehavior extends Behavior {
     static override readonly id = "controller";
 
     declare internal: ControllerBehavior.Internal;
-    declare state: ControllerBehavior.State;
+    declare readonly state: ControllerBehavior.State;
 
     override async initialize() {
         if (this.state.adminFabricLabel === undefined || this.state.adminFabricLabel === "") {
@@ -66,7 +65,7 @@ export class ControllerBehavior extends Behavior {
         }
         if (this.state.ip !== false) {
             this.internal.services = this.env.asDependent();
-            this.env.get(ScannerSet).add((await this.internal.services.load(MdnsService)).client);
+            await this.internal.services.load(MdnsService);
         }
 
         if (this.state.ble === undefined) {
@@ -82,14 +81,14 @@ export class ControllerBehavior extends Behavior {
         }
 
         // Ensure the fabric authority is fully initialized
-        await this.env.load(FabricAuthority);
+        const authority = await this.env.load(FabricAuthority);
 
         // "Automatic" controller mode - disable commissioning if node is not otherwise configured as a commissionable
         // device
         const commissioning = this.agent.get(CommissioningServer);
         if (commissioning.state.enabled === undefined) {
             const totalFabrics = this.env.get(FabricManager).length;
-            const controlledFabrics = this.env.get(FabricAuthority).fabrics.length;
+            const controlledFabrics = authority.fabrics.length;
             if (controlledFabrics === totalFabrics) {
                 commissioning.state.enabled = false;
             }
@@ -101,11 +100,19 @@ export class ControllerBehavior extends Behavior {
         }
         this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
 
-        // Mark addresses in use (or not) based on known peers
+        // Mark addresses in use (or not) based on known peers and the controller's own addresses
         const identity = this.env.get(IdentityService);
         const peers = this.env.get(PeerSet);
         this.reactTo(peers.added, peer => identity.reservePeerAddress(peer.address));
         this.reactTo(peers.deleted, peer => identity.releasePeerAddress(peer.address));
+
+        // Reserve the controller's own node ID in each fabric to prevent assigning it to a peer
+        for (const fabric of authority.fabrics) {
+            identity.reservePeerAddress(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: fabric.nodeId }));
+        }
+        this.reactTo(authority.fabricAdded, fabric =>
+            identity.reservePeerAddress(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: fabric.nodeId })),
+        );
     }
 
     /**
@@ -162,6 +169,7 @@ export class ControllerBehavior extends Behavior {
 
     override async [Symbol.asyncDispose]() {
         await this.env.close(ActiveDiscoveries);
+        await this.internal.scanner?.close();
         this.env.delete(FabricAuthority);
         this.env.delete(ScannerSet);
         await this.internal.services?.close();
@@ -176,6 +184,13 @@ export class ControllerBehavior extends Behavior {
     }
 
     async #nodeOnline() {
+        // Create the mDNS scanner now that the node is online and discovery is meaningful
+        if (this.state.ip !== false && this.internal.scanner === undefined) {
+            const mdns = this.env.get(MdnsService);
+            this.internal.scanner = new CommissionableMdnsScanner(mdns.names);
+            this.env.get(ScannerSet).add(this.internal.scanner);
+        }
+
         // Configure network connections
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
@@ -192,28 +207,10 @@ export class ControllerBehavior extends Behavior {
             this.#enableScanningForFabric(fabric);
         }
         this.reactTo(authority.fabricAdded, this.#enableScanningForFabric);
-
-        // Configure each MDNS scanner with criteria
-        const scanners = this.env.get(ScannerSet);
-        for (const scanner of scanners) {
-            this.#enableScanningForScanner(scanner);
-        }
-        this.reactTo(scanners.added, this.#enableScanningForScanner);
     }
 
     async #nodeGoingOffline() {
         await this.env.close(ClientSubscriptions);
-
-        // Configure each MDNS scanner with criteria
-        const scanners = this.env.get(ScannerSet);
-        for (const scanner of scanners) {
-            if (scanner instanceof MdnsClient) {
-                scanner.targetCriteriaProviders.delete(this.internal.mdnsTargetCriteria);
-            }
-        }
-
-        // Clear operational targets
-        this.internal.mdnsTargetCriteria.operationalTargets.length = 0;
 
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
@@ -222,28 +219,22 @@ export class ControllerBehavior extends Behavior {
     }
 
     #enableScanningForFabric(fabric: Fabric) {
-        this.internal.mdnsTargetCriteria.operationalTargets.push({ fabricId: fabric.globalId });
-    }
-
-    #enableScanningForScanner(scanner: Scanner) {
-        if (!(scanner instanceof MdnsClient)) {
-            return;
+        // Send a one-time wildcard query via DnssdNames so existing operational nodes on this fabric respond and
+        // populate IpService for known peers
+        if (this.internal.services) {
+            const names = this.env.get(MdnsService).names;
+            names.solicitor.solicit({
+                name: names.get(getFabricQname(fabric.globalId)),
+                recordTypes: [DnsRecordType.PTR],
+            });
         }
-        scanner.targetCriteriaProviders.add(this.internal.mdnsTargetCriteria);
     }
 }
 
 export namespace ControllerBehavior {
     export class Internal {
-        /**
-         * MDNS scanner criteria for each controlled fabric (keyed by operational ID).
-         */
-        mdnsTargetCriteria: MdnsScannerTargetCriteria = {
-            commissionable: true,
-            operationalTargets: [],
-        };
-
         services?: SharedEnvironmentServices;
+        scanner?: CommissionableMdnsScanner;
     }
 
     export class State {

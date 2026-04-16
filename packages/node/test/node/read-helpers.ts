@@ -37,6 +37,22 @@ export async function readAttrRaw(node: MockServerNode, data: Partial<Read.Attri
     });
 }
 
+/**
+ * Wildcard read preserving TLV schemas (unlike readAttrRaw which clears them).
+ */
+export async function readAllAttrs(node: MockServerNode) {
+    const request: Read.Attributes = {
+        isFabricFiltered: false,
+        interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+        attributeRequests: [{}],
+    };
+    return node.online({ accessLevel: AccessLevel.Administer }, ({ context }) => {
+        const response = new AttributeReadResponse(node.protocol, context);
+        const data = [...response.process(request)];
+        return { data, counts: response.counts };
+    });
+}
+
 export function countAttrs(chunks: ReadResult.Chunk[]) {
     const counts = {} as Record<EndpointNumber, Record<ClusterId, number>>;
     for (const chunk of chunks) {

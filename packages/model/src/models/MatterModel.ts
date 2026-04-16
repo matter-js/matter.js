@@ -7,6 +7,7 @@
 import { ElementTag } from "#common/ElementTag.js";
 import { Specification } from "#common/Specification.js";
 import { MatterElement } from "../elements/index.js";
+import type { ModelIndex } from "../logic/ModelIndex.js";
 import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { AttributeModel } from "./AttributeModel.js";
 import type { InternalChildren } from "./Children.js";
@@ -42,14 +43,14 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * Clusters.
      */
     get clusters() {
-        return this.all(ClusterModel);
+        return this.scope.membersOf(this, { tags: [ElementTag.Cluster] }) as ModelIndex<ClusterModel>;
     }
 
     /**
      * Device types.
      */
     get deviceTypes() {
-        return this.all(DeviceTypeModel);
+        return this.scope.membersOf(this, { tags: [ElementTag.DeviceType] }) as ModelIndex<DeviceTypeModel>;
     }
 
     /**
@@ -63,14 +64,21 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * Global datatypes.
      */
     get datatypes() {
-        return this.all(FieldModel);
+        return this.scope.membersOf(this, { tags: [ElementTag.Datatype] }) as ModelIndex<DatatypeModel>;
+    }
+
+    /**
+     * Global fields.
+     */
+    get fields() {
+        return this.scope.membersOf(this, { tags: [ElementTag.Field] }) as ModelIndex<FieldModel>;
     }
 
     /**
      * Global attributes.
      */
     get attributes() {
-        return this.all(AttributeModel);
+        return this.scope.membersOf(this, { tags: [ElementTag.Attribute] }) as ModelIndex<AttributeModel>;
     }
 
     /**

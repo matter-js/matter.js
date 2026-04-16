@@ -29,9 +29,6 @@ import { subscribedPeer } from "./node-helpers.js";
 describe("ClientConnectivityTest", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("throws error if node cannot be reached", async () => {
@@ -397,6 +394,136 @@ describe("ClientConnectivityTest", () => {
         await MockTime.resolve(toggled);
 
         expect(ep1.stateOf(OnOffClient).onOff).true;
+    });
+
+    it("resubscribes after extended offline period", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const ep1 = peer1.parts.get("ep1")!;
+
+        // *** INITIAL SUBSCRIPTION ***
+
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        expect(subscription).not.undefined;
+        const initialSubscriptionId = subscription.subscriptionId;
+        expect(initialSubscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
+
+        SustainedSubscription.assert(subscription);
+        expect(subscription.active.value).equals(true);
+
+        // *** DEVICE GOES OFFLINE ***
+
+        await MockTime.resolve(device.stop());
+
+        // Wait for subscription to timeout
+        await MockTime.resolve(subscription.inactive);
+        expect(subscription.subscriptionId).equals(ClientSubscription.NO_SUBSCRIPTION);
+
+        // *** EXTENDED OFFLINE — advance well past the default 90s connection timeout ***
+
+        await MockTime.resolve(Time.sleep("extended offline", Minutes(5)));
+
+        // *** DEVICE COMES BACK ***
+
+        const crypto = device.env.get(Crypto) as MockCrypto;
+        crypto.entropic = true;
+
+        await MockTime.resolve(device.start());
+
+        // Wait for subscription to re-establish — bootstrap reads must use an indefinite
+        // connection timeout so reconnection succeeds regardless of how long the device was offline
+        await MockTime.resolve(subscription.active);
+        crypto.entropic = false;
+
+        // Verify new subscription was established
+        expect(subscription.subscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
+        expect(subscription.subscriptionId).not.equals(initialSubscriptionId);
+
+        // *** CONFIRM SUBSCRIPTION FUNCTIONS ***
+
+        expect(ep1.stateOf(OnOffClient).onOff).false;
+        const toggled = new Promise(resolve => {
+            ep1.eventsOf(OnOffClient).onOff$Changed.once(resolve);
+        });
+
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+        await MockTime.resolve(toggled);
+
+        expect(ep1.stateOf(OnOffClient).onOff).true;
+    });
+
+    it("closes cleanly during sustained subscription reconnection", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+
+        // *** INITIAL SUBSCRIPTION ***
+
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        expect(subscription).not.undefined;
+
+        SustainedSubscription.assert(subscription);
+        expect(subscription.active.value).equals(true);
+
+        // *** DEVICE GOES OFFLINE ***
+
+        await MockTime.resolve(device.stop());
+
+        // Wait for subscription to timeout, which triggers the retry loop
+        await MockTime.resolve(subscription.inactive);
+
+        // Enable entropy for new connection attempts
+        (device.env.get(Crypto) as MockCrypto).entropic = true;
+
+        // Let the retry loop's probe read start (initiating Peer.connect())
+        await MockTime.yield();
+
+        // *** CLOSE CONTROLLER WHILE CONNECTION IS IN PROGRESS ***
+
+        let errorsLogged = 0;
+        try {
+            Logger.destinations.capture = LogDestination({
+                add(message) {
+                    if (message.level >= LogLevel.ERROR) {
+                        errorsLogged++;
+                    }
+                },
+            });
+
+            await MockTime.resolve(controller.stop());
+        } finally {
+            delete Logger.destinations.capture;
+        }
+
+        // In-progress reconnection attempts must be abortable so that closing the controller
+        // cancels them cleanly rather than timing out with PeerUnreachableError
+        expect(errorsLogged).equals(0);
+    });
+
+    it("does not crash on restart when uncommissioned peer exists", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        // Stop the controller so we can manipulate peer state before restart
+        await MockTime.resolve(controller.stop());
+
+        // Simulate a peer that lost its commissioning (e.g. device factory reset) by clearing
+        // peerAddress while the node still exists in storage
+        const peer = controller.peers.get("peer1")!;
+        await peer.act(agent => {
+            agent.commissioning.state.peerAddress = undefined;
+        });
+        expect(peer.lifecycle.isCommissioned).false;
+
+        // Restart the controller — the uncommissioned peer should be silently skipped
+        await controller.start();
+
+        expect(peer.lifecycle.isCommissioned).false;
     });
 
     it("shuts down without errors whilst establishing exchange", async () => {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppAddress, ImplementationError, MqttEndpoint, MqttEndpointFactory, StorageService } from "@matter/general";
+import { AppAddress, ImplementationError, MqttEndpoint, MqttEndpointFactory } from "@matter/general";
 import { connectAsync, IClientOptions } from "mqtt";
 import { MqttJsEndpoint } from "./MqttJsEndpoint.js";
 import { MqttJsMessage } from "./MqttJsMessage.js";
@@ -45,10 +45,6 @@ export class MqttJsEndpointFactory extends MqttEndpointFactory {
                 opts.protocol += "+unix";
                 opts.unixSocket = true;
                 opts.path = decodeURIComponent(addr.hostname);
-                const storage = options.environment?.get(StorageService);
-                if (storage) {
-                    opts.path = storage.resolve(opts.path);
-                }
                 break;
 
             default:

@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./WindowCoveringInterface.js";
 export * from "./WindowCoveringBehavior.js";
 export * from "./WindowCoveringServer.js";
 export * from "./WindowCoveringClient.js";

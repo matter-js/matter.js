@@ -10,7 +10,6 @@ import {
     TotalVolatileOrganicCompoundsConcentrationMeasurement
 } from "@matter/types/clusters/total-volatile-organic-compounds-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -21,7 +20,7 @@ import { Identity } from "@matter/general";
  * You can do so using {@link TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior.with}.
  */
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(TotalVolatileOrganicCompoundsConcentrationMeasurement.Base));
+    .for(TotalVolatileOrganicCompoundsConcentrationMeasurement);
 
 export interface TotalVolatileOrganicCompoundsConcentrationMeasurementBehaviorConstructor extends Identity<typeof TotalVolatileOrganicCompoundsConcentrationMeasurementBehaviorConstructor> {}
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior: TotalVolatileOrganicCompoundsConcentrationMeasurementBehaviorConstructor = TotalVolatileOrganicCompoundsConcentrationMeasurementBehaviorConstructor;

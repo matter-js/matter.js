@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * AirQualityBehavior is the base class for objects that support interaction with {@link AirQuality.Cluster}.
  */
-export const AirQualityBehaviorConstructor = ClusterBehavior.for(AirQuality.Cluster);
+export const AirQualityBehaviorConstructor = ClusterBehavior.for(AirQuality);
 
 export interface AirQualityBehaviorConstructor extends Identity<typeof AirQualityBehaviorConstructor> {}
 export const AirQualityBehavior: AirQualityBehaviorConstructor = AirQualityBehaviorConstructor;

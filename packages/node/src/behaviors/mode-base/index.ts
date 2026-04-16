@@ -4,5 +4,4 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./ModeBaseInterface.js";
 export * from "./ModeUtils.js";

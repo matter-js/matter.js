@@ -5,5 +5,3 @@
  */
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
-
-export * from "./ResourceMonitoringInterface.js";

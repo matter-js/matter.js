@@ -10,6 +10,7 @@ import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.js";
 import type { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointVariableService } from "#endpoint/EndpointVariableService.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
@@ -24,6 +25,7 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     constructor(environment: Environment) {
         super();
         this.#store = environment.get(ServerNodeStore);
+        this.variableService = new EndpointVariableService(environment);
     }
 
     override initializeDescendant(endpoint: Endpoint) {

@@ -10,7 +10,7 @@ import { JointFabricAdministrator } from "@matter/types/clusters/joint-fabric-ad
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const JointFabricAdministratorClientConstructor = ClientBehavior(JointFabricAdministrator.Complete);
+export const JointFabricAdministratorClientConstructor = ClientBehavior(JointFabricAdministrator);
 export interface JointFabricAdministratorClient extends InstanceType<typeof JointFabricAdministratorClientConstructor> {}
 export interface JointFabricAdministratorClientConstructor extends Identity<typeof JointFabricAdministratorClientConstructor> {}
 export const JointFabricAdministratorClient: JointFabricAdministratorClientConstructor = JointFabricAdministratorClientConstructor;

@@ -11,7 +11,7 @@ import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
 export const CarbonMonoxideConcentrationMeasurementClientConstructor = ClientBehavior(
-    CarbonMonoxideConcentrationMeasurement.Complete
+    CarbonMonoxideConcentrationMeasurement
 );
 export interface CarbonMonoxideConcentrationMeasurementClient extends InstanceType<typeof CarbonMonoxideConcentrationMeasurementClientConstructor> {}
 export interface CarbonMonoxideConcentrationMeasurementClientConstructor extends Identity<typeof CarbonMonoxideConcentrationMeasurementClientConstructor> {}

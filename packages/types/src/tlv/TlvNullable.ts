@@ -44,6 +44,25 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
         this.schema = schema;
     }
 
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element | undefined {
+        const inner = this.schema.element;
+        if (inner === undefined) {
+            return undefined;
+        }
+
+        const quality =
+            inner.quality === undefined
+                ? "X"
+                : typeof inner.quality === "string"
+                  ? inner.quality.includes("X")
+                      ? inner.quality
+                      : `${inner.quality} X`
+                  : inner.quality;
+
+        return { ...inner, quality };
+    }
+
     override encodeTlvInternal(writer: TlvWriter, value: T | null, tag?: TlvTag, options?: TlvEncodingOptions): void {
         if (value === null) {
             writer.writeTag({ type: TlvType.Null }, tag);
@@ -96,5 +115,14 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
     }
 }
 
+const nullableCache = new WeakMap<TlvSchema<any>, NullableSchema<any>>();
+
 /** Nullable TLV schema. */
-export const TlvNullable = <T>(schema: TlvSchema<T>) => new NullableSchema(schema);
+export const TlvNullable = <T>(schema: TlvSchema<T>): NullableSchema<T> => {
+    let result = nullableCache.get(schema) as NullableSchema<T> | undefined;
+    if (result === undefined) {
+        result = new NullableSchema(schema);
+        nullableCache.set(schema, result);
+    }
+    return result;
+};

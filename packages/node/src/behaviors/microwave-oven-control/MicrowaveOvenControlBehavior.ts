@@ -8,8 +8,6 @@
 
 import { MicrowaveOvenControl } from "@matter/types/clusters/microwave-oven-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { MicrowaveOvenControlInterface } from "./MicrowaveOvenControlInterface.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -19,9 +17,7 @@ import { Identity } from "@matter/general";
  * MicrowaveOvenControl.Cluster requires you to enable one or more optional features. You can do so using
  * {@link MicrowaveOvenControlBehavior.with}.
  */
-export const MicrowaveOvenControlBehaviorConstructor = ClusterBehavior
-    .withInterface<MicrowaveOvenControlInterface>()
-    .for(ClusterType(MicrowaveOvenControl.Base));
+export const MicrowaveOvenControlBehaviorConstructor = ClusterBehavior.for(MicrowaveOvenControl);
 
 export interface MicrowaveOvenControlBehaviorConstructor extends Identity<typeof MicrowaveOvenControlBehaviorConstructor> {}
 export const MicrowaveOvenControlBehavior: MicrowaveOvenControlBehaviorConstructor = MicrowaveOvenControlBehaviorConstructor;

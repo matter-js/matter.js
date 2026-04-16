@@ -8,7 +8,7 @@ import { DnsMessageType, DnsQuery, DnsRecord, DnsRecordClass, DnsRecordType } fr
 import { Logger } from "#log/Logger.js";
 import { RetrySchedule } from "#net/RetrySchedule.js";
 import { Time } from "#time/Time.js";
-import { Hours, Millis, Seconds } from "#time/TimeUnit.js";
+import { Hours, Seconds } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import { ObservableValue } from "#util/Observable.js";
@@ -76,6 +76,16 @@ export namespace DnssdSolicitor {
          * Terminates discovery.
          */
         abort: AbortSignal;
+
+        /**
+         * Override retry configuration for this discovery.  Defaults to the solicitor's shared schedule.
+         *
+         * When {@link DnssdSolicitor.discover} coalesces with an in-flight discovery for the same name, the first
+         * caller's solicitation fields drive the shared discovery — {@link DnssdSolicitor.Solicitation.recordTypes},
+         * {@link DnssdSolicitor.Solicitation.associatedNames}, and this retry configuration.  Later callers only
+         * contribute their own {@link abort} signal.
+         */
+        retries?: RetrySchedule.Configuration;
     }
 
     /**
@@ -92,11 +102,19 @@ export namespace DnssdSolicitor {
 /**
  * Concrete implementation of {@link DnssdSolicitor} that sends DNS-SD queries via multicast.
  */
+interface PendingSolicitation {
+    name: DnssdName;
+    recordTypes: Set<DnsRecordType>;
+    // Preserved as references (not materialized) so dynamic iterables like IpServiceResolution's SRV-target set
+    // reflect their current membership when the query is actually emitted
+    associatedNames: Set<Iterable<DnssdName>>;
+}
+
 export class QueryMulticaster implements DnssdSolicitor {
     #names: DnssdNames;
     #schedule: RetrySchedule;
     #abort = new Abort();
-    #toSolicit = new Map<DnssdName, DnssdSolicitor.Solicitation>();
+    #toSolicit = new Map<DnssdName, PendingSolicitation>();
     #discovering = new Map<DnssdName, { abort: Abort; finished: Promise<void>; waiting: Set<{}> }>();
     #namesReady = new ObservableValue();
     #workers = new BasicMultiplex();
@@ -114,18 +132,21 @@ export class QueryMulticaster implements DnssdSolicitor {
         if (this.#abort.aborted) {
             return;
         }
-        const entry = this.#toSolicit.get(solicitation.name);
+        let entry = this.#toSolicit.get(solicitation.name);
         if (entry === undefined) {
-            this.#toSolicit.set(solicitation.name, { ...solicitation });
+            entry = {
+                name: solicitation.name,
+                recordTypes: new Set(solicitation.recordTypes),
+                associatedNames: new Set(),
+            };
+            this.#toSolicit.set(solicitation.name, entry);
         } else {
-            entry.recordTypes = [...new Set([...entry.recordTypes, ...solicitation.recordTypes])];
-            if (solicitation.associatedNames) {
-                if (!entry.associatedNames) {
-                    entry.associatedNames = solicitation.associatedNames;
-                } else {
-                    entry.associatedNames = [...new Set([...entry.associatedNames, ...solicitation.associatedNames])];
-                }
+            for (const type of solicitation.recordTypes) {
+                entry.recordTypes.add(type);
             }
+        }
+        if (solicitation.associatedNames) {
+            entry.associatedNames.add(solicitation.associatedNames);
         }
         this.#namesReady.emit(true);
     }
@@ -157,19 +178,27 @@ export class QueryMulticaster implements DnssdSolicitor {
         }
     }
 
-    async #discover(solicitation: DnssdSolicitor.Solicitation, abort: Abort) {
-        // Wait initially 20 - 120 ms per RFC 6762
-        let timeout = Millis.floor(Millis(20 + 100 * (this.#names.entropy.randomUint32 / Math.pow(2, 32))));
+    async #discover(solicitation: DnssdSolicitor.Discovery, abort: Abort) {
+        const schedule = solicitation.retries
+            ? new RetrySchedule(
+                  this.#names.entropy,
+                  RetrySchedule.Configuration(DnssdSolicitor.DefaultRetries, solicitation.retries),
+              )
+            : this.#schedule;
 
-        for (const nextTimeout of this.#schedule) {
-            using delay = new Abort({ abort, timeout });
+        // Skip RFC 6762 §5.2's 20-120ms initial delay: that delay avoids collisions during synchronized startup
+        // waves, but our discoveries are user- or reconnect-triggered and not part of such a wave.  Skipping it
+        // trades a little coalescing (concurrent discoveries in the same tick may produce one extra packet) for
+        // sub-second time-to-first-query.
+        this.solicit(solicitation);
+
+        for (const nextTimeout of schedule) {
+            using delay = new Abort({ abort, timeout: nextTimeout });
 
             await delay;
             if (abort.aborted) {
                 break;
             }
-
-            timeout = nextTimeout;
 
             this.solicit(solicitation);
         }
@@ -203,15 +232,22 @@ export class QueryMulticaster implements DnssdSolicitor {
             const queries = Array<DnsQuery>();
             const answers = Array<DnsRecord>();
 
-            for (const {
-                name: { qname: name, records },
-                recordTypes,
-            } of entries) {
+            for (const { name, recordTypes, associatedNames } of entries) {
                 for (const recordType of recordTypes) {
-                    queries.push({ name, recordClass: DnsRecordClass.IN, recordType });
+                    queries.push({ name: name.qname, recordClass: DnsRecordClass.IN, recordType });
                 }
 
-                answers.push(...records);
+                answers.push(...name.records);
+
+                for (const iterable of associatedNames) {
+                    for (const assocName of iterable) {
+                        answers.push(...assocName.records);
+                    }
+                }
+            }
+
+            if (queries.length === 0) {
+                continue;
             }
 
             // Send the message

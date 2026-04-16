@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./CommissionerControlInterface.js";
 export * from "./CommissionerControlBehavior.js";
 export * from "./CommissionerControlServer.js";
 export * from "./CommissionerControlClient.js";

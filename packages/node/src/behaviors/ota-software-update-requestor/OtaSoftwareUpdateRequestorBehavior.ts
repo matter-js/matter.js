@@ -8,16 +8,13 @@
 
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { OtaSoftwareUpdateRequestorInterface } from "./OtaSoftwareUpdateRequestorInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * OtaSoftwareUpdateRequestorBehavior is the base class for objects that support interaction with
  * {@link OtaSoftwareUpdateRequestor.Cluster}.
  */
-export const OtaSoftwareUpdateRequestorBehaviorConstructor = ClusterBehavior
-    .withInterface<OtaSoftwareUpdateRequestorInterface>()
-    .for(OtaSoftwareUpdateRequestor.Cluster);
+export const OtaSoftwareUpdateRequestorBehaviorConstructor = ClusterBehavior.for(OtaSoftwareUpdateRequestor);
 
 export interface OtaSoftwareUpdateRequestorBehaviorConstructor extends Identity<typeof OtaSoftwareUpdateRequestorBehaviorConstructor> {}
 export const OtaSoftwareUpdateRequestorBehavior: OtaSoftwareUpdateRequestorBehaviorConstructor = OtaSoftwareUpdateRequestorBehaviorConstructor;

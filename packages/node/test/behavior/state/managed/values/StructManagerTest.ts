@@ -82,7 +82,7 @@ async function testDuality(life: boolean, actor: (struct: { alive?: boolean }) =
         entropy: MockCrypto(),
         type: SchrödingersCatsState,
         supervisor,
-        location: { endpoint: EndpointNumber(1), path: DataModelPath(0) },
+        location: { endpoint: EndpointNumber(1), path: new DataModelPath(0) },
     });
 
     await LocalActorContext.act("test", cx => {

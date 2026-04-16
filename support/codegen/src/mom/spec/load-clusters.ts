@@ -216,7 +216,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
                 collectDatatypes(definition, subref);
                 break;
 
-            case "derivedclusternamespace":
+            case "derivedClusterType":
                 // The cluster "namespaces" seem to be a collection of enum definitions and misc. prose describing
                 // behavioral definitions.  We collect all of the sections here that appear to define values and sort
                 // out semantics during translation

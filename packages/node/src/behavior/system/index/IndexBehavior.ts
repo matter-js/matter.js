@@ -19,7 +19,7 @@ export class IndexBehavior extends Behavior {
     static override readonly id = "index";
 
     declare internal: IndexBehavior.Internal;
-    declare events: IndexBehavior.Events;
+    declare readonly events: IndexBehavior.Events;
 
     static override readonly early = true;
 

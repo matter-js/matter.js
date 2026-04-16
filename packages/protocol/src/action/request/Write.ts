@@ -6,14 +6,14 @@
 
 import { Diagnostic, Duration } from "@matter/general";
 import { Specification } from "@matter/model";
-import { ArraySchema, AttributeData, AttributeId, ClusterId, ClusterType, WriteRequest } from "@matter/types";
+import { ArraySchema, AttributeData, AttributeId, ClusterId, TlvOfModel, WriteRequest } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 
-const AclClusterId = AccessControl.Complete.id;
-const AclAttributeId = AccessControl.Complete.attributes.acl.id;
-const AclExtensionAttributeId = AccessControl.Complete.attributes.extension.id;
+const AclClusterId = AccessControl.id;
+const AclAttributeId = AccessControl.attributes.acl.id;
+const AclExtensionAttributeId = AccessControl.attributes.extension.id;
 
 function isAclOrExtensionPath(path: { clusterId: ClusterId; attributeId: AttributeId }) {
     const { clusterId, attributeId } = path;
@@ -120,7 +120,8 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         for (const specifier of attributes) {
             const clusterId = cluster.id;
             const attribute = Specifier.attributeFor(cluster, specifier);
-            const { schema, id: attributeId } = attribute;
+            const { id: attributeId } = attribute;
+            const tlv = TlvOfModel(attribute);
 
             if (
                 chunkLists &&
@@ -128,11 +129,11 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
                 // Acl writes will no longer be chunked by default, all others still
                 // Will be streamlined later ... see https://github.com/project-chip/connectedhomeip/issues/38270
                 Array.isArray(value) &&
-                schema instanceof ArraySchema &&
+                tlv instanceof ArraySchema &&
                 !isAclOrExtensionPath({ clusterId, attributeId })
             ) {
                 writeRequests.push(
-                    ...schema
+                    ...tlv
                         .encodeAsChunkedArray(value, { forWriteInteraction: true })
                         .map(({ element: data, listIndex }) => ({
                             path: {
@@ -151,10 +152,10 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
                         ...prototype.path,
                         attributeId: attribute.id,
                     },
-                    data: attribute.schema.encodeTlv(value, { forWriteInteraction: true }),
+                    data: tlv?.encodeTlv(value, { forWriteInteraction: true }),
                 });
             }
-            result.timedRequest ||= attribute.timed;
+            result.timedRequest ||= attribute.schema.effectiveAccess.timed === true;
         }
     }
 }
@@ -181,7 +182,7 @@ export namespace Write {
         version?: number;
     };
 
-    export function Attribute<const C extends ClusterType>(data: Omit<Attribute<C>, "kind">): Attribute<C> {
+    export function Attribute<const C extends Specifier.ClusterLike>(data: Omit<Attribute<C>, "kind">): Attribute<C> {
         return {
             kind: "attribute",
             ...data,

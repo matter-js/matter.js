@@ -88,7 +88,7 @@ function validate({ fields, features }: ClusterStructure, { supports, record, er
 
     // Perform validation
     try {
-        manager.validate?.(record ?? {}, LocalActorContext.ReadOnly, { path: DataModelPath(cluster.path) });
+        manager.validate?.(record ?? {}, LocalActorContext.ReadOnly, { path: new DataModelPath(cluster.path) });
         expect(error, `Expected ${error?.constructor.name} but none thrown`);
     } catch (e) {
         if (!error || (e as any).constructor.name === "AssertionError") {

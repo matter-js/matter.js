@@ -31,6 +31,12 @@ function isFunction(name: string): name is keyof typeof Functions {
  * A "constraint" limits possible data values.
  */
 export class Constraint extends Aspect<Constraint.Definition> implements Constraint.Ast {
+    /**
+     * Indicates that the constraint is explicitly unconstrained.  This prevents inheritance of constraints from
+     * shadow/base models via {@link extend}.
+     */
+    none?: boolean;
+
     desc?: boolean;
     value?: Constraint.Expression;
     min?: Constraint.Expression;
@@ -80,6 +86,7 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
             return;
         }
 
+        this.none = ast.none;
         this.desc = ast.desc;
         this.value = ast.value;
         this.min = ast.min;
@@ -90,6 +97,7 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
         this.parts = ast.parts?.length ? ast.parts.map(p => new Constraint(p)) : undefined;
 
         this.isEmpty =
+            this.none === undefined &&
             this.desc === undefined &&
             this.value === undefined &&
             this.min === undefined &&
@@ -105,6 +113,10 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
     override extend(other: Constraint) {
         if (other.isEmpty) {
             return this;
+        }
+
+        if (other.none) {
+            return other;
         }
 
         if (this.isEmpty) {
@@ -309,7 +321,7 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
 export namespace Constraint {
     export type NumberOrIdentifier = number | string;
 
-    export const KEYWORDS = ["in", "min", "max", "to", "all", "desc", "true", "false"] as const;
+    export const KEYWORDS = ["in", "min", "max", "to", "all", "none", "desc", "true", "false"] as const;
 
     export const keywords = new Set<string>(KEYWORDS);
 
@@ -317,6 +329,12 @@ export namespace Constraint {
      * Parsed constraint.
      */
     export type Ast = {
+        /**
+         * Indicates the element is explicitly unconstrained.  Prevents inheritance of constraints from shadow/base
+         * models.
+         */
+        none?: boolean;
+
         /**
          * Indicates constraint is defined in prose and cannot be enforced automatically.
          */
@@ -434,6 +452,10 @@ namespace Serializer {
     }
 
     function serializeAtom(ast: Constraint.Ast) {
+        if (ast.none) {
+            return "none";
+        }
+
         if (ast.desc) {
             return "desc";
         }
@@ -579,6 +601,10 @@ namespace Parser {
                 case "desc":
                     tokens.next();
                     return { desc: true };
+
+                case "none":
+                    tokens.next();
+                    return { none: true };
 
                 case "all":
                     tokens.next();

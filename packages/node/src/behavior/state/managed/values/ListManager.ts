@@ -20,9 +20,9 @@ import {
 import { StatusCode } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
-import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
+import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -49,14 +49,14 @@ export function ListManager(owner: RootSupervisor, schema: Schema): ValueSupervi
             );
         }
 
-        return createProxy(config, list as Val.Reference<Val.List>, session);
+        return createProxy(config, list as ValReference<Val.List>, session);
     };
 }
 
 function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entry = schema instanceof ValueModel ? schema.listEntry : undefined;
     if (entry === undefined) {
-        throw new SchemaImplementationError(DataModelPath(schema.path), "List schema has no entry definition");
+        throw new SchemaImplementationError(new DataModelPath(schema.path), "List schema has no entry definition");
     }
 
     const entryManager = owner.get(entry);
@@ -86,105 +86,107 @@ interface ListConfig {
     authorizeWrite: AccessControl["authorizeWrite"];
 }
 
-function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, session: ValueSupervisor.Session) {
-    const { manageEntries, manageEntry, validateEntry, authorizeRead, authorizeWrite } = config;
+const assertWriteOkAlways = () => true;
+const cloneEntry = (val: Val) => (Array.isArray(val) ? [...(val as Val.List)] : isObject(val) ? { ...val } : val);
+const inspectCustom = Symbol.for("nodejs.util.inspect.custom");
 
-    // On read we treat nullish as an empty array.  This prevents errors on expired references
-    const readVal = () => reference.value ?? [];
+function listToString(this: Val.List) {
+    return serialize(this);
+}
 
-    // On write we throw an error if the reference is expired
-    const writeVal = () => {
-        if (reference.expired) {
-            throw new ExpiredReferenceError(reference.location);
+function inspectList(this: Val.List) {
+    return [...this];
+}
+
+class ListProxyHandler implements ProxyHandler<Val.List> {
+    protected reference: ValReference<Val.List>;
+    protected session: ValueSupervisor.Session;
+    protected config: ListConfig;
+    #sublocation: AccessControl.Location;
+
+    constructor(config: ListConfig, reference: ValReference<Val.List>, session: ValueSupervisor.Session) {
+        this.reference = reference;
+        this.session = session;
+        this.config = config;
+        this.#sublocation = {
+            ...reference.location,
+            path: reference.location.path.at(-1),
+        };
+    }
+
+    protected readVal() {
+        return this.reference.value ?? [];
+    }
+
+    protected writeVal() {
+        if (this.reference.expired) {
+            throw new ExpiredReferenceError(this.reference.location);
         }
+        return this.reference.value;
+    }
 
-        return reference.value;
-    };
+    protected getListLength() {
+        return this.readVal().length;
+    }
 
-    let getListLength = () => readVal().length;
-    let setListLength = (length: number) => {
+    protected setListLength(length: number) {
         if (length > 65535) {
-            throw new WriteError(reference.location, `Index ${length} is greater than allowed maximum of 65535`);
+            throw new WriteError(this.reference.location, `Index ${length} is greater than allowed maximum of 65535`);
         }
+        this.reference.change(() => (this.writeVal().length = length));
+    }
 
-        reference.change(() => (writeVal().length = length));
-    };
-    let hasEntry = (index: number) => readVal()[index] !== undefined;
+    protected hasEntry(index: number) {
+        return this.readVal()[index] !== undefined;
+    }
 
-    // Create the base entry reader.  The reader is different for containers vs. primitive values
-    let readEntry: (index: number, location: AccessControl.Location) => Val;
+    protected readEntry(index: number, location: AccessControl.Location): Val {
+        if (this.config.manageEntries) {
+            this.config.authorizeRead(this.session, this.reference.location);
 
-    // Iteration is different for fabric-scoped read but otherwise
-    let getIteratorFn = () => readVal()[Symbol.iterator];
-
-    // These two are needed to support "for in" loops.  And good for completeness
-    let ownKeys = () => Reflect.ownKeys(readVal());
-    let getOwnPropertyDescriptor = (_target: object, key: PropertyKey) =>
-        Reflect.getOwnPropertyDescriptor(readVal(), key);
-
-    // Template used to convey sub-location information
-    const sublocation = {
-        ...reference.location,
-        path: reference.location.path.at(-1),
-    };
-
-    if (manageEntries) {
-        // Base reader produces managed containers
-        readEntry = index => {
-            authorizeRead(session, reference.location);
-
-            if (index < 0 || index >= readVal().length) {
-                throw new ReadError(reference.location, `Index ${index} is out of bounds`);
+            if (index < 0 || index >= this.readVal().length) {
+                throw new ReadError(this.reference.location, `Index ${index} is out of bounds`);
             }
 
             if (index > 65535) {
-                throw new ReadError(reference.location, `Index ${index} is greater than allowed maximum of 65535`);
+                throw new ReadError(this.reference.location, `Index ${index} is greater than allowed maximum of 65535`);
             }
 
-            // AFAICT spec doesn't contemplate sparse arrays but it's kind of assumed.  If the value is nullish then
-            // treat like a primitive and no management necessary
-            const value = readVal()[index];
+            const value = this.readVal()[index];
             if (value === undefined || value === null) {
                 return value;
             }
 
-            let subref = reference.subrefs?.[index];
+            let subref = this.reference.subrefs?.[index];
 
             if (subref === undefined) {
-                subref = ManagedReference(
-                    reference,
+                subref = new ManagedReference(
+                    this.reference,
                     "name",
-                    index, // For managed reference's purposes this is our "name"
+                    index,
                     undefined,
-
-                    () => true,
-
-                    val => (Array.isArray(val) ? [...(val as Val.List)] : isObject(val) ? { ...val } : val),
-                    session,
+                    assertWriteOkAlways,
+                    cloneEntry,
+                    this.session,
                 );
 
-                manageEntry(subref, session);
+                this.config.manageEntry(subref, this.session);
             }
 
             return subref.owner;
-        };
-    } else {
-        // Primitive value -- no management necessary
-        readEntry = (index, location) => {
-            authorizeRead(session, location);
-            if (index < 0 || index > readVal().length) {
+        } else {
+            this.config.authorizeRead(this.session, location);
+            if (index < 0 || index > this.readVal().length) {
                 throw new ReadError(location, `Index ${index} is out of bounds`);
             }
-
-            return readVal()[index];
-        };
+            return this.readVal()[index];
+        }
     }
 
-    // Create an entry writer
-    let writeEntry = (index: number, value: Val, location: AccessControl.Location) => {
-        authorizeWrite(session, location);
+    protected writeEntry(index: number, value: Val, location: AccessControl.Location) {
+        this.config.authorizeWrite(this.session, location);
 
-        if (index < 0 || index > readVal().length + 1) {
+        if (index < 0 || index > this.readVal().length + 1) {
             throw new WriteError(location, `Index ${index} is out of bounds`);
         }
 
@@ -192,249 +194,253 @@ function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, ses
             throw new ReadError(location, `Index ${index} is greater than allowed maximum of 65535`);
         }
 
-        // Unwrap incoming managed values
-        if (value && (value as Internal.Collection)[Internal.reference]) {
-            value = (value as Internal.Collection)[Internal.reference].value;
+        // Unwrap incoming managed values (including nested)
+        value = Internal.unmanage(value);
+
+        this.reference.change(() => (this.writeVal()[index] = value));
+    }
+
+    protected getIteratorFn(): Val.List[typeof Symbol.iterator] {
+        return this.readVal()[Symbol.iterator];
+    }
+
+    get(_target: Val.List, property: PropertyKey, receiver: Val.List) {
+        if (typeof property === "string" && property.match(/^\d+/)) {
+            this.#sublocation.path.id = property;
+            return this.readEntry(Number.parseInt(property), this.#sublocation);
         }
 
-        reference.change(() => (writeVal()[index] = value));
-    };
+        switch (property) {
+            case "length":
+                return this.getListLength();
 
-    // If the list is fabric-scoped, wrap read and write to map indices if it is a managed structure
-    if (manageEntries && config.fabricScoped) {
-        function mapScopedToActual(index: number, reading: boolean) {
-            if (index < 0) {
-                throw new (reading ? ReadError : WriteError)(reference.location, `Negative index ${index} unsupported`);
-            }
+            case Symbol.iterator:
+                return this.getIteratorFn();
 
-            let nextPos = 0;
-            for (let i = 0; i < readVal().length; i++) {
-                // Skip invalid data
-                const entry = readVal()[i] as undefined | { fabricIndex?: number };
-                if (!isObject(entry)) {
-                    continue;
-                }
+            case Internal.reference:
+                return this.reference;
 
-                // If there's no fabric index or it's a match, consider "in scope"
-                if (hasLocalActor(session) || !entry.fabricIndex || entry.fabricIndex === session.fabric) {
-                    if (nextPos === index) {
-                        // Found our target
-                        return i;
-                    }
+            case "toString":
+                return listToString;
 
-                    // Next target will be the one
-                    nextPos++;
-                }
-            }
+            case inspectCustom:
+                return inspectList;
 
-            if (reading) {
-                throw new ReadError(reference.location, `Index ${index} extends beyond available entries`);
-            }
-
-            if (nextPos === index) {
-                // Adding to end of list
-                return readVal().length;
-            }
-
-            throw new WriteError(reference.location, `Index ${index} would leave gaps in fabric-filtered list`);
+            case Symbol.toStringTag:
+                return undefined;
         }
 
-        if (hasRemoteActor(session) && (session.fabricFiltered || config.fabricSensitive)) {
-            const nextReadEntry = readEntry;
+        return Reflect.get(this.readVal(), property, receiver);
+    }
 
-            hasEntry = (index: number) => {
-                try {
-                    return nextReadEntry(mapScopedToActual(index, true), reference.location) !== undefined;
-                } catch (e) {
-                    return false;
+    set(_target: Val.List, property: PropertyKey, newValue: Val, receiver: Val.List) {
+        if (typeof property === "string" && property.match(/^\d+/)) {
+            this.#sublocation.path.id = property;
+            this.config.validateEntry?.(newValue, this.session, this.#sublocation);
+            this.writeEntry(Number.parseInt(property), newValue, this.#sublocation);
+            return true;
+        } else if (property === "length") {
+            this.setListLength(newValue as number);
+            return true;
+        }
+
+        return Reflect.set(this.writeVal(), property, newValue, receiver);
+    }
+
+    has(_target: Val.List, property: PropertyKey) {
+        if (typeof property === "string" && property.match(/^\d+/)) {
+            return this.hasEntry(Number.parseInt(property));
+        }
+
+        return Reflect.has(this.readVal(), property);
+    }
+
+    deleteProperty(_target: Val.List, property: PropertyKey) {
+        if (typeof property === "string" && property.match(/^\d+/)) {
+            this.#sublocation.path.id = property;
+            this.writeEntry(Number.parseInt(property), undefined, this.#sublocation);
+            return true;
+        }
+
+        return Reflect.deleteProperty(this.writeVal(), property);
+    }
+
+    ownKeys() {
+        return Reflect.ownKeys(this.readVal());
+    }
+
+    getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
+        return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+    }
+}
+
+/**
+ * Extends the base list proxy handler with fabric-scoped index mapping.  When a remote actor accesses a fabric-scoped
+ * list with fabric filtering enabled, logical indices are mapped to physical indices that match the actor's fabric.
+ */
+class FabricFilteredListProxyHandler extends ListProxyHandler {
+    #mapScopedToActual(index: number, reading: boolean) {
+        if (index < 0) {
+            throw new (reading ? ReadError : WriteError)(
+                this.reference.location,
+                `Negative index ${index} unsupported`,
+            );
+        }
+
+        let nextPos = 0;
+        for (let i = 0; i < this.readVal().length; i++) {
+            const entry = this.readVal()[i] as undefined | { fabricIndex?: number };
+            if (!isObject(entry)) {
+                continue;
+            }
+
+            if (hasLocalActor(this.session) || !entry.fabricIndex || entry.fabricIndex === this.session.fabric) {
+                if (nextPos === index) {
+                    return i;
                 }
-            };
+                nextPos++;
+            }
+        }
 
-            readEntry = (index: number, location: AccessControl.Location) => {
-                return nextReadEntry(mapScopedToActual(index, true), location);
-            };
+        if (reading) {
+            throw new ReadError(this.reference.location, `Index ${index} extends beyond available entries`);
+        }
 
-            const nextWriteEntry = writeEntry;
-            writeEntry = (index: number, value: Val, location: AccessControl.Location) => {
-                if (value === undefined) {
-                    const valueIndex = mapScopedToActual(index, false);
-                    writeVal().splice(valueIndex, 1);
-                } else {
-                    if (!isObject(value)) {
-                        throw new WriteError(location, `Fabric scoped list value is not an object`, StatusCode.Failure);
-                    }
-                    (value as { fabricIndex?: number }).fabricIndex ??= session.fabric;
-                    nextWriteEntry(mapScopedToActual(index, false), value, location);
-                }
-            };
+        if (nextPos === index) {
+            return this.readVal().length;
+        }
 
-            getListLength = () => {
-                let length = 0;
-                for (let i = 0; i < readVal().length; i++) {
-                    const entry = readVal()[i] as undefined | { fabricIndex?: number };
-                    if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === session.fabric)) {
-                        length++;
-                    }
-                }
-                return length;
-            };
+        throw new WriteError(this.reference.location, `Index ${index} would leave gaps in fabric-filtered list`);
+    }
 
-            setListLength = (length: number) => {
-                const formerLength = getListLength();
-
-                reference.change(() => {
-                    for (let i = formerLength - 1; i >= length; i--) {
-                        const entry = writeVal()[mapScopedToActual(i, true)] as undefined | { fabricIndex?: number };
-                        if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === session.fabric)) {
-                            writeVal().splice(mapScopedToActual(i, false), 1);
-                        } else if (entry !== undefined) {
-                            throw new WriteError(
-                                reference.location,
-                                `Fabric scoped list value is not an object`,
-                                StatusCode.Failure,
-                            );
-                        }
-                    }
-                });
-            };
-
-            // Create a function that returns an iterator that skips entries from non-associated fabrics.  The base
-            // Array[Symbol.iterator] does the right thing because it uses indices and length.  So this is only an
-            // optimization
-            getIteratorFn = () => () => {
-                // The iterator for the actual collection
-                const iterator = readVal()[Symbol.iterator]();
-
-                // An iterator that skips inapplicable entries
-                return {
-                    ...iterator,
-                    next() {
-                        while (true) {
-                            // Iterate through source
-                            const next = iterator.next();
-
-                            // Skip iteration if the result would have incorrect fabricIndex
-                            if (
-                                !next.done &&
-                                isObject(next.value) &&
-                                (next.value as { fabricIndex?: number }).fabricIndex !== session.fabric
-                            ) {
-                                continue;
-                            }
-
-                            // Entry applies or we're done
-                            return next;
-                        }
-                    },
-
-                    [Symbol.iterator]() {
-                        return this;
-                    },
-                };
-            };
-
-            ownKeys = () => {
-                const length = getListLength();
-
-                const keys = Reflect.ownKeys(readVal()).filter(k => {
-                    if (typeof k !== "string") {
-                        return true;
-                    }
-                    if (!k.match(/^\d+$/)) {
-                        return true;
-                    }
-                    if (Number.parseInt(k) < length) {
-                        return true;
-                    }
-                    return false;
-                });
-
-                return keys;
-            };
-
-            getOwnPropertyDescriptor = (_target, key) => {
-                if (typeof key === "string" && key.match(/^\d+$/)) {
-                    key = Number.parseInt(key);
-                }
-                if (typeof key !== "number") {
-                    return Reflect.getOwnPropertyDescriptor(readVal(), key);
-                }
-
-                return Reflect.getOwnPropertyDescriptor(readVal(), mapScopedToActual(key, true));
-            };
+    protected override hasEntry(index: number) {
+        try {
+            return super.readEntry(this.#mapScopedToActual(index, true), this.reference.location) !== undefined;
+        } catch (e) {
+            return false;
         }
     }
 
-    const target = [] as Val.List;
-    const handlers: ProxyHandler<Val.List> = {
-        get(_target, property, receiver) {
-            if (typeof property === "string" && property.match(/^\d+/)) {
-                sublocation.path.id = property;
-                return readEntry(Number.parseInt(property), sublocation);
+    protected override readEntry(index: number, location: AccessControl.Location) {
+        return super.readEntry(this.#mapScopedToActual(index, true), location);
+    }
+
+    protected override writeEntry(index: number, value: Val, location: AccessControl.Location) {
+        if (value === undefined) {
+            const valueIndex = this.#mapScopedToActual(index, false);
+            this.writeVal().splice(valueIndex, 1);
+        } else {
+            if (!isObject(value)) {
+                throw new WriteError(location, `Fabric scoped list value is not an object`, StatusCode.Failure);
             }
+            (value as { fabricIndex?: number }).fabricIndex ??= this.session.fabric;
+            super.writeEntry(this.#mapScopedToActual(index, false), value, location);
+        }
+    }
 
-            switch (property) {
-                case "length":
-                    return getListLength();
-
-                case Symbol.iterator:
-                    return getIteratorFn();
-
-                case Internal.reference:
-                    return reference;
-
-                case "toString":
-                    return function (this: Val.List) {
-                        return serialize(this);
-                    };
-
-                case Symbol.toStringTag:
-                    return undefined;
+    protected override getListLength() {
+        let length = 0;
+        for (let i = 0; i < this.readVal().length; i++) {
+            const entry = this.readVal()[i] as undefined | { fabricIndex?: number };
+            if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === this.session.fabric)) {
+                length++;
             }
+        }
+        return length;
+    }
 
-            return Reflect.get(readVal(), property, receiver);
-        },
+    protected override setListLength(length: number) {
+        const formerLength = this.getListLength();
 
-        // On write we enter a transaction
-        set(_target, property, newValue, receiver) {
-            if (typeof property === "string" && property.match(/^\d+/)) {
-                sublocation.path.id = property;
-                validateEntry?.(newValue, session, sublocation);
-                writeEntry(Number.parseInt(property), newValue, sublocation);
+        this.reference.change(() => {
+            for (let i = formerLength - 1; i >= length; i--) {
+                const entry = this.writeVal()[this.#mapScopedToActual(i, true)] as undefined | { fabricIndex?: number };
+                if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === this.session.fabric)) {
+                    this.writeVal().splice(this.#mapScopedToActual(i, false), 1);
+                } else if (entry !== undefined) {
+                    throw new WriteError(
+                        this.reference.location,
+                        `Fabric scoped list value is not an object`,
+                        StatusCode.Failure,
+                    );
+                }
+            }
+        });
+    }
+
+    protected override getIteratorFn(): Val.List[typeof Symbol.iterator] {
+        const fabric = this.session.fabric;
+        const readVal = () => this.readVal();
+
+        return (() => {
+            const iterator = readVal()[Symbol.iterator]();
+
+            return {
+                ...iterator,
+                next() {
+                    while (true) {
+                        const next = iterator.next();
+
+                        if (
+                            !next.done &&
+                            isObject(next.value) &&
+                            (next.value as { fabricIndex?: number }).fabricIndex !== fabric
+                        ) {
+                            continue;
+                        }
+
+                        return next;
+                    }
+                },
+
+                [Symbol.iterator]() {
+                    return this;
+                },
+            };
+        }) as Val.List[typeof Symbol.iterator];
+    }
+
+    override ownKeys() {
+        const length = this.getListLength();
+
+        return Reflect.ownKeys(this.readVal()).filter(k => {
+            if (typeof k !== "string") {
                 return true;
-            } else if (property === "length") {
-                setListLength(newValue);
+            }
+            if (!k.match(/^\d+$/)) {
                 return true;
             }
-
-            return Reflect.set(writeVal(), property, newValue, receiver);
-        },
-
-        has(_target, property) {
-            if (typeof property === "string" && property.match(/^\d+/)) {
-                return hasEntry(Number.parseInt(property));
-            }
-
-            return Reflect.has(readVal(), property);
-        },
-
-        deleteProperty: (_target, property) => {
-            if (typeof property === "string" && property.match(/^\d+/)) {
-                sublocation.path.id = property;
-                writeEntry(Number.parseInt(property), undefined, sublocation);
+            if (Number.parseInt(k) < length) {
                 return true;
             }
+            return false;
+        });
+    }
 
-            return Reflect.deleteProperty(writeVal(), property);
-        },
+    override getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
+        if (typeof key === "string" && key.match(/^\d+$/)) {
+            key = Number.parseInt(key);
+        }
+        if (typeof key !== "number") {
+            return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+        }
 
-        ownKeys,
-        getOwnPropertyDescriptor,
-    };
+        return Reflect.getOwnPropertyDescriptor(this.readVal(), this.#mapScopedToActual(key, true));
+    }
+}
 
-    const factory = Instrumentation.instrumentList((handlers, target) => new Proxy(target, handlers));
+function createProxy(config: ListConfig, reference: ValReference<Val.List>, session: ValueSupervisor.Session) {
+    const isFabricFiltered =
+        config.manageEntries &&
+        config.fabricScoped &&
+        hasRemoteActor(session) &&
+        (session.fabricFiltered || config.fabricSensitive);
 
-    reference.owner = factory(handlers, target);
+    const handler = isFabricFiltered
+        ? new FabricFilteredListProxyHandler(config, reference, session)
+        : new ListProxyHandler(config, reference, session);
+
+    reference.owner = new Proxy([] as Val.List, handler);
 
     return reference.owner;
 }

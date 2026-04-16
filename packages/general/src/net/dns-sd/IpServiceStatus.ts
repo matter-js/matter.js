@@ -6,7 +6,6 @@
 
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
-import { AbortedError } from "#MatterError.js";
 import { ServerAddress } from "#net/ServerAddress.js";
 import { Time } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
@@ -106,12 +105,11 @@ export class IpServiceStatus {
      * Register a new connection attempt.
      *
      * If {@link result} resolves as true the service is marked as reachable.  If {@link result} resolves as false
-     * reachability is not modified.
+     * the service is marked as unreachable so subsequent attempts trigger MDNS resolution.
      *
-     * If {@link result} throws an error other than {@link AbortedError}, the service is marked as unreachable and if
-     * the error logged.
+     * If {@link result} rejects, the service is marked as unreachable and the error is logged.
      *
-     * {@link isConnecting} will be true until {@link result} resolves.
+     * {@link isConnecting} will be true until {@link result} settles (resolves or rejects).
      */
     connecting(result: PromiseLike<boolean>) {
         logger.debug(this.#service.via, "Connecting");
@@ -126,27 +124,22 @@ export class IpServiceStatus {
 
                 if (returned) {
                     this.isReachable = true;
-
                     logger.info(this.#service.via, "Connected");
                 } else {
-                    logger.debug(this.#service.via, "Connect attempt aborted");
+                    // Mark unreachable so the next connection attempt triggers MDNS resolution rather than
+                    // short-circuiting on a stale reachable state from a persisted operational address.
+                    this.isReachable = false;
+                    logger.debug(this.#service.via, "Connect attempt ended without session");
                 }
-
-                this.#maybeStopResolving();
             },
 
             error => {
                 this.#connecting.delete(result);
-
-                if (!(error instanceof AbortedError)) {
-                    return;
+                if (!this.#connecting.size) {
+                    this.#connectionInitiatedAt = undefined;
                 }
-
                 logger.error(this.#service.via, "Connection error:", asError(error));
-
-                this.#isReachable = false;
-
-                this.#maybeStartResolving();
+                this.isReachable = false;
             },
         );
 
