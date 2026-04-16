@@ -35,6 +35,24 @@ import { BleScanner } from "./BleScanner.js";
 const logger = Logger.get("BleChannel");
 
 /**
+ * Detect noble errors that indicate the BLE connection is no longer usable.
+ * On macOS/Linux noble throws errors starting with "Disconnected".
+ * On Windows the native WinRT binding throws "status: <N>" where N is the
+ * AsyncStatus enum (0=Started, 1=Completed, 2=Canceled, 3=Error).
+ * Values >= 2 indicate the async operation did not complete successfully.
+ */
+function isNobleDisconnectError(error: unknown): error is Error {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+    if (error.message.startsWith("Disconnected")) {
+        return true;
+    }
+    const match = error.message.match(/^status:\s*(\d+)/);
+    return match !== null && Number(match[1]) >= 2;
+}
+
+/**
  * Convert a UUID in noble's format to a proper UUID.
  *
  * @param {string} uuid - UUID to convert
@@ -515,6 +533,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         } catch (error) {
             btpHandshakeTimeout.stop();
             characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
+            if (isNobleDisconnectError(error)) {
+                throw new BleDisconnectedError(error.message, { cause: error });
+            }
             throw error;
         }
 
@@ -523,13 +544,13 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
         const btpSession = await BtpSessionHandler.createAsCentral(
             new Uint8Array(handshakeResponse),
-            // callback to write data to characteristic C1; translates noble's generic disconnect
-            // error into BleDisconnectedError so BtpSessionHandler can handle it specifically
+            // callback to write data to characteristic C1; translates noble's disconnect/transport
+            // errors into BleDisconnectedError so BtpSessionHandler can handle them specifically
             async (data: Bytes) => {
                 try {
                     return await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(data)), false);
                 } catch (error) {
-                    if (error instanceof Error && error.message.startsWith("Disconnected")) {
+                    if (isNobleDisconnectError(error)) {
                         throw new BleDisconnectedError(error.message, { cause: error });
                     }
                     throw error;
