@@ -19,7 +19,7 @@ const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     51: 11,
     60: 8,
     62: 11,
-    63: 10,
+    63: 9,
 };
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT = Object.values(ROOT_ENDPOINT_FULL_CLUSTER_LIST).reduce(
     (acc, count) => acc + count,

@@ -454,8 +454,8 @@ export class AccessControlServer extends AccessControlBase {
     }
 
     /** When provider entries change after initialization, rebuild auxiliaryAcl and update changed fabrics. */
-    #onProviderAuxAclChanged() {
-        this.#syncAuxAcl(true);
+    #onProviderAuxAclChanged(_entries: AccessControlTypes.AccessControlEntry[], context?: ActionContext) {
+        this.#syncAuxAcl(true, context);
     }
 
     /**
@@ -463,7 +463,7 @@ export class AccessControlServer extends AccessControlBase {
      * Updates state once, then updates fabric ACL lists for any fabric whose entries changed.
      * Only emits auxiliaryAccessUpdated events when emitEvents is true and entries actually changed.
      */
-    #syncAuxAcl(emitEvents: boolean) {
+    #syncAuxAcl(emitEvents: boolean, providerContext?: ActionContext) {
         // Collect all new aux entries from all providers in one pass
         const newAuxAcl: AccessControlTypes.AccessControlEntry[] = [];
         for (const obs of this.internal.auxiliaryAclProviders) {
@@ -490,7 +490,11 @@ export class AccessControlServer extends AccessControlBase {
         this.state.auxiliaryAcl = newAuxAcl;
 
         const fabrics = this.env.get(FabricManager);
-        const session = hasRemoteActor(this.context) ? this.context.session : undefined;
+
+        // Extract admin node ID: prefer provider context (the command handler that triggered the
+        // change), fall back to this behavior's own session context
+        const ctx = providerContext ?? this.context;
+        const session = hasRemoteActor(ctx) ? ctx.session : undefined;
         const { adminNodeId } = this.#adminDataFromSession(session);
 
         // Update fabric ACL lists and optionally emit change events
@@ -671,5 +675,5 @@ export namespace AccessControlServer {
      * Emit `AccessControlEntry[]` (all entries across all fabrics) whenever the provider's entries change.
      * AccessControlServer subscribes and rebuilds its ACL cache automatically.
      */
-    export type AuxAclObservable = ObservableValue<[AccessControlTypes.AccessControlEntry[]]>;
+    export type AuxAclObservable = ObservableValue<[AccessControlTypes.AccessControlEntry[], ActionContext?]>;
 }

@@ -19,13 +19,16 @@ const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupKeyManagementServer.with("Groupcast"),
 );
 
+/** 16-byte test key for creating key sets via JoinGroup/UpdateGroupKey. */
+const TEST_KEY = new Uint8Array(16);
+
 /** Helper to create an online MockServerNode with Groupcast cluster. */
 async function createGroupcastNode() {
     return MockServerNode.createOnline(GroupcastRootEndpoint, { device: undefined });
 }
 
 /** Helper to build a MockExchange scoped to a specific fabric index. */
-function fabricExchange(fabricIndex: FabricIndex, accessLevel = AccessLevel.Operate) {
+function fabricExchange(fabricIndex: FabricIndex, accessLevel = AccessLevel.Administer) {
     return new MockExchange({ fabricIndex, nodeId: NodeId(0n) }, { accessLevel });
 }
 
@@ -35,7 +38,7 @@ describe("GroupcastServer", () => {
     });
 
     describe("joinGroup", () => {
-        it("adds a membership entry and marks fabric as adopted", async () => {
+        it("adds a membership entry", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
             const fi = fabric.fabricIndex;
@@ -44,7 +47,8 @@ describe("GroupcastServer", () => {
                 await agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1)],
-                    keySetId: 0, // IPK always valid
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 });
             });
@@ -54,22 +58,12 @@ describe("GroupcastServer", () => {
             expect(membership).to.have.length(1);
             expect(membership[0].groupId).equal(0x0001);
             expect(membership[0].fabricIndex).equal(fi);
-            expect(membership[0].keySetId).equal(0);
+            expect(membership[0].keySetId).equal(1);
             expect(membership[0].mcastAddrPolicy).equal(Groupcast.MulticastAddrPolicy.IanaAddr);
-
-            // Fabric marked as adopted in GKM
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const gkmState = node.stateOf(GroupKeyManagementServer) as any;
-            expect(
-                gkmState.groupcastAdoption?.some(
-                    (e: { fabricIndex: FabricIndex; groupcastAdopted: boolean }) =>
-                        e.fabricIndex === fi && e.groupcastAdopted,
-                ),
-            ).true;
 
             // FabricGroups updated with group→keySet mapping
             const realFabric = node.env.get(FabricManager).for(fi);
-            expect(realFabric.groups.groupKeyIdMap.get(GroupId(0x0001))).equal(0);
+            expect(realFabric.groups.groupKeyIdMap.get(GroupId(0x0001))).equal(1);
 
             // IANA multicast policy applied
             expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).equal("ff05::fa");
@@ -86,7 +80,8 @@ describe("GroupcastServer", () => {
                         agent.get(GroupcastServer).joinGroup({
                             groupId: GroupId(groupId),
                             endpoints: [EndpointNumber(1)],
-                            keySetId: 0,
+                            keySetId: 1,
+                            key: TEST_KEY,
                             mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                         }),
                     ),
@@ -95,6 +90,8 @@ describe("GroupcastServer", () => {
             await expect(call(0)).rejectedWith("Invalid group ID");
             await expect(call(0xfff8)).rejectedWith("Invalid group ID");
         });
+
+        // KeySetID 0 rejection is enforced by model constraint "min 1" at the interaction layer
 
         it("rejects groups when KeySetId does not exist", async () => {
             await using node = await createGroupcastNode();
@@ -107,12 +104,33 @@ describe("GroupcastServer", () => {
                         agent.get(GroupcastServer).joinGroup({
                             groupId: GroupId(0x0001),
                             endpoints: [EndpointNumber(1)],
-                            keySetId: 99, // does not exist
+                            keySetId: 99, // does not exist and no key provided
                             mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                         }),
                     ),
                 ),
             ).rejectedWith("not found");
+        });
+
+        it("requires Admin when key is provided", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+
+            // Manage-level exchange: key field should trigger UnsupportedAccess
+            await expect(
+                Promise.resolve().then(() =>
+                    node.online({ exchange: fabricExchange(fi, AccessLevel.Manage), command: true }, agent =>
+                        agent.get(GroupcastServer).joinGroup({
+                            groupId: GroupId(0x0001),
+                            endpoints: [EndpointNumber(1)],
+                            keySetId: 1,
+                            key: TEST_KEY,
+                            mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                        }),
+                    ),
+                ),
+            ).rejectedWith("Admin privilege");
         });
 
         it("merges endpoints when group already exists", async () => {
@@ -125,16 +143,18 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
 
+            // Second join: same group, different endpoint, same keySetId (already exists from first call)
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(2)],
-                    keySetId: 0,
+                    keySetId: 1,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
@@ -154,7 +174,8 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1), EndpointNumber(2)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
@@ -163,7 +184,7 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(3)],
-                    keySetId: 0,
+                    keySetId: 1,
                     replaceEndpoints: true,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
@@ -182,7 +203,8 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0002),
                     endpoints: [EndpointNumber(1)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.PerGroup,
                 }),
             );
@@ -206,7 +228,8 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1), EndpointNumber(2)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
@@ -231,7 +254,8 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1), EndpointNumber(2), EndpointNumber(3)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
@@ -276,17 +300,22 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );
 
+            // Create a second key set and update the group to use it
             await node.online({ exchange, command: true }, agent =>
-                agent.get(GroupcastServer).updateGroupKey({ groupId: GroupId(0x0001), keySetId: 0 }),
+                agent.get(GroupcastServer).updateGroupKey({
+                    groupId: GroupId(0x0001),
+                    keySetId: 2,
+                    key: TEST_KEY,
+                }),
             );
 
-            // keySetId stays 0 (same in this case, but verifies the path works without error)
-            expect(node.stateOf(GroupcastServer).membership[0].keySetId).equal(0);
+            expect(node.stateOf(GroupcastServer).membership[0].keySetId).equal(2);
         });
 
         it("throws NotFound for an unknown group", async () => {
@@ -297,11 +326,16 @@ describe("GroupcastServer", () => {
             await expect(
                 Promise.resolve().then(() =>
                     node.online({ exchange: fabricExchange(fi), command: true }, agent =>
-                        agent.get(GroupcastServer).updateGroupKey({ groupId: GroupId(0x0099), keySetId: 0 }),
+                        agent.get(GroupcastServer).updateGroupKey({
+                            groupId: GroupId(0x0099),
+                            keySetId: 1,
+                        }),
                     ),
                 ),
             ).rejectedWith("not found");
         });
+
+        // KeySetID 0 rejection is enforced by model constraint "min 1" at the interaction layer
     });
 
     describe("configureAuxiliaryAcl", () => {
@@ -315,7 +349,8 @@ describe("GroupcastServer", () => {
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
                     endpoints: [EndpointNumber(1)],
-                    keySetId: 0,
+                    keySetId: 1,
+                    key: TEST_KEY,
                     mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
                 }),
             );

@@ -99,13 +99,6 @@ export declare namespace GroupKeyManagement {
     }
 
     /**
-     * {@link GroupKeyManagement} supports these elements if it supports feature "Groupcast".
-     */
-    export interface GroupcastAttributes {
-        groupcastAdoption: GroupcastAdoption[];
-    }
-
-    /**
      * Attributes that may appear in {@link GroupKeyManagement}.
      *
      * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
@@ -152,8 +145,6 @@ export declare namespace GroupKeyManagement {
          * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
          */
         maxGroupKeysPerFabric: number;
-
-        groupcastAdoption: GroupcastAdoption[];
     }
 
     /**
@@ -286,10 +277,7 @@ export declare namespace GroupKeyManagement {
      */
     export interface Commands extends BaseCommands {}
 
-    export type Components = [
-        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
-        { flags: { groupcast: true }, attributes: GroupcastAttributes }
-    ];
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "CacheAndSync" | "Groupcast";
 
     /**
@@ -367,17 +355,6 @@ export declare namespace GroupKeyManagement {
          * @see {@link MatterSpecification.v142.Core} § 11.2.5.5.3
          */
         groupName?: string;
-
-        fabricIndex: FabricIndex;
-    };
-
-    export declare class GroupcastAdoption {
-        constructor(values?: Partial<GroupcastAdoption>);
-
-        /**
-         * Indicates whether Groupcast was adopted by the associated Fabric's administrators.
-         */
-        groupcastAdopted: boolean;
 
         fabricIndex: FabricIndex;
     };

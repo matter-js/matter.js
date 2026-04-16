@@ -58,38 +58,27 @@ LocalMatter.children.push({
             ],
         },
 
-        // New struct for Groupcast adoption state (Fabric-Scoped)
+        /* Provisional in Matter 1.6.0: GroupcastAdoption struct + attribute removed from
+         * certification scope — other implementors have not adopted this yet.
+         *
         {
             tag: "datatype",
             name: "GroupcastAdoptionStruct",
             type: "struct",
             children: [
                 {
-                    tag: "field",
-                    id: 0x0,
-                    name: "GroupcastAdopted",
-                    type: "bool",
-                    access: "F",
-                    conformance: "M",
+                    tag: "field", id: 0x0, name: "GroupcastAdopted", type: "bool",
+                    access: "F", conformance: "M",
                     details: "Indicates whether Groupcast was adopted by the associated Fabric's administrators.",
                 },
                 { tag: "field", id: 0xfe, name: "FabricIndex", type: "FabricIndex" },
             ],
         },
-
-        // New attribute: GroupcastAdoption (0x0004)
-        // When GroupcastAdopted=true for a fabric: GroupKeyMap is empty and read-only (INVALID_IN_STATE on write)
-        // When GroupcastAdopted=false/missing: GroupKeyMap reflects Groupcast Membership-derived mappings
         {
-            tag: "attribute",
-            id: 0x0004,
-            name: "GroupcastAdoption",
-            type: "list",
-            access: "RW A F",
-            conformance: "GCAST",
-            constraint: "desc",
-            quality: "N",
+            tag: "attribute", id: 0x0004, name: "GroupcastAdoption", type: "list",
+            access: "RW A F", conformance: "GCAST", constraint: "desc", quality: "N",
             children: [{ tag: "field", name: "entry", type: "GroupcastAdoptionStruct" }],
         },
+        */
     ],
 });

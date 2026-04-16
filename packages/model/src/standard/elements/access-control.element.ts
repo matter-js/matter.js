@@ -60,8 +60,12 @@ export const AccessControl = Cluster(
         { name: "Arl", id: 0x6, type: "list", access: "R F V", conformance: "MNGD", constraint: "desc", default: [] },
         Field({ name: "entry", type: "AccessRestrictionEntryStruct" })
     ),
+
     Attribute(
-        { name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "P, AUX", constraint: "max 2000" },
+        {
+            name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "P, AUX",
+            constraint: "max 2000", quality: "C"
+        },
         Field({ name: "entry", type: "AccessControlEntryStruct" })
     ),
 
