@@ -4,11 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-<<<<<<< tcp-rebased
-import { Bytes, Channel, ChannelType, ConnectedChannel, Duration, MatterError, Transport } from "@matter/general";
-=======
-import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration } from "@matter/general";
->>>>>>> main
+import { Bytes, Channel, ChannelType, ConnectedChannel, Duration, Transport } from "@matter/general";
 import { Scanner } from "../common/Scanner.js";
 import { PeerCommunicationError } from "../peer/PeerCommunicationError.js";
 import { MatterBle } from "./BleConsts.js";
