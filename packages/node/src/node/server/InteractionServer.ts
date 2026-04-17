@@ -923,6 +923,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             const rawGroupId = message.packetHeader.destGroupId;
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
             const fabric = exchange.session.associatedFabric;
+            let emitted = false;
             for await (const chunk of results) {
                 for (const data of chunk) {
                     if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
@@ -937,6 +938,23 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         clusterId: data.path.clusterId,
                         elementId: data.path.commandId,
                         accessAllowed,
+                    });
+                    emitted = true;
+                }
+            }
+            // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
+            // endpoint mappings for the group), still emit one event per requested invoke path so
+            // observers see the message arrived. FailedAuth + accessAllowed=false signals denial.
+            if (!emitted) {
+                for (const { commandPath } of invokeRequests) {
+                    this.#context.sessions.emitGroupMessage({
+                        result: Groupcast.GroupcastTestResult.FailedAuth,
+                        fabric,
+                        groupId,
+                        endpointId: commandPath.endpointId,
+                        clusterId: commandPath.clusterId,
+                        elementId: commandPath.commandId,
+                        accessAllowed: false,
                     });
                 }
             }

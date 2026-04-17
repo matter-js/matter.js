@@ -617,6 +617,6 @@ export namespace GroupKeyManagementServer {
 
         // Overwrite defaults to allow more than 3 group keys and 4 groups per fabric, because we can
         override maxGroupKeysPerFabric = 20; // The Minimum would be 3;
-        override maxGroupsPerFabric = 21; // The Minimum would be 4;
+        override maxGroupsPerFabric = 22; // The Minimum would be 4. Aligned with Groupcast quota=floor(44/2).
     }
 }

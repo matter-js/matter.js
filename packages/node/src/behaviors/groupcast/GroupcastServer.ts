@@ -367,7 +367,9 @@ export class GroupcastServer extends GroupcastBehavior {
             return;
         }
         const sessions = this.env.get(SessionManager);
-        const handler = (info: GroupMessageEventInfo) => this.#onGroupMessage(info);
+        // SessionManager.onGroupMessage fires after the dispatching action's context has exited, so
+        // wrap the handler with this.callback to acquire a fresh context for state/event access.
+        const handler = this.callback(this.#onGroupMessage);
         sessions.onGroupMessage.on(handler);
         this.internal.groupMessageHandler = handler;
     }
@@ -413,6 +415,14 @@ export class GroupcastServer extends GroupcastBehavior {
         const fabricIndex = fabric.fabricIndex;
         const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
 
+        // Set per-group multicast address policies BEFORE updating groupKeyIdMap. The latter triggers
+        // ServerGroupNetworking to bind the multicast address via multicastAddressFor, which reads the
+        // policy map - so the policy must be in place first or it falls back to PerGroupId-derived.
+        for (const m of fabricMemberships) {
+            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
+            fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
+        }
+
         // Rebuild group→keySet map
         const groupKeyIdMap = new Map<GroupId, number>();
         for (const m of fabricMemberships) {
@@ -420,20 +430,43 @@ export class GroupcastServer extends GroupcastBehavior {
         }
         fabric.groups.groupKeyIdMap = groupKeyIdMap;
 
-        // Set per-group multicast address policies
-        for (const m of fabricMemberships) {
-            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
-            fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
-        }
-
         // Mirror Membership mappings into GKM GroupKeyMap so the attribute read reflects them.
         // Data dependency: Groupcast owns the group→keySet relationship; GroupKeyMap must reflect it.
+        // GKM's per-fabric cap (maxGroupsPerFabric) and Groupcast's per-fabric cap (floor(maxMembershipCount/2))
+        // must stay aligned so the mirror never exceeds the GKM validator.
         const gkm = this.agent.get(GroupKeyManagementServer);
-        const otherFabrics = gkm.state.groupKeyMap.filter(e => e.fabricIndex !== fabricIndex);
+        const otherFabricsMap = gkm.state.groupKeyMap.filter(e => e.fabricIndex !== fabricIndex);
         const mappings = fabricMemberships
             .filter(m => m.keySetId !== UNMAPPED_KEYSET_ID)
             .map(m => ({ groupId: m.groupId, groupKeySetId: m.keySetId, fabricIndex }));
-        gkm.state.groupKeyMap = [...otherFabrics, ...mappings];
+        gkm.state.groupKeyMap = [...otherFabricsMap, ...mappings];
+
+        // Mirror Membership endpoints to GKM GroupTable (spec attribute) and FabricGroups.endpoints
+        // (runtime dispatch lookup used by InteractionServer for wildcard group commands).
+        const otherFabricsTable = gkm.state.groupTable.filter(e => e.fabricIndex !== fabricIndex);
+        const tableEntries = fabricMemberships
+            .filter(m => m.endpoints !== undefined && m.endpoints.length > 0)
+            .map(m => ({
+                groupId: m.groupId,
+                endpoints: [...m.endpoints!],
+                groupName: "",
+                fabricIndex,
+            }));
+        gkm.state.groupTable = [...otherFabricsTable, ...tableEntries];
+
+        const previousGroupIds = new Set(fabric.groups.endpoints.keys());
+        for (const m of fabricMemberships) {
+            const eps = m.endpoints ?? [];
+            if (eps.length > 0) {
+                fabric.groups.endpoints.set(m.groupId, [...eps]);
+            } else {
+                fabric.groups.endpoints.delete(m.groupId);
+            }
+            previousGroupIds.delete(m.groupId);
+        }
+        for (const gid of previousGroupIds) {
+            fabric.groups.endpoints.delete(gid);
+        }
     }
 
     /**
@@ -610,9 +643,13 @@ export namespace GroupcastServer {
 
     /** Default state overrides for GroupcastServer. */
     export class State extends GroupcastBehavior.State {
-        /** Implementation-defined maximum membership count (min 10 per spec). */
-        override maxMembershipCount = 254;
+        /**
+         * Implementation-defined maximum membership count (min 10 per spec).
+         * Set to 2 * GKM.maxGroupsPerFabric (44) so per-fabric quota floor(44/2)=22 aligns exactly
+         * with GKM's per-fabric cap. Even number avoids spillover semantics.
+         */
+        override maxMembershipCount = 44;
         /** Implementation-defined maximum multicast address count (min 1 per spec). */
-        override maxMcastAddrCount = 254;
+        override maxMcastAddrCount = 44;
     }
 }
