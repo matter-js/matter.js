@@ -21,6 +21,7 @@ import {
     ImplementationError,
     Instant,
     Logger,
+    Millis,
     Minutes,
     repackErrorAs,
     Seconds,
@@ -201,6 +202,9 @@ const DEFAULT_FAILSAFE_TIME = Minutes.one;
 
 /** When we execute longer actions like network connections or reconnection, we need to keep the BTP session alive */
 const BTP_IDLE_ALIVE_INTERVAL = Seconds(25);
+
+/** Expected maximum time for CASE session establishment over the operational network. */
+const CASE_RECONNECT_TIMEOUT = Minutes(5);
 
 /** Devices may report very low scan/connect timeouts that are not enough in practice */
 const MIN_NETWORK_SCAN_TIMEOUT_SECONDS = 60;
@@ -817,6 +821,20 @@ export class ControllerCommissioningFlow {
         }
     }
 
+    /**
+     * For non-concurrent devices the BLE connection drops when connectNetwork is sent, so the
+     * failsafe must cover both the connect time and the subsequent CASE reconnection.
+     */
+    #connectNetworkFailsafeTime(connectMaxTimeSeconds: number): Duration {
+        if (this.collectedCommissioningData.supportsConcurrentConnection === false) {
+            return Duration.max(
+                Millis(Seconds(connectMaxTimeSeconds) + CASE_RECONNECT_TIMEOUT),
+                this.#defaultFailSafeTime,
+            );
+        }
+        return Seconds(connectMaxTimeSeconds);
+    }
+
     async #resetFailsafeTimer() {
         if (this.#currentFailSafeEndTime === undefined) return;
         try {
@@ -1361,7 +1379,7 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        await this.#ensureFailsafeTimerFor(Seconds(connectMaxTimeSeconds));
+        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
 
         const connectResult = await this.#invokeCommand(
             {
@@ -1559,7 +1577,7 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        await this.#ensureFailsafeTimerFor(Seconds(connectMaxTimeSeconds));
+        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
 
         const { networkingStatus, debugText } = await this.#invokeCommand(
             {
@@ -1608,9 +1626,18 @@ export class ControllerCommissioningFlow {
 
         // Reconnection with discovery could take longer than the default failsafe time, so we need to
         // re-arm the failsafe when we are in a concurrent commissioning flow also in parallel to
-        // the operative reconnection
-        await this.#ensureFailsafeTimerFor(Minutes(5));
-        if (!isConcurrentFlow) {
+        // the operative reconnection.
+        // For non-concurrent flow the BLE connection already dropped when connectNetwork was sent
+        // (step 16/17), so we cannot re-arm here — the failsafe was armed for long enough before
+        // that step.  For concurrent flow the BLE session is still alive, so try to extend it.
+        if (isConcurrentFlow) {
+            try {
+                await this.#ensureFailsafeTimerFor(CASE_RECONNECT_TIMEOUT);
+            } catch (error) {
+                // Ignore errors on PASE actions, either way CASE success/failure decides the outcome, not this re-arm.
+                logger.info("Failed to re-arm failsafe before operational reconnect, proceeding anyway", error);
+            }
+        } else {
             this.#armFailsafeInterval?.stop();
         }
 

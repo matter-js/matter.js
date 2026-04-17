@@ -44,5 +44,5 @@ export function generateForwards(
 }
 
 function chooseName(filename: string) {
-    return filename.replace(/\.ts$/, "").replace(/^.*[\\/]/, "");
+    return filename.replace(/(\.d)?\.ts$/, "").replace(/^.*[\\/]/, "");
 }

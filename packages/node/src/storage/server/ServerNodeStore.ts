@@ -66,6 +66,7 @@ export class ServerNodeStore extends NodeStore implements Destructable {
 
     async close() {
         await this.construction.close(async () => {
+            await this.#endpointStores.close();
             await this.#clientStores?.close();
             await this.#bdxHandle?.close();
             await this.#storageManager?.close();
