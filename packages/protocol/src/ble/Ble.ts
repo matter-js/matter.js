@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration } from "@matter/general";
+import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, Observable } from "@matter/general";
 import { Scanner } from "../common/Scanner.js";
 import { PeerCommunicationError } from "../peer/PeerCommunicationError.js";
 import { MatterBle } from "./BleConsts.js";
@@ -35,4 +35,12 @@ export abstract class BleChannel<T> implements Channel<T> {
     abstract name: string;
     abstract send(data: T): Promise<void>;
     abstract close(): Promise<void>;
+
+    /**
+     * Emitted exactly once when the channel is lost (peripheral disconnect, BTP session close,
+     * or explicit {@link close}).  Consumers that hold a secure session over this channel use
+     * this to force-close the session and reject pending exchanges without waiting for MRP
+     * timeouts.
+     */
+    abstract readonly closed: Observable<[]>;
 }
