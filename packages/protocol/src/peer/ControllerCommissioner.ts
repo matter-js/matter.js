@@ -16,6 +16,7 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -524,19 +525,25 @@ export class ControllerCommissioner {
         logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, ephemeralSession);
 
-        // Force-close the PASE session when its BLE transport goes away, so any in-flight
-        // commissioning exchange rejects immediately instead of blocking on MRP retransmissions.
-        // Typical trigger: non-concurrent device drops BLE after connectNetwork to move to
-        // the operational network.  No-op for non-BLE PASE — CASE-over-IP has its own recovery.
-        const paseChannel = ephemeralSession.channel.channel;
-        if (paseChannel instanceof BleChannel) {
-            paseChannel.closed.once(() => {
-                ephemeralSession
-                    .initiateForceClose({
-                        cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
-                    })
-                    .catch(error => logger.error("Error while force-closing PASE session on BLE close", error));
-            });
+        // BLE-only: BTP MRP retrans blocks pending invokes for ~45s when a non-concurrent device
+        // drops BLE after connectNetwork.  Force-close on BLE-lost so the awaited invoke rejects
+        // immediately and the commissioning flow can flip to the non-concurrent CASE path.
+        if (!ephemeralSession.isClosed) {
+            const paseChannel = ephemeralSession.channel.channel;
+            if (paseChannel instanceof BleChannel) {
+                paseChannel.closed.once(() => {
+                    ephemeralSession
+                        .initiateForceClose({
+                            cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
+                        })
+                        .catch(error => {
+                            // Already-closed races with our force-close — the session shut down
+                            // via another path, no action needed.  Anything else is a real bug.
+                            if (error instanceof SessionClosedError) return;
+                            logger.error("Error while force-closing PASE session on BLE close", error);
+                        });
+                });
+            }
         }
 
         await using commissioner = new commissioningFlowImpl(
