@@ -292,7 +292,9 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
     }
 
     #emitClosed() {
-        if (this.#closedFired) return;
+        if (this.#closedFired) {
+            return;
+        }
         this.#closedFired = true;
         this.#closed.emit();
     }
