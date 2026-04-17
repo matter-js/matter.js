@@ -29,6 +29,20 @@ import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionManager } from "./SessionManager.js";
 
+/** Thrown by {@link GroupSession.decode} when no installed key can be a candidate for the received group message. */
+export class GroupSessionNoKeyError extends MatterFlowError {
+    constructor(message = "No key candidate found for group session decryption") {
+        super(message);
+    }
+}
+
+/** Thrown by {@link GroupSession.decode} when decryption failed with all candidate keys. */
+export class GroupSessionDecodeError extends MatterFlowError {
+    constructor(message = "Failed to decode group message with any key candidate") {
+        super(message);
+    }
+}
+
 const logger = Logger.get("SecureGroupSession");
 
 /** Secure Group session instance */
@@ -223,7 +237,7 @@ export class GroupSession extends SecureSession {
             }
         }
         if (keys.length === 0) {
-            throw new MatterFlowError("No key candidate found for group session decryption.");
+            throw new GroupSessionNoKeyError();
         }
         let message: DecodedMessage | undefined;
         let key: Bytes | undefined;
@@ -243,7 +257,7 @@ export class GroupSession extends SecureSession {
             }
         }
         if (!found || !message || !key || !keySetId || !fabric) {
-            throw new MatterFlowError("Failed to decode group message with any key candidate.");
+            throw new GroupSessionDecodeError();
         }
 
         if (message.payloadHeader.hasSecuredExtension) {

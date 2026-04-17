@@ -51,6 +51,7 @@ import {
 import {
     AttributeData,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    GroupId,
     INTERACTION_PROTOCOL_ID,
     InvokeResponseData,
     ReceivedStatusResponseError,
@@ -66,6 +67,7 @@ import {
     TlvSubscribeResponse,
     TypeFromSchema,
 } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { ServerNode } from "../ServerNode.js";
 import { OnlineServerInteraction } from "./OnlineServerInteraction.js";
 import { ServerSubscription, ServerSubscriptionConfig, ServerSubscriptionContext } from "./ServerSubscription.js";
@@ -915,8 +917,34 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         // Get the invoke-results from the server interaction
         const results = this.#serverInteraction.invoke(request, context);
 
-        // For suppressResponse or group sessions, just consume the iterator without sending responses
-        if (suppressResponse || isGroupSession) {
+        // For group sessions: consume iterator, report each dispatched command to SessionManager so
+        // Groupcast testing (if enabled for the fabric) can emit the GroupcastTesting event
+        if (isGroupSession) {
+            const rawGroupId = message.packetHeader.destGroupId;
+            const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
+            const fabric = exchange.session.associatedFabric;
+            for await (const chunk of results) {
+                for (const data of chunk) {
+                    if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
+                        continue;
+                    }
+                    const accessAllowed = data.kind === "cmd-response" || data.status === StatusCode.Success;
+                    this.#context.sessions.emitGroupMessage({
+                        result: Groupcast.GroupcastTestResult.Success,
+                        fabric,
+                        groupId,
+                        endpointId: data.path.endpointId,
+                        clusterId: data.path.clusterId,
+                        elementId: data.path.commandId,
+                        accessAllowed,
+                    });
+                }
+            }
+            return;
+        }
+
+        // For suppressResponse: just consume the iterator without sending responses
+        if (suppressResponse) {
             for await (const _chunk of results);
             return;
         }
