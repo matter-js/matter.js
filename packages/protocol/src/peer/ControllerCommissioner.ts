@@ -5,6 +5,7 @@
  */
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
+import { BleChannel, BleChannelClosedError } from "#ble/Ble.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
@@ -522,6 +523,21 @@ export class ControllerCommissioner {
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
         logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, ephemeralSession);
+
+        // Force-close the PASE session when its BLE transport goes away, so any in-flight
+        // commissioning exchange rejects immediately instead of blocking on MRP retransmissions.
+        // Typical trigger: non-concurrent device drops BLE after connectNetwork to move to
+        // the operational network.  No-op for non-BLE PASE — CASE-over-IP has its own recovery.
+        const paseChannel = ephemeralSession.channel.channel;
+        if (paseChannel instanceof BleChannel) {
+            paseChannel.closed.once(() => {
+                ephemeralSession
+                    .initiateForceClose({
+                        cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
+                    })
+                    .catch(error => logger.error("Error while force-closing PASE session on BLE close", error));
+            });
+        }
 
         await using commissioner = new commissioningFlowImpl(
             new ClientInteraction({
