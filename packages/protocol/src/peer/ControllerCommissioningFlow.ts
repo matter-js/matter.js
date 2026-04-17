@@ -796,6 +796,14 @@ export class ControllerCommissioningFlow {
                 "Re-Arm Failsafe during longer interactions",
                 BTP_IDLE_ALIVE_INTERVAL,
                 () => {
+                    // Session gone (e.g. BLE dropped after connectNetwork) — pointless to re-arm,
+                    // and the send attempt would block until it finds out the hard way.
+                    if (this.interaction.session?.isClosed) {
+                        logger.debug("Skipping periodic armFailSafe: session is closed");
+                        this.#armFailsafeInterval?.stop();
+                        this.#armFailsafeInterval = undefined;
+                        return;
+                    }
                     const now = Time.nowMs;
                     if (this.#commissioningExpiryTime !== undefined && now < this.#commissioningExpiryTime) {
                         logger.debug(
@@ -804,10 +812,12 @@ export class ControllerCommissioningFlow {
                         this.#armFailsafe().catch(error => {
                             logger.info("Error while re-arming failsafe during reconnect", error);
                             this.#armFailsafeInterval?.stop();
+                            this.#armFailsafeInterval = undefined;
                         });
                     } else {
                         // Stop as soon as we are over the maximum commissioning time
                         this.#armFailsafeInterval?.stop();
+                        this.#armFailsafeInterval = undefined;
                     }
                 },
             ).start();
