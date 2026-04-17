@@ -10,8 +10,11 @@ import { WriteResult } from "#action/index.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
+import { BleDisconnectedError } from "#ble/Ble.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
+import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import {
+    AbortedError,
     asError,
     Bytes,
     causedBy,
@@ -23,6 +26,7 @@ import {
     Logger,
     Millis,
     Minutes,
+    NoResponseTimeoutError,
     repackErrorAs,
     Seconds,
     Time,
@@ -48,7 +52,7 @@ import { GeneralCommissioning } from "@matter/types/clusters/general-commissioni
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { TimeSynchronizationCluster } from "@matter/types/clusters/time-synchronization";
+import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
@@ -835,6 +839,38 @@ export class ControllerCommissioningFlow {
         return Seconds(connectMaxTimeSeconds);
     }
 
+    /**
+     * Recognise transport-level failures of `connectNetwork` that indicate the device has stopped
+     * responding on the commissioning channel — typically because it moved to the operational network.
+     *
+     * Device-returned `NetworkingStatus != Success` is NOT a transport error; those are real
+     * spec-level failures (bad credentials, unknown network, etc.) and must surface normally.
+     */
+    #isConnectNetworkTransportError(error: unknown) {
+        return causedBy(
+            error,
+            BleDisconnectedError, // also matches BleChannelClosedError subclass
+            PeerUnresponsiveError,
+            NoResponseTimeoutError,
+            AbortedError,
+        );
+    }
+
+    /**
+     * Respond to a transport-level `connectNetwork` failure by treating the device as non-concurrent:
+     * stop the periodic failsafe re-arm timer (BLE is gone anyway) and flip the flag so
+     * `#reconnectWithDevice` takes the non-concurrent path.
+     */
+    #handleConnectNetworkTransportError(error: unknown) {
+        logger.warn(
+            "connectNetwork did not complete on the commissioning channel — assuming device is non-concurrent, proceeding to CASE",
+            Diagnostic.errorMessage(asError(error)),
+        );
+        this.collectedCommissioningData.supportsConcurrentConnection = false;
+        this.#armFailsafeInterval?.stop();
+        this.#armFailsafeInterval = undefined;
+    }
+
     async #resetFailsafeTimer() {
         if (this.#currentFailSafeEndTime === undefined) return;
         try {
@@ -960,9 +996,7 @@ export class ControllerCommissioningFlow {
     async #synchronizeTime() {
         if (
             this.collectedCommissioningData.rootServerList !== undefined &&
-            this.collectedCommissioningData.rootServerList.find(
-                clusterId => clusterId === TimeSynchronizationCluster.id,
-            )
+            this.collectedCommissioningData.rootServerList.find(clusterId => clusterId === TimeSynchronization.id)
         ) {
             logger.debug("TimeSynchronization cluster is supported");
             // TODO: implement
@@ -1381,20 +1415,30 @@ export class ControllerCommissioningFlow {
 
         await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
 
-        const connectResult = await this.#invokeCommand(
-            {
-                endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
-                command: "connectNetwork",
-                fields: {
-                    networkId,
-                    breadcrumb: this.lastBreadcrumb++,
+        let connectResult;
+        try {
+            connectResult = await this.#invokeCommand(
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: NetworkCommissioning,
+                    command: "connectNetwork",
+                    fields: {
+                        networkId,
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
                 },
-            },
-            {
-                expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-            },
-        );
+                {
+                    expectedProcessingTime: Seconds(connectMaxTimeSeconds),
+                },
+            );
+        } catch (error) {
+            if (!this.#isConnectNetworkTransportError(error)) throw error;
+            this.#handleConnectNetworkTransportError(error);
+            return {
+                code: CommissioningStepResultCode.Success,
+                breadcrumb: this.lastBreadcrumb,
+            };
+        }
 
         if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new WifiNetworkSetupFailedError(
@@ -1579,21 +1623,32 @@ export class ControllerCommissioningFlow {
 
         await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
 
-        const { networkingStatus, debugText } = await this.#invokeCommand(
-            {
-                endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
-                command: "connectNetwork",
-                fields: {
-                    networkId,
-                    breadcrumb: this.lastBreadcrumb++,
+        let connectResult;
+        try {
+            connectResult = await this.#invokeCommand(
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: NetworkCommissioning,
+                    command: "connectNetwork",
+                    fields: {
+                        networkId,
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
                 },
-            },
-            {
-                expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-            },
-        );
+                {
+                    expectedProcessingTime: Seconds(connectMaxTimeSeconds),
+                },
+            );
+        } catch (error) {
+            if (!this.#isConnectNetworkTransportError(error)) throw error;
+            this.#handleConnectNetworkTransportError(error);
+            return {
+                code: CommissioningStepResultCode.Success,
+                breadcrumb: this.lastBreadcrumb,
+            };
+        }
 
+        const { networkingStatus, debugText } = connectResult;
         if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
                 `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? ` ${debugText}` : ""}`,
