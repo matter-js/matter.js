@@ -13,17 +13,8 @@ import { KeySets, OperationalKeySet } from "./KeySets.js";
 /** Multicast address policy for a group. IanaAddr uses the shared FF05::FA address; PerGroupId derives from GroupId. */
 export type GroupMulticastPolicy = "ianaAddr" | "perGroupId";
 
-/**
- * IANA-assigned shared multicast address for Groupcast cluster (Matter 1.6).
- *
- * TODO(IANA-WRAP): Spec says the IANA address is `ff05::fa`, but CHIP's PeerAddress::Groupcast()
- * (src/transport/raw/PeerAddress.h) wraps it through MakeIPv6PrefixMulticast(scope=0x05,
- * prefixLength=0x40, prefix=0xff05000000000000, groupId=0xfa), producing the unicast-prefix-based
- * multicast form `ff35:40:ff05::fa`. We currently bind to the CHIP-emitted form so test cases work;
- * revisit once CHIP behavior is clarified or corrected upstream. Search for `IANA-WRAP` to find all
- * affected sites.
- */
-export const IANA_GROUPCAST_MULTICAST_ADDRESS = "ff35:40:ff05::fa";
+/** IANA-assigned shared multicast address for Groupcast cluster (Matter 1.6). */
+export const IANA_GROUPCAST_MULTICAST_ADDRESS = "ff05::fa";
 
 export class Groups {
     #fabric: Fabric;
