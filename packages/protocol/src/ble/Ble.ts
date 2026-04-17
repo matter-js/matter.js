@@ -14,6 +14,13 @@ export class BleError extends PeerCommunicationError {}
 /** Thrown when a BLE write or subscribe operation fails because the peripheral disconnected. */
 export class BleDisconnectedError extends BleError {}
 
+/**
+ * Fired as the `cause` when the BLE transport under a PASE session closes, triggering a
+ * force-close of the session so pending exchanges reject immediately instead of waiting
+ * for MRP timeouts.
+ */
+export class BleChannelClosedError extends BleDisconnectedError {}
+
 // TODO - need to factor out the general platform BLE from Matter/BTP so this can move into matter.js-general
 export abstract class Ble {
     abstract get peripheralInterface(): BlePeripheralInterface;
