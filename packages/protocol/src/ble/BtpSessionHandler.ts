@@ -435,8 +435,13 @@ export class BtpSessionHandler {
         if (this.isActive) {
             logger.debug(`Closing BTP session`);
             this.isActive = false;
-            await this.disconnectBleCallback();
-            this.#closed.emit();
+            try {
+                await this.disconnectBleCallback();
+            } finally {
+                // Session is logically closed regardless of transport-level cleanup failure.
+                // Downstream consumers (e.g. PASE force-close on BLE loss) must observe this.
+                this.#closed.emit();
+            }
         }
     }
 

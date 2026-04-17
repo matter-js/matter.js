@@ -14,7 +14,6 @@ import { BleDisconnectedError } from "#ble/Ble.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import {
-    AbortedError,
     asError,
     Bytes,
     causedBy,
@@ -836,11 +835,20 @@ export class ControllerCommissioningFlow {
     }
 
     /**
-     * For non-concurrent devices the BLE connection drops when connectNetwork is sent, so the
-     * failsafe must cover both the connect time and the subsequent CASE reconnection.
+     * On BLE the device may drop the commissioning channel when `connectNetwork` is sent, so the
+     * failsafe must cover both the connect time and the subsequent CASE reconnection.  We arm
+     * pessimistically whenever BLE is in play — not just when the device has declared
+     * `supportsConcurrentConnection=false` — because some devices report concurrent support but
+     * behave non-concurrent in practice.  Once BLE is gone we cannot extend the failsafe, and if
+     * it expires on the device before CASE reconnect lands, the device rolls back addNOC.
+     *
+     * On IP transports, BLE drop is not a concern and the declared flag can be trusted.
      */
     #connectNetworkFailsafeTime(connectMaxTimeSeconds: number): Duration {
-        if (this.collectedCommissioningData.supportsConcurrentConnection === false) {
+        const pessimistic =
+            this.interaction.channelType === ChannelType.BLE ||
+            this.collectedCommissioningData.supportsConcurrentConnection === false;
+        if (pessimistic) {
             return Duration.max(
                 Millis(Seconds(connectMaxTimeSeconds) + CASE_RECONNECT_TIMEOUT),
                 this.#defaultFailSafeTime,
@@ -855,6 +863,11 @@ export class ControllerCommissioningFlow {
      *
      * Device-returned `NetworkingStatus != Success` is NOT a transport error; those are real
      * spec-level failures (bad credentials, unknown network, etc.) and must surface normally.
+     *
+     * Bare `AbortedError` is deliberately excluded: a user-initiated cancel or shutdown abort must
+     * propagate cleanly, not be swallowed as a "non-concurrent signal".  Transport aborts surface
+     * with a more specific cause ({@link PeerUnresponsiveError} from MRP timeouts,
+     * {@link BleDisconnectedError} from BLE loss) that `causedBy` already matches.
      */
     #isConnectNetworkTransportError(error: unknown) {
         return causedBy(
@@ -862,7 +875,6 @@ export class ControllerCommissioningFlow {
             BleDisconnectedError, // also matches BleChannelClosedError subclass
             PeerUnresponsiveError,
             NoResponseTimeoutError,
-            AbortedError,
         );
     }
 
