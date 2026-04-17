@@ -881,6 +881,47 @@ export class ControllerCommissioningFlow {
         this.#armFailsafeInterval = undefined;
     }
 
+    /**
+     * Issue `NetworkCommissioning.connectNetwork` for the given network and classify the outcome.
+     *
+     * - `transportFailure: true` means the invoke threw a transport-level error (BLE/MRP gone).
+     *   The caller should return {@link CommissioningStepResultCode.Success} so the flow falls
+     *   through into the non-concurrent CASE reconnect path — the failsafe flag has already
+     *   been flipped by {@link #handleConnectNetworkTransportError}.
+     * - `transportFailure: false` carries the device's actual response and is the caller's job
+     *   to validate ({@link NetworkCommissioning.NetworkCommissioningStatus}, debug text, etc).
+     *
+     * Shared between the WiFi and Thread paths so the try/catch + ensureFailsafe dance lives in
+     * one place and both media stay in lockstep.
+     */
+    async #invokeConnectNetwork(
+        networkId: Uint8Array,
+        connectMaxTimeSeconds: number,
+    ): Promise<{ transportFailure: true } | { transportFailure: false; networkingStatus: number; debugText?: string }> {
+        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
+        try {
+            const { networkingStatus, debugText } = await this.#invokeCommand(
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: NetworkCommissioning,
+                    command: "connectNetwork",
+                    fields: {
+                        networkId,
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
+                },
+                {
+                    expectedProcessingTime: Seconds(connectMaxTimeSeconds),
+                },
+            );
+            return { transportFailure: false, networkingStatus, debugText };
+        } catch (error) {
+            if (!this.#isConnectNetworkTransportError(error)) throw error;
+            this.#handleConnectNetworkTransportError(error);
+            return { transportFailure: true };
+        }
+    }
+
     async #resetFailsafeTimer() {
         if (this.#currentFailSafeEndTime === undefined) return;
         try {
@@ -1423,27 +1464,8 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
-
-        let connectResult;
-        try {
-            connectResult = await this.#invokeCommand(
-                {
-                    endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
-                    command: "connectNetwork",
-                    fields: {
-                        networkId,
-                        breadcrumb: this.lastBreadcrumb++,
-                    },
-                },
-                {
-                    expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-                },
-            );
-        } catch (error) {
-            if (!this.#isConnectNetworkTransportError(error)) throw error;
-            this.#handleConnectNetworkTransportError(error);
+        const connectResult = await this.#invokeConnectNetwork(networkId, connectMaxTimeSeconds);
+        if (connectResult.transportFailure) {
             return {
                 code: CommissioningStepResultCode.Success,
                 breadcrumb: this.lastBreadcrumb,
@@ -1631,27 +1653,8 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
-
-        let connectResult;
-        try {
-            connectResult = await this.#invokeCommand(
-                {
-                    endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
-                    command: "connectNetwork",
-                    fields: {
-                        networkId,
-                        breadcrumb: this.lastBreadcrumb++,
-                    },
-                },
-                {
-                    expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-                },
-            );
-        } catch (error) {
-            if (!this.#isConnectNetworkTransportError(error)) throw error;
-            this.#handleConnectNetworkTransportError(error);
+        const connectResult = await this.#invokeConnectNetwork(networkId, connectMaxTimeSeconds);
+        if (connectResult.transportFailure) {
             return {
                 code: CommissioningStepResultCode.Success,
                 breadcrumb: this.lastBreadcrumb,
