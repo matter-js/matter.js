@@ -17,7 +17,7 @@ import {
 
 export const Groups = Cluster(
     { name: "Groups", id: 0x4, classification: "endpoint" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "GN", constraint: "0", default: 1, title: "GroupNames" })

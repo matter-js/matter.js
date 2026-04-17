@@ -306,7 +306,7 @@ export declare namespace RvcOperationalState {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
          */
-        operationCompletion?: OperationalStateNamespace.OperationCompletionEvent;
+        operationCompletion?: OperationCompletionEvent;
     }
 
     /**
@@ -338,7 +338,7 @@ export declare namespace RvcOperationalState {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
          */
-        operationCompletion: OperationalStateNamespace.OperationCompletionEvent;
+        operationCompletion: OperationCompletionEvent;
     }
 
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
@@ -498,6 +498,50 @@ export declare namespace RvcOperationalState {
     export declare class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ErrorStateStruct;
+    };
+
+    /**
+     * This event SHOULD be generated when the overall operation ends, successfully or otherwise. For example, the
+     * completion of a cleaning operation in a Robot Vacuum Cleaner, or the completion of a wash cycle in a Washing
+     * Machine.
+     *
+     * It is highly recommended that appliances device types employing the Operational State cluster support this event,
+     * even if it is optional. This assists clients in executing automations or issuing notifications at critical points
+     * in the device operation cycles.
+     *
+     * This event shall contain the following fields:
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+     */
+    export declare class OperationCompletionEvent {
+        constructor(values?: Partial<OperationCompletionEvent>);
+
+        /**
+         * This field provides an indication of the state at the end of the operation. This field shall have a value
+         * from the ErrorStateEnum set. A value of NoError indicates success, that is, no error has been detected.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.1
+         */
+        completionErrorCode: ErrorState | OperationalStateNamespace.ErrorState;
+
+        /**
+         * The total operational time, in seconds, from when the operation was started via an initial Start command or
+         * autonomous/manual starting action, until the operation completed. This includes any time spent while paused.
+         * There may be cases whereby the total operational time exceeds the maximum value that can be conveyed by this
+         * attribute, in such instances, this attribute shall be populated with null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.2
+         */
+        totalOperationalTime?: number | null;
+
+        /**
+         * The total time spent in the paused state, in seconds. There may be cases whereby the total paused time
+         * exceeds the maximum value that can be conveyed by this attribute, in such instances, this attribute shall be
+         * populated with null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.3
+         */
+        pausedTime?: number | null;
     };
 
     /**

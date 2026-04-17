@@ -63,8 +63,11 @@ export class OccupancySensingServer extends OccupancySensingBehavior {
             }
         }
 
-        // Clear attributes that are dependent on HoldTime if HoldTime is not set.
-        // TODO - if we instead avoid defaults for attributes with field-conditional conformance, remove this
+        // Emit OccupancyChanged event when occupancy changes and the feature is enabled
+        if (this.features.occupancyEvent) {
+            this.reactTo(this.events.occupancy$Changed, this.#emitOccupancyChanged);
+        }
+
         // Clear attributes that are dependent on HoldTime if HoldTime is not set.
         // TODO - if we instead avoid defaults for attributes with field-conditional conformance, remove this
         if (this.state.holdTime === undefined) {
@@ -75,6 +78,10 @@ export class OccupancySensingServer extends OccupancySensingBehavior {
                 }
             }
         }
+    }
+
+    #emitOccupancyChanged(occupancy: OccupancySensing.Occupancy) {
+        this.events.occupancyChanged?.emit({ occupancy }, this.context);
     }
 }
 

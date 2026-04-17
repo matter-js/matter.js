@@ -36,7 +36,11 @@ Resource.add({
                     details: "Supports sensing using analysis of radio signals, e.g.: RSSI, CSI and/or any other metric from the " +
                         "signal"
                 },
-                { tag: "field", name: "VIS", details: "Supports sensing based on analyzing images" }
+                { tag: "field", name: "VIS", details: "Supports sensing based on analyzing images" },
+                {
+                    tag: "field", name: "OCCEVENT",
+                    details: "Supports generating OccupancyChanged events when occupancy state changes."
+                }
             ]
         },
 

@@ -17,7 +17,7 @@ import {
 
 export const OccupancySensing = Cluster(
     { name: "OccupancySensing", id: 0x406, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -28,7 +28,8 @@ export const OccupancySensing = Cluster(
         Field({ name: "AIR", conformance: "O.a+", constraint: "4", title: "ActiveInfrared" }),
         Field({ name: "RAD", conformance: "O.a+", constraint: "5", title: "Radar" }),
         Field({ name: "RFS", conformance: "O.a+", constraint: "6", title: "RfSensing" }),
-        Field({ name: "VIS", conformance: "O.a+", constraint: "7", title: "Vision" })
+        Field({ name: "VIS", conformance: "O.a+", constraint: "7", title: "Vision" }),
+        Field({ name: "OCCEVENT", conformance: "P, M", constraint: "9", title: "OccupancyEvent" })
     ),
 
     Attribute({
@@ -94,7 +95,7 @@ export const OccupancySensing = Cluster(
         constraint: "1 to 254", default: 1, quality: "N"
     }),
     Event(
-        { name: "OccupancyChanged", id: 0x0, access: "V", conformance: "O", priority: "info" },
+        { name: "OccupancyChanged", id: 0x0, access: "V", conformance: "OCCEVENT, O", priority: "info" },
         Field({ name: "Occupancy", id: 0x0, type: "OccupancyBitmap", conformance: "M" })
     ),
     Datatype({ name: "OccupancyBitmap", type: "map8" }, Field({ name: "Occupied", constraint: "0" })),

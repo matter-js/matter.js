@@ -601,7 +601,7 @@ export declare namespace OperationalState {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.1
          */
-        completionErrorCode: number;
+        completionErrorCode: ErrorState;
 
         /**
          * The total operational time, in seconds, from when the operation was started via an initial Start command or

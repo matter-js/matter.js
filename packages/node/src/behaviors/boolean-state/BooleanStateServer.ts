@@ -13,7 +13,9 @@ import { BooleanStateBehavior } from "./BooleanStateBehavior.js";
  */
 export class BooleanStateServer extends BooleanStateBehavior {
     override initialize(): MaybePromise {
-        this.reactTo(this.events.stateValue$Changed, this.#emitStateChange);
+        if (this.features.changeEvent) {
+            this.reactTo(this.events.stateValue$Changed, this.#emitStateChange);
+        }
     }
 
     #emitStateChange(stateValue: boolean) {

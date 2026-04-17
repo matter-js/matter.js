@@ -12,6 +12,9 @@ import { Identity } from "@matter/general";
 
 /**
  * BooleanStateBehavior is the base class for objects that support interaction with {@link BooleanState.Cluster}.
+ *
+ * This class does not have optional features of BooleanState.Cluster enabled. You can enable additional features using
+ * BooleanStateBehavior.with.
  */
 export const BooleanStateBehaviorConstructor = ClusterBehavior.for(BooleanState);
 

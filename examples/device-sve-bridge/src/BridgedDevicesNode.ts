@@ -6,13 +6,12 @@
  */
 
 /**
- * This example shows how to create a new device node that is composed of multiple devices.
- * It creates multiple endpoints on the server. For information on how to add a composed device to a bridge please
- * refer to the bridge example!
- * It can be used as CLI script and starting point for your own device node implementation.
+ * SVE test bridge: aggregator with OnOff light, Dimmable light, Contact sensor and Occupancy sensor.
+ * Contact sensor and Occupancy sensor have change-event features enabled and use a configurable
+ * 5-minute timer to toggle their state.
  */
 
-import { Bytes } from "@matter/general";
+import { Bytes, Minutes, Timer } from "@matter/general";
 import {
     Endpoint,
     Environment,
@@ -25,13 +24,19 @@ import {
     Time,
     VendorId,
 } from "@matter/main";
+import { BooleanStateServer } from "@matter/main/behaviors/boolean-state";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { GroupcastServer } from "@matter/main/behaviors/groupcast";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
+import { OccupancySensingServer } from "@matter/main/behaviors/occupancy-sensing";
+import { ContactSensorDevice } from "@matter/main/devices/contact-sensor";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
 import { OnOffLightDevice } from "@matter/main/devices/on-off-light";
+import { OccupancySensorDevice } from "@matter/main/devices/occupancy-sensor";
 import { AggregatorEndpoint } from "@matter/main/endpoints/aggregator";
 import { createFileLogger } from "@matter/nodejs";
+
+const logger = Logger.get("SveBridge");
 
 /** Set up file-based logger using process start time as filename */
 const logFileName = `${new Date().toISOString().replace(/[:.]/g, "-")}.log`;
@@ -41,11 +46,20 @@ Logger.destinations.file = LogDestination({
     format: LogFormat("plain"),
 });
 
-//const logger = Logger.get("Device");
-
 /** Initialize configuration values */
-const { deviceName, vendorName, passcode, discriminator, vendorId, productName, productId, port, uniqueId } =
-    await getConfiguration();
+const {
+    deviceName,
+    vendorName,
+    passcode,
+    discriminator,
+    vendorId,
+    productName,
+    productId,
+    port,
+    uniqueId,
+    contactTimerEnabled,
+    occupancyTimerEnabled,
+} = await getConfiguration();
 
 const networkId = Bytes.fromHex("6574682D617070");
 
@@ -55,34 +69,25 @@ const networkId = Bytes.fromHex("6574682D617070");
 const server = await ServerNode.create(
     ServerNode.RootEndpoint.with(
         GroupcastServer.with("Listener", "Sender", "PerGroup"),
-        NetworkCommissioningServer.with("EthernetNetworkInterface"), // Set the correct Ethernet network Commissioning cluster
+        NetworkCommissioningServer.with("EthernetNetworkInterface"),
     ),
     {
-        // Required: Give the Node a unique ID which is used to store the state of this node
         id: uniqueId,
 
-        // Provide Network relevant configuration like the port
-        // Optional when operating only one device on a host, Default port is 5540
         network: {
             port,
         },
 
-        // Provide Commissioning relevant settings
-        // Optional for development/testing purposes
         commissioning: {
             passcode,
             discriminator,
         },
 
-        // Provide Node announcement settings
-        // Optional: If Ommitted some development defaults are used
         productDescription: {
             name: deviceName,
             deviceType: AggregatorEndpoint.deviceType,
         },
 
-        // Provide defaults for the BasicInformation cluster on the Root endpoint
-        // Optional: If Omitted some development defaults are used
         basicInformation: {
             vendorName,
             vendorId: VendorId(vendorId),
@@ -97,22 +102,20 @@ const server = await ServerNode.create(
             maxNetworks: 1,
             interfaceEnabled: true,
             networks: [{ networkId: networkId, connected: true }],
-
-            // We fail TC_CNET_4_3 with these
-            //lastConnectErrorValue: 0,
-            //lastNetworkId: networkId,
-            //lastNetworkingStatus: NetworkCommissioning.NetworkCommissioningStatus.Success,
         },
     },
 );
 
-const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator" });
+const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
 await server.add(aggregator);
+
+// --- Endpoint 2: OnOff Light ---
 
 const onOffName = `OnOff Light`;
 await aggregator.add(
     new Endpoint(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
         id: `onoff`,
+        number: 2,
         bridgedDeviceBasicInformation: {
             nodeLabel: onOffName,
             productName: onOffName,
@@ -123,10 +126,13 @@ await aggregator.add(
     }),
 );
 
-const dimmableName = `OnOff Dimmer`;
+// --- Endpoint 3: Dimmable Light ---
+
+const dimmableName = `Dimmable Light`;
 await aggregator.add(
     new Endpoint(DimmableLightDevice.with(BridgedDeviceBasicInformationServer), {
         id: `dimmable`,
+        number: 3,
         bridgedDeviceBasicInformation: {
             nodeLabel: dimmableName,
             productName: dimmableName,
@@ -137,20 +143,83 @@ await aggregator.add(
     }),
 );
 
-//logger.info(server);
+// --- Endpoint 4: Contact Sensor (BooleanState with ChangeEvent feature) ---
+
+const contactName = `Contact Sensor`;
+const contactEndpoint = new Endpoint(
+    ContactSensorDevice.with(BridgedDeviceBasicInformationServer, BooleanStateServer.with("ChangeEvent")),
+    {
+        id: `contact`,
+        number: 4,
+        bridgedDeviceBasicInformation: {
+            nodeLabel: contactName,
+            productName: contactName,
+            productLabel: contactName,
+            serialNumber: `node-matter-${uniqueId}-3`,
+            reachable: true,
+        },
+        booleanState: {
+            stateValue: false, // initial: open / no contact
+        },
+    },
+);
+await aggregator.add(contactEndpoint);
+
+// --- Endpoint 5: Occupancy Sensor (PhysicalContact + OccupancyEvent features) ---
+
+const occupancyName = `Occupancy Sensor`;
+const occupancyEndpoint = new Endpoint(
+    OccupancySensorDevice.with(
+        BridgedDeviceBasicInformationServer,
+        OccupancySensingServer.with("PhysicalContact", "OccupancyEvent"),
+    ),
+    {
+        id: `occupancy`,
+        number: 5,
+        bridgedDeviceBasicInformation: {
+            nodeLabel: occupancyName,
+            productName: occupancyName,
+            productLabel: occupancyName,
+            serialNumber: `node-matter-${uniqueId}-4`,
+            reachable: true,
+        },
+        occupancySensing: {
+            occupancy: { occupied: false }, // initial: unoccupied
+        },
+    },
+);
+await aggregator.add(occupancyEndpoint);
+
+// --- State toggle timers (5 minutes) ---
+
+const TOGGLE_INTERVAL = Minutes(5);
+const timers = new Array<Timer>();
+
+if (contactTimerEnabled) {
+    const contactTimer = Time.getPeriodicTimer("contact-toggle", TOGGLE_INTERVAL, async () => {
+        const current = contactEndpoint.stateOf(BooleanStateServer).stateValue;
+        logger.info(`Contact sensor toggle: ${current} → ${!current}`);
+        await contactEndpoint.set({ booleanState: { stateValue: !current } });
+    });
+    contactTimer.start();
+    timers.push(contactTimer);
+    logger.info("Contact sensor 5-minute toggle timer enabled");
+}
+
+if (occupancyTimerEnabled) {
+    const occupancyTimer = Time.getPeriodicTimer("occupancy-toggle", TOGGLE_INTERVAL, async () => {
+        const current = occupancyEndpoint.stateOf(OccupancySensingServer).occupancy.occupied;
+        logger.info(`Occupancy sensor toggle: occupied=${current} → occupied=${!current}`);
+        await occupancyEndpoint.set({ occupancySensing: { occupancy: { occupied: !current } } });
+    });
+    occupancyTimer.start();
+    timers.push(occupancyTimer);
+    logger.info("Occupancy sensor 5-minute toggle timer enabled");
+}
 
 await server.start();
 
 async function getConfiguration() {
-    /**
-     * Collect all needed data
-     *
-     * This block collects all needed data from cli, environment or storage. Replace this with where ever your data come from.
-     *
-     * Note: This example uses the matter.js process storage system to store the device parameter data for convenience
-     * and easy reuse. When you also do that be careful to not overlap with Matter-Server own storage contexts
-     * (so maybe better not do it ;-)).
-     */
     const environment = Environment.default;
 
     const storageService = environment.get(StorageService);
@@ -164,7 +233,6 @@ async function getConfiguration() {
     const vendorName = "matter.js";
     const passcode = environment.vars.number("passcode") ?? (await deviceStorage.get("passcode", 20202021));
     const discriminator = environment.vars.number("discriminator") ?? (await deviceStorage.get("discriminator", 3840));
-    // product name / id and vendor id should match what is in the device certificate
     const vendorId = environment.vars.number("vendorid") ?? (await deviceStorage.get("vendorid", 0xfff1));
     const productName = `matter-js Bridge`;
     const productId = environment.vars.number("productid") ?? (await deviceStorage.get("productid", 0x8000));
@@ -173,6 +241,10 @@ async function getConfiguration() {
 
     const uniqueId =
         environment.vars.string("uniqueid") ?? (await deviceStorage.get("uniqueid", Time.nowMs.toString()));
+
+    // Toggle-timer CLI flags (default: enabled)
+    const contactTimerEnabled = (environment.vars.number("contact-timer") ?? 0) !== 0;
+    const occupancyTimerEnabled = (environment.vars.number("occupancy-timer") ?? 0) !== 0;
 
     // Persist basic data to keep them also on restart
     await deviceStorage.set({
@@ -193,5 +265,7 @@ async function getConfiguration() {
         productId,
         port,
         uniqueId,
+        contactTimerEnabled,
+        occupancyTimerEnabled,
     };
 }

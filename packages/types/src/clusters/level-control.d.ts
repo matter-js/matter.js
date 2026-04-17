@@ -33,7 +33,7 @@ export declare namespace LevelControl {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 6;
+    export const revision: 7;
 
     /**
      * Canonical metadata for the LevelControl cluster.

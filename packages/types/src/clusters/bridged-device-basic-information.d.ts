@@ -57,7 +57,7 @@ export declare namespace BridgedDeviceBasicInformation {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 5;
+    export const revision: 6;
 
     /**
      * Canonical metadata for the BridgedDeviceBasicInformation cluster.
@@ -169,11 +169,6 @@ export declare namespace BridgedDeviceBasicInformation {
         serialNumber?: string;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productAppearance?: BasicInformation.ProductAppearance;
-
-        /**
          * This attribute shall contain the current version number for the configuration of the bridged device.
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
@@ -184,6 +179,14 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
          */
         configurationVersion?: number;
+
+        /**
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         */
+        productAppearance?: BasicInformation.ProductAppearance;
     }
 
     /**
@@ -292,11 +295,6 @@ export declare namespace BridgedDeviceBasicInformation {
         serialNumber: string;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productAppearance: BasicInformation.ProductAppearance;
-
-        /**
          * This attribute shall contain the current version number for the configuration of the bridged device.
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
@@ -307,6 +305,14 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
          */
         configurationVersion: number;
+
+        /**
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         */
+        productAppearance: BasicInformation.ProductAppearance;
     }
 
     /**

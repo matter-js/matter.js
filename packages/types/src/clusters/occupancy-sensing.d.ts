@@ -32,7 +32,7 @@ export declare namespace OccupancySensing {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 5;
+    export const revision: 7;
 
     /**
      * Canonical metadata for the OccupancySensing cluster.
@@ -328,6 +328,18 @@ export declare namespace OccupancySensing {
     }
 
     /**
+     * {@link OccupancySensing} supports these elements if it supports feature "OccupancyEvent".
+     */
+    export interface OccupancyEventEvents {
+        /**
+         * If this event is supported, it shall be generated when the Occupancy attribute changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
+         */
+        occupancyChanged: OccupancyChangedEvent;
+    }
+
+    /**
      * Events that may appear in {@link OccupancySensing}.
      *
      * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
@@ -346,10 +358,11 @@ export declare namespace OccupancySensing {
         { flags: {}, attributes: BaseAttributes, events: BaseEvents },
         { flags: { passiveInfrared: true }, attributes: PassiveInfraredAttributes },
         { flags: { ultrasonic: true }, attributes: UltrasonicAttributes },
-        { flags: { physicalContact: true }, attributes: PhysicalContactAttributes }
+        { flags: { physicalContact: true }, attributes: PhysicalContactAttributes },
+        { flags: { occupancyEvent: true }, events: OccupancyEventEvents }
     ];
 
-    export type Features = "Other" | "PassiveInfrared" | "Ultrasonic" | "PhysicalContact" | "ActiveInfrared" | "Radar" | "RfSensing" | "Vision";
+    export type Features = "Other" | "PassiveInfrared" | "Ultrasonic" | "PhysicalContact" | "ActiveInfrared" | "Radar" | "RfSensing" | "Vision" | "OccupancyEvent";
 
     /**
      * These are optional features supported by OccupancySensingCluster.
@@ -412,7 +425,14 @@ export declare namespace OccupancySensing {
          *
          * Supports sensing based on analyzing images
          */
-        Vision = "Vision"
+        Vision = "Vision",
+
+        /**
+         * OccupancyEvent (OCCEVENT)
+         *
+         * Supports generating OccupancyChanged events when occupancy state changes.
+         */
+        OccupancyEvent = "OccupancyEvent"
     }
 
     /**

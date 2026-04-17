@@ -22,6 +22,11 @@ Resource.add({
         },
 
         {
+            tag: "attribute", name: "FeatureMap",
+            children: [{ tag: "field", name: "CHGEVENT", details: "Supports reporting change events via the StateChange event." }]
+        },
+
+        {
             tag: "event", name: "StateChange", xref: "cluster§1.7.5.1",
             details: "If this event is supported, it shall be generated when the StateValue attribute changes.",
             children: [{
