@@ -95,7 +95,7 @@ export class ServerGroupNetworking {
         }
         const address = fabric.groups.multicastAddressFor(groupId);
         // Only join the multicast group if no other group in this fabric already uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
+        // (multiple IanaAddr groups all share the IANA address)
         if (!Array.from(memberships.values()).includes(address)) {
             logger.debug(
                 `Adding membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
@@ -116,7 +116,7 @@ export class ServerGroupNetworking {
         const address = memberships.get(groupId) ?? fabric.groups.multicastAddressFor(groupId);
         memberships.delete(groupId);
         // Only leave the multicast group if no other group in this fabric still uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
+        // (multiple IanaAddr groups all share the IANA address)
         if (!Array.from(memberships.values()).includes(address)) {
             logger.debug(
                 `Dropping membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
