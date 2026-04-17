@@ -43,11 +43,27 @@ export abstract class BleChannel<T> implements Channel<T> {
     abstract send(data: T): Promise<void>;
     abstract close(): Promise<void>;
 
+    readonly #closed = Observable<[]>();
+    #closedFired = false;
+
     /**
      * Emitted exactly once when the channel is lost (peripheral disconnect, BTP session close,
      * or explicit {@link close}).  Consumers that hold a secure session over this channel use
      * this to force-close the session and reject pending exchanges without waiting for MRP
      * timeouts.
+     *
+     * Subclasses must call {@link emitClosed} from each of their termination paths.  The
+     * latch guarantees exactly-once semantics regardless of which triggers fire.
      */
-    abstract readonly closed: Observable<[]>;
+    get closed() {
+        return this.#closed;
+    }
+
+    protected emitClosed() {
+        if (this.#closedFired) {
+            return;
+        }
+        this.#closedFired = true;
+        this.#closed.emit();
+    }
 }

@@ -14,7 +14,6 @@ import {
     Logger,
     Minutes,
     NetworkError,
-    Observable,
     ServerAddress,
     Time,
     Timer,
@@ -610,21 +609,6 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     #connected = true;
 
     readonly #cleanupDataListener: () => void;
-    readonly #closed = Observable<[]>();
-    #closedFired = false;
-
-    /** Emitted exactly once when the channel is lost (disconnect, BTP close, or explicit close). */
-    get closed() {
-        return this.#closed;
-    }
-
-    #emitClosed() {
-        if (this.#closedFired) {
-            return;
-        }
-        this.#closedFired = true;
-        this.#closed.emit();
-    }
 
     constructor(
         private readonly peripheral: Peripheral,
@@ -640,10 +624,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             this.btpSession.close().catch(error => {
                 logger.debug(`Peripheral ${peripheral.address}: Error closing BTP session on disconnect`, error);
             });
-            this.#emitClosed();
+            this.emitClosed();
         });
         // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
-        this.btpSession.closed.on(() => this.#emitClosed());
+        this.btpSession.closed.on(() => this.emitClosed());
     }
 
     get connected() {
@@ -685,6 +669,6 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                     logger.error(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error),
                 );
         }
-        this.#emitClosed();
+        this.emitClosed();
     }
 }

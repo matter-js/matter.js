@@ -11,7 +11,6 @@ import {
     InternalError,
     Logger,
     Millis,
-    Observable,
     Time,
     createPromise,
 } from "@matter/general";
@@ -150,19 +149,6 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     );
     #disconnected = false;
     #closing = false;
-    readonly #closed = Observable<[]>();
-    #closedFired = false;
-
-    /** Emitted exactly once when the channel is lost (disconnect, BTP close, or explicit close). */
-    get closed() {
-        return this.#closed;
-    }
-
-    #emitClosed() {
-        if (this.#closedFired) return;
-        this.#closedFired = true;
-        this.#closed.emit();
-    }
 
     private readonly matterBleService;
 
@@ -209,7 +195,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
                         this.btpSession = undefined;
                     });
             }
-            this.#emitClosed();
+            this.emitClosed();
         });
 
         Bleno.on("rssiUpdate", rssi => {
@@ -320,7 +306,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
         );
         this.latestHandshakePayload = undefined; // BTP Session initialized, handshake payload not needed anymore
         // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
-        this.btpSession.closed.on(() => this.#emitClosed());
+        this.btpSession.closed.on(() => this.emitClosed());
     }
 
     handleC2Indicate() {
@@ -409,7 +395,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
             this.btpSession = undefined;
         }
         this.onMatterMessageListener = undefined;
-        this.#emitClosed();
+        this.emitClosed();
     }
 
     async disconnect() {
