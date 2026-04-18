@@ -1149,7 +1149,7 @@ const PEER1_STATE = {
         featureMap: { cacheAndSync: false, groupcast: true },
         groupKeyMap: [],
         groupTable: [],
-        maxGroupsPerFabric: 0x15,
+        maxGroupsPerFabric: 0x16,
         maxGroupKeysPerFabric: 0x14,
         attributeList: [0, 1, 2, 3, ...GLOBAL_ATTRS],
         eventList: undefined,

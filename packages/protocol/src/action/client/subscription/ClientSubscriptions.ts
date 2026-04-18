@@ -145,6 +145,19 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
+     * Close all {@link PeerSubscription}s for a specific peer, triggering re-subscription.
+     */
+    closeForPeer(address: PeerAddress) {
+        const forPeer = this.#peers.get(address);
+        if (forPeer) {
+            for (const subscription of [...forPeer.values()]) {
+                subscription.close();
+            }
+            this.resetTimer();
+        }
+    }
+
+    /**
      * Unregister a {@link PeerSubscription}.
      */
     delete(subscription: ClientSubscription) {

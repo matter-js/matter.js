@@ -9,13 +9,23 @@ import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { Bytes, deepCopy, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
 import { AccessLevel, DataModelPath } from "@matter/model";
-import { AccessControl, assertRemoteActor, Fabric, FabricManager } from "@matter/protocol";
+import {
+    AccessControl,
+    assertRemoteActor,
+    Fabric,
+    FabricManager,
+    GroupMessageEventInfo,
+    SessionManager,
+} from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId, StatusCode, StatusResponseError } from "@matter/types";
 import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
 
 const logger = Logger.get("GroupcastServer");
+
+/** Membership.KeySetId sentinel indicating the referenced key set no longer exists in GKM. */
+const UNMAPPED_KEYSET_ID = 0xffff;
 
 /**
  * This is the default server implementation of {@link GroupcastBehavior}.
@@ -68,9 +78,16 @@ export class GroupcastServer extends GroupcastBehavior {
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
 
         // When GKM key sets are removed, groupKeyMap is also cleaned up — use that as trigger
-        // to reconcile membership entries whose key set no longer exists (mark as 0xFFFF)
+        // to reconcile membership entries whose key set no longer exists (mark as UNMAPPED_KEYSET_ID)
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
         this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys);
+
+        // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
+        // While no fabric is under test, SessionManager.groupMessage emits are a no-op (no listeners).
+        this.reactTo(this.events.fabricUnderTest$Changed, this.#handleFabricUnderTestChanged);
+        if (this.state.fabricUnderTest !== FabricIndex.NO_FABRIC) {
+            this.#attachGroupMessageListener();
+        }
     }
 
     /**
@@ -337,6 +354,54 @@ export class GroupcastServer extends GroupcastBehavior {
         this.state.fabricUnderTest = FabricIndex.NO_FABRIC;
     }
 
+    #handleFabricUnderTestChanged(value: FabricIndex) {
+        if (value !== FabricIndex.NO_FABRIC) {
+            this.#attachGroupMessageListener();
+        } else {
+            this.#detachGroupMessageListener();
+        }
+    }
+
+    #attachGroupMessageListener() {
+        if (this.internal.groupMessageHandler !== undefined) {
+            return;
+        }
+        const sessions = this.env.get(SessionManager);
+        // SessionManager.onGroupMessage fires after the dispatching action's context has exited, so
+        // wrap the handler with this.callback to acquire a fresh context for state/event access.
+        const handler = this.callback(this.#onGroupMessage);
+        sessions.onGroupMessage.on(handler);
+        this.internal.groupMessageHandler = handler;
+    }
+
+    #detachGroupMessageListener() {
+        if (this.internal.groupMessageHandler === undefined) {
+            return;
+        }
+        const sessions = this.env.get(SessionManager);
+        sessions.onGroupMessage.off(this.internal.groupMessageHandler);
+        this.internal.groupMessageHandler = undefined;
+    }
+
+    #onGroupMessage(info: GroupMessageEventInfo) {
+        // Only emit for the fabric under test
+        if (info.fabric === undefined || info.fabric.fabricIndex !== this.state.fabricUnderTest) {
+            return;
+        }
+        this.events.groupcastTesting?.emit(
+            {
+                groupId: info.groupId,
+                endpointId: info.endpointId,
+                clusterId: info.clusterId,
+                elementId: info.elementId,
+                accessAllowed: info.accessAllowed,
+                groupcastTestResult: info.result,
+                fabricIndex: info.fabric.fabricIndex,
+            },
+            this.context,
+        );
+    }
+
     /** Sync the FabricGroups instance for a fabric from the current Membership state. */
     #handleFabricAdded(fabric: Fabric) {
         this.#syncFabricGroups(fabric);
@@ -350,6 +415,14 @@ export class GroupcastServer extends GroupcastBehavior {
         const fabricIndex = fabric.fabricIndex;
         const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
 
+        // Set per-group multicast address policies BEFORE updating groupKeyIdMap. The latter triggers
+        // ServerGroupNetworking to bind the multicast address via multicastAddressFor, which reads the
+        // policy map - so the policy must be in place first or it falls back to PerGroupId-derived.
+        for (const m of fabricMemberships) {
+            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
+            fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
+        }
+
         // Rebuild group→keySet map
         const groupKeyIdMap = new Map<GroupId, number>();
         for (const m of fabricMemberships) {
@@ -357,15 +430,47 @@ export class GroupcastServer extends GroupcastBehavior {
         }
         fabric.groups.groupKeyIdMap = groupKeyIdMap;
 
-        // Set per-group multicast address policies
+        // Mirror Membership mappings into GKM GroupKeyMap so the attribute read reflects them.
+        // Data dependency: Groupcast owns the group→keySet relationship; GroupKeyMap must reflect it.
+        // GKM's per-fabric cap (maxGroupsPerFabric) and Groupcast's per-fabric cap (floor(maxMembershipCount/2))
+        // must stay aligned so the mirror never exceeds the GKM validator.
+        const gkm = this.agent.get(GroupKeyManagementServer);
+        const otherFabricsMap = gkm.state.groupKeyMap.filter(e => e.fabricIndex !== fabricIndex);
+        const mappings = fabricMemberships
+            .filter(m => m.keySetId !== UNMAPPED_KEYSET_ID)
+            .map(m => ({ groupId: m.groupId, groupKeySetId: m.keySetId, fabricIndex }));
+        gkm.state.groupKeyMap = [...otherFabricsMap, ...mappings];
+
+        // Mirror Membership endpoints to GKM GroupTable (spec attribute) and FabricGroups.endpoints
+        // (runtime dispatch lookup used by InteractionServer for wildcard group commands).
+        const otherFabricsTable = gkm.state.groupTable.filter(e => e.fabricIndex !== fabricIndex);
+        const tableEntries = fabricMemberships
+            .filter(m => m.endpoints !== undefined && m.endpoints.length > 0)
+            .map(m => ({
+                groupId: m.groupId,
+                endpoints: [...m.endpoints!],
+                groupName: "",
+                fabricIndex,
+            }));
+        gkm.state.groupTable = [...otherFabricsTable, ...tableEntries];
+
+        const previousGroupIds = new Set(fabric.groups.endpoints.keys());
         for (const m of fabricMemberships) {
-            const policy = m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr";
-            fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
+            const eps = m.endpoints ?? [];
+            if (eps.length > 0) {
+                fabric.groups.endpoints.set(m.groupId, [...eps]);
+            } else {
+                fabric.groups.endpoints.delete(m.groupId);
+            }
+            previousGroupIds.delete(m.groupId);
+        }
+        for (const gid of previousGroupIds) {
+            fabric.groups.endpoints.delete(gid);
         }
     }
 
     /**
-     * Mark membership entries as unmapped (KeySetId=0xFFFF) when their referenced key set no longer exists in GKM.
+     * Mark membership entries as unmapped (KeySetId=UNMAPPED_KEYSET_ID) when their referenced key set no longer exists in GKM.
      * Runs at startup to reconcile state after potential GKM KeySetRemove operations.
      */
     #reconcileUnmappedKeys() {
@@ -374,12 +479,12 @@ export class GroupcastServer extends GroupcastBehavior {
         let dirty = false;
 
         for (const m of membership) {
-            if (m.keySetId !== 0xffff && m.keySetId !== 0) {
+            if (m.keySetId !== UNMAPPED_KEYSET_ID && m.keySetId !== 0) {
                 const exists = gkmState.groupKeySets.some(
                     ks => ks.fabricIndex === m.fabricIndex && ks.groupKeySetId === m.keySetId,
                 );
                 if (!exists) {
-                    m.keySetId = 0xffff;
+                    m.keySetId = UNMAPPED_KEYSET_ID;
                     dirty = true;
                 }
             }
@@ -518,6 +623,7 @@ export class GroupcastServer extends GroupcastBehavior {
     override async [Symbol.asyncDispose]() {
         this.#testingTimer?.stop();
         this.#testingTimer = undefined;
+        this.#detachGroupMessageListener();
         await super[Symbol.asyncDispose]?.();
     }
 }
@@ -530,13 +636,20 @@ export namespace GroupcastServer {
          * AccessControlServer subscribes to this and rebuilds its ACL cache whenever it emits.
          */
         auxAcl: AccessControlServer.AuxAclObservable = ObservableValue([]);
+
+        /** Active subscription handler on SessionManager.groupMessage while fabricUnderTest is set. */
+        groupMessageHandler?: (info: GroupMessageEventInfo) => void;
     }
 
     /** Default state overrides for GroupcastServer. */
     export class State extends GroupcastBehavior.State {
-        /** Implementation-defined maximum membership count (min 10 per spec). */
-        override maxMembershipCount = 254;
+        /**
+         * Implementation-defined maximum membership count (min 10 per spec).
+         * Set to 2 * GKM.maxGroupsPerFabric (44) so per-fabric quota floor(44/2)=22 aligns exactly
+         * with GKM's per-fabric cap. Even number avoids spillover semantics.
+         */
+        override maxMembershipCount = 44;
         /** Implementation-defined maximum multicast address count (min 1 per spec). */
-        override maxMcastAddrCount = 254;
+        override maxMcastAddrCount = 44;
     }
 }

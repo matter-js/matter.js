@@ -15,6 +15,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import type { Peer } from "./Peer.js";
+import { PeerUnresponsiveError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("PeerAddressMonitor");
 
@@ -24,8 +25,10 @@ const logger = Logger.get("PeerAddressMonitor");
  *
  * When the peer's {@link IpService} reports changes, call {@link schedule} to start the debounce timer.
  * After stabilization, if the session's current IP is no longer in the discovered set, an empty-read
- * probe verifies the address is still reachable.  If the probe fails, normal reconnection picks up the
- * new discovered addresses.
+ * probe verifies the address is still reachable.  If the current address probe fails, discovered
+ * alternative addresses are probed in turn.  If one responds, the session channel is migrated in-place
+ * and subscriptions are re-established.  If all probes fail, the session is closed so normal
+ * reconnection takes over.
  *
  * Repeated probes for the same address use a Fibonacci-like backoff so persistent mDNS churn doesn't
  * flood the network.
@@ -143,16 +146,47 @@ export class PeerAddressMonitor {
         const network = this.#peer.network;
         const probeNetwork = network.probeAddress ?? network;
 
-        // Probe the current address — maybe mDNS is just stale and the address still works
-        if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort })) {
-            const nextCooldown = this.#advanceBackoff();
-            logger.debug(via, `Probe succeeded, keeping session (next cooldown: ${Duration.format(nextCooldown)})`);
+        // Probe the current address — suppress peer-loss so the session stays alive for follow-up probes
+        if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort, suppressPeerLoss: true })) {
+            this.#advanceBackoff();
             return;
         }
 
-        // Probe failed — session is dead.  Normal reconnection will use the new discovered addresses.
-        logger.info(via, "Probe failed, reconnection will use discovered addresses");
+        // Current address unreachable — try discovered addresses on the still-alive session
+        for (const address of discoveredAddresses) {
+            if (this.#abort.aborted) {
+                return;
+            }
+
+            if (
+                await interaction.probe({
+                    network: probeNetwork.id,
+                    abort: this.#abort,
+                    addressOverride: address,
+                    suppressPeerLoss: true,
+                })
+            ) {
+                logger.info(
+                    via,
+                    "Discovered address reachable, migrating session to",
+                    Diagnostic.strong(ServerAddress.urlFor(address)),
+                );
+                session.channel.networkAddress = address;
+                interaction.subscriptions.closeForPeer(this.#peer.address);
+                this.#resetBackoff();
+                return;
+            }
+        }
+
         this.#resetBackoff();
+
+        if (this.#abort.aborted) {
+            return;
+        }
+
+        // No address works — close the session so normal reconnection takes over
+        logger.info(via, "All probes failed, closing session");
+        await session.handlePeerLoss({ cause: new PeerUnresponsiveError() });
     }
 
     /** Current cooldown duration based on Fibonacci position. */

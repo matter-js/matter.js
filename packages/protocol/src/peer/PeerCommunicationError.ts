@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, MatterError } from "@matter/general";
+import { Duration, Instant, MatterError } from "@matter/general";
 
 /**
  * Thrown when there is an error communicating with a peer.
@@ -31,7 +31,7 @@ export class PeerUnreachableError extends TransientPeerCommunicationError {
  * Thrown when an operation aborts because the peer became unresponsive with an active session.
  */
 export class PeerUnresponsiveError extends TransientPeerCommunicationError {
-    constructor(timeWaited: Duration) {
+    constructor(timeWaited = Instant) {
         super(
             `Peer is no longer responding to active session${timeWaited > 0 ? ` (timed out after ${Duration.format(timeWaited)})` : ""}`,
         );
