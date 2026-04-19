@@ -32,10 +32,13 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
      */
     generalVerify() {
         const cert = this.cert;
-        if (cert.serialNumber.byteLength > 20)
-            throw new CertificateError(
-                `Serial number must not be longer then 20 octets. Current serial number has ${cert.serialNumber.byteLength} octets.`,
+        // Spec §6.5 mandates serial number ≤ 20 octets, but real-world devices sometimes ship longer values.
+        // Log a warning instead of rejecting to stay interoperable while surfacing non-compliant certificates.
+        if (cert.serialNumber.byteLength > 20) {
+            logger.warn(
+                `Certificate serial number has ${cert.serialNumber.byteLength} octets, exceeds spec maximum of 20 octets.`,
             );
+        }
 
         if (cert.signatureAlgorithm !== 1) {
             // ecdsa-with-sha256

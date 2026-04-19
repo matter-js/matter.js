@@ -58,6 +58,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Optimizes operational connection logic during commissioning when multiple IPs are discovered
     - Enhancement: Uses a minimum of 60 seconds for thread/wifi network scan or connect timeouts even if devices announce lower values
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
+    - Adjustment: No longer reject operational certificates with serial numbers longer than 20 octets but log a warning (seen in the wild with some LG TVs)
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
     - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)

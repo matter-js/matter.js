@@ -156,6 +156,27 @@ export const CERTIFICATE_SETS = {
             ),
         },
     },
+    // Certificates captured from a commissioning session with an LG webOS QNED86TSA TV (webOS 25, 10.2.2-64).
+    // The NOC carries a 21-octet serial number, exceeding the spec's 20-octet maximum. We accept it at the
+    // TLV layer with a warning so commissioning of such non-compliant devices keeps working.
+    // See https://github.com/RiDDiX/home-assistant-matter-hub/issues/305#issuecomment-4276068304
+    "LG TV Certificates (21-octet NOC serial)": {
+        ROOT: {
+            TLV: Bytes.fromHex(
+                "153001140aec4c5a5908f3389f06ab8e17cf982824c387392402013703271401000000cacacaca182604fa415b2b26057adc2d3e3706271401000000cacacaca1824070124080130094104d292b337fc72b8f46567c003c04ed8dd63e833b02d1c9a99d6f82359faa7cda262cb430aac92ed6989a9576ba410e753b7bdc8c81bdbc91475e56ff4ff7f36d4370a35012901182402603004147f271b6ffd6d4b3b17d25b8b58683d5cc0c17c6b3005147f271b6ffd6d4b3b17d25b8b58683d5cc0c17c6b18300b40569641f7532edffeca658e53903387d7b5b09fc46cf2b8cf9c3daf9543bc2f8095a5876332f8b0d354b3c7debc61614caa4f20d109d65b92c335e765f78eaf8b18",
+            ),
+        },
+        ICAC: {
+            TLV: Bytes.fromHex(
+                "153001146f929033dcaca5990c77afed837ba8e3cfed2b272402013703271401000000cacacaca18260447425b2b26054745273e3706271302000000cacacaca1824070124080130094104cb291683ba338dcb9eb1b2313bbe119d161e303c3799427b6bf6061650733661d60dad0246d1f917c2c497ba66f0af03b41ea5989df90c7e0e5e08eed9174c14370a3501290118240260300414d2efd81f491c8b494f927756609a57396faf88d33005147f271b6ffd6d4b3b17d25b8b58683d5cc0c17c6b18300b408ecbcf5de19fd959c86e6010710349cce4001a4bdf173cf2952581bbfdea60982be0fe19495a87790bd9952b55705c2421f017b4507c3f22589efb7b0e9af1f718",
+            ),
+        },
+        NOC: {
+            TLV: Bytes.fromHex(
+                "1530011500b45bef6401de0ad8b822346b797d74ed69199e042402013703271302000000cacacaca182604289b77312605289e434437062711f111f73b8d5fa9542715855cb1a617ad67022416011824070124080130094104cf416b0819e3a742908ebe7cde1e65ac0d21ba88fbc6774898d5ec79c0a751005861c715e417e28d72c9a1c8871c25d65dcb43b8d5fb4ebd6d8e0d88ef760ee0370a3501280118300514d2efd81f491c8b494f927756609a57396faf88d3300414b36495691673712bc83ea7f29d977ed47c1bfbbc2402013603040104021818300b405af11ea8bc4be688e13c8df7ead2054482ded4f40ec89905ca51e20884c4bca4356a939f86470c1156a28edab25e740df04315892ded5120c3bfc39274b8d51918",
+            ),
+        },
+    },
     "ROOT, ICAC, NOC signed with ROOT certificates": {
         ROOT: {
             TLV: Bytes.fromHex(

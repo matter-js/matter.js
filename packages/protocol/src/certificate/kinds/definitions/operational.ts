@@ -121,7 +121,10 @@ export namespace OperationalCertificate {
     const BaseMatterCertificate = <S, I>(matterFields?: { subject?: S; issuer?: I }) =>
         TlvObjectWithMaxSize(
             {
-                serialNumber: TlvField(1, TlvByteString.bound({ maxLength: 20 })),
+                // Spec §6.5 requires serial number ≤ 20 octets, but real-world devices violate this. We accept any
+                // length at the TLV layer and log a warning in OperationalBase.generalVerify() to surface offenders
+                // without breaking commissioning.
+                serialNumber: TlvField(1, TlvByteString),
                 signatureAlgorithm: TlvField(2, TlvUInt8),
                 issuer: TlvField(
                     3,
