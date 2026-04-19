@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Package } from "@matter/tools";
+import { Package } from "@nacho-iot/js-tools";
 import { existsSync } from "node:fs";
 
 export function listSupportFiles(format = "cjs") {
     const files = Array<string>();
 
     // Always load tooling code in ESM format as tooling globals load as ESM
-    const testing = Package.tools.findPackage("@matter/testing");
+    const testing = Package.findPackage("@matter/testing");
     files.push(testing.resolve("dist/esm/global-definitions.js"));
     files.push(testing.resolve("dist/esm/chai.js"));
     files.push(testing.resolve("dist/esm/mocks/index.js"));

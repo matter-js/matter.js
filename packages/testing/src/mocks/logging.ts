@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi, Wrapper } from "@matter/tools/ansi-text";
+import { ansi, Wrapper } from "@nacho-iot/js-tools/ansi-text";
 
 export interface DiagnosticMessageLike {
     level: number;

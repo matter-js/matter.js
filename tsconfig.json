@@ -2,9 +2,6 @@
     "files": [],
     "references": [
         {
-            "path": "packages/tools"
-        },
-        {
             "path": "packages/testing"
         },
         {

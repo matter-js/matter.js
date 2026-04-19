@@ -23,9 +23,9 @@
         "url": "git+https://github.com/matter-js/matter.js.git"
     },
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean",
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
         "test": "matter-test -w",
         "coverage": "c8 matter-test esm"
     },
@@ -33,8 +33,7 @@
         "@matter/general": "*"
     },
     "devDependencies": {
-        "@matter/testing": "*",
-        "@matter/tools": "*"
+        "@matter/testing": "*"
     },
     "files": [
         "dist/**/*",
@@ -57,6 +56,9 @@
             }
         },
         "./resources": {
+            "dev-types": {
+                "types": "./src/standard/resources/index.ts"
+            },
             "import": {
                 "types": "./dist/esm/standard/resources/index.d.ts",
                 "default": "./dist/esm/standard/resources/index.js"
