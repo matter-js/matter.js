@@ -115,8 +115,8 @@ describe("WalCommit", () => {
         });
 
         it("throws when ops is missing or wrong type", () => {
-            expect(() => deserializeCommit('{"ts":1}')).throw(/`ops`/);
-            expect(() => deserializeCommit('{"ts":1,"ops":"nope"}')).throw(/`ops`/);
+            expect(() => deserializeCommit('{"ts":1}')).throw(StorageError, /`ops`/);
+            expect(() => deserializeCommit('{"ts":1,"ops":"nope"}')).throw(StorageError, /`ops`/);
         });
 
         it("throws for invalid op entries", () => {
