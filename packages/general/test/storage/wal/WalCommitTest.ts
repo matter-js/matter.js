@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StorageError } from "#storage/StorageDriver.js";
 import {
     type WalCommit,
     type WalCommitId,
@@ -95,6 +96,40 @@ describe("WalCommit", () => {
             const result = deserializeCommit(legacyLine);
             expect(result.ts).equal(0);
             expect(result.ops).deep.equal([{ op: "upd", key: "a", values: { x: 1 } }]);
+        });
+
+        it("validates ops inside legacy bare-array format", () => {
+            expect(() => deserializeCommit('[{"op":"mystery","key":"a"}]')).throw(/unknown op kind/);
+            expect(() => deserializeCommit('[{"op":"upd","key":"a"}]')).throw(/op\[0\] upd `values`/);
+        });
+
+        it("throws for non-object payloads", () => {
+            expect(() => deserializeCommit("42")).throw(StorageError, /not an object/);
+            expect(() => deserializeCommit('"foo"')).throw(StorageError, /not an object/);
+            expect(() => deserializeCommit("null")).throw(StorageError, /not an object/);
+        });
+
+        it("throws when ts is missing or not a number", () => {
+            expect(() => deserializeCommit('{"ops":[]}')).throw(StorageError, /`ts`/);
+            expect(() => deserializeCommit('{"ts":"now","ops":[]}')).throw(StorageError, /`ts`/);
+        });
+
+        it("throws when ops is missing or wrong type", () => {
+            expect(() => deserializeCommit('{"ts":1}')).throw(/`ops`/);
+            expect(() => deserializeCommit('{"ts":1,"ops":"nope"}')).throw(/`ops`/);
+        });
+
+        it("throws for invalid op entries", () => {
+            expect(() => deserializeCommit('{"ts":1,"ops":[null]}')).throw(/op\[0\]/);
+            expect(() => deserializeCommit('{"ts":1,"ops":[{"op":"upd","key":1,"values":{}}]}')).throw(/op\[0\] `key`/);
+            expect(() => deserializeCommit('{"ts":1,"ops":[{"op":"upd","key":"a"}]}')).throw(/op\[0\] upd `values`/);
+            expect(() => deserializeCommit('{"ts":1,"ops":[{"op":"upd","key":"a","values":[]}]}')).throw(
+                /op\[0\] upd `values`/,
+            );
+            expect(() => deserializeCommit('{"ts":1,"ops":[{"op":"del","key":"a","values":[1]}]}')).throw(
+                /op\[0\] del `values`/,
+            );
+            expect(() => deserializeCommit('{"ts":1,"ops":[{"op":"mystery","key":"a"}]}')).throw(/unknown op kind/);
         });
     });
 
