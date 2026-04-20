@@ -96,6 +96,6 @@
         }
     },
     "dependencies": {
-        "memlab": "^2.0.0"
+        "memlab": "^2.0.1"
     }
 }
