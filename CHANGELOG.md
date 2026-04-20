@@ -35,6 +35,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-shell
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
 
+- @matter/tools
+    - Breaking: This package is no longer published and replaced in internal usage
+
 - @matter/types
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
     - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
