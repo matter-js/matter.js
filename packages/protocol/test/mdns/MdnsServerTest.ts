@@ -1221,8 +1221,6 @@ describe("MdnsServer", () => {
         });
 
         it("lets zero-query continuation packets merge known-answers into a cached TC fragment", async () => {
-            // Guards the RFC 6762 §7.2 case where follow-up packets carry only additional
-            // known-answer records (no queries); the fast-reject path must not drop them.
             const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
             onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
                 responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });

@@ -99,9 +99,7 @@ export class MdnsServer {
             return;
         }
 
-        // Avoid truncation handling and per-service record scans for unrelated LAN traffic.
-        // Zero-query packets must fall through so RFC 6762 §7.2 TC continuations can merge
-        // their additional known-answer records into a cached fragment.
+        // Zero-query packets must pass: RFC 6762 §7.2 TC continuations rely on #prepareMessage to merge them.
         const { queries: incomingQueries } = incomingMessage;
         if (incomingQueries.length > 0 && !incomingQueries.some(q => names.has(q.name.toLowerCase()))) {
             return;
@@ -173,7 +171,6 @@ export class MdnsServer {
                 );
             }
 
-            // Pace successive outgoing packets per DNS-SD convention; no trailing wait after the last one.
             if (sentPreviousPacket) {
                 await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
             }
