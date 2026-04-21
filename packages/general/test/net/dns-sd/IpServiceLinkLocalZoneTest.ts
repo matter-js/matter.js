@@ -56,5 +56,4 @@ describe("IpService link-local zone capture", () => {
 
         abort();
     });
-
 });

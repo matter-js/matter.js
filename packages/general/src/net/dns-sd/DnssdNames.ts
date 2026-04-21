@@ -44,10 +44,7 @@ export class DnssdNames {
      * A/AAAA records for hostnames that don't yet have a DnssdName; replayed when the name is later created via
      * SRV dependency.  Expired entries are pruned by a timer and filtered on consumption.
      */
-    readonly #stagedIpRecords = new Map<
-        string,
-        { record: DnsRecord; receivedAt: Timestamp; sourceIntf?: string }[]
-    >();
+    readonly #stagedIpRecords = new Map<string, { record: DnsRecord; receivedAt: Timestamp; sourceIntf?: string }[]>();
     readonly #stagedIpExpirationTimer: Timer;
     // Points at handleMessage's newlyDiscovered list while a packet is being processed so replay-triggered
     // discoveries join the same end-of-packet emit batch

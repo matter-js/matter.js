@@ -42,7 +42,6 @@ describe("ServerAddress", () => {
                 ServerAddress.SelectionPreference.IPV6,
             );
         });
-
     });
 
     describe("isIpv6LinkLocal", () => {
