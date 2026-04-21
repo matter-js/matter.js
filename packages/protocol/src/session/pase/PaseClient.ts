@@ -167,8 +167,9 @@ export class PaseClient {
             );
         }
 
-        // Intentional: no abort.attempt / abort.race below.  After Pake3 the device is committed; closing the
-        // winner session is the caller's decision (see CommissioningConnection .then and continueAfterPase).
+        // Intentional: no abort.attempt / abort.race below.  Once Pake3 is sent the device has committed its PASE
+        // state; aborting here would leave it in limbo for 60s.  Any caller that no longer wants this session is
+        // responsible for closing it after we return.
         await messenger.sendPasePake3({ verifier: hAY });
 
         await messenger.waitForSuccess({ description: "PasePake3-Success" });

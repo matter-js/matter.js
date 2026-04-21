@@ -182,7 +182,7 @@ export class DnssdNames {
                     record = { ...record, ttl: this.#minTtl };
                 }
                 const wasDiscovered = name.isDiscovered;
-                name.installRecord(record, sourceIntf);
+                name.installRecord(record, { sourceIntf });
                 if (!wasDiscovered && name.isDiscovered) {
                     newlyDiscovered.push(name);
                 }
@@ -303,7 +303,7 @@ export class DnssdNames {
                     // Preserve original TTL and receivedAt so expiry math and goodbye-protection recovery both
                     // reference the real discovery time rather than the replay moment
                     if (now - receivedAt < record.ttl * this.#ttlGraceFactor) {
-                        name.installRecord(record, sourceIntf, receivedAt);
+                        name.installRecord(record, { sourceIntf, installedAt: receivedAt });
                     }
                 }
                 if (name.isDiscovered) {

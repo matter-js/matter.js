@@ -169,16 +169,15 @@ export async function CommissioningConnection(
     }
 
     try {
-        // Drain all pending attempts.  Each loop iteration blocks until one attempt settles OR the outer abort
-        // fires (timeout / external cancellation / winner picked).  Unlike the previous "first resolve + 5s
-        // cleanup budget" approach this waits for staggered attempts to actually start, so a fast failure on the
-        // first address doesn't short-circuit a later sibling.
+        // Drain until a winner is picked or the outer abort fires; waiting for each attempt (including those
+        // still sleeping in the per-address stagger) to actually run, rather than short-circuiting on the first
+        // failure.
         while (pending.size > 0 && winner === undefined && !abort.aborted) {
             await abort.race(...pending);
         }
 
-        // Let any losers finish their cleanup (sending InvalidParam, closing sessions).  They all resolve to null
-        // so this never rejects.
+        // Allow losers to finish sending InvalidParam / closing sessions.  Each attempt resolves to null, so
+        // allSettled never rejects in practice; the .catch guards against a future refactor breaking that.
         await MatterAggregateError.allSettled([...pending]).catch(() => {});
 
         if (winner !== undefined) {
@@ -202,12 +201,11 @@ export async function CommissioningConnection(
         }
         throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server");
     } catch (error) {
-        // Cancel anything still pending so staggered attempts don't fire into the void and a late PASE completion
-        // doesn't orphan a secure session.
+        // Fire the abort so any in-flight stagger sleep cancels and any late PASE completion closes its session
+        // via the winner/abort guard in launchAttempt's .then handler.
         if (!abort.aborted) {
             abort.abort(asError(error));
         }
-        await MatterAggregateError.allSettled([...pending]).catch(() => {});
         throw error;
     }
 }
