@@ -276,10 +276,14 @@ export class MdnsServer {
     }
 
     #queryRecords({ name, recordType }: { name: string; recordType: DnsRecordType }, records: DnsRecord<any>[]) {
+        // DNS names are case-insensitive per RFC 6762 §16 / RFC 1035 §2.3.3.
+        const queryName = name.toLowerCase();
         if (recordType === DnsRecordType.ANY) {
-            return records.filter(record => record.name === name);
+            return records.filter(record => record.name.toLowerCase() === queryName);
         } else {
-            return records.filter(record => record.name === name && record.recordType === recordType);
+            return records.filter(
+                record => record.name.toLowerCase() === queryName && record.recordType === recordType,
+            );
         }
     }
 

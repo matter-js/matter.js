@@ -1195,11 +1195,7 @@ describe("MdnsServer", () => {
             expect(responses.length).equals(1);
         });
 
-        it("rejects queries using wrong-case when name is lowercase in records", async () => {
-            // Pins current behavior: RFC 6762 §16 mandates case-insensitive name matching, but
-            // the per-record filter still uses strict ===, so uppercase queries produce no
-            // response. Both paths agree today; a future case-insensitivity fix should update
-            // this assertion.
+        it("matches uppercase query names against lowercase records (RFC 6762 §16)", async () => {
             const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
             onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
                 responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
@@ -1221,7 +1217,7 @@ describe("MdnsServer", () => {
             );
 
             await MockTime.yield3();
-            expect(responses.length).equals(0);
+            expect(responses.length).equals(1);
         });
 
         it("lets zero-query continuation packets merge known-answers into a cached TC fragment", async () => {
