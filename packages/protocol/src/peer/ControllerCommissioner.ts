@@ -431,14 +431,22 @@ export class ControllerCommissioner {
     }
 
     /**
-     * Maps a sorted list of addresses to synthetic `CommissionableDevice` candidates for use with
+     * Maps a list of addresses to synthetic {@link CommissionableDevice} candidates for use with
      * {@link CommissioningConnection}.  Each address becomes its own candidate so that a credential failure
      * on one does not cancel attempts on others, and the per-device abort logic works correctly even in the
      * single-address case.
+     *
+     * UDP addresses are placed before non-UDP (BLE) ones so the faster IP transports race first; within each
+     * transport group the input order is preserved — callers (e.g. {@link CommissioningClient}) have already
+     * ranked the addresses with {@link ServerAddressSet.compareDesirability}, so re-sorting here would overwrite
+     * that decision.
      */
     #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
-        const sorted = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
-        return sorted.map((address, index) => ({
+        const udps = addresses.filter(a => a.type === "udp");
+        const others = addresses.filter(a => a.type !== "udp");
+        const ordered = [...udps, ...others];
+
+        return ordered.map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],
             deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
