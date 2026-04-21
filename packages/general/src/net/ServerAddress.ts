@@ -163,20 +163,33 @@ export namespace ServerAddress {
         NOT_IP = 3,
     }
 
+    /**
+     * True when `ip` is an IPv6 link-local address (fe80::/10).
+     *
+     * The /10 prefix means the second hex nibble is 8, 9, a, or b, so addresses from fe80:: through febf:: qualify.
+     * Any explicit `%zone` suffix is ignored by the check.  Assumes lowercase input, which is what
+     * `ipv6BytesToString` and the DNS codec produce.
+     */
+    const IPV6_LINK_LOCAL_PATTERN = /^fe[89ab]/;
+    export function isIpv6LinkLocal(ip: string): boolean {
+        return IPV6_LINK_LOCAL_PATTERN.test(ip);
+    }
+
     export function selectionPreferenceOf(address: ServerAddress) {
         if (!("ip" in address)) {
             return SelectionPreference.NOT_IP;
         }
 
-        if (address.ip.startsWith("fd")) {
+        const ip = address.ip;
+        if (ip.startsWith("fd")) {
             return SelectionPreference.IPV6_ULA;
         }
 
-        if (address.ip.startsWith("fe00")) {
+        if (isIpv6LinkLocal(ip)) {
             return SelectionPreference.IPV6_LINK_LOCAL;
         }
 
-        if (address.ip.includes(":")) {
+        if (ip.includes(":")) {
             return SelectionPreference.IPV6;
         }
 
