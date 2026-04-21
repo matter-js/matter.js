@@ -15,7 +15,7 @@ runs:
       shell: bash
       run: echo "PLAYWRIGHT_VERSION=$(npx playwright --version)" >> $GITHUB_ENV
     - name: Cache playwright binaries
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       id: playwright-cache
       with:
         path: |
