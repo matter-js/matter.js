@@ -1108,4 +1108,206 @@ describe("MdnsServer", () => {
             expect(responses.length).equals(1); // Should respond after window expires
         });
     });
+
+    describe("Unknown-name query rejection", () => {
+        it("does not respond to queries for names we do not serve", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: "_googlecast._tcp.local",
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                        {
+                            name: "_airplay._tcp.local",
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(0);
+        });
+
+        it("responds to A-record host name even though it differs from the service qname", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: "abcd.local",
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.A,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+        });
+
+        it("still responds when a known-name query is mixed with unknown-name queries", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: "_googlecast._tcp.local",
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+        });
+
+        it("rejects queries using wrong-case when name is lowercase in records", async () => {
+            // Pins current behavior: RFC 6762 §16 mandates case-insensitive name matching, but
+            // the per-record filter still uses strict ===, so uppercase queries produce no
+            // response. Both paths agree today; a future case-insensitivity fix should update
+            // this assertion.
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME.toUpperCase(),
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(0);
+        });
+
+        it("lets zero-query continuation packets merge known-answers into a cached TC fragment", async () => {
+            // Guards the RFC 6762 §7.2 case where follow-up packets carry only additional
+            // known-answer records (no queries); the fast-reject path must not drop them.
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query | DnsMessageTypeFlag.TC,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+            expect(responses.length).equals(0);
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [],
+                    answers: [PtrRecord(DUMMY_QNAME, "abcd")],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            expect(responses).deep.equal([
+                {
+                    message: {
+                        transactionId: 0,
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            SrvRecord(DUMMY_QNAME, { priority: 0, weight: 0, port: 1234, target: "abcd.local" }),
+                            TxtRecord(DUMMY_QNAME, [`A=1`, `B=2`]),
+                        ],
+                        additionalRecords: [ARecord("abcd.local", DUMMY_IP)],
+                        authorities: [],
+                        queries: [],
+                    },
+                    netInterface: INTERFACE_NAME,
+                    uniCastTarget: undefined,
+                },
+            ]);
+        });
+
+        it("picks up new names after the records generator is replaced", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            const newQname = "other.service.local";
+            await mdnsServer.setRecordsGenerator("bar", () => [
+                PtrRecord(newQname, "efgh"),
+                SrvRecord(newQname, { priority: 0, weight: 0, port: 5678, target: "efgh.local" }),
+            ]);
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: newQname,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+        });
+    });
 });

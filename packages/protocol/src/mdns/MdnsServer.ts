@@ -36,20 +36,25 @@ export class MdnsServer {
     #lifetime: Lifetime;
     #observers = new ObserverGroup();
     #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
-    readonly #records = new AsyncCache<Map<string, DnsRecord<any>[]>>(
+    readonly #records = new AsyncCache<MdnsServer.InterfaceRecords>(
         "MDNS discovery",
         async (multicastInterface: string) => {
-            const serviceRecords = new Map<string, DnsRecord<any>[]>();
+            const byService = new Map<string, DnsRecord<any>[]>();
+            const names = new Set<string>();
             const addrs = await this.network.getIpMac(multicastInterface);
             if (addrs === undefined) {
-                return serviceRecords;
+                return { byService, names };
             }
 
             for (const [service, generator] of this.#recordsGenerator) {
-                serviceRecords.set(service, generator(multicastInterface, addrs));
+                const records = generator(multicastInterface, addrs);
+                byService.set(service, records);
+                for (const record of records) {
+                    names.add(record.name.toLowerCase());
+                }
             }
 
-            return serviceRecords;
+            return { byService, names };
         },
         Minutes(15) /* matches maximum standard commissioning window time */,
     );
@@ -87,10 +92,20 @@ export class MdnsServer {
     async #handleMessage(incomingMessage: MdnsSocket.Message) {
         using _processing = this.#lifetime.join("processing message");
 
-        const records = await this.#records.get(incomingMessage.sourceIntf);
+        const { byService, names } = await this.#records.get(incomingMessage.sourceIntf);
 
         // Ignore if we have no records for interface
-        if (records.size === 0) return;
+        if (byService.size === 0) {
+            return;
+        }
+
+        // Avoid truncation handling and per-service record scans for unrelated LAN traffic.
+        // Zero-query packets must fall through so RFC 6762 §7.2 TC continuations can merge
+        // their additional known-answer records into a cached fragment.
+        const { queries: incomingQueries } = incomingMessage;
+        if (incomingQueries.length > 0 && !incomingQueries.some(q => names.has(q.name.toLowerCase()))) {
+            return;
+        }
 
         const message = this.#prepareMessage(incomingMessage);
         if (message === undefined) {
@@ -99,7 +114,7 @@ export class MdnsServer {
 
         const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
 
-        for (const portRecords of records.values()) {
+        for (const portRecords of byService.values()) {
             let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
             if (answers.length === 0) continue;
 
@@ -194,8 +209,8 @@ export class MdnsServer {
 
         await MatterAggregateError.allSettled(
             (await this.#getMulticastInterfacesForAnnounce()).map(async ({ name: netInterface }) => {
-                const records = await this.#records.get(netInterface);
-                for (const [service, serviceRecords] of records) {
+                const { byService } = await this.#records.get(netInterface);
+                for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
 
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
@@ -211,8 +226,8 @@ export class MdnsServer {
 
         await MatterAggregateError.allSettled(
             this.#records.keys().map(async netInterface => {
-                const records = await this.#records.get(netInterface);
-                for (const [service, serviceRecords] of records) {
+                const { byService } = await this.#records.get(netInterface);
+                for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
 
                     // Set TTL to Instant for all records to expire them
@@ -388,5 +403,12 @@ export class MdnsServer {
 export namespace MdnsServer {
     export interface RecordGenerator {
         (intf: string, addrs: NetworkInterfaceDetails): DnsRecord[];
+    }
+
+    export interface InterfaceRecords {
+        byService: Map<string, DnsRecord<any>[]>;
+
+        /** Lower-cased record names across all services - used to fast-reject unrelated LAN queries. */
+        names: Set<string>;
     }
 }
