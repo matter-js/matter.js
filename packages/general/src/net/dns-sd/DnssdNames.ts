@@ -44,7 +44,10 @@ export class DnssdNames {
      * A/AAAA records for hostnames that don't yet have a DnssdName; replayed when the name is later created via
      * SRV dependency.  Expired entries are pruned by a timer and filtered on consumption.
      */
-    readonly #stagedIpRecords = new Map<string, { record: DnsRecord; receivedAt: Timestamp }[]>();
+    readonly #stagedIpRecords = new Map<
+        string,
+        { record: DnsRecord; receivedAt: Timestamp; sourceIntf?: string }[]
+    >();
     readonly #stagedIpExpirationTimer: Timer;
     // Points at handleMessage's newlyDiscovered list while a packet is being processed so replay-triggered
     // discoveries join the same end-of-packet emit batch
@@ -157,6 +160,7 @@ export class DnssdNames {
     #processMessage(message: MdnsSocket.Message): DnssdName[] {
         const records = [...message.answers, ...message.additionalRecords];
         const filtered = new Set(records);
+        const sourceIntf = message.sourceIntf;
         let goodbyesBefore: undefined | Timestamp;
 
         // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
@@ -181,7 +185,7 @@ export class DnssdNames {
                     record = { ...record, ttl: this.#minTtl };
                 }
                 const wasDiscovered = name.isDiscovered;
-                name.installRecord(record);
+                name.installRecord(record, sourceIntf);
                 if (!wasDiscovered && name.isDiscovered) {
                     newlyDiscovered.push(name);
                 }
@@ -261,9 +265,9 @@ export class DnssdNames {
                     s => s.record.recordType === record.recordType && s.record.value === record.value,
                 );
                 if (existing === -1) {
-                    staged.push({ record, receivedAt: Time.nowMs });
+                    staged.push({ record, receivedAt: Time.nowMs, sourceIntf });
                 } else {
-                    staged[existing] = { record, receivedAt: Time.nowMs };
+                    staged[existing] = { record, receivedAt: Time.nowMs, sourceIntf };
                 }
                 // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
                 this.#stagedIpRecords.delete(key);
@@ -298,11 +302,11 @@ export class DnssdNames {
             if (staged !== undefined) {
                 this.#stagedIpRecords.delete(key);
                 const now = Time.nowMs;
-                for (const { record, receivedAt } of staged) {
+                for (const { record, receivedAt, sourceIntf } of staged) {
                     // Preserve original TTL and receivedAt so expiry math and goodbye-protection recovery both
                     // reference the real discovery time rather than the replay moment
                     if (now - receivedAt < record.ttl * this.#ttlGraceFactor) {
-                        name.installRecord(record, receivedAt);
+                        name.installRecord(record, sourceIntf, receivedAt);
                     }
                 }
                 if (name.isDiscovered) {

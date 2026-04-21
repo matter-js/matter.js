@@ -80,6 +80,7 @@ describe("DnssdNames", () => {
                 recordType: 28,
                 ttl: 3600000,
                 value: "abcd::91",
+                sourceIntf: "fake0",
             },
         ]);
     });

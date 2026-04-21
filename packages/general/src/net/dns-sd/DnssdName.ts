@@ -77,7 +77,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return !!this.#recordCount;
     }
 
-    installRecord(record: DnsRecord<any>, installedAt?: Timestamp) {
+    installRecord(record: DnsRecord<any>, sourceIntf?: string, installedAt?: Timestamp) {
         // For TXT records, extract the standard DNS-SD k/v's
         if (record.recordType === DnsRecordType.TXT) {
             const entries = record.value;
@@ -109,6 +109,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             ...record,
             installedAt: at,
             expiresAt: at + Millis(Math.round(record.ttl * this.#context.ttlGraceFactor)),
+            ...(record.recordType === DnsRecordType.AAAA && sourceIntf !== undefined ? { sourceIntf } : {}),
         } as DnssdName.Record;
 
         this.#records.set(key, recordWithExpire);
@@ -277,6 +278,9 @@ export namespace DnssdName {
 
     export interface HostRecord extends DnsRecord<string>, Expiration {
         recordType: DnsRecordType.A | DnsRecordType.AAAA;
+
+        /** Receive interface — populated only for AAAA, needed to form %zone for fe80 addresses. */
+        sourceIntf?: string;
     }
 
     export interface ServiceRecord extends DnsRecord<SrvRecordValue>, Expiration {
