@@ -273,8 +273,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     persistentFields: Set<string>;
     supervisionConfig?: GlobalConfig;
 
-    // Tracks all interactionComplete observables we have subscribed to so we can unregister on close
-    interactionSessions?: Set<NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>>;
+    observedInteractions?: Set<NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>>;
 
     #values: Val.Struct;
     #changedEventIndex?: Map<string, undefined | Datasource.Events[`${string}$Changed`]>;
@@ -352,11 +351,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     }
 
     close() {
-        if (this.interactionSessions) {
-            for (const observable of this.interactionSessions) {
+        if (this.observedInteractions) {
+            for (const observable of this.observedInteractions) {
                 observable.off(this.interactionObserver);
             }
-            this.interactionSessions = undefined;
+            this.observedInteractions = undefined;
         }
 
         const store = this.store as Datasource.ExternallyMutableStore | undefined;
@@ -406,11 +405,13 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     }
 
     interactionObserver = (session?: ValueSupervisor.Session) => {
-        // Remove ourselves from the firing observable and clean up tracking
-        const remoteSession = session as ValueSupervisor.RemoteActorSession | undefined;
-        if (remoteSession?.interactionComplete) {
-            remoteSession.interactionComplete.off(this.interactionObserver);
-            this.interactionSessions?.delete(remoteSession.interactionComplete);
+        if (hasRemoteActor(session)) {
+            if (session.interactionComplete) {
+                session.interactionComplete.off(this.interactionObserver);
+                this.observedInteractions?.delete(session.interactionComplete);
+            }
+            // Reset so a subsequent interaction on the same session re-emits interactionBegin and re-registers
+            session.interactionStarted = false;
         }
 
         const location = this.location;
@@ -873,10 +874,10 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             if (this.#internals.events?.interactionBegin?.isObserved) {
                 this.#internals.events?.interactionBegin?.emit(this.#session);
             }
-            if (!this.#internals.interactionSessions) {
-                this.#internals.interactionSessions = new Set();
+            if (!this.#internals.observedInteractions) {
+                this.#internals.observedInteractions = new Set();
             }
-            this.#internals.interactionSessions.add(this.#session.interactionComplete);
+            this.#internals.observedInteractions.add(this.#session.interactionComplete);
             this.#session.interactionComplete.on(this.#internals.interactionObserver);
         }
     }
