@@ -259,10 +259,11 @@ export class MdnsServer {
     }
 
     async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
+        // Racing queries must see the new generator before clear's await yields.
+        this.#recordsGenerator.set(service, generator);
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
-        this.#recordsGenerator.set(service, generator);
     }
 
     async #resetServices() {
