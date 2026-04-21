@@ -27,6 +27,11 @@ import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("CommissioningConnection");
 
+// Upper bound on waiting for losers to run their cleanup (InvalidParam, session close) after a winner is picked
+// or the overall abort fires.  In normal operation attempts honour the abort signal and settle within a few
+// milliseconds; the budget exists only so a transport that ignores abort cannot hang the caller.
+const LOSER_CLEANUP_BUDGET = Seconds(5);
+
 // Delay between consecutive PASE attempt starts for addresses of the same device.  The CHIP SDK
 // responder binds its singleton PASESession to the first incoming PBKDFParamRequest exchange; concurrent
 // requests on other exchanges are rejected and clear the in-progress PASE state.  Staggering avoids that
@@ -176,9 +181,13 @@ export async function CommissioningConnection(
             await abort.race(...pending);
         }
 
-        // Allow losers to finish sending InvalidParam / closing sessions.  Each attempt resolves to null, so
-        // allSettled never rejects in practice; the .catch guards against a future refactor breaking that.
-        await MatterAggregateError.allSettled([...pending]).catch(() => {});
+        // Bounded loser cleanup — abort-honouring attempts settle quickly; the budget stops a misbehaving
+        // transport from blocking the caller indefinitely.
+        await Abort.race(
+            undefined,
+            MatterAggregateError.allSettled([...pending]).catch(() => {}),
+            Abort.sleep("loser cleanup", undefined, LOSER_CLEANUP_BUDGET),
+        );
 
         if (winner !== undefined) {
             return winner;
