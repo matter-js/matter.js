@@ -921,8 +921,8 @@ describe("Datasource", () => {
 
             // Second interaction on the same session must re-register the observer
             await LocalActorContext.act("test", async context => {
-                const reused = { ...capturedSession!, transaction: context.transaction };
-                const state = ds.reference(reused) as MyState;
+                capturedSession!.transaction = context.transaction;
+                const state = ds.reference(capturedSession!) as MyState;
                 state.foo = "second";
             });
 
