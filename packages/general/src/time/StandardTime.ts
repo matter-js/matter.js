@@ -28,7 +28,8 @@ export class StandardTime extends Time {
 // Install optimal macrotask functionality based on available vm features
 {
     let macrotask;
-    if (typeof setImmediate !== "undefined") {
+    const { setImmediate } = globalThis as { setImmediate?: (fn: () => void) => void };
+    if (setImmediate !== undefined) {
         // node.js(ish)
         macrotask = () => new Promise<void>(resolve => setImmediate(resolve));
     } else if (typeof MessageChannel !== "undefined") {

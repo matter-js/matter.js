@@ -4,9 +4,9 @@
     "description": "Test harness for running JavaScript and Matter certification tests",
     "type": "module",
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean",
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
         "test": "matter-test"
     },
     "bin": {
@@ -14,6 +14,9 @@
     },
     "exports": {
         ".": {
+            "dev-types": {
+                "types": "./src/index.d.ts"
+            },
             "import": {
                 "types": "./dist/esm/index.d.ts",
                 "default": "./dist/esm/index.js"
@@ -41,12 +44,13 @@
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "dependencies": {
-        "@matter/tools": "*",
+        "@nacho-iot/js-tools": "*",
         "@types/express": "^5.0.6",
         "ansi-colors": "^4.1.3",
         "chai": "^4.5.0",
         "chai-as-promised": "^7.1.2",
         "dockerode": "^4.0.10",
+        "esbuild": "^0.28.0",
         "express": "^5.2.1",
         "mocha": "^11.7.5",
         "playwright": "^1.59.1",

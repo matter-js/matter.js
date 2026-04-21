@@ -1,4 +1,4 @@
-#!/usr/bin/env matter-run
+#!/usr/bin/env nacho-run
 
 // Suppress ExperimentalWarning for features like node:sqlite that are stable enough for our use
 const originalEmit = process.emit;
@@ -26,7 +26,7 @@ try {
 }
 
 // Ensure test suite is compiled
-await import("@matter/tools/bootstrap");
-await (await import("@matter/tools")).ensureCompiled(import.meta.url);
+await import("@nacho-iot/js-tools/bootstrap");
+await (await import("@nacho-iot/js-tools")).ensureCompiled(import.meta.url);
 
 await (await import("../dist/esm/cli.js")).main();

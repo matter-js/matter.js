@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FilesystemSync } from "@matter/tools";
+import type { FilesystemSync } from "@nacho-iot/js-tools";
 import { readFile, writeFile } from "node:fs/promises";
 import { PicsExpression } from "./chip/pics/expression.js";
 import type { PicsFile } from "./chip/pics/file.js";
