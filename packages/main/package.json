@@ -63,9 +63,6 @@
         },
         "./platform": {
             "node": {
-                "dev-types": {
-                    "types": "./src/platform/nodejs.ts"
-                },
                 "import": {
                     "types": "./dist/esm/platform/nodejs.d.ts",
                     "default": "./dist/esm/platform/nodejs.js"
@@ -76,9 +73,6 @@
                 }
             },
             "react-native": {
-                "dev-types": {
-                    "types": "./src/platform/react-native.ts"
-                },
                 "import": {
                     "types": "./dist/esm/platform/react-native.d.ts",
                     "default": "./dist/esm/platform/react-native.js"
@@ -89,9 +83,6 @@
                 }
             },
             "default": {
-                "dev-types": {
-                    "types": "./src/platform/default.ts"
-                },
                 "import": {
                     "types": "./dist/esm/platform/default.d.ts",
                     "default": "./dist/esm/platform/default.js"
@@ -103,9 +94,6 @@
             }
         },
         "./clusters/*": {
-            "dev-types": {
-                "types": "./src/forwards/clusters/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/forwards/clusters/*.d.ts",
                 "default": "./dist/esm/forwards/clusters/*.js"
@@ -116,9 +104,6 @@
             }
         },
         "./behaviors/*": {
-            "dev-types": {
-                "types": "./src/forwards/behaviors/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/forwards/behaviors/*.d.ts",
                 "default": "./dist/esm/forwards/behaviors/*.js"
@@ -129,9 +114,6 @@
             }
         },
         "./devices/*": {
-            "dev-types": {
-                "types": "./src/forwards/devices/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/forwards/devices/*.d.ts",
                 "default": "./dist/esm/forwards/devices/*.js"
@@ -142,9 +124,6 @@
             }
         },
         "./endpoints/*": {
-            "dev-types": {
-                "types": "./src/forwards/endpoints/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/forwards/endpoints/*.d.ts",
                 "default": "./dist/esm/forwards/endpoints/*.js"
@@ -155,9 +134,6 @@
             }
         },
         "./*": {
-            "dev-types": {
-                "types": "./src/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/*.d.ts",
                 "default": "./dist/esm/*.js"

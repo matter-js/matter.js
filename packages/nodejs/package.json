@@ -71,9 +71,6 @@
             }
         },
         "./config": {
-            "dev-types": {
-                "types": "./src/config.ts"
-            },
             "import": {
                 "types": "./dist/esm/config.d.ts",
                 "default": "./dist/esm/config.js"

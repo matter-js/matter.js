@@ -30,6 +30,10 @@
         // Validating imports would be nice but is very slow; we can get by without
         "skipLibCheck": true,
 
+        // Resolve hand-authored .d.ts source files in packages that ship them (@matter/types/clusters/*,
+        // @matter/testing, @matter/node/load).  tsc cannot emit a proper .d.ts output from a .d.ts input,
+        // so the dist/ copy is not interchangeable with src for consumer symbol resolution.  Targets that
+        // ship as .ts sources do not need this — tsc emits dist/ .d.ts that work fine for consumers.
         "customConditions": [ "dev-types" ],
 
         "lib": [
