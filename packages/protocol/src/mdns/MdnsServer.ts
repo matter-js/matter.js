@@ -63,6 +63,8 @@ export class MdnsServer {
             timestamp: Timestamp;
         }
     >();
+    /** Set of DNS record names we have registered; used to fast-reject non-matching queries. */
+    readonly #knownQueryNames = new Set<string>();
 
     readonly #socket: MdnsSocket;
 
@@ -98,6 +100,21 @@ export class MdnsServer {
         }
 
         const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
+
+        // Lazily build the set of record names we can answer from the first populated cache result.
+        if (this.#knownQueryNames.size === 0) {
+            for (const portRecords of records.values()) {
+                for (const record of portRecords) {
+                    this.#knownQueryNames.add(record.name);
+                }
+            }
+        }
+
+        // Fast-reject messages where no query could possibly match our records, avoiding
+        // the per-record iteration and encode/send work for irrelevant LAN traffic.
+        if (this.#knownQueryNames.size > 0 && !queries.some(q => this.#knownQueryNames.has(q.name))) {
+            return;
+        }
 
         for (const portRecords of records.values()) {
             let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
@@ -234,6 +251,7 @@ export class MdnsServer {
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
+        this.#knownQueryNames.clear();
         this.#recordsGenerator.set(service, generator);
     }
 
