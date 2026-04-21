@@ -114,6 +114,7 @@ export class MdnsServer {
 
         const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
 
+        let sentPreviousPacket = false;
         for (const portRecords of byService.values()) {
             let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
             if (answers.length === 0) continue;
@@ -172,6 +173,10 @@ export class MdnsServer {
                 );
             }
 
+            // Pace successive outgoing packets per DNS-SD convention; no trailing wait after the last one.
+            if (sentPreviousPacket) {
+                await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+            }
             this.#socket
                 .send(
                     {
@@ -186,7 +191,7 @@ export class MdnsServer {
                 .catch(error => {
                     logger.warn(`Failed to send mDNS response to ${sourceIp}`, error);
                 });
-            await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
+            sentPreviousPacket = true;
         }
     }
 
@@ -210,11 +215,15 @@ export class MdnsServer {
         await MatterAggregateError.allSettled(
             (await this.#getMulticastInterfacesForAnnounce()).map(async ({ name: netInterface }) => {
                 const { byService } = await this.#records.get(netInterface);
+                let sentPreviousPacket = false;
                 for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
 
+                    if (sentPreviousPacket) {
+                        await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+                    }
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
-                    await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
+                    sentPreviousPacket = true;
                 }
             }),
             "Error announcing MDNS messages",
@@ -227,6 +236,7 @@ export class MdnsServer {
         await MatterAggregateError.allSettled(
             this.#records.keys().map(async netInterface => {
                 const { byService } = await this.#records.get(netInterface);
+                let sentPreviousPacket = false;
                 for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
 
@@ -235,9 +245,12 @@ export class MdnsServer {
                         record.ttl = Instant;
                     });
 
+                    if (sentPreviousPacket) {
+                        await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+                    }
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
                     this.#recordsGenerator.delete(service);
-                    await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
+                    sentPreviousPacket = true;
                 }
             }),
             "Error happened when expiring MDNS announcements",
