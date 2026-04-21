@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi } from "@matter/tools";
+import { ansi } from "@nacho-iot/js-tools";
 import Mocha from "mocha";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { Session } from "node:inspector/promises";

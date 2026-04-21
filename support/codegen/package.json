@@ -5,16 +5,16 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean",
-        "generate-spec": "matter-run --max-old-space-size=6144 bin/generate-spec.js",
-        "generate-chip": "matter-run bin/generate-chip.js",
-        "generate-model": "matter-run bin/generate-model.js",
-        "generate-clusters": "matter-run bin/generate-clusters.js",
-        "generate-endpoints": "matter-run bin/generate-endpoints.js",
-        "generate-forwards": "matter-run bin/generate-forwards.js",
-        "generate-vscode": "matter-run bin/generate-vscode.js",
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
+        "generate-spec": "nacho-run --max-old-space-size=6144 bin/generate-spec.js",
+        "generate-chip": "nacho-run bin/generate-chip.js",
+        "generate-model": "nacho-run bin/generate-model.js",
+        "generate-clusters": "nacho-run bin/generate-clusters.js",
+        "generate-endpoints": "nacho-run bin/generate-endpoints.js",
+        "generate-forwards": "nacho-run bin/generate-forwards.js",
+        "generate-vscode": "nacho-run bin/generate-vscode.js",
         "generate": "npm run generate-model && npm run generate-clusters && npm run generate-endpoints && npm run generate-forwards"
     },
     "repository": {
@@ -34,7 +34,6 @@
         "@matter/general": "*",
         "@matter/intermediate-models": "*",
         "@matter/model": "*",
-        "@matter/tools": "*",
         "@matter/protocol": "*",
         "@matter/types": "*"
     },
@@ -47,7 +46,7 @@
     "imports": {
         "#general": "@matter/general",
         "#model": "@matter/model",
-        "#tools": "@matter/tools",
+        "#tools": "@nacho-iot/js-tools",
         "#intermediate-models": "@matter/intermediate-models",
         "#*": "./src/*"
     },
