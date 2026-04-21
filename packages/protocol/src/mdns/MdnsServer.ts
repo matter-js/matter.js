@@ -99,20 +99,17 @@ export class MdnsServer {
             return;
         }
 
-        // Zero-query packets must pass: RFC 6762 §7.2 TC continuations rely on #prepareMessage to merge them.
-        if (
-            incomingMessage.queries.length > 0 &&
-            !incomingMessage.queries.some(q => ownedNames.has(q.name.toLowerCase()))
-        ) {
-            return;
-        }
-
         const message = this.#prepareMessage(incomingMessage);
         if (message === undefined) {
             return;
         }
 
         const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
+
+        // Skip unrelated LAN traffic; run after #prepareMessage so TC continuations are first merged.
+        if (!queries.some(q => ownedNames.has(q.name.toLowerCase()))) {
+            return;
+        }
 
         let sentPreviousPacket = false;
         for (const portRecords of byService.values()) {
@@ -128,14 +125,14 @@ export class MdnsServer {
                     : [];
             if (knownAnswers.length > 0) {
                 for (const knownAnswersRecord of knownAnswers) {
-                    answers = answers.filter(record => !isDeepEqual(record, knownAnswersRecord, true));
+                    answers = answers.filter(record => !this.#suppressedByKnownAnswer(record, knownAnswersRecord));
                     if (answers.length === 0) break; // Nothing to send
                 }
                 if (answers.length === 0) continue; // Nothing to send
                 if (additionalRecords.length > 0) {
                     for (const knownAnswersRecord of knownAnswers) {
                         additionalRecords = additionalRecords.filter(
-                            record => !isDeepEqual(record, knownAnswersRecord, true),
+                            record => !this.#suppressedByKnownAnswer(record, knownAnswersRecord),
                         );
                     }
                 }
@@ -285,6 +282,12 @@ export class MdnsServer {
     #getMulticastInterfacesForAnnounce() {
         const { netInterface } = this.#socket;
         return netInterface === undefined ? this.network.getNetInterfaces() : [{ name: netInterface }];
+    }
+
+    #suppressedByKnownAnswer(record: DnsRecord<any>, knownAnswer: DnsRecord<any>): boolean {
+        const lcName = knownAnswer.name.toLowerCase();
+        if (record.name.toLowerCase() !== lcName) return false;
+        return isDeepEqual({ ...record, name: lcName }, { ...knownAnswer, name: lcName }, true);
     }
 
     #queryRecords({ name, recordType }: { name: string; recordType: DnsRecordType }, records: DnsRecord<any>[]) {

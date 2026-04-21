@@ -1280,7 +1280,7 @@ describe("MdnsServer", () => {
             };
 
             const newQname = "other.service.local";
-            await mdnsServer.setRecordsGenerator("bar", () => [
+            await mdnsServer.setRecordsGenerator("foo", () => [
                 PtrRecord(newQname, "efgh"),
                 SrvRecord(newQname, { priority: 0, weight: 0, port: 5678, target: "efgh.local" }),
             ]);
@@ -1302,6 +1302,131 @@ describe("MdnsServer", () => {
 
             await MockTime.yield3();
             expect(responses.length).equals(1);
+
+            // Old name was truly replaced - no response for the previous qname.
+            responses.length = 0;
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+            expect(responses.length).equals(0);
+        });
+
+        it("merges known-answers from a TC continuation that carries unrelated queries", async () => {
+            // Packet 1 carries our query with TC=1; packet 2 continues with an unrelated query
+            // plus a known-answer record for our PTR. The fast-reject path must evaluate the
+            // merged query set so packet 2 is not dropped before the known-answer is merged in.
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query | DnsMessageTypeFlag.TC,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+            expect(responses.length).equals(0);
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: "_googlecast._tcp.local",
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                    answers: [PtrRecord(DUMMY_QNAME, "abcd")],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+            await MockTime.yield3();
+
+            expect(responses).deep.equal([
+                {
+                    message: {
+                        transactionId: 0,
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            SrvRecord(DUMMY_QNAME, { priority: 0, weight: 0, port: 1234, target: "abcd.local" }),
+                            TxtRecord(DUMMY_QNAME, [`A=1`, `B=2`]),
+                        ],
+                        additionalRecords: [ARecord("abcd.local", DUMMY_IP)],
+                        authorities: [],
+                        queries: [],
+                    },
+                    netInterface: INTERFACE_NAME,
+                    uniCastTarget: undefined,
+                },
+            ]);
+        });
+
+        it("suppresses known-answer records supplied with a different case (RFC 6762 §16)", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                    answers: [PtrRecord(DUMMY_QNAME.toUpperCase(), "abcd")],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+
+            // PTR must still be suppressed despite case-mismatch in the known-answer record.
+            expect(responses).deep.equal([
+                {
+                    message: {
+                        transactionId: 0,
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            SrvRecord(DUMMY_QNAME, { priority: 0, weight: 0, port: 1234, target: "abcd.local" }),
+                            TxtRecord(DUMMY_QNAME, [`A=1`, `B=2`]),
+                        ],
+                        additionalRecords: [ARecord("abcd.local", DUMMY_IP)],
+                        authorities: [],
+                        queries: [],
+                    },
+                    netInterface: INTERFACE_NAME,
+                    uniCastTarget: undefined,
+                },
+            ]);
         });
     });
 });
