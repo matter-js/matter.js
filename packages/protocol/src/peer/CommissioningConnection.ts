@@ -27,14 +27,10 @@ import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("CommissioningConnection");
 
-// Maximum time to wait for in-flight PASE losers to honour the abort signal and close their sessions.
-// We do not wait indefinitely — a transport that ignores abort must not block the caller.
-const LOSER_CLEANUP_BUDGET_MS = 5000;
-
-// Delay between consecutive PASE attempt starts for addresses of the same device.  The CHIP SDK
+// Delay between a consecutive PASE attempt starts for addresses of the same device.  The CHIP SDK
 // responder binds its singleton PASESession to the first incoming PBKDFParamRequest exchange; concurrent
 // requests on other exchanges are rejected and clear the in-progress PASE state.  Staggering avoids that
-// race when a single device exposes multiple addresses (e.g. IPv6 ULA + link-local + IPv4).  First
+// race when a single device exposes multiple addresses (e.g. IPv6 ULA + link-local + IPv4).  The first
 // attempt fires immediately; each subsequent attempt waits one additional slot, cancelable when a winner
 // is established.  Paired with the shorter cross-device stagger in ParallelPaseDiscovery.
 const PER_ADDRESS_STAGGER_DELAY = Seconds(5);
@@ -168,40 +164,52 @@ export async function CommissioningConnection(
         pending.add(p);
     };
 
-    // Schedule all candidates (first fires immediately; rest staggered) and wait for them to settle or for
-    // the timeout/external abort.
     for (const candidate of pool.availableCandidates(inFlight)) {
         launchAttempt(candidate);
     }
-    if (pending.size > 0) {
-        await abort.race(...pending);
-    }
 
-    const cleanupBudget = new Promise<void>(resolve => setTimeout(resolve, LOSER_CLEANUP_BUDGET_MS));
-    await Promise.race([MatterAggregateError.allSettled([...pending]).catch(() => {}), cleanupBudget]);
-
-    if (winner !== undefined) {
-        return winner;
-    }
-    if (lastNonRetryableError !== undefined) {
-        throw lastNonRetryableError;
-    }
-    if (abort.aborted && lastError === undefined) {
-        // If the abort was triggered externally (e.g. caller cancelled), propagate that error rather than masking it
-        // as a timeout.  A TimeoutError from our own timer is the only case that maps to PairRetransmissionLimitReachedError.
-        const reason = abort.reason;
-        if (reason !== undefined && !(reason instanceof TimeoutError)) {
-            // External cancellation — propagate as-is rather than masking as a fake timeout
-            throw reason;
+    try {
+        // Drain all pending attempts.  Each loop iteration blocks until one attempt settles OR the outer abort
+        // fires (timeout / external cancellation / winner picked).  Unlike the previous "first resolve + 5s
+        // cleanup budget" approach this waits for staggered attempts to actually start, so a fast failure on the
+        // first address doesn't short-circuit a later sibling.
+        while (pending.size > 0 && winner === undefined && !abort.aborted) {
+            await abort.race(...pending);
         }
-        throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server before timeout");
+
+        // Let any losers finish their cleanup (sending InvalidParam, closing sessions).  They all resolve to null
+        // so this never rejects.
+        await MatterAggregateError.allSettled([...pending]).catch(() => {});
+
+        if (winner !== undefined) {
+            return winner;
+        }
+        if (lastNonRetryableError !== undefined) {
+            throw lastNonRetryableError;
+        }
+        if (abort.aborted && lastError === undefined) {
+            // External cancellation propagates as-is; our own TimeoutError maps to PairRetransmissionLimitReachedError.
+            const reason = abort.reason;
+            if (reason !== undefined && !(reason instanceof TimeoutError)) {
+                throw reason;
+            }
+            throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server before timeout");
+        }
+        if (lastError !== undefined) {
+            throw new PairRetransmissionLimitReachedError(
+                `Failed to connect on any discovered server: ${lastError.message}`,
+            );
+        }
+        throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server");
+    } catch (error) {
+        // Cancel anything still pending so staggered attempts don't fire into the void and a late PASE completion
+        // doesn't orphan a secure session.
+        if (!abort.aborted) {
+            abort.abort(asError(error));
+        }
+        await MatterAggregateError.allSettled([...pending]).catch(() => {});
+        throw error;
     }
-    if (lastError !== undefined) {
-        throw new PairRetransmissionLimitReachedError(
-            `Failed to connect on any discovered server: ${lastError.message}`,
-        );
-    }
-    throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server");
 }
 
 export namespace CommissioningConnection {
