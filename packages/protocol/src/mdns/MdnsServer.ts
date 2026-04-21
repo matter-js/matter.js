@@ -40,21 +40,21 @@ export class MdnsServer {
         "MDNS discovery",
         async (multicastInterface: string) => {
             const byService = new Map<string, DnsRecord<any>[]>();
-            const names = new Set<string>();
+            const ownedNames = new Set<string>();
             const addrs = await this.network.getIpMac(multicastInterface);
             if (addrs === undefined) {
-                return { byService, names };
+                return { byService, ownedNames };
             }
 
             for (const [service, generator] of this.#recordsGenerator) {
                 const records = generator(multicastInterface, addrs);
                 byService.set(service, records);
                 for (const record of records) {
-                    names.add(record.name.toLowerCase());
+                    ownedNames.add(record.name.toLowerCase());
                 }
             }
 
-            return { byService, names };
+            return { byService, ownedNames };
         },
         Minutes(15) /* matches maximum standard commissioning window time */,
     );
@@ -86,13 +86,13 @@ export class MdnsServer {
     }
 
     buildDnsRecordKey(record: DnsRecord<any>, netInterface?: string, unicastTarget?: string) {
-        return `${record.name}-${record.recordClass}-${record.recordType}-${netInterface}-${unicastTarget}`;
+        return `${record.name.toLowerCase()}-${record.recordClass}-${record.recordType}-${netInterface}-${unicastTarget}`;
     }
 
     async #handleMessage(incomingMessage: MdnsSocket.Message) {
         using _processing = this.#lifetime.join("processing message");
 
-        const { byService, names } = await this.#records.get(incomingMessage.sourceIntf);
+        const { byService, ownedNames } = await this.#records.get(incomingMessage.sourceIntf);
 
         // Ignore if we have no records for interface
         if (byService.size === 0) {
@@ -100,8 +100,10 @@ export class MdnsServer {
         }
 
         // Zero-query packets must pass: RFC 6762 §7.2 TC continuations rely on #prepareMessage to merge them.
-        const { queries: incomingQueries } = incomingMessage;
-        if (incomingQueries.length > 0 && !incomingQueries.some(q => names.has(q.name.toLowerCase()))) {
+        if (
+            incomingMessage.queries.length > 0 &&
+            !incomingMessage.queries.some(q => ownedNames.has(q.name.toLowerCase()))
+        ) {
             return;
         }
 
@@ -256,7 +258,6 @@ export class MdnsServer {
     }
 
     async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
-        // Racing queries must see the new generator before clear's await yields.
         this.#recordsGenerator.set(service, generator);
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
@@ -318,10 +319,10 @@ export class MdnsServer {
             }
         }
 
-        // Build query signature
+        // Build query signature; names lower-cased per RFC 6762 §16.
         const queryKey =
             queries
-                .map(q => `${q.name}-${q.recordType}`)
+                .map(q => `${q.name.toLowerCase()}-${q.recordType}`)
                 .sort()
                 .join("|") + `-${sourceIntf}`;
 
@@ -423,7 +424,7 @@ export namespace MdnsServer {
     export interface InterfaceRecords {
         byService: Map<string, DnsRecord<any>[]>;
 
-        /** Lower-cased record names across all services - used to fast-reject unrelated LAN queries. */
-        names: Set<string>;
+        /** Lower-cased names of records we own on this interface - used to fast-reject unrelated LAN queries. */
+        ownedNames: Set<string>;
     }
 }
