@@ -52,6 +52,7 @@ jobs:
     if: github.repository == 'matter-js/matter.js' || github.repository == 'lauckhart/matter.js'
     outputs:
       build-needed: ${{ steps.check-rebuild.outputs.build-needed }}
+      controllers: ${{ steps.controllers.outputs.controllers }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -75,6 +76,16 @@ jobs:
               contains(github.event.head_commit.message, '[rebuild-chip]') == true
         id: check-rebuild
         run: echo "build-needed=true" >> $GITHUB_OUTPUT
+
+      # Run the additional matter.js WebSocket controller variant only on scheduled/manual runs to keep PR cycles fast
+      - name: Determine controllers to test
+        id: controllers
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'controllers=["chiptool","matterjs"]' >> $GITHUB_OUTPUT
+          else
+            echo 'controllers=["chiptool"]' >> $GITHUB_OUTPUT
+          fi
 
   # Build the CHIP container if necessary
   chip-image:
@@ -116,8 +127,12 @@ jobs:
           path: /tmp/chip.tar
 
   test-core:
-    needs: chip-image
+    needs: [workflow-conditions, chip-image]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -126,10 +141,15 @@ jobs:
         with:
           image-source: ${{ needs.chip-image.outputs.source }}
           test-group: core
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-fast:
-    needs: chip-image
+    needs: [workflow-conditions, chip-image]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -138,10 +158,15 @@ jobs:
         with:
           image-source: ${{ needs.chip-image.outputs.source }}
           test-group: app-fast
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-slow:
-    needs: chip-image
+    needs: [workflow-conditions, chip-image]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -150,10 +175,15 @@ jobs:
         with:
           image-source: ${{ needs.chip-image.outputs.source }}
           test-group: app-slow
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-cc-1:
-    needs: chip-image
+    needs: [workflow-conditions, chip-image]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -162,10 +192,15 @@ jobs:
         with:
           image-source: ${{ needs.chip-image.outputs.source }}
           test-group: app-cc-1
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   test-app-cc-2:
-    needs: chip-image
+    needs: [workflow-conditions, chip-image]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -174,6 +209,7 @@ jobs:
         with:
           image-source: ${{ needs.chip-image.outputs.source }}
           test-group: app-cc-2
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   # Publish if this is nightly run or triggered manually
   # TODO - create PR to commit SHA from chip-image action?
