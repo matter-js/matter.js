@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Package } from "@matter/tools";
+import { Package } from "@nacho-iot/js-tools";
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 

@@ -61,6 +61,16 @@ export abstract class ExchangeProvider {
     abstract readonly maxPathsPerInvoke?: number;
 
     /**
+     * Dedicated secure session backing this provider, if any.
+     *
+     * Providers that multiplex sessions (e.g. {@link PeerExchangeProvider}) return `undefined`.
+     * Consumers can use this to react to session-lifecycle events without casting.
+     */
+    get session(): SecureSession | undefined {
+        return undefined;
+    }
+
+    /**
      * Ensure the peer is reachable without creating an exchange.
      *
      * The default implementation is a no-op (already connected).
@@ -91,7 +101,7 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
         return this.#session.channel.transportChannel.type;
     }
 
-    get session() {
+    override get session() {
         return this.#session;
     }
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Progress } from "@matter/tools";
+import { Progress } from "@nacho-iot/js-tools";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { relative } from "node:path";
 import { FailureDetail } from "./failure-detail.js";

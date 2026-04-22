@@ -257,7 +257,10 @@ export class ClientInteraction<
         logger.info("Probe", Mark.OUTBOUND, messenger.exchange.via);
 
         try {
-            await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
+            await messenger.sendReadRequest(Read({ fabricFilter: false }), {
+                abort,
+                suppressPeerLoss: options?.suppressPeerLoss,
+            });
             for await (const _report of messenger.readDataReports({ abort }));
             logger.info(
                 "Probe",
@@ -268,15 +271,7 @@ export class ClientInteraction<
             );
             return true;
         } catch {
-            if (abort.aborted) {
-                logger.debug(
-                    "Probe",
-                    Mark.INBOUND,
-                    messenger.exchange.via,
-                    messenger.exchange.diagnostics,
-                    Diagnostic.weak("(aborted)"),
-                );
-            } else {
+            if (!abort.aborted) {
                 logger.info(
                     "Probe",
                     Mark.INBOUND,
@@ -1059,6 +1054,11 @@ export class ClientInteraction<
         return this.#exchangeProvider.channelType;
     }
 
+    /** Dedicated secure session backing this interaction, if the provider exposes one. */
+    get session() {
+        return this.#exchangeProvider.session;
+    }
+
     /** Calculates the current maximum response time for a message use in additional logic like timers. */
     maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime = false) {
         return this.#exchangeProvider.maximumPeerResponseTime(expectedProcessingTime, includeMaximumSendingTime);
@@ -1091,6 +1091,9 @@ export interface ClientProbeOptions {
 
     /** Abort signal for the probe. */
     abort?: AbortSignal;
+
+    /** Suppress peer-loss reporting so the session stays alive even if the probe fails. */
+    suppressPeerLoss?: boolean;
 }
 
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {

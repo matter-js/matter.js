@@ -6,7 +6,7 @@
 
 import { DnsRecordType, SrvRecordValue } from "#codec/DnsCodec.js";
 import { Diagnostic } from "#log/Diagnostic.js";
-import { AddressLifespan, ServerAddressIp } from "#net/ServerAddress.js";
+import { AddressLifespan, ServerAddress, ServerAddressIp } from "#net/ServerAddress.js";
 import { ServerAddressSet } from "#net/ServerAddressSet.js";
 import { Duration } from "#time/Duration.js";
 import { Time } from "#time/Time.js";
@@ -252,17 +252,17 @@ export class IpService {
     #onAddressChanged = (service: Service, { updated, deleted }: DnssdName.Changes) => {
         if (updated) {
             for (const record of updated) {
-                const addr = addressOf(record);
-                if (addr) {
-                    this.#updateAddress(service, addr);
+                const ip = ipOf(record);
+                if (ip !== undefined) {
+                    this.#updateAddress(service, ip);
                 }
             }
         }
         if (deleted) {
             for (const record of deleted) {
-                const addr = addressOf(record);
-                if (addr) {
-                    this.#deleteAddress(service, addr);
+                const ip = ipOf(record);
+                if (ip !== undefined) {
+                    this.#deleteAddress(service, ip);
                 }
             }
         }
@@ -338,9 +338,20 @@ function hostKeyOf(name: string, port: number) {
     return `${name}:${port}`;
 }
 
-function addressOf(record: DnssdName.Record) {
-    if (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) {
-        return;
+function ipOf(record: DnssdName.Record): string | undefined {
+    if (record.recordType === DnsRecordType.A) {
+        return record.value;
     }
-    return record.value;
+    if (record.recordType === DnsRecordType.AAAA) {
+        // fe80::/10 unicast needs a zone to route; attach the receive interface when it isn't already encoded.
+        if (
+            record.sourceIntf !== undefined &&
+            ServerAddress.isIpv6LinkLocal(record.value) &&
+            !record.value.includes("%")
+        ) {
+            return `${record.value}%${record.sourceIntf}`;
+        }
+        return record.value;
+    }
+    return undefined;
 }

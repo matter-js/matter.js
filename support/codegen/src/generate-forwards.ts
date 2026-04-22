@@ -5,7 +5,7 @@
  */
 
 import { generateMatterjsMainForwards } from "#forwards/matterjs-main.js";
-import { Progress } from "@matter/tools";
+import { Progress } from "@nacho-iot/js-tools";
 
 /**
  * Generate a "forward" file for each sub-module re-export.

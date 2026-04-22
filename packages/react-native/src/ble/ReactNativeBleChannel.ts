@@ -306,7 +306,10 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             this.btpSession.close().catch(error => {
                 logger.debug(`Error closing BTP session on disconnect`, error);
             });
+            this.emitClosed();
         });
+        // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
+        this.btpSession.closed.on(() => this.emitClosed());
     }
 
     /**
@@ -379,5 +382,6 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         this.disconnectSubscription.remove();
         // then close others
         await this.btpSession.close();
+        this.emitClosed();
     }
 }

@@ -1,0 +1,10 @@
+// This configuration is a standard baseline for all tests.
+//
+// Copied from @nacho-iot/js-tools.  Edits are preserved; `nacho-build configure` replaces with the latest template.
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "tsBuildInfoFile": "${configDir}/../build/test.tsbuildinfo",
+        "noEmit": true,
+    }
+}
