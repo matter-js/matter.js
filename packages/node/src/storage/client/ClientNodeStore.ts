@@ -86,6 +86,10 @@ export class ClientNodeStore extends NodeStore {
     }
 
     override async erase() {
+        // Cascade so caches unregister from the shared ClientCacheBuffer before storage is cleared.
+        for (const store of this.#stores.values()) {
+            await store.erase();
+        }
         this.#stores = new Map();
         this.#onErase?.();
         await this.#storage?.clearAll();

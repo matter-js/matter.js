@@ -58,6 +58,7 @@ import {
     LocatedNodeCommissioningOptions,
     Peer,
     PeerAddress,
+    PeerLeftError,
     PeerSet,
     PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
@@ -297,6 +298,11 @@ export class CommissioningClient extends Behavior {
                 `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
             );
         }
+
+        // Peer left our fabric; local sessions are dead.  Force-close here, before the commit unbinds Peer via the
+        // peerAddress$Changed reactor, otherwise the graceful close path defers on MRP retransmissions that never ack.
+        const node = this.endpoint as ClientNode;
+        await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
 
         this.state.peerAddress = undefined;
         this.state.commissionedAt = undefined;

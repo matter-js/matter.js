@@ -309,8 +309,12 @@ export class Peer {
 
     /**
      * Abort any outstanding connection attempts.
+     *
+     * When {@link cause} is provided, also force-close any active sessions with the peer — use this when the peer
+     * is known to be unreachable (e.g. we just removed our fabric on the peer).  Without a cause the existing
+     * sessions are left alone so they can follow their normal graceful-close path.
      */
-    async disconnect() {
+    async disconnect(cause?: Error) {
         if (this.#connecting) {
             using _disconnecting = this.#lifetime.join("disconnecting");
             this.#connecting.abort();
@@ -321,8 +325,11 @@ export class Peer {
             }
         }
 
-        // TODO - need to shutdown exchanges and sessions here too so you can cleanly take down a single peer, but
-        // currently that's handled by "managers" for those entities
+        if (cause !== undefined) {
+            for (const session of this.#context.sessions.sessionsFor(this.address)) {
+                await session.initiateForceClose({ cause });
+            }
+        }
     }
 
     /**

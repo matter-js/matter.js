@@ -41,7 +41,9 @@ import {
     ClientSubscriptionHandler,
     ClientSubscriptions,
     FabricManager,
+    Peer,
     PeerAddress,
+    PeerLeftError,
     SessionManager,
 } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
@@ -468,6 +470,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
             logger.notice("Peer", Diagnostic.strong(node.id), "has left the fabric");
             node.lifecycle.decommissioned.emit(LocalActorContext.ReadOnly);
+            await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
             await node.delete();
         });
     }

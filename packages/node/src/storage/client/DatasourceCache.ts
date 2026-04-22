@@ -152,7 +152,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
      * the enclosing transaction fails to commit.
      */
     async flush(tx?: StorageDriver.Transaction): Promise<Set<string> | undefined> {
-        if (!this.#dirtyKeys.size) {
+        if (this.#erased || !this.#dirtyKeys.size) {
             return;
         }
 
