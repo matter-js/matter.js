@@ -160,6 +160,10 @@ export default function commands() {
                     },
                     async argv => {
                         const { value } = argv;
+                        if (!value) {
+                            console.error("Please provide a Hex value to decode");
+                            return;
+                        }
                         const bytes = Bytes.fromHex(value);
                         const tlvEncoded = TlvAny.decode(bytes);
                         logAnyTlvStream(tlvEncoded);
