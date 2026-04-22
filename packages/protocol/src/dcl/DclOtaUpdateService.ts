@@ -276,8 +276,8 @@ export class DclOtaUpdateService {
 
         const foundUpdates = new Array<DeviceSoftwareVersionModelDclSchemaWithSource>();
 
-        // Check for local updates if allowed — search all modes regardless of isProduction
-        // (isProduction controls which DCL to query, not which stored files to consider)
+        // Only stored test-mode files are gated on the test DCL being enabled; prod and local entries always
+        // pass through so a test-only caller still sees them as valid upgrade targets.
         if (includeStoredUpdates) {
             const localUpdates = await this.find({
                 vendorId,
@@ -287,6 +287,7 @@ export class DclOtaUpdateService {
             // Check each stored entry for applicability (highest version first via reverse iteration)
             for (let i = localUpdates.length - 1; i >= 0; i--) {
                 const entry = localUpdates[i];
+                if (isProduction === true && entry.mode === "test") continue;
                 const localUpdate: DeviceSoftwareVersionModelDclSchemaWithSource = {
                     ...entry,
                     vid: VendorId(vendorId),
@@ -962,7 +963,7 @@ export class DclOtaUpdateService {
      * @param options.filename - Specific filename to delete (e.g. `fff1.8000.prod.3`)
      * @param options.vendorId - Vendor ID to filter files for deletion
      * @param options.productId - Product ID to filter files for deletion (optional, requires vendorId)
-     * @param options.isProduction - @deprecated Use mode instead. Production (true) or test (false) mode
+     * @param options.isProduction - (deprecated, use `mode` instead) production (true) or test (false) mode
      * @param options.mode - Storage mode: "prod", "test", or "local"
      * @returns Number of files deleted
      */

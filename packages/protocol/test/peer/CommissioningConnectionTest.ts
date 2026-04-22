@@ -390,6 +390,45 @@ describe("CommissioningConnection", () => {
             expect(result.discoveryData.deviceIdentifier).equals("a");
         });
 
+        it("late-staggered attempt still wins when earlier attempt failed fast", async () => {
+            // Regression: first attempt fails at t=~0; second attempt is scheduled at stagger=5s and succeeds.
+            // The previous 5s loser-cleanup budget raced this exact case and threw before the winner landed.
+            const order = new Array<string>();
+            const winnerGate = deferred<void>();
+
+            const p = CommissioningConnection({
+                devices: [device("a", [udp("fd00::1"), udp("fd00::2")])],
+                timeout: Seconds(60),
+                staggerDelay: Seconds(5),
+                establishSession: async (address, _discoveryData, signal) => {
+                    const ip = (address as ServerAddressUdp).ip;
+                    order.push(ip);
+                    if (ip === "fd00::1") {
+                        throw new AddressUnreachableError("fe80-like unreachable");
+                    }
+                    await new Promise<void>((resolve, reject) => {
+                        void winnerGate.promise.then(resolve);
+                        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                    });
+                    return {} as any;
+                },
+            });
+
+            // First attempt fires and fails synchronously
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1"]);
+
+            // Second attempt wakes from its 5s stagger
+            await MockTime.advance(5000);
+            await MockTime.yield3();
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1", "fd00::2"]);
+
+            winnerGate.resolve();
+            const result = await p;
+            expect(result.discoveryData.deviceIdentifier).equals("a");
+        });
+
         it("default staggerDelay is 5s", async () => {
             const order = new Array<string>();
             const gate = deferred<void>();

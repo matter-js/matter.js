@@ -34,7 +34,7 @@ export abstract class OutboundFlow extends Flow {
         const blobSize = blob.size;
 
         // Get the full or relevant part of the stream by startOffset and length
-        const { startOffset = 0, dataLength = blobSize } = this.transferParameters;
+        const { startOffset, dataLength = blobSize } = this.transferParameters;
         this.dataLength = dataLength;
 
         const dataBlob =

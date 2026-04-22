@@ -89,13 +89,21 @@ export function createReadable(client: WebSocket) {
         ready.open();
     }
 
+    function removeListeners() {
+        client.removeEventListener("message", onMessage);
+        client.removeEventListener("error", onError);
+        client.removeEventListener("close", onClose);
+    }
+
     function onError(e: WebSocket.ErrorEvent) {
+        removeListeners();
         isClosed = true;
         queue.push(asError(e.error));
         ready.open();
     }
 
     function onClose() {
+        removeListeners();
         isClosed = true;
         ready.open();
     }

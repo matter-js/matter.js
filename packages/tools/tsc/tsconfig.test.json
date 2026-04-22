@@ -1,8 +1,0 @@
-// This configuration a standard baseline for all tests
-{
-    "extends": "./tsconfig.base.json",
-    "compilerOptions": {
-        "tsBuildInfoFile": "${configDir}/../build/test.tsbuildinfo",
-        "noEmit": true,
-    }
-}

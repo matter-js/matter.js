@@ -5,6 +5,7 @@
  */
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
+import { BleChannel, BleChannelClosedError } from "#ble/Ble.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
@@ -15,6 +16,7 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -431,14 +433,19 @@ export class ControllerCommissioner {
     }
 
     /**
-     * Maps a sorted list of addresses to synthetic `CommissionableDevice` candidates for use with
-     * {@link CommissioningConnection}.  Each address becomes its own candidate so that a credential failure
-     * on one does not cancel attempts on others, and the per-device abort logic works correctly even in the
-     * single-address case.
+     * Maps addresses to synthetic {@link CommissionableDevice} candidates for use with
+     * {@link CommissioningConnection}.  Each address becomes its own candidate so a credential failure on one
+     * does not cancel attempts on others.  UDP is partitioned ahead of BLE, preserving input order within each
+     * group — the caller's {@link ServerAddressSet.compareDesirability} ranking is load-bearing.
      */
     #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
-        const sorted = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
-        return sorted.map((address, index) => ({
+        const udps = new Array<ServerAddress>();
+        const others = new Array<ServerAddress>();
+        for (const address of addresses) {
+            (address.type === "udp" ? udps : others).push(address);
+        }
+
+        return [...udps, ...others].map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],
             deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
@@ -522,6 +529,27 @@ export class ControllerCommissioner {
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
         logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, ephemeralSession);
+
+        // BLE-only: BTP MRP retrans blocks pending invokes for ~45s when a non-concurrent device
+        // drops BLE after connectNetwork.  Force-close on BLE-lost so the awaited invoke rejects
+        // immediately and the commissioning flow can flip to the non-concurrent CASE path.
+        if (!ephemeralSession.isClosed) {
+            const paseChannel = ephemeralSession.channel.channel;
+            if (paseChannel instanceof BleChannel) {
+                paseChannel.closed.once(() => {
+                    ephemeralSession
+                        .initiateForceClose({
+                            cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
+                        })
+                        .catch(error => {
+                            // Already-closed races with our force-close — the session shut down
+                            // via another path, no action needed.  Anything else is a real bug.
+                            if (error instanceof SessionClosedError) return;
+                            logger.error("Error while force-closing PASE session on BLE close", error);
+                        });
+                });
+            }
+        }
 
         await using commissioner = new commissioningFlowImpl(
             new ClientInteraction({

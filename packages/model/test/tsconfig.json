@@ -1,5 +1,7 @@
+// Managed by nacho-build.  Nacho will update references automatically but otherwise preserves your edits.
+// Use `nacho-build configure` to overwrite with defaults.
 {
-    "extends": "../../tools/tsc/tsconfig.test.json",
+    "extends": "../../../tsc/tsconfig.test.json",
     "compilerOptions": {
         "types": [
             "mocha",
@@ -13,9 +15,6 @@
         },
         {
             "path": "../../testing/src"
-        },
-        {
-            "path": "../../tools/src"
         },
         {
             "path": "../src"

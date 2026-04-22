@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StorageError } from "../StorageDriver.js";
 import { type SupportedStorageTypes, fromJson, toJson } from "../StringifyTools.js";
 
 export type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
@@ -66,13 +67,61 @@ export function serializeCommit(commit: WalCommit): string {
  * Deserialize a JSON line back to a commit.
  *
  * Handles legacy bare-array format by wrapping as `{ ts: 0, ops }`.
+ *
+ * Throws if the parsed value is not a structurally valid commit so callers
+ * (e.g. {@link WalReader}) can skip the line rather than yielding a commit
+ * that crashes replay downstream.
  */
 export function deserializeCommit(line: string): WalCommit {
-    const parsed = fromJson(line);
+    const parsed: unknown = fromJson(line);
+
     if (Array.isArray(parsed)) {
+        parsed.forEach(validateOp);
         return { ts: 0, ops: parsed as WalOp[] };
     }
-    return parsed as unknown as WalCommit;
+
+    if (!isPlainRecord(parsed)) {
+        throw new StorageError("WAL commit is not an object");
+    }
+    const { ts, ops } = parsed;
+    if (typeof ts !== "number") {
+        throw new StorageError("WAL commit `ts` is missing or not a number");
+    }
+    if (!Array.isArray(ops)) {
+        throw new StorageError("WAL commit `ops` is missing or not an array");
+    }
+    ops.forEach(validateOp);
+    return { ts, ops: ops as WalOp[] };
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+    return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function validateOp(op: unknown, index: number): void {
+    if (!isPlainRecord(op)) {
+        throw new StorageError(`WAL op[${index}] is not an object`);
+    }
+    const { op: kind, key, values } = op;
+    if (typeof key !== "string") {
+        throw new StorageError(`WAL op[${index}] \`key\` is not a string`);
+    }
+    if (kind === "upd") {
+        if (!isPlainRecord(values)) {
+            throw new StorageError(`WAL op[${index}] upd \`values\` is not an object`);
+        }
+        return;
+    }
+    if (kind === "del") {
+        if (values === undefined) {
+            return;
+        }
+        if (!Array.isArray(values) || !values.every(v => typeof v === "string")) {
+            throw new StorageError(`WAL op[${index}] del \`values\` is not a string array`);
+        }
+        return;
+    }
+    throw new StorageError(`WAL op[${index}] has unknown op kind \`${String(kind)}\``);
 }
 
 /**

@@ -10,7 +10,9 @@ import { WriteResult } from "#action/index.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
+import { BleDisconnectedError } from "#ble/Ble.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
+import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import {
     asError,
     Bytes,
@@ -23,6 +25,7 @@ import {
     Logger,
     Millis,
     Minutes,
+    NoResponseTimeoutError,
     repackErrorAs,
     Seconds,
     Time,
@@ -48,7 +51,7 @@ import { GeneralCommissioning } from "@matter/types/clusters/general-commissioni
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { TimeSynchronizationCluster } from "@matter/types/clusters/time-synchronization";
+import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
@@ -792,6 +795,14 @@ export class ControllerCommissioningFlow {
                 "Re-Arm Failsafe during longer interactions",
                 BTP_IDLE_ALIVE_INTERVAL,
                 () => {
+                    // Session gone (e.g. BLE dropped after connectNetwork) — pointless to re-arm,
+                    // and the send attempt would block until it finds out the hard way.
+                    if (this.interaction.session?.isClosed) {
+                        logger.debug("Skipping periodic armFailSafe: session is closed");
+                        this.#armFailsafeInterval?.stop();
+                        this.#armFailsafeInterval = undefined;
+                        return;
+                    }
                     const now = Time.nowMs;
                     if (this.#commissioningExpiryTime !== undefined && now < this.#commissioningExpiryTime) {
                         logger.debug(
@@ -800,10 +811,12 @@ export class ControllerCommissioningFlow {
                         this.#armFailsafe().catch(error => {
                             logger.info("Error while re-arming failsafe during reconnect", error);
                             this.#armFailsafeInterval?.stop();
+                            this.#armFailsafeInterval = undefined;
                         });
                     } else {
                         // Stop as soon as we are over the maximum commissioning time
                         this.#armFailsafeInterval?.stop();
+                        this.#armFailsafeInterval = undefined;
                     }
                 },
             ).start();
@@ -822,17 +835,103 @@ export class ControllerCommissioningFlow {
     }
 
     /**
-     * For non-concurrent devices the BLE connection drops when connectNetwork is sent, so the
-     * failsafe must cover both the connect time and the subsequent CASE reconnection.
+     * On BLE the device may drop the commissioning channel when `connectNetwork` is sent, so the
+     * failsafe must cover both the connect time and the subsequent CASE reconnection.  We arm
+     * pessimistically whenever BLE is in play — not just when the device has declared
+     * `supportsConcurrentConnection=false` — because some devices report concurrent support but
+     * behave non-concurrent in practice.  Once BLE is gone we cannot extend the failsafe, and if
+     * it expires on the device before CASE reconnect lands, the device rolls back addNOC.
+     *
+     * On IP transports, BLE drop is not a concern and the declared flag can be trusted.
      */
     #connectNetworkFailsafeTime(connectMaxTimeSeconds: number): Duration {
-        if (this.collectedCommissioningData.supportsConcurrentConnection === false) {
+        const pessimistic =
+            this.interaction.channelType === ChannelType.BLE ||
+            this.collectedCommissioningData.supportsConcurrentConnection === false;
+        if (pessimistic) {
             return Duration.max(
                 Millis(Seconds(connectMaxTimeSeconds) + CASE_RECONNECT_TIMEOUT),
                 this.#defaultFailSafeTime,
             );
         }
         return Seconds(connectMaxTimeSeconds);
+    }
+
+    /**
+     * Recognise transport-level failures of `connectNetwork` that indicate the device has stopped
+     * responding on the commissioning channel — typically because it moved to the operational network.
+     *
+     * Device-returned `NetworkingStatus != Success` is NOT a transport error; those are real
+     * spec-level failures (bad credentials, unknown network, etc.) and must surface normally.
+     *
+     * Bare `AbortedError` is deliberately excluded: a user-initiated cancel or shutdown abort must
+     * propagate cleanly, not be swallowed as a "non-concurrent signal".  Transport aborts surface
+     * with a more specific cause ({@link PeerUnresponsiveError} from MRP timeouts,
+     * {@link BleDisconnectedError} from BLE loss) that `causedBy` already matches.
+     */
+    #isConnectNetworkTransportError(error: unknown) {
+        return causedBy(
+            error,
+            BleDisconnectedError, // also matches BleChannelClosedError subclass
+            PeerUnresponsiveError,
+            NoResponseTimeoutError,
+        );
+    }
+
+    /**
+     * Respond to a transport-level `connectNetwork` failure by treating the device as non-concurrent:
+     * stop the periodic failsafe re-arm timer (BLE is gone anyway) and flip the flag so
+     * `#reconnectWithDevice` takes the non-concurrent path.
+     */
+    #handleConnectNetworkTransportError(error: unknown) {
+        logger.warn(
+            "connectNetwork did not complete on the commissioning channel — assuming device is non-concurrent, proceeding to CASE",
+            Diagnostic.errorMessage(asError(error)),
+        );
+        this.collectedCommissioningData.supportsConcurrentConnection = false;
+        this.#armFailsafeInterval?.stop();
+        this.#armFailsafeInterval = undefined;
+    }
+
+    /**
+     * Issue `NetworkCommissioning.connectNetwork` for the given network and classify the outcome.
+     *
+     * - `transportFailure: true` means the invoke threw a transport-level error (BLE/MRP gone).
+     *   The caller should return {@link CommissioningStepResultCode.Success} so the flow falls
+     *   through into the non-concurrent CASE reconnect path — the failsafe flag has already
+     *   been flipped by {@link #handleConnectNetworkTransportError}.
+     * - `transportFailure: false` carries the device's actual response and is the caller's job
+     *   to validate ({@link NetworkCommissioning.NetworkCommissioningStatus}, debug text, etc).
+     *
+     * Shared between the WiFi and Thread paths so the try/catch + ensureFailsafe dance lives in
+     * one place and both media stay in lockstep.
+     */
+    async #invokeConnectNetwork(
+        networkId: Uint8Array,
+        connectMaxTimeSeconds: number,
+    ): Promise<{ transportFailure: true } | { transportFailure: false; networkingStatus: number; debugText?: string }> {
+        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
+        try {
+            const { networkingStatus, debugText } = await this.#invokeCommand(
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: NetworkCommissioning,
+                    command: "connectNetwork",
+                    fields: {
+                        networkId,
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
+                },
+                {
+                    expectedProcessingTime: Seconds(connectMaxTimeSeconds),
+                },
+            );
+            return { transportFailure: false, networkingStatus, debugText };
+        } catch (error) {
+            if (!this.#isConnectNetworkTransportError(error)) throw error;
+            this.#handleConnectNetworkTransportError(error);
+            return { transportFailure: true };
+        }
     }
 
     async #resetFailsafeTimer() {
@@ -960,9 +1059,7 @@ export class ControllerCommissioningFlow {
     async #synchronizeTime() {
         if (
             this.collectedCommissioningData.rootServerList !== undefined &&
-            this.collectedCommissioningData.rootServerList.find(
-                clusterId => clusterId === TimeSynchronizationCluster.id,
-            )
+            this.collectedCommissioningData.rootServerList.find(clusterId => clusterId === TimeSynchronization.id)
         ) {
             logger.debug("TimeSynchronization cluster is supported");
             // TODO: implement
@@ -1379,22 +1476,13 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
-
-        const connectResult = await this.#invokeCommand(
-            {
-                endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
-                command: "connectNetwork",
-                fields: {
-                    networkId,
-                    breadcrumb: this.lastBreadcrumb++,
-                },
-            },
-            {
-                expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-            },
-        );
+        const connectResult = await this.#invokeConnectNetwork(networkId, connectMaxTimeSeconds);
+        if (connectResult.transportFailure) {
+            return {
+                code: CommissioningStepResultCode.Success,
+                breadcrumb: this.lastBreadcrumb,
+            };
+        }
 
         if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new WifiNetworkSetupFailedError(
@@ -1577,23 +1665,15 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        await this.#ensureFailsafeTimerFor(this.#connectNetworkFailsafeTime(connectMaxTimeSeconds));
+        const connectResult = await this.#invokeConnectNetwork(networkId, connectMaxTimeSeconds);
+        if (connectResult.transportFailure) {
+            return {
+                code: CommissioningStepResultCode.Success,
+                breadcrumb: this.lastBreadcrumb,
+            };
+        }
 
-        const { networkingStatus, debugText } = await this.#invokeCommand(
-            {
-                endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
-                command: "connectNetwork",
-                fields: {
-                    networkId,
-                    breadcrumb: this.lastBreadcrumb++,
-                },
-            },
-            {
-                expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-            },
-        );
-
+        const { networkingStatus, debugText } = connectResult;
         if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
                 `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? ` ${debugText}` : ""}`,

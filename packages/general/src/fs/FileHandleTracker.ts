@@ -23,8 +23,6 @@ interface HandleInfo {
 export namespace FileHandleTracker {
     const openHandles = new Set<WeakRef<File.Handle>>();
 
-    let exitHookInstalled = false;
-
     const registry = new FinalizationRegistry<HandleInfo>(info => {
         logger.error(`File handle GC'd without close: "${info.purpose}" for ${info.path}`);
     });
@@ -39,11 +37,6 @@ export namespace FileHandleTracker {
 
         const ref = new WeakRef(handle);
         openHandles.add(ref);
-
-        if (!exitHookInstalled) {
-            exitHookInstalled = true;
-            installExitHook();
-        }
     }
 
     /**
@@ -60,12 +53,12 @@ export namespace FileHandleTracker {
         }
     }
 
-    function installExitHook() {
-        if (typeof process === "undefined" || typeof process.on !== "function") {
-            return;
-        }
-
-        process.on("exit", () => {
+    /**
+     * Install a callback that runs at process exit to warn about unclosed handles.  Platform packages (e.g.
+     * @matter/nodejs) should call this with their exit hook mechanism.
+     */
+    export function onExit(install: (callback: () => void) => void) {
+        install(() => {
             for (const ref of openHandles) {
                 const handle = ref.deref();
                 if (handle !== undefined) {

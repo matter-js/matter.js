@@ -22,10 +22,10 @@
         "url": "git+https://github.com/matter-js/matter.js.git"
     },
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean",
-        "matter": "matter-run bin/matter.js"
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
+        "matter": "nacho-run bin/matter.js"
     },
     "bin": {
         "matter": "bin/matter.js"
@@ -39,7 +39,7 @@
         "@matter/model": "*",
         "@matter/node": "*",
         "@matter/protocol": "*",
-        "@matter/tools": "*",
+        "@nacho-iot/js-tools": "*",
         "@matter/types": "*",
         "@matter/nodejs": "*",
         "@types/escodegen": "^0.0.10",

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isDirectory } from "@matter/tools";
 import { config, findLeaks } from "@memlab/api";
 import memlabCore from "@memlab/core";
+import { isDirectory } from "@nacho-iot/js-tools";
 import memlab from "memlab";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";

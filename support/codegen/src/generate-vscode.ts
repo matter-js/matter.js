@@ -194,7 +194,7 @@ function addRun(options: Partial<LaunchOptions> & { name: string; args: string[]
 
     const result: LaunchOptions = {
         ...options,
-        program: "node_modules/.bin/matter-run",
+        program: "node_modules/.bin/nacho-run",
     };
 
     delete (result as any).file;

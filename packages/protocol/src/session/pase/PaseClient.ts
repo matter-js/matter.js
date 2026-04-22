@@ -167,12 +167,13 @@ export class PaseClient {
             );
         }
 
-        // Once Pake3 is sent, we can not abort anymore.
-        // Complete the handshake and let continueCommissioningAfterPase close a losing session instead if needed.
+        // Intentional: no abort.attempt / abort.race below.  Once Pake3 is sent the device has committed its PASE
+        // state; aborting here would leave it in limbo for 60s.  Any caller that no longer wants this session is
+        // responsible for closing it after we return.
         await messenger.sendPasePake3({ verifier: hAY });
 
-        // All good! Creating the secure session
         await messenger.waitForSuccess({ description: "PasePake3-Success" });
+
         const secureSession = await this.#sessions.createSecureSession({
             channel,
             id: initiatorSessionId,

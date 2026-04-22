@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Progress, ansi, std } from "@matter/tools";
+import { Progress, ansi, std } from "@nacho-iot/js-tools";
 import { FailureDetail } from "./failure-detail.js";
 import { FailureReporter } from "./failure-reporter.js";
 import { Failure, Reporter, Stats } from "./reporter.js";

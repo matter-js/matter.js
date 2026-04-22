@@ -20,7 +20,8 @@
     "docs/**/*",
     "**/.mocharc.cjs",
     "**/*.cjs",
-    "examples/electron-matter-controller/**/*"
+    "examples/electron-matter-controller/**/*",
+    "packages/node/test/tsconfigs/**/*"
   ],
   "rules": {
     "@typescript-eslint/no-explicit-any": "off",

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Project } from "@matter/tools";
+import { Project } from "@nacho-iot/js-tools";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 import { Config, Template } from "./config.js";
@@ -70,7 +70,7 @@ export async function before({ project }: Project.Context) {
         });
     }
 
-    const tools = project.pkg.findPackage("@matter/tools").json;
+    const tools = project.pkg.findPackage("@nacho-iot/js-tools").json;
     const typescriptVersion = tools.dependencies?.typescript as string;
     const nodeTypesVersion = tools.devDependencies?.["@types/node"] as string;
 

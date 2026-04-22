@@ -1038,6 +1038,11 @@ export class ClientInteraction<
         return this.#exchangeProvider.channelType;
     }
 
+    /** Dedicated secure session backing this interaction, if the provider exposes one. */
+    get session() {
+        return this.#exchangeProvider.session;
+    }
+
     /** Calculates the current maximum response time for a message use in additional logic like timers. */
     maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime = false) {
         return this.#exchangeProvider.maximumPeerResponseTime(expectedProcessingTime, includeMaximumSendingTime);

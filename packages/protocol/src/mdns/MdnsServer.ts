@@ -36,20 +36,25 @@ export class MdnsServer {
     #lifetime: Lifetime;
     #observers = new ObserverGroup();
     #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
-    readonly #records = new AsyncCache<Map<string, DnsRecord<any>[]>>(
+    readonly #records = new AsyncCache<MdnsServer.InterfaceRecords>(
         "MDNS discovery",
         async (multicastInterface: string) => {
-            const serviceRecords = new Map<string, DnsRecord<any>[]>();
+            const byService = new Map<string, DnsRecord<any>[]>();
+            const ownedNames = new Set<string>();
             const addrs = await this.network.getIpMac(multicastInterface);
             if (addrs === undefined) {
-                return serviceRecords;
+                return { byService, ownedNames };
             }
 
             for (const [service, generator] of this.#recordsGenerator) {
-                serviceRecords.set(service, generator(multicastInterface, addrs));
+                const records = generator(multicastInterface, addrs);
+                byService.set(service, records);
+                for (const record of records) {
+                    ownedNames.add(record.name.toLowerCase());
+                }
             }
 
-            return serviceRecords;
+            return { byService, ownedNames };
         },
         Minutes(15) /* matches maximum standard commissioning window time */,
     );
@@ -81,16 +86,18 @@ export class MdnsServer {
     }
 
     buildDnsRecordKey(record: DnsRecord<any>, netInterface?: string, unicastTarget?: string) {
-        return `${record.name}-${record.recordClass}-${record.recordType}-${netInterface}-${unicastTarget}`;
+        return `${record.name.toLowerCase()}-${record.recordClass}-${record.recordType}-${netInterface}-${unicastTarget}`;
     }
 
     async #handleMessage(incomingMessage: MdnsSocket.Message) {
         using _processing = this.#lifetime.join("processing message");
 
-        const records = await this.#records.get(incomingMessage.sourceIntf);
+        const { byService, ownedNames } = await this.#records.get(incomingMessage.sourceIntf);
 
         // Ignore if we have no records for interface
-        if (records.size === 0) return;
+        if (byService.size === 0) {
+            return;
+        }
 
         const message = this.#prepareMessage(incomingMessage);
         if (message === undefined) {
@@ -99,7 +106,13 @@ export class MdnsServer {
 
         const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
 
-        for (const portRecords of records.values()) {
+        // Skip unrelated LAN traffic; run after #prepareMessage so TC continuations are first merged.
+        if (!queries.some(q => ownedNames.has(q.name.toLowerCase()))) {
+            return;
+        }
+
+        let sentPreviousPacket = false;
+        for (const portRecords of byService.values()) {
             let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
             if (answers.length === 0) continue;
 
@@ -112,14 +125,14 @@ export class MdnsServer {
                     : [];
             if (knownAnswers.length > 0) {
                 for (const knownAnswersRecord of knownAnswers) {
-                    answers = answers.filter(record => !isDeepEqual(record, knownAnswersRecord, true));
+                    answers = answers.filter(record => !this.#suppressedByKnownAnswer(record, knownAnswersRecord));
                     if (answers.length === 0) break; // Nothing to send
                 }
                 if (answers.length === 0) continue; // Nothing to send
                 if (additionalRecords.length > 0) {
                     for (const knownAnswersRecord of knownAnswers) {
                         additionalRecords = additionalRecords.filter(
-                            record => !isDeepEqual(record, knownAnswersRecord, true),
+                            record => !this.#suppressedByKnownAnswer(record, knownAnswersRecord),
                         );
                     }
                 }
@@ -157,6 +170,9 @@ export class MdnsServer {
                 );
             }
 
+            if (sentPreviousPacket) {
+                await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+            }
             this.#socket
                 .send(
                     {
@@ -171,7 +187,7 @@ export class MdnsServer {
                 .catch(error => {
                     logger.warn(`Failed to send mDNS response to ${sourceIp}`, error);
                 });
-            await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
+            sentPreviousPacket = true;
         }
     }
 
@@ -194,12 +210,16 @@ export class MdnsServer {
 
         await MatterAggregateError.allSettled(
             (await this.#getMulticastInterfacesForAnnounce()).map(async ({ name: netInterface }) => {
-                const records = await this.#records.get(netInterface);
-                for (const [service, serviceRecords] of records) {
+                const { byService } = await this.#records.get(netInterface);
+                let sentPreviousPacket = false;
+                for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
 
+                    if (sentPreviousPacket) {
+                        await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+                    }
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
-                    await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
+                    sentPreviousPacket = true;
                 }
             }),
             "Error announcing MDNS messages",
@@ -211,8 +231,9 @@ export class MdnsServer {
 
         await MatterAggregateError.allSettled(
             this.#records.keys().map(async netInterface => {
-                const records = await this.#records.get(netInterface);
-                for (const [service, serviceRecords] of records) {
+                const { byService } = await this.#records.get(netInterface);
+                let sentPreviousPacket = false;
+                for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
 
                     // Set TTL to Instant for all records to expire them
@@ -220,9 +241,12 @@ export class MdnsServer {
                         record.ttl = Instant;
                     });
 
+                    if (sentPreviousPacket) {
+                        await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+                    }
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
                     this.#recordsGenerator.delete(service);
-                    await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
+                    sentPreviousPacket = true;
                 }
             }),
             "Error happened when expiring MDNS announcements",
@@ -231,10 +255,10 @@ export class MdnsServer {
     }
 
     async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
+        this.#recordsGenerator.set(service, generator);
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
-        this.#recordsGenerator.set(service, generator);
     }
 
     async #resetServices() {
@@ -260,11 +284,21 @@ export class MdnsServer {
         return netInterface === undefined ? this.network.getNetInterfaces() : [{ name: netInterface }];
     }
 
+    #suppressedByKnownAnswer(record: DnsRecord<any>, knownAnswer: DnsRecord<any>): boolean {
+        const lcName = knownAnswer.name.toLowerCase();
+        if (record.name.toLowerCase() !== lcName) return false;
+        return isDeepEqual({ ...record, name: lcName }, { ...knownAnswer, name: lcName }, true);
+    }
+
     #queryRecords({ name, recordType }: { name: string; recordType: DnsRecordType }, records: DnsRecord<any>[]) {
+        // DNS names are case-insensitive per RFC 6762 §16 / RFC 1035 §2.3.3.
+        const queryName = name.toLowerCase();
         if (recordType === DnsRecordType.ANY) {
-            return records.filter(record => record.name === name);
+            return records.filter(record => record.name.toLowerCase() === queryName);
         } else {
-            return records.filter(record => record.name === name && record.recordType === recordType);
+            return records.filter(
+                record => record.name.toLowerCase() === queryName && record.recordType === recordType,
+            );
         }
     }
 
@@ -288,10 +322,10 @@ export class MdnsServer {
             }
         }
 
-        // Build query signature
+        // Build query signature; names lower-cased per RFC 6762 §16.
         const queryKey =
             queries
-                .map(q => `${q.name}-${q.recordType}`)
+                .map(q => `${q.name.toLowerCase()}-${q.recordType}`)
                 .sort()
                 .join("|") + `-${sourceIntf}`;
 
@@ -388,5 +422,12 @@ export class MdnsServer {
 export namespace MdnsServer {
     export interface RecordGenerator {
         (intf: string, addrs: NetworkInterfaceDetails): DnsRecord[];
+    }
+
+    export interface InterfaceRecords {
+        byService: Map<string, DnsRecord<any>[]>;
+
+        /** Lower-cased names of records we own on this interface - used to fast-reject unrelated LAN queries. */
+        ownedNames: Set<string>;
     }
 }

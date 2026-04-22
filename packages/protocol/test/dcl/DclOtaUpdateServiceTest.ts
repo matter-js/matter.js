@@ -309,6 +309,142 @@ describe("DclOtaUpdateService", () => {
             // Should return undefined because DCL URLs must be HTTPS
             expect(update).to.be.undefined;
         });
+
+        it("skips stored test-mode files when isProduction is true", async () => {
+            // Store a test-mode file from an earlier session
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            fetchMock.addResponse("https://example.com/ota-test.bin", otaImage, { binary: true });
+            // Mock Prod DCL to return no applicable updates
+            fetchMock.addResponse("/dcl/model/versions/65521/32768", {
+                modelVersions: { vid: VendorId(0xfff1), pid: 0x8000, softwareVersions: [], schemaVersion: 0 },
+            });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            await service.downloadUpdate(
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "https://example.com/ota-test.bin",
+                    otaFileSize: otaImage.byteLength,
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "dcl-test",
+                },
+                true,
+            );
+
+            // Even with includeStoredUpdates, a prod-only caller must not get test-mode files surfaced
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+                includeStoredUpdates: true,
+            });
+            expect(update).to.be.undefined;
+
+            // Explicit test query still returns the stored file
+            const testUpdate = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: false,
+                includeStoredUpdates: true,
+            });
+            expect(testUpdate).to.not.be.undefined;
+            expect(testUpdate?.source).to.equal("dcl-test");
+        });
+
+        it("surfaces local-mode stored files regardless of isProduction", async () => {
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            // Prod DCL returns no applicable updates
+            fetchMock.addResponse("/dcl/model/versions/65521/32768", {
+                modelVersions: { vid: VendorId(0xfff1), pid: 0x8000, softwareVersions: [], schemaVersion: 0 },
+            });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(otaImage);
+                    controller.close();
+                },
+            });
+            await service.store(
+                stream,
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "file://local.bin",
+                    otaFileSize: otaImage.byteLength,
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "local",
+                },
+                "local",
+            );
+
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+                includeStoredUpdates: true,
+            });
+            expect(update?.source).to.equal("local");
+        });
+
+        it("surfaces stored prod-mode files when isProduction is false", async () => {
+            // Enabling test mode means "also include test DCL", not "exclude prod" — stored prod files remain
+            // valid upgrade targets even when the caller explicitly requested test-DCL queries.
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            fetchMock.addResponse("https://example.com/ota-prod.bin", otaImage, { binary: true });
+            // Test DCL returns no applicable updates
+            fetchMock.addResponse("/dcl/model/versions/65521/32768", {
+                modelVersions: { vid: VendorId(0xfff1), pid: 0x8000, softwareVersions: [], schemaVersion: 0 },
+            });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            await service.downloadUpdate(
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "https://example.com/ota-prod.bin",
+                    otaFileSize: otaImage.byteLength,
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "dcl-prod",
+                },
+                true,
+            );
+
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: false,
+                includeStoredUpdates: true,
+            });
+            expect(update?.source).to.equal("dcl-prod");
+            expect(update?.softwareVersion).to.equal(3);
+        });
     });
 
     describe("downloadUpdate", () => {

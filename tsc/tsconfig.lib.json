@@ -1,0 +1,13 @@
+// This configuration is a standard baseline for all libraries.
+//
+// Copied from @nacho-iot/js-tools.  Edits are preserved; `nacho-build configure` replaces with the latest template.
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "emitDeclarationOnly": true,
+        "sourceMap": true,
+        "declarationMap": true,
+        "tsBuildInfoFile": "${configDir}/../build/lib.tsbuildinfo",
+        "outDir": "${configDir}/../dist/esm",
+    }
+}

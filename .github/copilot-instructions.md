@@ -100,8 +100,8 @@ This project heavily uses code generation:
 
 ### Available CLI Tools
 
-- `matter-build` - Build packages and documentation
-- `matter-run` - Execute TypeScript files with automatic transpilation and source maps
+- `nacho-build` - Build packages and documentation
+- `nacho-run` - Execute TypeScript files with automatic transpilation and source maps
 - `matter-test` - Run tests across workspace packages
 - `matter-create` - Scaffolding tool for new Matter.js projects
 - `matter-version` - Version management tool
@@ -121,11 +121,11 @@ npm run shell              # Interactive Matter shell
 
 ### Running Examples
 
-Use `matter-run` to execute any TypeScript example directly:
+Use `nacho-run` to execute any TypeScript example directly:
 
 ```bash
-matter-run examples/device-onoff/src/DeviceNode.ts
-matter-run examples/controller/src/ControllerNode.ts
+nacho-run examples/device-onoff/src/DeviceNode.ts
+nacho-run examples/controller/src/ControllerNode.ts
 ```
 
 ## TypeScript Configuration
@@ -165,8 +165,8 @@ matter-run examples/controller/src/ControllerNode.ts
 ### Project Structure
 
 - Monorepo managed with custom build tools in `packages/tools`
-- Use `matter-build` command for building packages (via node_modules/.bin/)
-- Custom `matter-run` for executing TypeScript files with source maps
+- Use `nacho-build` command for building packages (via node_modules/.bin/)
+- Custom `nacho-run` for executing TypeScript files with source maps
 - Custom `matter-test` for running tests across packages
 - Support for ESM and CommonJS outputs
 - TypeScript project references for incremental builds
@@ -178,7 +178,7 @@ npm run build          # Build all packages
 npm run build-clean    # Clean build and rebuild all packages
 npm run build-doc      # Generate documentation
 npm run clean          # Clean all build outputs
-matter-build           # Direct build tool (via node_modules/.bin/matter-build)
+nacho-build           # Direct build tool (via node_modules/.bin/nacho-build)
 ```
 
 ### Code Generation Commands
@@ -186,13 +186,13 @@ matter-build           # Direct build tool (via node_modules/.bin/matter-build)
 Code generation is handled through TypeScript files in `support/codegen/src/`:
 
 ```bash
-# Run code generation scripts with matter-run
-matter-run support/codegen/src/generate-spec.ts        # Generate from Matter spec
-matter-run support/codegen/src/generate-clusters.ts    # Generate cluster definitions
-matter-run support/codegen/src/generate-endpoints.ts   # Generate endpoint definitions
-matter-run support/codegen/src/generate-forwards.ts    # Generate forward exports
-matter-run support/codegen/src/generate-model.ts       # Generate data models
-matter-run support/codegen/src/generate-vscode.ts      # Generate VS Code configuration
+# Run code generation scripts with nacho-run
+nacho-run support/codegen/src/generate-spec.ts        # Generate from Matter spec
+nacho-run support/codegen/src/generate-clusters.ts    # Generate cluster definitions
+nacho-run support/codegen/src/generate-endpoints.ts   # Generate endpoint definitions
+nacho-run support/codegen/src/generate-forwards.ts    # Generate forward exports
+nacho-run support/codegen/src/generate-model.ts       # Generate data models
+nacho-run support/codegen/src/generate-vscode.ts      # Generate VS Code configuration
 ```
 
 ## Testing Patterns

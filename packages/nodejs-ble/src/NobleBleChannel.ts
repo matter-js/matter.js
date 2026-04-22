@@ -624,7 +624,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             this.btpSession.close().catch(error => {
                 logger.debug(`Peripheral ${peripheral.address}: Error closing BTP session on disconnect`, error);
             });
+            this.emitClosed();
         });
+        // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
+        this.btpSession.closed.on(() => this.emitClosed());
     }
 
     get connected() {
@@ -666,5 +669,6 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                     logger.error(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error),
                 );
         }
+        this.emitClosed();
     }
 }

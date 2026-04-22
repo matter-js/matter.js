@@ -1,2 +1,2 @@
-#!/usr/bin/env matter-run
+#!/usr/bin/env nacho-run
 import "../dist/esm/generate-model.js";

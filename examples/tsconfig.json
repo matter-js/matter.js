@@ -1,5 +1,5 @@
 {
-    "extends": "../packages/tools/tsc/tsconfig.app.json",
+    "extends": "../tsc/tsconfig.app.json",
     "compilerOptions": {
         "types": ["node"]
     },
@@ -21,9 +21,6 @@
         },
         {
             "path": "../packages/nodejs/src"
-        },
-        {
-            "path": "../packages/tools/src"
         }
     ]
 }

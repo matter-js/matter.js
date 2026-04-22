@@ -77,15 +77,7 @@ export default function commands(theNode: MatterNode) {
                             });
                     },
                     async argv => {
-                        const {
-                            ble = false,
-                            once = false,
-                            pairingCode,
-                            vendorId,
-                            productId,
-                            deviceType,
-                            timeoutSeconds,
-                        } = argv;
+                        const { ble, once, pairingCode, vendorId, productId, deviceType, timeoutSeconds } = argv;
                         let { discriminator, shortDiscriminator } = argv;
 
                         if (typeof pairingCode === "string") {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Project } from "@matter/tools";
+import { Project } from "@nacho-iot/js-tools";
 
 export async function before({ project }: Project.Context) {
     // We must load "load.cjs" or "load.mjs" via self reference to conditional exports, but typescript won't find the

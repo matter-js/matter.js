@@ -376,8 +376,10 @@ export class SoftwareUpdateManager extends Behavior {
 
     /**
      * Clean up stored OTA files that no node in the system needs anymore.
-     * A stored version is obsolete when ALL nodes with that vendor/product ID are already at or above that version.
-     * Only cleans "prod" and "test" mode files; "local" files are user-managed.
+     * A stored version is obsolete when ALL nodes with that vendor/product ID are already at or above that version,
+     * or when its mode is no longer permitted by the current settings (e.g. test-mode files after
+     * {@link allowTestOtaImages} is turned off). Only cleans "prod" and "test" mode files;
+     * "local" files are user-managed.
      */
     async #cleanupObsoleteUpdates() {
         const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;
@@ -397,17 +399,35 @@ export class SoftwareUpdateManager extends Behavior {
             }
         }
 
-        if (nodeVersions.size === 0) {
+        // Nothing can be cleaned up when there are no peers and test-mode files are still permitted —
+        // skip the storage scan entirely.
+        const purgeDisallowedTestFiles = !this.state.allowTestOtaImages;
+        if (nodeVersions.size === 0 && !purgeDisallowedTestFiles) {
             return;
         }
 
-        // Check all stored updates against node versions
-        const storedUpdates = await this.internal.otaService.find({});
+        // Narrow the scan when only the test-purge path is active (no peers to evaluate obsolescence against).
+        const storedUpdates = await this.internal.otaService.find(nodeVersions.size === 0 ? { mode: "test" } : {});
         for (const update of storedUpdates) {
             if (update.mode === "local") {
                 continue; // Never auto-delete user-added files
             }
 
+            // Purge test-mode files when test OTA usage is off — they cannot be offered and would
+            // otherwise pile up (e.g. after a user disables "Enable test-net DCL usage").
+            if (update.mode === "test" && purgeDisallowedTestFiles) {
+                try {
+                    await this.internal.otaService.delete({ filename: update.filename });
+                    logger.info(`Cleaned up test-mode OTA file ${update.filename} (allowTestOtaImages is disabled)`);
+                } catch (error) {
+                    logger.warn(`Failed to clean up OTA file ${update.filename}:`, error);
+                }
+                continue;
+            }
+
+            if (nodeVersions.size === 0) {
+                continue;
+            }
             const key = `${update.vendorId}-${update.productId}`;
             const minNodeVersion = nodeVersions.get(key);
             if (minNodeVersion === undefined) {
