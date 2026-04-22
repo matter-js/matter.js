@@ -9,7 +9,7 @@ import "./util/node-shims.js";
 
 import "./global-definitions.js";
 
-import { ansi, Graph, JsonNotFoundError, Package, Progress, Project, ProjectBuilder } from "@matter/tools";
+import { ansi, Graph, JsonNotFoundError, Package, Progress, Project, ProjectBuilder } from "@nacho-iot/js-tools";
 import { clear } from "node:console";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -128,14 +128,14 @@ export async function main(argv = process.argv) {
     // If the location is a workspace, test all packages with test
     if (pkg.isWorkspace) {
         const graph = await Graph.load(pkg);
-        await graph.build(builder, false);
+        await graph.build(builder);
 
         if (args.clear) {
             clear();
         }
 
         for (const node of graph.nodes) {
-            if (!node.pkg.hasTests || node.pkg.json.matter?.test === false) {
+            if (!node.pkg.hasTests || node.pkg.json.nacho?.test === false) {
                 continue;
             }
 
@@ -144,7 +144,7 @@ export async function main(argv = process.argv) {
     } else {
         const graph = await Graph.forProject(pkg.path);
         if (graph) {
-            await graph.build(builder, false);
+            await graph.build(builder);
         } else {
             await builder.build(new Project(pkg));
         }

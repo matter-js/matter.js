@@ -4,10 +4,10 @@
     "description": "Matter.js skeleton project generator",
     "type": "module",
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean",
-        "create": "matter-run src/cli.ts"
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
+        "create": "nacho-run src/cli.ts"
     },
     "files": [
         "dist/**/*",
@@ -32,7 +32,7 @@
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "devDependencies": {
-        "@matter/tools": "*",
+        "@nacho-iot/js-tools": "*",
         "@types/node": "^25.6.0",
         "@types/tar-stream": "^3.1.4"
     },

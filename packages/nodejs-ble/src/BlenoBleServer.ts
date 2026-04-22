@@ -195,6 +195,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
                         this.btpSession = undefined;
                     });
             }
+            this.emitClosed();
         });
 
         Bleno.on("rssiUpdate", rssi => {
@@ -304,6 +305,8 @@ export class BlenoBleServer extends BleChannel<Bytes> {
             },
         );
         this.latestHandshakePayload = undefined; // BTP Session initialized, handshake payload not needed anymore
+        // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
+        this.btpSession.closed.on(() => this.emitClosed());
     }
 
     handleC2Indicate() {
@@ -392,6 +395,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
             this.btpSession = undefined;
         }
         this.onMatterMessageListener = undefined;
+        this.emitClosed();
     }
 
     async disconnect() {

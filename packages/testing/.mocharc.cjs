@@ -4,4 +4,4 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-module.exports = require("@matter/tools").mocharc();
+module.exports = require("@nacho-iot/js-tools").mocharc();

@@ -17,6 +17,7 @@ import {
     Crypto,
     Entropy,
     Environment,
+    FileHandleTracker,
     Filesystem,
     HttpEndpointFactory,
     ImplementationError,
@@ -262,6 +263,8 @@ function configureStorage(env: Environment) {
 }
 
 function configureFilesystem(env: Environment) {
+    FileHandleTracker.onExit(callback => process.on("exit", callback));
+
     Boot.init(() => {
         if (env.vars.boolean("nodejs.filesystem")) {
             env.set(Filesystem, new NodeJsFilesystem(() => env.vars.get("storage.path", rootDirOf(env))));

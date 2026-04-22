@@ -2,7 +2,7 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "outDir": "../dist/esm",
-        "types": ["@matter/tools", "node"],
+        "types": ["@nacho-iot/js-tools", "node"],
         "resolveJsonModule": true,
     },
     "typedocOptions": {
