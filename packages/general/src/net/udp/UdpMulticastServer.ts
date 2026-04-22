@@ -100,7 +100,7 @@ export class UdpMulticastServer {
 
     private readonly broadcastChannels = new Cache<Promise<UdpChannel>>(
         "UDP broadcast channel",
-        (netInterface, iPv4) => this.createBroadcastChannel(netInterface, iPv4),
+        (netInterface, isIpv4) => this.createBroadcastChannel(netInterface, isIpv4),
         Minutes(5),
         async (_netInterface, channel) => (await channel).close(),
     );
@@ -168,18 +168,23 @@ export class UdpMulticastServer {
                         ipV4: [],
                         ipV6: [],
                     };
-                    const ips = [...ipV4, ...ipV6];
+                    // Deduplicate by IP family: an interface may have multiple addresses of the
+                    // same family (e.g. link-local + ULA IPv6), but the broadcast channel is
+                    // keyed by (interface, isIPv4). Iterating per-address would send the same
+                    // multicast packet multiple times on the same channel.
+                    const families = new Set<boolean>();
+                    if (ipV4.length > 0) families.add(true);
+                    if (ipV6.length > 0) families.add(false);
                     await MatterAggregateError.allSettled(
-                        ips.map(async ip => {
-                            const iPv4 = ipV4.includes(ip);
-                            const broadcastTarget = iPv4 ? this.#broadcastAddressIpv4 : this.#broadcastAddressIpv6;
+                        [...families].map(async isIpv4 => {
+                            const broadcastTarget = isIpv4 ? this.#broadcastAddressIpv4 : this.#broadcastAddressIpv6;
                             if (broadcastTarget === undefined) {
                                 // IPv4 but disabled, so just resolve
                                 return;
                             }
                             try {
                                 await (
-                                    await this.broadcastChannels.get(netInterface, iPv4)
+                                    await this.broadcastChannels.get(netInterface, isIpv4)
                                 ).send(broadcastTarget, this.#broadcastPort, message);
                             } catch (error) {
                                 logger.info(`${netInterface}: ${asError(error).message}`);
@@ -193,10 +198,10 @@ export class UdpMulticastServer {
         }
     }
 
-    private async createBroadcastChannel(netInterface: string, iPv4: string): Promise<UdpChannel> {
+    private async createBroadcastChannel(netInterface: string, isIpv4: boolean): Promise<UdpChannel> {
         return await this.network.createUdpChannel({
             lifetime: this.#lifetime,
-            type: iPv4 ? "udp4" : "udp6",
+            type: isIpv4 ? "udp4" : "udp6",
             listeningPort: this.#broadcastPort,
             netInterface,
             reuseAddress: true,
