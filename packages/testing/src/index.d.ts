@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import "./chai.js";
 import "./global-declarations.js";
 export * from "./chip/index.js";
 export * from "./device/index.js";

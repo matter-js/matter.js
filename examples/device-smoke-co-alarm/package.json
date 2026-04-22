@@ -5,9 +5,9 @@
     "license": "Apache-2.0",
     "author": "matter.js authors",
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean"
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean"
     },
     "main": "src/SmokeCOAlarmDeviceNode.ts",
     "dependencies": {

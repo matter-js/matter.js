@@ -1,4 +1,4 @@
-# @matter/tools - Matter.js Tooling
+# @matter/testing - Matter.js Testing
 
 This package provides testing support for other matter.js packages.
 
