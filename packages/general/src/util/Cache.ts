@@ -117,22 +117,19 @@ export class AsyncCache<T> extends GenericCache<T> {
         }
         let pending = this.#inflight.get(key);
         if (pending === undefined) {
-            pending = this.#fill(key, params);
+            // Cleanup must not race ahead of the `#inflight.set()` below when the generator sync-throws.
+            pending = this.#fill(key, params).finally(() => this.#inflight.delete(key));
             this.#inflight.set(key, pending);
         }
         return pending;
     }
 
     async #fill(key: string, params: any[]): Promise<T> {
-        try {
-            const value = await this.generator(...params);
-            this.values.set(key, value);
-            this.knownKeys.add(key);
-            this.timestamps.set(key, Time.nowMs);
-            return value;
-        } finally {
-            this.#inflight.delete(key);
-        }
+        const value = await this.generator(...params);
+        this.values.set(key, value);
+        this.knownKeys.add(key);
+        this.timestamps.set(key, Time.nowMs);
+        return value;
     }
 
     // Sync point for `expireCallback` to see the settled value.

@@ -124,6 +124,27 @@ describe("AsyncCache", () => {
 
             await cache.close();
         });
+
+        it("releases the in-flight slot when the generator throws synchronously", async () => {
+            let attempt = 0;
+            const cache = new AsyncCache<string>(
+                "test",
+                (): Promise<string> => {
+                    attempt++;
+                    if (attempt === 1) {
+                        throw new Error("sync boom");
+                    }
+                    return Promise.resolve("ok");
+                },
+                Minutes(5),
+            );
+
+            await expect(cache.get("k")).rejectedWith("sync boom");
+            expect(await cache.get("k")).equals("ok");
+            expect(attempt).equals(2);
+
+            await cache.close();
+        });
     });
 
     describe("delete during fill", () => {
