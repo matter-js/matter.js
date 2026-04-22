@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { PackageJson } from "@matter/tools";
+import type { PackageJson } from "@nacho-iot/js-tools";
 import { execSync } from "node:child_process";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";

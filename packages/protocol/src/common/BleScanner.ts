@@ -45,6 +45,14 @@ export type DiscoveredBleDevice = {
     hasAdditionalAdvertisementData: boolean;
 };
 
+type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
+    serviceDataHex: string;
+    lastSeen: number;
+};
+
+/** Entries older than this are treated as dead addresses when matching service data arrives from a new address. */
+const STALE_ENTRY_AGE = Seconds(60);
+
 export class BleScanner implements Scanner {
     readonly type = ChannelType.BLE;
 
@@ -58,7 +66,7 @@ export class BleScanner implements Scanner {
             cancelResolver?: (value: void) => void;
         }
     >();
-    readonly #discoveredMatterDevices = new Map<string, DiscoveredBleDevice>();
+    readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
 
     constructor(client: BleScannerClient) {
         this.#client = client;
@@ -144,6 +152,19 @@ export class BleScanner implements Scanner {
                 addresses: [{ type: "ble", peripheralAddress: address }],
             };
             const deviceExisting = this.#discoveredMatterDevices.has(address);
+            const serviceDataHex = Bytes.toHex(manufacturerServiceData);
+            const now = Time.nowMs;
+
+            // Drop stale entries with matching service data — same device likely re-advertising under a rotated address
+            for (const [otherAddress, otherEntry] of this.#discoveredMatterDevices) {
+                if (otherAddress === address) continue;
+                if (otherEntry.serviceDataHex !== serviceDataHex) continue;
+                if (now - otherEntry.lastSeen <= STALE_ENTRY_AGE) continue;
+                logger.debug(
+                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is ${Duration.format(Millis(now - otherEntry.lastSeen))} old`,
+                );
+                this.#discoveredMatterDevices.delete(otherAddress);
+            }
 
             logger.debug(
                 `${deviceExisting ? "Re-" : ""}Discovered device ${address} data: ${Diagnostic.json(deviceData)}`,
@@ -153,6 +174,8 @@ export class BleScanner implements Scanner {
                 deviceData,
                 peripheral,
                 hasAdditionalAdvertisementData,
+                serviceDataHex,
+                lastSeen: now,
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
@@ -239,7 +262,10 @@ export class BleScanner implements Scanner {
     }
 
     #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers) {
-        const storedRecords = Array.from(this.#discoveredMatterDevices.values());
+        // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
+        const storedRecords = Array.from(this.#discoveredMatterDevices.values()).sort(
+            (a, b) => b.lastSeen - a.lastSeen,
+        );
 
         const foundRecords = new Array<DiscoveredBleDevice>();
         if ("instanceId" in identifier || "deviceType" in identifier) {

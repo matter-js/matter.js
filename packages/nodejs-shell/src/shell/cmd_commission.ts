@@ -262,7 +262,7 @@ export default function commands(theNode: MatterNode) {
                             });
                     },
                     async argv => {
-                        const { nodeId, timeout = 900 } = argv;
+                        const { nodeId, timeout } = argv;
                         await theNode.start();
                         const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
 
@@ -289,7 +289,7 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         await theNode.start();
-                        const { nodeId, timeout = 900 } = argv;
+                        const { nodeId, timeout } = argv;
                         const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
                         const data = await node.openEnhancedCommissioningWindow(timeout);
 

@@ -61,6 +61,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Optimizes operational connection logic during commissioning when multiple IPs are discovered
     - Enhancement: Uses a minimum of 60 seconds for thread/wifi network scan or connect timeouts even if devices announce lower values
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
+    - Adjustment: Tolerate operational certificates with 21-octet serial numbers (spec limit is 20, but seen in the wild with some LG TVs) and log a warning; longer serial numbers are still rejected
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
     - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)
@@ -71,10 +72,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/react-native
     - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
 
+- @matter/tools
+    - Breaking: This package is no longer published and replaced in internal usage
+
 - @matter/types
-  - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
-  - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
-  - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
+    - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
+    - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
+    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
 
 - @project-chip/matter.js
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated

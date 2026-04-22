@@ -30,7 +30,7 @@ export interface TextWriter {
 
 const GLOBALS: Record<string, string> = {
     general: "@matter/general",
-    tools: "@matter/tools",
+    tools: "@nacho-iot/js-tools",
     protocol: "@matter/protocol",
     node: "@matter/node",
     types: "@matter/types",

@@ -23,10 +23,10 @@
         "url": "git+https://github.com/matter-js/matter.js.git"
     },
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
         "test": "matter-test",
-        "build-clean": "matter-build --clean"
+        "build-clean": "nacho-build --clean"
     },
     "dependencies": {
         "@matter/general": "*",
@@ -34,7 +34,6 @@
         "ws": "^8.20.0"
     },
     "devDependencies": {
-        "@matter/tools": "*",
         "@matter/node": "*"
     },
     "optionalDependencies": {

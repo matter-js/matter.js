@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Package } from "@matter/tools";
+import { Package } from "@nacho-iot/js-tools";
 import { readFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { State } from "../state.js";
@@ -154,7 +154,7 @@ function resolve(path: string): string {
         return path;
     }
 
-    const testing = Package.tools.findPackage("@matter/testing");
+    const testing = Package.findPackage("@matter/testing");
     if (testing.hasFile(path)) {
         return testing.resolve(path);
     }

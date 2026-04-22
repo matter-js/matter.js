@@ -24,10 +24,10 @@
     },
     "type": "module",
     "scripts": {
-        "clean": "matter-build clean",
-        "build": "matter-build",
-        "build-clean": "matter-build --clean",
-        "shell": "matter-run src/app.ts",
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
+        "shell": "nacho-run src/app.ts",
         "bundle-shell": "esbuild src/app.ts --bundle --platform=node --conditions=esbuild --external:@stoprocent/noble --external:@stoprocent/bluetooth-hci-socket --sourcemap --minify --keep-names --outfile=build/bundle/app.cjs"
     },
     "bin": {
@@ -40,7 +40,6 @@
         "@matter/nodejs": "*",
         "@matter/nodejs-ble": "*",
         "@matter/protocol": "*",
-        "@matter/tools": "*",
         "@matter/types": "*",
         "@project-chip/matter.js": "*",
         "ws": "^8.20.0",

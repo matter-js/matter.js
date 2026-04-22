@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { globSync } from "@matter/tools";
+import { globSync } from "@nacho-iot/js-tools";
 import { Subject } from "../device/subject.js";
 import { Test } from "../device/test.js";
 import type { Container } from "../docker/container.js";
@@ -131,7 +131,7 @@ function createBuilder(initial: {
         include(...glob: string[]) {
             const includePaths = new Set<string>();
             for (const pattern of glob) {
-                const paths = globSync(glob, chip.tests);
+                const paths = globSync(pattern, chip.tests);
 
                 if (!paths.length) {
                     throw new Error(`No tests included for glob ${pattern}`);

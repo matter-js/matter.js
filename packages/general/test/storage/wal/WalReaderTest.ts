@@ -125,6 +125,34 @@ describe("WalReader", () => {
         expect(results[0].commit).deep.equal(commit1);
     });
 
+    it("skips lines that parse as JSON but have wrong shape", async () => {
+        const walDir = fs.directory("wal");
+        await walDir.mkdir();
+
+        const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
+        const commit2: WalCommit = { ts: 2000, ops: [{ op: "del", key: "b" }] };
+        // Mix valid commits with shape-invalid JSON lines that would otherwise crash replay
+        const content =
+            serializeCommit(commit1) +
+            "\n" +
+            '{"ts":1500,"ops":"not-an-array"}' +
+            "\n" +
+            '{"ts":1600,"ops":[{"op":"upd","key":"a"}]}' +
+            "\n" +
+            '{"ts":1700,"ops":[{"op":"mystery","key":"a"}]}' +
+            "\n" +
+            serializeCommit(commit2) +
+            "\n";
+        await walDir.file(segmentFilename(1)).write(content);
+
+        const reader = new WalReader(walDir);
+        const results = await collectAll(reader.read());
+
+        expect(results.length).equal(2);
+        expect(results[0].commit).deep.equal(commit1);
+        expect(results[1].commit).deep.equal(commit2);
+    });
+
     it("lists segments sorted", async () => {
         const walDir = fs.directory("wal");
         await walDir.mkdir();
