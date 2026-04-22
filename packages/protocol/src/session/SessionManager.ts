@@ -611,6 +611,7 @@ export class SessionManager {
                 keySetId,
                 operationalGroupKey: key,
                 peerNodeId: sourceNodeId,
+                multicastAddress: fabric.groups.multicastAddressFor(groupId),
             });
         }
 

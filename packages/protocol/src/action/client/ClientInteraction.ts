@@ -22,6 +22,8 @@ import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
+import { GroupSession } from "#session/GroupSession.js";
+import type { Session } from "#session/Session.js";
 import {
     Abort,
     AbortedError,
@@ -58,6 +60,14 @@ import { PeerSubscription } from "./subscription/PeerSubscription.js";
 import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 
 const logger = Logger.get("ClientInteraction");
+
+/** Returns a log-friendly peer address diagnostic for sessions that expose one (currently: group multicast). */
+function peerAddressDiagnostic(session: Session | undefined) {
+    if (session !== undefined && GroupSession.is(session)) {
+        return Diagnostic.dict({ dest: session.multicastAddress });
+    }
+    return "";
+}
 
 /** Maximum value for commandRef (uint16) */
 const MAX_COMMAND_REF = 0xffff;
@@ -297,7 +307,13 @@ export class ClientInteraction<
             await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
-        logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
+        logger.info(
+            "Write",
+            Mark.OUTBOUND,
+            messenger.exchange.via,
+            peerAddressDiagnostic(messenger.exchange.session),
+            request,
+        );
 
         const response = await messenger.sendWriteCommand(request, session);
         if (request.suppressResponse) {
@@ -364,6 +380,7 @@ export class ClientInteraction<
             "Invoke",
             Mark.OUTBOUND,
             messenger.exchange.via,
+            peerAddressDiagnostic(messenger.exchange.session),
             Diagnostic.asFlags({ suppressResponse: request.suppressResponse, timed: request.timedRequest }),
             request,
         );

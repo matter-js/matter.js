@@ -51,13 +51,14 @@ export class GroupSession extends SecureSession {
     readonly #fabric: Fabric;
     readonly #peerNodeId: NodeId;
     readonly #operationalGroupKey: Bytes;
+    readonly #multicastAddress: string;
     readonly supportsMRP = false;
     readonly closingAfterExchangeFinished = false; // Group sessions do not close after exchange finished, they are long-lived
 
     readonly keySetId: number;
 
     constructor(config: GroupSession.Config) {
-        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId } = config;
+        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId, multicastAddress } = config;
         super({
             ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check
@@ -68,11 +69,17 @@ export class GroupSession extends SecureSession {
         this.#peerNodeId = peerNodeId;
         this.keySetId = keySetId;
         this.#operationalGroupKey = operationalGroupKey;
+        this.#multicastAddress = multicastAddress;
 
         manager?.registerGroupSession(this);
         fabric.addSession(this);
 
         logger.debug(this.via, `Created secure GROUP session for fabric index ${fabric.fabricIndex}`);
+    }
+
+    /** IPv6 multicast destination address this group session sends to. */
+    get multicastAddress(): string {
+        return this.#multicastAddress;
     }
 
     /**
@@ -112,6 +119,7 @@ export class GroupSession extends SecureSession {
             keySetId,
             peerNodeId: groupNodeId,
             operationalGroupKey,
+            multicastAddress,
         });
     }
 
@@ -282,6 +290,7 @@ export namespace GroupSession {
         keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
         peerNodeId: NodeId; //The Target Group Node Id
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
+        multicastAddress: string; // IPv6 multicast destination address this session sends to.
     }
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {
