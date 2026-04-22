@@ -273,7 +273,7 @@ export class Peer {
             // in-flight handshake.  Callers wanting unbounded wait pass Forever explicitly.
             let timeout: Duration | undefined =
                 options?.connectionTimeout ?? this.#context.timing.defaultConnectionTimeout;
-            if (timeout === undefined || timeout === Infinity) {
+            if (timeout === Infinity) {
                 timeout = undefined;
             } else if (timeout <= 0) {
                 timeout = Instant;
