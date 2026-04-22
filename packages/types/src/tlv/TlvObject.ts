@@ -117,13 +117,14 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
                 "Encode options cannot indicate a write interaction and a fabric filtered read interaction at the same time.",
             );
         }
+        if (forWriteInteraction && id === <number>FabricIndex.id) {
+            // MatterSpecification §7.13.6: fabricIndex SHALL NOT be present in write interactions, regardless of
+            // whether the caller provided a value. Server derives it from the accessing fabric.
+            return;
+        }
         const fieldValue = (value as any)[name];
         if (fieldValue === undefined) {
             if (!isOptional && !allowMissingFieldsForNonFabricFilteredRead) {
-                if (forWriteInteraction && id === <number>FabricIndex.id) {
-                    // FabricIndex field should not be included in encoded data for write interactions
-                    return;
-                }
                 throw new ValidationMandatoryFieldMissingError(`Missing mandatory field ${name}`, name);
             }
             return;
