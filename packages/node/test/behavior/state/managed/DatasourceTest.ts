@@ -13,8 +13,8 @@ import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { AsyncObservable, MaybePromise, MockCrypto, Observable, UnsettledStateError } from "@matter/general";
 import { DataModelPath, DatatypeModel, FieldElement, FieldModel } from "@matter/model";
-import { Val } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { AccessControl, Val } from "@matter/protocol";
+import { EndpointNumber, NodeId } from "@matter/types";
 
 class MyState {
     foo = "bar";
@@ -795,6 +795,141 @@ describe("Datasource", () => {
                     },
                 ],
             });
+        });
+    });
+
+    describe("interactionComplete observer lifecycle", () => {
+        function createRemoteSession(
+            context: ValueSupervisor.Session,
+            interactionComplete: AsyncObservable<[session?: ValueSupervisor.RemoteActorSession]>,
+        ): ValueSupervisor.RemoteActorSession {
+            return {
+                ...context,
+                subject: { kind: "node", id: NodeId(1n) },
+                authorityAt: () => AccessControl.Authority.Granted,
+                interactionComplete,
+                interactionStarted: undefined,
+            } as unknown as ValueSupervisor.RemoteActorSession;
+        }
+
+        it("registers observer on interactionComplete when write occurs with remote session", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.RemoteActorSession]>();
+            const ds = createDatasource();
+
+            await LocalActorContext.act("test", async context => {
+                const session = createRemoteSession(context, interactionComplete);
+                const state = ds.reference(session) as MyState;
+                state.foo = "changed";
+                expect(interactionComplete.isObserved).equals(true);
+            });
+
+            ds.close();
+        });
+
+        it("removes observer from interactionComplete when datasource is closed", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.RemoteActorSession]>();
+            const ds = createDatasource();
+
+            await LocalActorContext.act("test", async context => {
+                const session = createRemoteSession(context, interactionComplete);
+                const state = ds.reference(session) as MyState;
+                state.foo = "changed";
+            });
+
+            expect(interactionComplete.isObserved).equals(true);
+
+            ds.close();
+
+            expect(interactionComplete.isObserved).equals(false);
+        });
+
+        it("fires interactionEnd event and deregisters when interactionComplete emits with session", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.RemoteActorSession]>();
+            let interactionEndFired = false;
+            const events = {
+                interactionEnd: AsyncObservable<[session?: ValueSupervisor.Session]>(),
+            };
+            events.interactionEnd.on(() => {
+                interactionEndFired = true;
+            });
+
+            const ds = createDatasource({ events });
+
+            let capturedSession: ValueSupervisor.RemoteActorSession | undefined;
+            await LocalActorContext.act("test", async context => {
+                capturedSession = createRemoteSession(context, interactionComplete);
+                const state = ds.reference(capturedSession) as MyState;
+                state.foo = "changed";
+            });
+
+            await interactionComplete.emit(capturedSession);
+
+            expect(interactionEndFired).equals(true);
+            expect(interactionComplete.isObserved).equals(false);
+
+            ds.close();
+        });
+
+        it("observer removes itself from interactionComplete when it fires", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.RemoteActorSession]>();
+            const ds = createDatasource();
+
+            let capturedSession: ValueSupervisor.RemoteActorSession | undefined;
+            await LocalActorContext.act("test", async context => {
+                capturedSession = createRemoteSession(context, interactionComplete);
+                const state = ds.reference(capturedSession) as MyState;
+                state.foo = "changed";
+            });
+
+            expect(interactionComplete.isObserved).equals(true);
+
+            await interactionComplete.emit(capturedSession);
+
+            expect(interactionComplete.isObserved).equals(false);
+
+            // close() must be safe after the observer has already deregistered itself
+            ds.close();
+        });
+
+        it("re-registers observer when session is reused for another interaction", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.RemoteActorSession]>();
+            let interactionBeginCount = 0;
+            const events = {
+                interactionBegin: Observable<[session?: ValueSupervisor.Session]>(),
+            };
+            events.interactionBegin.on(() => {
+                interactionBeginCount++;
+            });
+
+            const ds = createDatasource({ events });
+
+            let capturedSession: ValueSupervisor.RemoteActorSession | undefined;
+            await LocalActorContext.act("test", async context => {
+                capturedSession = createRemoteSession(context, interactionComplete);
+                const state = ds.reference(capturedSession) as MyState;
+                state.foo = "first";
+            });
+
+            expect(interactionBeginCount).equals(1);
+            expect(interactionComplete.isObserved).equals(true);
+
+            // Natural completion of first interaction
+            await interactionComplete.emit(capturedSession);
+
+            expect(interactionComplete.isObserved).equals(false);
+            expect(capturedSession!.interactionStarted).equals(false);
+
+            // Second interaction on the same session must re-register the observer
+            await LocalActorContext.act("test", async context => {
+                capturedSession!.transaction = context.transaction;
+                const state = ds.reference(capturedSession!) as MyState;
+                state.foo = "second";
+            });
+
+            expect(interactionBeginCount).equals(2);
+            expect(interactionComplete.isObserved).equals(true);
+
+            ds.close();
         });
     });
 });

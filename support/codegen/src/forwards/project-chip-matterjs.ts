@@ -5,7 +5,7 @@
  */
 
 import { camelize } from "#general";
-import { Graph } from "@matter/tools";
+import { Graph } from "@nacho-iot/js-tools";
 import { generateForwards } from "./generate-forwards.js";
 
 /**

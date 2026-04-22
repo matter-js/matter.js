@@ -13,7 +13,7 @@ import {
 } from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, MockFetch, Timestamp } from "@matter/general";
+import { Bytes, createPromise, Hours, MockFetch, Timestamp } from "@matter/general";
 import { BdxProtocol, BdxSession, FabricAuthority, PeerAddress, SessionManager } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -24,6 +24,7 @@ import {
     initOtaSite,
     InstrumentedOtaProviderServer,
     InstrumentedOtaRequestorServer,
+    streamFromBytes,
 } from "./ota-utils.js";
 
 describe("Ota", () => {
@@ -1054,6 +1055,49 @@ describe("Ota", () => {
         });
         expect(hasSuppressedAfter).equals(false);
     }).timeout(10_000);
+
+    it("Cleanup purges stored test-mode OTA when allowTestOtaImages is disabled, preserves prod/local", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        // Store a test-mode OTA image via the helper (matches device vid/pid, version = peer + 1).
+        const { otaImage } = await addTestOtaImage(device, controller);
+
+        // Store prod-mode and local-mode copies of the same image so we can assert they survive cleanup.
+        await otaProvider.act(async agent => {
+            const svc = agent.get(SoftwareUpdateManager).internal.otaService;
+            await svc.store(streamFromBytes(Bytes.of(otaImage.image)), otaImage.updateInfo, true /* prod */);
+            await svc.store(streamFromBytes(Bytes.of(otaImage.image)), otaImage.updateInfo, "local");
+        });
+
+        const before = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).internal.otaService.find({}));
+        expect(before.filter(u => u.mode === "test")).length(1);
+        expect(before.filter(u => u.mode === "prod")).length(1);
+        expect(before.filter(u => u.mode === "local")).length(1);
+
+        // Disable test OTA usage → next periodic check must purge the stored test-mode file.
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).state.allowTestOtaImages = false;
+        });
+
+        // Advance past the 24h update-check interval so the periodic timer fires
+        // #checkAvailableUpdates → #cleanupObsoleteUpdates.
+        await MockTime.advance(Hours(24) + 1000);
+        await MockTime.macrotasks;
+
+        const after = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).internal.otaService.find({}));
+        expect(after.filter(u => u.mode === "test")).length(0);
+        expect(after.filter(u => u.mode === "prod")).length(1);
+        expect(after.filter(u => u.mode === "local")).length(1);
+    }).timeout(15_000);
 
     // TODO Add more test cases for edge cases and error cases, also split out setup into helpers
 });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Time } from "@matter/general";
+import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Observable, Time } from "@matter/general";
 import { BtpCodec } from "../codec/BtpCodec.js";
 import { BleDisconnectedError } from "./Ble.js";
 import { MatterBle } from "./BleConsts.js";
@@ -38,6 +38,12 @@ export class BtpSessionHandler {
         logger.info("Central Device Connection Idle Timer expired, closing BTP session");
         await this.close();
     });
+    readonly #closed = Observable<[]>();
+
+    /** Emitted exactly once when the session transitions to closed. */
+    get closed() {
+        return this.#closed;
+    }
 
     /** Factory method to create a new BTPSessionHandler from a received handshake request */
     static async createFromHandshakeRequest(
@@ -429,7 +435,13 @@ export class BtpSessionHandler {
         if (this.isActive) {
             logger.debug(`Closing BTP session`);
             this.isActive = false;
-            await this.disconnectBleCallback();
+            try {
+                await this.disconnectBleCallback();
+            } finally {
+                // Session is logically closed regardless of transport-level cleanup failure.
+                // Downstream consumers (e.g. PASE force-close on BLE loss) must observe this.
+                this.#closed.emit();
+            }
         }
     }
 
