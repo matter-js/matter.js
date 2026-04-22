@@ -15,6 +15,7 @@ import { DatasourceCache } from "./DatasourceCache.js";
 export class ClientEndpointStore extends EndpointStore {
     #owner: ClientNodeStore;
     #number: EndpointNumber;
+    #caches = new Set<DatasourceCache>();
 
     constructor(owner: ClientNodeStore, number: EndpointNumber, storage: StorageContext) {
         super(storage);
@@ -46,7 +47,7 @@ export class ClientEndpointStore extends EndpointStore {
      */
     createStoreForBehavior(behaviorId: string) {
         const initialValues = this.consumeInitialValues(behaviorId);
-        return new DatasourceCache({
+        const cache = new DatasourceCache({
             writer: this.#owner.write,
             endpointNumber: this.#number,
             behaviorId,
@@ -54,6 +55,16 @@ export class ClientEndpointStore extends EndpointStore {
             localWriter: this.#owner.localWriter,
             buffer: this.#owner.buffer,
         });
+        this.#caches.add(cache);
+        return cache;
+    }
+
+    override async erase() {
+        for (const cache of this.#caches) {
+            cache.discard();
+        }
+        this.#caches.clear();
+        await super.erase();
     }
 
     /**

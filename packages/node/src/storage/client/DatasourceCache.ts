@@ -123,12 +123,19 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
     }
 
     /**
-     * Erase values just for this datasource.  After this call, {@link externalSet} is permanently disabled.
+     * Disable this cache in memory without touching persisted storage.
      */
-    async erase() {
+    discard() {
         this.#erased = true;
         this.#dirtyKeys.clear();
         this.#buffer?.removeDirty(this);
+    }
+
+    /**
+     * Erase values just for this datasource.  After this call, {@link externalSet} is permanently disabled.
+     */
+    async erase() {
+        this.discard();
         await this.#localWriter?.erase(this.#endpointNumber, this.#behaviorId);
     }
 
@@ -152,7 +159,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
      * the enclosing transaction fails to commit.
      */
     async flush(tx?: StorageDriver.Transaction): Promise<Set<string> | undefined> {
-        if (!this.#dirtyKeys.size) {
+        if (this.#erased || !this.#dirtyKeys.size) {
             return;
         }
 
