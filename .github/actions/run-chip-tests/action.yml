@@ -13,6 +13,11 @@ inputs:
     description: 'Name of the test group to run'
     required: true
 
+  use-local-controller:
+    description: 'Use the in-process matter.js WebSocket controller instead of chip-tool'
+    required: false
+    default: 'false'
+
   node-version:
     description: 'Node.js version'
     required: true
@@ -41,6 +46,8 @@ runs:
 
     - name: Run tests
       shell: bash
+      env:
+        MATTER_LOCAL_CONTROLLER: ${{ inputs.use-local-controller == 'true' && '1' || '' }}
       run: |
         cd support/chip-testing
         npm run test-${{inputs.test-group}} -- --no-pull --report
