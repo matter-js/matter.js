@@ -10,7 +10,7 @@ import { Duration } from "#time/Duration.js";
 import { Diagnostic } from "../log/Diagnostic.js";
 import { Time, Timer } from "../time/Time.js";
 
-/** ASCII Unit Separator — cannot appear in stringified interface names, IPs, or primitives. */
+/** ASCII Unit Separator — unlikely to appear in the interface names, IPs, or booleans current callers pass. */
 const KEY_SEPARATOR = "\x1F";
 
 class GenericCache<T> {
@@ -42,9 +42,9 @@ class GenericCache<T> {
     }
 
     async delete(key: string) {
-        const value = this.values.get(key);
-        if (this.expireCallback !== undefined && value !== undefined) {
-            await this.expireCallback(key, value);
+        // Cached-undefined must still trigger expireCallback.
+        if (this.expireCallback !== undefined && this.values.has(key)) {
+            await this.expireCallback(key, this.values.get(key) as T);
         }
         this.values.delete(key);
         this.timestamps.delete(key);
@@ -85,14 +85,12 @@ export class Cache<T> extends GenericCache<T> {
 
     get(...params: any[]) {
         const key = this.keyFor(params);
-        let value = this.values.get(key);
-        if (value === undefined) {
-            value = this.generator(...params);
-            this.values.set(key, value);
+        if (!this.values.has(key)) {
+            this.values.set(key, this.generator(...params));
             this.knownKeys.add(key);
         }
         this.timestamps.set(key, Time.nowMs);
-        return value;
+        return this.values.get(key) as T;
     }
 }
 
@@ -108,18 +106,19 @@ export class AsyncCache<T> extends GenericCache<T> {
         super(name, expiration, expireCallback);
     }
 
-    async get(...params: any[]) {
+    get(...params: any[]): Promise<T> {
         const key = this.keyFor(params);
-        const cached = this.values.get(key);
-        if (cached !== undefined) {
+        if (this.values.has(key)) {
             this.timestamps.set(key, Time.nowMs);
-            return cached;
+            return Promise.resolve(this.values.get(key) as T);
         }
         let pending = this.#inflight.get(key);
         if (pending === undefined) {
-            // Cleanup must not race ahead of the `#inflight.set()` below when the generator sync-throws.
-            pending = this.#fill(key, params).finally(() => this.#inflight.delete(key));
+            pending = this.#fill(key, params);
             this.#inflight.set(key, pending);
+            // Cleanup runs off the side — chaining it onto the caller's path would delay resolution by a microtask.
+            const drop = () => this.#inflight.delete(key);
+            pending.then(drop, drop);
         }
         return pending;
     }

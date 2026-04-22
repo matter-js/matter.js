@@ -9,7 +9,7 @@ import { AsyncCache, Cache } from "#util/Cache.js";
 
 describe("Cache", () => {
     describe("key encoding", () => {
-        it("distinguishes `['a,b']` from `['a','b']`", () => {
+        it("distinguishes `['a,b']` from `['a','b']`", async () => {
             const calls = new Array<unknown[]>();
             const cache = new Cache<string>(
                 "test",
@@ -27,10 +27,10 @@ describe("Cache", () => {
             expect(v2).equals("v2");
             expect(calls).deep.equals([["a,b"], ["a", "b"]]);
 
-            cache.close().catch(() => undefined);
+            await cache.close();
         });
 
-        it("keeps single-param keys round-trippable via keys()", () => {
+        it("keeps single-param keys round-trippable via keys()", async () => {
             const cache = new Cache<string>("test", (iface: string) => `records-${iface}`, Minutes(5));
 
             cache.get("eth0");
@@ -42,7 +42,27 @@ describe("Cache", () => {
                 expect(cache.get(key)).equals(`records-${key}`);
             }
 
-            cache.close().catch(() => undefined);
+            await cache.close();
+        });
+    });
+
+    describe("cached values", () => {
+        it("caches an `undefined` result instead of re-running the generator", async () => {
+            let calls = 0;
+            const cache = new Cache<string | undefined>(
+                "test",
+                () => {
+                    calls++;
+                    return undefined;
+                },
+                Minutes(5),
+            );
+
+            expect(cache.get("k")).equals(undefined);
+            expect(cache.get("k")).equals(undefined);
+            expect(calls).equals(1);
+
+            await cache.close();
         });
     });
 });
@@ -195,6 +215,26 @@ describe("AsyncCache", () => {
             await deletePromise;
 
             expect(expireCalls).equals(0);
+
+            await cache.close();
+        });
+    });
+
+    describe("cached values", () => {
+        it("caches an `undefined` result instead of re-running the generator", async () => {
+            let calls = 0;
+            const cache = new AsyncCache<string | undefined>(
+                "test",
+                async () => {
+                    calls++;
+                    return undefined;
+                },
+                Minutes(5),
+            );
+
+            expect(await cache.get("k")).equals(undefined);
+            expect(await cache.get("k")).equals(undefined);
+            expect(calls).equals(1);
 
             await cache.close();
         });
