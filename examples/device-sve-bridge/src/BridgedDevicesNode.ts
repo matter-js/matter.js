@@ -11,7 +11,7 @@
  * 5-minute timer to toggle their state.
  */
 
-import { Bytes, Minutes, Timer } from "@matter/general";
+import { Bytes, Timer } from "@matter/general";
 import {
     Endpoint,
     Environment,
@@ -19,6 +19,7 @@ import {
     LogFormat,
     LogLevel,
     Logger,
+    Seconds,
     ServerNode,
     StorageService,
     Time,
@@ -31,8 +32,8 @@ import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commi
 import { OccupancySensingServer } from "@matter/main/behaviors/occupancy-sensing";
 import { ContactSensorDevice } from "@matter/main/devices/contact-sensor";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
-import { OnOffLightDevice } from "@matter/main/devices/on-off-light";
 import { OccupancySensorDevice } from "@matter/main/devices/occupancy-sensor";
+import { OnOffLightDevice } from "@matter/main/devices/on-off-light";
 import { AggregatorEndpoint } from "@matter/main/endpoints/aggregator";
 import { createFileLogger } from "@matter/nodejs";
 
@@ -140,6 +141,10 @@ await aggregator.add(
             serialNumber: `node-matter-${uniqueId}-2`,
             reachable: true,
         },
+        levelControl: {
+            minLevel: 1,
+            maxLevel: 254,
+        },
     }),
 );
 
@@ -192,7 +197,7 @@ await aggregator.add(occupancyEndpoint);
 
 // --- State toggle timers (5 minutes) ---
 
-const TOGGLE_INTERVAL = Minutes(5);
+const TOGGLE_INTERVAL = Seconds(30);
 const timers = new Array<Timer>();
 
 if (contactTimerEnabled) {
