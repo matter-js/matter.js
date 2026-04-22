@@ -273,6 +273,8 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     persistentFields: Set<string>;
     supervisionConfig?: GlobalConfig;
 
+    observedInteractions?: Set<NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>>;
+
     #values: Val.Struct;
     #changedEventIndex?: Map<string, undefined | Datasource.Events[`${string}$Changed`]>;
     #readOnlyView?: InstanceType<StateType>;
@@ -349,6 +351,13 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     }
 
     close() {
+        if (this.observedInteractions) {
+            for (const observable of this.observedInteractions) {
+                observable.off(this.interactionObserver);
+            }
+            this.observedInteractions = undefined;
+        }
+
         const store = this.store as Datasource.ExternallyMutableStore | undefined;
         if (store?.consumer === this) {
             store.consumer = undefined;
@@ -396,6 +405,15 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     }
 
     interactionObserver = (session?: ValueSupervisor.Session) => {
+        if (hasRemoteActor(session)) {
+            if (session.interactionComplete) {
+                session.interactionComplete.off(this.interactionObserver);
+                this.observedInteractions?.delete(session.interactionComplete);
+            }
+            // Reset so a subsequent interaction on the same session re-emits interactionBegin and re-registers
+            session.interactionStarted = false;
+        }
+
         const location = this.location;
 
         function handleObserverError(error: any) {
@@ -856,6 +874,10 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             if (this.#internals.events?.interactionBegin?.isObserved) {
                 this.#internals.events?.interactionBegin?.emit(this.#session);
             }
+            if (!this.#internals.observedInteractions) {
+                this.#internals.observedInteractions = new Set();
+            }
+            this.#internals.observedInteractions.add(this.#session.interactionComplete);
             this.#session.interactionComplete.on(this.#internals.interactionObserver);
         }
     }
