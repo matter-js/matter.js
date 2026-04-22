@@ -154,6 +154,11 @@ describe("TlvObject tests", () => {
                     optionalField: "test",
                     fabricIndex: FabricIndex(1),
                 });
+
+                // Without the forWriteInteraction flag the encoded payload must keep the fabricIndex field
+                // and therefore differ from the variant that omits it.
+                const noFabricEncoded = schema.encodeTlv({ mandatoryField: 1, optionalField: "test" });
+                expect(tlvEncoded).not.deep.equal(noFabricEncoded);
             });
 
             it(`encode/decodes with ignoring fabricIndex for write interaction`, () => {
@@ -176,6 +181,22 @@ describe("TlvObject tests", () => {
                     mandatoryField: 1,
                     optionalField: "test",
                 });
+            });
+
+            it(`strips fabricIndex for write interaction even when caller provided a value`, () => {
+                const noFabricEncoded = schema.encodeTlv({ mandatoryField: 1, optionalField: "test" });
+
+                const tlvEncoded = schemaWithFabricIndex.encodeTlv(
+                    {
+                        mandatoryField: 1,
+                        optionalField: "test",
+                        fabricIndex: FabricIndex(1),
+                    },
+                    { forWriteInteraction: true },
+                );
+
+                // The Tlv encoded data must not contain FabricIndex even though caller included it
+                expect(tlvEncoded).deep.equal(noFabricEncoded);
             });
         });
 
