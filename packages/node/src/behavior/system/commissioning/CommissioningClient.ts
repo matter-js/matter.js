@@ -299,10 +299,13 @@ export class CommissioningClient extends Behavior {
             );
         }
 
-        // Peer left our fabric; local sessions are dead.  Force-close here, before the commit unbinds Peer via the
-        // peerAddress$Changed reactor, otherwise the graceful close path defers on MRP retransmissions that never ack.
+        // Must run before commit unbinds Peer via peerAddress$Changed.
         const node = this.endpoint as ClientNode;
-        await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+        try {
+            await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+        } catch (error) {
+            logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
+        }
 
         this.state.peerAddress = undefined;
         this.state.commissionedAt = undefined;

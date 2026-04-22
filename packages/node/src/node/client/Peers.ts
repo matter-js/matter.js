@@ -470,7 +470,11 @@ export class Peers extends EndpointContainer<ClientNode> {
 
             logger.notice("Peer", Diagnostic.strong(node.id), "has left the fabric");
             node.lifecycle.decommissioned.emit(LocalActorContext.ReadOnly);
-            await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+            try {
+                await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+            } catch (error) {
+                logger.warn(`Error force-closing sessions for ${node.id} on Leave:`, error);
+            }
             await node.delete();
         });
     }

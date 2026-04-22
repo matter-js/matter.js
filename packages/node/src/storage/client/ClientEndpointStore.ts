@@ -60,9 +60,8 @@ export class ClientEndpointStore extends EndpointStore {
     }
 
     override async erase() {
-        // Caches unregister themselves from the shared ClientCacheBuffer via their own erase().
         for (const cache of this.#caches) {
-            await cache.erase();
+            cache.discard();
         }
         this.#caches.clear();
         await super.erase();
