@@ -83,9 +83,6 @@
             }
         },
         "./behaviors": {
-            "dev-types": {
-                "types": "./src/behaviors/index.ts"
-            },
             "import": {
                 "types": "./dist/esm/behaviors/index.d.ts",
                 "default": "./dist/esm/behaviors/index.js"
@@ -96,9 +93,6 @@
             }
         },
         "./behaviors/system/*": {
-            "dev-types": {
-                "types": "./src/behavior/system/*/index.ts"
-            },
             "import": {
                 "types": "./dist/esm/behavior/system/*/index.d.ts",
                 "default": "./dist/esm/behavior/system/*/index.js"
@@ -109,9 +103,6 @@
             }
         },
         "./behaviors/*": {
-            "dev-types": {
-                "types": "./src/behaviors/*/index.ts"
-            },
             "import": {
                 "types": "./dist/esm/behaviors/*/index.d.ts",
                 "default": "./dist/esm/behaviors/*/index.js"
@@ -122,9 +113,6 @@
             }
         },
         "./devices": {
-            "dev-types": {
-                "types": "./src/devices/index.ts"
-            },
             "import": {
                 "types": "./dist/esm/devices/index.d.ts",
                 "default": "./dist/esm/devices/index.js"
@@ -135,9 +123,6 @@
             }
         },
         "./devices/*": {
-            "dev-types": {
-                "types": "./src/devices/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/devices/*.d.ts",
                 "default": "./dist/esm/devices/*.js"
@@ -148,9 +133,6 @@
             }
         },
         "./endpoints": {
-            "dev-types": {
-                "types": "./src/endpoints/index.ts"
-            },
             "import": {
                 "types": "./dist/esm/endpoints/index.d.ts",
                 "default": "./dist/esm/endpoints/index.js"
@@ -161,9 +143,6 @@
             }
         },
         "./endpoints/*": {
-            "dev-types": {
-                "types": "./src/endpoints/*.ts"
-            },
             "import": {
                 "types": "./dist/esm/endpoints/*.d.ts",
                 "default": "./dist/esm/endpoints/*.js"

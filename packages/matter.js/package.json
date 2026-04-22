@@ -65,9 +65,6 @@
         },
         "./package.json": "./package.json",
         "./cluster": {
-            "dev-types": {
-                "types": "./src/cluster/export.ts"
-            },
             "import": {
                 "types": "./dist/esm/cluster/export.d.ts",
                 "default": "./dist/esm/cluster/export.js"
@@ -78,9 +75,6 @@
             }
         },
         "./device": {
-            "dev-types": {
-                "types": "./src/device/export.ts"
-            },
             "import": {
                 "types": "./dist/esm/device/export.d.ts",
                 "default": "./dist/esm/device/export.js"
