@@ -982,6 +982,7 @@ export class PairedNode {
         const eventsToEmit = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
         const structureUpdateDetails = new Map(this.#registeredEndpointStructureChanges);
         this.#registeredEndpointStructureChanges.clear();
+        this.#pendingNodeChangeEvents.clear();
 
         // Collect the descriptor data for all endpoints referenced in the structure
         const endpoints = new Map<EndpointNumber, ClientEndpoint>();
