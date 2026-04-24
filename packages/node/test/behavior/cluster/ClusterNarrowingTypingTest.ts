@@ -153,12 +153,16 @@ describe("Cluster narrowing typing", () => {
         });
 
         it("exposes MomentarySwitch events after .with(MomentarySwitch)", () => {
+            // Presence: asserts initialPress is a key on the narrowed type.  A regression that drops the
+            // key entirely would fail here (optional-shape `satisfies` alone doesn't prove presence).
+            "initialPress" satisfies keyof EventsWithMomentary;
             ({}) as EventsWithMomentary satisfies { initialPress?: unknown };
             // @ts-expect-error switchLatched still absent without LatchingSwitch
             ({}) as EventsWithMomentary satisfies { switchLatched: unknown };
         });
 
         it("exposes LatchingSwitch events after .with(LatchingSwitch)", () => {
+            "switchLatched" satisfies keyof EventsWithLatching;
             ({}) as EventsWithLatching satisfies { switchLatched?: unknown };
             // @ts-expect-error initialPress still absent without MomentarySwitch
             ({}) as EventsWithLatching satisfies { initialPress: unknown };
@@ -197,6 +201,7 @@ describe("Cluster narrowing typing", () => {
         });
 
         it("exposes multiPressMax as optional after .with(MomentarySwitchMultiPress)", () => {
+            "multiPressMax" satisfies keyof StateWithMultiPress;
             ({}) as StateWithMultiPress satisfies { multiPressMax?: number };
         });
 
@@ -230,6 +235,8 @@ describe("Cluster narrowing typing", () => {
         });
 
         it("exposes multiPressMax$Changing/$Changed as optional after .with(MomentarySwitchMultiPress)", () => {
+            "multiPressMax$Changing" satisfies keyof ObsWithMultiPress;
+            "multiPressMax$Changed" satisfies keyof ObsWithMultiPress;
             ({}) as ObsWithMultiPress satisfies {
                 multiPressMax$Changing?: unknown;
                 multiPressMax$Changed?: unknown;
@@ -286,7 +293,8 @@ describe("Cluster narrowing typing", () => {
 
     describe(".alter({ optional: false }) flips optional to mandatory", () => {
         it("leaves countdownTime optional on bare OperationalStateServer", () => {
-            // Optional — structural subtype check (also matches mandatory; disambiguated by next test).
+            // Presence first — optional-shape `satisfies` below would pass even if the key is absent.
+            "countdownTime" satisfies keyof StateOpsBare;
             ({}) as StateOpsBare satisfies { countdownTime?: number | null };
             // @ts-expect-error countdownTime is optional on the base — must not be mandatory here
             ({}) as StateOpsBare satisfies { countdownTime: number | null };
@@ -297,6 +305,7 @@ describe("Cluster narrowing typing", () => {
         });
 
         it("leaves operationCompletion optional on bare OperationalStateServer", () => {
+            "operationCompletion" satisfies keyof EventsOpsBare;
             // @ts-expect-error operationCompletion is optional on the base — must not be mandatory here
             ({}) as EventsOpsBare satisfies { operationCompletion: unknown };
         });
