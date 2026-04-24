@@ -12,46 +12,58 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/\*
-    - RAM usage reductions and improvements
+    - 20%–50% RAM usage reductions and improvements
 
 - @matter/model
     - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
     - Enhancement: The fluent API for manipulating the Matter data model is improved
+    - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
+
+- @matter/general
+    - Breaking: Blob/File-related storage methods were removed from the normal Storage implementation
+    - Feature: Added a new `wal`-based storage engine (not yet the default) to optimize persistence
+    - Enhancement: Added locking to storage implementations to prevent concurrent access issues and data corruption
+    - Enhancement: Split out Blob-Storage into its own `dir`-based BlobStorage implementation
+    - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
     - Feature: DoorLockServer is fully implemented except for Aliro features
-    - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands and arbitrary JS values
+    - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
+    - Enhancement: Added more warnings on invalid values for BasicInformation cluster
     - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to respond to mDNS queries, we increased the discovery time for commissioning targets to 3 minutes (previously 1 minute)
-    - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
+    - Fix: Ensures that attribute changes which happened during an initial subscription seeding with dataVersion filtering are still reported afterwards
     - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
-    - Fix: Try to preserve clusters in the structure even if they are not specified in the serverList of the endpoint but reported data ("Schrödinger's cluster")
+    - Fix: Preserves clusters in the structure even if they are not specified in the serverList of the endpoint but are reported in data ("Schrödinger's cluster")
     - Fix: You can now assign bare objects composed of managed values to state properties
 
+- @matter/nodejs-ble
+    - Fix: Fixes several crash or blocking cases around BLE and the usage in commissioning
+
 - @matter/nodejs-shell
-    - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
+    - Enhancement: Allows configuring whether test OTA images are also accepted when devices query for updates
 
 - @matter/tools
-    - Breaking: This package is no longer published and replaced in internal usage
+    - Breaking: This package is no longer published and is replaced in internal usage
 
 - @matter/types
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
     - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
-    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
+    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory, and work better with IDEs
 
 - @matter/protocol
-    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterward
+    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues; a new session will be initialized automatically afterward
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
     - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
     - Feature: matter.js now responds immediately to IP changes advertised via MDNS
     - Feature: (@adeepn) `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
-    - Enhancement: Enhances the strategy when multiple devices were discovered for the same commissioning target
+    - Enhancement: Enhances the strategy when multiple devices are discovered for the same commissioning target
     - Enhancement: When multiple IP addresses are available for a device during commissioning, all are tried in parallel for faster connection
     - Enhancement: An `AbortSignal` can now be passed to cancel an in-progress commissioning attempt; the PASE layer sends `InvalidParameter` to avoid a 60-second device lockout
     - Enhancement: Several enhancements around session management when nodes reconnect or new sessions get pushed by the device
@@ -60,14 +72,17 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Probes discovered addresses and potentially updates session addresses when they change even when we have a valid working session
     - Enhancement: Optimizes operational connection logic during commissioning when multiple IPs are discovered
     - Enhancement: Uses a minimum of 60 seconds for thread/wifi network scan or connect timeouts even if devices announce lower values
-    - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
+    - Enhancement: Buffers storage of client state changes for up to 20 minutes to reduce I/O pressure
+    - Adjustment: No longer ignores overly long incoming Matter messages, but still logs a warning
     - Adjustment: Tolerate operational certificates with 21-octet serial numbers (spec limit is 20, but seen in the wild with some LG TVs) and log a warning; longer serial numbers are still rejected
+    - Adjustment: Refactor MdnsClient to also use the new DNS-SD-names logic
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
-    - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)
+    - Fix: Ensures that multiple discovered devices are tried when PASE establishment to the first device fails (e.g., because of a wrong passcode)
     - Fix: Do not announce devices as commissionable before the factory reset when the last fabric is removed
-    - Fix: Fix expiry logic for Commissionable devices that potentially never expired cached records
+    - Fix: Fixes expiry logic where cached records for Commissionable devices could potentially never expire
     - Fix: For BDX cases also give the device the defined timeout of 5 minutes to ack/request the next packet
+    - Fix: Ensures the Matter port on IPv4 is the same as on IPv6
 
 - @matter/react-native
     - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
@@ -75,6 +90,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @project-chip/matter.js
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
+    - Fix: Fixes inverted autoConnect logic in CommissioningController
 
 ## 0.16.11 (2026-04-10)
 
@@ -374,7 +390,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both RCAC and ICAC if present
 
 - @matter/react-native
-    - Fix: (@Luxni) Update UDP, BLE and Crypto usage to work with React Native
+    - Fix: (@Luxni) Update UDP, BLE, and Crypto usage to work with React Native
 
 - @matter/types
     - Breaking: All "epoch-s" and "epoch-us" values are now converted automatically to the correct matter epoch, so that your own code can just use normal 1970-based epochS/US values. If you converted yourself to the Matter 2000-based values before, please remove this conversion.
