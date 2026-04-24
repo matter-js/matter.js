@@ -465,7 +465,6 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                     break;
                 default:
                     throw new Error("Unsupported value type for Any encoding");
-                    break;
             }
         }
 

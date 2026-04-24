@@ -42,6 +42,7 @@ import {
     OtaUpdateError,
     OtaUpdateSource,
     PeerAddress,
+    PeerAddressMap,
     SessionManager,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
@@ -494,7 +495,7 @@ export class SoftwareUpdateManager extends Behavior {
             try {
                 const peers = await this.#checkProductForUpdates(infos, includeStoredUpdates);
                 for (const peer of peers) {
-                    const info = this.internal.knownUpdates.get(peer.toString());
+                    const info = this.internal.knownUpdates.get(peer);
                     if (info === undefined) {
                         continue; // Race condition should normally not happen
                     }
@@ -522,9 +523,7 @@ export class SoftwareUpdateManager extends Behavior {
         // No need to query again if we already did and know that updates are available
         if (
             includeStoredUpdates &&
-            [...otaEndpoints.values()].every(({ peerAddress }) =>
-                this.internal.knownUpdates.has(peerAddress.toString()),
-            )
+            [...otaEndpoints.values()].every(({ peerAddress }) => this.internal.knownUpdates.has(peerAddress))
         ) {
             return [...otaEndpoints.values()].map(({ peerAddress }) => peerAddress);
         }
@@ -565,7 +564,7 @@ export class SoftwareUpdateManager extends Behavior {
                 specificationVersion,
                 source,
             };
-            this.internal.knownUpdates.set(peerAddress.toString(), details);
+            this.internal.knownUpdates.set(peerAddress, details);
 
             const hasConsent = this.internal.consents.some(
                 consent =>
@@ -661,9 +660,9 @@ export class SoftwareUpdateManager extends Behavior {
         );
 
         if (isStartUp) {
-            const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress.toString());
+            const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress);
             if (suppressedSessionId !== undefined) {
-                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+                this.internal.pendingStartUpSuppress.delete(peerAddress);
                 // Use session from event context when available (avoids extra lookup); fall back to
                 // SessionManager for local/test contexts where there is no remote actor.
                 const sessionId = currentSession?.id ?? this.env.get(SessionManager).maybeSessionFor(peerAddress)?.id;
@@ -699,7 +698,7 @@ export class SoftwareUpdateManager extends Behavior {
                     `Device ${peerAddress.toString()} rebooted after applying update but reports softwareVersion ${newVersion} (expected >= ${expectedVersion}), update failed to apply`,
                 );
                 this.internal.updateQueue.splice(entryIndex, 1);
-                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+                this.internal.pendingStartUpSuppress.delete(peerAddress);
                 this.events.updateFailed.emit(peerAddress);
                 this.#triggerQueuedUpdate();
                 return;
@@ -712,8 +711,8 @@ export class SoftwareUpdateManager extends Behavior {
         logger.info(
             `Software version changed to ${newVersion} (expected ${expectedVersion}) for node ${peerAddress.toString()}, removing from update queue`,
         );
-        this.internal.knownUpdates.delete(peerAddress.toString());
-        this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+        this.internal.knownUpdates.delete(peerAddress);
+        this.internal.pendingStartUpSuppress.delete(peerAddress);
         this.events.updateDone.emit(peerAddress);
         this.internal.updateQueue.splice(entryIndex, 1);
 
@@ -871,6 +870,7 @@ export class SoftwareUpdateManager extends Behavior {
      * manner, please use `addUpdateConsent()`.
      */
     async forceUpdate(peerAddress: PeerAddress, vendorId: VendorId, productId: number, targetSoftwareVersion: number) {
+        peerAddress = PeerAddress(peerAddress);
         const existingEntry = this.internal.updateQueue.find(
             e =>
                 e.peerAddress.fabricIndex === peerAddress.fabricIndex &&
@@ -893,7 +893,7 @@ export class SoftwareUpdateManager extends Behavior {
             const staleIndex = this.internal.updateQueue.indexOf(existingEntry);
             if (staleIndex >= 0) {
                 this.internal.updateQueue.splice(staleIndex, 1);
-                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+                this.internal.pendingStartUpSuppress.delete(peerAddress);
             }
             try {
                 await bdxProtocol.disablePeerForScope(peerAddress, this.storage, true);
@@ -928,6 +928,7 @@ export class SoftwareUpdateManager extends Behavior {
 
     /** Tries to cancel an ongoing OTA update for the given peer address. */
     async #cancelUpdate(peerAddress: PeerAddress) {
+        peerAddress = PeerAddress(peerAddress);
         const bdxProtocol = this.env.get(BdxProtocol);
 
         // Disable the Peer on BdxProtocol for the OTA scope if registered and also cancel an open BDX session, if any
@@ -953,7 +954,7 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.updateQueue.splice(entryIndex, 1);
         // Clean up any pending startUp suppression for this peer — it will never arrive if the peer
         // is permanently removed from tracking (decommissioned / disconnected).
-        this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+        this.internal.pendingStartUpSuppress.delete(peerAddress);
         logger.info(`Cancelled OTA update for node ${peerAddress.toString()}`);
         this.events.updateFailed.emit(peerAddress);
         this.#triggerQueuedUpdate();
@@ -972,6 +973,7 @@ export class SoftwareUpdateManager extends Behavior {
         productId: number,
         targetSoftwareVersion: number,
     ) {
+        peerAddress = PeerAddress(peerAddress);
         // Filter out all existing consents for this peer, they are replaced by the new one
         const consents = this.internal.consents.filter(
             consent =>
@@ -1045,7 +1047,7 @@ export class SoftwareUpdateManager extends Behavior {
      * so the startUp event that follows is not treated as a new failure-after-apply.
      */
     suppressNextStartUp(peerAddress: PeerAddress, sessionId: number) {
-        this.internal.pendingStartUpSuppress.set(peerAddress.toString(), sessionId);
+        this.internal.pendingStartUpSuppress.set(peerAddress, sessionId);
     }
 
     /**
@@ -1056,6 +1058,7 @@ export class SoftwareUpdateManager extends Behavior {
      * messages, and triggers the necessary events.
      */
     onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number) {
+        peerAddress = PeerAddress(peerAddress);
         const entryIndex = this.internal.updateQueue.findIndex(
             e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
         );
@@ -1072,8 +1075,8 @@ export class SoftwareUpdateManager extends Behavior {
         if (status === OtaUpdateStatus.Done) {
             logger.info(`OTA update completed for node`, peerAddress.toString());
             this.internal.updateQueue.splice(entryIndex, 1);
-            this.internal.knownUpdates.delete(peerAddress.toString());
-            this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+            this.internal.knownUpdates.delete(peerAddress);
+            this.internal.pendingStartUpSuppress.delete(peerAddress);
             this.events.updateDone.emit(peerAddress);
             this.#triggerQueuedUpdate();
         } else if (status === OtaUpdateStatus.Cancelled) {
@@ -1134,17 +1137,17 @@ export namespace SoftwareUpdateManager {
 
         versionUpdateObservers = new ObserverGroup();
 
-        knownUpdates = new Map<string, SoftwareUpdateInfo>();
+        knownUpdates = new PeerAddressMap<SoftwareUpdateInfo>();
 
         /**
-         * peer address string → session ID on which the reboot-triggering queryImage was received.
+         * Peer → session ID on which the reboot-triggering queryImage was received.
          *
          * Intentionally ephemeral (not persisted): the suppress window is sub-second — between the
          * queryImage response and the subsequent startUp event that follows on the same session.
          * Entries are consumed immediately when the matching startUp fires in #onSoftwareVersionChanged,
          * or cleaned up in #cancelUpdate when the peer is permanently removed from tracking.
          */
-        pendingStartUpSuppress = new Map<string, number>();
+        pendingStartUpSuppress = new PeerAddressMap<number>();
     }
 
     export class Events extends EventEmitter {
