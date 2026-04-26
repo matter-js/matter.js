@@ -25,6 +25,7 @@ import {
     Time,
     VendorId,
 } from "@matter/main";
+import { BasicInformationServer } from "@matter/main/behaviors/basic-information";
 import { BooleanStateServer } from "@matter/main/behaviors/boolean-state";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { GroupcastServer } from "@matter/main/behaviors/groupcast";
@@ -60,6 +61,8 @@ const {
     uniqueId,
     contactTimerEnabled,
     occupancyTimerEnabled,
+    basicInfoConfigVersionTimerEnabled,
+    bridgedInfoConfigVersionTimerEnabled,
 } = await getConfiguration();
 
 const networkId = Bytes.fromHex("6574682D617070");
@@ -113,40 +116,40 @@ await server.add(aggregator);
 // --- Endpoint 2: OnOff Light ---
 
 const onOffName = `OnOff Light`;
-await aggregator.add(
-    new Endpoint(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
-        id: `onoff`,
-        number: 2,
-        bridgedDeviceBasicInformation: {
-            nodeLabel: onOffName,
-            productName: onOffName,
-            productLabel: onOffName,
-            serialNumber: `node-matter-${uniqueId}-1`,
-            reachable: true,
-        },
-    }),
-);
+const onOffEndpoint = new Endpoint(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
+    id: `onoff`,
+    number: 2,
+    bridgedDeviceBasicInformation: {
+        nodeLabel: onOffName,
+        productName: onOffName,
+        productLabel: onOffName,
+        serialNumber: `node-matter-${uniqueId}-1`,
+        reachable: true,
+        configurationVersion: 1,
+    },
+});
+await aggregator.add(onOffEndpoint);
 
 // --- Endpoint 3: Dimmable Light ---
 
 const dimmableName = `Dimmable Light`;
-await aggregator.add(
-    new Endpoint(DimmableLightDevice.with(BridgedDeviceBasicInformationServer), {
-        id: `dimmable`,
-        number: 3,
-        bridgedDeviceBasicInformation: {
-            nodeLabel: dimmableName,
-            productName: dimmableName,
-            productLabel: dimmableName,
-            serialNumber: `node-matter-${uniqueId}-2`,
-            reachable: true,
-        },
-        levelControl: {
-            minLevel: 1,
-            maxLevel: 254,
-        },
-    }),
-);
+const dimmableEndpoint = new Endpoint(DimmableLightDevice.with(BridgedDeviceBasicInformationServer), {
+    id: `dimmable`,
+    number: 3,
+    bridgedDeviceBasicInformation: {
+        nodeLabel: dimmableName,
+        productName: dimmableName,
+        productLabel: dimmableName,
+        serialNumber: `node-matter-${uniqueId}-2`,
+        reachable: true,
+        configurationVersion: 1,
+    },
+    levelControl: {
+        minLevel: 1,
+        maxLevel: 254,
+    },
+});
+await aggregator.add(dimmableEndpoint);
 
 // --- Endpoint 4: Contact Sensor (BooleanState with ChangeEvent feature) ---
 
@@ -162,6 +165,7 @@ const contactEndpoint = new Endpoint(
             productLabel: contactName,
             serialNumber: `node-matter-${uniqueId}-3`,
             reachable: true,
+            configurationVersion: 1,
         },
         booleanState: {
             stateValue: false, // initial: open / no contact
@@ -187,6 +191,7 @@ const occupancyEndpoint = new Endpoint(
             productLabel: occupancyName,
             serialNumber: `node-matter-${uniqueId}-4`,
             reachable: true,
+            configurationVersion: 1,
         },
         occupancySensing: {
             occupancy: { occupied: false }, // initial: unoccupied
@@ -195,7 +200,7 @@ const occupancyEndpoint = new Endpoint(
 );
 await aggregator.add(occupancyEndpoint);
 
-// --- State toggle timers (5 minutes) ---
+// --- State toggle timers (30 Seconds) ---
 
 const TOGGLE_INTERVAL = Seconds(30);
 const timers = new Array<Timer>();
@@ -220,6 +225,42 @@ if (occupancyTimerEnabled) {
     occupancyTimer.start();
     timers.push(occupancyTimer);
     logger.info("Occupancy sensor 5-minute toggle timer enabled");
+}
+
+// --- ConfigurationVersion bump timers (30 Seconds, +1) ---
+
+const CONFIG_VERSION_INTERVAL = Seconds(30);
+
+if (basicInfoConfigVersionTimerEnabled) {
+    const timer = Time.getPeriodicTimer("basic-info-config-version", CONFIG_VERSION_INTERVAL, async () => {
+        const current = server.stateOf(BasicInformationServer).configurationVersion ?? 1;
+        const next = current + 1;
+        logger.info(`BasicInformation configurationVersion: ${current} → ${next}`);
+        await server.set({ basicInformation: { configurationVersion: next } });
+    });
+    timer.start();
+    timers.push(timer);
+    logger.info("BasicInformation configurationVersion 30-seconds bump timer enabled");
+}
+
+if (bridgedInfoConfigVersionTimerEnabled) {
+    const bridgedEndpoints = [
+        { name: onOffName, endpoint: onOffEndpoint },
+        { name: dimmableName, endpoint: dimmableEndpoint },
+        { name: contactName, endpoint: contactEndpoint },
+        { name: occupancyName, endpoint: occupancyEndpoint },
+    ];
+    const timer = Time.getPeriodicTimer("bridged-info-config-version", CONFIG_VERSION_INTERVAL, async () => {
+        for (const { name, endpoint } of bridgedEndpoints) {
+            const current = endpoint.stateOf(BridgedDeviceBasicInformationServer).configurationVersion ?? 1;
+            const next = current + 1;
+            logger.info(`${name} bridgedDeviceBasicInformation configurationVersion: ${current} → ${next}`);
+            await endpoint.set({ bridgedDeviceBasicInformation: { configurationVersion: next } });
+        }
+    });
+    timer.start();
+    timers.push(timer);
+    logger.info("BridgedDeviceBasicInformation configurationVersion 30-seconds bump timer enabled");
 }
 
 await server.start();
@@ -251,6 +292,11 @@ async function getConfiguration() {
     const contactTimerEnabled = (environment.vars.number("contact-timer") ?? 0) !== 0;
     const occupancyTimerEnabled = (environment.vars.number("occupancy-timer") ?? 0) !== 0;
 
+    // ConfigurationVersion bump-timer CLI flags (default: disabled)
+    const basicInfoConfigVersionTimerEnabled = (environment.vars.number("basic-info-config-version-timer") ?? 0) !== 0;
+    const bridgedInfoConfigVersionTimerEnabled =
+        (environment.vars.number("bridged-info-config-version-timer") ?? 0) !== 0;
+
     // Persist basic data to keep them also on restart
     await deviceStorage.set({
         passcode,
@@ -272,5 +318,7 @@ async function getConfiguration() {
         uniqueId,
         contactTimerEnabled,
         occupancyTimerEnabled,
+        basicInfoConfigVersionTimerEnabled,
+        bridgedInfoConfigVersionTimerEnabled,
     };
 }
