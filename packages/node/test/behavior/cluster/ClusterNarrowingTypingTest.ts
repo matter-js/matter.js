@@ -94,7 +94,7 @@ type ObsEnabledAttr = ReturnType<typeof _obsEnabledAttr>;
 
 const _commandsBare = () => endpoint.commandsOf(ThermostatServer);
 const _commandsWithSchedule = () =>
-    endpoint.commandsOf(ThermostatServer.with(Thermostat.Feature.ScheduleConfiguration));
+    endpoint.commandsOf(ThermostatServer.with(Thermostat.Feature.MatterScheduleConfiguration));
 const _commandsWithPresets = () => endpoint.commandsOf(ThermostatServer.with(Thermostat.Feature.Presets));
 
 type CommandsBare = ReturnType<typeof _commandsBare>;
@@ -257,24 +257,19 @@ describe("Cluster narrowing typing", () => {
         });
 
         it("hides feature-gated commands on bare ThermostatServer", () => {
-            // @ts-expect-error setWeeklySchedule is gated on ScheduleConfiguration
-            ({}) as CommandsBare satisfies { setWeeklySchedule: unknown };
-            // @ts-expect-error getWeeklySchedule is gated on ScheduleConfiguration
-            ({}) as CommandsBare satisfies { getWeeklySchedule: unknown };
-            // @ts-expect-error clearWeeklySchedule is gated on ScheduleConfiguration
-            ({}) as CommandsBare satisfies { clearWeeklySchedule: unknown };
+            // @ts-expect-error setActiveScheduleRequest is gated on MatterScheduleConfiguration
+            ({}) as CommandsBare satisfies { setActiveScheduleRequest: unknown };
             // @ts-expect-error setActivePresetRequest is gated on Presets
             ({}) as CommandsBare satisfies { setActivePresetRequest: unknown };
             // @ts-expect-error atomicRequest is gated on Presets | MatterScheduleConfiguration
             ({}) as CommandsBare satisfies { atomicRequest: unknown };
         });
 
-        it("exposes ScheduleConfiguration commands after .with(ScheduleConfiguration)", () => {
+        it("exposes MatterScheduleConfiguration commands after .with(MatterScheduleConfiguration)", () => {
             ({}) as CommandsWithSchedule satisfies {
                 setpointRaiseLower: unknown;
-                setWeeklySchedule: unknown;
-                getWeeklySchedule: unknown;
-                clearWeeklySchedule: unknown;
+                setActiveScheduleRequest: unknown;
+                atomicRequest: unknown;
             };
             // @ts-expect-error setActivePresetRequest still gated on Presets
             ({}) as CommandsWithSchedule satisfies { setActivePresetRequest: unknown };
@@ -286,8 +281,8 @@ describe("Cluster narrowing typing", () => {
                 setActivePresetRequest: unknown;
                 atomicRequest: unknown;
             };
-            // @ts-expect-error setWeeklySchedule still gated on ScheduleConfiguration
-            ({}) as CommandsWithPresets satisfies { setWeeklySchedule: unknown };
+            // @ts-expect-error setActiveScheduleRequest still gated on MatterScheduleConfiguration
+            ({}) as CommandsWithPresets satisfies { setActiveScheduleRequest: unknown };
         });
     });
 
