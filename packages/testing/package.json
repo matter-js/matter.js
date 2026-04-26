@@ -49,7 +49,7 @@
         "ansi-colors": "^4.1.3",
         "chai": "^4.5.0",
         "chai-as-promised": "^7.1.2",
-        "dockerode": "^4.0.10",
+        "dockerode": "^5.0.0",
         "esbuild": "^0.28.0",
         "express": "^5.2.1",
         "mocha": "^11.7.5",
@@ -61,8 +61,8 @@
         "yargs": "^18.0.0"
     },
     "devDependencies": {
-        "typescript": "~6.0.2",
-        "@types/dockerode": "^4.0.0",
+        "typescript": "~6.0.3",
+        "@types/dockerode": "^4.0.1",
         "@types/chai": "^4.3.20",
         "@types/chai-as-promised": "^7.1.8",
         "@types/debug": "^4.1.13",

@@ -23,3 +23,15 @@ pull_request_rules:
       update:
       merge:
         method: squash
+  - name: Automatic merge Apollon77 PRs when tested and flagged as automerge
+    conditions:
+      - "author=Apollon77"          # Apollon77 is the PR author
+      - "#review-threads-unresolved=0"
+      - "-draft"
+      - "#check-failure=0"                 # Don't auto merge with a failure
+      - "#check-pending=0"                 # Don't auto merge with anything pending
+      - "label=automerge"                  # merge PRs with the automerge label
+    actions:
+      update:
+      merge:
+        method: squash
