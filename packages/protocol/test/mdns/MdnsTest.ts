@@ -936,10 +936,10 @@ function expectMessage(actual: DnsMessage | undefined, expected: DnsMessage) {
 
         message.additionalRecords.forEach(r => {
             if (r.recordType === DnsRecordType.TXT && Array.isArray(r.value)) {
+                // Fixtures may declare value as string[]; normalize to Bytes[] then sort by hex (lossless on binary).
                 r.value = (r.value as (Uint8Array | string)[])
-                    .map(b => Bytes.toString(b))
-                    .sort()
-                    .map(s => Bytes.fromString(s));
+                    .map(b => (typeof b === "string" ? Bytes.fromString(b) : b))
+                    .sort((a, b) => Bytes.toHex(a).localeCompare(Bytes.toHex(b)));
             }
         });
     }

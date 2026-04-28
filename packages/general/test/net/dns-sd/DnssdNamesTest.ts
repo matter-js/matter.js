@@ -805,6 +805,50 @@ describe("DnssdNames", () => {
             expect(client.names.get(qname).parameters.get("foo")).equal("first");
         });
 
+        it("ignores TXT entries with empty keys per RFC 6763 §6.4", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: [Bytes.fromString("=value"), Bytes.fromString("="), Bytes.fromString("real=value")],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            const parameters = client.names.get(qname).parameters;
+            expect(parameters.size).equal(1);
+            expect(parameters.has("")).false;
+            expect(parameters.get("real")).equal("value");
+        });
+
         it("ignores zero-length TXT entries per RFC 6763 §6.5", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();
@@ -847,6 +891,51 @@ describe("DnssdNames", () => {
             expect(parameters.size).equal(1);
             expect(parameters.has("")).false;
             expect(parameters.get("real")).equal("value");
+        });
+
+        it("preserves empty-value TXT entries (key=) per RFC 6763 §6.4", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: [Bytes.fromString("yy="), Bytes.fromString("flag")],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            const parameters = client.names.get(qname).parameters;
+            expect(parameters.has("yy")).true;
+            expect(parameters.get("yy")).equal("");
+            expect(parameters.has("flag")).true;
+            expect(parameters.get("flag")).equal("");
         });
     });
 

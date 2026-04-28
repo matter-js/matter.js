@@ -59,6 +59,13 @@ export const AAAARecord = (
     recordClass: DnsRecordClass.IN,
     flushCache,
 });
+
+/**
+ * Build a TXT {@link DnsRecord} (RFC 6763 §6).
+ *
+ * Accepts `(Bytes | string)[]` for ergonomic ASCII senders; entries are normalized to {@link Bytes} before storage so
+ * downstream consumers always see the spec-correct binary shape.
+ */
 export const TxtRecord = (
     name: string,
     entries: (Bytes | string)[],
@@ -432,6 +439,12 @@ export class DnsCodec {
         return ipv6ToBytes(ip);
     }
 
+    /**
+     * Encode TXT record entries (RFC 6763 §6).
+     *
+     * Accepts `(Bytes | string)[]` for ergonomic ASCII senders; the `string` arm exists to spare callers a per-entry
+     * `Bytes.fromString` wrap.
+     */
     static encodeTxtRecord(entries: (Bytes | string)[]) {
         const writer = new DataWriter();
         entries.forEach(entry => {

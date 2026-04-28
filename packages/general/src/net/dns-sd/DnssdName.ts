@@ -77,14 +77,18 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
                 }
                 for (const entry of record.value as Bytes[]) {
                     const bytes = Bytes.of(entry);
-                    // RFC 6763 §6.5: receivers MUST silently ignore zero-length TXT entries.
+                    // RFC 6763 §6.5: ignore zero-length entry.
                     if (bytes.byteLength === 0) {
                         continue;
                     }
-                    // 0x3D is '=' — RFC 6763 §6.4 splits each TXT entry on the first '=' byte; subsequent '=' bytes (e.g. base64 padding) belong to the value.
+                    // 0x3D = '='. RFC 6763 §6.4: split on the first '=' (later '=' bytes, e.g. base64 padding, belong to the value).
                     const eqIndex = bytes.indexOf(0x3d);
+                    // RFC 6763 §6.4: ignore entry with empty key.
+                    if (eqIndex === 0) {
+                        continue;
+                    }
                     const key = eqIndex === -1 ? Bytes.toString(bytes) : Bytes.toString(bytes.subarray(0, eqIndex));
-                    // RFC 6763 §6.4: if the same key appears more than once, the first occurrence wins.
+                    // RFC 6763 §6.4: first occurrence wins on duplicates.
                     if (raw.has(key)) {
                         continue;
                     }
