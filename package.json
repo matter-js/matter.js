@@ -96,6 +96,6 @@
     },
     "dependencies": {
         "@nacho-iot/js-tools": "^0.1.3",
-        "memlab": "^2.0.1"
+        "memlab": "^2.0.2"
     }
 }
