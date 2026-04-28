@@ -714,6 +714,55 @@ describe("DnssdNames", () => {
 
             expect([...client.names.get(qname).parameters]).deep.equals([["b", "3"]]);
         });
+
+        it("exposes binary TXT values via parameters.raw while preserving the string view for ASCII keys", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const xaBytes = Bytes.fromHex("5aaf359c0501a1b0");
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: [Bytes.fromString("SII=5000"), Bytes.concat(Bytes.fromString("xa="), xaBytes)],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            const parameters = client.names.get(qname).parameters;
+
+            const xa = parameters.raw("xa");
+            expect(xa).not.equal(undefined);
+            expect(Bytes.areEqual(xa!, xaBytes)).true;
+
+            expect(parameters.get("SII")).equal("5000");
+        });
     });
 
     describe("coalesced discovery", () => {
