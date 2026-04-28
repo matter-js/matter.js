@@ -9,9 +9,11 @@ import { Logger } from "#log/Logger.js";
 import { Time } from "#time/Time.js";
 import type { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
+import { Bytes } from "#util/Bytes.js";
 import { AsyncObserver, BasicObservable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
 import type { DnssdNames } from "./DnssdNames.js";
+import { DnssdParameters } from "./DnssdParameters.js";
 
 const logger = Logger.get("DnssdName");
 
@@ -36,7 +38,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     #changes?: Map<string, { kind: "update" | "delete"; record: DnssdName.Record }>;
     #notified?: Promise<void>;
     #maybeDeleting?: Promise<void>;
-    #parameters?: Map<string, string>;
+    #parameters?: DnssdParameters;
     #dependencies?: Map<string, DnssdName>;
     #nullObserver?: () => void;
 
@@ -66,22 +68,40 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return this.#records.values();
     }
 
-    get parameters(): ReadonlyMap<string, string> {
+    get parameters(): DnssdParameters {
         if (this.#parameters === undefined) {
-            const parameters = (this.#parameters = new Map<string, string>());
+            const raw = new Map<string, Bytes>();
+            // Process newest TXT records first so an updated record's keys win over the not-yet-expired older copy;
+            // first-wins (RFC 6763 §6.4) then applies to entries within each record in their wire order.
+            const txtRecords = new Array<DnssdName.TextRecord>();
             for (const record of this.#records.values()) {
-                if (record.recordType !== DnsRecordType.TXT) {
-                    continue;
-                }
-                for (const entry of record.value as string[]) {
-                    const pos = entry.indexOf("=");
-                    if (pos === -1) {
-                        parameters.set(entry, "");
-                    } else {
-                        parameters.set(entry.slice(0, pos), entry.slice(pos + 1));
-                    }
+                if (record.recordType === DnsRecordType.TXT) {
+                    txtRecords.push(record);
                 }
             }
+            txtRecords.sort((a, b) => b.installedAt - a.installedAt);
+            for (const record of txtRecords) {
+                for (const entry of record.value) {
+                    const bytes = Bytes.of(entry);
+                    // RFC 6763 §6.5: ignore zero-length entry.
+                    if (bytes.byteLength === 0) {
+                        continue;
+                    }
+                    // 0x3D = '='. RFC 6763 §6.4: split on the first '=' (later '=' bytes, e.g. base64 padding, belong to the value).
+                    const eqIndex = bytes.indexOf(0x3d);
+                    // RFC 6763 §6.4: ignore entry with empty key.
+                    if (eqIndex === 0) {
+                        continue;
+                    }
+                    const key = eqIndex === -1 ? Bytes.toString(bytes) : Bytes.toString(bytes.subarray(0, eqIndex));
+                    // RFC 6763 §6.4: first occurrence wins on duplicates.
+                    if (raw.has(key)) {
+                        continue;
+                    }
+                    raw.set(key, eqIndex === -1 ? new Uint8Array(0) : bytes.subarray(eqIndex + 1));
+                }
+            }
+            this.#parameters = new DnssdParameters(raw);
         }
         return this.#parameters;
     }
@@ -259,8 +279,9 @@ function keyOf(record: DnsRecord): string | undefined {
 
         case DnsRecordType.TXT:
             if (Array.isArray(record.value)) {
-                // Spread before sort: keyOf must not mutate record.value (parameters recompute relies on wire order)
-                return `${record.recordType} ${[...record.value].sort().join(" ")}`;
+                const keys = (record.value as Bytes[]).map(entry => Bytes.toHex(entry));
+                keys.sort();
+                return `${record.recordType} ${keys.join(" ")}`;
             }
             break;
     }
@@ -307,7 +328,7 @@ export namespace DnssdName {
         recordType: DnsRecordType.SRV;
     }
 
-    export interface TextRecord extends DnsRecord<string[]>, Expiration {
+    export interface TextRecord extends DnsRecord<Bytes[]>, Expiration {
         recordType: DnsRecordType.TXT;
     }
 

@@ -77,7 +77,7 @@ export namespace Bytes {
         }
 
         if (ArrayBuffer.isView(source)) {
-            return new Uint8Array(source.buffer, source.byteLength, source.byteOffset);
+            return new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
         }
 
         return new Uint8Array(source);
