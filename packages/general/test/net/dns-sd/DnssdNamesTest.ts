@@ -439,6 +439,82 @@ describe("DnssdNames", () => {
             expect(ips.length).equals(2);
         });
 
+        it("evicts a staged IP record via goodbye in a packet with no other relevant records", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+
+            // Packet 1: PTR + A — A gets staged because the packet carries a filter-matching PTR
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "10.10.10.145",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Hostname not yet a real DnssdName — record is in the staging cache only
+            expect(client.names.has(server.hostname)).false;
+
+            // Packet 2: goodbye for the staged record, no other records
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: "10.10.10.145",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Packet 3: SRV creates the hostname — staged record (if any) replays
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const host = client.names.get(server.hostname);
+            const ips = [...host.records].filter(
+                r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
+            );
+            expect(ips.length).equals(0);
+        });
+
         it("discards staged IP records after their TTL expires", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();

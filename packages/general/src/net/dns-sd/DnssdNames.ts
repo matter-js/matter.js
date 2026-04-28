@@ -106,7 +106,6 @@ export class DnssdNames {
             Minutes(1),
             this.#pruneStagedIpRecords.bind(this),
         );
-        // Mark as utility so the prune timer doesn't keep the Node event loop alive
         this.#stagedIpExpirationTimer.utility = true;
         this.#stagedIpExpirationTimer.start();
     }
@@ -226,33 +225,43 @@ export class DnssdNames {
             }
         } while (filteredBeforePass > filtered.size);
 
+        // Honour goodbye (ttl=0) for already-staged hostnames regardless of packetRelevant: eviction only
+        // touches entries we previously admitted under the gate, so a stray goodbye cannot poison anything new.
+        for (const record of filtered) {
+            if (
+                (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) ||
+                record.ttl !== 0 ||
+                this.has(record.name)
+            ) {
+                continue;
+            }
+            const key = record.name.toLowerCase();
+            const staged = this.#stagedIpRecords.get(key);
+            if (staged === undefined) {
+                continue;
+            }
+            const remaining = staged.filter(
+                s => !(s.record.recordType === record.recordType && s.record.value === record.value),
+            );
+            if (remaining.length === 0) {
+                this.#stagedIpRecords.delete(key);
+            } else {
+                this.#stagedIpRecords.set(key, remaining);
+            }
+        }
+
         // Stage A/AAAA for unknown hostnames — replayed when a later SRV creates the name.
         // packetRelevant gate prevents unrelated LAN traffic from poisoning the cache.
         if (packetRelevant) {
             for (let record of filtered) {
                 if (
                     (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) ||
+                    record.ttl === 0 ||
                     this.has(record.name)
                 ) {
                     continue;
                 }
                 const key = record.name.toLowerCase();
-
-                if (record.ttl === 0) {
-                    const staged = this.#stagedIpRecords.get(key);
-                    if (staged === undefined) {
-                        continue;
-                    }
-                    const remaining = staged.filter(
-                        s => !(s.record.recordType === record.recordType && s.record.value === record.value),
-                    );
-                    if (remaining.length === 0) {
-                        this.#stagedIpRecords.delete(key);
-                    } else {
-                        this.#stagedIpRecords.set(key, remaining);
-                    }
-                    continue;
-                }
 
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
