@@ -6,26 +6,26 @@
 
 import { Schema, ValueModel } from "@matter/model";
 
-const cache = new WeakMap<ValueModel, Record<string, number>>();
+const cache = new WeakMap<ValueModel, Record<string, string | number>>();
 
 /**
- * Create a frozen enum object for an enum value model.
+ * Create a frozen enum object with the runtime shape of a TypeScript numeric enum (forward and reverse mapping).
  *
- * The returned object maps enum member names to their numeric IDs.  Schema is associated via {@link Schema.set} so it
- * can be resolved by `@field` decorators.
+ * Schema is associated via {@link Schema.set} so it can be resolved by `@field` decorators.
  *
  * Results are cached per model instance.
  */
-export function EnumForValueModel(model: ValueModel): Record<string, number> {
+export function EnumForValueModel(model: ValueModel): Record<string, string | number> {
     let result = cache.get(model);
     if (result !== undefined) {
         return result;
     }
 
-    const values: Record<string, number> = {};
+    const values: Record<string, string | number> = {};
     for (const child of model.children) {
         if (typeof child.id === "number") {
             values[child.name] = child.id;
+            values[child.id] = child.name;
         }
     }
 

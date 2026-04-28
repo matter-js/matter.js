@@ -25,7 +25,7 @@ export class StatusResponseError extends MatterError {
         return this.message.replace(/ \(code .+\)$/, "");
     }
 
-    static is(error: unknown, ...codes: Status[]) {
+    static is(error: unknown, ...codes: Status[]): error is StatusResponseError {
         const sre = StatusResponseError.of(error);
         return !!sre && (!codes.length || codes.includes(sre.code));
     }
