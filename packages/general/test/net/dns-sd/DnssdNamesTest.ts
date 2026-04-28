@@ -55,7 +55,7 @@ describe("DnssdNames", () => {
                 recordClass: 1,
                 recordType: 16,
                 ttl: 3600000,
-                value: ["flag", "foo=bar"],
+                value: ["foo=bar", "flag"],
             },
         ]);
 
@@ -372,6 +372,149 @@ describe("DnssdNames", () => {
             expect(ips.length).equals(2);
         });
 
+        it("ingests A/AAAA arriving in a packet alone after the SRV target is known", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+
+            // PTR + SRV; SRV installation creates the hostname DnssdName via dependency
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect(client.names.has(server.hostname)).true;
+
+            // Solicited response carrying ONLY A/AAAA for the hostname — no filter-matching records.
+            // The dependency pass must still attach these records because the hostname is already known.
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "10.10.10.145",
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "abcd::91",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const host = client.names.get(server.hostname);
+            const ips = [...host.records].filter(
+                r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
+            );
+            expect(ips.length).equals(2);
+        });
+
+        it("evicts a staged IP record via goodbye in a packet with no other relevant records", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+
+            // Packet 1: PTR + A — A gets staged because the packet carries a filter-matching PTR
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "10.10.10.145",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Hostname not yet a real DnssdName — record is in the staging cache only
+            expect(client.names.has(server.hostname)).false;
+
+            // Packet 2: goodbye for the staged record, no other records
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: "10.10.10.145",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Packet 3: SRV creates the hostname — staged record (if any) replays
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const host = client.names.get(server.hostname);
+            const ips = [...host.records].filter(
+                r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
+            );
+            expect(ips.length).equals(0);
+        });
+
         it("discards staged IP records after their TTL expires", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();
@@ -430,6 +573,145 @@ describe("DnssdNames", () => {
                 r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
             );
             expect(ips.length).equals(0);
+        });
+    });
+
+    describe("TXT parameters", () => {
+        it("recomputes parameters when a TXT record is removed", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            // Include an SRV so the name survives when the TXT is later goodbye'd
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: ["a=1", "b=2"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([
+                ["a", "1"],
+                ["b", "2"],
+            ]);
+
+            // Past goodbye-protection window so the deleteRecord is honoured
+            await MockTime.advance(Seconds(2));
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: ["a=1", "b=2"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([]);
+        });
+
+        it("drops keys absent from a replacement TXT record", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: ["a=1", "b=2"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([
+                ["a", "1"],
+                ["b", "2"],
+            ]);
+
+            // Past goodbye-protection window
+            await MockTime.advance(Seconds(2));
+
+            // Goodbye the original TXT, then send a new TXT that omits key "a"
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: ["a=1", "b=2"],
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: ["b=3"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([["b", "3"]]);
         });
     });
 
