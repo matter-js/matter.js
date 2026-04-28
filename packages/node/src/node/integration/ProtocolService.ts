@@ -49,15 +49,7 @@ import type {
     InteractionSession,
     NodeProtocol,
 } from "@matter/protocol";
-import {
-    EventTypeProtocol,
-    FabricManager,
-    hasRemoteActor,
-    Mark,
-    OccurrenceManager,
-    toWildcardOrHexPath,
-    Val,
-} from "@matter/protocol";
+import { EventTypeProtocol, FabricManager, hasRemoteActor, Mark, OccurrenceManager, Val } from "@matter/protocol";
 import {
     AttributeId,
     AttributePath,
@@ -630,7 +622,7 @@ function invokeCommand(
     logger.info(
         "Invoke",
         Mark.INBOUND,
-        Diagnostic.strong(`${path.toString()}.${command.name}`),
+        Diagnostic.strong(path.at(camelize(command.name))),
         session.transaction.via,
         requestDiagnostic,
     );
@@ -723,7 +715,7 @@ function invokeCommand(
                         logger.info(
                             "Invoke",
                             Mark.OUTBOUND,
-                            Diagnostic.strong(`${path.toString()}.${command.name}`),
+                            Diagnostic.strong(path.at(camelize(command.name))),
                             session.transaction!.via,
                             Diagnostic.dict(result),
                         );
@@ -750,7 +742,7 @@ function invokeCommand(
                 logger.info(
                     "Invoke",
                     Mark.OUTBOUND,
-                    Diagnostic.strong(`${path.toString()}.${command.name}`),
+                    Diagnostic.strong(path.at(camelize(command.name))),
                     session.transaction.via,
                     Diagnostic.dict(result),
                 );
@@ -766,58 +758,56 @@ function invokeCommand(
 }
 
 /**
- * Resolve a path into a human readable textual form for logging
- * TODO: Add a Diagnostic display formatter for this
+ * Resolve a wire-format path into a {@link DataModelPath} for logging.
+ *
+ * Mirrors {@link ExpandedPath}'s segment shape (state./events./markers) but resolves cluster/element names against
+ * the node-local protocol so custom clusters render with their type names rather than falling back to hex.
+ *
+ * Endpoint names from the node are intentionally not used — endpoints render by number — to keep client and server
+ * logs symmetric.
  */
-function resolvePathForNode(node: NodeProtocol, path: AttributePath | EventPath | CommandPath) {
+function resolvePathForNode(node: NodeProtocol, path: AttributePath | EventPath | CommandPath): DataModelPath {
     const { endpointId, clusterId } = path;
-    const isUrgentString = "isUrgent" in path && path.isUrgent ? "!" : "";
-    const listIndexString = "listIndex" in path && path.listIndex === null ? "[ADD]" : "";
-    const postString = `${listIndexString}${isUrgentString}`;
+    const endpoint = endpointId !== undefined ? node[endpointId] : undefined;
+    const cluster = endpoint && clusterId !== undefined ? endpoint[clusterId] : undefined;
 
-    const elementId =
-        "attributeId" in path
-            ? path.attributeId
-            : "eventId" in path
-              ? path.eventId
-              : "commandId" in path
-                ? path.commandId
-                : undefined;
+    let dmPath = new DataModelPath(endpointId ?? "*", "endpoint");
+    dmPath = dmPath.at(nameOf(cluster?.type.name, clusterId), "cluster");
 
-    if (endpointId === undefined) {
-        return `*.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
-    }
-
-    const endpoint = node[endpointId];
-    if (endpoint === undefined) {
-        return `${toWildcardOrHexPath("?", endpointId)}.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
-    }
-    const endpointName = toWildcardOrHexPath(endpoint.name, endpointId);
-
-    if (clusterId === undefined) {
-        return `${endpointName}.*.${toWildcardOrHexPath("", elementId)}${postString}`;
-    }
-
-    const cluster = endpoint[clusterId];
-    if (cluster === undefined) {
-        return `${endpointName}.${toWildcardOrHexPath("?", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
-    }
-    const clusterName = toWildcardOrHexPath(cluster.type.name, clusterId);
-
-    if (elementId !== undefined) {
-        if ("eventId" in path) {
-            const event = cluster.type.events[elementId];
-            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(event?.name ?? "?", elementId)}${postString}`;
-        } else if ("attributeId" in path) {
-            const attribute = cluster.type.attributes[elementId];
-            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(attribute?.name ?? "?", elementId)}${postString}`;
-        } else if ("commandId" in path) {
-            const command = cluster.type.commands[elementId];
-            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(command?.name ?? "?", elementId)}${postString}`;
-        } else {
-            throw new ImplementationError("Invalid path");
+    if ("attributeId" in path) {
+        const attribute =
+            cluster && path.attributeId !== undefined ? cluster.type.attributes[path.attributeId] : undefined;
+        dmPath = dmPath.at("state").at(nameOf(attribute?.name, path.attributeId));
+        if (path.listIndex === null) {
+            dmPath = dmPath.at("[ADD]", "marker");
         }
-    } else {
-        return `${endpointName}.${clusterName}.*${postString}`;
+        return dmPath;
+    }
+
+    if ("eventId" in path) {
+        const event = cluster && path.eventId !== undefined ? cluster.type.events[path.eventId] : undefined;
+        dmPath = dmPath.at("events").at(nameOf(event?.name, path.eventId));
+        if ("isUrgent" in path && path.isUrgent) {
+            dmPath = dmPath.at("!", "marker");
+        }
+        return dmPath;
+    }
+
+    if ("commandId" in path) {
+        const command = cluster && path.commandId !== undefined ? cluster.type.commands[path.commandId] : undefined;
+        return dmPath.at(nameOf(command?.name, path.commandId));
+    }
+
+    // Wildcard path with no element discriminator — render as bare element wildcard
+    return dmPath.at("*", "element");
+
+    function nameOf(name: string | undefined, id: number | undefined) {
+        if (name !== undefined) {
+            return camelize(name);
+        }
+        if (id === undefined) {
+            return "*";
+        }
+        return `0x${id.toString(16)}`;
     }
 }
