@@ -61,12 +61,12 @@ export const AAAARecord = (
 });
 export const TxtRecord = (
     name: string,
-    entries: string[],
+    entries: (Bytes | string)[],
     ttl = DEFAULT_MDNS_TTL,
     flushCache = false,
-): DnsRecord<string[]> => ({
+): DnsRecord<Bytes[]> => ({
     name,
-    value: entries,
+    value: entries.map(e => (typeof e === "string" ? Bytes.fromString(e) : Bytes.of(e))),
     ttl,
     recordType: DnsRecordType.TXT,
     recordClass: DnsRecordClass.IN,
@@ -312,13 +312,14 @@ export class DnsCodec {
         return { priority, weight, port, target };
     }
 
-    static decodeTxtRecord(valueBytes: Bytes): string[] {
+    static decodeTxtRecord(valueBytes: Bytes): Bytes[] {
         const reader = new DataReader(valueBytes);
-        const result = new Array<string>();
+        const result = new Array<Bytes>();
         let bytesRead = 0;
         while (bytesRead < valueBytes.byteLength) {
             const length = reader.readUInt8();
-            result.push(reader.readUtf8String(length));
+            // readByteArray returns a view; copy so retained entries don't alias the source buffer.
+            result.push(reader.readByteArray(length).slice());
             bytesRead += length + 1;
         }
         return result;
@@ -410,7 +411,7 @@ export class DnsCodec {
             case DnsRecordType.SRV:
                 return this.encodeSrvRecord(value as SrvRecordValue);
             case DnsRecordType.TXT:
-                return this.encodeTxtRecord(value as string[]);
+                return this.encodeTxtRecord(value as (Bytes | string)[]);
             case DnsRecordType.AAAA:
                 return this.encodeAaaaRecord(value as string);
             case DnsRecordType.A:
@@ -431,12 +432,12 @@ export class DnsCodec {
         return ipv6ToBytes(ip);
     }
 
-    static encodeTxtRecord(entries: string[]) {
+    static encodeTxtRecord(entries: (Bytes | string)[]) {
         const writer = new DataWriter();
         entries.forEach(entry => {
-            const entryData = Bytes.fromString(entry);
-            writer.writeUInt8(entryData.byteLength);
-            writer.writeByteArray(entryData);
+            const bytes = typeof entry === "string" ? Bytes.fromString(entry) : Bytes.of(entry);
+            writer.writeUInt8(bytes.byteLength);
+            writer.writeByteArray(bytes);
         });
         return writer.toByteArray();
     }

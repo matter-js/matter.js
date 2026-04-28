@@ -9,6 +9,7 @@ import { Logger } from "#log/Logger.js";
 import { Time } from "#time/Time.js";
 import type { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
+import { Bytes } from "#util/Bytes.js";
 import { AsyncObserver, BasicObservable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
 import type { DnssdNames } from "./DnssdNames.js";
@@ -73,12 +74,17 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
                 if (record.recordType !== DnsRecordType.TXT) {
                     continue;
                 }
-                for (const entry of record.value as string[]) {
-                    const pos = entry.indexOf("=");
-                    if (pos === -1) {
-                        parameters.set(entry, "");
+                for (const entry of record.value as Bytes[]) {
+                    const bytes = Bytes.of(entry);
+                    // 0x3D is '=' — RFC 6763 §6.4 splits each TXT entry on the first '=' byte; subsequent '=' bytes (e.g. base64 padding) belong to the value.
+                    const eqIndex = bytes.indexOf(0x3d);
+                    if (eqIndex === -1) {
+                        parameters.set(Bytes.toString(bytes), "");
                     } else {
-                        parameters.set(entry.slice(0, pos), entry.slice(pos + 1));
+                        parameters.set(
+                            Bytes.toString(bytes.subarray(0, eqIndex)),
+                            Bytes.toString(bytes.subarray(eqIndex + 1)),
+                        );
                     }
                 }
             }
@@ -259,8 +265,9 @@ function keyOf(record: DnsRecord): string | undefined {
 
         case DnsRecordType.TXT:
             if (Array.isArray(record.value)) {
-                // Spread before sort: keyOf must not mutate record.value (parameters recompute relies on wire order)
-                return `${record.recordType} ${[...record.value].sort().join(" ")}`;
+                const keys = (record.value as Bytes[]).map(entry => Bytes.toHex(entry));
+                keys.sort();
+                return `${record.recordType} ${keys.join(" ")}`;
             }
             break;
     }
@@ -307,7 +314,7 @@ export namespace DnssdName {
         recordType: DnsRecordType.SRV;
     }
 
-    export interface TextRecord extends DnsRecord<string[]>, Expiration {
+    export interface TextRecord extends DnsRecord<Bytes[]>, Expiration {
         recordType: DnsRecordType.TXT;
     }
 

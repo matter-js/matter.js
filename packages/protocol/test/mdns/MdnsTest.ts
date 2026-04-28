@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { Advertisement, CommissioningMode, MdnsAdvertiser, MdnsServer, ServiceDescription } from "#index.js";
 import {
+    Bytes,
     ConnectionlessTransport,
     DnsCodec,
     DnsMessage,
@@ -926,17 +927,32 @@ function expectMessage(actual: DnsMessage | undefined, expected: DnsMessage) {
         if (!message) {
             continue;
         }
-        message.answers.sort((a, b) => a.name.localeCompare(b.name) || a.value.localeCompare(b.value));
+        message.answers.sort(
+            (a, b) => a.name.localeCompare(b.name) || sortKey(a.value).localeCompare(sortKey(b.value)),
+        );
         message.additionalRecords.sort(
-            (a, b) => a.name.localeCompare(b.name) || a.value.toString().localeCompare(b.value),
+            (a, b) => a.name.localeCompare(b.name) || sortKey(a.value).localeCompare(sortKey(b.value)),
         );
 
         message.additionalRecords.forEach(r => {
             if (r.recordType === DnsRecordType.TXT && Array.isArray(r.value)) {
-                r.value.sort();
+                r.value = (r.value as (Uint8Array | string)[])
+                    .map(b => Bytes.toString(b))
+                    .sort()
+                    .map(s => Bytes.fromString(s));
             }
         });
     }
 
     expect(actual).deep.equals(expected);
+}
+
+function sortKey(value: unknown): string {
+    if (Array.isArray(value)) {
+        return (value as (Uint8Array | string)[]).map(b => Bytes.toString(b)).join(",");
+    }
+    if (typeof value === "string") {
+        return value;
+    }
+    return String(value);
 }

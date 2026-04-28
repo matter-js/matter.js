@@ -8,6 +8,7 @@ import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#
 import { Hours, Millis, Minutes, Seconds } from "#index.js";
 import { Time } from "#time/Time.js";
 import { Abort } from "#util/Abort.js";
+import { Bytes } from "#util/Bytes.js";
 import { MOCK_SERVICE_DOMAIN, MockSite, qnameOf } from "./dns-sd-helpers.js";
 
 describe("DnssdNames", () => {
@@ -55,7 +56,7 @@ describe("DnssdNames", () => {
                 recordClass: 1,
                 recordType: 16,
                 ttl: 3600000,
-                value: ["foo=bar", "flag"],
+                value: ["foo=bar", "flag"].map(Bytes.fromString),
             },
         ]);
 

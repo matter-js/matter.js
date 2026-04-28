@@ -16,7 +16,7 @@ import {
 } from "#codec/DnsCodec.js";
 import { Seconds } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
-import { DataReader } from "#util/index.js";
+import { DataReader, DataWriter } from "#util/index.js";
 
 const DNS_RESPONSE: DnsMessage = {
     transactionId: 0,
@@ -115,7 +115,7 @@ const DECODED_WITH_PRIVATE_TYPE = {
                 "RI=0900669ED4F3C8043FCD77A39EEBD96F672A",
                 "PH=36",
                 "PI=",
-            ],
+            ].map(Bytes.fromString),
         },
         {
             flushCache: false,
@@ -274,6 +274,26 @@ describe("DnsCodec", () => {
                 }
             });
         }
+    });
+
+    describe("encode and decode TXT records", () => {
+        it("round-trips a TXT entry containing high bytes losslessly", () => {
+            // xa = 0x5AAF359C0501A1B0 — real Apple HomePod border-router extended MAC
+            const rawXa = Bytes.fromHex("5aaf359c0501a1b0");
+            const entry = Bytes.concat(Bytes.fromString("xa="), rawXa);
+
+            const writer = new DataWriter();
+            writer.writeUInt8(entry.byteLength);
+            writer.writeByteArray(entry);
+            const wire = writer.toByteArray();
+
+            const decoded = DnsCodec.decodeTxtRecord(wire);
+            expect(decoded).to.have.length(1);
+            expect(Bytes.areEqual(decoded[0], entry)).to.equal(true);
+
+            const reEncoded = DnsCodec.encodeTxtRecord(decoded);
+            expect(Bytes.areEqual(reEncoded, wire)).to.equal(true);
+        });
     });
 
     describe("encode and decode AAAA records", () => {
