@@ -71,11 +71,17 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     get parameters(): DnssdParameters {
         if (this.#parameters === undefined) {
             const raw = new Map<string, Bytes>();
+            // Process newest TXT records first so an updated record's keys win over the not-yet-expired older copy;
+            // first-wins (RFC 6763 §6.4) then applies to entries within each record in their wire order.
+            const txtRecords = new Array<DnssdName.TextRecord>();
             for (const record of this.#records.values()) {
-                if (record.recordType !== DnsRecordType.TXT) {
-                    continue;
+                if (record.recordType === DnsRecordType.TXT) {
+                    txtRecords.push(record);
                 }
-                for (const entry of record.value as Bytes[]) {
+            }
+            txtRecords.sort((a, b) => b.installedAt - a.installedAt);
+            for (const record of txtRecords) {
+                for (const entry of record.value) {
                     const bytes = Bytes.of(entry);
                     // RFC 6763 §6.5: ignore zero-length entry.
                     if (bytes.byteLength === 0) {

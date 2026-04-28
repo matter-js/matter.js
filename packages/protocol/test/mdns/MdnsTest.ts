@@ -949,7 +949,9 @@ function expectMessage(actual: DnsMessage | undefined, expected: DnsMessage) {
 
 function sortKey(value: unknown): string {
     if (Array.isArray(value)) {
-        return (value as (Uint8Array | string)[]).map(b => Bytes.toString(b)).join(",");
+        return (value as (Uint8Array | string)[])
+            .map(entry => Bytes.toHex(typeof entry === "string" ? Bytes.fromString(entry) : entry))
+            .join(",");
     }
     if (typeof value === "string") {
         return value;

@@ -294,6 +294,13 @@ describe("DnsCodec", () => {
             const reEncoded = DnsCodec.encodeTxtRecord(decoded);
             expect(Bytes.areEqual(reEncoded, wire)).to.equal(true);
         });
+
+        it("truncates entries longer than 255 bytes per RFC 6763 §6.1", () => {
+            const oversize = new Uint8Array(300).fill(0x41);
+            const wire = DnsCodec.encodeTxtRecord([oversize]);
+            expect(wire[0]).equal(0xff);
+            expect(wire.byteLength).equal(0xff + 1);
+        });
     });
 
     describe("encode and decode AAAA records", () => {

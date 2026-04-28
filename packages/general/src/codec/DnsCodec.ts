@@ -448,7 +448,15 @@ export class DnsCodec {
     static encodeTxtRecord(entries: (Bytes | string)[]) {
         const writer = new DataWriter();
         entries.forEach(entry => {
-            const bytes = typeof entry === "string" ? Bytes.fromString(entry) : Bytes.of(entry);
+            let bytes = typeof entry === "string" ? Bytes.fromString(entry) : Bytes.of(entry);
+            if (bytes.byteLength > 0xff) {
+                // RFC 6763 §6.1: TXT entries are length-prefixed by a single octet — silently wrapping the length
+                // byte produces garbage on the wire, so warn loudly and truncate to the spec limit.
+                logger.warn(
+                    `TXT record entry length ${bytes.byteLength} exceeds the RFC 6763 §6.1 limit of 255 bytes; truncating.`,
+                );
+                bytes = Bytes.of(bytes).subarray(0, 0xff);
+            }
             writer.writeUInt8(bytes.byteLength);
             writer.writeByteArray(bytes);
         });
