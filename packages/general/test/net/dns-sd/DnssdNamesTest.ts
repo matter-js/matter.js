@@ -372,6 +372,73 @@ describe("DnssdNames", () => {
             expect(ips.length).equals(2);
         });
 
+        it("ingests A/AAAA arriving in a packet alone after the SRV target is known", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+
+            // PTR + SRV; SRV installation creates the hostname DnssdName via dependency
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect(client.names.has(server.hostname)).true;
+
+            // Solicited response carrying ONLY A/AAAA for the hostname — no filter-matching records.
+            // The dependency pass must still attach these records because the hostname is already known.
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "10.10.10.145",
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "abcd::91",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const host = client.names.get(server.hostname);
+            const ips = [...host.records].filter(
+                r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
+            );
+            expect(ips.length).equals(2);
+        });
+
         it("discards staged IP records after their TTL expires", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();

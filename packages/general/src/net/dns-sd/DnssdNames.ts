@@ -213,9 +213,9 @@ export class DnssdNames {
         }
 
         // Filtered records may be relevant to us if they are referenced by services, e.g. SRV targets become relevant.
-        // So iteratively process until the set of filtered records does not change
-        let filteredBeforePass = records.length;
-        while (filteredBeforePass > filtered.size) {
+        // Iteratively process until the set of filtered records does not change.
+        let filteredBeforePass: number;
+        do {
             filteredBeforePass = filtered.size;
             for (const record of filtered) {
                 if (!this.has(record.name)) {
@@ -224,7 +224,7 @@ export class DnssdNames {
 
                 handleRecord(record);
             }
-        }
+        } while (filteredBeforePass > filtered.size);
 
         // Stage A/AAAA for unknown hostnames — replayed when a later SRV creates the name.
         // packetRelevant gate prevents unrelated LAN traffic from poisoning the cache.
