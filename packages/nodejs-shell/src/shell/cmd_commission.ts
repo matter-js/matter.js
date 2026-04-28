@@ -147,6 +147,8 @@ export default function commands(theNode: MatterNode) {
 
                                     console.log(Diagnostic.json(options));
 
+                                    await theNode.certificateService();
+
                                     if (theNode.Store.has("WiFiSsid") && theNode.Store.has("WiFiPassword")) {
                                         options.commissioning.wifiNetwork = {
                                             wifiSsid: await theNode.Store.get<string>("WiFiSsid", ""),
