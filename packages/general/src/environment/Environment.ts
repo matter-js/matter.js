@@ -191,18 +191,27 @@ export class Environment implements ServiceProvider, Lifetime.Owner {
     close<T extends object>(
         type: Environmental.ServiceType<T>,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
-        const instance = this.maybeGet(type);
-        this.delete(type, instance);
-        if (instance !== undefined) {
-            if (this.get(SharedServicesManager).has(type)) {
-                // still in use
-                return;
-            }
+        type Result = T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void;
 
-            return (instance as Partial<Destructable>).close?.() as T extends { close: () => MaybePromise<void> }
-                ? MaybePromise<void>
-                : void;
+        const instance = this.maybeGet(type);
+
+        // No instance to close — still null the local slot to block future inheritance from parent.
+        if (instance === undefined) {
+            this.delete(type, instance);
+            return undefined as Result;
         }
+
+        // Shared service still in use elsewhere; do not close or remove it here.
+        if (this.get(SharedServicesManager).has(type)) {
+            return undefined as Result;
+        }
+
+        // Close before deleting so close-time env.get(type) still resolves; finally guarantees cleanup
+        // even if close rejects.
+        return MaybePromise.finally(
+            () => (instance as Partial<Destructable>).close?.(),
+            () => this.delete(type, instance),
+        ) as MaybePromise<void> as Result;
     }
 
     /**
