@@ -26,7 +26,7 @@ export class DnssdParameters implements ReadonlyMap<string, string> {
     }
 
     /**
-     * The original bytes for {@link key}, or `undefined` if absent.
+     * The original bytes for the given key, or `undefined` if absent.
      */
     raw(key: string): Bytes | undefined {
         return this.#raw.get(key);
