@@ -77,13 +77,18 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
                 }
                 for (const entry of record.value as Bytes[]) {
                     const bytes = Bytes.of(entry);
+                    // RFC 6763 §6.5: receivers MUST silently ignore zero-length TXT entries.
+                    if (bytes.byteLength === 0) {
+                        continue;
+                    }
                     // 0x3D is '=' — RFC 6763 §6.4 splits each TXT entry on the first '=' byte; subsequent '=' bytes (e.g. base64 padding) belong to the value.
                     const eqIndex = bytes.indexOf(0x3d);
-                    if (eqIndex === -1) {
-                        raw.set(Bytes.toString(bytes), new Uint8Array(0));
-                    } else {
-                        raw.set(Bytes.toString(bytes.subarray(0, eqIndex)), bytes.subarray(eqIndex + 1));
+                    const key = eqIndex === -1 ? Bytes.toString(bytes) : Bytes.toString(bytes.subarray(0, eqIndex));
+                    // RFC 6763 §6.4: if the same key appears more than once, the first occurrence wins.
+                    if (raw.has(key)) {
+                        continue;
                     }
+                    raw.set(key, eqIndex === -1 ? new Uint8Array(0) : bytes.subarray(eqIndex + 1));
                 }
             }
             this.#parameters = new DnssdParameters(raw);

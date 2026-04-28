@@ -763,6 +763,91 @@ describe("DnssdNames", () => {
 
             expect(parameters.get("SII")).equal("5000");
         });
+
+        it("first-wins on duplicate keys per RFC 6763 §6.4", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: [Bytes.fromString("foo=first"), Bytes.fromString("foo=second")],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            expect(client.names.get(qname).parameters.get("foo")).equal("first");
+        });
+
+        it("ignores zero-length TXT entries per RFC 6763 §6.5", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: [new Uint8Array(0), Bytes.fromString("real=value")],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            const parameters = client.names.get(qname).parameters;
+            expect(parameters.size).equal(1);
+            expect(parameters.has("")).false;
+            expect(parameters.get("real")).equal("value");
+        });
     });
 
     describe("coalesced discovery", () => {
