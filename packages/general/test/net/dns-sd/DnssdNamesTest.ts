@@ -55,7 +55,7 @@ describe("DnssdNames", () => {
                 recordClass: 1,
                 recordType: 16,
                 ttl: 3600000,
-                value: ["flag", "foo=bar"],
+                value: ["foo=bar", "flag"],
             },
         ]);
 
@@ -573,6 +573,145 @@ describe("DnssdNames", () => {
                 r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
             );
             expect(ips.length).equals(0);
+        });
+    });
+
+    describe("TXT parameters", () => {
+        it("recomputes parameters when a TXT record is removed", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            // Include an SRV so the name survives when the TXT is later goodbye'd
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: ["a=1", "b=2"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([
+                ["a", "1"],
+                ["b", "2"],
+            ]);
+
+            // Past goodbye-protection window so the deleteRecord is honoured
+            await MockTime.advance(Seconds(2));
+
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: ["a=1", "b=2"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([]);
+        });
+
+        it("drops keys absent from a replacement TXT record", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: ["a=1", "b=2"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([
+                ["a", "1"],
+                ["b", "2"],
+            ]);
+
+            // Past goodbye-protection window
+            await MockTime.advance(Seconds(2));
+
+            // Goodbye the original TXT, then send a new TXT that omits key "a"
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: ["a=1", "b=2"],
+                    },
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: ["b=3"],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([["b", "3"]]);
         });
     });
 

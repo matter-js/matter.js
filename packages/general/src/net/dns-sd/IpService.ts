@@ -95,7 +95,7 @@ export class IpService {
     /**
      * Values from TXT records.
      */
-    get parameters() {
+    get parameters(): ReadonlyMap<string, string> {
         return this.#name.parameters;
     }
 

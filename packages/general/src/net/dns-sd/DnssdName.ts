@@ -66,9 +66,22 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return this.#records.values();
     }
 
-    get parameters() {
+    get parameters(): ReadonlyMap<string, string> {
         if (this.#parameters === undefined) {
-            this.#parameters = new Map();
+            const parameters = (this.#parameters = new Map<string, string>());
+            for (const record of this.#records.values()) {
+                if (record.recordType !== DnsRecordType.TXT) {
+                    continue;
+                }
+                for (const entry of record.value as string[]) {
+                    const pos = entry.indexOf("=");
+                    if (pos === -1) {
+                        parameters.set(entry, "");
+                    } else {
+                        parameters.set(entry.slice(0, pos), entry.slice(pos + 1));
+                    }
+                }
+            }
         }
         return this.#parameters;
     }
@@ -78,19 +91,6 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     }
 
     installRecord(record: DnsRecord<any>, options?: DnssdName.InstallOptions) {
-        // For TXT records, extract the standard DNS-SD k/v's
-        if (record.recordType === DnsRecordType.TXT) {
-            const entries = record.value;
-            for (const entry of entries) {
-                const pos = entry.indexOf("=");
-                if (pos === -1) {
-                    this.parameters.set(entry, "");
-                } else {
-                    this.parameters.set(entry.slice(0, pos), entry.slice(pos + 1));
-                }
-            }
-        }
-
         const key = keyOf(record);
         if (key === undefined) {
             this.#deleteIfUnused();
@@ -116,6 +116,10 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         } as DnssdName.Record;
 
         this.#records.set(key, recordWithExpire);
+
+        if (record.recordType === DnsRecordType.TXT) {
+            this.#parameters = undefined;
+        }
 
         this.#context.registerForExpiration(recordWithExpire);
 
@@ -150,6 +154,10 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         this.#records.delete(key);
         this.#recordCount--;
+
+        if (record.recordType === DnsRecordType.TXT) {
+            this.#parameters = undefined;
+        }
 
         const dependency = this.#dependencies?.get(key);
         if (dependency) {
@@ -251,7 +259,8 @@ function keyOf(record: DnsRecord): string | undefined {
 
         case DnsRecordType.TXT:
             if (Array.isArray(record.value)) {
-                return `${record.recordType} ${record.value.sort().join(" ")}`;
+                // Spread before sort: keyOf must not mutate record.value (parameters recompute relies on wire order)
+                return `${record.recordType} ${[...record.value].sort().join(" ")}`;
             }
             break;
     }
