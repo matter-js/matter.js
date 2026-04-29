@@ -47,10 +47,14 @@ export class DataModelPath implements Diagnostic {
         return [this.id];
     }
 
-    get [Diagnostic.value](): Diagnostic {
+    get [Diagnostic.presentation](): Diagnostic.Presentation {
+        return "squash";
+    }
+
+    get [Diagnostic.value](): unknown {
         const result = Array<unknown>();
         this.#appendDiagnostic(result);
-        return Diagnostic.squash(result);
+        return result;
     }
 
     #appendDiagnostic(result: unknown[]) {
