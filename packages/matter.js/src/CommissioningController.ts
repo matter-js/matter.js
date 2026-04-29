@@ -44,6 +44,7 @@ import {
     DiscoveryData,
     Fabric,
     FabricGroups,
+    FabricLabelConflictError,
     NodeSession,
     PeerSet,
     SecureSession,
@@ -56,10 +57,12 @@ import {
     FabricId,
     FabricIndex,
     NodeId,
+    StatusResponseError,
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -920,10 +923,20 @@ export class CommissioningController {
                 this.fabric.addressOf(nodeId),
                 `Fabric label "${fabric.label}" does not match requested admin fabric Label "${label}". Updating...`,
             );
-            await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
-                label,
-                fabricIndex: fabric.fabricIndex,
-            });
+            try {
+                await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
+                    label,
+                    fabricIndex: fabric.fabricIndex,
+                });
+            } catch (error) {
+                const sre = StatusResponseError.of(error);
+                if (sre?.clusterCode === OperationalCredentials.NodeOperationalCertStatus.LabelConflict) {
+                    throw new FabricLabelConflictError(
+                        `Cannot set fabric label to "${label}" because another fabric on this device already uses this name. Please adjust fabric labels to be unique.`,
+                    );
+                }
+                throw error;
+            }
         }
     }
 

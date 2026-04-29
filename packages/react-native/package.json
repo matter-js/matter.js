@@ -40,7 +40,7 @@
         "@types/node": "^25.6.0",
         "react-native-ble-plx": "^3.5.1",
         "react-native-polyfill-globals": "^3.1.0",
-        "react-native-quick-crypto": "^1.0.19",
+        "react-native-quick-crypto": "^1.1.0",
         "react-native-tcp-socket": "^6.2.0",
         "react-native-udp": "^4.1.7"
     },

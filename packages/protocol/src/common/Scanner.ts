@@ -58,7 +58,7 @@ export type DiscoveryData = {
     ICD?: number;
 };
 
-export function DiscoveryData(kvs: Map<string, string>) {
+export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
     const dd: DiscoveryData = {};
 
     for (const key of kvs.keys()) {
