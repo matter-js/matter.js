@@ -5,6 +5,7 @@
  */
 
 import { ExpandedPath } from "#common/ExpandedPath.js";
+import { Diagnostic, LogFormat } from "@matter/general";
 import { AttributeId, ClusterId, CommandId, EndpointNumber, EventId } from "@matter/types";
 
 describe("ExpandedPath", () => {
@@ -110,6 +111,24 @@ describe("ExpandedPath", () => {
             });
 
             expect(path.toString()).equal("0.onOff.on");
+        });
+    });
+
+    describe("Diagnostic rendering", () => {
+        // Ensures DataModelPath emitted by ExpandedPath renders properly when wrapped in Diagnostic helpers
+        // (i.e. not as "{}" — see https://github.com/matter-js/matter.js/pull/3664)
+        it("renders attribute path inline via plaintext formatter", () => {
+            const path = ExpandedPath({
+                path: {
+                    endpointId: EndpointNumber(0),
+                    clusterId: ClusterId(0x6),
+                    attributeId: AttributeId(0x0),
+                },
+            });
+
+            const text = LogFormat.formats.plain(Diagnostic.message({ values: [Diagnostic.strong(path), " = true"] }));
+
+            expect(text).contains("0.onOff.state.onOff = true");
         });
     });
 });
