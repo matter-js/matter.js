@@ -22,7 +22,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Breaking: Blob/File-related storage methods were removed from the normal Storage implementation
+    - Breaking: `DnsCodec.decodeTxtRecord`/`encodeTxtRecord` and the `TxtRecord` factory now operate on `Bytes[]` per RFC 6763 §6 so binary TXT values (e.g. Thread MeshCoP `xa`, `xp`, `at`, `pt`, `sb`, `dd`) survive encode/decode losslessly; `encodeTxtRecord` and `TxtRecord` accept `(Bytes | string)[]` so ASCII-only senders are unchanged
     - Feature: Added a new `wal`-based storage engine (not yet the default) to optimize persistence
+    - Feature: `DnssdName.parameters` and `IpService.parameters` now return a `DnssdParameters` instance — a `ReadonlyMap<string, string>` plus a `.raw(key): Bytes` accessor for binary TXT consumers (e.g. Thread Border Router enrichment)
     - Enhancement: Added locking to storage implementations to prevent concurrent access issues and data corruption
     - Enhancement: Split out Blob-Storage into its own `dir`-based BlobStorage implementation
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines

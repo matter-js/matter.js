@@ -6,6 +6,7 @@
 
 export * from "./DnssdName.js";
 export * from "./DnssdNames.js";
+export * from "./DnssdParameters.js";
 export * from "./DnssdSolicitor.js";
 export * from "./IpService.js";
 export * from "./IpServiceResolution.js";

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { camelize } from "@matter/general";
+import { DataModelPath } from "@matter/model";
 import type { ClusterId, CommandId } from "@matter/types";
 import { ClusterType, EndpointNumber, Global, TlvSchema } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
@@ -197,16 +199,12 @@ export namespace Specifier {
     }
 }
 
-export function toWildcardOrHexPath(name: string, value: number | bigint | undefined) {
-    if (value === undefined) {
-        return "*";
-    }
-    return `${name ? `${name}:` : ""}0x${value.toString(16)}`;
-}
-
 /**
- * Resolve a path into a human readable textual form for logging
- * TODO: Add a Diagnostic display formatter for this
+ * Resolve a request-side specifier location into a {@link DataModelPath} for human-readable diagnostics.
+ *
+ * Mirrors the segment shape of {@link ExpandedPath} (state./events./markers) so client-side specifier paths and
+ * server-side wire paths render consistently. Element names fall back to camelized hex IDs when the element is
+ * unknown.
  */
 export function resolvePathForSpecifier<const C extends Specifier.ClusterLike>(location: {
     endpoint?: Specifier.Endpoint;
@@ -216,42 +214,48 @@ export function resolvePathForSpecifier<const C extends Specifier.ClusterLike>(l
     command?: Specifier.Command<Specifier.ClusterFor<C>>;
     isUrgent?: boolean;
     listIndex?: number | null;
-}) {
+}): DataModelPath {
     const endpointId = Specifier.endpointIdOf(location);
     const cluster = location.cluster ? Specifier.clusterFor(location.cluster) : undefined;
-    const attribute = location.attribute && cluster ? Specifier.attributeFor(cluster, location.attribute) : undefined;
-    const event = location.event && cluster ? Specifier.eventFor(cluster, location.event) : undefined;
-    const command = location.command && cluster ? Specifier.commandFor(cluster, location.command) : undefined;
-    const isUrgentString = "isUrgent" in location && location.isUrgent ? "!" : "";
-    const listIndexString = "listIndex" in location && location.listIndex === null ? "[ADD]" : "";
-    const postString = `${listIndexString}${isUrgentString}`;
 
-    const clusterId = cluster?.id;
-    const elementId = attribute ? attribute.id : event ? event.id : command ? command.id : undefined;
+    let dmPath = new DataModelPath(endpointId ?? "*", "endpoint");
+    dmPath = dmPath.at(cluster ? camelize(cluster.name) : "*", "cluster");
 
-    if (endpointId === undefined) {
-        return `*.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
-    }
-
-    const endpointName = toWildcardOrHexPath("", endpointId);
-
-    if (cluster === undefined || clusterId === undefined) {
-        return `${endpointName}.*.${toWildcardOrHexPath("", elementId)}${postString}`;
-    }
-
-    const clusterName = toWildcardOrHexPath(cluster.name, clusterId);
-
-    if (elementId !== undefined) {
-        if (event) {
-            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(typeof location.event === "string" ? location.event : "?", elementId)}${postString}`;
-        } else if (attribute) {
-            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(typeof location.attribute === "string" ? location.attribute : "?", elementId)}${postString}`;
-        } else if (command) {
-            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(typeof location.command === "string" ? location.command : "?", elementId)}${postString}`;
-        } else {
-            return "unknown";
+    if (location.attribute !== undefined) {
+        const name = nameForElement(location.attribute, cluster && Specifier.attributeFor(cluster, location.attribute));
+        dmPath = dmPath.at("state").at(name);
+        if (location.listIndex === null) {
+            dmPath = dmPath.at("[ADD]", "marker");
         }
-    } else {
-        return `${endpointName}.${clusterName}.*${postString}`;
+        return dmPath;
+    }
+
+    if (location.event !== undefined) {
+        const name = nameForElement(location.event, cluster && Specifier.eventFor(cluster, location.event));
+        dmPath = dmPath.at("events").at(name);
+        if (location.isUrgent) {
+            dmPath = dmPath.at("!", "marker");
+        }
+        return dmPath;
+    }
+
+    if (location.command !== undefined) {
+        const name = nameForElement(location.command, cluster && Specifier.commandFor(cluster, location.command));
+        return dmPath.at(name);
+    }
+
+    return dmPath.at("*", "element");
+
+    function nameForElement(specifier: string | object, resolved: { id?: number; name?: string } | undefined) {
+        if (typeof specifier === "string") {
+            return camelize(specifier);
+        }
+        if (resolved?.name !== undefined) {
+            return camelize(resolved.name);
+        }
+        if (resolved?.id !== undefined) {
+            return `0x${resolved.id.toString(16)}`;
+        }
+        return "?";
     }
 }

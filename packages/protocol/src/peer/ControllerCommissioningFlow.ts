@@ -635,11 +635,14 @@ export class ControllerCommissioningFlow {
                 throw new MaximumCommissionedFabricsReachedError(
                     `Commission error: This device reached the maximum number of fabrics it can be part of. Please remove a fabric before trying to add another one.`,
                 );
-            } else if (statusCode === OperationalCredentials.NodeOperationalCertStatus.LabelConflict) {
-                throw new FabricLabelConflictError(
-                    `Commission error: This device is already commissioned with a fabric with the same label. Please choose a different label.`,
-                );
             }
+        } else if (
+            context === "updateFabricLabel" &&
+            statusCode === OperationalCredentials.NodeOperationalCertStatus.LabelConflict
+        ) {
+            throw new FabricLabelConflictError(
+                `Cannot set fabric label to "${this.fabric.label}" because another fabric on this device already uses this name. Please adjust fabric labels to be unique.`,
+            );
         }
         throw new CommissioningError(
             `Commission error for "${context}": ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode}), ${debugText}${
@@ -1370,7 +1373,6 @@ export class ControllerCommissioningFlow {
                 }),
             );
         } catch (error) {
-            // convert error
             throw repackErrorAs(error, RecoverableCommissioningError);
         }
 

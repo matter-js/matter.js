@@ -14,6 +14,7 @@ import { Abort } from "#util/Abort.js";
 import { AsyncObservable, AsyncObservableValue, ObserverGroup } from "#util/Observable.js";
 import { DnssdName } from "./DnssdName.js";
 import { DnssdNames } from "./DnssdNames.js";
+import { DnssdParameters } from "./DnssdParameters.js";
 import { IpServiceStatus } from "./IpServiceStatus.js";
 
 /**
@@ -95,7 +96,7 @@ export class IpService {
     /**
      * Values from TXT records.
      */
-    get parameters() {
+    get parameters(): DnssdParameters {
         return this.#name.parameters;
     }
 
