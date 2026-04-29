@@ -582,6 +582,7 @@ export class ControllerCommissioner {
                 const peer = this.#context.peers.for(address);
                 peer.descriptor.discoveryData = discoveryData;
                 await peer.connect({
+                    // 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
                     connectionTimeout: Seconds(255),
                     timing: caseConnectionTiming,
 
