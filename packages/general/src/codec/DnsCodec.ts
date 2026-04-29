@@ -59,14 +59,21 @@ export const AAAARecord = (
     recordClass: DnsRecordClass.IN,
     flushCache,
 });
+
+/**
+ * Build a TXT {@link DnsRecord} (RFC 6763 §6).
+ *
+ * Accepts `(Bytes | string)[]` for ergonomic ASCII senders; entries are normalized to {@link Bytes} before storage so
+ * downstream consumers always see the spec-correct binary shape.
+ */
 export const TxtRecord = (
     name: string,
-    entries: string[],
+    entries: (Bytes | string)[],
     ttl = DEFAULT_MDNS_TTL,
     flushCache = false,
-): DnsRecord<string[]> => ({
+): DnsRecord<Bytes[]> => ({
     name,
-    value: entries,
+    value: entries.map(e => (typeof e === "string" ? Bytes.fromString(e) : Bytes.of(e))),
     ttl,
     recordType: DnsRecordType.TXT,
     recordClass: DnsRecordClass.IN,
@@ -312,13 +319,14 @@ export class DnsCodec {
         return { priority, weight, port, target };
     }
 
-    static decodeTxtRecord(valueBytes: Bytes): string[] {
+    static decodeTxtRecord(valueBytes: Bytes): Bytes[] {
         const reader = new DataReader(valueBytes);
-        const result = new Array<string>();
+        const result = new Array<Bytes>();
         let bytesRead = 0;
         while (bytesRead < valueBytes.byteLength) {
             const length = reader.readUInt8();
-            result.push(reader.readUtf8String(length));
+            // readByteArray returns a view; copy so retained entries don't alias the source buffer.
+            result.push(reader.readByteArray(length).slice());
             bytesRead += length + 1;
         }
         return result;
@@ -410,7 +418,7 @@ export class DnsCodec {
             case DnsRecordType.SRV:
                 return this.encodeSrvRecord(value as SrvRecordValue);
             case DnsRecordType.TXT:
-                return this.encodeTxtRecord(value as string[]);
+                return this.encodeTxtRecord(value as (Bytes | string)[]);
             case DnsRecordType.AAAA:
                 return this.encodeAaaaRecord(value as string);
             case DnsRecordType.A:
@@ -431,12 +439,26 @@ export class DnsCodec {
         return ipv6ToBytes(ip);
     }
 
-    static encodeTxtRecord(entries: string[]) {
+    /**
+     * Encode TXT record entries (RFC 6763 §6).
+     *
+     * Accepts `(Bytes | string)[]` for ergonomic ASCII senders; the `string` arm exists to spare callers a per-entry
+     * `Bytes.fromString` wrap.
+     */
+    static encodeTxtRecord(entries: (Bytes | string)[]) {
         const writer = new DataWriter();
         entries.forEach(entry => {
-            const entryData = Bytes.fromString(entry);
-            writer.writeUInt8(entryData.byteLength);
-            writer.writeByteArray(entryData);
+            let bytes = typeof entry === "string" ? Bytes.fromString(entry) : Bytes.of(entry);
+            if (bytes.byteLength > 0xff) {
+                // RFC 6763 §6.1: TXT entries are length-prefixed by a single octet — silently wrapping the length
+                // byte produces garbage on the wire, so warn loudly and truncate to the spec limit.
+                logger.warn(
+                    `TXT record entry length ${bytes.byteLength} exceeds the RFC 6763 §6.1 limit of 255 bytes; truncating.`,
+                );
+                bytes = Bytes.of(bytes).subarray(0, 0xff);
+            }
+            writer.writeUInt8(bytes.byteLength);
+            writer.writeByteArray(bytes);
         });
         return writer.toByteArray();
     }

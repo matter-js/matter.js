@@ -1781,7 +1781,7 @@ describe("InteractionProtocol", () => {
                     messenger,
                     interaction.BarelyMockedMessage,
                 ),
-            ).rejectedWith("Duplicate concrete command path RootNode:0x0.OnOff:0x6.on:0x1 on batch invoke");
+            ).rejectedWith("Duplicate concrete command path 0.onOff.on on batch invoke");
         });
 
         it("handles StatusResponseError gracefully", async () => {
