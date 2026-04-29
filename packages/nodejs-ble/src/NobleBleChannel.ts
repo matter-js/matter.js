@@ -502,9 +502,13 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, async () => {
             characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
 
-            await characteristicC2ForSubscribe
-                .unsubscribeAsync()
-                .catch(error => logger.error(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error));
+            if (peripheral.state === "connected") {
+                await characteristicC2ForSubscribe.unsubscribeAsync().catch(error => {
+                    if (!isNobleDisconnectError(error)) {
+                        logger.error(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error);
+                    }
+                });
+            }
 
             logger.debug(
                 `Peripheral ${peripheralAddress}: Handshake Response not received. Disconnect from peripheral`,
@@ -560,14 +564,13 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             async () => {
                 if (peripheral.state !== "connected" || !nobleChannel.connected) return;
                 logger.debug(`Peripheral ${peripheralAddress}: Disconnect from peripheral because btp session closed`);
-                // Unsubscribe from C2 notifications, then disconnect.  If unsubscribe fails (e.g. the
-                // peripheral already started disconnecting and Noble's _withDisconnectHandler rejected the
-                // pending operation with "Disconnected unknown"), proceed to disconnectAsync anyway.
                 characteristicC2ForSubscribe
                     .unsubscribeAsync()
-                    .catch(error =>
-                        logger.debug(`Peripheral ${peripheralAddress}: Error while unsubscribing from C2`, error),
-                    )
+                    .catch(error => {
+                        if (!isNobleDisconnectError(error)) {
+                            logger.debug(`Peripheral ${peripheralAddress}: Error while unsubscribing from C2`, error);
+                        }
+                    })
                     .then(() => {
                         if (peripheral.state !== "connected") {
                             return;
@@ -663,11 +666,11 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         this.#cleanupDataListener();
         await this.btpSession.close();
         if (this.connected) {
-            this.peripheral
-                .disconnectAsync()
-                .catch(error =>
-                    logger.error(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error),
-                );
+            this.peripheral.disconnectAsync().catch(error => {
+                if (!isNobleDisconnectError(error)) {
+                    logger.error(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error);
+                }
+            });
         }
         this.emitClosed();
     }

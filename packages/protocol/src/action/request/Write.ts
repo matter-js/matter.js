@@ -61,6 +61,8 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         interactionModelRevision = Specification.INTERACTION_MODEL_REVISION,
     } = options;
 
+    let chunked = false;
+
     const result = {
         timedRequest: !!timed || !!timeout,
         timeout,
@@ -69,15 +71,24 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         suppressResponse,
         interactionModelRevision,
 
-        [Diagnostic.value]: () =>
-            Diagnostic.list(
-                data.map(entry => {
-                    const { version, value } = entry;
-                    return `${resolvePathForSpecifier(entry)} = ${Diagnostic.json(
-                        value,
-                    )}${version !== undefined ? `(version=${version})` : ""}`;
-                }),
-            ),
+        [Diagnostic.value]: () => {
+            const items = data.flatMap(entry => {
+                const { version, value, endpoint, cluster, attributes } = entry;
+                const valueString = Diagnostic.json(value);
+                const list = Array.isArray(attributes) ? attributes : [attributes];
+                const versionString = version !== undefined ? `(version=${version})` : "";
+                return list.map(attribute =>
+                    Diagnostic.squash(
+                        Diagnostic.strong(resolvePathForSpecifier({ endpoint, cluster, attribute })),
+                        ` = ${valueString}${versionString}`,
+                    ),
+                );
+            });
+            if (chunked) {
+                return [Diagnostic.asFlags({ chunked: true }), Diagnostic.list(items)];
+            }
+            return Diagnostic.list(items);
+        },
     } as Write;
 
     for (const entry of data) {
@@ -132,6 +143,7 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
                 tlv instanceof ArraySchema &&
                 !isAclOrExtensionPath({ clusterId, attributeId })
             ) {
+                chunked = true;
                 writeRequests.push(
                     ...tlv
                         .encodeAsChunkedArray(value, { forWriteInteraction: true })

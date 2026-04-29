@@ -40,7 +40,6 @@ import {
     Logger,
     MaybePromise,
     Millis,
-    Minutes,
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
@@ -583,7 +582,8 @@ export class ControllerCommissioner {
                 const peer = this.#context.peers.for(address);
                 peer.descriptor.discoveryData = discoveryData;
                 await peer.connect({
-                    connectionTimeout: Minutes(4),
+                    // 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
+                    connectionTimeout: Seconds(255),
                     timing: caseConnectionTiming,
 
                     handleError: error => {

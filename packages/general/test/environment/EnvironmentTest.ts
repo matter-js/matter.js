@@ -100,6 +100,92 @@ describe("Environment", () => {
         });
     });
 
+    describe("close() ordering", () => {
+        it("keeps service resolvable inside its own sync close", () => {
+            let resolvedDuringClose: SelfRefService | undefined;
+
+            class SelfRefService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(SelfRefService);
+                }
+                constructor(public env: Environment) {}
+                close() {
+                    resolvedDuringClose = this.env.get(SelfRefService);
+                }
+            }
+
+            const svc = new SelfRefService(env);
+            env.set(SelfRefService, svc);
+
+            env.close(SelfRefService);
+
+            expect(resolvedDuringClose).to.equal(svc);
+            expect(env.has(SelfRefService)).to.be.false;
+        });
+
+        it("keeps service resolvable inside its own async close", async () => {
+            let resolvedDuringClose: AsyncSelfRefService | undefined;
+
+            class AsyncSelfRefService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(AsyncSelfRefService);
+                }
+                constructor(public env: Environment) {}
+                async close() {
+                    await Promise.resolve();
+                    resolvedDuringClose = this.env.get(AsyncSelfRefService);
+                }
+            }
+
+            const svc = new AsyncSelfRefService(env);
+            env.set(AsyncSelfRefService, svc);
+
+            await env.close(AsyncSelfRefService);
+
+            expect(resolvedDuringClose).to.equal(svc);
+            expect(env.has(AsyncSelfRefService)).to.be.false;
+        });
+
+        it("removes service from env even when sync close throws", () => {
+            class ThrowingService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(ThrowingService);
+                }
+                close() {
+                    throw new Error("close failed");
+                }
+            }
+
+            env.set(ThrowingService, new ThrowingService());
+
+            expect(() => env.close(ThrowingService)).to.throw("close failed");
+            expect(env.has(ThrowingService)).to.be.false;
+        });
+
+        it("removes service from env even when async close rejects", async () => {
+            class RejectingService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(RejectingService);
+                }
+                async close() {
+                    throw new Error("close rejected");
+                }
+            }
+
+            env.set(RejectingService, new RejectingService());
+
+            let error: Error | undefined;
+            try {
+                await env.close(RejectingService);
+            } catch (e) {
+                error = e as Error;
+            }
+
+            expect(error?.message).to.equal("close rejected");
+            expect(env.has(RejectingService)).to.be.false;
+        });
+    });
+
     describe("dependent tracking", () => {
         let dependent1: SharedEnvironmentServices;
         let dependent2: SharedEnvironmentServices;
