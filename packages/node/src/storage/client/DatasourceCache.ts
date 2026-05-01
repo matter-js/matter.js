@@ -5,7 +5,7 @@
  */
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { InternalError, isDeepEqual, StorageDriver, Transaction } from "@matter/general";
+import { InternalError, StorageDriver, Transaction } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
@@ -86,7 +86,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             if (!(id in previousValues)) {
                 continue;
             }
-            if (!isDeepEqual(current[id], writtenValues[id])) {
+            // Datasource keeps user values by reference; integrateExternalChange only replaces the
+            // reference when a subscription actually changed the value, so a different ref here means
+            // a real concurrent update arrived.
+            if (current[id] !== writtenValues[id]) {
                 continue;
             }
             restore.set(id, previousValues[id]);
