@@ -726,6 +726,95 @@ describe("ClientNode", () => {
         });
     });
 
+    describe("rolls local cache back when a remote write is declined", () => {
+        // After a declined remote write, the local cache must NOT keep the value the user attempted to
+        // write.  Compensation restores the pre-write value via the same path subscription updates
+        // use, so the client mirror stays consistent with the server.
+
+        const PartialDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels);
+        const FullDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels, DecliningIdentify);
+
+        async function setup(deviceType: typeof PartialDeclineDevice | typeof FullDeclineDevice) {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: deviceType,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        async function readClientCurrentSensitivityLevel(ep1Client: Endpoint) {
+            let value: number | undefined;
+            await ep1Client.act(agent => {
+                value = agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel;
+            });
+            return value;
+        }
+
+        async function readClientIdentifyTime(ep1Client: Endpoint) {
+            let value: number | undefined;
+            await ep1Client.act(agent => {
+                value = agent.get(IdentifyClient).state.identifyTime;
+            });
+            return value;
+        }
+
+        it("restores the pre-write value when the only write is declined", async () => {
+            const { site, ep1Client } = await setup(PartialDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 1 }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
+        });
+
+        it("restores only the declined attribute when one of two writes is declined", async () => {
+            const { site, ep1Client, ep1Server } = await setup(PartialDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            // Declined: client and server both back at 0
+            expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+            // Accepted: client and server both at 5
+            expect(await readClientIdentifyTime(ep1Client)).equals(5);
+            expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(5);
+        });
+
+        it("restores both attributes when both writes are declined", async () => {
+            const { site, ep1Client } = await setup(FullDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(MatterAggregateError);
+            expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
+            expect(await readClientIdentifyTime(ep1Client)).equals(0);
+        });
+    });
+
     it("emits Matter events", async () => {
         // *** SETUP ***
 

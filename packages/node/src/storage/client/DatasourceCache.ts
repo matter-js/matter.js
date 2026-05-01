@@ -5,7 +5,7 @@
  */
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { InternalError, StorageDriver, Transaction } from "@matter/general";
+import { InternalError, isDeepEqual, StorageDriver, Transaction } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
@@ -18,7 +18,7 @@ import type { RemoteWriter } from "./RemoteWriter.js";
  *
  * This implements storage for attribute values for a single cluster loaded from peers.
  */
-export class DatasourceCache implements Datasource.ExternallyMutableStore {
+export class DatasourceCache implements Datasource.ExternallyMutableStore, RemoteWriteParticipant.Compensator {
     #writer: RemoteWriter;
     #endpointNumber: EndpointNumber;
     #behaviorId: string;
@@ -61,7 +61,40 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
             participant = new RemoteWriteParticipant(this.#writer);
             transaction.addParticipants(participant);
         }
-        (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values);
+        const previousValues = this.#consumer?.readValues(new Set(Object.keys(values))) ?? {};
+        (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values, {
+            compensator: this,
+            previousValues,
+        });
+    }
+
+    /**
+     * Restores local cache values whose remote write was declined.
+     *
+     * Only restores keys that:
+     *   - had a captured pre-write value (skip if the snapshot doesn't know the prior state), AND
+     *   - still hold the value we attempted to write (skip if a concurrent subscription update already moved on).
+     */
+    async compensate(failedAttributeIds: Set<string>, previousValues: Val.Struct, writtenValues: Val.Struct) {
+        if (this.#erased || this.#reclaimed || !this.#consumer) {
+            return;
+        }
+
+        const restore = new Map<string, Val>();
+        const current = this.#consumer.readValues(failedAttributeIds);
+        for (const id of failedAttributeIds) {
+            if (!(id in previousValues)) {
+                continue;
+            }
+            if (!isDeepEqual(current[id], writtenValues[id])) {
+                continue;
+            }
+            restore.set(id, previousValues[id]);
+        }
+
+        if (restore.size) {
+            await this.externalSet(restore);
+        }
     }
 
     async externalSet(values: Val.StructMap) {
