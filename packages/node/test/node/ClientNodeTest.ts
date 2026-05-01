@@ -13,7 +13,7 @@ import {
     BooleanStateConfigurationClient,
     BooleanStateConfigurationServer,
 } from "#behaviors/boolean-state-configuration";
-import { IdentifyClient } from "#behaviors/identify";
+import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
 import { ContactSensorDevice } from "#devices/contact-sensor";
@@ -29,6 +29,7 @@ import {
     Crypto,
     deepCopy,
     Entropy,
+    MatterAggregateError,
     Minutes,
     MockCrypto,
     Observable,
@@ -38,7 +39,7 @@ import {
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
-import { FabricIndex } from "@matter/types";
+import { FabricIndex, Status, StatusResponseError } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
@@ -533,6 +534,195 @@ describe("ClientNode", () => {
             );
 
             expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
+    });
+
+    class DecliningBsc extends BooleanStateConfigurationServer.with("SensitivityLevel") {
+        override initialize() {
+            super.initialize();
+            this.reactTo(this.events.currentSensitivityLevel$Changing, () => {
+                throw new StatusResponseError("currentSensitivityLevel write declined", Status.ConstraintError);
+            });
+        }
+    }
+
+    const DecliningBscWithLevels = DecliningBsc.set({
+        supportedSensitivityLevels: 3,
+        currentSensitivityLevel: 0,
+        defaultSensitivityLevel: 0,
+    });
+
+    class DecliningIdentify extends IdentifyServer {
+        override initialize() {
+            super.initialize();
+            this.reactTo(this.events.identifyTime$Changing, () => {
+                throw new StatusResponseError("identifyTime write declined", Status.ResourceExhausted);
+            });
+        }
+    }
+
+    async function captureRejection(write: () => unknown) {
+        let caught: unknown;
+        try {
+            await MockTime.resolve(Promise.resolve(write() as Promise<unknown>));
+        } catch (e) {
+            caught = e;
+        }
+        return caught;
+    }
+
+    describe("surfaces a server-side write rejection to the caller", () => {
+        // A server-side $Changing listener throws StatusResponseError so the remote write returns a
+        // failure status.  The client's setStateOf / agent.state / endpoint.set must reject with a
+        // StatusResponseError carrying the device's code, not the generic transaction
+        // FinalizationError that previously hid it.
+
+        const DecliningContactSensor = ContactSensorDevice.with(DecliningBscWithLevels);
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: DecliningContactSensor,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        it("via agent.state assignment", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+
+        it("via setStateOf", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 1 }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+
+        it("via endpoint.set", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const typedClient = ep1Client as Endpoint<typeof DecliningContactSensor>;
+            const caught = await captureRejection(() =>
+                typedClient.set({
+                    booleanStateConfiguration: { currentSensitivityLevel: 1 },
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+
+        it("via local ServerNode set surfaces the listener's StatusResponseError", async () => {
+            const { site, ep1Server } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Server.act(agent => {
+                    agent.get(DecliningBsc).state.currentSensitivityLevel = 1;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+    });
+
+    describe("aggregates multiple write rejections in one transaction", () => {
+        // Two writes in a single transaction, declined on the server via $Changing listeners on
+        // attributes from different clusters.  Verifies the caller's view:
+        //  - one of two declined: WriteResult throws a single PathError → caller sees a
+        //    StatusResponseError carrying that attribute's status code
+        //  - both declined: WriteResult throws a MatterAggregateError carrying both PathErrors
+
+        const PartialDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels);
+        const FullDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels, DecliningIdentify);
+
+        async function setup(deviceType: typeof PartialDeclineDevice | typeof FullDeclineDevice) {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: deviceType,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        it("when one of two writes is declined, surfaces only that rejection", async () => {
+            const { site, ep1Client, ep1Server } = await setup(PartialDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+
+            // The accepted write committed on the server; the rejected one did not.
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+            expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(5);
+        });
+
+        it("when both writes are declined, surfaces a MatterAggregateError with each per-attribute error", async () => {
+            const { site, ep1Client, ep1Server } = await setup(FullDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(MatterAggregateError);
+            const aggregate = caught as MatterAggregateError;
+            expect(aggregate.errors).lengthOf(2);
+            for (const inner of aggregate.errors) {
+                expect(inner).instanceOf(StatusResponseError);
+            }
+            const codes = (aggregate.errors as StatusResponseError[]).map(e => e.code);
+            expect(codes).contains(Status.ConstraintError);
+            expect(codes).contains(Status.ResourceExhausted);
+
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+            expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(0);
         });
     });
 
