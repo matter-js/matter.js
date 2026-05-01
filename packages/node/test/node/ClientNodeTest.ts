@@ -9,9 +9,14 @@ import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
+import {
+    BooleanStateConfigurationClient,
+    BooleanStateConfigurationServer,
+} from "#behaviors/boolean-state-configuration";
 import { IdentifyClient } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
+import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -463,6 +468,72 @@ describe("ClientNode", () => {
         const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
         expect(ep1Server.state.onOff.onTime).equals(20);
         expect(ep1Server.state.identify.identifyTime).equals(5);
+    });
+
+    describe("writes attribute whose constraint references a sibling attribute", () => {
+        // currentSensitivityLevel has constraint "max supportedSensitivityLevels - 1"; with
+        // supportedSensitivityLevels = 3, value 2 must be accepted via every client commit path.
+
+        const BscWithSensLevel = BooleanStateConfigurationServer.with("SensitivityLevel").set({
+            supportedSensitivityLevels: 3,
+            currentSensitivityLevel: 0,
+            defaultSensitivityLevel: 0,
+        });
+        const ContactSensorWithSensLevel = ContactSensorDevice.with(BscWithSensLevel);
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: ContactSensorWithSensLevel,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        it("via agent.state assignment", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            await MockTime.resolve(
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 2;
+                }),
+            );
+
+            expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
+
+        it("via setStateOf", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            await MockTime.resolve(
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 2 }),
+            );
+
+            expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
+
+        it("via endpoint.set", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const typedClient = ep1Client as Endpoint<typeof ContactSensorWithSensLevel>;
+            await MockTime.resolve(
+                typedClient.set({
+                    booleanStateConfiguration: { currentSensitivityLevel: 2 },
+                }),
+            );
+
+            expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
     });
 
     it("emits Matter events", async () => {

@@ -713,12 +713,17 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             const properties = (this.#values as Val.Dynamic)[Val.properties]
                 ? (this.#values as Val.Dynamic)[Val.properties](this.rootOwner, this.#session)
                 : undefined;
-            for (const index of this.#fields) {
-                if (properties && index in properties) {
+            // `#fields` only lists property names; client mirrors also store values at numeric attribute ids.
+            const keys = new Set<string>(this.#fields);
+            for (const key of Object.keys(old)) {
+                keys.add(key);
+            }
+            for (const key of keys) {
+                if (properties && key in properties) {
                     // Property is dynamic anyway, so do nothing
-                } else {
-                    this.#values[index] = old[index];
+                    continue;
                 }
+                this.#values[key] = old[key];
             }
 
             // Point subreferences to the clone
