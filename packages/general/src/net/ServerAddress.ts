@@ -76,12 +76,12 @@ export function ServerAddress(definition: ServerAddress) {
 export namespace ServerAddress {
     /** Type guard for IP-based addresses (with or without explicit transport type). */
     export function isIp(address: ServerAddress): address is ServerAddressIp {
-        return "ip" in address;
+        return (address as ServerAddressIp).ip !== undefined;
     }
 
     /** Type guard for BLE addresses. */
     export function isBle(address: ServerAddress): address is ServerAddressBle {
-        return "peripheralAddress" in address;
+        return (address as ServerAddressBle).peripheralAddress !== undefined;
     }
 
     /** Returns the transport protocol label for display — "udp", "tcp", or "ip" if unspecified. */
@@ -180,7 +180,7 @@ export namespace ServerAddress {
     }
 
     export function selectionPreferenceOf(address: ServerAddress) {
-        if (!("ip" in address)) {
+        if (!isIp(address)) {
             return SelectionPreference.NOT_IP;
         }
 

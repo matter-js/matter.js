@@ -595,11 +595,21 @@ export namespace CommissioningClient {
 
         constructor(address: NetworkAddress) {
             this.type = address.type;
-            this.ip = address.ip;
-            this.port = address.port;
-            this.peripheralAddress = address.peripheralAddress;
-            this.ttl = address.ttl;
-            this.discoveredAt = address.discoveredAt;
+            if (address.ip !== undefined) {
+                this.ip = address.ip;
+            }
+            if (address.port !== undefined) {
+                this.port = address.port;
+            }
+            if (address.peripheralAddress !== undefined) {
+                this.peripheralAddress = address.peripheralAddress;
+            }
+            if (address.ttl !== undefined) {
+                this.ttl = address.ttl;
+            }
+            if (address.discoveredAt !== undefined) {
+                this.discoveredAt = address.discoveredAt;
+            }
         }
     }
 
