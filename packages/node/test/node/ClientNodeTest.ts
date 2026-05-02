@@ -1362,6 +1362,28 @@ describe("ClientNode", () => {
             expect(address2.nodeId).not.equals(fabric.nodeId);
         });
     });
+
+    describe("peerAddress resilience", () => {
+        // Closing a ServerNode transitions ServerNodeStore.construction to "Closing" before the destructor releases
+        // child stores.  Pre-fix, peerAddress fell back to the storage layer via this.store, which would assert
+        // through to clientStores and throw [destroyed-dependency].  toString() (used in error message construction
+        // throughout Behaviors and Endpoint) then re-threw, masking the original cause.
+        it("peerAddress survives ServerNode shutdown via cache", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1).not.undefined;
+
+            const cachedAddress = peer1.peerAddress;
+            expect(cachedAddress).not.undefined;
+
+            await MockTime.resolve(controller.close(), { macrotasks: true });
+
+            expect(() => peer1.peerAddress).not.throws();
+            expect(peer1.peerAddress).deep.equals(cachedAddress);
+            expect(() => peer1.toString()).not.throws();
+        });
+    });
 });
 
 const GLOBAL_ATTRS = [0xfff8, 0xfff9, 0xfffb, 0xfffc, 0xfffd];
