@@ -39,7 +39,7 @@
         "@matter/model": "*",
         "@matter/node": "*",
         "@matter/protocol": "*",
-        "@nacho-iot/js-tools": "*",
+        "@nacho-iot/js-tools": "0.1.4",
         "@matter/types": "*",
         "@matter/nodejs": "*",
         "@types/escodegen": "^0.0.10",
