@@ -1028,10 +1028,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
                 continue;
             }
 
-            const backing = this.behaviors.backingFor(type);
-            const allowedNames = backing.elements?.attributes;
+            const elements = this.behaviors.elementsOf(type);
+            const allowedNames = elements.attributes;
             for (const name of raw) {
-                if (allowedNames !== undefined && !allowedNames.has(name)) {
+                if (!allowedNames.has(name)) {
                     throw new AttributeNotPresentError(id, name);
                 }
                 const attrId = attrNameToId.get(name);
