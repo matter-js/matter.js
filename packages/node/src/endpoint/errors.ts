@@ -5,7 +5,7 @@
  */
 
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
-import { describeList, MatterAggregateError, MatterError } from "@matter/general";
+import { describeList, ImplementationError, MatterAggregateError, MatterError } from "@matter/general";
 import type { ReadResult } from "@matter/protocol";
 import type { Status } from "@matter/types";
 import type { Endpoint } from "./Endpoint.js";
@@ -92,3 +92,8 @@ export class EndpointReadFailedError extends MatterError {
         this.partial = detail.partial;
     }
 }
+
+/**
+ * Thrown when a group-level operation is not supported.
+ */
+export class InvalidGroupOperationError extends ImplementationError {}

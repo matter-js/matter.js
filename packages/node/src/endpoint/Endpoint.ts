@@ -36,6 +36,7 @@ import {
     EndpointBehaviorNotPresentError,
     EndpointReadFailedError,
     EndpointReadFailure,
+    InvalidGroupOperationError,
 } from "./errors.js";
 import { Behaviors } from "./properties/Behaviors.js";
 import { Commands } from "./properties/Commands.js";
@@ -993,6 +994,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     ): Promise<unknown> {
         const selection = this.#resolveSelection(selector);
         const attributePaths = new Read.AttributePaths();
+        const clusterLookup = new Map<ClusterId, { behaviorId: string; attrs: Map<AttributeId, string> }>();
 
         for (const [id, raw] of selection) {
             const type = this.behaviors.supported[id]!;
@@ -1003,6 +1005,14 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             if (clusterId === undefined) {
                 continue;
             }
+
+            const attrs = new Map<AttributeId, string>();
+            for (const attr of schema.attributes) {
+                if (attr.id !== undefined && attr.propertyName !== undefined) {
+                    attrs.set(attr.id as AttributeId, attr.propertyName);
+                }
+            }
+            clusterLookup.set(clusterId, { behaviorId: id, attrs });
 
             if (raw === true) {
                 attributePaths.add({ endpointId, clusterId });
@@ -1034,6 +1044,49 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         const node = nodeEndpoint as unknown as Node<any>;
         const failed = new Array<EndpointReadFailure>();
 
+        if (node.nodeType === "group") {
+            throw new InvalidGroupOperationError("Groups do not support reading attributes");
+        }
+
+        if (node.nodeType === "client") {
+            const fabricFilter = options?.fabricFilter ?? true;
+            const baseRequest = Read({ attributes: [...attributePaths.paths], fabricFilter });
+            const request = options?.includeKnownVersions ? { ...baseRequest, includeKnownVersions: true } : baseRequest;
+            const readValues = new Map<string, Map<string, unknown>>();
+            for await (const chunk of node.interaction.read(request, undefined)) {
+                for (const report of chunk) {
+                    if (report.kind === "attr-value") {
+                        const info = clusterLookup.get(report.path.clusterId);
+                        if (info !== undefined) {
+                            const propName = info.attrs.get(report.path.attributeId);
+                            if (propName !== undefined) {
+                                let values = readValues.get(info.behaviorId);
+                                if (values === undefined) {
+                                    values = new Map();
+                                    readValues.set(info.behaviorId, values);
+                                }
+                                values.set(propName, report.value);
+                            }
+                        }
+                    } else if (report.kind === "attr-status" && report.status !== Status.Success) {
+                        failed.push({ path: report.path, status: report.status, clusterStatus: report.clusterStatus });
+                    }
+                }
+            }
+            // State view as base; received values overwrite (handles empty response from version-filter match)
+            const stateSlice = this.#assembleSlice(selection) as Record<string, Record<string, unknown> | undefined>;
+            const partial: Record<string, unknown> = {};
+            for (const [id] of selection) {
+                const stateValues = stateSlice[id] ?? {};
+                const freshValues = readValues.get(id);
+                partial[id] = freshValues?.size ? { ...stateValues, ...Object.fromEntries(freshValues) } : stateValues;
+            }
+            if (failed.length > 0) {
+                throw new EndpointReadFailedError({ failed, partial });
+            }
+            return partial;
+        }
+
         const collectFailures = async (stream: ReturnType<typeof node.interaction.read>) => {
             for await (const chunk of stream) {
                 for (const report of chunk) {
@@ -1044,22 +1097,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             }
         };
 
-        if (node.nodeType === "group") {
-            throw new ImplementationError("Groups do not support reading attributes");
-        }
-
-        if (node.nodeType === "client") {
-            const request = Read({
-                attributes: [...attributePaths.paths],
-                fabricFilter: options?.fabricFilter ?? true,
-            });
-            await collectFailures(node.interaction.read(request, undefined));
-        } else {
-            const request = Read({ attributes: [...attributePaths.paths], fabricFilter: false });
-            await LocalActorContext.act("endpoint-get", context =>
-                collectFailures(node.interaction.read(request, context)),
-            );
-        }
+        const request = Read({ attributes: [...attributePaths.paths], fabricFilter: false });
+        await LocalActorContext.act("endpoint-get", context =>
+            collectFailures(node.interaction.read(request, context)),
+        );
 
         const partial = this.#assembleSlice(selection);
         if (failed.length > 0) {
@@ -1219,6 +1260,12 @@ export namespace Endpoint {
          * When `false`, the underlying Matter Read is not fabric-filtered. Defaults to `true`.
          */
         fabricFilter?: boolean;
+
+        /**
+         * When `true`, skips automatic data-version filter injection so the server returns all attribute values
+         * regardless of whether they have changed since the last read or subscription. Defaults to `false`.
+         */
+        includeKnownVersions?: boolean;
     }
 
     /**

@@ -5,7 +5,7 @@
  */
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
-import { ImplementationError } from "@matter/general";
+import { InvalidGroupOperationError } from "#endpoint/errors.js";
 import {
     ClientInvoke,
     ClientSubscription,
@@ -18,7 +18,7 @@ import {
 } from "@matter/protocol";
 import { ClientNodeInteraction } from "./ClientNodeInteraction.js";
 
-export class InvalidGroupOperationError extends ImplementationError {}
+export { InvalidGroupOperationError };
 
 export class ClientGroupInteraction extends ClientNodeInteraction {
     /** Groups do not support reading or subscribing to attributes */
