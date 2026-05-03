@@ -1347,6 +1347,8 @@ export type BehaviorSelection<B extends Behavior.Type> = true | readonly (keyof 
 
 export type RawBehaviorSelection = true | readonly string[];
 
+// TODO: use BehaviorSelection<BehaviorAt<T, K>> — blocked by SupportedBehaviors index sig (Record<string,...>
+// makes keyof=string → BehaviorAt→Behavior.Type → keyof {}=never). Fix: remove index sig. getStateOf() is ok.
 export type StateSelector<T extends EndpointType> = {
     [K in keyof T["behaviors"]]?: RawBehaviorSelection;
 };
