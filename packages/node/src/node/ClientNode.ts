@@ -214,6 +214,11 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         await this.env.get(EndpointInitializer).eraseDescendant(this);
     }
 
+    protected override async resetWithMutex() {
+        this.#cachedPeerAddress = undefined;
+        await super.resetWithMutex();
+    }
+
     protected createRuntime(): NetworkRuntime {
         return new ClientNetworkRuntime(this);
     }
