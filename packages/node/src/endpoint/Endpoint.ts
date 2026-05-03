@@ -994,7 +994,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     ): Promise<unknown> {
         const selection = this.#resolveSelection(selector);
         const attributePaths = new Read.AttributePaths();
-        const clusterLookup = new Map<ClusterId, { behaviorId: string; attrs: Map<AttributeId, string> }>();
+        const clusterLookup = new Map<
+            ClusterId,
+            { behaviorId: string; attrs: Map<AttributeId, string>; attrNameToId: Map<string, AttributeId> }
+        >();
 
         for (const [id, raw] of selection) {
             const type = this.behaviors.supported[id]!;
@@ -1010,12 +1013,15 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             }
 
             const attrs = new Map<AttributeId, string>();
+            const attrNameToId = new Map<string, AttributeId>();
             for (const attr of schema.attributes) {
                 if (attr.id !== undefined && attr.propertyName !== undefined) {
-                    attrs.set(attr.id as AttributeId, attr.propertyName);
+                    const attrId = attr.id as AttributeId;
+                    attrs.set(attrId, attr.propertyName);
+                    attrNameToId.set(attr.propertyName, attrId);
                 }
             }
-            clusterLookup.set(clusterId, { behaviorId: id, attrs });
+            clusterLookup.set(clusterId, { behaviorId: id, attrs, attrNameToId });
 
             if (raw === true) {
                 attributePaths.add({ endpointId, clusterId });
@@ -1025,14 +1031,14 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             const backing = this.behaviors.backingFor(type);
             const allowedNames = backing.elements?.attributes;
             for (const name of raw) {
-                if (allowedNames?.size && !allowedNames.has(name)) {
+                if (allowedNames !== undefined && !allowedNames.has(name)) {
                     throw new AttributeNotPresentError(id, name);
                 }
-                const attr = schema.attributes.find(a => a.propertyName === name);
-                if (!attr) {
+                const attrId = attrNameToId.get(name);
+                if (attrId === undefined) {
                     throw new AttributeNotPresentError(id, name);
                 }
-                attributePaths.add({ endpointId, clusterId, attributeId: attr.id as AttributeId });
+                attributePaths.add({ endpointId, clusterId, attributeId: attrId });
             }
         }
 
@@ -1054,7 +1060,9 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         if (node.nodeType === "client") {
             const fabricFilter = options?.fabricFilter ?? true;
             const baseRequest = Read({ attributes: [...attributePaths.paths], fabricFilter });
-            const request = options?.includeKnownVersions ? { ...baseRequest, includeKnownVersions: true } : baseRequest;
+            const request = options?.includeKnownVersions
+                ? { ...baseRequest, includeKnownVersions: true }
+                : baseRequest;
             const readValues = new Map<string, Map<string, unknown>>();
             for await (const chunk of node.interaction.read(request, undefined)) {
                 for (const report of chunk) {
