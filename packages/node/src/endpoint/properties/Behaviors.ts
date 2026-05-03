@@ -686,6 +686,16 @@ export class Behaviors {
     }
 
     /**
+     * @throws ImplementationError if the behavior is not supported.
+     */
+    backingFor(type: Behavior.Type): BehaviorBacking {
+        if (!this.has(type)) {
+            throw new ImplementationError(`Endpoint ${this.#endpoint} does not support behavior ${type.id}`);
+        }
+        return this.#backingFor(type);
+    }
+
+    /**
      * Access elements supported by a behavior.
      */
     elementsOf(type: Behavior.Type): SupportedElements {

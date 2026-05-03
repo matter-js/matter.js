@@ -32,7 +32,7 @@
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "devDependencies": {
-        "@nacho-iot/js-tools": "*",
+        "@nacho-iot/js-tools": "^0.1.4",
         "@types/node": "^25.6.0",
         "@types/tar-stream": "^3.1.4"
     },

@@ -219,7 +219,7 @@ export class OtaAnnouncements {
      * When a node is applicable for updates, it also subscribes to softwareVersion changes to be able to react
      */
     peerApplicableForUpdate(peer: ClientNode) {
-        if (peer.isGroup || !peer.behaviors.has(BasicInformationClient)) {
+        if (peer.nodeType === "group" || !peer.behaviors.has(BasicInformationClient)) {
             // We need more information on the node to request an update
             return;
         }

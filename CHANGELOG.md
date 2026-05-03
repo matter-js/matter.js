@@ -33,7 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
     - Feature: DoorLockServer is fully implemented except for Aliro features
-    - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
+    - Feature: The new Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
+    - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Enhancement: Added more warnings on invalid values for BasicInformation cluster
     - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to respond to mDNS queries, we increased the discovery time for commissioning targets to 3 minutes (previously 1 minute)
