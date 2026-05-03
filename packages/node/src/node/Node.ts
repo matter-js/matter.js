@@ -253,6 +253,8 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      */
     abstract interaction: Interactable<ActionContext>;
 
+    abstract readonly nodeType: "server" | "client" | "group";
+
     protected abstract prepareRuntimeShutdown(): Promise<void>;
 
     get [DiagnosticPresentation.name]() {

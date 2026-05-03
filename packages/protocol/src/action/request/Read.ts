@@ -329,6 +329,28 @@ export namespace Read {
         }
     }
 
+    /**
+     * Accumulates {@link AttributePath} entries for a batched Read, deduped and preserved in insertion order.
+     *
+     * Omitting fields applies wildcard semantics: omitting `attributeId` reads all attributes of a cluster;
+     * omitting `clusterId` reads all clusters of an endpoint.
+     */
+    export class AttributePaths {
+        readonly #seen = new Set<string>();
+        readonly #paths = new Array<AttributePath>();
+
+        add(path: AttributePath): void {
+            const key = `${path.endpointId ?? "*"}/${path.clusterId ?? "*"}/${path.attributeId ?? "*"}`;
+            if (this.#seen.has(key)) return;
+            this.#seen.add(key);
+            this.#paths.push(path);
+        }
+
+        get paths(): ReadonlyArray<AttributePath> {
+            return this.#paths;
+        }
+    }
+
     export namespace EventSelector {
         export interface Concrete<C extends Specifier.Cluster> {
             endpoint: Specifier.Endpoint;
