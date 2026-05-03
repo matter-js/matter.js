@@ -333,7 +333,7 @@ export class ClientStructure {
     /**
      * Determines if the subscription is fabric filtered.
      */
-    protected get subscribedFabricFiltered(): boolean {
+    get subscribedFabricFiltered(): boolean {
         if (this.#subscribedFabricFiltered === undefined) {
             this.#subscribedFabricFiltered = true;
 

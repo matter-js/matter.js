@@ -196,6 +196,8 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
         return this.#interaction;
     }
 
+    override readonly nodeType = "server" as const;
+
     protected override async initialize() {
         await ServerEnvironment.initialize(this);
         await this.#plugins.load();

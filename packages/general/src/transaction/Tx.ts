@@ -6,7 +6,7 @@
 
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
-import { ImplementationError, ReadOnlyError } from "#MatterError.js";
+import { ImplementationError, MatterAggregateError, ReadOnlyError } from "#MatterError.js";
 import { Time, Timer } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
@@ -689,7 +689,7 @@ class Tx implements Transaction, Transaction.Finalization {
     #executeCommit2() {
         // Commit phase 2
         this.#status = Status.CommittingPhaseTwo;
-        let errored: undefined | Array<Participant>;
+        let errored: undefined | Array<ParticipantError>;
         let ongoing: undefined | Array<Promise<void>>;
         for (const participant of this.participants) {
             const promise = MaybePromise.then(
@@ -699,9 +699,9 @@ class Tx implements Transaction, Transaction.Finalization {
                     logger.error(`Error committing (phase two) ${participant}, state inconsistency possible:`, error);
 
                     if (errored) {
-                        errored.push(participant);
+                        errored.push({ participant, error });
                     } else {
-                        errored = [participant];
+                        errored = [{ participant, error }];
                     }
                 },
             );
@@ -765,7 +765,7 @@ class Tx implements Transaction, Transaction.Finalization {
      */
     #executeRollback() {
         this.#status = Status.RollingBack;
-        let errored: undefined | Array<Participant>;
+        let errored: undefined | Array<ParticipantError>;
         let ongoing: undefined | Array<Promise<void>>;
 
         for (const participant of this.participants) {
@@ -777,9 +777,9 @@ class Tx implements Transaction, Transaction.Finalization {
                     logger.error(`Error rolling back ${participant}, state inconsistency possible:`, error);
 
                     if (errored) {
-                        errored.push(participant);
+                        errored.push({ participant, error });
                     } else {
-                        errored = [participant];
+                        errored = [{ participant, error }];
                     }
                 },
             );
@@ -796,7 +796,7 @@ class Tx implements Transaction, Transaction.Finalization {
 
         const finished = () => {
             this.#status = Status.Shared;
-            throwIfErrored(errored, "in commit phase 2");
+            throwIfErrored(errored, "during rollback");
         };
 
         if (ongoing) {
@@ -842,16 +842,21 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 }
 
-function throwIfErrored(errored: undefined | Array<Participant>, when: string) {
+interface ParticipantError {
+    participant: Participant;
+    error: unknown;
+}
+
+function throwIfErrored(errored: undefined | Array<ParticipantError>, when: string) {
     if (!errored?.length) {
         return;
     }
-    const suffix = errored.length > 1 ? "s" : "";
-    throw new FinalizationError(
-        `Unhandled error${suffix} ${when} participant${suffix} ${describeList(
-            "and",
-            ...errored.map(p => p.toString()),
-        )}`,
+    if (errored.length === 1) {
+        throw errored[0].error;
+    }
+    throw new MatterAggregateError(
+        errored.map(({ error }) => error),
+        `Errors ${when} participants ${describeList("and", ...errored.map(({ participant }) => participant.toString()))}`,
     );
 }
 
