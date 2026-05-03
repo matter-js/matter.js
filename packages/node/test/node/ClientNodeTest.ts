@@ -1383,6 +1383,23 @@ describe("ClientNode", () => {
             expect(peer1.peerAddress).deep.equals(cachedAddress);
             expect(() => peer1.toString()).not.throws();
         });
+
+        // Behaviors.close() leaves the augmented endpoint.state[id] descriptors in place so that paths reusing the
+        // Behaviors instance (e.g. factory reset) can re-activate.  Post-close access must therefore not re-enter
+        // #backingFor and throw BehaviorInitializationError - the getter checks the construction status and returns
+        // undefined once the endpoint is tearing down.
+        it("endpoint.state[behaviorId] returns undefined after close", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+
+            expect(peer1.state.commissioning).not.undefined;
+
+            await MockTime.resolve(controller.close(), { macrotasks: true });
+
+            expect(() => peer1.state.commissioning).not.throws();
+            expect(peer1.state.commissioning).to.be.undefined;
+        });
     });
 });
 
