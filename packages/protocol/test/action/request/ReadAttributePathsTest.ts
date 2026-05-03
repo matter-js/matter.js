@@ -6,7 +6,6 @@
 
 import { Read } from "#action/request/Read.js";
 import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "@matter/types";
-import { expect } from "chai";
 
 describe("Read.AttributePaths", () => {
     function path(endpointId: number, clusterId: number, attributeId: number): AttributePath {

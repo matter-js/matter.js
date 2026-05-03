@@ -998,10 +998,13 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
         for (const [id, raw] of selection) {
             const type = this.behaviors.supported[id]!;
-            const schema = type.schema as ClusterModel;
+            const schema = type.schema;
             const endpointId = this.number;
-            const clusterId = schema.id as ClusterId | undefined;
 
+            if (!(schema instanceof ClusterModel)) {
+                continue;
+            }
+            const clusterId = schema.id as ClusterId | undefined;
             if (clusterId === undefined) {
                 continue;
             }
