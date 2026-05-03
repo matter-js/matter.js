@@ -352,12 +352,16 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Typed read of a single behavior's state.
      *
      * Same client/server semantics as {@link get}, including the partial-state-on-failure contract.
+     *
+     * When a key-list selector is provided, each returned value may be `undefined` — absent on unsupported
+     * attributes or those excluded by {@link EndpointReadFailedError}.
      */
-    getStateOf<B extends BehaviorOf<T>>(
+    getStateOf<B extends BehaviorOf<T>>(type: B, selector?: true, options?: Endpoint.GetOptions): Promise<Behavior.StateOf<B>>;
+    getStateOf<B extends BehaviorOf<T>, K extends keyof Behavior.StateOf<B>>(
         type: B,
-        selector?: BehaviorSelection<B>,
+        selector: readonly K[],
         options?: Endpoint.GetOptions,
-    ): Promise<Behavior.StateOf<B>>;
+    ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
 
     /**
      * Read of a single behavior's state by string id.
@@ -390,8 +394,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      *
      * @remarks
      * **Client endpoint.** Issues a single batched Matter Read for the selected attribute paths
-     * and returns the fresh slice. State is updated as data arrives; non-fabric-filtered reads
-     * are not written to the local cache.
+     * and returns the fresh slice. State is updated as data arrives; reads whose fabric-filter
+     * setting differs from the active subscription are not cached.
      *
      * **Partial-state contract on failure.** On any per-path failure status, rejects with
      * {@link EndpointReadFailedError}. The error carries both the failed paths and the assembled
@@ -1093,6 +1097,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
                 partial[id] = freshValues?.size ? { ...stateValues, ...Object.fromEntries(freshValues) } : stateValues;
             }
             if (failed.length > 0) {
+                this.#excludeFailedPaths(partial, failed, clusterLookup);
                 throw new EndpointReadFailedError({ failed, partial });
             }
             return partial;
@@ -1113,11 +1118,34 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             collectFailures(node.interaction.read(request, context)),
         );
 
-        const partial = this.#assembleSlice(selection);
+        const partial = this.#assembleSlice(selection) as Record<string, unknown>;
         if (failed.length > 0) {
+            this.#excludeFailedPaths(partial, failed, clusterLookup);
             throw new EndpointReadFailedError({ failed, partial });
         }
         return partial;
+    }
+
+    #excludeFailedPaths(
+        partial: Record<string, unknown>,
+        failed: ReadonlyArray<EndpointReadFailure>,
+        clusterLookup: Map<ClusterId, { behaviorId: string; attrs: Map<AttributeId, string> }>,
+    ): void {
+        for (const { path } of failed) {
+            const info = clusterLookup.get(path.clusterId);
+            if (info === undefined) continue;
+            if (path.attributeId === undefined) {
+                delete partial[info.behaviorId];
+                continue;
+            }
+            const propName = info.attrs.get(path.attributeId);
+            if (propName === undefined) continue;
+            const behaviorState = partial[info.behaviorId];
+            if (behaviorState === null || typeof behaviorState !== "object") continue;
+            const copy = { ...(behaviorState as Record<string, unknown>) };
+            delete copy[propName];
+            partial[info.behaviorId] = copy;
+        }
     }
 
     #assembleSlice(selection: Map<string, RawBehaviorSelection>): unknown {
@@ -1326,7 +1354,7 @@ export type StateSliceOf<T extends EndpointType, S> = S extends undefined
               ? Immutable<Behavior.StateOf<BehaviorAt<T, K>>>
               : S[K] extends readonly (infer A)[]
                 ? Immutable<
-                      Pick<Behavior.StateOf<BehaviorAt<T, K>>, Extract<A, keyof Behavior.StateOf<BehaviorAt<T, K>>>>
+                      Partial<Pick<Behavior.StateOf<BehaviorAt<T, K>>, Extract<A, keyof Behavior.StateOf<BehaviorAt<T, K>>>>>
                   >
                 : never;
       };

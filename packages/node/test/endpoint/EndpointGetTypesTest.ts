@@ -67,10 +67,10 @@ describe("Endpoint get type helpers", () => {
         const _checkTrueSlice: _TrueSlice = {} as { fake: Immutable<Behavior.StateOf<FakeBehaviorType>> };
         void _checkTrueSlice;
 
-        // StateSliceOf with key selection produces a Pick slice
+        // StateSliceOf with key selection produces a Partial<Pick> slice (values may be absent)
         type _PickSlice = StateSliceOf<TestEndpoint, { fake: readonly ["value"] }>;
         const _checkPickSlice: _PickSlice = {} as {
-            fake: Immutable<Pick<Behavior.StateOf<FakeBehaviorType>, "value">>;
+            fake: Immutable<Partial<Pick<Behavior.StateOf<FakeBehaviorType>, "value">>>;
         };
         void _checkPickSlice;
     });
