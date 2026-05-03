@@ -68,9 +68,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.#matter = options.matter ?? Matter;
     }
 
-    get isGroup() {
-        return false;
-    }
+    override readonly nodeType: "client" | "group" = "client";
 
     /**
      * Model of Matter semantics understood by this node.
