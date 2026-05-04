@@ -23,7 +23,7 @@ export class NetworkClient extends NetworkBehavior {
     declare readonly events: NetworkClient.Events;
 
     override initialize() {
-        if (this.#node.isGroup) {
+        if (this.#node.nodeType === "group") {
             // Groups can never subscribe
             this.state.autoSubscribe = false;
             this.state.defaultSubscription = undefined;

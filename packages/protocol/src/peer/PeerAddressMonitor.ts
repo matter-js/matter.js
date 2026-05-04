@@ -11,6 +11,7 @@ import {
     isIpNetworkChannel,
     Logger,
     ServerAddress,
+    ServerAddressUdp,
     Time,
     Timer,
     Timestamp,
@@ -159,11 +160,14 @@ export class PeerAddressMonitor {
             return;
         }
 
-        // Current address unreachable — try discovered addresses on the still-alive session
-        for (const address of discoveredAddresses) {
+        // Current address unreachable — try discovered addresses on the still-alive session.
+        // Probe path is UDP-only (TCP returned above); IpService stores transport-agnostic
+        // ServerAddressIp, so tag each candidate as UDP for the override and channel update.
+        for (const ipAddress of discoveredAddresses) {
             if (this.#abort.aborted) {
                 return;
             }
+            const address: ServerAddressUdp = { ...ipAddress, type: "udp" };
 
             if (
                 await interaction.probe({

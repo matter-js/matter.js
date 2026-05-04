@@ -26,11 +26,18 @@ import {
     toHex,
     UninitializedDependencyError,
 } from "@matter/general";
-import { DataModelPath } from "@matter/model";
-import { Val } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { ClusterModel, DataModelPath } from "@matter/model";
+import { Read, Val } from "@matter/protocol";
+import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
 import { Agent } from "./Agent.js";
+import {
+    AttributeNotPresentError,
+    EndpointBehaviorNotPresentError,
+    EndpointReadFailedError,
+    EndpointReadFailure,
+    InvalidGroupOperationError,
+} from "./errors.js";
 import { Behaviors } from "./properties/Behaviors.js";
 import { Commands } from "./properties/Commands.js";
 import { EndpointContainer } from "./properties/EndpointContainer.js";
@@ -339,6 +346,75 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
             patch(values, behavior.state, this.path);
         });
+    }
+
+    /**
+     * Typed read of a single behavior's state.
+     *
+     * Same client/server semantics as {@link get}, including the partial-state-on-failure contract.
+     *
+     * When a key-list selector is provided, each returned value may be `undefined` — absent on unsupported
+     * attributes or those excluded by {@link EndpointReadFailedError}.
+     */
+    getStateOf<B extends BehaviorOf<T>>(
+        type: B,
+        selector?: true,
+        options?: Endpoint.GetOptions,
+    ): Promise<Behavior.StateOf<B>>;
+    getStateOf<B extends BehaviorOf<T>, K extends keyof Behavior.StateOf<B>>(
+        type: B,
+        selector: readonly K[],
+        options?: Endpoint.GetOptions,
+    ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
+
+    /**
+     * Read of a single behavior's state by string id.
+     *
+     * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
+     */
+    getStateOf(type: string, selector?: readonly string[], options?: Endpoint.GetOptions): Promise<Val.Struct>;
+
+    async getStateOf(
+        type: Behavior.Type | string,
+        selector?: BehaviorSelection<Behavior.Type> | readonly string[],
+        options?: Endpoint.GetOptions,
+    ): Promise<unknown> {
+        const id = typeof type === "string" ? type : type.id;
+
+        const resolved = typeof type === "string" ? this.behaviors.supported[id] : type;
+        if (resolved === undefined || !this.behaviors.has(resolved)) {
+            throw new EndpointBehaviorNotPresentError(id);
+        }
+
+        const slice = (await this.#performRead(
+            { [id]: (selector ?? true) as RawBehaviorSelection } as StateSelector<T>,
+            options,
+        )) as Record<string, unknown>;
+        return slice[id];
+    }
+
+    /**
+     * Reads the selected behavior state.
+     *
+     * @remarks
+     * **Client endpoint.** Issues a single batched Matter Read for the selected attribute paths
+     * and returns the fresh slice. State is updated as data arrives; reads whose fabric-filter
+     * setting differs from the active subscription are not cached.
+     *
+     * **Partial-state contract on failure.** On any per-path failure status, rejects with
+     * {@link EndpointReadFailedError}. The error carries both the failed paths and the assembled
+     * partial slice for successful paths.
+     *
+     * **Server endpoint.** Returns a snapshot of local immutable state. `fabricFilter` is ignored.
+     */
+    get(): Promise<Immutable<SupportedBehaviors.StateOf<T["behaviors"]>>>;
+    get(
+        selector: undefined,
+        options?: Endpoint.GetOptions,
+    ): Promise<Immutable<SupportedBehaviors.StateOf<T["behaviors"]>>>;
+    get<S extends StateSelector<T>>(selector: S, options?: Endpoint.GetOptions): Promise<StateSliceOf<T, S>>;
+    async get(selector?: StateSelector<T>, options?: Endpoint.GetOptions): Promise<unknown> {
+        return this.#performRead(selector, options);
     }
 
     /**
@@ -897,6 +973,204 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         return this.initialize();
     }
 
+    #resolveSelection(selector: StateSelector<T> | undefined): Map<string, RawBehaviorSelection> {
+        const map = new Map<string, RawBehaviorSelection>();
+
+        if (selector === undefined) {
+            for (const type of this.behaviors) {
+                map.set(type.id, true);
+            }
+            return map;
+        }
+
+        for (const id of Object.keys(selector)) {
+            const type = this.behaviors.supported[id];
+            if (type === undefined) {
+                throw new EndpointBehaviorNotPresentError(id);
+            }
+            const raw = (selector as Record<string, RawBehaviorSelection | undefined>)[id];
+            if (raw === undefined) continue;
+            map.set(id, raw);
+        }
+
+        return map;
+    }
+
+    async #performRead(
+        selector: StateSelector<T> | undefined,
+        options: Endpoint.GetOptions | undefined,
+    ): Promise<unknown> {
+        const selection = this.#resolveSelection(selector);
+        const attributePaths = new Read.AttributePaths();
+        const clusterLookup = new Map<
+            ClusterId,
+            { behaviorId: string; attrs: Map<AttributeId, string>; attrNameToId: Map<string, AttributeId> }
+        >();
+
+        for (const [id, raw] of selection) {
+            const type = this.behaviors.supported[id]!;
+            const schema = type.schema;
+            const endpointId = this.number;
+
+            if (!(schema instanceof ClusterModel)) {
+                continue;
+            }
+            const clusterId = schema.id as ClusterId | undefined;
+            if (clusterId === undefined) {
+                continue;
+            }
+
+            const attrs = new Map<AttributeId, string>();
+            const attrNameToId = new Map<string, AttributeId>();
+            for (const attr of schema.attributes) {
+                if (attr.id !== undefined && attr.propertyName !== undefined) {
+                    const attrId = attr.id as AttributeId;
+                    attrs.set(attrId, attr.propertyName);
+                    attrNameToId.set(attr.propertyName, attrId);
+                }
+            }
+            clusterLookup.set(clusterId, { behaviorId: id, attrs, attrNameToId });
+
+            if (raw === true) {
+                attributePaths.add({ endpointId, clusterId });
+                continue;
+            }
+
+            const elements = this.behaviors.elementsOf(type);
+            const allowedNames = elements.attributes;
+            for (const name of raw) {
+                if (!allowedNames.has(name)) {
+                    throw new AttributeNotPresentError(id, name);
+                }
+                const attrId = attrNameToId.get(name);
+                if (attrId === undefined) {
+                    throw new AttributeNotPresentError(id, name);
+                }
+                attributePaths.add({ endpointId, clusterId, attributeId: attrId });
+            }
+        }
+
+        if (attributePaths.paths.length === 0) {
+            return this.#assembleSlice(selection);
+        }
+
+        const nodeEndpoint = this.ownerOfType(RootEndpoint);
+        if (nodeEndpoint === undefined) {
+            throw new ImplementationError(`${this} is not installed in a node`);
+        }
+        const node = nodeEndpoint as unknown as Node<any>;
+        const failed = new Array<EndpointReadFailure>();
+
+        if (node.nodeType === "group") {
+            throw new InvalidGroupOperationError("Groups do not support reading attributes");
+        }
+
+        if (node.nodeType === "client") {
+            const fabricFilter = options?.fabricFilter ?? true;
+            const baseRequest = Read({ attributes: [...attributePaths.paths], fabricFilter });
+            const request = options?.includeKnownVersions
+                ? { ...baseRequest, includeKnownVersions: true }
+                : baseRequest;
+            const readValues = new Map<string, Map<string, unknown>>();
+            for await (const chunk of node.interaction.read(request, undefined)) {
+                for (const report of chunk) {
+                    if (report.kind === "attr-value") {
+                        const info = clusterLookup.get(report.path.clusterId);
+                        if (info !== undefined) {
+                            const propName = info.attrs.get(report.path.attributeId);
+                            if (propName !== undefined) {
+                                let values = readValues.get(info.behaviorId);
+                                if (values === undefined) {
+                                    values = new Map();
+                                    readValues.set(info.behaviorId, values);
+                                }
+                                values.set(propName, report.value);
+                            }
+                        }
+                    } else if (report.kind === "attr-status" && report.status !== Status.Success) {
+                        failed.push({ path: report.path, status: report.status, clusterStatus: report.clusterStatus });
+                    }
+                }
+            }
+            // State view as base; received values overwrite (handles empty response from version-filter match)
+            const stateSlice = this.#assembleSlice(selection) as Record<string, Record<string, unknown> | undefined>;
+            const partial: Record<string, unknown> = {};
+            for (const [id] of selection) {
+                const stateValues = stateSlice[id] ?? {};
+                const freshValues = readValues.get(id);
+                partial[id] = freshValues?.size ? { ...stateValues, ...Object.fromEntries(freshValues) } : stateValues;
+            }
+            if (failed.length > 0) {
+                this.#excludeFailedPaths(partial, failed, clusterLookup);
+                throw new EndpointReadFailedError({ failed, partial });
+            }
+            return partial;
+        }
+
+        const collectFailures = async (stream: ReturnType<typeof node.interaction.read>) => {
+            for await (const chunk of stream) {
+                for (const report of chunk) {
+                    if (report.kind === "attr-status" && report.status !== Status.Success) {
+                        failed.push({ path: report.path, status: report.status, clusterStatus: report.clusterStatus });
+                    }
+                }
+            }
+        };
+
+        const request = Read({ attributes: [...attributePaths.paths], fabricFilter: false });
+        await LocalActorContext.act("endpoint-get", context =>
+            collectFailures(node.interaction.read(request, context)),
+        );
+
+        const partial = this.#assembleSlice(selection) as Record<string, unknown>;
+        if (failed.length > 0) {
+            this.#excludeFailedPaths(partial, failed, clusterLookup);
+            throw new EndpointReadFailedError({ failed, partial });
+        }
+        return partial;
+    }
+
+    #excludeFailedPaths(
+        partial: Record<string, unknown>,
+        failed: ReadonlyArray<EndpointReadFailure>,
+        clusterLookup: Map<ClusterId, { behaviorId: string; attrs: Map<AttributeId, string> }>,
+    ): void {
+        for (const { path } of failed) {
+            const info = clusterLookup.get(path.clusterId);
+            if (info === undefined) continue;
+            if (path.attributeId === undefined) {
+                delete partial[info.behaviorId];
+                continue;
+            }
+            const propName = info.attrs.get(path.attributeId);
+            if (propName === undefined) continue;
+            const behaviorState = partial[info.behaviorId];
+            if (behaviorState === null || typeof behaviorState !== "object") continue;
+            const copy = { ...(behaviorState as Record<string, unknown>) };
+            delete copy[propName];
+            partial[info.behaviorId] = copy;
+        }
+    }
+
+    #assembleSlice(selection: Map<string, RawBehaviorSelection>): unknown {
+        const view = this.#stateView as Record<string, Record<string, unknown> | undefined>;
+        const out: Record<string, unknown> = {};
+
+        for (const [id, raw] of selection) {
+            const behaviorState = view[id];
+            if (raw === true) {
+                out[id] = behaviorState ?? {};
+                continue;
+            }
+            const filtered: Record<string, unknown> = {};
+            for (const name of raw) {
+                filtered[name] = behaviorState?.[name];
+            }
+            out[id] = filtered;
+        }
+        return out;
+    }
+
     #logReady() {
         logger.info(Diagnostic.strong(this.toString()), "ready", this.diagnosticDict);
     }
@@ -1022,6 +1296,22 @@ export namespace Endpoint {
     export type Definition<T extends EndpointType = EndpointType.Empty> = T | Configuration<T> | Endpoint<T>;
 
     /**
+     * Options for {@link Endpoint.get} and {@link Endpoint.getStateOf}.
+     */
+    export interface GetOptions {
+        /**
+         * When `false`, the underlying Matter Read is not fabric-filtered. Defaults to `true`.
+         */
+        fabricFilter?: boolean;
+
+        /**
+         * When `true`, skips automatic data-version filter injection so the server returns all attribute values
+         * regardless of whether they have changed since the last read or subscription. Defaults to `false`.
+         */
+        includeKnownVersions?: boolean;
+    }
+
+    /**
      * Obtain a configuration from constructor parameters.
      */
     export function configurationFor<T extends EndpointType>(
@@ -1048,3 +1338,33 @@ export namespace Endpoint {
         return new Endpoint(definition);
     }
 }
+
+export type BehaviorOf<T extends EndpointType> = T["behaviors"][keyof T["behaviors"]];
+
+export type BehaviorAt<T extends EndpointType, K extends keyof T["behaviors"]> = T["behaviors"][K];
+
+export type BehaviorSelection<B extends Behavior.Type> = true | readonly (keyof Behavior.StateOf<B>)[];
+
+export type RawBehaviorSelection = true | readonly string[];
+
+export type StateSelector<T extends EndpointType> = {
+    [K in keyof T["behaviors"]]?: string extends K
+        ? RawBehaviorSelection
+        : T["behaviors"][K] extends Behavior.Type
+          ? BehaviorSelection<T["behaviors"][K]>
+          : RawBehaviorSelection;
+};
+
+export type StateSliceOf<T extends EndpointType, S> = S extends undefined
+    ? Immutable<SupportedBehaviors.StateOf<T["behaviors"]>>
+    : {
+          [K in keyof S & keyof T["behaviors"]]: S[K] extends true
+              ? Immutable<Behavior.StateOf<BehaviorAt<T, K>>>
+              : S[K] extends readonly (infer A)[]
+                ? Immutable<
+                      Partial<
+                          Pick<Behavior.StateOf<BehaviorAt<T, K>>, Extract<A, keyof Behavior.StateOf<BehaviorAt<T, K>>>>
+                      >
+                  >
+                : never;
+      };

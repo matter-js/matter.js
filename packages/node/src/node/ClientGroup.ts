@@ -7,13 +7,19 @@ import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Interactable } from "@matter/protocol";
 import { ClientNode } from "./ClientNode.js";
-import { ClientGroupInteraction } from "./client/ClientGroupInteraction.js";
+import { ClientGroupInteraction, InvalidGroupOperationError } from "./client/ClientGroupInteraction.js";
 
 export class ClientGroup extends ClientNode {
     #interaction?: ClientGroupInteraction;
 
-    override get isGroup() {
-        return true;
+    override readonly nodeType = "group" as const;
+
+    override async get(_selector?: unknown, _options?: unknown): Promise<never> {
+        throw new InvalidGroupOperationError("Groups do not support reading attributes");
+    }
+
+    override async getStateOf(_type?: unknown, _selector?: unknown, _options?: unknown): Promise<never> {
+        throw new InvalidGroupOperationError("Groups do not support reading attributes");
     }
 
     override get interaction(): Interactable<ActionContext> {
