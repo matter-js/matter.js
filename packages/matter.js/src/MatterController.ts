@@ -25,7 +25,6 @@ import {
     causedBy,
     ChannelType,
     ClassExtends,
-    ConnectionlessTransportSet,
     Construction,
     Crypto,
     Diagnostic,
@@ -40,11 +39,12 @@ import {
     MockStorageService,
     ObserverGroup,
     ServerAddress,
-    ServerAddressUdp,
+    ServerAddressIp,
     StorageManager,
     StorageService,
     SupportedStorageTypes,
     Time,
+    TransportSet,
     UnexpectedDataError,
 } from "@matter/general";
 import {
@@ -95,7 +95,7 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export type CommissionedNodeDetails = {
-    operationalServerAddress?: ServerAddressUdp;
+    operationalServerAddress?: ServerAddressIp;
     discoveryData?: DiscoveryData;
     deviceData?: DeviceInformationData;
 };
@@ -133,6 +133,8 @@ export class MatterController {
         adminFabricId?: FabricId;
         adminFabricLabel: string;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         ipv4?: boolean;
         listeningAddressIpv4?: string;
         listeningAddressIpv6?: string;
@@ -225,6 +227,8 @@ export class MatterController {
         adminFabricLabel: string;
         adminFabricId?: FabricId;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         ipv4?: boolean;
         listeningAddressIpv4?: string;
         listeningAddressIpv6?: string;
@@ -256,7 +260,7 @@ export class MatterController {
         await controller.construction;
 
         // Verify an appropriate network interface is available
-        const netInterfaces = environment.get(ConnectionlessTransportSet);
+        const netInterfaces = environment.get(TransportSet);
         if (!netInterfaces.hasInterfaceFor(ChannelType.BLE)) {
             if (
                 !environment.get(ScannerSet).hasScannerFor(ChannelType.UDP) ||
@@ -288,6 +292,8 @@ export class MatterController {
         id: string;
         fabric?: Fabric;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         adminFabricId?: FabricId;
         adminFabricLabel: string;
         adminVendorId?: VendorId;
@@ -304,6 +310,8 @@ export class MatterController {
         const crypto = options.environment.get(Crypto);
         const {
             ble = false,
+            tcp,
+            transportPreference,
             adminFabricLabel,
             adminFabricId = FabricId(crypto.randomBigInt(8)),
             adminVendorId,
@@ -331,6 +339,8 @@ export class MatterController {
                     listeningAddressIpv4,
                     listeningAddressIpv6,
                     port: localPort,
+                    tcp,
+                    transportPreference,
                 },
                 basicInformation: {
                     ...basicInformation,
@@ -571,7 +581,7 @@ export class MatterController {
             // Pre-discovered device: addresses already known, skip discovery.
             let { addresses } = discovery.commissionableDevice;
             if (discovery.discoveryCapabilities?.ble !== true) {
-                addresses = addresses.filter(a => a.type !== "ble");
+                addresses = addresses.filter(a => !ServerAddress.isBle(a));
             }
             const commissioner = this.node.env.get(ControllerCommissioner);
             const { paseSession } = await commissioner.establishPase({
@@ -946,8 +956,9 @@ class CommissionedNodeStore {
                             address.nodeId,
                             {
                                 operationalServerAddress:
-                                    operationalServerAddress !== undefined && operationalServerAddress.type === "udp"
-                                        ? (ServerAddress(operationalServerAddress) as ServerAddressUdp)
+                                    operationalServerAddress !== undefined &&
+                                    ServerAddress.isIp(operationalServerAddress)
+                                        ? (ServerAddress(operationalServerAddress) as ServerAddressIp)
                                         : undefined,
                                 discoveryData,
                                 deviceData,

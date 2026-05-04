@@ -13,7 +13,7 @@ import {
     DnsRecord,
     MdnsSocket,
     MockNetwork,
-    MockUdpChannel,
+    MockUdpSocket,
     NetworkSimulator,
     PtrRecord,
     SrvRecord,
@@ -34,7 +34,7 @@ export interface TestEnv {
     network: MockNetwork;
     socket: MdnsSocket;
     peerNetwork: MockNetwork;
-    peerChannel: MockUdpChannel;
+    peerChannel: MockUdpSocket;
 }
 
 /** Options for creating a test environment */
@@ -60,7 +60,7 @@ export async function createTestEnv(options: TestEnvOptions = {}): Promise<TestE
     const socket = await MdnsSocket.create(network, { enableIpv4, netInterface });
 
     // Create a peer channel to send/receive mDNS messages
-    const peerChannel = new MockUdpChannel(peerNetwork, {
+    const peerChannel = new MockUdpSocket(peerNetwork, {
         type: enableIpv4 ? "udp4" : "udp6",
         listeningPort: MdnsSocket.BROADCAST_PORT,
         netInterface,

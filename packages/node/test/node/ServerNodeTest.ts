@@ -28,7 +28,7 @@ import {
     isObject,
     MemoryStorageDriver,
     MockCrypto,
-    MockUdpChannel,
+    MockUdpSocket,
     NetworkSimulator,
     Seconds,
     StorageManager,
@@ -160,7 +160,7 @@ describe("ServerNode", () => {
     it("announces and expires correctly", async () => {
         const simulator = new NetworkSimulator();
 
-        const scannerChannel = new MockUdpChannel(simulator.addHost(2), {
+        const scannerChannel = new MockUdpSocket(simulator.addHost(2), {
             listeningPort: 5353,
             type: "udp6",
         });

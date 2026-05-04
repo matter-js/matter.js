@@ -8,11 +8,11 @@ import { ChannelType } from "#net/Channel.js";
 import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
 import { isIPv4, isIPv6 } from "#util/Ip.js";
-import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions, UdpSocketType } from "../udp/UdpChannel.js";
+import { MAX_UDP_MESSAGE_SIZE, UdpSocket, UdpSocketOptions, UdpSocketType } from "../udp/UdpSocket.js";
 import type { MockNetwork } from "./MockNetwork.js";
 import { MockRouter } from "./MockRouter.js";
 
-export class MockUdpChannel implements UdpChannel {
+export class MockUdpSocket implements UdpSocket {
     readonly #host: MockNetwork;
     readonly #router: MockRouter;
     readonly #listeningIp?: string;
@@ -22,7 +22,7 @@ export class MockUdpChannel implements UdpChannel {
 
     constructor(
         network: MockNetwork,
-        { listeningAddress, listeningPort, type }: UdpChannelOptions,
+        { listeningAddress, listeningPort, type }: UdpSocketOptions,
         interceptor?: MockRouter.Interceptor,
     ) {
         this.#router = MockRouter();
@@ -41,7 +41,7 @@ export class MockUdpChannel implements UdpChannel {
         network.router.add(this.#router);
     }
 
-    onData(listener: UdpChannel.Callback) {
+    onData(listener: UdpSocket.Callback) {
         const router = (packet: MockRouter.Packet) => {
             if (packet.kind !== "udp") {
                 return;

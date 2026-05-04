@@ -25,8 +25,8 @@ import {
     repackErrorAs,
     Seconds,
     Time,
-    UdpChannel,
-    UdpChannelOptions,
+    UdpSocket,
+    UdpSocketOptions,
     UdpSocketType,
 } from "@matter/general";
 import * as dgram from "node:dgram";
@@ -82,7 +82,7 @@ function createDgramSocket(host: string | undefined, port: number | undefined, o
     });
 }
 
-export class NodeJsUdpChannel implements UdpChannel {
+export class NodeJsUdpSocket implements UdpSocket {
     readonly #lifetime: Lifetime;
     readonly #type: UdpSocketType;
     readonly #socket: dgram.Socket;
@@ -96,7 +96,7 @@ export class NodeJsUdpChannel implements UdpChannel {
         listeningAddress,
         netInterface,
         reuseAddress,
-    }: UdpChannelOptions) {
+    }: UdpSocketOptions) {
         const name = `${listeningAddress?.includes(":") ? `[${listeningAddress}]` : (listeningAddress ?? "*")}:${listeningPort}`;
         using lifetime = (lifetimeOwner ?? Lifetime.process).join("socket", Diagnostic.strong(name));
         lifetime.details.intf = netInterface;
@@ -160,7 +160,7 @@ export class NodeJsUdpChannel implements UdpChannel {
             );
             socket.setMulticastInterface(multicastInterface);
         }
-        return new NodeJsUdpChannel(lifetime, type, socket, netInterfaceZone);
+        return new NodeJsUdpSocket(lifetime, type, socket, netInterfaceZone);
     }
 
     readonly maxPayloadSize = MAX_UDP_MESSAGE_SIZE;
@@ -293,7 +293,22 @@ export class NodeJsUdpChannel implements UdpChannel {
         // IPv6 multicast addresses require interface scoping for the kernel to route them correctly
         let sendHost = host;
         if (host.startsWith("ff") && !host.includes("%")) {
-            const effectiveInterface = this.#netInterface ?? this.#observedInterface;
+            let effectiveInterface = this.#netInterface ?? this.#observedInterface;
+            if (!effectiveInterface) {
+                // No interface known yet (e.g. no inbound UDP messages received because
+                // sessions were established over TCP). Detect from the socket's bound address.
+                const boundAddress = this.#socket.address();
+                if ("address" in boundAddress && boundAddress.address !== "::") {
+                    effectiveInterface = NodeJsNetwork.getNetInterfaceForIp(boundAddress.address);
+                }
+                if (!effectiveInterface) {
+                    // Fallback: use any available IPv6 interface
+                    effectiveInterface = NodeJsNetwork.getDefaultNetInterface();
+                }
+                if (effectiveInterface) {
+                    this.#observedInterface = effectiveInterface;
+                }
+            }
             if (effectiveInterface) {
                 sendHost = `${host}%${effectiveInterface}`;
             } else {

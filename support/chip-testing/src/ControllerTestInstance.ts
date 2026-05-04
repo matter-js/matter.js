@@ -94,6 +94,8 @@ export class ControllerTestInstance extends TestInstance {
         const envAlpha = new Environment(`${this.id}-alpha`, this.#env);
         initStorageService(envAlpha);
 
+        const tcpEnabled = process.env.TEST_PREFER_TCP === "1";
+
         this.#controllerInstances.set("alpha", {
             env: envAlpha,
             handler: new LegacyControllerCommandHandler(
@@ -106,6 +108,8 @@ export class ControllerTestInstance extends TestInstance {
                     autoConnect: false, // Do not auto connect to the commissioned nodes
                     adminFabricLabel: "alpha",
                     rootNodeId: NodeId(0x112233),
+                    tcp: tcpEnabled ? { outgoing: true } : undefined,
+                    transportPreference: tcpEnabled ? "tcp" : undefined,
                 }),
             ),
         });
@@ -124,6 +128,8 @@ export class ControllerTestInstance extends TestInstance {
                     autoConnect: false, // Do not auto connect to the commissioned nodes
                     adminFabricLabel: "beta",
                     rootNodeId: NodeId(0x112233),
+                    tcp: tcpEnabled ? { outgoing: true } : undefined,
+                    transportPreference: tcpEnabled ? "tcp" : undefined,
                 }),
             ),
         });
@@ -142,6 +148,8 @@ export class ControllerTestInstance extends TestInstance {
                     autoConnect: false, // Do not auto connect to the commissioned nodes
                     adminFabricLabel: "gamma",
                     rootNodeId: NodeId(0x112233),
+                    tcp: tcpEnabled ? { outgoing: true } : undefined,
+                    transportPreference: tcpEnabled ? "tcp" : undefined,
                 }),
             ),
         });

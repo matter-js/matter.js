@@ -5,11 +5,13 @@
  */
 
 import {
+    ChannelType,
     Diagnostic,
     Duration,
     isIpNetworkChannel,
     Logger,
     ServerAddress,
+    ServerAddressUdp,
     Time,
     Timer,
     Timestamp,
@@ -93,14 +95,20 @@ export class PeerAddressMonitor {
     }
 
     async #check() {
-        const session = this.#peer.newestSession;
+        const session = this.#peer.newestSession();
         const interaction = this.#peer.interaction;
         if (!session || !interaction) {
             return;
         }
 
-        const { channel } = session.channel;
+        const channel = session.channel.transportChannel;
         if (!isIpNetworkChannel(channel)) {
+            return;
+        }
+
+        // TCP has 1:1 session-connection binding plus OS keep-alive — connection drops evict
+        // the session directly, so probing the address is unnecessary.
+        if (channel.type === ChannelType.TCP) {
             return;
         }
 
@@ -152,11 +160,14 @@ export class PeerAddressMonitor {
             return;
         }
 
-        // Current address unreachable — try discovered addresses on the still-alive session
-        for (const address of discoveredAddresses) {
+        // Current address unreachable — try discovered addresses on the still-alive session.
+        // Probe path is UDP-only (TCP returned above); IpService stores transport-agnostic
+        // ServerAddressIp, so tag each candidate as UDP for the override and channel update.
+        for (const ipAddress of discoveredAddresses) {
             if (this.#abort.aborted) {
                 return;
             }
+            const address: ServerAddressUdp = { ...ipAddress, type: "udp" };
 
             if (
                 await interaction.probe({

@@ -4,24 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Channel, ChannelType, IpNetworkChannel } from "#net/Channel.js";
-import { ConnectionlessTransport } from "#net/ConnectionlessTransport.js";
+import { Channel, ChannelType, UdpNetworkChannel } from "#net/Channel.js";
 import { Network, NetworkError } from "#net/Network.js";
+import { Transport } from "#net/Transport.js";
 import { Bytes } from "#util/Bytes.js";
 import { Observable } from "#util/index.js";
 import { ServerAddress, ServerAddressUdp } from "../ServerAddress.js";
-import { UdpChannel } from "./UdpChannel.js";
+import { UdpSocket } from "./UdpSocket.js";
 
-export class UdpInterface implements ConnectionlessTransport {
-    readonly #server: UdpChannel;
+export class UdpTransport implements Transport {
+    readonly #server: UdpSocket;
 
     static async create(network: Network, type: "udp4" | "udp6", port?: number, host?: string, netInterface?: string) {
-        return new UdpInterface(
-            await network.createUdpChannel({ listeningPort: port, type, netInterface, listeningAddress: host }),
+        return new UdpTransport(
+            await network.createUdpSocket({ listeningPort: port, type, netInterface, listeningAddress: host }),
         );
     }
 
-    constructor(server: UdpChannel) {
+    constructor(server: UdpSocket) {
         this.#server = server;
     }
 
@@ -34,16 +34,16 @@ export class UdpInterface implements ConnectionlessTransport {
     }
 
     async openChannel(address: ServerAddress) {
-        if (address.type !== "udp") {
-            throw new NetworkError(`Unsupported address type ${address.type}`);
+        if (!ServerAddress.isIp(address)) {
+            throw new NetworkError(`Unsupported address type for UDP interface`);
         }
         const { ip, port } = address;
-        return Promise.resolve(new UdpConnection(this.#server, ip, port));
+        return Promise.resolve(new UdpChannel(this.#server, ip, port));
     }
 
-    onData(listener: (channel: Channel<Bytes>, messageBytes: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (channel: Channel<Bytes>, messageBytes: Bytes) => void): Transport.Listener {
         return this.#server.onData((_netInterface, peerHost, peerPort, data) => {
-            listener(new UdpConnection(this.#server, peerHost, peerPort), data);
+            listener(new UdpChannel(this.#server, peerHost, peerPort), data);
         });
     }
 
@@ -64,16 +64,16 @@ export class UdpInterface implements ConnectionlessTransport {
     }
 }
 
-export class UdpConnection implements IpNetworkChannel<Bytes> {
+export class UdpChannel implements UdpNetworkChannel<Bytes> {
     readonly isReliable = false;
     readonly supportsLargeMessages = false;
     readonly type = ChannelType.UDP;
-    readonly #server: UdpChannel;
+    readonly #server: UdpSocket;
     #peerAddress: string;
     #peerPort: number;
     readonly networkAddressChanged = Observable<[ServerAddressUdp]>();
 
-    constructor(server: UdpChannel, peerAddress: string, peerPort: number) {
+    constructor(server: UdpSocket, peerAddress: string, peerPort: number) {
         this.#server = server;
         this.#peerAddress = peerAddress;
         this.#peerPort = peerPort;

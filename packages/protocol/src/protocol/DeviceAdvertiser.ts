@@ -7,6 +7,7 @@
 import { Advertisement } from "#advertisement/Advertisement.js";
 import { Advertiser } from "#advertisement/Advertiser.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
+import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SecureSession } from "#session/SecureSession.js";
@@ -21,6 +22,8 @@ const logger = Logger.get("DeviceAdvertiser");
 export interface DeviceAdvertiserContext {
     fabrics: FabricManager;
     sessions: SessionManager;
+    /** Transport support bitmap for operational DNS-SD advertisement (T key). */
+    supportedTransports?: SupportedTransportsBitmap;
 }
 
 /**
@@ -148,6 +151,11 @@ export class DeviceAdvertiser {
                 this.#advertiseFabric(session.fabric, "reconnect");
             }
         });
+    }
+
+    /** Set the transport support bitmap for operational advertisements. */
+    set supportedTransports(value: SupportedTransportsBitmap | undefined) {
+        this.#context.supportedTransports = value;
     }
 
     toString() {
@@ -296,7 +304,10 @@ export class DeviceAdvertiser {
                 }
             }
 
-            advertiser.advertise(ServiceDescription.Operational({ fabric }), event);
+            advertiser.advertise(
+                ServiceDescription.Operational({ fabric, tcp: this.#context.supportedTransports }),
+                event,
+            );
         }
     }
 

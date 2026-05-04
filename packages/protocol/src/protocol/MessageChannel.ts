@@ -12,16 +12,20 @@ import type { SessionParameters } from "#session/SessionParameters.js";
 import {
     Bytes,
     Channel,
+    ChannelType,
     Diagnostic,
     Duration,
     IpNetworkChannel,
     isIpNetworkChannel,
+    isUdpNetworkChannel,
     Logger,
     MaybePromise,
     Observable,
     sameIpNetworkChannel,
     ServerAddress,
+    ServerAddressIp,
     ServerAddressUdp,
+    UdpNetworkChannel,
 } from "@matter/general";
 import { MRP } from "./MRP.js";
 
@@ -29,9 +33,9 @@ const logger = new Logger("MessageChannel");
 
 export class MessageChannel implements Channel<Message> {
     #channel: Channel<Bytes>;
-    #networkAddressChanged = Observable<[ServerAddressUdp]>();
+    #networkAddressChanged = Observable<[ServerAddressIp]>();
     #isIpNetworkChannel = false;
-    #channelAddressObserver?: (networkAddress: ServerAddressUdp) => void;
+    #channelAddressObserver?: (networkAddress: ServerAddressIp) => void;
     public closed = false;
     #onClose?: () => MaybePromise<void>;
     // When the session is supporting MRP and the channel is not reliable, use MRP handling
@@ -63,7 +67,7 @@ export class MessageChannel implements Channel<Message> {
      * This is only true for TCP channels currently.
      */
     get supportsLargeMessages() {
-        return this.type === "tcp";
+        return this.#channel.supportsLargeMessages;
     }
 
     get type() {
@@ -96,8 +100,8 @@ export class MessageChannel implements Channel<Message> {
             );
         }
 
-        if (addressOverride && this.#isIpNetworkChannel) {
-            return await (this.#channel as IpNetworkChannel<Bytes>).send(bytes, addressOverride);
+        if (addressOverride && isUdpNetworkChannel(this.#channel)) {
+            return await (this.#channel as UdpNetworkChannel<Bytes>).send(bytes, addressOverride);
         }
         return await this.#channel.send(bytes);
     }
@@ -106,13 +110,13 @@ export class MessageChannel implements Channel<Message> {
         return Diagnostic.via(`${this.session.via}@${this.#channel.name}`);
     }
 
-    get networkAddress(): ServerAddressUdp | undefined {
+    get networkAddress(): ServerAddressIp | undefined {
         if (this.#isIpNetworkChannel) {
             return (this.#channel as IpNetworkChannel<Bytes>).networkAddress;
         }
     }
 
-    set networkAddress(networkAddress: ServerAddressUdp) {
+    set networkAddress(networkAddress: ServerAddressIp) {
         if (this.#isIpNetworkChannel) {
             (this.#channel as IpNetworkChannel<Bytes>).networkAddress = networkAddress;
         }
@@ -122,7 +126,8 @@ export class MessageChannel implements Channel<Message> {
         return this.#networkAddressChanged;
     }
 
-    get channel() {
+    /** The underlying transport channel, for identity comparison and type inspection. */
+    get transportChannel(): Channel<Bytes> {
         return this.#channel;
     }
 
@@ -161,8 +166,8 @@ export class MessageChannel implements Channel<Message> {
         if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
             (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
         }
-        this.#channelAddressObserver = (networkAddress: ServerAddressUdp) => {
-            logger.debug(`Network address of UDP Channel changed to ${ServerAddress.urlFor(networkAddress)}`);
+        this.#channelAddressObserver = (networkAddress: ServerAddressIp) => {
+            logger.debug(`Network address of channel changed to ${ServerAddress.urlFor(networkAddress)}`);
             this.#networkAddressChanged.emit(networkAddress);
         };
         newChannel.networkAddressChanged.on(this.#channelAddressObserver);
@@ -171,11 +176,19 @@ export class MessageChannel implements Channel<Message> {
     async close() {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
+
+        // Detach address observer before closing
         if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
             (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
             this.#channelAddressObserver = undefined;
         }
-        await this.#channel.close();
+
+        // TCP connections are 1:1 with sessions — lifecycle managed by ExchangeManager
+        // (session eviction on disconnect, channel close on session close). UDP/BLE
+        // channels are ephemeral per-session and closed directly here.
+        if (this.#channel.type !== ChannelType.TCP) {
+            await this.#channel.close();
+        }
         if (!wasAlreadyClosed) {
             await this.#onClose?.();
         }

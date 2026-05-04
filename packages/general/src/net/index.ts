@@ -6,7 +6,6 @@
 
 export * from "./AppAddress.js";
 export * from "./Channel.js";
-export * from "./ConnectionlessTransport.js";
 export * from "./dns-sd/index.js";
 export * from "./http/index.js";
 export * from "./mock/index.js";
@@ -15,4 +14,6 @@ export * from "./Network.js";
 export * from "./RetrySchedule.js";
 export * from "./ServerAddress.js";
 export * from "./ServerAddressSet.js";
+export * from "./tcp/index.js";
+export * from "./Transport.js";
 export * from "./udp/index.js";

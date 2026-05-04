@@ -161,7 +161,7 @@ export class CaseClient {
             const secureSessionSalt = Bytes.concat(initiatorRandom, resumptionRecord.resumptionId);
             secureSession = await abort.attempt(
                 this.#sessions.createSecureSession({
-                    channel: exchange.channel.channel,
+                    channel: exchange.channel.transportChannel,
                     id: initiatorSessionId,
                     fabric,
                     peerNodeId,
@@ -299,7 +299,7 @@ export class CaseClient {
             );
             secureSession = await abort.attempt(
                 this.#sessions.createSecureSession({
-                    channel: exchange.channel.channel,
+                    channel: exchange.channel.transportChannel,
                     id: initiatorSessionId,
                     fabric,
                     peerNodeId,

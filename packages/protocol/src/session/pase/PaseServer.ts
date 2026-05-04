@@ -89,7 +89,7 @@ export class PaseServer implements ProtocolHandler {
             try {
                 this.#pairingMessenger = messenger;
                 // Ok new pairing try, handle it
-                await this.handlePairingRequest(this.sessions.crypto, messenger.channel.channel);
+                await this.handlePairingRequest(this.sessions.crypto, messenger.channel.transportChannel);
             } catch (error) {
                 this.#pairingErrors++;
                 logger.error(
