@@ -28,7 +28,7 @@ import {
     isObject,
     MemoryStorageDriver,
     MockCrypto,
-    MockUdpChannel,
+    MockUdpSocket,
     NetworkSimulator,
     Seconds,
     StorageManager,
@@ -160,7 +160,7 @@ describe("ServerNode", () => {
     it("announces and expires correctly", async () => {
         const simulator = new NetworkSimulator();
 
-        const scannerChannel = new MockUdpChannel(simulator.addHost(2), {
+        const scannerChannel = new MockUdpSocket(simulator.addHost(2), {
             listeningPort: 5353,
             type: "udp6",
         });
@@ -469,8 +469,8 @@ describe("ServerNode", () => {
         expect(node.stateOf(DescriptorBehavior).partsList).deep.equals([aggregator.number, light.number, pump.number]);
         expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([light.number, pump.number]);
 
-        expect(light.stateOf(DescriptorBehavior).serverList).deep.equals([3, 4, 98, 6, 29]);
-        expect(pump.stateOf(DescriptorBehavior).serverList).deep.equals([6, 3, 512, 29]);
+        expect(light.stateOf(DescriptorBehavior).serverList).deep.equals([3, 4, 6, 98, 29]);
+        expect(pump.stateOf(DescriptorBehavior).serverList).deep.equals([3, 6, 512, 29]);
 
         await node.close();
     });
@@ -629,7 +629,7 @@ describe("ServerNode", () => {
 
             expect(bi.version).equals(0x80808081);
             expect(bi.type.id).equals(BasicInformation.id);
-            expect([...bi.type.attributes].length).equals(22);
+            expect([...bi.type.attributes].length).equals(21);
             expect([...bi.type.events].length).equals(3);
 
             expect(bi.type.attributes).has.property(`${FeatureMap.id}`);

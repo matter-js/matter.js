@@ -24,6 +24,7 @@ import {
     Observable,
     Seconds,
     ServerAddress,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -353,7 +354,7 @@ export class CommissioningClient extends Behavior {
         }
 
         const newAddressesStr = newAddresses
-            ?.filter(a => a.type !== "ble")
+            ?.filter(a => ServerAddress.isIp(a))
             .map(a => ServerAddress.urlFor(a))
             .join(", ");
         if (oldAddresses === undefined) {
@@ -367,7 +368,7 @@ export class CommissioningClient extends Behavior {
         }
 
         const oldAddressesStr = oldAddresses
-            .filter(a => a.type !== "ble")
+            .filter(a => ServerAddress.isIp(a))
             .map(a => ServerAddress.urlFor(a))
             .join(", ");
         if (oldAddressesStr !== newAddressesStr) {
@@ -430,7 +431,7 @@ export class CommissioningClient extends Behavior {
         const peers = node.env.get(PeerSet);
         peer = peers.addKnownPeer({
             address: addr,
-            operationalAddress: this.state.addresses?.filter(a => a.type === "udp")?.[0],
+            operationalAddress: this.state.addresses?.find(a => ServerAddress.isIp(a)) as ServerAddressIp | undefined,
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
             caseAuthenticatedTags: this.state.caseAuthenticatedTags,
         });
@@ -596,11 +597,21 @@ export namespace CommissioningClient {
 
         constructor(address: NetworkAddress) {
             this.type = address.type;
-            this.ip = address.ip;
-            this.port = address.port;
-            this.peripheralAddress = address.peripheralAddress;
-            this.ttl = address.ttl;
-            this.discoveredAt = address.discoveredAt;
+            if (address.ip !== undefined) {
+                this.ip = address.ip;
+            }
+            if (address.port !== undefined) {
+                this.port = address.port;
+            }
+            if (address.peripheralAddress !== undefined) {
+                this.peripheralAddress = address.peripheralAddress;
+            }
+            if (address.ttl !== undefined) {
+                this.ttl = address.ttl;
+            }
+            if (address.discoveredAt !== undefined) {
+                this.discoveredAt = address.discoveredAt;
+            }
         }
     }
 

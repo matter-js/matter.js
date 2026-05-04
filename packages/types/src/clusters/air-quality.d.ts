@@ -15,7 +15,7 @@ import type { ClusterModel } from "@matter/model";
  *
  * This cluster provides an interface to air quality classification using distinct levels with human-readable labels.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.9
+ * @see {@link MatterSpecification.v151.Cluster} § 2.9
  */
 export declare namespace AirQuality {
     /**
@@ -47,7 +47,7 @@ export declare namespace AirQuality {
         /**
          * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.9.6.1
          */
         airQuality: AirQualityEnum;
     }
@@ -62,7 +62,7 @@ export declare namespace AirQuality {
         /**
          * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.9.6.1
          */
         airQuality: AirQualityEnum;
     }
@@ -73,7 +73,7 @@ export declare namespace AirQuality {
     /**
      * These are optional features supported by AirQualityCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.9.4
+     * @see {@link MatterSpecification.v151.Cluster} § 2.9.4
      */
     export enum Feature {
         /**
@@ -109,7 +109,7 @@ export declare namespace AirQuality {
      * The AirQualityEnum provides a representation of the quality of the analyzed air. It is up to the device
      * manufacturer to determine the mapping between the measured values and their corresponding enumeration values.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.9.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 2.9.5.1
      */
     export enum AirQualityEnum {
         /**

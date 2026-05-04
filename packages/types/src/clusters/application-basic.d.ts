@@ -20,7 +20,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * The cluster server for this cluster should be supported on each endpoint that represents a Content App on a Video
  * Player device. This cluster provides identification information about the Content App such as vendor and product.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.3
+ * @see {@link MatterSpecification.v151.Cluster} § 6.3
  */
 export declare namespace ApplicationBasic {
     /**
@@ -51,46 +51,45 @@ export declare namespace ApplicationBasic {
     export interface BaseAttributes {
         /**
          * This attribute shall specify a human readable (displayable) name of the Content App assigned by the vendor.
-         * For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of UTF-8
-         * characters.
+         * For example, "NPR On Demand".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.3
          */
         applicationName: string;
 
         /**
          * This attribute shall specify a Content App which consists of an Application ID using a specified catalog.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.5
          */
         application: Application;
 
         /**
          * This attribute shall specify the current running status of the application.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.6
          */
         status: ApplicationStatus;
 
         /**
          * This attribute shall specify a human readable (displayable) version of the Content App assigned by the
-         * vendor. The maximum length of the ApplicationVersion attribute is 32 bytes of UTF-8 characters.
+         * vendor.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.7
          */
         applicationVersion: string;
 
         /**
          * This attribute is a list of vendor IDs. Each entry is a vendor-id.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.8
          */
         allowedVendorList: VendorId[];
 
         /**
          * This attribute shall specify a human readable (displayable) name of the vendor for the Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.1
          */
         vendorName?: string;
 
@@ -98,7 +97,7 @@ export declare namespace ApplicationBasic {
          * This attribute, if present, shall specify the Connectivity Standards Alliance assigned Vendor ID for the
          * Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.2
          */
         vendorId?: VendorId;
 
@@ -107,7 +106,7 @@ export declare namespace ApplicationBasic {
          * App made by them. If the Content App is certified by the Connectivity Standards Alliance, then this would be
          * the Product ID as specified by the vendor for the certification.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.4
          */
         productId?: number;
     }
@@ -120,46 +119,45 @@ export declare namespace ApplicationBasic {
     export interface Attributes {
         /**
          * This attribute shall specify a human readable (displayable) name of the Content App assigned by the vendor.
-         * For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of UTF-8
-         * characters.
+         * For example, "NPR On Demand".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.3
          */
         applicationName: string;
 
         /**
          * This attribute shall specify a Content App which consists of an Application ID using a specified catalog.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.5
          */
         application: Application;
 
         /**
          * This attribute shall specify the current running status of the application.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.6
          */
         status: ApplicationStatus;
 
         /**
          * This attribute shall specify a human readable (displayable) version of the Content App assigned by the
-         * vendor. The maximum length of the ApplicationVersion attribute is 32 bytes of UTF-8 characters.
+         * vendor.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.7
          */
         applicationVersion: string;
 
         /**
          * This attribute is a list of vendor IDs. Each entry is a vendor-id.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.8
          */
         allowedVendorList: VendorId[];
 
         /**
          * This attribute shall specify a human readable (displayable) name of the vendor for the Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.1
          */
         vendorName: string;
 
@@ -167,7 +165,7 @@ export declare namespace ApplicationBasic {
          * This attribute, if present, shall specify the Connectivity Standards Alliance assigned Vendor ID for the
          * Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.2
          */
         vendorId: VendorId;
 
@@ -176,7 +174,7 @@ export declare namespace ApplicationBasic {
          * App made by them. If the Content App is certified by the Connectivity Standards Alliance, then this would be
          * the Product ID as specified by the vendor for the certification.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.5.4
          */
         productId: number;
     }
@@ -186,7 +184,7 @@ export declare namespace ApplicationBasic {
     /**
      * This indicates a global identifier for an Application given a catalog.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.2
      */
     export declare class Application {
         constructor(values?: Partial<Application>);
@@ -195,11 +193,11 @@ export declare namespace ApplicationBasic {
          * This field shall indicate the Connectivity Standards Alliance issued vendor ID for the catalog. The DIAL
          * registry shall use value 0x0000.
          *
-         * It is assumed that Content App Platform providers (see Video Player Architecture section in [MatterDevLib])
-         * will have their own catalog vendor ID (set to their own Vendor ID) and will assign an ApplicationID to each
-         * Content App.
+         * It is assumed that Content App Platform providers (see Video Player Architecture section in
+         * [[MatterDevLib]](#ref_MatterDevLib)) will have their own catalog vendor ID (set to their own Vendor ID) and
+         * will assign an ApplicationID to each Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.2.1
          */
         catalogVendorId: number;
 
@@ -209,13 +207,13 @@ export declare namespace ApplicationBasic {
          *
          * For the DIAL registry catalog, this value shall be the DIAL prefix.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.2.2
          */
         applicationId: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.1
      */
     export enum ApplicationStatus {
         /**

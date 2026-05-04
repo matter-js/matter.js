@@ -46,7 +46,7 @@ Resource.add({
         {
             tag: "attribute", name: "UpTime", xref: "core§11.12.6.3",
             details: "The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, " +
-                "since the Node’s last reboot. This attribute SHOULD be incremented to account for the periods of " +
+                "since the Node's last reboot. This attribute SHOULD be incremented to account for the periods of " +
                 "time that a Node is in a low-power or sleep state. This attribute shall only be reset upon a device " +
                 "reboot. This attribute shall be based on the same System Time source as those used to fulfill any " +
                 "usage of the systime-us and systime-ms data types within the server."
@@ -62,7 +62,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "BootReason", xref: "core§11.12.6.5",
-            details: "The BootReason attribute shall indicate the reason for the Node’s most recent boot."
+            details: "The BootReason attribute shall indicate the reason for the Node's most recent boot."
         },
 
         {
@@ -110,7 +110,7 @@ Resource.add({
             details: "The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger " +
                 "configured. When this attribute is true, the Node has been configured with one or more test event " +
                 "triggers by virtue of the internally programmed EnableKey value (see Section 11.12.7.1, " +
-                "“TestEventTrigger Command”) being set to a non-zero value. This attribute can be used by " +
+                "\"TestEventTrigger Command\") being set to a non-zero value. This attribute can be used by " +
                 "Administrators to detect if a device was inadvertently commissioned with test event trigger mode " +
                 "enabled, and take appropriate action (e.g. warn the user and/or offer to remove all fabrics on the " +
                 "Node)."
@@ -244,7 +244,7 @@ Resource.add({
 
             details: "This command may be used by a client to obtain a correlated view of both System Time, and, if " +
                 "currently synchronized and supported, \"wall clock time\" of the server. This can help clients " +
-                "establish time correlation between their concept of time and the server’s concept of time. This is " +
+                "establish time correlation between their concept of time and the server's concept of time. This is " +
                 "especially useful when processing event histories where some events only contain System Time." +
                 "\n" +
                 "Upon command invocation, the server shall respond with a TimeSnapshotResponse."
@@ -278,9 +278,9 @@ Resource.add({
                         "same source that could populate the Timestamp field of events. This value shall only be null when " +
                         "any the following are true:" +
                         "\n" +
-                        "  - The node doesn’t support the Time Synchronization cluster." +
+                        "  - The node doesn't support the Time Synchronization cluster." +
                         "\n" +
-                        "  - The node’s Time Synchronization cluster instance’s UTCTime attribute is null."
+                        "  - The node's Time Synchronization cluster instance's UTCTime attribute is null."
                 }
             ]
         },
@@ -288,12 +288,12 @@ Resource.add({
         {
             tag: "command", name: "PayloadTestRequest", xref: "core§11.12.7.4",
 
-            details: "This command provides a means for certification tests or manufacturer’s internal tests to validate " +
+            details: "This command provides a means for certification tests or manufacturer's internal tests to validate " +
                 "particular command handling and encoding constraints by generating a response of a given size." +
                 "\n" +
                 "This command shall use the same EnableKey behavior as the TestEventTrigger command, whereby " +
                 "processing of the command is only enabled when the TestEventTriggersEnabled field is true, which " +
-                "shall NOT be true outside of certification testing or manufacturer’s internal tests." +
+                "shall NOT be true outside of certification testing or manufacturer's internal tests." +
                 "\n" +
                 "The fields for the PayloadTestRequest command are as follows:",
 
@@ -304,35 +304,12 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Value", xref: "core§11.12.7.4.2",
-                    details: "This field shall indicate the value to use in every byte of the PayloadTestResponse’s Payload field."
+                    details: "This field shall indicate the value to use in every byte of the PayloadTestResponse's Payload field."
                 },
-
                 {
                     tag: "field", name: "Count", xref: "core§11.12.7.4.3",
-
-                    details: "This field shall indicate the number of times to repeat the Value in the PayloadTestResponse’s " +
-                        "Payload field." +
-                        "\n" +
-                        "### Effect upon receipt" +
-                        "\n" +
-                        "This command shall respond with a response status of CONSTRAINT_ERROR if either:" +
-                        "\n" +
-                        "  - The EnableKey field does not match the a-priori value configured on the device." +
-                        "\n" +
-                        "  - The TestEventTriggersEnabled field is currently false." +
-                        "\n" +
-                        "Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value " +
-                        "containing Count instances of the Value byte. If the response is too large to send, the server shall " +
-                        "fail the command and respond with a response status of RESOURCE_EXHAUSTED." +
-                        "\n" +
-                        "For example:" +
-                        "\n" +
-                        "  - If Value is 0x55 and the Count is zero, then the PayloadTestResponse would have the Payload " +
-                        "field set to an empty octet string." +
-                        "\n" +
-                        "  - If Value is 0xA5 and the Count is 10, the PayloadTestResponse would have the Payload field set " +
-                        "to a content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 " +
-                        "representation would be paWlpaWlpaWlpQ==."
+                    details: "This field shall indicate the number of times to repeat the Value in the PayloadTestResponse's " +
+                        "Payload field."
                 }
             ]
         },
@@ -469,7 +446,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "BrownOutReset",
-                    description: "The Node has rebooted as the result of a brown-out of the Node’s power supply."
+                    description: "The Node has rebooted as the result of a brown-out of the Node's power supply."
                 },
                 {
                     tag: "field", name: "SoftwareWatchdogReset",
@@ -538,7 +515,7 @@ Resource.add({
                 {
                     tag: "field", name: "IPv6Addresses", xref: "core§11.12.5.6.7",
                     details: "This field shall provide a list of the unicast IPv6 addresses that are currently assigned to the " +
-                        "network interface. This list shall include the Node’s link-local address and SHOULD include any " +
+                        "network interface. This list shall include the Node's link-local address and SHOULD include any " +
                         "assigned GUA and ULA addresses. This list shall NOT include any multicast group addresses to which " +
                         "the Node is subscribed."
                 },

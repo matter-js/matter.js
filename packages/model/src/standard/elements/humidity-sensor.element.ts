@@ -13,7 +13,7 @@ export const HumiditySensorDt = DeviceType(
     { name: "HumiditySensor", id: 0x307, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 775, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 775, revision: 3 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "M", element: "serverCluster" })

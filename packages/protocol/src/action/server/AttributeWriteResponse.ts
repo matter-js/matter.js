@@ -56,6 +56,14 @@ export class AttributeWriteResponse<
 
         const writeResponses = new Array<WriteResult.AttributeStatus>();
         for (const { path, data, dataVersion } of writeRequests) {
+            // Spec 1.5: WildcardPathFlags SHALL ONLY be used for Read or Subscribe interactions
+            if (path.wildcardPathFlags) {
+                throw new StatusResponseError(
+                    "WildcardPathFlags are not allowed in write interactions",
+                    StatusCode.InvalidAction,
+                );
+            }
+
             if (path.endpointId === undefined || path.clusterId === undefined || path.attributeId === undefined) {
                 // dataVersion silently ignored for Wildcard?
                 const responses = await this.#processWildcard(path, data);

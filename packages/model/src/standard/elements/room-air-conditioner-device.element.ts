@@ -13,7 +13,7 @@ export const RoomAirConditionerDt = DeviceType(
     { name: "RoomAirConditioner", id: 0x72, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 4 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster" }),
@@ -22,6 +22,8 @@ export const RoomAirConditionerDt = DeviceType(
         Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster" }),
     Requirement(

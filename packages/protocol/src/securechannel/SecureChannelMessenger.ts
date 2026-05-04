@@ -158,7 +158,7 @@ export class SecureChannelMessenger {
     }
 
     get channelName() {
-        return this.exchange.channel.channel.name;
+        return this.exchange.channel.transportChannel.name;
     }
 
     [Symbol.asyncDispose]() {

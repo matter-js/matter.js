@@ -30,6 +30,7 @@ async function main() {
         productId,
         port,
         uniqueId,
+        tcp,
     } = await getConfiguration();
 
     /**
@@ -43,6 +44,7 @@ async function main() {
         // Optional when operating only one device on a host, Default port is 5540
         network: {
             port,
+            tcp,
         },
 
         // Provide Commissioning relevant settings
@@ -162,6 +164,7 @@ async function getConfiguration() {
     const productId = environment.vars.number("productid") ?? (await deviceStorage.get("productid", 0x8000));
 
     const port = environment.vars.number("port") ?? 5540;
+    const tcp = environment.vars.get("tcp") !== undefined ? true : undefined;
 
     const uniqueId =
         environment.vars.string("uniqueid") ?? (await deviceStorage.get("uniqueid", Time.nowMs)).toString();
@@ -189,5 +192,6 @@ async function getConfiguration() {
         productId,
         port,
         uniqueId,
+        tcp,
     };
 }

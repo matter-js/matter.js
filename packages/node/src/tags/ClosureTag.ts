@@ -9,33 +9,51 @@
 import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
 
 /**
- * The tags contained in this namespace may be used in any domain or context, to indicate an association with a feature
- * of a Closure, e.g. the button to activate opening a garage door.
+ * The tags contained in this namespace are restricted for use in the closure domain and shall NOT be used in any other
+ * domain or context.
  *
- * > [!NOTE]
- *
- * > This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these tags, since the
- *   tags could be used by a server certified on a previous revision of Matter.
- *
- * @see {@link MatterSpecification.v142.Namespace} § 2
+ * @see {@link MatterSpecification.v151.Namespace} § 22
  */
 export const ClosureTag = SemanticNamespace({
-    id: 0x1,
+    id: 0x44,
 
     tags: {
         /**
-         * Move toward open position
+         * Any material or treatment used to cover a window for privacy, light control, insulation, or decoration.
          */
-        Opening: { id: 0x0, label: "Opening" },
+        Covering: { id: 0x0, label: "Covering" },
 
         /**
-         * Move toward closed position
+         * An opening in a wall, door, or roof fitted with glass or another transparent material to allow light, air,
+         * and views while providing insulation and security.
          */
-        Closing: { id: 0x1, label: "Closing" },
+        Window: { id: 0x1, label: "Window" },
 
         /**
-         * Stop any movement
+         * A physical or conceptual obstruction that prevents movement, access, or progress that serve purposes such as
+         * security, safety, privacy, control, etc.
          */
-        Stop: { id: 0x2, label: "Stop" }
+        Barrier: { id: 0x2, label: "Barrier" },
+
+        /**
+         * A storage unit with shelves, drawers, or doors, used for organizing and protecting items.
+         */
+        Cabinet: { id: 0x3, label: "Cabinet" },
+
+        /**
+         * A movable barrier that controls entry or exit through an opening in a fence, wall, or enclosure.
+         */
+        Gate: { id: 0x4, label: "Gate" },
+
+        /**
+         * A large, movable barrier that provides access to a garage.
+         */
+        GarageDoor: { id: 0x5, label: "GarageDoor" },
+
+        /**
+         * A movable barrier that allows entry and exit between spaces while providing security, privacy, and
+         * insulation.
+         */
+        Door: { id: 0x6, label: "Door" }
     }
 });

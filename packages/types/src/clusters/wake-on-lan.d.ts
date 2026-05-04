@@ -24,7 +24,7 @@ import type { Bytes } from "@matter/general";
  *
  * Acting on the MAC address or link-local IPv6 address information does require the caller to be in the same broadcast
  * domain as the destination. To wake the destination up, the caller sends a multicast-based magic UDP packet that
- * contains destination’s MAC address in the UDP payload to FF02::1, the IPv6 all-nodes link-local multicast group
+ * contains destination's MAC address in the UDP payload to FF02::1, the IPv6 all-nodes link-local multicast group
  * address. If the optional link-local address is provided by the destination through this cluster, the caller also
  * sends the magic UDP packet in unicast to that link-local address. This unicast-based method is particularly useful
  * for Wi-Fi devices, since due to lack of MAC layer retransmission mechanism, multicast over Wi-Fi is not as reliable
@@ -38,7 +38,7 @@ import type { Bytes } from "@matter/general";
  * The cluster server for Wake on LAN or Wake on WLAN is implemented by a device that supports the Wake on LAN/WLAN
  * protocol, such as a TV, Set-top Box, or Smart Speaker.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.12
+ * @see {@link MatterSpecification.v151.Cluster} § 1.12
  */
 export declare namespace WakeOnLan {
     /**
@@ -74,7 +74,7 @@ export declare namespace WakeOnLan {
          * Format of this attribute shall be an upper-case hex-encoded string representing the hex address, like
          * 12345678ABCD.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.1
          */
         macAddress?: string;
 
@@ -84,11 +84,11 @@ export declare namespace WakeOnLan {
          *
          * > [!NOTE]
          *
-         * > Some companies may consider MAC Address to be protected data subject to PII handling considerations and
-         *   will therefore choose not to include it or read it. The MAC Address can often be determined using ARP in
-         *   IPv4 or NDP in IPv6.
+         * > NOTE: Some companies may consider MAC Address to be protected data subject to PII handling considerations
+         *   and will therefore choose not to include it or read it. The MAC Address can often be determined using ARP
+         *   in IPv4 or NDP in IPv6.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.2
          */
         linkLocalAddress?: Bytes;
     }
@@ -106,7 +106,7 @@ export declare namespace WakeOnLan {
          * Format of this attribute shall be an upper-case hex-encoded string representing the hex address, like
          * 12345678ABCD.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.1
          */
         macAddress: string;
 
@@ -116,11 +116,11 @@ export declare namespace WakeOnLan {
          *
          * > [!NOTE]
          *
-         * > Some companies may consider MAC Address to be protected data subject to PII handling considerations and
-         *   will therefore choose not to include it or read it. The MAC Address can often be determined using ARP in
-         *   IPv4 or NDP in IPv6.
+         * > NOTE: Some companies may consider MAC Address to be protected data subject to PII handling considerations
+         *   and will therefore choose not to include it or read it. The MAC Address can often be determined using ARP
+         *   in IPv4 or NDP in IPv6.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.2
          */
         linkLocalAddress: Bytes;
     }

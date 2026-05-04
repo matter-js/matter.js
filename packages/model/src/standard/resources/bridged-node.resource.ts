@@ -16,22 +16,18 @@ Resource.add({
         "bridge itself.",
 
     children: [
-        { tag: "requirement", name: "BridgedDeviceBasicInformation", xref: "device§2.5.5" },
         { tag: "requirement", name: "PowerSourceConfiguration", xref: "device§2.5.5" },
         {
             tag: "requirement", name: "PowerSource", discriminator: "BridgedPowerSourceInfo:serverCluster",
             xref: "device§2.5.5"
         },
-        { tag: "requirement", name: "EcosystemInformation", xref: "device§2.5.5" },
+        { tag: "requirement", name: "BridgedDeviceBasicInformation", xref: "device§2.5.5" },
         { tag: "requirement", name: "AdministratorCommissioning", xref: "device§2.5.5" },
+        { tag: "requirement", name: "EcosystemInformation", xref: "device§2.5.5" },
         { tag: "requirement", name: "PowerSource", discriminator: "O:deviceType", xref: "device§2.5.4" },
-
         {
-            tag: "field", name: "conditions",
-            children: [{
-                tag: "field", name: "FabricSynchronizedNode", description: "See description below.",
-                xref: "device§2.5.3"
-            }]
+            tag: "condition", name: "FabricSynchronizedNode", description: "See description below.",
+            xref: "device§2.5.3"
         }
     ]
 });

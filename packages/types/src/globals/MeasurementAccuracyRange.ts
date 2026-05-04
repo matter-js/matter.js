@@ -17,26 +17,26 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *   - If both PercentMax and FixedMax are indicated, then for a given true value in the range between RangeMin and
  *     RangeMax,
  *
- *     - the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
- *       the true value.
+ *   - the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
+ *     the true value.
  *
- *     - the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
- *       percent of the true value.
+ *   - the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
+ *     percent of the true value.
  *
  *   - If only PercentMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     - the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
- *       value.
+ *   - the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
+ *     value.
  *
- *     - the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
+ *   - the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
  *
  *   - If only FixedMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     - the reported value shall be less than or equal to the sum of the true value and FixedMax.
+ *   - the reported value shall be less than or equal to the sum of the true value and FixedMax.
  *
- *     - the reported value shall be greater than or equal to the true value minus FixedMax.
+ *   - the reported value shall be greater than or equal to the true value minus FixedMax.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2
+ * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2
  */
 export const TlvMeasurementAccuracyRange = TlvObject({
     /**
@@ -48,7 +48,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      * The value of this field shall be less than or equal to the value of the MaxMeasuredValue field on the
      * encompassing MeasurementAccuracyStruct.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.1
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.1
      */
     rangeMin: TlvField(0, TlvInt64),
 
@@ -63,28 +63,28 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      * The value of this field shall be less than or equal to the value of the MaxMeasuredValue field on the
      * encompassing MeasurementAccuracyStruct.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.2
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.2
      */
     rangeMax: TlvField(1, TlvInt64),
 
     /**
      * This field shall indicate the maximum +/- percentage accuracy for the associated measurement.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.3
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.3
      */
     percentMax: TlvOptionalField(2, TlvPercent100ths),
 
     /**
      * This field shall indicate the minimum +/- percentage accuracy for the associated measurement.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.4
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.4
      */
     percentMin: TlvOptionalField(3, TlvPercent100ths),
 
     /**
      * This field shall indicate the typical +/- percentage accuracy for the associated measurement.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.5
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.5
      */
     percentTypical: TlvOptionalField(4, TlvPercent100ths),
 
@@ -92,7 +92,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      * This field shall indicate the maximum +/- fixed accuracy for the associated measurement, in the unit indicated by
      * MeasurementType.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.6
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.6
      */
     fixedMax: TlvOptionalField(5, TlvUInt64),
 
@@ -100,7 +100,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      * This field shall indicate the minimum +/- fixed accuracy for the associated measurement, in the unit indicated by
      * MeasurementType.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.7
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.7
      */
     fixedMin: TlvOptionalField(6, TlvUInt64),
 
@@ -108,7 +108,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      * This field shall indicate the typical +/- fixed accuracy for the associated measurement, in the unit indicated by
      * MeasurementType.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2.8
+     * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2.8
      */
     fixedTypical: TlvOptionalField(7, TlvUInt64)
 });
@@ -120,25 +120,25 @@ export const TlvMeasurementAccuracyRange = TlvObject({
  *   - If both PercentMax and FixedMax are indicated, then for a given true value in the range between RangeMin and
  *     RangeMax,
  *
- *     - the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
- *       the true value.
+ *   - the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
+ *     the true value.
  *
- *     - the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
- *       percent of the true value.
+ *   - the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
+ *     percent of the true value.
  *
  *   - If only PercentMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     - the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
- *       value.
+ *   - the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
+ *     value.
  *
- *     - the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
+ *   - the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
  *
  *   - If only FixedMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     - the reported value shall be less than or equal to the sum of the true value and FixedMax.
+ *   - the reported value shall be less than or equal to the sum of the true value and FixedMax.
  *
- *     - the reported value shall be greater than or equal to the true value minus FixedMax.
+ *   - the reported value shall be greater than or equal to the true value minus FixedMax.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2
+ * @see {@link MatterSpecification.v151.Cluster} § 2.1.3.2
  */
 export interface MeasurementAccuracyRange extends TypeFromSchema<typeof TlvMeasurementAccuracyRange> {}

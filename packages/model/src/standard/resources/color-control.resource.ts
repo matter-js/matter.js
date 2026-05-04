@@ -45,8 +45,6 @@ Resource.add(
                     "\n" +
                     "The hue in degrees shall be related to the CurrentHue attribute by the relationship:" +
                     "\n" +
-                    "Hue = \"CurrentHue\" * 360 / 254" +
-                    "\n" +
                     "where CurrentHue is in the range from 0 to 254 inclusive." +
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
@@ -64,8 +62,6 @@ Resource.add(
                     "\n" +
                     "The saturation (on a scale from 0.0 to 1.0) shall be related to the CurrentSaturation attribute by " +
                     "the relationship:" +
-                    "\n" +
-                    "Saturation = \"CurrentSaturation\" / 254" +
                     "\n" +
                     "where CurrentSaturation is in the range from 0 to 254 inclusive." +
                     "\n" +
@@ -103,11 +99,8 @@ Resource.add(
                 details: "Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color " +
                     "Space. It is updated as fast as practical during commands that change the color." +
                     "\n" +
-                    "The value of x shall be related to the CurrentX attribute by the relationship" +
-                    "\n" +
-                    "x = \"CurrentX\" / 65536" +
-                    "\n" +
-                    "where CurrentX is in the range from 0 to 65279 inclusive." +
+                    "The value of x shall be related to the CurrentX attribute by the relationship where CurrentX is in " +
+                    "the range from 0 to 65279 inclusive." +
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
@@ -122,11 +115,8 @@ Resource.add(
                 details: "Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color " +
                     "Space. It is updated as fast as practical during commands that change the color." +
                     "\n" +
-                    "The value of y shall be related to the CurrentY attribute by the relationship" +
-                    "\n" +
-                    "y = \"CurrentY\" / 65536" +
-                    "\n" +
-                    "where CurrentY is in the range from 0 to 65279 inclusive." +
+                    "The value of y shall be related to the CurrentY attribute by the relationship where CurrentY is in " +
+                    "the range from 0 to 65279 inclusive." +
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
@@ -159,12 +149,8 @@ Resource.add(
                     "  - At the end of the movement/transition." +
                     "\n" +
                     "The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in " +
-                    "mired by the relationship" +
-                    "\n" +
-                    "\"Color temperature [K]\" = \"1,000,000\" / \"ColorTemperatureMireds\"" +
-                    "\n" +
-                    "where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color temperature " +
-                    "range from 1,000,000 K to 15.32 K." +
+                    "mired by the relationship where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, " +
+                    "giving a color temperature range from 1,000,000 K to 15.32 K." +
                     "\n" +
                     "If this attribute is implemented then the ColorMode attribute shall also be implemented."
             },
@@ -237,7 +223,7 @@ Resource.add(
             {
                 tag: "attribute", name: "Primary1Intensity", xref: "cluster§3.2.7.27",
                 details: "Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, " +
-                    "“The Dimming Light Curve”, normalized such that the primary with the highest maximum intensity " +
+                    "\"The Dimming Light Curve\", normalized such that the primary with the highest maximum intensity " +
                     "contains the value 254." +
                     "\n" +
                     "A value of null shall indicate that this primary is not available."
@@ -306,7 +292,7 @@ Resource.add(
             {
                 tag: "attribute", name: "ColorPointRIntensity", xref: "cluster§3.2.7.33",
                 details: "Indicates a representation of the relative intensity of the red color point as defined in Section " +
-                    "3.1.3, “The Dimming Light Curve”, normalized such that the color point with the highest relative " +
+                    "3.1.3, \"The Dimming Light Curve\", normalized such that the color point with the highest relative " +
                     "intensity contains the value 254." +
                     "\n" +
                     "A value of null shall indicate an invalid value."
@@ -383,34 +369,20 @@ Resource.add(
                 details: "Indicates the color control capabilities of the device." +
                     "\n" +
                     "Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of " +
-                    "the FeatureMap attribute. All other bits in ColorCapabilities shall be 0.",
-
-                children: [
-                    {
-                        tag: "field", name: "HueSaturation",
-                        description: "Supports color specification via hue/saturation."
-                    },
-                    { tag: "field", name: "EnhancedHue", description: "Enhanced hue is supported." },
-                    { tag: "field", name: "ColorLoop", description: "Color loop is supported." },
-                    { tag: "field", name: "XY", description: "Supports color specification via XY." },
-                    {
-                        tag: "field", name: "ColorTemperature",
-                        description: "Supports color specification via color temperature."
-                    }
-                ]
+                    "the FeatureMap attribute. All other bits in ColorCapabilities shall be 0."
             },
 
             {
                 tag: "attribute", name: "ColorTempPhysicalMinMireds", xref: "cluster§3.2.7.20",
                 details: "Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds " +
-                    "to the maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <= " +
-                    "ColorTemperatureMireds."
+                    "to the maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds " +
+                    "$<=$ ColorTemperatureMireds."
             },
 
             {
                 tag: "attribute", name: "ColorTempPhysicalMaxMireds", xref: "cluster§3.2.7.21",
                 details: "Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds " +
-                    "to the minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <= " +
+                    "to the minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds $<=$ " +
                     "ColorTempPhysicalMaxMireds."
             },
 
@@ -424,7 +396,7 @@ Resource.add(
                     "correspond to a CurrentLevel value of 254 (100%)." +
                     "\n" +
                     "This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds " +
-                    "<= CoupleColorTempToLevelMinMireds <= ColorTemperatureMireds" +
+                    "$<=$ CoupleColorTempToLevelMinMireds $<=$ ColorTemperatureMireds" +
                     "\n" +
                     "Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color " +
                     "temperature in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the " +
@@ -442,6 +414,7 @@ Resource.add(
 
             {
                 tag: "command", name: "MoveToHue", xref: "cluster§3.2.8.4",
+                details: "This command will move the device to the requested hue value using a transition.",
 
                 children: [
                     {
@@ -462,6 +435,7 @@ Resource.add(
 
             {
                 tag: "command", name: "MoveHue", xref: "cluster§3.2.8.5",
+                details: "This command will move the device to the requested hue value using a step rate.",
 
                 children: [
                     {
@@ -478,6 +452,7 @@ Resource.add(
 
             {
                 tag: "command", name: "StepHue", xref: "cluster§3.2.8.6",
+                details: "This command will change the device to the requested hue value using a step and transition.",
 
                 children: [
                     {
@@ -498,16 +473,20 @@ Resource.add(
                             "\n" +
                             "> [!NOTE]" +
                             "\n" +
-                            "> Here the TransitionTime data field is of data type uint8, where uint16 is more common for " +
+                            "> NOTE: Here the TransitionTime data field is of data type uint8, where uint16 is more common for " +
                             "TransitionTime data fields in other clusters / commands."
                     }
                 ]
             },
 
-            { tag: "command", name: "MoveToSaturation", xref: "cluster§3.2.8.7" },
+            {
+                tag: "command", name: "MoveToSaturation", xref: "cluster§3.2.8.7",
+                details: "This command will move the device to the requested saturation value using a transition."
+            },
 
             {
                 tag: "command", name: "MoveSaturation", xref: "cluster§3.2.8.8",
+                details: "This command will move the device to the requested saturation value using a rate.",
 
                 children: [
                     {
@@ -524,6 +503,7 @@ Resource.add(
 
             {
                 tag: "command", name: "StepSaturation", xref: "cluster§3.2.8.9",
+                details: "This command will change the device to the requested saturation value using a step transition.",
 
                 children: [
                     {
@@ -544,17 +524,24 @@ Resource.add(
                             "\n" +
                             "> [!NOTE]" +
                             "\n" +
-                            "> Here the TransitionTime data field is of data type uint8, where uint16 is more common for " +
+                            "> NOTE: Here the TransitionTime data field is of data type uint8, where uint16 is more common for " +
                             "TransitionTime data fields in other clusters / commands."
                     }
                 ]
             },
 
-            { tag: "command", name: "MoveToHueAndSaturation", xref: "cluster§3.2.8.10" },
-            { tag: "command", name: "MoveToColor", xref: "cluster§3.2.8.11" },
+            {
+                tag: "command", name: "MoveToHueAndSaturation", xref: "cluster§3.2.8.10",
+                details: "This command will move the device to the requested hue and saturation value using a transition."
+            },
+            {
+                tag: "command", name: "MoveToColor", xref: "cluster§3.2.8.11",
+                details: "This command will move the device to the requested color value using a transition."
+            },
 
             {
                 tag: "command", name: "MoveColor", xref: "cluster§3.2.8.12",
+                details: "This command will move the device to the requested color using a step rate.",
 
                 children: [
                     {
@@ -572,6 +559,7 @@ Resource.add(
 
             {
                 tag: "command", name: "StepColor", xref: "cluster§3.2.8.13",
+                details: "This command will move the device to the requested color using a step transition.",
                 children: [{
                     tag: "field", name: "TransitionTime", xref: "cluster§3.2.8.13.2",
                     details: "The field shall indicate, in 1/10ths of a second, the time that shall be taken to perform the color " +
@@ -579,7 +567,10 @@ Resource.add(
                 }]
             },
 
-            { tag: "command", name: "MoveToColorTemperature", xref: "cluster§3.2.8.14" },
+            {
+                tag: "command", name: "MoveToColorTemperature", xref: "cluster§3.2.8.14",
+                details: "This command will move the device to the requested color temperate using a transition."
+            },
 
             {
                 tag: "command", name: "EnhancedMoveToHue", xref: "cluster§3.2.8.15",
@@ -644,8 +635,8 @@ Resource.add(
                             "\n" +
                             "> [!NOTE]" +
                             "\n" +
-                            "> Here TransitionTime data field is of data type uint16, while the TransitionTime data field of the " +
-                            "StepHue command is of data type uint8."
+                            "> NOTE: Here TransitionTime data field is of data type uint16, while the TransitionTime data field " +
+                            "of the StepHue command is of data type uint8."
                     }
                 ]
             },
@@ -704,11 +695,11 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> This automatically provides symmetry to the Level Control cluster." +
+                    "> NOTE: This automatically provides symmetry to the Level Control cluster." +
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> The StopMoveStep command has no effect on an active color loop."
+                    "> NOTE: The StopMoveStep command has no effect on an active color loop."
             },
 
             {
@@ -732,8 +723,8 @@ Resource.add(
                         details: "This field shall indicate a lower bound on the ColorTemperatureMireds attribute (≡ an upper bound on " +
                             "the color temperature in kelvins) for the current move operation" +
                             "\n" +
-                            "ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <= ColorTemperatureMireds As such " +
-                            "if the move operation takes the ColorTemperatureMireds attribute towards the value of the " +
+                            "ColorTempPhysicalMinMireds $<=$ ColorTemperatureMinimumMireds field $<=$ ColorTemperatureMireds As " +
+                            "such if the move operation takes the ColorTemperatureMireds attribute towards the value of the " +
                             "ColorTemperatureMinimumMireds field it shall be clipped so that the above invariant is satisfied. If " +
                             "the ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the " +
                             "lower bound for the ColorTemperatureMireds attribute."
@@ -745,8 +736,8 @@ Resource.add(
                         details: "This field shall indicate an upper bound on the ColorTemperatureMireds attribute (≡ a lower bound on " +
                             "the color temperature in kelvins) for the current move operation" +
                             "\n" +
-                            "ColorTemperatureMireds <= ColorTemperatureMaximumMireds field <= ColorTempPhysicalMaxMireds As such " +
-                            "if the move operation takes the ColorTemperatureMireds attribute towards the value of the " +
+                            "ColorTemperatureMireds $<=$ ColorTemperatureMaximumMireds field $<=$ ColorTempPhysicalMaxMireds As " +
+                            "such if the move operation takes the ColorTemperatureMireds attribute towards the value of the " +
                             "ColorTemperatureMaximumMireds field it shall be clipped so that the above invariant is satisfied. If " +
                             "the ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the " +
                             "upper bound for the ColorTemperatureMireds attribute."
@@ -782,8 +773,8 @@ Resource.add(
                         details: "This field shall indicate a lower bound on the ColorTemperatureMireds attribute (≡ an upper bound on " +
                             "the color temperature in kelvins) for the current step operation" +
                             "\n" +
-                            "ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <= ColorTemperatureMireds As such " +
-                            "if the step operation takes the ColorTemperatureMireds attribute towards the value of the " +
+                            "ColorTempPhysicalMinMireds $<=$ ColorTemperatureMinimumMireds field $<=$ ColorTemperatureMireds As " +
+                            "such if the step operation takes the ColorTemperatureMireds attribute towards the value of the " +
                             "ColorTemperatureMinimumMireds field it shall be clipped so that the above invariant is satisfied. If " +
                             "the ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the " +
                             "lower bound for the ColorTemperatureMireds attribute."
@@ -800,6 +791,24 @@ Resource.add(
                             "ColorTemperatureMaximumMireds field it shall be clipped so that the above invariant is satisfied. If " +
                             "the ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the " +
                             "upper bound for the ColorTemperatureMireds attribute."
+                    }
+                ]
+            },
+
+            {
+                tag: "datatype", name: "ColorCapabilitiesBitmap", xref: "cluster§3.2.6.1",
+
+                children: [
+                    {
+                        tag: "field", name: "HueSaturation",
+                        description: "Supports color specification via hue/saturation."
+                    },
+                    { tag: "field", name: "EnhancedHue", description: "Enhanced hue is supported." },
+                    { tag: "field", name: "ColorLoop", description: "Color loop is supported." },
+                    { tag: "field", name: "Xy", description: "Supports color specification via XY." },
+                    {
+                        tag: "field", name: "ColorTemperature",
+                        description: "Supports color specification via color temperature."
                     }
                 ]
             },

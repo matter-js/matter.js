@@ -81,5 +81,19 @@ export namespace EndpointType {
             mandatory?: SupportedBehaviors;
             optional?: SupportedBehaviors;
         };
+
+        /**
+         * Device type requirements for component device types (child endpoints) per the Matter specification.
+         * These describe what device types must or may be present as child endpoints.
+         *
+         * TODO: support multiple instances of the same component device type.  The spec allows e.g.
+         * BatteryStorage to require two ElectricalSensor endpoints (AC + DC) and two PowerSource endpoints
+         * (Wired + Battery) each with different cluster/feature configurations.  Currently we deduplicate
+         * to a single entry per device type.
+         */
+        deviceTypes?: {
+            mandatory?: Record<string, { deviceType: number }>;
+            optional?: Record<string, { deviceType: number }>;
+        };
     }
 }

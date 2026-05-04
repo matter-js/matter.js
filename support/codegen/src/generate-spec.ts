@@ -9,17 +9,12 @@ import { hideBin } from "yargs/helpers";
 
 const USAGE = `Generates a Matter object model from specification documents.
 
-This script scrapes specification information from an HTML version of the
-Matter specification.  You may override the default location with the
-MATTER_SPECIFICATION_PATH environment variable or --path= command line
-argument.
+This script parses a Markdown spec tree to extract the Matter data model.
+Each document lives in a subdirectory (main/, appclusters/, device_library/,
+standard_namespaces/) with an _index.md file listing the chapter order.
 
-The script is optimized to work with the HTML version of the specification
-generated from the same sources as the published PDFs.
-
-If you have access to the spec PDFs, reach out in Matter Integrators Discord
-server if you would like access to a GitHub repository with the HTML version of
-the specification.  Specifically mention the term "masochist".`;
+Override the default spec location with the MATTER_SPECIFICATION_PATH
+environment variable or --path= command line argument.`;
 
 import "./util/setup.js";
 

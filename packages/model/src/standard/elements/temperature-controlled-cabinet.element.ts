@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import {
     DeviceTypeElement as DeviceType,
     RequirementElement as Requirement,
-    FieldElement as Field
+    ConditionElement as Condition
 } from "../../elements/index.js";
 
 export const TemperatureControlledCabinetDt = DeviceType(
@@ -48,7 +48,8 @@ export const TemperatureControlledCabinetDt = DeviceType(
         Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
     ),
 
-    Field({ name: "conditions", type: "enum8" }, Field({ name: "Cooler" }), Field({ name: "Heater" }))
+    Condition({ name: "Cooler" }),
+    Condition({ name: "Heater" })
 );
 
 MatterDefinition.children.push(TemperatureControlledCabinetDt);

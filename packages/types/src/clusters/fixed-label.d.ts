@@ -32,7 +32,7 @@ import type { Label } from "./label.js";
  * in the various namespaces. The second example above can be implemented using semantic tags Direction.Upward and
  * Direction.Downward instead of (or in addition to) the Fixed Label cluster.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.8
+ * @see {@link MatterSpecification.v151.Core} § 9.8
  */
 export declare namespace FixedLabel {
     /**
@@ -62,7 +62,7 @@ export declare namespace FixedLabel {
      */
     export interface BaseAttributes {
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.8.4
+         * @see {@link MatterSpecification.v151.Core} § 9.8.4
          */
         labelList: Label.LabelStruct[];
     }
@@ -72,7 +72,7 @@ export declare namespace FixedLabel {
      */
     export interface Attributes {
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.8.4
+         * @see {@link MatterSpecification.v151.Core} § 9.8.4
          */
         labelList: Label.LabelStruct[];
     }

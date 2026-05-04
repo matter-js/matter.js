@@ -20,8 +20,8 @@ Resource.add({
         "Dimmable Plug-In Unit, and is marked as a superset of this device type (since Matter 1.4.2). For " +
         "devices intended to be mounted permanently, the Mounted Dimmable Load Control device type shall be " +
         "used, with the Dimmable Plug-In Unit device type optionally added to the DeviceTypeList of the " +
-        "Descriptor cluster in addition to the Mounted Dimmable Load Control device type (see " +
-        "[ref_MountedDimmableLoadControlServerGuidance])." +
+        "Descriptor cluster in addition to the Mounted Dimmable Load Control device type (see Mounted " +
+        "Dimmable Load Control server guidance section)." +
         "\n" +
         "Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit " +
         "device type. Clients can encounter devices which were made before or after these specification " +
@@ -32,9 +32,9 @@ Resource.add({
     children: [
         { tag: "requirement", name: "Identify", xref: "device§5.2.4" },
         { tag: "requirement", name: "Groups", xref: "device§5.2.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.2.4" },
         { tag: "requirement", name: "OnOff", xref: "device§5.2.4" },
         { tag: "requirement", name: "LevelControl", xref: "device§5.2.4" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§5.2.4" },
         { tag: "requirement", name: "OccupancySensing", xref: "device§5.2.4" }
     ]
 });

@@ -20,7 +20,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster supports an interface to a Node. It provides attributes for determining and configuring time and date
  * formatting information that a Node shall utilize when conveying values to a user.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.4
+ * @see {@link MatterSpecification.v151.Core} § 11.4
  */
 export declare namespace TimeFormatLocalization {
     /**
@@ -56,7 +56,7 @@ export declare namespace TimeFormatLocalization {
          * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
          * format, and if ActiveLocale is not present, the hour format is unknown.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.4.6.1
          */
         hourFormat: HourFormat;
     }
@@ -72,7 +72,7 @@ export declare namespace TimeFormatLocalization {
          * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar
          * type, and if ActiveLocale is not present, the calendar type is unknown.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.4.6.2
          */
         activeCalendarType: CalendarType;
 
@@ -81,7 +81,7 @@ export declare namespace TimeFormatLocalization {
          * duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum length
          * of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within CalendarTypeEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.4.6.3
          */
         supportedCalendarTypes: CalendarType[];
     }
@@ -100,7 +100,7 @@ export declare namespace TimeFormatLocalization {
          * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
          * format, and if ActiveLocale is not present, the hour format is unknown.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.4.6.1
          */
         hourFormat: HourFormat;
 
@@ -111,7 +111,7 @@ export declare namespace TimeFormatLocalization {
          * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar
          * type, and if ActiveLocale is not present, the calendar type is unknown.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.4.6.2
          */
         activeCalendarType: CalendarType;
 
@@ -120,7 +120,7 @@ export declare namespace TimeFormatLocalization {
          * duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum length
          * of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within CalendarTypeEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.4.6.3
          */
         supportedCalendarTypes: CalendarType[];
     }
@@ -134,7 +134,7 @@ export declare namespace TimeFormatLocalization {
     /**
      * These are optional features supported by TimeFormatLocalizationCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.4.4
+     * @see {@link MatterSpecification.v151.Core} § 11.4.4
      */
     export enum Feature {
         /**
@@ -146,7 +146,7 @@ export declare namespace TimeFormatLocalization {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.4.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.4.5.1
      */
     export enum HourFormat {
         /**
@@ -166,7 +166,7 @@ export declare namespace TimeFormatLocalization {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.4.5.2
+     * @see {@link MatterSpecification.v151.Core} § 11.4.5.2
      */
     export enum CalendarType {
         /**

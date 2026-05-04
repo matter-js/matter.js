@@ -35,16 +35,39 @@ Resource.add({
         },
 
         {
-            tag: "attribute", name: "AvailableEndpoints", xref: "core§11.8.5.1",
+            tag: "attribute", name: "AvailableEndpoints", xref: "core§11.8.6.1",
             details: "Indicates the list of endpoints capable of providing power to and/or consuming power from the " +
                 "endpoint hosting this server."
         },
 
         {
-            tag: "attribute", name: "ActiveEndpoints", xref: "core§11.8.5.2",
+            tag: "attribute", name: "ActiveEndpoints", xref: "core§11.8.6.2",
             details: "Indicates the current list of endpoints currently providing or consuming power to or from the " +
                 "endpoint hosting this server. This list shall be a subset of the value of the AvailableEndpoints " +
                 "attribute."
+        },
+
+        {
+            tag: "datatype", name: "CircuitNodeStruct", xref: "core§11.8.5.1",
+            details: "This indicates a device on the circuit represented by this server.",
+
+            children: [
+                {
+                    tag: "field", name: "Node", xref: "core§11.8.5.1.1",
+                    details: "This field shall indicate the ID of a node which is on the electrical circuit represented by this " +
+                        "server."
+                },
+                {
+                    tag: "field", name: "Endpoint", xref: "core§11.8.5.1.2",
+                    details: "This field shall indicate the endpoint ID of the indicated node which is on the electrical circuit " +
+                        "represented by this server."
+                },
+                {
+                    tag: "field", name: "Label", xref: "core§11.8.5.1.3",
+                    details: "This field shall indicate a friendly name for the node, to be used when the client does not have " +
+                        "access to the node's fabric."
+                }
+            ]
         }
     ]
 });

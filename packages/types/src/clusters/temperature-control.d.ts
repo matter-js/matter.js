@@ -24,7 +24,7 @@ import type { MaybePromise } from "@matter/general";
  * interface on a device implementing this server. For example, the value of the Step attribute SHOULD match the
  * incremental value by which the temperature setpoint can be changed on the physical device.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 8.2
+ * @see {@link MatterSpecification.v151.Cluster} § 8.2
  */
 export declare namespace TemperatureControl {
     /**
@@ -56,14 +56,14 @@ export declare namespace TemperatureControl {
         /**
          * Indicates the desired Temperature Setpoint on the device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.1
          */
         temperatureSetpoint: number;
 
         /**
          * Indicates the minimum temperature to which the TemperatureSetpoint attribute may be set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.2
          */
         minTemperature: number;
 
@@ -71,10 +71,10 @@ export declare namespace TemperatureControl {
          * Indicates the maximum temperature to which the TemperatureSetpoint attribute may be set.
          *
          * If the Step attribute is supported, this attribute shall be such that MaxTemperature = MinTemperature + (Step
-         * * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall be such
-         * that MaxTemperature > MinTemperature.
+         * * n), where n is an integer and n $>$ 0. If the Step attribute is not supported, this attribute shall be such
+         * that MaxTemperature $>$ MinTemperature.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.3
          */
         maxTemperature: number;
     }
@@ -87,11 +87,13 @@ export declare namespace TemperatureControl {
          * Indicates the discrete value by which the TemperatureSetpoint attribute can be changed via the SetTemperature
          * command.
          *
-         * For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid values
-         * of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C (2600), 26.50C
-         * (2650), etc.
+         * > [!NOTE]
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.4
+         * > For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid values
+         *   of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C (2600), 26.50C
+         *   (2650), etc.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.4
          */
         step: number;
     }
@@ -105,7 +107,7 @@ export declare namespace TemperatureControl {
          * positional index of the list item in the SupportedTemperatureLevels list that represents the currently
          * selected temperature level setting of the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.5
          */
         selectedTemperatureLevel: number;
 
@@ -119,7 +121,7 @@ export declare namespace TemperatureControl {
          * unique value. The entries in this list shall appear in order of increasing temperature level with list item 0
          * being the setting with the lowest temperature level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.6
          */
         supportedTemperatureLevels: string[];
     }
@@ -134,14 +136,14 @@ export declare namespace TemperatureControl {
         /**
          * Indicates the desired Temperature Setpoint on the device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.1
          */
         temperatureSetpoint: number;
 
         /**
          * Indicates the minimum temperature to which the TemperatureSetpoint attribute may be set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.2
          */
         minTemperature: number;
 
@@ -149,10 +151,10 @@ export declare namespace TemperatureControl {
          * Indicates the maximum temperature to which the TemperatureSetpoint attribute may be set.
          *
          * If the Step attribute is supported, this attribute shall be such that MaxTemperature = MinTemperature + (Step
-         * * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall be such
-         * that MaxTemperature > MinTemperature.
+         * * n), where n is an integer and n $>$ 0. If the Step attribute is not supported, this attribute shall be such
+         * that MaxTemperature $>$ MinTemperature.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.3
          */
         maxTemperature: number;
 
@@ -160,11 +162,13 @@ export declare namespace TemperatureControl {
          * Indicates the discrete value by which the TemperatureSetpoint attribute can be changed via the SetTemperature
          * command.
          *
-         * For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid values
-         * of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C (2600), 26.50C
-         * (2650), etc.
+         * > [!NOTE]
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.4
+         * > For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid values
+         *   of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C (2600), 26.50C
+         *   (2650), etc.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.4
          */
         step: number;
 
@@ -173,7 +177,7 @@ export declare namespace TemperatureControl {
          * positional index of the list item in the SupportedTemperatureLevels list that represents the currently
          * selected temperature level setting of the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.5
          */
         selectedTemperatureLevel: number;
 
@@ -187,7 +191,7 @@ export declare namespace TemperatureControl {
          * unique value. The entries in this list shall appear in order of increasing temperature level with list item 0
          * being the setting with the lowest temperature level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.5.6
          */
         supportedTemperatureLevels: string[];
     }
@@ -199,7 +203,7 @@ export declare namespace TemperatureControl {
         /**
          * This command is used to set the temperature setpoint.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.6.1
          */
         setTemperature(request: SetTemperatureRequest): MaybePromise;
     }
@@ -221,7 +225,7 @@ export declare namespace TemperatureControl {
     /**
      * These are optional features supported by TemperatureControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.2.4
+     * @see {@link MatterSpecification.v151.Cluster} § 8.2.4
      */
     export enum Feature {
         /**
@@ -231,7 +235,7 @@ export declare namespace TemperatureControl {
          * the feature TN shall be used. Note that this cluster provides and supports temperatures in degrees Celsius
          * via the temperature data type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.4.1
          */
         TemperatureNumber = "TemperatureNumber",
 
@@ -241,7 +245,7 @@ export declare namespace TemperatureControl {
          * For devices that use vendor-specific temperature levels for the temperature setpoint, such as some washers,
          * the feature TL shall be used.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.4.2
          */
         TemperatureLevel = "TemperatureLevel",
 
@@ -251,7 +255,7 @@ export declare namespace TemperatureControl {
          * For devices that support discrete temperature setpoints that are larger than the temperature resolution
          * imposed via the temperature data type, the Step feature may be used.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.4.3
          */
         TemperatureStep = "TemperatureStep"
     }
@@ -259,7 +263,7 @@ export declare namespace TemperatureControl {
     /**
      * This command is used to set the temperature setpoint.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 8.2.6.1
      */
     export declare class SetTemperatureRequest {
         constructor(values?: Partial<SetTemperatureRequest>);
@@ -270,7 +274,7 @@ export declare namespace TemperatureControl {
          * The TargetTemperature shall be from MinTemperature to MaxTemperature inclusive. If the Step attribute is
          * supported, TargetTemperature shall be such that (TargetTemperature - MinTemperature) % Step == 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.6.1.1
          */
         targetTemperature?: number;
 
@@ -279,7 +283,7 @@ export declare namespace TemperatureControl {
          * the desired temperature level setting of the server. The value of this field shall be between 0 and the
          * length of the SupportedTemperatureLevels list -1.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.2.6.1.2
          */
         targetTemperatureLevel?: number;
     };

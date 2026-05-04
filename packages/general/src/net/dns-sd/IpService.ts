@@ -6,7 +6,7 @@
 
 import { DnsRecordType, SrvRecordValue } from "#codec/DnsCodec.js";
 import { Diagnostic } from "#log/Diagnostic.js";
-import { AddressLifespan, ServerAddress, ServerAddressUdp } from "#net/ServerAddress.js";
+import { AddressLifespan, ServerAddress, ServerAddressIp } from "#net/ServerAddress.js";
 import { ServerAddressSet } from "#net/ServerAddressSet.js";
 import { Duration } from "#time/Duration.js";
 import { Time } from "#time/Time.js";
@@ -27,7 +27,7 @@ export class IpService {
     readonly #observers = new ObserverGroup(this);
     readonly #services = new Map<string, Service>();
     readonly #changed = new AsyncObservable<[]>();
-    readonly #addresses = ServerAddressSet<ServerAddressUdp>();
+    readonly #addresses = ServerAddressSet<ServerAddressIp>();
     #status = new IpServiceStatus(this);
     #notified?: Promise<void>;
 
@@ -107,7 +107,7 @@ export class IpService {
         return this.#changed;
     }
 
-    map<T>(fn: (addr: ServerAddressUdp) => T): T[] {
+    map<T>(fn: (addr: ServerAddressIp) => T): T[] {
         return [...this.addresses].map(fn);
     }
 
@@ -125,8 +125,8 @@ export class IpService {
         abort?: AbortSignal;
         order?: ServerAddressSet.Comparator;
         ipv4?: boolean;
-    } = {}): AsyncGenerator<{ kind: "add" | "delete"; address: ServerAddressUdp }> {
-        let knownAddresses = new Set<ServerAddressUdp>();
+    } = {}): AsyncGenerator<{ kind: "add" | "delete"; address: ServerAddressIp }> {
+        let knownAddresses = new Set<ServerAddressIp>();
 
         // Implement change detection
         const dirty = new AsyncObservableValue<[isDirty: boolean]>();
@@ -270,7 +270,7 @@ export class IpService {
     };
 
     #updateAddress(service: Service, ip: string) {
-        const address: ServerAddressUdp = { type: "udp", ip, port: service.port };
+        const address: ServerAddressIp = { ip, port: service.port };
 
         if (this.#addresses.has(address)) {
             return;
@@ -285,7 +285,7 @@ export class IpService {
     }
 
     #deleteAddress(service: Service, ip: string) {
-        const address: ServerAddressUdp = { type: "udp", ip, port: service.port };
+        const address: ServerAddressIp = { ip, port: service.port };
 
         if (!this.#addresses.has(address)) {
             return;
@@ -315,7 +315,7 @@ export class IpService {
 export namespace IpService {
     export interface AddressChange {
         kind: "add" | "delete";
-        address: ServerAddressUdp;
+        address: ServerAddressIp;
     }
 }
 

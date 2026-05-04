@@ -15,11 +15,18 @@ import {
     NetworkInterface,
     NetworkInterfaceDetails,
     onSameNetwork,
-    UdpChannel,
-    UdpChannelOptions,
+    TCP_CONNECTION_TIMEOUT_MS,
+    TcpConnection,
+    TcpListener,
+    TcpListenerOptions,
+    UdpSocket,
+    UdpSocketOptions,
 } from "@matter/general";
+import { createConnection } from "node:net";
 import { NetworkInterfaceInfo, networkInterfaces } from "node:os";
-import { NodeJsUdpChannel } from "./NodeJsUdpChannel.js";
+import { NodeJsTcpConnection } from "./NodeJsTcpConnection.js";
+import { NodeJsTcpListener } from "./NodeJsTcpListener.js";
+import { NodeJsUdpSocket } from "./NodeJsUdpSocket.js";
 
 const logger = Logger.get("NetworkNode");
 
@@ -72,6 +79,22 @@ export class NodeJsNetwork extends Network {
         const netInterfaceInfo = networkInterfaces()[netInterface];
         if (netInterfaceInfo === undefined) throw new NetworkError(`Unknown interface: ${netInterface}`);
         return this.getNetInterfaceZoneIpv6Internal(netInterface, netInterfaceInfo);
+    }
+
+    /**
+     * Returns the zone-scoped name of the first non-internal IPv6 interface.
+     * Used as a fallback for multicast sends when no interface has been observed
+     * from inbound traffic (e.g. when all sessions run over TCP).
+     */
+    static getDefaultNetInterface(): string | undefined {
+        const interfaces = networkInterfaces();
+        for (const name in interfaces) {
+            const infos = interfaces[name] as NetworkInterfaceInfo[];
+            if (infos.some(info => familyIs(6, info) && !info.internal)) {
+                return this.getNetInterfaceZoneIpv6Internal(name, infos);
+            }
+        }
+        return undefined;
     }
 
     static getNetInterfaceForIp(ip: string) {
@@ -161,8 +184,44 @@ export class NodeJsNetwork extends Network {
         return { mac: netInterfaceInfo[0].mac, ipV4, ipV6 };
     }
 
-    override createUdpChannel(options: UdpChannelOptions): Promise<UdpChannel> {
-        return NodeJsUdpChannel.create(options);
+    override createUdpSocket(options: UdpSocketOptions): Promise<UdpSocket> {
+        return NodeJsUdpSocket.create(options);
+    }
+
+    override createTcpListener(options: TcpListenerOptions): Promise<TcpListener> {
+        return NodeJsTcpListener.create(options);
+    }
+
+    override async connectTcp(host: string, port: number, options?: { timeout?: number }): Promise<TcpConnection> {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+
+            const settle = (fn: () => void) => {
+                if (!settled) {
+                    settled = true;
+                    fn();
+                }
+            };
+
+            const socket = createConnection({ host, port, noDelay: true }, () => {
+                socket.setTimeout(0);
+                socket.off("error", rejectOnce);
+                settle(() => resolve(new NodeJsTcpConnection(socket)));
+            });
+
+            const rejectOnce = (error: Error) =>
+                settle(() => {
+                    socket.destroy();
+                    reject(error);
+                });
+
+            socket.setTimeout(options?.timeout ?? TCP_CONNECTION_TIMEOUT_MS);
+            socket.once("timeout", () => {
+                socket.destroy();
+                settle(() => reject(new NetworkError("TCP connection timeout")));
+            });
+            socket.on("error", rejectOnce);
+        });
     }
 }
 

@@ -20,7 +20,7 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * The Ecosystem Information Cluster provides extended device information for all the logical devices represented by a
  * Bridged Node. The Ecosystem Information Cluster presents the view of device name and location metadata for
  * presentation by a client of the cluster to a user. This cluster is intended to support Fabric Synchronization and be
- * present on an endpoint with the BridgedNode device type listed in the DeviceTypeList of the endpoint’s Descriptor
+ * present on an endpoint with the BridgedNode device type listed in the DeviceTypeList of the endpoint's Descriptor
  * cluster.
  *
  * This augments the Bridged Device Basic Information Cluster in the following ways:
@@ -37,14 +37,14 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user organize and
  * interact with their devices. Some examples may include:
  *
- *   - Directly organizing and labeling the devices in a client’s user interface.
+ *   - Directly organizing and labeling the devices in a client's user interface.
  *
  *   - Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
  *
  * For the purposes of the Ecosystem Information Cluster section, an instance of the Ecosystem Information Cluster will
  * be referred to as an "instance".
  *
- * @see {@link MatterSpecification.v142.Core} § 9.17
+ * @see {@link MatterSpecification.v151.Core} § 9.17
  */
 export declare namespace EcosystemInformation {
     /**
@@ -78,7 +78,7 @@ export declare namespace EcosystemInformation {
          * will contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An
          * empty list indicates that the information is not available.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.17.5.1
          */
         deviceDirectory: EcosystemDevice[];
 
@@ -91,7 +91,7 @@ export declare namespace EcosystemInformation {
          *
          * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
+         * @see {@link MatterSpecification.v151.Core} § 9.17.5.2
          */
         locationDirectory: EcosystemLocation[];
     }
@@ -105,7 +105,7 @@ export declare namespace EcosystemInformation {
          * will contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An
          * empty list indicates that the information is not available.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.17.5.1
          */
         deviceDirectory: EcosystemDevice[];
 
@@ -118,7 +118,7 @@ export declare namespace EcosystemInformation {
          *
          * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
+         * @see {@link MatterSpecification.v151.Core} § 9.17.5.2
          */
         locationDirectory: EcosystemLocation[];
     }
@@ -126,42 +126,44 @@ export declare namespace EcosystemInformation {
     export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.17.4.2
+     * @see {@link MatterSpecification.v151.Core} § 9.17.4.2
      */
     export declare class EcosystemDevice {
         constructor(values?: Partial<EcosystemDevice>);
 
         /**
-         * This field shall indicate the device’s name, which is provided externally if the user consents. (For example,
+         * This field shall indicate the device's name, which is provided externally if the user consents. (For example,
          * provided by the user in an ecosystem specific interface.)
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.1
          */
         deviceName?: string;
 
         /**
          * This field shall indicate the timestamp of when the DeviceName was last modified.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.2
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.2
          */
         deviceNameLastEdit?: number | bigint;
 
         /**
          * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on this Bridge.
          *
-         * This field shall be present and set to a valid endpoint if the device is accessible through the bridge.
+         * This field shall be present if the device is accessible through the bridge. If present, this field shall be
+         * set to a valid endpoint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.3
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.3
          */
         bridgedEndpoint?: EndpointNumber;
 
         /**
          * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on the original device
-         * represented by this bridge’s Bridged Node. If this bridge is receiving the device from another bridge, then
-         * the OriginalEndpoint field value would be the same on both bridges. This field shall be present and set to a
-         * valid endpoint on the original device if that device is a Matter device.
+         * represented by this bridge's Bridged Node. If this bridge is receiving the device from another bridge, then
+         * the OriginalEndpoint field value would be the same on both bridges. This field shall be present if the
+         * original device is a Matter device. If present, this field shall be set to a valid endpoint on the original
+         * device.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.4
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.4
          */
         originalEndpoint?: EndpointNumber;
 
@@ -171,7 +173,7 @@ export declare namespace EcosystemInformation {
          *
          * This field shall contain a list of valid device type ids.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.5
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.5
          */
         deviceTypes: DeviceType[];
 
@@ -179,7 +181,7 @@ export declare namespace EcosystemInformation {
          * This field shall specify the EcosystemLocationStruct entries in the LocationDirectory attribute associated
          * with this EcosystemDeviceStruct.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.6
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.6
          */
         uniqueLocationIDs: string[];
 
@@ -188,12 +190,12 @@ export declare namespace EcosystemInformation {
          *
          * > [!NOTE]
          *
-         * > If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of the
-         *   updates will be missed. This is considered an acceptable limitation to reduce the complexity of the design.
-         *   Since this is meant to be provided from user input, it is unlikely these signals would be happening at one
-         *   time.
+         * > NOTE: If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one
+         *   of the updates will be missed. This is considered an acceptable limitation to reduce the complexity of the
+         *   design. Since this is meant to be provided from user input, it is unlikely these signals would be happening
+         *   at one time.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.7
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.7
          */
         uniqueLocationIDsLastEdit: number | bigint;
 
@@ -201,7 +203,7 @@ export declare namespace EcosystemInformation {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.17.4.3
+     * @see {@link MatterSpecification.v151.Core} § 9.17.4.3
      */
     export declare class EcosystemLocation {
         constructor(values?: Partial<EcosystemLocation>);
@@ -229,25 +231,24 @@ export declare namespace EcosystemInformation {
          * Information Cluster server instance changing and the UniqueLocationID on the remote server instance does not
          * change.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.3.1
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.3.1
          */
         uniqueLocationId: string;
 
         /**
          * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is provided
          * externally if the user consents. (For example, provided by the user in an ecosystem specific interface.)
-         *
-         * "Location" in this context is typically used by the user’s grouping into rooms, areas or other logical
+         * "Location" in this context is typically used by the user's grouping into rooms, areas or other logical
          * groupings of how devices are used. So a device might be part of multiple such "Locations"s.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.3.2
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.3.2
          */
         locationDescriptor: Locationdesc;
 
         /**
          * This field shall indicate the timestamp of when the LocationDescriptor was last modified.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.3.3
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.3.3
          */
         locationDescriptorLastEdit: number | bigint;
 
@@ -258,7 +259,7 @@ export declare namespace EcosystemInformation {
      * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
      * Model specification for more information.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.17.4.1
+     * @see {@link MatterSpecification.v151.Core} § 9.17.4.1
      */
     export declare class DeviceType {
         constructor(values?: Partial<DeviceType>);
@@ -266,14 +267,14 @@ export declare namespace EcosystemInformation {
         /**
          * This shall indicate the device type definition.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.1.1
          */
         deviceType: DeviceTypeId;
 
         /**
          * This is the implemented revision of the device type definition.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.17.4.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.17.4.1.2
          */
         revision: number;
     };

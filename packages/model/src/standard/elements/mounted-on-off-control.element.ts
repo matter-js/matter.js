@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const MountedOnOffControlDt = DeviceType(
-    { name: "MountedOnOffControl", id: 0x10f, classification: "simple" },
+    { name: "MountedOnOffControl", id: 0x10f, type: "OnOffPlugInUnit", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 2 } ], element: "attribute" })
@@ -20,10 +20,6 @@ export const MountedOnOffControlDt = DeviceType(
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
     ),
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
-    Requirement(
-        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
-    ),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
         Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
@@ -38,6 +34,10 @@ export const MountedOnOffControlDt = DeviceType(
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
     ),
 
+    Requirement(
+        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+    ),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" })
 );
 

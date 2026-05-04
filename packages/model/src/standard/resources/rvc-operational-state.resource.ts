@@ -39,7 +39,10 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to SeekingCharger." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "NoError."
+                "NoError." +
+                "\n" +
+                "  - After the device reaches the dock and completes its docking activities, the RVC Run Mode " +
+                "cluster's CurrentMode attribute shall be set to an Idle mode."
         },
 
         {
@@ -57,7 +60,7 @@ Resource.add({
                 "While in the Charging or Docked states, the device shall NOT attempt to resume unless it " +
                 "transitioned to those states while operating and can resume, such as, for example, if it is " +
                 "recharging while in a cleaning cycle. Else, if the operational state is Charging or Docked but " +
-                "there’s no operation to resume or the operation can’t be resumed, the device shall respond with an " +
+                "there's no operation to resume or the operation can't be resumed, the device shall respond with an " +
                 "OperationalCommandResponse command with an ErrorStateID of CommandInvalidInState but take no further " +
                 "action.",
 
@@ -139,7 +142,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "CannotReachTargetArea",
-                    description: "The device is unable to move to an area where it was asked to operate, such as by setting the ServiceArea cluster’s SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door or objects blocking the mapped path."
+                    description: "The device is unable to move to an area where it was asked to operate, such as by setting the ServiceArea cluster's SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door or objects blocking the mapped path."
                 },
                 {
                     tag: "field", name: "DirtyWaterTankFull",
@@ -147,7 +150,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "DirtyWaterTankMissing",
-                    description: "The device has detected that its dirty water is missing"
+                    description: "The device has detected that its dirty water tank is missing"
                 },
                 {
                     tag: "field", name: "WheelsJammed",

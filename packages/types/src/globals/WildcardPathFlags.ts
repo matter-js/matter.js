@@ -13,7 +13,7 @@ import { BitFlag } from "../schema/BitmapSchema.js";
  *
  * The following flags are defined:
  *
- * @see {@link MatterSpecification.v142.Core} § 8.9.2.5
+ * @see {@link MatterSpecification.v151.Core} § 8.9.2.5
  */
 export const WildcardPathFlags = {
     /**

@@ -31,18 +31,6 @@ Resource.add(
                         details: "The Tilt feature applies to window coverings with vertical or horizontal strips."
                     },
                     { tag: "field", name: "PA_LF", details: "Position aware lift control is supported." },
-
-                    {
-                        tag: "field", name: "ABS", xref: "cluster§5.3.4.4",
-
-                        details: "The percentage attributes shall indicate the position as a percentage between the " +
-                            "InstalledOpenLimits and InstalledClosedLimits attributes of the window covering starting at the open " +
-                            "(0.00%)." +
-                            "\n" +
-                            "As a general rule, absolute positioning (in centimeters or tenth of a degrees) SHOULD NOT be " +
-                            "supported for new implementations."
-                    },
-
                     { tag: "field", name: "PA_TL", details: "Position aware tilt control is supported." }
                 ]
             },
@@ -63,38 +51,18 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "PhysicalClosedLimitLift", xref: "cluster§5.3.6.2",
-                details: "Indicates the maximum possible encoder position possible (Unit cm, centimeters) to position the " +
-                    "height of the window covering lift."
-            },
-            {
-                tag: "attribute", name: "PhysicalClosedLimitTilt", xref: "cluster§5.3.6.3",
-                details: "Indicates the maximum possible encoder position possible (Unit 0.1°, tenths of a degree) to position " +
-                    "the angle of the window covering tilt."
-            },
-            {
-                tag: "attribute", name: "CurrentPositionLift", xref: "cluster§5.3.6.4",
-                details: "Indicates the actual lift position (Unit cm, centimeters) of the window covering from the fully-open " +
-                    "position."
-            },
-            {
-                tag: "attribute", name: "CurrentPositionTilt", xref: "cluster§5.3.6.5",
-                details: "Indicates the actual tilt position (Unit 0.1°, tenths of a degree) of the window covering from the " +
-                    "fully-open position."
-            },
-            {
-                tag: "attribute", name: "NumberOfActuationsLift", xref: "cluster§5.3.6.6",
+                tag: "attribute", name: "NumberOfActuationsLift", xref: "cluster§5.3.6.2",
                 details: "Indicates the total number of lift/slide actuations applied to the window covering since the device " +
                     "was installed."
             },
             {
-                tag: "attribute", name: "NumberOfActuationsTilt", xref: "cluster§5.3.6.7",
+                tag: "attribute", name: "NumberOfActuationsTilt", xref: "cluster§5.3.6.3",
                 details: "Indicates the total number of tilt actuations applied to the window covering since the device was " +
                     "installed."
             },
 
             {
-                tag: "attribute", name: "ConfigStatus", xref: "cluster§5.3.6.8",
+                tag: "attribute", name: "ConfigStatus", xref: "cluster§5.3.6.4",
                 details: "This attribute specifies the configuration and status information of the window covering." +
                     "\n" +
                     "To change settings, devices shall write to the Mode attribute. The behavior causing the setting or " +
@@ -102,32 +70,32 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "CurrentPositionLiftPercentage", xref: "cluster§5.3.6.11",
+                tag: "attribute", name: "CurrentPositionLiftPercentage", xref: "cluster§5.3.6.7",
                 details: "Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute " +
                     "is equal to CurrentPositionLiftPercent100ths attribute divided by 100."
             },
             {
-                tag: "attribute", name: "CurrentPositionTiltPercentage", xref: "cluster§5.3.6.12",
+                tag: "attribute", name: "CurrentPositionTiltPercentage", xref: "cluster§5.3.6.8",
                 details: "Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute " +
                     "is equal to CurrentPositionTiltPercent100ths attribute divided by 100."
             },
             {
-                tag: "attribute", name: "OperationalStatus", xref: "cluster§5.3.6.15",
+                tag: "attribute", name: "OperationalStatus", xref: "cluster§5.3.6.11",
                 details: "Indicates the currently ongoing operations and applies to all type of devices."
             },
             {
-                tag: "attribute", name: "TargetPositionLiftPercent100ths", xref: "cluster§5.3.6.13",
+                tag: "attribute", name: "TargetPositionLiftPercent100ths", xref: "cluster§5.3.6.9",
                 details: "Indicates the position where the window covering lift will go or is moving to as a percentage (Unit " +
                     "0.01%)."
             },
             {
-                tag: "attribute", name: "TargetPositionTiltPercent100ths", xref: "cluster§5.3.6.14",
+                tag: "attribute", name: "TargetPositionTiltPercent100ths", xref: "cluster§5.3.6.10",
                 details: "Indicates the position where the window covering tilt will go or is moving to as a percentage (Unit " +
                     "0.01%)."
             },
 
             {
-                tag: "attribute", name: "EndProductType", xref: "cluster§5.3.6.16",
+                tag: "attribute", name: "EndProductType", xref: "cluster§5.3.6.12",
 
                 details: "This attribute SHOULD provide more detail about the product type than can be determined from the " +
                     "main category indicated by the Type attribute." +
@@ -145,41 +113,18 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "CurrentPositionLiftPercent100ths", xref: "cluster§5.3.6.9",
+                tag: "attribute", name: "CurrentPositionLiftPercent100ths", xref: "cluster§5.3.6.5",
                 details: "Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals " +
                     "100.00%."
             },
             {
-                tag: "attribute", name: "CurrentPositionTiltPercent100ths", xref: "cluster§5.3.6.10",
+                tag: "attribute", name: "CurrentPositionTiltPercent100ths", xref: "cluster§5.3.6.6",
                 details: "Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals " +
                     "100.00%."
             },
-            {
-                tag: "attribute", name: "InstalledOpenLimitLift", xref: "cluster§5.3.6.17",
-                details: "Indicates the open limit for lifting the window covering whether position (in centimeters) is " +
-                    "encoded or timed."
-            },
-            {
-                tag: "attribute", name: "InstalledClosedLimitLift", xref: "cluster§5.3.6.18",
-                details: "Indicates the closed limit for lifting the window covering whether position (in centimeters) is " +
-                    "encoded or timed."
-            },
-            {
-                tag: "attribute", name: "InstalledOpenLimitTilt", xref: "cluster§5.3.6.19",
-                details: "Indicates the open limit for tilting the window covering whether position (in tenth of a degree) is " +
-                    "encoded or timed."
-            },
-            {
-                tag: "attribute", name: "InstalledClosedLimitTilt", xref: "cluster§5.3.6.20",
-                details: "Indicates the closed limit for tilting the window covering whether position (in tenth of a degree) " +
-                    "is encoded or timed."
-            },
-            { tag: "attribute", name: "VelocityLift", xref: "cluster§5.3.6" },
-            { tag: "attribute", name: "AccelerationTimeLift", xref: "cluster§5.3.6" },
-            { tag: "attribute", name: "DecelerationTimeLift", xref: "cluster§5.3.6" },
 
             {
-                tag: "attribute", name: "Mode", xref: "cluster§5.3.6.21",
+                tag: "attribute", name: "Mode", xref: "cluster§5.3.6.13",
 
                 details: "The Mode attribute allows configuration of the window covering, such as: reversing the motor " +
                     "direction, placing the window covering into calibration mode, placing the motor into maintenance " +
@@ -191,11 +136,8 @@ Resource.add(
                     "set, must be ignored and a response containing the status of CONSTRAINT_ERROR will be returned."
             },
 
-            { tag: "attribute", name: "IntermediateSetpointsLift", xref: "cluster§5.3.6" },
-            { tag: "attribute", name: "IntermediateSetpointsTilt", xref: "cluster§5.3.6" },
-
             {
-                tag: "attribute", name: "SafetyStatus", xref: "cluster§5.3.6.22",
+                tag: "attribute", name: "SafetyStatus", xref: "cluster§5.3.6.14",
                 details: "The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing " +
                     "movements. By default for nominal operation all flags are cleared (0). A device might support none, " +
                     "one or several bit flags from this attribute (all optional)."
@@ -281,17 +223,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GoToLiftValue", xref: "cluster§5.3.7.4",
-                details: "This command is used to set the target lift position of the window covering to the value specified " +
-                    "in the command.",
-                children: [{
-                    tag: "field", name: "LiftValue", xref: "cluster§5.3.7.4.1",
-                    details: "This field shall specify the requested physical lift/slide position in unit cm (centimeters)."
-                }]
-            },
-
-            {
-                tag: "command", name: "GoToLiftPercentage", xref: "cluster§5.3.7.5",
+                tag: "command", name: "GoToLiftPercentage", xref: "cluster§5.3.7.4",
 
                 details: "This command is used to set the target lift position of the window covering to the percentage value " +
                     "specified in the command." +
@@ -314,17 +246,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GoToTiltValue", xref: "cluster§5.3.7.6",
-                details: "This command is used to set the target tilt position of the window covering to the value specified " +
-                    "in the command.",
-                children: [{
-                    tag: "field", name: "TiltValue", xref: "cluster§5.3.7.6.1",
-                    details: "This field shall specify the requested physical tilt position in unit 0.1° (tenth of a degrees)."
-                }]
-            },
-
-            {
-                tag: "command", name: "GoToTiltPercentage", xref: "cluster§5.3.7.7",
+                tag: "command", name: "GoToTiltPercentage", xref: "cluster§5.3.7.5",
 
                 details: "This command is used to set the target tilt position of the window covering to the percentage value " +
                     "specified in the command." +
@@ -483,12 +405,12 @@ Resource.add(
                     },
                     {
                         tag: "field", name: "Lift", description: "Lift operational state.", xref: "cluster§5.3.5.3.2",
-                        details: "These bits shall indicate in which direction the covering’s lift is currently moving or if it has " +
+                        details: "These bits shall indicate in which direction the covering's lift is currently moving or if it has " +
                             "stopped."
                     },
                     {
                         tag: "field", name: "Tilt", description: "Tilt operational state.", xref: "cluster§5.3.5.3.3",
-                        details: "These bits shall indicate in which direction the covering’s tilt is currently moving or if it has " +
+                        details: "These bits shall indicate in which direction the covering's tilt is currently moving or if it has " +
                             "stopped."
                     }
                 ]

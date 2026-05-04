@@ -49,5 +49,5 @@ Resource.add({
         "For a cluster whose definition which does not define a FeatureMap, the server shall set this " +
         "attribute to 0 (zero)." +
         "\n" +
-        "See Section 7.3.16, “Feature Conformance” for details on conformance."
+        "See Section 7.3.16, \"Feature Conformance\" for details on conformance."
 });

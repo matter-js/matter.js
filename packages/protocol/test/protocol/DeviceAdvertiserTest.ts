@@ -128,4 +128,76 @@ describe("DeviceAdvertiser", () => {
             expect(advertiser.advertiseCalls.length).equal(0);
         });
     });
+
+    describe("TCP T key in operational advertisements", () => {
+        function createFabric() {
+            return {
+                fabricIndex: FabricIndex(1),
+                globalId: 1n,
+                nodeId: NodeId(1n),
+            } as any;
+        }
+
+        it("includes tcp bitmap in operational advertisement when tcp is set", () => {
+            const { fabrics, sessions } = createMockContext();
+            const advertiser = new MockAdvertiser();
+            const deviceAdvertiser = new DeviceAdvertiser({
+                fabrics,
+                sessions,
+                supportedTransports: { tcpClient: true, tcpServer: true },
+            });
+            deviceAdvertiser.addAdvertiser(advertiser);
+            deviceAdvertiser.enterOperationalMode();
+
+            // Simulate a fabric being added to trigger operational advertisement
+            const fabric = createFabric();
+            (fabrics as any)[Symbol.iterator] = () => [fabric].values();
+            (fabrics.events.added as Observable<[any]>).emit(fabric);
+
+            const opAds = advertiser.advertiseCalls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.tcp).deep.equal({ tcpClient: true, tcpServer: true });
+        });
+
+        it("does not include tcp in operational advertisement when tcp is not set", () => {
+            const { fabrics, sessions } = createMockContext();
+            const advertiser = new MockAdvertiser();
+            const deviceAdvertiser = new DeviceAdvertiser({ fabrics, sessions });
+            deviceAdvertiser.addAdvertiser(advertiser);
+            deviceAdvertiser.enterOperationalMode();
+
+            const fabric = createFabric();
+            (fabrics as any)[Symbol.iterator] = () => [fabric].values();
+            (fabrics.events.added as Observable<[any]>).emit(fabric);
+
+            const opAds = advertiser.advertiseCalls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.tcp).to.be.undefined;
+        });
+
+        it("supportedTransports setter updates context for subsequent advertisements", () => {
+            const { fabrics, sessions } = createMockContext();
+            const advertiser = new MockAdvertiser();
+            const deviceAdvertiser = new DeviceAdvertiser({ fabrics, sessions });
+            deviceAdvertiser.addAdvertiser(advertiser);
+            deviceAdvertiser.enterOperationalMode();
+
+            // Set transport support after construction
+            deviceAdvertiser.supportedTransports = { tcpClient: false, tcpServer: true };
+
+            const fabric = createFabric();
+            (fabrics as any)[Symbol.iterator] = () => [fabric].values();
+            (fabrics.events.added as Observable<[any]>).emit(fabric);
+
+            const opAds = advertiser.advertiseCalls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.tcp).deep.equal({ tcpClient: false, tcpServer: true });
+        });
+    });
 });

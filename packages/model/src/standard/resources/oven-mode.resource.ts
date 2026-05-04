@@ -64,10 +64,21 @@ Resource.add({
                     tag: "field", name: "Roast", xref: "cluster§8.11.7.1.4",
                     details: "This mode sets the device into roast mode for roasting food items."
                 },
+
                 {
                     tag: "field", name: "Clean", xref: "cluster§8.11.7.1.5",
-                    details: "This mode sets the device into cleaning mode to clean the internal components of the appliance."
+
+                    details: "This mode sets the device into cleaning mode to clean the internal components of the appliance." +
+                        "\n" +
+                        "> [!NOTE]" +
+                        "\n" +
+                        "> NOTE: Depending on regulatory or other requirements, the following restrictions could apply to the " +
+                        "use of this mode: - It may NOT be possible to start this mode from a client. It may need to be " +
+                        "started at the device due to the temperatures used during this mode. - The setting of the oven " +
+                        "temperature or other features may be limited or not available while this mode is running. - Oven " +
+                        "temperature measurement may NOT be available while this mode is running."
                 },
+
                 { tag: "field", name: "ConvectionBake", xref: "cluster§8.11.7.1" },
                 { tag: "field", name: "ConvectionRoast", xref: "cluster§8.11.7.1" },
                 {
@@ -78,7 +89,10 @@ Resource.add({
                     tag: "field", name: "Proofing", xref: "cluster§8.11.7.1.9",
                     details: "This mode sets the device into proofing mode which creates an environment ready for proofing."
                 },
-                { tag: "field", name: "Steam", xref: "cluster§8.11.7.1" }
+                { tag: "field", name: "Steam", xref: "cluster§8.11.7.1" },
+                { tag: "field", name: "AirFry", xref: "cluster§8.11.7.1" },
+                { tag: "field", name: "AirSousVide", xref: "cluster§8.11.7.1" },
+                { tag: "field", name: "FrozenFood", xref: "cluster§8.11.7.1" }
             ]
         }
     ]

@@ -6,7 +6,7 @@
 
 import { DiscoveryData } from "#common/Scanner.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { isDeepEqual, ServerAddressUdp } from "@matter/general";
+import { isDeepEqual, ServerAddressIp } from "@matter/general";
 import { CaseAuthenticatedTag } from "@matter/types";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -29,7 +29,7 @@ export interface PeerDescriptor {
     /**
      * A physical address the peer may be accessed at, if known.
      */
-    operationalAddress?: ServerAddressUdp;
+    operationalAddress?: ServerAddressIp;
 
     /**
      * Additional information collected while locating the peer.
@@ -53,7 +53,7 @@ export interface PeerDescriptor {
 
 export class ObservablePeerDescriptor implements PeerDescriptor {
     #address: PeerAddress;
-    #operationalAddress?: ServerAddressUdp;
+    #operationalAddress?: ServerAddressIp;
     #discoveryData?: DiscoveryData;
     #caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
     #sessionParameters?: SessionParameters;
@@ -78,7 +78,7 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
         return this.#operationalAddress;
     }
 
-    set operationalAddress(value: ServerAddressUdp | undefined) {
+    set operationalAddress(value: ServerAddressIp | undefined) {
         if (isDeepEqual(this.#operationalAddress, value)) {
             return;
         }

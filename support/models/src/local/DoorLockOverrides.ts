@@ -114,11 +114,12 @@ LocalMatter.children.push({
             ],
         },
 
-        // In 1.4 the IDS in GetYearDayScheduleResponse are borked so we force match and override
+        // In 1.4 the IDs in GetYearDayScheduleResponse are borked — fixed in 1.5
         {
             tag: "command",
             id: 0xf,
             name: "GetYearDayScheduleResponse",
+            until: "1.4.2",
 
             children: [
                 {

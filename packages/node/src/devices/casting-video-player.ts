@@ -10,6 +10,7 @@ import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.
 import { MediaPlaybackServer as BaseMediaPlaybackServer } from "../behaviors/media-playback/MediaPlaybackServer.js";
 import { KeypadInputServer as BaseKeypadInputServer } from "../behaviors/keypad-input/KeypadInputServer.js";
 import { ContentLauncherServer as BaseContentLauncherServer } from "../behaviors/content-launcher/ContentLauncherServer.js";
+import { MessagesServer as BaseMessagesServer } from "../behaviors/messages/MessagesServer.js";
 import { WakeOnLanServer as BaseWakeOnLanServer } from "../behaviors/wake-on-lan/WakeOnLanServer.js";
 import { ChannelServer as BaseChannelServer } from "../behaviors/channel/ChannelServer.js";
 import { TargetNavigatorServer as BaseTargetNavigatorServer } from "../behaviors/target-navigator/TargetNavigatorServer.js";
@@ -21,7 +22,6 @@ import {
 } from "../behaviors/application-launcher/ApplicationLauncherServer.js";
 import { AccountLoginServer as BaseAccountLoginServer } from "../behaviors/account-login/AccountLoginServer.js";
 import { ContentControlServer as BaseContentControlServer } from "../behaviors/content-control/ContentControlServer.js";
-import { MessagesServer as BaseMessagesServer } from "../behaviors/messages/MessagesServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -38,10 +38,10 @@ import { Identity } from "@matter/general";
  * For example, a Casting Video Player can be a smart TV device, a TV Set Top Box, or a content streaming device that
  * provides input to another device like a TV or computer monitor.
  *
- * See Section 10.1, “Video Player Architecture” for additional Casting Video Player requirements relating to Video
+ * See Section 10.1, "Video Player Architecture" for additional Casting Video Player requirements relating to Video
  * Player device endpoint composition, commissioning, feature representation in clusters, and UI context.
  *
- * @see {@link MatterSpecification.v142.Device} § 10.3
+ * @see {@link MatterSpecification.v151.Device} § 10.3
  */
 export interface CastingVideoPlayerDevice extends Identity<typeof CastingVideoPlayerDeviceDefinition> {}
 
@@ -73,6 +73,13 @@ export namespace CastingVideoPlayerRequirements {
      * We provide this alias to the default implementation {@link ContentLauncherServer} for convenience.
      */
     export const ContentLauncherServer = BaseContentLauncherServer;
+
+    /**
+     * The Messages cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link MessagesServer} for convenience.
+     */
+    export const MessagesServer = BaseMessagesServer;
 
     /**
      * The WakeOnLan cluster is optional per the Matter specification.
@@ -138,13 +145,6 @@ export namespace CastingVideoPlayerRequirements {
     export const ContentControlServer = BaseContentControlServer;
 
     /**
-     * The Messages cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link MessagesServer} for convenience.
-     */
-    export const MessagesServer = BaseMessagesServer;
-
-    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
@@ -156,6 +156,7 @@ export namespace CastingVideoPlayerRequirements {
         },
 
         optional: {
+            Messages: MessagesServer,
             WakeOnLan: WakeOnLanServer,
             Channel: ChannelServer,
             TargetNavigator: TargetNavigatorServer,
@@ -164,8 +165,7 @@ export namespace CastingVideoPlayerRequirements {
             AudioOutput: AudioOutputServer,
             ApplicationLauncher: ApplicationLauncherServer,
             AccountLogin: AccountLoginServer,
-            ContentControl: ContentControlServer,
-            Messages: MessagesServer
+            ContentControl: ContentControlServer
         }
     };
 }

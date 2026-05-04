@@ -23,15 +23,15 @@ export const AirQualitySensorDt = DeviceType(
     Requirement({ name: "CarbonDioxideConcentrationMeasurement", id: 0x40d, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "NitrogenDioxideConcentrationMeasurement", id: 0x413, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "OzoneConcentrationMeasurement", id: 0x415, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "Pm25ConcentrationMeasurement", id: 0x42a, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "FormaldehydeConcentrationMeasurement", id: 0x42b, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Pm1ConcentrationMeasurement", id: 0x42c, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "Pm25ConcentrationMeasurement", id: 0x42a, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Pm10ConcentrationMeasurement", id: 0x42d, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "RadonConcentrationMeasurement", id: 0x42f, conformance: "O", element: "serverCluster" }),
     Requirement({
         name: "TotalVolatileOrganicCompoundsConcentrationMeasurement", id: 0x42e, conformance: "O",
         element: "serverCluster"
-    })
+    }),
+    Requirement({ name: "RadonConcentrationMeasurement", id: 0x42f, conformance: "O", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(AirQualitySensorDt);

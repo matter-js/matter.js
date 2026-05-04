@@ -11,9 +11,12 @@ import { RvcDeviceRunModes } from "../RvcDeviceLogic.js";
 
 /**
  * This is a custom implementation of {@link RvcRunModeServer} that makes sure that the Run Mode can not be changed
- * when the device is not in the Idle mode. SO a change from Mapping to Cleaning or such is not allowed without being
+ * when the device is not in the Idle mode. So a change from Mapping to Cleaning or such is not allowed without being
  * Idle in between which mainly means that the current operation was stopped.
- * Additionally, the run mode is set to Idle on start of the device to make sure potentially old states sre reset.
+ *
+ * When the DirectModeChange feature is enabled, direct transitions between non-idle modes are allowed.
+ *
+ * Additionally, the run mode is set to Idle on start of the device to make sure potentially old states are reset.
  */
 export class CustomRvcRunModeServer extends RvcRunModeServer {
     override initialize() {
@@ -27,7 +30,12 @@ export class CustomRvcRunModeServer extends RvcRunModeServer {
         if (result.status !== ModeBase.ModeChangeStatus.Success) {
             return result;
         }
-        if (newMode !== RvcDeviceRunModes.Idle && this.state.currentMode !== RvcDeviceRunModes.Idle) {
+        // When DirectModeChange is not enabled, require going through Idle first
+        if (
+            !this.features.directModeChange &&
+            newMode !== RvcDeviceRunModes.Idle &&
+            this.state.currentMode !== RvcDeviceRunModes.Idle
+        ) {
             return {
                 status: ModeBase.ModeChangeStatus.InvalidInMode,
                 statusText: `Can not switch operative modes while in a non-idle state (${this.state.currentMode})`,

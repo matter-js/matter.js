@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * a laundry machine.
  *
  * The server allows the client to set a mode on the server. A mode is one of a list of options that may be presented by
- * a client for a user choice, or understood by the client, via the mode’s tags.
+ * a client for a user choice, or understood by the client, via the mode's tags.
  *
  * A mode tag is either a standard tag within a standard category namespace, or a manufacturer specific tag, within the
  * namespace of the vendor ID of the manufacturer.
@@ -33,7 +33,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  *
  * An anonymous mode shall NOT replace the meaning of a standard mode tag, when one exists, for the cluster purpose.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.10
+ * @see {@link MatterSpecification.v151.Cluster} § 1.10
  */
 export declare namespace ModeBase {
     /**
@@ -74,7 +74,7 @@ export declare namespace ModeBase {
          *
          * Simplified examples of disallowed ModeTags lists:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.1
          */
         supportedModes: ModeOption[];
 
@@ -88,7 +88,7 @@ export declare namespace ModeBase {
          * sequence of operations, on system time-outs or idle delays, or via interactions coming from a fabric other
          * than the one which last executed a ChangeToMode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.2
          */
         currentMode: number;
 
@@ -97,7 +97,7 @@ export declare namespace ModeBase {
          *
          * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
          * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute (see
-         * Section 1.10.6.4.1, “OnMode with Power Up”).
+         * Section 1.10.6.4.1, "OnMode with Power Up").
          *
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode attribute
          * shall return to its value prior to the restart.
@@ -106,7 +106,7 @@ export declare namespace ModeBase {
          *
          * If this attribute is not implemented, or is set to the null value, it shall have no effect.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.3
          */
         startUpMode?: number | null;
     }
@@ -122,7 +122,7 @@ export declare namespace ModeBase {
          *
          * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.4
          */
         onMode: number | null;
     }
@@ -151,7 +151,7 @@ export declare namespace ModeBase {
          *
          * Simplified examples of disallowed ModeTags lists:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.1
          */
         supportedModes: ModeOption[];
 
@@ -165,7 +165,7 @@ export declare namespace ModeBase {
          * sequence of operations, on system time-outs or idle delays, or via interactions coming from a fabric other
          * than the one which last executed a ChangeToMode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.2
          */
         currentMode: number;
 
@@ -174,7 +174,7 @@ export declare namespace ModeBase {
          *
          * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
          * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute (see
-         * Section 1.10.6.4.1, “OnMode with Power Up”).
+         * Section 1.10.6.4.1, "OnMode with Power Up").
          *
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode attribute
          * shall return to its value prior to the restart.
@@ -183,7 +183,7 @@ export declare namespace ModeBase {
          *
          * If this attribute is not implemented, or is set to the null value, it shall have no effect.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.3
          */
         startUpMode: number | null;
 
@@ -194,7 +194,7 @@ export declare namespace ModeBase {
          *
          * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.6.4
          */
         onMode: number | null;
     }
@@ -208,7 +208,7 @@ export declare namespace ModeBase {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
          */
         changeToMode(request: ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
     }
@@ -227,7 +227,7 @@ export declare namespace ModeBase {
     /**
      * These are optional features supported by ModeBaseCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.4
      */
     export enum Feature {
         /**
@@ -236,7 +236,7 @@ export declare namespace ModeBase {
          * This feature creates a dependency between an OnOff cluster instance and this cluster instance on the same
          * endpoint. See OnMode for more information.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.4.1
          */
         OnOff = "OnOff"
     }
@@ -244,7 +244,7 @@ export declare namespace ModeBase {
     /**
      * This is a struct representing a possible mode of the server.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -254,14 +254,14 @@ export declare namespace ModeBase {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -293,7 +293,7 @@ export declare namespace ModeBase {
          *     green leaf.
          *
          *   - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower level of
-         *     audible sound, less likely to disturb the household’s activities.
+         *     audible sound, less likely to disturb the household's activities.
          *
          *   - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also a
          *     Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster).
@@ -301,7 +301,7 @@ export declare namespace ModeBase {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
@@ -311,14 +311,14 @@ export declare namespace ModeBase {
      *
      * On receipt of this command the device shall respond with a ChangeToModeResponse command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
      */
     export declare class ChangeToModeRequest {
         constructor(values?: Partial<ChangeToModeRequest>);
 
         /**
-         * If the NewMode field doesn’t match the Mode field of any entry of the SupportedModes list, the
-         * ChangeToModeResponse command’s Status field shall indicate UnsupportedMode and the StatusText field shall be
+         * If the NewMode field doesn't match the Mode field of any entry of the SupportedModes list, the
+         * ChangeToModeResponse command's Status field shall indicate UnsupportedMode and the StatusText field shall be
          * included and may be used to indicate the issue, with a human readable string, or include an empty string.
          *
          * If the NewMode field matches the Mode field of one entry of the SupportedModes list, but the device is not
@@ -339,7 +339,7 @@ export declare namespace ModeBase {
          * shall have the Status field set to Success and the StatusText field may be supplied with a human readable
          * string or include an empty string.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1.1
          */
         newMode: number;
     };
@@ -347,13 +347,13 @@ export declare namespace ModeBase {
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2
      */
     export declare class ChangeToModeResponse {
         constructor(values?: Partial<ChangeToModeResponse>);
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1
          */
         status: ModeChangeStatus;
 
@@ -363,23 +363,23 @@ export declare namespace ModeBase {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
 
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
-         * 1.10.8, “Mode Namespace”).
+         * 1.10.8, "Mode Namespace").
          *
-         * This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the Value field.
+         * This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the Value field.
          *
          * The same manufacturer code and mode tag value in separate cluster instances are part of the same namespace
          * and have the same meaning. For example: a manufacturer tag meaning "pinch" can be used both in a cluster
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -387,7 +387,7 @@ export declare namespace ModeBase {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag;
     };
@@ -397,14 +397,14 @@ export declare namespace ModeBase {
          * Switching to the mode indicated by the NewMode field is allowed and possible. The CurrentMode attribute is
          * set to the value of the NewMode field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1.2
          */
         Success = 0,
 
         /**
-         * The value of the NewMode field doesn’t match any entries in the SupportedModes attribute.
+         * The value of the NewMode field doesn't match any entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1.2
          */
         UnsupportedMode = 1,
 
@@ -412,66 +412,66 @@ export declare namespace ModeBase {
          * Generic failure code, indicating that switching to the mode indicated by the NewMode field is not allowed or
          * not possible.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1.2
          */
         GenericFailure = 2,
 
         /**
          * The received request cannot be handled due to the current mode of the device
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1.2
          */
         InvalidInMode = 3
     }
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.8
          */
         Day = 9
     }
