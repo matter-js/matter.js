@@ -20,12 +20,15 @@ import {
     ChannelType,
     Diagnostic,
     Duration,
+    EcdsaSignature,
     ImplementationError,
     Instant,
     Logger,
+    MaybePromise,
     Millis,
     Minutes,
     NoResponseTimeoutError,
+    PublicKey,
     repackErrorAs,
     Seconds,
     Time,
@@ -53,8 +56,15 @@ import { OperationalCredentials } from "@matter/types/clusters/operational-crede
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
+import {
+    AttestationFinding,
+    DeviceAttestationError,
+    DeviceAttestationValidator,
+} from "../certificate/DeviceAttestationValidator.js";
+import { Dac } from "../certificate/kinds/AttestationCertificates.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
+import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
@@ -103,6 +113,37 @@ export type ControllerCommissioningFlowOptions = {
 
     /** The Location of the OTA provider for this fabric set on the commissioned devices if OTA is supported */
     otaUpdateProviderLocation?: OtaProviderLocation;
+
+    /**
+     * Attestation validation settings. Injected by ControllerCommissioner — the only user-facing
+     * part is `onFailure` which is forwarded from CommissioningClient options.
+     */
+    attestation: {
+        /** Attestation challenge key from the PASE session, used to verify attestation and CSR signatures. */
+        challengeKey: Bytes;
+
+        /** DclCertificateService for PAA trust store and revocation checks. Looked up from environment. */
+        dclCertificateService?: DclCertificateService;
+
+        /**
+         * Controls behavior when attestation produces findings.
+         * - `false`: reject on any finding
+         * - `true`: always accept with info logging
+         * - callback: receives `AttestationFinding[]`, return `true` to proceed, `false` to reject
+         * - `undefined`: accept with warning logging (backward compatibility)
+         *
+         * The callback receives either:
+         * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
+         *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
+         *   whether to proceed despite the failure.
+         * - One or more warning/info-level findings after successful validation (e.g. provisional
+         *   CD, test CD, skipped CD signer verification, no revocation data). These are
+         *   informational and the commissioner can inspect them for detailed decisions.
+         *
+         * TODO: Make required in next breaking version and remove undefined backward-compatible accept
+         */
+        onFailure?: DeviceAttestationValidator.OnAttestationFailure;
+    };
 };
 
 /** Types representation of a general commissioning response. */
@@ -233,6 +274,7 @@ export class ControllerCommissioningFlow {
     #commissioningStartedTime: Timestamp | undefined;
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
+    #dacPublicKey?: ReturnType<typeof PublicKey>;
     protected lastBreadcrumb = 1;
     protected collectedCommissioningData: CollectedCommissioningData = {};
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
@@ -1093,7 +1135,6 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // TODO: extract device public key from deviceAttestation
         const { certificate: productAttestation } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
@@ -1108,14 +1149,14 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // TODO: validate deviceAttestation and productAttestation
+        const attestationNonce = this.fabric.crypto.randomBytes(32);
         const { attestationElements, attestationSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
                 command: "attestationRequest",
                 fields: {
-                    attestationNonce: this.fabric.crypto.randomBytes(32),
+                    attestationNonce,
                 },
             },
             {
@@ -1123,23 +1164,86 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // TODO: validate attestationSignature using device public key
-        if (
-            deviceAttestation.byteLength === 0 ||
-            productAttestation.byteLength === 0 ||
-            attestationElements.byteLength === 0 ||
-            attestationSignature.byteLength === 0
-        ) {
-            // TODO: validate the data really
-            throw new CommissioningError("Device Attestation data missing from device");
+        const { attestation } = this.commissioningOptions;
+
+        try {
+            const result = await DeviceAttestationValidator.validate(
+                {
+                    crypto: this.fabric.crypto,
+                    dclCertificateService: attestation.dclCertificateService,
+                    attestationChallenge: attestation.challengeKey,
+                },
+                {
+                    dac: deviceAttestation,
+                    pai: productAttestation,
+                    attestationElements,
+                    attestationSignature,
+                    attestationNonce,
+                    vendorId: this.collectedCommissioningData.vendorId!,
+                    productId: this.collectedCommissioningData.productId!,
+                },
+            );
+
+            if (result.findings.length > 0) {
+                const proceed = await this.#resolveAttestationFindings(result.findings);
+                if (!proceed) {
+                    throw new CommissioningError(
+                        `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
+                    );
+                }
+            }
+        } catch (error) {
+            if (error instanceof DeviceAttestationError) {
+                const errorFinding: AttestationFinding = {
+                    level: "error",
+                    type: error.failure,
+                    message: error.message,
+                };
+                const proceed = await this.#resolveAttestationFindings([errorFinding]);
+                if (!proceed) {
+                    throw error;
+                }
+            } else {
+                throw error;
+            }
         }
+
+        // Extract DAC public key for CSR signature verification in #certificates()
+        this.#dacPublicKey = PublicKey(Dac.fromAsn1(deviceAttestation).cert.ellipticCurvePublicKey);
+
         return {
             code: CommissioningStepResultCode.Success,
             breadcrumb: this.lastBreadcrumb,
         };
-
-        // TODO consider Distributed Compliance Ledger Info about Commissioning Flow
     }
+
+    /** Resolve attestation findings according to the configured policy. */
+    #resolveAttestationFindings(findings: AttestationFinding[]): MaybePromise<boolean> {
+        const policy = this.commissioningOptions.attestation.onFailure;
+
+        if (typeof policy === "function") {
+            return policy(findings);
+        }
+
+        for (const f of findings) {
+            switch (policy) {
+                case undefined:
+                    // TODO: Remove backward-compatible accept in next breaking version
+                    logger.warn("Attestation finding accepted for backward compatibility:", f.type, f.message);
+                    break;
+                case true:
+                    logger.info("Attestation finding accepted by policy:", f.type, f.message);
+                    break;
+                case false:
+                    logger.info("Attestation finding, rejecting:", f.type, f.message);
+                    break;
+            }
+        }
+
+        return policy !== false;
+    }
+
+    // TODO consider Distributed Compliance Ledger Info about Commissioning Flow
 
     /**
      * Step 11-13
@@ -1171,10 +1275,22 @@ export class ControllerCommissioningFlow {
         );
 
         if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
-            // TODO: validate the data really
             throw new UnexpectedDataError("Invalid response from device");
         }
-        // TODO: validate csrSignature using device public key
+
+        // Verify CSR attestation signature using DAC public key (extracted in step 10)
+        if (this.#dacPublicKey !== undefined) {
+            try {
+                await this.fabric.crypto.verifyEcdsa(
+                    this.#dacPublicKey,
+                    Bytes.concat(nocsrElements, this.commissioningOptions.attestation!.challengeKey),
+                    new EcdsaSignature(csrSignature),
+                );
+            } catch {
+                throw new CommissioningError("CSR signature verification failed against DAC public key");
+            }
+        }
+
         const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
         const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
 

@@ -513,7 +513,8 @@ export namespace Certificate {
         const signatureAlgorithm = Bytes.toHex(signatureAlgorithmOid) === "2a8648ce3d040302" ? 1 : 0;
         idx++;
 
-        // Issuer
+        // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
+        const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
         const issuer = parseSubjectOrIssuer(certElements[idx++]);
 
         // Validity
@@ -565,6 +566,7 @@ export namespace Certificate {
             serialNumber,
             signatureAlgorithm,
             issuer,
+            issuerDer,
             notBefore,
             notAfter,
             subject,

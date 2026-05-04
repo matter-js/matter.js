@@ -23,6 +23,8 @@ export interface MatterCertificate {
     serialNumber: Bytes;
     signatureAlgorithm: number;
     issuer: {};
+    /** Raw DER bytes of the issuer Name, preserved for exact-match comparisons (e.g. CRL revocation lookup). Only present on parsed certificates. */
+    issuerDer?: Bytes;
     notBefore: number;
     notAfter: number;
     subject: {};

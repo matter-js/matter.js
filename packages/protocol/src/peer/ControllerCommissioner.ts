@@ -7,6 +7,7 @@
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { BleChannel, BleChannelClosedError } from "#ble/Ble.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
+import { DeviceAttestationValidator } from "#certificate/DeviceAttestationValidator.js";
 import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
@@ -46,6 +47,7 @@ import {
 } from "@matter/general";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
+import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { PeerAddress } from "./PeerAddress.js";
 import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerSet } from "./PeerSet.js";
@@ -57,6 +59,9 @@ const logger = Logger.get("ControllerCommissioner");
  * General commissioning options.
  */
 export interface CommissioningOptions extends Partial<ControllerCommissioningFlowOptions> {
+    /** Controls behavior when device attestation produces findings. */
+    onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
+
     /** The fabric into which to commission. */
     fabric: Fabric;
 
@@ -546,7 +551,16 @@ export class ControllerCommissioner {
             }),
             this.#context.ca,
             fabric,
-            commissioningOptions,
+            {
+                ...commissioningOptions,
+                attestation: {
+                    challengeKey: ephemeralSession.attestationChallengeKey,
+                    dclCertificateService: this.#context.environment.has(DclCertificateService)
+                        ? this.#context.environment.get(DclCertificateService)
+                        : undefined,
+                    onFailure: options.onAttestationFailure,
+                },
+            },
             async (address, supportsConcurrentConnections) => {
                 if (!supportsConcurrentConnections) {
                     /*

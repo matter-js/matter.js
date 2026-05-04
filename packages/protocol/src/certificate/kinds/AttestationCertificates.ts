@@ -32,7 +32,19 @@ export class Paa extends AttestationBaseCertificate<AttestationCertificate.Paa> 
 }
 
 /** PAI (Product Attestation Intermediate) Certificate. */
-export class Pai extends AttestationBaseCertificate<AttestationCertificate.Pai> {}
+export class Pai extends AttestationBaseCertificate<AttestationCertificate.Pai> {
+    /** Construct the class from an ASN.1/DER encoded certificate */
+    static fromAsn1(asn1: Bytes): Pai {
+        const cert = Certificate.parseAsn1Certificate(asn1, Certificate.REQUIRED_EXTENSIONS);
+        return new Pai(cert as AttestationCertificate.Pai);
+    }
+}
 
 /** DAC (Device Attestation Certificate) Certificate. */
-export class Dac extends AttestationBaseCertificate<AttestationCertificate.Dac> {}
+export class Dac extends AttestationBaseCertificate<AttestationCertificate.Dac> {
+    /** Construct the class from an ASN.1/DER encoded certificate */
+    static fromAsn1(asn1: Bytes): Dac {
+        const cert = Certificate.parseAsn1Certificate(asn1, Certificate.REQUIRED_EXTENSIONS);
+        return new Dac(cert as AttestationCertificate.Dac);
+    }
+}

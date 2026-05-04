@@ -130,13 +130,24 @@ export default function commands(theNode: MatterNode) {
                                         ...createDiagnosticCallbacks(),
                                     } as NodeCommissioningOptions;
 
+                                    // Attestation policy: strict rejects errors but allows warnings/info
+                                    const strictAttestation = await theNode.Store.get<boolean>(
+                                        "StrictAttestationValidation",
+                                        false,
+                                    );
+
                                     options.commissioning = {
                                         nodeId: nodeId !== undefined ? NodeId(nodeId) : undefined,
                                         regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Set to the most restrictive if relevant
                                         regulatoryCountryCode: "XX",
+                                        onAttestationFailure: strictAttestation
+                                            ? findings => findings.every(f => f.level !== "error")
+                                            : true,
                                     };
 
                                     console.log(Diagnostic.json(options));
+
+                                    await theNode.certificateService();
 
                                     if (theNode.Store.has("WiFiSsid") && theNode.Store.has("WiFiPassword")) {
                                         options.commissioning.wifiNetwork = {
