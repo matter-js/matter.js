@@ -17,7 +17,7 @@ import type { MaybePromise } from "@matter/general";
  * derivation shall define the values for the AlarmBitmap data type used in this cluster. Each derivation shall define
  * which alarms are latched.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.15
+ * @see {@link MatterSpecification.v151.Cluster} § 1.15
  */
 export declare namespace AlarmBase {
     /**
@@ -44,7 +44,7 @@ export declare namespace AlarmBase {
         /**
          * Indicates a bitmap where each bit set in the Mask attribute corresponds to an alarm that shall be enabled.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.1
          */
         mask: number;
 
@@ -52,7 +52,7 @@ export declare namespace AlarmBase {
          * Indicates a bitmap where each bit shall represent the state of an alarm. The value of true means the alarm is
          * active, otherwise the alarm is inactive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.3
          */
         state: number;
 
@@ -62,7 +62,7 @@ export declare namespace AlarmBase {
          *
          * If an alarm is not supported, the corresponding bit in Mask, Latch, and State shall be false.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.4
          */
         supported: number;
     }
@@ -76,7 +76,7 @@ export declare namespace AlarmBase {
          * be latched when set, and will not reset to inactive when the underlying condition which caused the alarm is
          * no longer present, and so requires an explicit reset using the Reset command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.2
          */
         latch: number;
     }
@@ -91,7 +91,7 @@ export declare namespace AlarmBase {
         /**
          * Indicates a bitmap where each bit set in the Mask attribute corresponds to an alarm that shall be enabled.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.1
          */
         mask: number;
 
@@ -99,7 +99,7 @@ export declare namespace AlarmBase {
          * Indicates a bitmap where each bit shall represent the state of an alarm. The value of true means the alarm is
          * active, otherwise the alarm is inactive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.3
          */
         state: number;
 
@@ -109,7 +109,7 @@ export declare namespace AlarmBase {
          *
          * If an alarm is not supported, the corresponding bit in Mask, Latch, and State shall be false.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.4
          */
         supported: number;
 
@@ -118,7 +118,7 @@ export declare namespace AlarmBase {
          * be latched when set, and will not reset to inactive when the underlying condition which caused the alarm is
          * no longer present, and so requires an explicit reset using the Reset command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.6.2
          */
         latch: number;
     }
@@ -130,7 +130,7 @@ export declare namespace AlarmBase {
         /**
          * This command allows a client to request that an alarm be enabled or suppressed at the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.2
          */
         modifyEnabledAlarms(request: ModifyEnabledAlarmsRequest): MaybePromise;
     }
@@ -143,7 +143,7 @@ export declare namespace AlarmBase {
          * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields
          * that represent the state of the server after the command has been processed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.1
          */
         reset(request: ResetRequest): MaybePromise;
     }
@@ -163,7 +163,7 @@ export declare namespace AlarmBase {
         /**
          * This event shall be generated when one or more alarms change state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1
          */
         notify: NotifyEvent;
     }
@@ -178,7 +178,7 @@ export declare namespace AlarmBase {
         /**
          * This event shall be generated when one or more alarms change state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1
          */
         notify: NotifyEvent;
     }
@@ -192,7 +192,7 @@ export declare namespace AlarmBase {
     /**
      * These are optional features supported by AlarmBaseCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.15.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.15.4
      */
     export enum Feature {
         /**
@@ -200,7 +200,7 @@ export declare namespace AlarmBase {
          *
          * This feature indicates that alarms can be reset via the Reset command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.4.1
          */
         Reset = "Reset"
     }
@@ -208,7 +208,7 @@ export declare namespace AlarmBase {
     /**
      * This command allows a client to request that an alarm be enabled or suppressed at the server.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.2
      */
     export declare class ModifyEnabledAlarmsRequest {
         constructor(values?: Partial<ModifyEnabledAlarmsRequest>);
@@ -232,7 +232,7 @@ export declare namespace AlarmBase {
          * field from this command. After that the server shall also update the value of its State attribute to reflect
          * the status of the new alarm set as indicated by the new value of the Mask attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.2.1
          */
         mask: number;
     };
@@ -241,7 +241,7 @@ export declare namespace AlarmBase {
      * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields that
      * represent the state of the server after the command has been processed.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.1
      */
     export declare class ResetRequest {
         constructor(values?: Partial<ResetRequest>);
@@ -252,7 +252,7 @@ export declare namespace AlarmBase {
          * alarms indicated are successfully reset, the response status code shall be SUCCESS, otherwise, the response
          * status code shall be FAILURE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.1.1
          */
         alarms: number;
     };
@@ -260,7 +260,7 @@ export declare namespace AlarmBase {
     /**
      * This event shall be generated when one or more alarms change state.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1
      */
     export declare class NotifyEvent {
         constructor(values?: Partial<NotifyEvent>);
@@ -268,14 +268,14 @@ export declare namespace AlarmBase {
         /**
          * This field shall indicate those alarms that have become active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1.1
          */
         active: number;
 
         /**
          * This field shall indicate those alarms that have become inactive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1.2
          */
         inactive: number;
 
@@ -283,14 +283,14 @@ export declare namespace AlarmBase {
          * This field shall be a copy of the new State attribute value that resulted in the event being generated. That
          * is, this field shall have all the bits in Active set and shall NOT have any of the bits in Inactive set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1.4
          */
         state: number;
 
         /**
          * This field shall be a copy of the Mask attribute when this event was generated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1.3
          */
         mask: number;
     };

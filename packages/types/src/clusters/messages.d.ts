@@ -17,7 +17,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  *
  * This cluster provides an interface for passing messages to be presented by a device.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.16
+ * @see {@link MatterSpecification.v151.Cluster} § 1.16
  */
 export declare namespace Messages {
     /**
@@ -53,7 +53,7 @@ export declare namespace Messages {
          * messages returned in a read request. At minimum, the server shall return to a client those messages that the
          * client itself created/submitted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.6.1
          */
         messages: Message[];
 
@@ -64,7 +64,7 @@ export declare namespace Messages {
          * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no matter
          * what fabric the client that queued them is on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.6.2
          */
         activeMessageIDs: Bytes[];
     }
@@ -83,7 +83,7 @@ export declare namespace Messages {
          * messages returned in a read request. At minimum, the server shall return to a client those messages that the
          * client itself created/submitted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.6.1
          */
         messages: Message[];
 
@@ -94,7 +94,7 @@ export declare namespace Messages {
          * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no matter
          * what fabric the client that queued them is on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.6.2
          */
         activeMessageIDs: Bytes[];
     }
@@ -117,19 +117,21 @@ export declare namespace Messages {
          *
          * > [!NOTE]
          *
-         * > It is currently not specified where the friendly name label can be found on the node, meaning that clients
-         *   SHOULD NOT rely on a certain method they happen to observe in a particular server instance, since other
-         *   instances could employ a different method.
+         * > NOTE: It is currently not specified where the friendly name label can be found on the node, meaning that
+         *   clients SHOULD NOT rely on a certain method they happen to observe in a particular server instance, since
+         *   other instances could employ a different method.
          *
          * The device SHOULD make it possible for the user to view which nodes have access to this cluster and to
          * individually remove privileges for each node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1
          */
         presentMessagesRequest(request: PresentMessagesRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
+         * This command will cancel the message IDs specified.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.2
          */
         cancelMessagesRequest(request: CancelMessagesRequest): MaybePromise;
     }
@@ -146,14 +148,14 @@ export declare namespace Messages {
         /**
          * This event shall be generated when a message is added to the messages attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.1
          */
         messageQueued: MessageQueuedEvent;
 
         /**
          * This event shall be generated when the message is presented to the user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.2
          */
         messagePresented: MessagePresentedEvent;
 
@@ -161,7 +163,7 @@ export declare namespace Messages {
          * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
          * message has elapsed without confirmation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3
          */
         messageComplete: MessageCompleteEvent;
     }
@@ -176,14 +178,14 @@ export declare namespace Messages {
         /**
          * This event shall be generated when a message is added to the messages attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.1
          */
         messageQueued: MessageQueuedEvent;
 
         /**
          * This event shall be generated when the message is presented to the user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.2
          */
         messagePresented: MessagePresentedEvent;
 
@@ -191,7 +193,7 @@ export declare namespace Messages {
          * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
          * message has elapsed without confirmation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3
          */
         messageComplete: MessageCompleteEvent;
     }
@@ -202,7 +204,7 @@ export declare namespace Messages {
     /**
      * These are optional features supported by MessagesCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.4
      */
     export enum Feature {
         /**
@@ -210,7 +212,7 @@ export declare namespace Messages {
          *
          * This feature shall indicate that the device can get confirmation from a user that the message was received.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.4.1
          */
         ReceivedConfirmation = "ReceivedConfirmation",
 
@@ -218,9 +220,9 @@ export declare namespace Messages {
          * ConfirmationResponse (RESP)
          *
          * This feature shall indicate that the device is capable of presenting a list of responses to the user and
-         * recording the user’s choice of response.
+         * recording the user's choice of response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.4.2
          */
         ConfirmationResponse = "ConfirmationResponse",
 
@@ -229,7 +231,7 @@ export declare namespace Messages {
          *
          * This feature shall indicate that the device is capable of collecting a free-form text response to a message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.4.3
          */
         ConfirmationReply = "ConfirmationReply",
 
@@ -239,7 +241,7 @@ export declare namespace Messages {
          * This feature shall indicate that the device is capable of requiring the user to authenticate before viewing a
          * message; e.g. entering a PIN or password before viewing a message with billing information.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.4.4
          */
         ProtectedMessages = "ProtectedMessages"
     }
@@ -247,7 +249,7 @@ export declare namespace Messages {
     /**
      * This represents a single message.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5
      */
     export declare class Message {
         constructor(values?: Partial<Message>);
@@ -255,21 +257,21 @@ export declare namespace Messages {
         /**
          * This field shall indicate a globally unique ID for this message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.1
          */
         messageId: Bytes;
 
         /**
          * This field shall indicate the priority level for this message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.2
          */
         priority: MessagePriority;
 
         /**
          * This field shall indicate control information related to the message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.3
          */
         messageControl: MessageControl;
 
@@ -277,7 +279,7 @@ export declare namespace Messages {
          * This field shall indicate the time in UTC at which the message becomes available to be presented. A null
          * value shall indicate "now."
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.4
          */
         startTime: number | null;
 
@@ -285,14 +287,14 @@ export declare namespace Messages {
          * This field shall indicate the amount of time, in milliseconds, after the StartTime during which the message
          * is available to be presented. A null value shall indicate "until changed".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.5
          */
         duration: number | bigint | null;
 
         /**
          * This field shall indicate a string containing the message to be presented.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.6
          */
         messageText: string;
 
@@ -305,7 +307,7 @@ export declare namespace Messages {
          *
          * If the ResponseRequired bit is not set on the message, this list shall be ignored.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5.7
          */
         responses?: MessageResponseOption[];
 
@@ -326,14 +328,14 @@ export declare namespace Messages {
      *
      * > [!NOTE]
      *
-     * > It is currently not specified where the friendly name label can be found on the node, meaning that clients
-     *   SHOULD NOT rely on a certain method they happen to observe in a particular server instance, since other
+     * > NOTE: It is currently not specified where the friendly name label can be found on the node, meaning that
+     *   clients SHOULD NOT rely on a certain method they happen to observe in a particular server instance, since other
      *   instances could employ a different method.
      *
      * The device SHOULD make it possible for the user to view which nodes have access to this cluster and to
      * individually remove privileges for each node.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1
      */
     export declare class PresentMessagesRequest {
         constructor(values?: Partial<PresentMessagesRequest>);
@@ -341,21 +343,21 @@ export declare namespace Messages {
         /**
          * This field shall indicate a globally unique ID for this message. See MessageID.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.1
          */
         messageId: Bytes;
 
         /**
          * This field shall indicate the priority level for this message. See Priority.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.2
          */
         priority: MessagePriority;
 
         /**
          * This field shall indicate control information related to the message. See MessageControl.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.3
          */
         messageControl: MessageControl;
 
@@ -363,7 +365,7 @@ export declare namespace Messages {
          * This field shall indicate the time in UTC at which the message becomes available to be presented. A null
          * value shall indicate "now." See StartTime.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.4
          */
         startTime: number | null;
 
@@ -371,14 +373,14 @@ export declare namespace Messages {
          * This field shall indicate the amount of time, in milliseconds, after the StartTime during which the message
          * is available to be presented. A null value shall indicate "until changed". See Duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.5
          */
         duration: number | bigint | null;
 
         /**
          * This field shall indicate a string containing the message to be presented. See MessageText.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.6
          */
         messageText: string;
 
@@ -393,13 +395,15 @@ export declare namespace Messages {
          *
          * See Responses.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.7
          */
         responses?: MessageResponseOption[];
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
+     * This command will cancel the message IDs specified.
+     *
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.2
      */
     export declare class CancelMessagesRequest {
         constructor(values?: Partial<CancelMessagesRequest>);
@@ -413,7 +417,7 @@ export declare namespace Messages {
          * Message IDs in this command that indicate messages that do not exist in Messages, or that are not scoped to
          * the fabric of the sender, shall be ignored.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.2.1
          */
         messageIDs: Bytes[];
     };
@@ -421,7 +425,7 @@ export declare namespace Messages {
     /**
      * This event shall be generated when a message is added to the messages attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.1
      */
     export declare class MessageQueuedEvent {
         constructor(values?: Partial<MessageQueuedEvent>);
@@ -429,7 +433,7 @@ export declare namespace Messages {
         /**
          * This field shall indicate the MessageID for newly added message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.1.1
          */
         messageId: Bytes;
 
@@ -439,7 +443,7 @@ export declare namespace Messages {
     /**
      * This event shall be generated when the message is presented to the user.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.2
      */
     export declare class MessagePresentedEvent {
         constructor(values?: Partial<MessagePresentedEvent>);
@@ -447,7 +451,7 @@ export declare namespace Messages {
         /**
          * This field shall indicate the MessageID for the message being presented.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.2.1
          */
         messageId: Bytes;
 
@@ -458,7 +462,7 @@ export declare namespace Messages {
      * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
      * message has elapsed without confirmation.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3
      */
     export declare class MessageCompleteEvent {
         constructor(values?: Partial<MessageCompleteEvent>);
@@ -466,7 +470,7 @@ export declare namespace Messages {
         /**
          * This field shall indicate the MessageID for the message being confirmed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3.1
          */
         messageId: Bytes;
 
@@ -474,7 +478,7 @@ export declare namespace Messages {
          * This field shall indicate the MessageResponseID selected by the user. If there was no response before the
          * Duration field of the message has elapsed, this field shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3.2
          */
         responseId?: number | null;
 
@@ -482,7 +486,7 @@ export declare namespace Messages {
          * This field shall indicate a user-provided reply to the message. If there was no reply, or the message did not
          * have the ReplyRequired bit set, this field shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3.3
          */
         reply?: string | null;
 
@@ -493,7 +497,7 @@ export declare namespace Messages {
     /**
      * This data type is derived from map16, and indicates control information related to a message.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2
      */
     export declare class MessageControl {
         constructor(values?: Partial<MessageControl> | number);
@@ -505,7 +509,7 @@ export declare namespace Messages {
          * confirmation is required, the device SHOULD present the message until it is either confirmed by the user
          * selecting a confirmation option, or the message expires.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2.1
          */
         confirmationRequired?: boolean;
 
@@ -515,7 +519,7 @@ export declare namespace Messages {
          * This bit shall indicate that a MessagePresented event SHOULD be generated based on the response of the user
          * to the message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2.2
          */
         responseRequired?: boolean;
 
@@ -524,7 +528,7 @@ export declare namespace Messages {
          *
          * This bit shall indicate that a free-form user reply is to be included in the confirmation of receipt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2.3
          */
         replyMessage?: boolean;
 
@@ -534,7 +538,7 @@ export declare namespace Messages {
          * This bit shall indicate the current confirmation state of a message, which is useful in the event that there
          * are multiple Messages cluster client devices on a network.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2.4
          */
         messageConfirmed?: boolean;
 
@@ -544,7 +548,7 @@ export declare namespace Messages {
          * This bit shall indicate that user authentication (e.g. by password or PIN) is required before viewing a
          * message.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2.5
          */
         messageProtected?: boolean;
     };
@@ -553,7 +557,7 @@ export declare namespace Messages {
      * A display device may include this preference in the MessageComplete event as a hint to clients about how to
      * handle future similar messages.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.3
      */
     export enum FutureMessagePreference {
         /**
@@ -584,9 +588,9 @@ export declare namespace Messages {
 
     /**
      * Priority SHOULD be used to decide which messages to show when the number of eligible messages is larger than the
-     * device’s capacity to present them.
+     * device's capacity to present them.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.4
      */
     export enum MessagePriority {
         /**
@@ -613,7 +617,7 @@ export declare namespace Messages {
     /**
      * This represents a possible response to a message.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.6
      */
     export declare class MessageResponseOption {
         constructor(values?: Partial<MessageResponseOption>);
@@ -621,14 +625,14 @@ export declare namespace Messages {
         /**
          * This field shall indicate a unique unsigned 32-bit number identifier for this message response option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.6.1
          */
         messageResponseId: number;
 
         /**
          * This field shall indicate the text for this option; e.g. "Yes", "No", etc.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.6.2
          */
         label: string;
     };

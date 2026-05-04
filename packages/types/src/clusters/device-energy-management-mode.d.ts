@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
  * for Device Energy Management devices.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.8
+ * @see {@link MatterSpecification.v151.Cluster} § 9.8
  */
 export declare namespace DeviceEnergyManagementMode {
     /**
@@ -61,12 +61,12 @@ export declare namespace DeviceEnergyManagementMode {
          * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization, or
          * GridOptimization tags shall NOT also include NoOptimization tag.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.6
          */
         currentMode: number;
     }
@@ -91,12 +91,12 @@ export declare namespace DeviceEnergyManagementMode {
          * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization, or
          * GridOptimization tags shall NOT also include NoOptimization tag.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.6
          */
         currentMode: number;
     }
@@ -110,7 +110,7 @@ export declare namespace DeviceEnergyManagementMode {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
          */
         changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
     }
@@ -126,7 +126,7 @@ export declare namespace DeviceEnergyManagementMode {
     /**
      * These are optional features supported by DeviceEnergyManagementModeCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.8.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.8.4
      */
     export enum Feature {
         /**
@@ -141,7 +141,7 @@ export declare namespace DeviceEnergyManagementMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.8.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.8.5.1
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -151,14 +151,14 @@ export declare namespace DeviceEnergyManagementMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -190,7 +190,7 @@ export declare namespace DeviceEnergyManagementMode {
          *     green leaf.
          *
          *   - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower level of
-         *     audible sound, less likely to disturb the household’s activities.
+         *     audible sound, less likely to disturb the household's activities.
          *
          *   - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also a
          *     Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster).
@@ -198,59 +198,59 @@ export declare namespace DeviceEnergyManagementMode {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1
          */
         Day = 9,
 
@@ -258,28 +258,28 @@ export declare namespace DeviceEnergyManagementMode {
          * The device prohibits optimization of energy usage management: its energy usage is determined only by the user
          * configuration and internal device needs.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1.1
          */
         NoOptimization = 16384,
 
         /**
          * The device is permitted to manage its own energy usage. For example, using tariff information it may obtain.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1.2
          */
         DeviceOptimization = 16385,
 
         /**
          * The device permits management of energy usage by an energy manager to optimize the local energy usage.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1.3
          */
         LocalOptimization = 16386,
 
         /**
          * The device permits management of energy usage by an energy manager to optimize the grid energy usage.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.8.7.1.4
          */
         GridOptimization = 16387
     }
@@ -287,23 +287,23 @@ export declare namespace DeviceEnergyManagementMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
 
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
-         * 1.10.8, “Mode Namespace”).
+         * 1.10.8, "Mode Namespace").
          *
-         * This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the Value field.
+         * This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the Value field.
          *
          * The same manufacturer code and mode tag value in separate cluster instances are part of the same namespace
          * and have the same meaning. For example: a manufacturer tag meaning "pinch" can be used both in a cluster
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -311,7 +311,7 @@ export declare namespace DeviceEnergyManagementMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
     };

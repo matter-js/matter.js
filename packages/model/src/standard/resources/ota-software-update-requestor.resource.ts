@@ -10,6 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "cluster", name: "OtaSoftwareUpdateRequestor", pics: "OTAR", xref: "core§11.20.7",
+    details: "This cluster implements the Requestor role in the OTA process.",
 
     children: [
         {
@@ -37,7 +38,7 @@ Resource.add({
         {
             tag: "attribute", name: "UpdateState", xref: "core§11.20.7.5.3",
             details: "This field shall reflect the current state of the OTA Requestor with regards to obtaining software " +
-                "updates. See Section 11.20.7.4.2, “UpdateStateEnum Type” for possible values." +
+                "updates. See Section 11.20.7.4.2, \"UpdateStateEnum Type\" for possible values." +
                 "\n" +
                 "This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates."
         },
@@ -160,7 +161,7 @@ Resource.add({
                 {
                     tag: "field", name: "VendorId", xref: "core§11.20.7.6.1.2",
                     details: "This field shall contain the assigned Vendor ID of the Node invoking this command, as it would " +
-                        "appear in that Node’s Basic Information Cluster VendorID attribute."
+                        "appear in that Node's Basic Information Cluster VendorID attribute."
                 },
                 {
                     tag: "field", name: "AnnouncementReason", xref: "core§11.20.7.6.1.3",
@@ -182,47 +183,10 @@ Resource.add({
 
                 {
                     tag: "field", name: "Endpoint", xref: "core§11.20.7.6.1.5",
-
                     details: "This field shall contain the endpoint number which has the OTA Provider device type and OTA Software " +
                         "Update Provider cluster server on the ProviderNodeID. This is provided to avoid having to do " +
                         "discovery of the location of that endpoint by walking over all endpoints and checking their " +
-                        "Descriptor Cluster." +
-                        "\n" +
-                        "### When Generated" +
-                        "\n" +
-                        "An OTA Provider may invoke this command directly to an OTA Requestor, to announce its presence as an " +
-                        "OTA Provider on the Fabric." +
-                        "\n" +
-                        "These announcements, if made, SHOULD be made at most once every 24 hours for any given target Node, " +
-                        "to assist OTA Requestors in discovering available OTA Provider resources, unless the " +
-                        "AnnouncementReason is UrgentUpdateAvailable, in which case this command may be more frequent." +
-                        "\n" +
-                        "Any invocation shall be made with a delay of at least 1 second between invocations from a given OTA " +
-                        "Provider, to reduce burden on the networking infrastructure and affect a form of serialized jitter. " +
-                        "It is recommended to offset the first announcement of a round (i.e. new set of announcements after a " +
-                        "previous complete set) by a random delay time with a distribution span of >= 60 seconds to jitter " +
-                        "announcement schedules over time." +
-                        "\n" +
-                        "### Effect on Receipt" +
-                        "\n" +
-                        "On receipt of this command, an OTA Requestor SHOULD consider the new ProviderNodeID and " +
-                        "AnnouncementReason to possibly query for new software sooner than it would have with its default " +
-                        "behavior." +
-                        "\n" +
-                        "The OTA Requestor SHOULD NOT update entries in the DefaultOTAProviders list based on announcements." +
-                        "\n" +
-                        "The receiving Node may ignore the content of the announcement if it is unable or unwilling to " +
-                        "further query OTA Providers temporarily, or if its provider list is full. If the announcement is " +
-                        "ignored, the response SHOULD be SUCCESS." +
-                        "\n" +
-                        "Depending on the value of the AnnouncementReason field, the OTA Requestor may have to query the OTA " +
-                        "Provider. See Section 11.20.7.6.1.3, “AnnouncementReason Field” for the different values and their " +
-                        "meaning." +
-                        "\n" +
-                        "If present, the MetadataForNode field’s may be used by a receiving OTA Requestor in any way it deems " +
-                        "satisfactory. The MetadataForNode field SHOULD be empty under most normal operational circumstance, " +
-                        "but can be useful in environments such as field trials or integration test environments to hint at " +
-                        "additional capabilities which OTA Requestors may use in a particular Vendor-specific context."
+                        "Descriptor Cluster."
                 }
             ]
         },

@@ -88,7 +88,7 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> The UniqueID attribute was optional in cluster revisions prior to revision 4."
+                "> NOTE: The UniqueID attribute was optional in cluster revisions prior to revision 4."
         },
 
         { tag: "attribute", name: "CapabilityMinima", xref: "core§9.13.5" },
@@ -99,11 +99,12 @@ Resource.add({
         {
             tag: "attribute", name: "ConfigurationVersion", xref: "core§9.13.5.4",
 
-            details: "This attribute shall contain the current version number for the configuration of the bridged device." +
+            details: "This attribute shall contain the current version number for the configuration of the bridged device. " +
+                "A larger value of ConfigurationVersion shall indicate a newer configuration than a lower value." +
                 "\n" +
                 "If the bridge detects a change on a bridged device, which it deems as a change in the configuration " +
-                "of the bridged device, it shall increase this attribute as described in Section 9.2.9, “Node " +
-                "Configuration Changes”." +
+                "of the bridged device, it shall increase this attribute (and the corresponding attribute on the " +
+                "bridge itself) as described in Section 9.2.11, \"Node Configuration Changes\"." +
                 "\n" +
                 "The ability and the method used to detect such a change on a bridged device is manufacturer " +
                 "specific."
@@ -120,9 +121,9 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in " +
-                "the context of Bridged Device Basic Information cluster, has no usable fields, but the original " +
-                "Basic Information cluster’s field definition is kept for completeness."
+                "> NOTE: The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, " +
+                "in the context of Bridged Device Basic Information cluster, has no usable fields, but the original " +
+                "Basic Information cluster's field definition is kept for completeness."
         },
 
         {
@@ -206,9 +207,9 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The server will " +
-                        "wait for up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the " +
-                        "server will not perform any actions."
+                        "> NOTE: TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The " +
+                        "server will wait for up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT " +
+                        "check-in, the server will not perform any actions."
                 }
             ]
         }

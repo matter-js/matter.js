@@ -16,7 +16,9 @@ Resource.add({
         "case is ecosystem to ecosystem Fabric Synchronization setup." +
         "\n" +
         "The generalized flow supported by the Commissioner Control Cluster can be seen in the following " +
-        "diagram.",
+        "diagram." +
+        "\n" +
+        "!commissioner control cluster general flow",
 
     children: [
         {
@@ -36,8 +38,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> The approval is valid for a period determined by the manufacturer and characteristics of the node " +
-                "presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command " +
+                "> NOTE: The approval is valid for a period determined by the manufacturer and characteristics of the " +
+                "node presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command " +
                 "immediately upon receiving a CommissioningRequestResult event."
         },
 
@@ -54,7 +56,7 @@ Resource.add({
                 "The server may request approval from the user, but it is not required." +
                 "\n" +
                 "The server shall always return SUCCESS to a correctly formatted RequestCommissioningApproval " +
-                "command, and then generate a CommissioningRequestResult event associated with the command’s " +
+                "command, and then generate a CommissioningRequestResult event associated with the command's " +
                 "accessing fabric once the result is ready." +
                 "\n" +
                 "Clients SHOULD avoid using the same RequestID. If the RequestID and client NodeID of a " +
@@ -105,9 +107,9 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This is an alias onto the OpenCommissioningWindow command within the Administrator Commissioning " +
-                "  Cluster. Refer to the OpenCommissioningWindow command for a description of the command behavior " +
-                "and parameters." +
+                "> NOTE: This is an alias onto the OpenCommissioningWindow command within the Administrator " +
+                "Commissioning Cluster. Refer to the OpenCommissioningWindow command for a description of the " +
+                "command behavior and parameters." +
                 "\n" +
                 "The parameters for ReverseOpenCommissioningWindow command are as follows:"
         },

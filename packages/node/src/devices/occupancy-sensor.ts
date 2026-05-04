@@ -24,7 +24,7 @@ import { Identity } from "@matter/general";
  * OccupancySensorDevice requires OccupancySensing cluster but OccupancySensing is not added by default because you must
  * select the features your device supports. You can add manually using OccupancySensorDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 7.3
+ * @see {@link MatterSpecification.v151.Device} § 7.3
  */
 export interface OccupancySensorDevice extends Identity<typeof OccupancySensorDeviceDefinition> {}
 

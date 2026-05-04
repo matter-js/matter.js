@@ -8,8 +8,8 @@ import { InternalError, Logger } from "#general";
 import { Specification } from "#model";
 import { camelize } from "../../util/string.js";
 import { ScanDirective, repairIncomingHtml } from "./repairs/cluster-html-repairs.js";
-import { scanDocument } from "./scan-document.js";
-import { ClusterReference, GlobalReference, HtmlReference } from "./spec-types.js";
+import { scanSpec } from "./scan-spec.js";
+import { ClusterReference, GlobalReference, SpecReference } from "./spec-types.js";
 
 const logger = Logger.get("load-clusters");
 
@@ -32,12 +32,12 @@ interface SubsectionCollector {
     /**
      * The collector is active until it returns false for a section.
      */
-    collects(ref: HtmlReference): boolean;
+    collects(ref: SpecReference): boolean;
 
     /**
      * Adds a section for which the collector has asserted ownership via {@link collects}.
      */
-    collect(ref: HtmlReference): void;
+    collect(ref: SpecReference): void;
 }
 
 /**
@@ -47,14 +47,14 @@ interface SubsectionCollector {
  * The primary purpose of this function is to load clusters but it also loads bare "global" types when encountered.
  * There are not many global types and this allows us to process specs in a single pass.
  */
-export function* loadClusters(clusters: HtmlReference): Generator<ClusterReference | GlobalReference> {
+export function* loadClusters(clusters: SpecReference): Generator<ClusterReference | GlobalReference> {
     // The definition we are building
     let definition: ClusterReference | GlobalReference | undefined;
 
     // A stack of functions that ingest subsections
     const collectors = Array<SubsectionCollector>();
 
-    for (const subref of scanDocument(clusters)) {
+    for (const subref of scanSpec(clusters)) {
         if (definition) {
             const directive = repairIncomingHtml(subref, definition);
 
@@ -111,7 +111,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
         yield definition;
     }
 
-    function identifyCluster(ref: HtmlReference): ClusterReference | undefined {
+    function identifyCluster(ref: SpecReference): ClusterReference | undefined {
         // Core spec (and cluster spec >= 1.2) convention for clusters is heading suffixed with "Cluster"
         if (ref.name.endsWith(" Cluster")) {
             if (ref.xref.document === Specification.Core && Number.parseInt(ref.xref.section) < 3) {
@@ -145,8 +145,8 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
 
     function collect(
         subsection: string,
-        collect: (ref: HtmlReference) => void,
-        collects?: (ref: HtmlReference) => boolean,
+        collect: (ref: SpecReference) => void,
+        collects?: (ref: SpecReference) => boolean,
     ) {
         if (collects === undefined) {
             collects = ref => isSubsectionOf(subsection, ref);
@@ -154,11 +154,11 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
         collectors.push({ collect, collects });
     }
 
-    function isSubsectionOf(section: string, ref: HtmlReference) {
+    function isSubsectionOf(section: string, ref: SpecReference) {
         return ref.xref.section.startsWith(section);
     }
 
-    function clusterCollector(subref: HtmlReference) {
+    function clusterCollector(subref: SpecReference) {
         if (definition?.type !== "cluster") {
             throw new InternalError(`Cluster collector invoked without an active cluster definition`);
         }
@@ -216,7 +216,8 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
                 collectDatatypes(definition, subref);
                 break;
 
-            case "derivedClusterType":
+            case "derivedclustertype":
+            case "derivedclusternamespace":
                 // The cluster "namespaces" seem to be a collection of enum definitions and misc. prose describing
                 // behavioral definitions.  We collect all of the sections here that appear to define values and sort
                 // out semantics during translation
@@ -239,7 +240,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
         }
     }
 
-    function collectDatatypes(definition: ClusterReference, subref: HtmlReference) {
+    function collectDatatypes(definition: ClusterReference, subref: SpecReference) {
         collect(subref.xref.section, datatypeRef => {
             if (!definition.datatypes) {
                 definition.datatypes = [];
@@ -256,7 +257,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
                     if (other.name.endsWith(" Field")) {
                         return true;
                     }
-                    if (other.prose?.[0]?.textContent?.match(/^This field /)) {
+                    if (other.prose?.[0]?.match(/^This field /)) {
                         return true;
                     }
 
@@ -266,7 +267,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
         });
     }
 
-    function collectNamespace(definition: ClusterReference, subref: HtmlReference) {
+    function collectNamespace(definition: ClusterReference, subref: SpecReference) {
         collect(subref.xref.section, ref => {
             // Only collect namespace sections that appear to have a defining table
             if (!ref.tables || !ref.tables[0].fields.includes("name")) {
@@ -282,7 +283,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
         });
     }
 
-    function collectDetails(ref: HtmlReference, memberDetector?: (ref: HtmlReference) => boolean) {
+    function collectDetails(ref: SpecReference, memberDetector?: (ref: SpecReference) => boolean) {
         const section = ref.detailSection ?? ref.xref.section;
         collect(
             ref.detailSection ?? ref.xref.section,
@@ -323,7 +324,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
             | "revisions"
             | "classifications"
             | "statusCodes",
-        ref: HtmlReference,
+        ref: SpecReference,
     ) {
         if (definition?.type !== "cluster") {
             throw new InternalError(`Cannot define element ${name} because there is no active cluster definition`);
@@ -331,7 +332,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
 
         if (!ref.tables) {
             // Sometimes there's a section with no table to indicate no elements
-            if (ref.prose?.[0]?.textContent?.match(/this cluster has no|no cluster specific/i)) {
+            if (ref.prose?.[0]?.match(/this cluster has no|no cluster specific/i)) {
                 return;
             }
             logger.warn("no defining table in definition of", name, "for", ref.name, `(${ref.path})`);
@@ -353,7 +354,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
         collectDetails((definition[name] = ref));
     }
 
-    function identifyGlobal(ref: HtmlReference): GlobalReference | undefined {
+    function identifyGlobal(ref: SpecReference): GlobalReference | undefined {
         const format = GlobalTypeSections[ref.xref.document]?.[ref.name];
         if (
             // Lists

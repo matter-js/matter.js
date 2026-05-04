@@ -9,5 +9,3 @@ export * from "./DoorLockServer.js";
 export * from "./DoorLockClient.js";
 export * from "./LockAuth.js";
 export * from "./LockSchedule.js";
-export * from "./NonUserDoorLockServer.js";
-export * from "./UserDoorLockServer.js";

@@ -18,7 +18,7 @@ import type { ModeBase } from "./mode-base.js";
  * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
  * for microwave oven devices.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 8.12
+ * @see {@link MatterSpecification.v151.Cluster} § 8.12
  */
 export declare namespace MicrowaveOvenMode {
     /**
@@ -50,15 +50,15 @@ export declare namespace MicrowaveOvenMode {
         /**
          * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field.
          *
-         * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode’s
+         * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode's
          * ModeTags.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.5.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.5
          */
         currentMode: number;
     }
@@ -73,15 +73,15 @@ export declare namespace MicrowaveOvenMode {
         /**
          * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field.
          *
-         * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode’s
+         * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode's
          * ModeTags.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.5.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.5
          */
         currentMode: number;
     }
@@ -92,7 +92,7 @@ export declare namespace MicrowaveOvenMode {
     /**
      * These are optional features supported by MicrowaveOvenModeCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.12.4
+     * @see {@link MatterSpecification.v151.Cluster} § 8.12.4
      */
     export enum Feature {
         /**
@@ -106,7 +106,7 @@ export declare namespace MicrowaveOvenMode {
     /**
      * This is a struct representing a possible mode of the server.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -116,14 +116,14 @@ export declare namespace MicrowaveOvenMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -155,7 +155,7 @@ export declare namespace MicrowaveOvenMode {
          *     green leaf.
          *
          *   - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower level of
-         *     audible sound, less likely to disturb the household’s activities.
+         *     audible sound, less likely to disturb the household's activities.
          *
          *   - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also a
          *     Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster).
@@ -163,73 +163,73 @@ export declare namespace MicrowaveOvenMode {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1
          */
         Day = 9,
 
         /**
          * This is the normal mode of operation for general cooking of food.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1.1
          */
         Normal = 16384,
 
         /**
          * This is a mode optimized for defrosting food.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.12.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.12.7.1.2
          */
         Defrost = 16385
     }
@@ -237,23 +237,23 @@ export declare namespace MicrowaveOvenMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
 
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
-         * 1.10.8, “Mode Namespace”).
+         * 1.10.8, "Mode Namespace").
          *
-         * This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the Value field.
+         * This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the Value field.
          *
          * The same manufacturer code and mode tag value in separate cluster instances are part of the same namespace
          * and have the same meaning. For example: a manufacturer tag meaning "pinch" can be used both in a cluster
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -261,7 +261,7 @@ export declare namespace MicrowaveOvenMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
     };

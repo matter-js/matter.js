@@ -19,7 +19,7 @@ import { Identity } from "@matter/general";
 
 /**
  * This device type aggregates endpoints as a collection. Clusters on the endpoint indicating this device type provide
- * functionality for the collection of descendant endpoints present in the PartsList of the endpoint’s descriptor, for
+ * functionality for the collection of descendant endpoints present in the PartsList of the endpoint's descriptor, for
  * example the Actions cluster.
  *
  * The purpose of this device type is to aggregate functionality for a collection of endpoints. The definition of the
@@ -28,7 +28,7 @@ import { Identity } from "@matter/general";
  * When using this device type as a collection of bridged nodes, please see the "Bridge" section in the System Model
  * specification.
  *
- * @see {@link MatterSpecification.v142.Device} § 11.2
+ * @see {@link MatterSpecification.v151.Device} § 11.2
  */
 export interface AggregatorEndpoint extends Identity<typeof AggregatorEndpointDefinition> {}
 

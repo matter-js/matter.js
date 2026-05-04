@@ -11,10 +11,10 @@ import { ClusterElement as Cluster, AttributeElement as Attribute } from "../../
 
 export const RelativeHumidityMeasurement = Cluster(
     { name: "RelativeHumidityMeasurement", id: 0x405, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "uint16", access: "R V", conformance: "M",
-        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P"
+        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "MinMeasuredValue", id: 0x1, type: "uint16", access: "R V", conformance: "M",

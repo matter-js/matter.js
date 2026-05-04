@@ -17,7 +17,7 @@ import { Identity } from "@matter/general";
 /**
  * A humidity sensor (in most cases a Relative humidity sensor) reports humidity measurements.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.7
+ * @see {@link MatterSpecification.v151.Device} § 7.7
  */
 export interface HumiditySensorDevice extends Identity<typeof HumiditySensorDeviceDefinition> {}
 
@@ -47,7 +47,7 @@ export namespace HumiditySensorRequirements {
 export const HumiditySensorDeviceDefinition = MutableEndpoint({
     name: "HumiditySensor",
     deviceType: 0x307,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: HumiditySensorRequirements,
     behaviors: SupportedBehaviors(
         HumiditySensorRequirements.server.mandatory.Identify,

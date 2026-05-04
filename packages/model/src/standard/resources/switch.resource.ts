@@ -50,7 +50,7 @@ Resource.add({
                 {
                     tag: "field", name: "AS", xref: "cluster§1.13.4.6",
                     details: "This feature flag indicates simplified handling of events for multi-press-capable switches. See " +
-                        "Section 1.13.8, “Sequence of events for MultiPress”."
+                        "Section 1.13.8, \"Sequence of events for MultiPress\"."
                 }
             ]
         },
@@ -58,7 +58,7 @@ Resource.add({
         {
             tag: "attribute", name: "NumberOfPositions", xref: "cluster§1.13.5.1",
             details: "Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2 " +
-                "positions. Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2."
+                "positions. Also see Section 1.13.10, \"Multi Position Details\" for the case NumberOfPositions>2."
         },
 
         {
@@ -83,12 +83,12 @@ Resource.add({
                 "\n" +
                 "When more than MultiPressMax presses are detected within a multi-press sequence:" +
                 "\n" +
-                "  - The server for cluster revision < 2 SHOULD generate a MultiPressComplete event with the " +
+                "  - The server for cluster revision $<$ 2 SHOULD generate a MultiPressComplete event with the " +
                 "TotalNumberOfPressesCounted field set to the value of the MultiPressMax attribute, and avoid " +
                 "generating any further InitialPress and MultiPressOngoing events until the switch has become " +
                 "fully idle (i.e. no longer in the process of counting presses within the multipress)." +
                 "\n" +
-                "  - The server for cluster revision >= 2 shall generate a MultiPressComplete event with the " +
+                "  - The server for cluster revision $>=$ 2 shall generate a MultiPressComplete event with the " +
                 "TotalNumberOfPressesCounted field set to zero (indicating an aborted sequence), and shall NOT " +
                 "generate any further InitialPress and MultiPressOngoing events until the switch has become fully " +
                 "idle (i.e. no longer in the process of counting presses within the multipress)." +
@@ -127,22 +127,22 @@ Resource.add({
                 "\n" +
                 "  - When the AS feature flag is set, this event:" +
                 "\n" +
-                "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
+                "  - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
                 "from any multi-press cycles);" +
                 "\n" +
-                "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
-                "long press is detected after the idle time." +
+                "  - shall only be generated after the first InitialPress following a MultiPressComplete when a long " +
+                "press is detected after the idle time." +
                 "\n" +
                 "  - Else, when the MSM feature flag is set, this event:" +
                 "\n" +
-                "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
+                "  - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
                 "from any multi-press cycles);" +
                 "\n" +
-                "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
-                "long press is detected after the idle time;" +
+                "  - shall only be generated after the first InitialPress following a MultiPressComplete when a long " +
+                "press is detected after the idle time;" +
                 "\n" +
-                "    - shall NOT be generated after a MultiPressOngoing event without an intervening " +
-                "MultiPressComplete event." +
+                "  - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete " +
+                "event." +
                 "\n" +
                 "The above constraints imply that for a given activity detection cycle of a switch having MSM and/or " +
                 "MSL feature flags set, the entire activity is either a single long press detection cycle of " +
@@ -178,7 +178,7 @@ Resource.add({
                 "shall be generated when the switch is released - even when the switch was pressed for a long " +
                 "time." +
                 "\n" +
-                "  - Also see Section 1.13.7, “Sequence of generated events”.",
+                "  - Also see Section 1.13.7, \"Sequence of generated events\".",
 
             children: [{
                 tag: "field", name: "PreviousPosition", xref: "cluster§1.13.6.4.1",
@@ -192,7 +192,7 @@ Resource.add({
             details: "This event shall be generated, when the momentary switch has been released (after debouncing) and " +
                 "after having been pressed for a long time, i.e. this event shall be generated when the switch is " +
                 "released if a LongPress event has been generated since the previous InitialPress event. Also see " +
-                "Section 1.13.7, “Sequence of generated events”.",
+                "Section 1.13.7, \"Sequence of generated events\".",
             children: [{
                 tag: "field", name: "PreviousPosition", xref: "cluster§1.13.6.5.1",
                 details: "This field shall indicate the previous value of the CurrentPosition attribute, i.e. just prior to " +
@@ -206,7 +206,7 @@ Resource.add({
                 "Otherwise, the following paragraphs describe the situations where this event is generated." +
                 "\n" +
                 "This event shall be generated to indicate how many times the momentary switch has been pressed in a " +
-                "multi-press sequence, during that sequence. See Section 1.13.8, “Sequence of events for MultiPress”.",
+                "multi-press sequence, during that sequence. See Section 1.13.8, \"Sequence of events for MultiPress\".",
 
             children: [
                 {
@@ -223,7 +223,7 @@ Resource.add({
                         "\n" +
                         "  - a value of 3 when the third press of a multi-press sequence has been detected," +
                         "\n" +
-                        "  - a value of N when the Nth press of a multi-press sequence has been detected."
+                        "  - a value of N when the N^th press of a multi-press sequence has been detected."
                 }
             ]
         },
@@ -233,7 +233,7 @@ Resource.add({
 
             details: "This event shall be generated to indicate how many times the momentary switch has been pressed in a " +
                 "multi-press sequence, after it has been detected that the sequence has ended. See Section 1.13.8, " +
-                "“Sequence of events for MultiPress”." +
+                "\"Sequence of events for MultiPress\"." +
                 "\n" +
                 "The PreviousPosition field shall indicate the previous value of the CurrentPosition attribute, i.e. " +
                 "just prior to release." +
@@ -257,8 +257,8 @@ Resource.add({
                 "\n" +
                 "    > [!NOTE]" +
                 "\n" +
-                "    > The introduction of TotalNumberOfPressesCounted supporting the value 0 may impact clients of " +
-                "switches using cluster revision 1 since such servers would not use this value of " +
+                "    > NOTE: The introduction of TotalNumberOfPressesCounted supporting the value 0 may impact " +
+                "clients of switches using cluster revision 1 since such servers would not use this value of " +
                 "TotalNumberOfPressesCounted to indicate an aborted sequence. Clients SHOULD always act using " +
                 "the TotalNumberOfPressesCounted field taken into account since for values from 1 to " +
                 "MultiPressMax, the user action that led to the event was different depending on the count."

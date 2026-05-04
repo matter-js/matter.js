@@ -20,7 +20,7 @@ import { Identity } from "@matter/general";
 /**
  * An OTA Requestor is a device that is capable of receiving an OTA software update.
  *
- * @see {@link MatterSpecification.v142.Device} § 2.3
+ * @see {@link MatterSpecification.v151.Device} § 2.3
  */
 export interface OtaRequestorEndpoint extends Identity<typeof OtaRequestorEndpointDefinition> {}
 

@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Contact Sensor device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.1
+ * @see {@link MatterSpecification.v151.Device} § 7.1
  */
 export interface ContactSensorDevice extends Identity<typeof ContactSensorDeviceDefinition> {}
 

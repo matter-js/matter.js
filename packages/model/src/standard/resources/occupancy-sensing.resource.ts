@@ -72,12 +72,14 @@ Resource.add({
                 "the first trigger has expired; this results in a single period of the bit in the Occupancy attribute " +
                 "being 1. The bit in the Occupancy attribute will be set to 1 from the start of the first period " +
                 "where the PIR signal exceeds the threshold until HoldTime after the last moment where the PIR " +
-                "exceeded the threshold."
+                "exceeded the threshold." +
+                "\n" +
+                "!HoldTime"
         },
 
         {
             tag: "attribute", name: "HoldTimeLimits", xref: "cluster§2.7.6.4",
-            details: "Indicates the server’s limits, and default value, for the HoldTime attribute."
+            details: "Indicates the server's limits, and default value, for the HoldTime attribute."
         },
         {
             tag: "attribute", name: "PirOccupiedToUnoccupiedDelay", xref: "cluster§2.7.6.6",
@@ -151,9 +153,9 @@ Resource.add({
             tag: "datatype", name: "OccupancySensorTypeBitmap", xref: "cluster§2.7.5.2",
             details: "> [!NOTE]" +
                 "\n" +
-                "> This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature " +
-                "flags provide the sensor modality (or modalities) for later cluster revisions. See Backward " +
-                "Compatibility section.",
+                "> NOTE: This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the " +
+                "feature flags provide the sensor modality (or modalities) for later cluster revisions. See " +
+                "Backward Compatibility section.",
             children: [
                 { tag: "field", name: "Pir", description: "Indicates a passive infrared sensor." },
                 { tag: "field", name: "Ultrasonic", description: "Indicates a ultrasonic sensor." },
@@ -165,9 +167,9 @@ Resource.add({
             tag: "datatype", name: "OccupancySensorTypeEnum", xref: "cluster§2.7.5.3",
             details: "> [!NOTE]" +
                 "\n" +
-                "> This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature " +
-                "flags provide the sensor modality (or modalities) for later cluster revisions. See Backward " +
-                "Compatibility section.",
+                "> NOTE: This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the " +
+                "feature flags provide the sensor modality (or modalities) for later cluster revisions. See " +
+                "Backward Compatibility section.",
 
             children: [
                 { tag: "field", name: "Pir", description: "Indicates a passive infrared sensor." },
@@ -182,23 +184,23 @@ Resource.add({
 
         {
             tag: "datatype", name: "HoldTimeLimitsStruct", xref: "cluster§2.7.5.4",
-            details: "This structure provides information on the server’s supported values for the HoldTime attribute.",
+            details: "This structure provides information on the server's supported values for the HoldTime attribute.",
 
             children: [
                 {
                     tag: "field", name: "HoldTimeMin", xref: "cluster§2.7.5.4.1",
-                    details: "This field shall specify the minimum value of the server’s supported value for the HoldTime " +
+                    details: "This field shall specify the minimum value of the server's supported value for the HoldTime " +
                         "attribute, in seconds."
                 },
                 {
                     tag: "field", name: "HoldTimeMax", xref: "cluster§2.7.5.4.2",
-                    details: "This field shall specify the maximum value of the server’s supported value for the HoldTime " +
+                    details: "This field shall specify the maximum value of the server's supported value for the HoldTime " +
                         "attribute, in seconds."
                 },
 
                 {
                     tag: "field", name: "HoldTimeDefault", xref: "cluster§2.7.5.4.3",
-                    details: "This field shall specify the (manufacturer-determined) default value of the server’s HoldTime " +
+                    details: "This field shall specify the (manufacturer-determined) default value of the server's HoldTime " +
                         "attribute, in seconds. This is the value that a client who wants to reset the settings to a valid " +
                         "default SHOULD use."
                 }

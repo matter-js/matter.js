@@ -11,6 +11,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- Breaking: Matter 1.5 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
+    - Some Namespaces were renamed and now have a "Common*" prefix
+    - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
+
 - @matter/\*
     - 20%–50% RAM usage reductions and improvements
 
@@ -28,6 +32,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added locking to storage implementations to prevent concurrent access issues and data corruption
     - Enhancement: Split out Blob-Storage into its own `dir`-based BlobStorage implementation
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
+
+- @matter/\*:
+    - Upgraded to Matter specification version 1.5
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup

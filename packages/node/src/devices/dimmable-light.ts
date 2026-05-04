@@ -8,11 +8,11 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
+import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     OccupancySensingBehavior as BaseOccupancySensingBehavior
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
@@ -25,7 +25,7 @@ import { Identity } from "@matter/general";
  * adjusted by means of a bound controller device such as a Dimmer Switch or a Color Dimmer Switch. In addition, a
  * Dimmable Light device is also capable of being switched by means of a bound occupancy sensor or other device(s).
  *
- * @see {@link MatterSpecification.v142.Device} § 4.2
+ * @see {@link MatterSpecification.v151.Device} § 4.2
  */
 export interface DimmableLightDevice extends Identity<typeof DimmableLightDeviceDefinition> {}
 
@@ -43,14 +43,6 @@ export namespace DimmableLightRequirements {
      * We provide this alias to the default implementation {@link GroupsServer} for convenience.
      */
     export const GroupsServer = BaseGroupsServer;
-
-    /**
-     * The ScenesManagement cluster is required by the Matter specification.
-     *
-     * This version of {@link ScenesManagementServer} is specialized per the specification.
-     */
-    export const ScenesManagementServer = BaseScenesManagementServer
-        .alter({ commands: { copyScene: { optional: false } } });
 
     /**
      * The OnOff cluster is required by the Matter specification.
@@ -75,6 +67,14 @@ export namespace DimmableLightRequirements {
         });
 
     /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * This version of {@link ScenesManagementServer} is specialized per the specification.
+     */
+    export const ScenesManagementServer = BaseScenesManagementServer
+        .alter({ commands: { copyScene: { optional: false } } });
+
+    /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
@@ -88,9 +88,9 @@ export namespace DimmableLightRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
-            ScenesManagement: ScenesManagementServer,
             OnOff: OnOffServer,
-            LevelControl: LevelControlServer
+            LevelControl: LevelControlServer,
+            ScenesManagement: ScenesManagementServer
         }
     };
 
@@ -109,9 +109,9 @@ export const DimmableLightDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(
         DimmableLightRequirements.server.mandatory.Identify,
         DimmableLightRequirements.server.mandatory.Groups,
-        DimmableLightRequirements.server.mandatory.ScenesManagement,
         DimmableLightRequirements.server.mandatory.OnOff,
-        DimmableLightRequirements.server.mandatory.LevelControl
+        DimmableLightRequirements.server.mandatory.LevelControl,
+        DimmableLightRequirements.server.mandatory.ScenesManagement
     )
 });
 

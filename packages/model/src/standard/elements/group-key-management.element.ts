@@ -102,18 +102,19 @@ export const GroupKeyManagement = Cluster(
 
     Datatype(
         { name: "GroupKeySetStruct", type: "struct" },
-        Field({ name: "GroupKeySetId", id: 0x0, type: "uint16", conformance: "M" }),
-        Field({ name: "GroupKeySecurityPolicy", id: 0x1, type: "GroupKeySecurityPolicyEnum", access: "S", conformance: "M" }),
-        Field({ name: "EpochKey0", id: 0x2, type: "octstr", access: "S", conformance: "M", constraint: "16", quality: "X" }),
-        Field({ name: "EpochStartTime0", id: 0x3, type: "epoch-us", access: "S", conformance: "M", quality: "X" }),
-        Field({ name: "EpochKey1", id: 0x4, type: "octstr", access: "S", conformance: "M", constraint: "16", quality: "X" }),
-        Field({ name: "EpochStartTime1", id: 0x5, type: "epoch-us", access: "S", conformance: "M", quality: "X" }),
-        Field({ name: "EpochKey2", id: 0x6, type: "octstr", access: "S", conformance: "M", constraint: "16", quality: "X" }),
-        Field({ name: "EpochStartTime2", id: 0x7, type: "epoch-us", access: "S", conformance: "M", quality: "X" }),
+        Field({ name: "GroupKeySetId", id: 0x0, type: "uint16", access: "F", conformance: "M" }),
+        Field({ name: "GroupKeySecurityPolicy", id: 0x1, type: "GroupKeySecurityPolicyEnum", access: "F", conformance: "M" }),
+        Field({ name: "EpochKey0", id: 0x2, type: "octstr", access: "F", conformance: "M", constraint: "16", quality: "X" }),
+        Field({ name: "EpochStartTime0", id: 0x3, type: "epoch-us", access: "F", conformance: "M", quality: "X" }),
+        Field({ name: "EpochKey1", id: 0x4, type: "octstr", access: "F", conformance: "M", constraint: "16", quality: "X" }),
+        Field({ name: "EpochStartTime1", id: 0x5, type: "epoch-us", access: "F", conformance: "M", quality: "X" }),
+        Field({ name: "EpochKey2", id: 0x6, type: "octstr", access: "F", conformance: "M", constraint: "16", quality: "X" }),
+        Field({ name: "EpochStartTime2", id: 0x7, type: "epoch-us", access: "F", conformance: "M", quality: "X" }),
         Field({
-            name: "GroupKeyMulticastPolicy", id: 0x8, type: "GroupKeyMulticastPolicyEnum", access: "S",
+            name: "GroupKeyMulticastPolicy", id: 0x8, type: "GroupKeyMulticastPolicyEnum", access: "F",
             conformance: "O", default: 0
-        })
+        }),
+        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "O" })
     ),
 
     Datatype(

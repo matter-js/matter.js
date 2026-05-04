@@ -16,11 +16,11 @@ import {
 } from "../behaviors/power-source-configuration/PowerSourceConfigurationServer.js";
 import { PowerSourceServer as BasePowerSourceServer } from "../behaviors/power-source/PowerSourceServer.js";
 import {
-    EcosystemInformationServer as BaseEcosystemInformationServer
-} from "../behaviors/ecosystem-information/EcosystemInformationServer.js";
-import {
     AdministratorCommissioningServer as BaseAdministratorCommissioningServer
 } from "../behaviors/administrator-commissioning/AdministratorCommissioningServer.js";
+import {
+    EcosystemInformationServer as BaseEcosystemInformationServer
+} from "../behaviors/ecosystem-information/EcosystemInformationServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -31,7 +31,7 @@ import { Identity } from "@matter/general";
  * describes itself and any other endpoints that make up the Bridged Node. A Bridged Node endpoint represents a device
  * on a foreign network, but is not the root endpoint of the bridge itself.
  *
- * @see {@link MatterSpecification.v142.Device} § 2.5
+ * @see {@link MatterSpecification.v151.Device} § 2.5
  */
 export interface BridgedNodeEndpoint extends Identity<typeof BridgedNodeEndpointDefinition> {}
 
@@ -58,18 +58,18 @@ export namespace BridgedNodeRequirements {
     export const PowerSourceServer = BasePowerSourceServer;
 
     /**
-     * The EcosystemInformation cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link EcosystemInformationServer} for convenience.
-     */
-    export const EcosystemInformationServer = BaseEcosystemInformationServer;
-
-    /**
      * The AdministratorCommissioning cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link AdministratorCommissioningServer} for convenience.
      */
     export const AdministratorCommissioningServer = BaseAdministratorCommissioningServer;
+
+    /**
+     * The EcosystemInformation cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link EcosystemInformationServer} for convenience.
+     */
+    export const EcosystemInformationServer = BaseEcosystemInformationServer;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -84,8 +84,8 @@ export namespace BridgedNodeRequirements {
         optional: {
             PowerSourceConfiguration: PowerSourceConfigurationServer,
             PowerSource: PowerSourceServer,
-            EcosystemInformation: EcosystemInformationServer,
-            AdministratorCommissioning: AdministratorCommissioningServer
+            AdministratorCommissioning: AdministratorCommissioningServer,
+            EcosystemInformation: EcosystemInformationServer
         }
     };
 }

@@ -135,9 +135,18 @@ Resource.add({
                 "attribute shall return to its value prior to the restart."
         },
 
-        { tag: "command", name: "Off", xref: "cluster§1.5.7.1" },
-        { tag: "command", name: "On", xref: "cluster§1.5.7.2" },
-        { tag: "command", name: "Toggle", xref: "cluster§1.5.7.3" },
+        {
+            tag: "command", name: "Off", xref: "cluster§1.5.7.1",
+            details: "This command allows devices to be turned off."
+        },
+        {
+            tag: "command", name: "On", xref: "cluster§1.5.7.2",
+            details: "This command allows devices to be turned on."
+        },
+        {
+            tag: "command", name: "Toggle", xref: "cluster§1.5.7.3",
+            details: "This command allows devices to be toggled."
+        },
 
         {
             tag: "command", name: "OffWithEffect", xref: "cluster§1.5.7.4",

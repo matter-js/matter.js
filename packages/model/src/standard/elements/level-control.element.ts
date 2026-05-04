@@ -17,7 +17,7 @@ import {
 
 export const LevelControl = Cluster(
     { name: "LevelControl", id: 0x8, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -32,20 +32,16 @@ export const LevelControl = Cluster(
     }),
     Attribute({ name: "RemainingTime", id: 0x1, type: "uint16", access: "R V", conformance: "LT", quality: "Q" }),
     Attribute({
-        name: "MinLevel", id: 0x2, type: "uint8", access: "R V", conformance: "[LT]",
-        constraint: "1 to 254", default: 1
+        name: "MinLevel", id: 0x2, type: "uint8", access: "R V", conformance: "Rev >= v7, O",
+        constraint: "max 254", default: 1, quality: "F"
     }),
     Attribute({
-        name: "MinLevel", id: 0x2, type: "uint8", access: "R V", conformance: "[!LT]",
-        constraint: "max 254", default: 0
-    }),
-    Attribute({
-        name: "MaxLevel", id: 0x3, type: "uint8", access: "R V", conformance: "O",
-        constraint: "minLevel to 254", default: 254
+        name: "MaxLevel", id: 0x3, type: "uint8", access: "R V", conformance: "Rev >= v7, O",
+        constraint: "minLevel to 254", default: 254, quality: "F"
     }),
     Attribute({
         name: "CurrentFrequency", id: 0x4, type: "uint16", access: "R V", conformance: "FQ",
-        constraint: "minFrequency to maxFrequency", quality: "S P Q"
+        constraint: "minFrequency to maxFrequency", quality: "S Q"
     }),
     Attribute({ name: "MinFrequency", id: 0x5, type: "uint16", access: "R V", conformance: "FQ" }),
     Attribute({ name: "MaxFrequency", id: 0x6, type: "uint16", access: "R V", conformance: "FQ", constraint: "min minFrequency" }),

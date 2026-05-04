@@ -19,15 +19,15 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
 /**
  * Definitions for the AccessControl cluster.
  *
- * The Access Control Cluster exposes a data model view of a Node’s Access Control List (ACL), which codifies the rules
- * used to manage and enforce Access Control for the Node’s endpoints and their associated cluster instances. Access to
+ * The Access Control Cluster exposes a data model view of a Node's Access Control List (ACL), which codifies the rules
+ * used to manage and enforce Access Control for the Node's endpoints and their associated cluster instances. Access to
  * this Access Control Cluster itself requires a special Administer privilege level, such that only Nodes granted such
  * privilege (hereafter termed "Administrators") can manage the Access Control Cluster.
  *
  * The Access Control Cluster shall be present on the root node endpoint of each Node, and shall NOT be present on any
  * other Endpoint of any Node.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.10
+ * @see {@link MatterSpecification.v151.Core} § 9.10
  */
 export declare namespace AccessControl {
     /**
@@ -59,7 +59,7 @@ export declare namespace AccessControl {
         /**
          * An attempt to add an Access Control Entry when no more entries are available shall result in a
          * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
-         * access control limits.
+         * Section 2.11.1.1, "Access Control Limits".
          *
          * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
          * supported by the server.
@@ -68,7 +68,7 @@ export declare namespace AccessControl {
          * Control Privilege Granting algorithm to determine if a subject has privilege to interact with targets on the
          * Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.3
          */
         acl: AccessControlEntry[];
 
@@ -80,7 +80,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.5
          */
         subjectsPerAccessControlEntry: number;
 
@@ -92,7 +92,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.6
          */
         targetsPerAccessControlEntry: number;
 
@@ -104,7 +104,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.7
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.7
          */
         accessControlEntriesPerFabric: number;
     }
@@ -115,11 +115,11 @@ export declare namespace AccessControl {
     export interface ExtensionAttributes {
         /**
          * If present, the Access Control Extensions may be used by Administrators to store arbitrary data related to
-         * fabric’s Access Control Entries.
+         * fabric's Access Control Entries.
          *
          * The Access Control Extension list shall support a single extension entry per supported fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.4
          */
         extension: AccessControlExtension[];
     }
@@ -136,14 +136,14 @@ export declare namespace AccessControl {
          * commissioning.
          *
          * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
-         * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information
-         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
-         * other Nodes.
+         * commissioning shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, "Access Control Model" for
+         * more information about the features related to controlling access to a Node's Endpoint Clusters ("Targets"
+         * hereafter) from other Nodes.
          *
-         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.8
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.8
          */
         commissioningArl: CommissioningAccessRestrictionEntry[];
 
@@ -159,13 +159,14 @@ export declare namespace AccessControl {
          * this server has with external entities such as its owner, external service provider, or end-user.
          *
          * Attempts to access data model elements described by an entry in the ARL attribute for the accessing fabric
-         * shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about the
-         * features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other Nodes.
+         * shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, "Access Control Model" for more information
+         * about the features related to controlling access to a Node's Endpoint Clusters ("Targets" hereafter) from
+         * other Nodes.
          *
-         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.9
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.9
          */
         arl: AccessRestrictionEntry[];
     }
@@ -180,7 +181,7 @@ export declare namespace AccessControl {
         /**
          * An attempt to add an Access Control Entry when no more entries are available shall result in a
          * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
-         * access control limits.
+         * Section 2.11.1.1, "Access Control Limits".
          *
          * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
          * supported by the server.
@@ -189,7 +190,7 @@ export declare namespace AccessControl {
          * Control Privilege Granting algorithm to determine if a subject has privilege to interact with targets on the
          * Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.3
          */
         acl: AccessControlEntry[];
 
@@ -201,7 +202,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.5
          */
         subjectsPerAccessControlEntry: number;
 
@@ -213,7 +214,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.6
          */
         targetsPerAccessControlEntry: number;
 
@@ -225,17 +226,17 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.7
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.7
          */
         accessControlEntriesPerFabric: number;
 
         /**
          * If present, the Access Control Extensions may be used by Administrators to store arbitrary data related to
-         * fabric’s Access Control Entries.
+         * fabric's Access Control Entries.
          *
          * The Access Control Extension list shall support a single extension entry per supported fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.4
          */
         extension: AccessControlExtension[];
 
@@ -247,14 +248,14 @@ export declare namespace AccessControl {
          * commissioning.
          *
          * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
-         * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information
-         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
-         * other Nodes.
+         * commissioning shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, "Access Control Model" for
+         * more information about the features related to controlling access to a Node's Endpoint Clusters ("Targets"
+         * hereafter) from other Nodes.
          *
-         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.8
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.8
          */
         commissioningArl: CommissioningAccessRestrictionEntry[];
 
@@ -270,13 +271,14 @@ export declare namespace AccessControl {
          * this server has with external entities such as its owner, external service provider, or end-user.
          *
          * Attempts to access data model elements described by an entry in the ARL attribute for the accessing fabric
-         * shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about the
-         * features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other Nodes.
+         * shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, "Access Control Model" for more information
+         * about the features related to controlling access to a Node's Endpoint Clusters ("Targets" hereafter) from
+         * other Nodes.
          *
-         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.6.9
+         * @see {@link MatterSpecification.v151.Core} § 9.10.6.9
          */
         arl: AccessRestrictionEntry[];
     }
@@ -303,7 +305,13 @@ export declare namespace AccessControl {
          * The ARL attribute may change at any time due to actions taken by the user, or the service associated with the
          * device vendor.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
+         * > [!NOTE]
+         *
+         * > NOTE: A malicious fabric administrator could attempt to create a fabric with a VID that it does not own in
+         *   order to gain enhanced access. For this reason the device SHOULD perform the Fabric Table Vendor ID
+         *   Verification Procedure.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 9.10.8.1
          */
         reviewFabricRestrictions(request: ReviewFabricRestrictionsRequest): MaybePromise<ReviewFabricRestrictionsResponse>;
     }
@@ -318,7 +326,7 @@ export declare namespace AccessControl {
      */
     export interface BaseEvents {
         /**
-         * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
+         * The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
          * Administrator.
          *
          *   - Each added entry shall generate an event with ChangeType Added.
@@ -327,7 +335,7 @@ export declare namespace AccessControl {
          *
          *   - Each removed entry shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
          */
         accessControlEntryChanged: AccessControlEntryChangedEvent;
     }
@@ -337,7 +345,7 @@ export declare namespace AccessControl {
      */
     export interface ExtensionEvents {
         /**
-         * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
+         * The server shall generate AccessControlExtensionChanged events whenever its extension attribute data is
          * changed by an Administrator.
          *
          *   - Each added extension shall generate an event with ChangeType Added.
@@ -346,7 +354,7 @@ export declare namespace AccessControl {
          *
          *   - Each removed extension shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
          */
         accessControlExtensionChanged: AccessControlExtensionChangedEvent;
     }
@@ -356,12 +364,12 @@ export declare namespace AccessControl {
      */
     export interface ManagedDeviceEvents {
         /**
-         * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
+         * The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
          * restriction review. Due to the requirement to generate this event within a bound time frame of successful
          * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client may
          * present to the user in order to help the user locate the user interface for the Managed Device feature.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
          */
         fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
     }
@@ -374,7 +382,7 @@ export declare namespace AccessControl {
      */
     export interface Events {
         /**
-         * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
+         * The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
          * Administrator.
          *
          *   - Each added entry shall generate an event with ChangeType Added.
@@ -383,12 +391,12 @@ export declare namespace AccessControl {
          *
          *   - Each removed entry shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
          */
         accessControlEntryChanged: AccessControlEntryChangedEvent;
 
         /**
-         * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
+         * The server shall generate AccessControlExtensionChanged events whenever its extension attribute data is
          * changed by an Administrator.
          *
          *   - Each added extension shall generate an event with ChangeType Added.
@@ -397,17 +405,17 @@ export declare namespace AccessControl {
          *
          *   - Each removed extension shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
          */
         accessControlExtensionChanged: AccessControlExtensionChangedEvent;
 
         /**
-         * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
+         * The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
          * restriction review. Due to the requirement to generate this event within a bound time frame of successful
          * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client may
          * present to the user in order to help the user locate the user interface for the Managed Device feature.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
          */
         fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
     }
@@ -429,7 +437,7 @@ export declare namespace AccessControl {
     /**
      * These are optional features supported by AccessControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.4
+     * @see {@link MatterSpecification.v151.Core} § 9.10.4
      */
     export enum Feature {
         /**
@@ -437,7 +445,7 @@ export declare namespace AccessControl {
          *
          * This feature indicates the device supports ACL Extension attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.4.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.4.1
          */
         Extension = "Extension",
 
@@ -447,7 +455,7 @@ export declare namespace AccessControl {
          * This feature is for a device that is managed by a service associated with the device vendor and which imposes
          * default access restrictions upon each new fabric added to it. This could arise, for example, if the device is
          * managed by a service provider under contract to an end-user, in such a way that the manager of the device
-         * does not unconditionally grant universal access to all of a device’s functionality, even for fabric
+         * does not unconditionally grant universal access to all of a device's functionality, even for fabric
          * administrators. For example, many Home Routers are managed by an Internet Service Provider (a service), and
          * these services often have a policy that requires them to obtain user consent before certain administrative
          * functions can be delegated to a third party (e.g., a fabric Administrator). These restrictions are expressed
@@ -480,45 +488,21 @@ export declare namespace AccessControl {
          * communication between external services and the user, and may take an unpredictable amount of time to
          * complete since an end-user may need to visit some resources, such as a mobile application or web site. A
          * FabricRestrictionReviewUpdate event will be generated by the device within a predictable time period of the
-         * ReviewFabricRestrictionsResponse (see Section 9.10.8.1, “ReviewFabricRestrictions Command” for specification
-         * of this time period), and this event can be correlated with the ReviewFabricRestrictionsResponse using a
-         * token provided in both. The device may provide instructions or a Redirect URL in the
-         * FabricRestrictionReviewUpdate event in order to help the user access the features required for managing
-         * per-fabric restrictions.
+         * ReviewFabricRestrictionsResponse (see Section 9.10.8.1, "ReviewFabricRestrictions" for specification of this
+         * time period), and this event can be correlated with the ReviewFabricRestrictionsResponse using a token
+         * provided in both. The device may provide instructions or a Redirect URL in the FabricRestrictionReviewUpdate
+         * event in order to help the user access the features required for managing per-fabric restrictions.
          *
-         * See Section 6.6.2, “Model” for a description of how access control is impacted by the ARL attribute.
+         * See Section 6.6.2, "Access Control Model" for a description of how access control is impacted by the ARL
+         * attribute.
          *
-         * ### Managed Device Feature Usage Restrictions
-         *
-         * Use of this feature shall be limited to the mandatory clusters of endpoints having a device type that
-         * explicitly permits its use in the Device Library Specification. As a reminder, the device types associated
-         * with an endpoint are listed in the Descriptor cluster of the endpoint.
-         *
-         * In addition, use of this feature shall NOT restrict the following clusters on any endpoint:
-         *
-         *   1. the Descriptor Cluster (0x001D)
-         *
-         *   2. the Binding Cluster (0x001E)
-         *
-         *   3. the Network Commissioning Cluster (0x0031)
-         *
-         *   4. the Identify Cluster (0x0003)
-         *
-         *   5. the Groups Cluster (0x0004)
-         *
-         * In addition, use of this feature shall NOT restrict the global attributes of any cluster.
-         *
-         * Because ARLs cannot be used to restrict root node access or access to any clusters required for
-         * commissioning, administrators may determine the current restrictions of the ARL at any point, including
-         * during commissioning after joining the fabric.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.4.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.4.2
          */
         ManagedDevice = "ManagedDevice"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.6
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.6
      */
     export declare class AccessControlEntry {
         constructor(values?: Partial<AccessControlEntry>);
@@ -534,6 +518,8 @@ export declare namespace AccessControl {
          * levels as well. The following diagram illustrates how the higher privilege levels subsume the lower privilege
          * levels:
          *
+         * !Diagram
+         *
          * Individual clusters shall define whether attributes are readable, writable, or both readable and writable.
          * Clusters also shall define which privilege is minimally required to be able to perform a particular read or
          * write action on those attributes, or invoke particular commands. Device type specifications may further
@@ -543,28 +529,33 @@ export declare namespace AccessControl {
          * Cluster itself. The Administer privilege shall NOT be used on Access Control Entries which use the Group auth
          * mode.
          *
-         * E.g. A Fan Control Cluster may require Operate privilege to write to a level attribute (low/medium/high), and
-         * to configure each level’s RPM setting via a command. The Fan Control Cluster may also expose a current RPM
-         * attribute, which requires only View privilege to read. Clients granted Operate privilege will be able to both
-         * change the level, and configure each level’s RPM. Clients granted View privilege will be able to read the
-         * current RPM, but will not be granted sufficient privilege to change the level or configure each level’s RPM.
+         * > [!NOTE]
          *
-         * E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper operation, this
-         * device type may restrict configuration of fan level RPM settings to require Manage privilege. Clients granted
-         * Manage privilege will have sufficient privilege to configure each level’s RPM; clients granted Operate
-         * privilege will not be able to perform such configuration, but will still be able to change the level. This
-         * additional restriction would apply only to the Fan Control Cluster as included in this particular device
-         * type; a client granted Operate privilege may still be able to perform configuration in Fan Control Clusters
-         * included in other device types on the same Node.
+         * > E.g. A Fan Control Cluster may require Operate privilege to write to a level attribute (low/medium/high),
+         *   and to configure each level's RPM setting via a command. The Fan Control Cluster may also expose a current
+         *   RPM attribute, which requires only View privilege to read. Clients granted Operate privilege will be able
+         *   to both change the level, and configure each level's RPM. Clients granted View privilege will be able to
+         *   read the current RPM, but will not be granted sufficient privilege to change the level or configure each
+         *   level's RPM.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.6.1
+         * > [!NOTE]
+         *
+         * > E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper operation,
+         *   this device type may restrict configuration of fan level RPM settings to require Manage privilege. Clients
+         *   granted Manage privilege will have sufficient privilege to configure each level's RPM; clients granted
+         *   Operate privilege will not be able to perform such configuration, but will still be able to change the
+         *   level. This additional restriction would apply only to the Fan Control Cluster as included in this
+         *   particular device type; a client granted Operate privilege may still be able to perform configuration in
+         *   Fan Control Clusters included in other device types on the same Node.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.6.1
          */
         privilege: AccessControlEntryPrivilege;
 
         /**
          * The AuthMode field shall specify the authentication mode required by this Access Control Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.6.2
          */
         authMode: AccessControlEntryAuthMode;
 
@@ -576,48 +567,9 @@ export declare namespace AccessControl {
          * An attempt to create an entry with more subjects than the node can support shall result in a
          * RESOURCE_EXHAUSTED error and the entry shall NOT be created.
          *
-         * Subject ID shall be of type uint64 with semantics depending on the entry’s AuthMode as follows:
+         * Subject ID shall be of type uint64 with semantics depending on the entry's AuthMode as follows:
          *
-         * ### Subject Semantics
-         *
-         * An empty subjects list indicates a wildcard; that is, this entry shall grant access to any Node that
-         * successfully authenticates via AuthMode. The subjects list shall NOT be empty if the entry’s AuthMode is
-         * PASE.
-         *
-         * The PASE AuthMode is reserved for future use (see Section 6.6.2.9, “Bootstrapping of the Access Control
-         * Cluster”). An attempt to write an entry with AuthMode set to PASE shall fail with a status code of
-         * CONSTRAINT_ERROR.
-         *
-         * For PASE authentication, the Passcode ID identifies the required passcode verifier, and shall be 0 for the
-         * default commissioning passcode.
-         *
-         * For CASE authentication, the Subject ID is a distinguished name within the Operational Certificate shared
-         * during CASE session establishment, the type of which is determined by its range to be one of:
-         *
-         *   - a Node ID, which identifies the required source node directly (by ID)
-         *
-         *   - a CASE Authenticated Tag, which identifies the required source node indirectly (by tag)
-         *
-         * E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111,
-         * 0x0000_0000_2222_2222, 0x0000_0000_3333_3333 ] (which are Node IDs) will grant access to Nodes with Node ID
-         * 0x0000_0000_1111_1111, 0x0000_0000_2222_2222, or 0x0000_0000_3333_3333, but will not grant access to Nodes
-         * with Node ID 0x0000_0000_4444_4444 or 0x0000_0000_5555_5555.
-         *
-         * E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_6666_6666,
-         * 0xFFFF_FFFD_ABCD_0002 ] (which are a Node ID and a CASE Authenticated Tag) will grant access to the Node with
-         * Node ID 0x0000_0000_6666_6666 and any Nodes with CAT identifier value 0xABCD if the CAT’s version is 0x0002
-         * or higher. It will not grant access to Nodes with other CAT values such as 0x9999_9999. Any node with CAT
-         * identifier value of 0xABCD but version less than 0x0002 (for example: 0xFFFF_FFFD_ABCD_0001) will not be
-         * granted access.
-         *
-         * For Group authentication, the Group ID identifies the required group, as defined in the Group Key Management
-         * Cluster.
-         *
-         * E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111,
-         * 0x0000_0000_2222_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111_1111 or 0x2222_2222,
-         * but will not grant access to Nodes in Group 0x3333_3333, even if they share Operational Group Keys.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.6.3
          */
         subjects: SubjectId[] | null;
 
@@ -635,31 +587,7 @@ export declare namespace AccessControl {
          *
          * A target grants access based on the presence of fields as follows:
          *
-         * ### Target Semantics
-         *
-         * An empty targets list indicates a wildcard: that is, this entry shall grant access to all cluster instances
-         * on all endpoints on this Node.
-         *
-         * E.g. an entry that grants privileges to the Color Light Bulb Device Type will grant privileges to any cluster
-         * on any endpoint that contains the Color Light Bulb device type (whether that cluster is in the Color Light
-         * Bulb device type or not), and will not grant privileges to any other cluster on any other endpoint.
-         *
-         * E.g. an entry that grants privileges to Endpoint 1 will grant privileges to any cluster on Endpoint 1, and
-         * will not grant privileges to any other cluster on any other endpoint.
-         *
-         * E.g. an entry that grants privileges to the On/Off Cluster on any endpoint will not grant privileges to any
-         * other cluster on any endpoint.
-         *
-         * E.g. an entry that grants privileges to the On/Off Cluster with Color Light Bulb Device Type will grant
-         * privileges to just the On/Off Cluster on any endpoint that contains the Color Light Bulb device type, and
-         * will not grant privileges to any other cluster on any other endpoint (including other clusters in the Color
-         * Light Bulb device type, or the On/Off cluster on endpoints that do not contain the Color Light Bulb device
-         * type).
-         *
-         * E.g. an entry that grants privileges to the On/Off Cluster on Endpoint 1 will not grant privileges to any
-         * other cluster on Endpoint 1, or to any other cluster (including the On/Off cluster) on any other endpoint.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.6.4
          */
         targets: AccessControlTarget[] | null;
 
@@ -667,13 +595,13 @@ export declare namespace AccessControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.7
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.7
      */
     export declare class AccessControlExtension {
         constructor(values?: Partial<AccessControlExtension>);
 
         /**
-         * This field may be used by manufacturers to store arbitrary TLV-encoded data related to a fabric’s Access
+         * This field may be used by manufacturers to store arbitrary TLV-encoded data related to a fabric's Access
          * Control Entries.
          *
          * The contents shall consist of a top-level anonymous list; each list element shall include a profile-specific
@@ -682,13 +610,15 @@ export declare namespace AccessControl {
          * Administrators may iterate over this list of elements, and interpret selected elements at their discretion.
          * The content of each element is not specified, but may be coordinated among manufacturers at their discretion.
          *
-         * E.g. a manufacturer could use this field to store structured data, including various metadata and
-         * cryptographic signatures. The manufacturer could then verify a fabric’s Access Control List by generating a
-         * canonical bytestream from the Access Control Entries for the fabric, then verifying the signature against it.
-         * Such a canonical bytestream could be generated by encoding specific entry fields and sub-fields (such as
-         * lists) in specific order and specific format (e.g. TLV).
+         * > [!NOTE]
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.7.1
+         * > E.g. a manufacturer could use this field to store structured data, including various metadata and
+         *   cryptographic signatures. The manufacturer could then verify a fabric's Access Control List by generating a
+         *   canonical bytestream from the Access Control Entries for the fabric, then verifying the signature against
+         *   it. Such a canonical bytestream could be generated by encoding specific entry fields and sub-fields (such
+         *   as lists) in specific order and specific format (e.g. TLV).
+         *
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.7.1
          */
         data: Bytes;
 
@@ -698,7 +628,7 @@ export declare namespace AccessControl {
     /**
      * This structure describes a current access restriction when there is no accessing fabric.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.10
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.10
      */
     export declare class CommissioningAccessRestrictionEntry {
         constructor(values?: Partial<CommissioningAccessRestrictionEntry>);
@@ -707,15 +637,15 @@ export declare namespace AccessControl {
          * This field shall indicate the endpoint having associated access restrictions scoped to the associated fabric
          * of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.10.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.1
          */
         endpoint: EndpointNumber;
 
         /**
-         * This field shall indicate the cluster having associated access restrictions under the entry’s Endpoint,
+         * This field shall indicate the cluster having associated access restrictions under the entry's Endpoint,
          * scoped to the associated fabric of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.10.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.2
          */
         cluster: ClusterId;
 
@@ -725,7 +655,7 @@ export declare namespace AccessControl {
          *
          * This list shall NOT be empty.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.10.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.3
          */
         restrictions: AccessRestriction[];
     };
@@ -733,7 +663,7 @@ export declare namespace AccessControl {
     /**
      * This structure describes a current access restriction on the fabric.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.9
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.9
      */
     export declare class AccessRestrictionEntry {
         constructor(values?: Partial<AccessRestrictionEntry>);
@@ -742,15 +672,15 @@ export declare namespace AccessControl {
          * This field shall indicate the endpoint having associated access restrictions scoped to the associated fabric
          * of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.9.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.9.1
          */
         endpoint: EndpointNumber;
 
         /**
-         * This field shall indicate the cluster having associated access restrictions under the entry’s Endpoint,
+         * This field shall indicate the cluster having associated access restrictions under the entry's Endpoint,
          * scoped to the associated fabric of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.9.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.9.2
          */
         cluster: ClusterId;
 
@@ -760,7 +690,7 @@ export declare namespace AccessControl {
          *
          * This list shall NOT be empty.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.9.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.9.3
          */
         restrictions: AccessRestriction[];
 
@@ -785,7 +715,13 @@ export declare namespace AccessControl {
      * The ARL attribute may change at any time due to actions taken by the user, or the service associated with the
      * device vendor.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
+     * > [!NOTE]
+     *
+     * > NOTE: A malicious fabric administrator could attempt to create a fabric with a VID that it does not own in
+     *   order to gain enhanced access. For this reason the device SHOULD perform the Fabric Table Vendor ID
+     *   Verification Procedure.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.10.8.1
      */
     export declare class ReviewFabricRestrictionsRequest {
         constructor(values?: Partial<ReviewFabricRestrictionsRequest>);
@@ -794,7 +730,7 @@ export declare namespace AccessControl {
          * When the ARL field is provided, it indicates the specific restrictions that are requested for review. An
          * empty list represents a generic request for review of all restrictions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.8.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.8.1.1
          */
         arl: CommissioningAccessRestrictionEntry[];
     };
@@ -803,7 +739,7 @@ export declare namespace AccessControl {
      * Returns the review token for the request, which can be used to correlate with a FabricRestrictionReviewUpdate
      * event.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.8.2
+     * @see {@link MatterSpecification.v151.Core} § 9.10.8.2
      */
     export declare class ReviewFabricRestrictionsResponse {
         constructor(values?: Partial<ReviewFabricRestrictionsResponse>);
@@ -812,13 +748,13 @@ export declare namespace AccessControl {
          * This field shall specify a Token that can be used to correlate a ReviewFabricRestrictionsResponse with a
          * FabricRestrictionReviewUpdate event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.8.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.8.2.1
          */
         token: number | bigint;
     };
 
     /**
-     * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
+     * The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
      * Administrator.
      *
      *   - Each added entry shall generate an event with ChangeType Added.
@@ -827,7 +763,7 @@ export declare namespace AccessControl {
      *
      *   - Each removed entry shall generate an event with ChangeType Removed.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
+     * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
      */
     export declare class AccessControlEntryChangedEvent {
         constructor(values?: Partial<AccessControlEntryChangedEvent>);
@@ -838,7 +774,7 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.1
          */
         adminNodeId: NodeId | null;
 
@@ -849,14 +785,14 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.2
          */
         adminPasscodeId: number | null;
 
         /**
          * The type of change as appropriate.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.3
          */
         changeType: ChangeType;
 
@@ -866,7 +802,7 @@ export declare namespace AccessControl {
          * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
          * scarce.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.4
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.4
          */
         latestValue: AccessControlEntry | null;
 
@@ -874,7 +810,7 @@ export declare namespace AccessControl {
     };
 
     /**
-     * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is changed
+     * The server shall generate AccessControlExtensionChanged events whenever its extension attribute data is changed
      * by an Administrator.
      *
      *   - Each added extension shall generate an event with ChangeType Added.
@@ -883,7 +819,7 @@ export declare namespace AccessControl {
      *
      *   - Each removed extension shall generate an event with ChangeType Removed.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
+     * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
      */
     export declare class AccessControlExtensionChangedEvent {
         constructor(values?: Partial<AccessControlExtensionChangedEvent>);
@@ -894,7 +830,7 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.1
          */
         adminNodeId: NodeId | null;
 
@@ -905,14 +841,14 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.2
          */
         adminPasscodeId: number | null;
 
         /**
          * The type of change as appropriate.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.3
          */
         changeType: ChangeType;
 
@@ -922,7 +858,7 @@ export declare namespace AccessControl {
          * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
          * scarce.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.4
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.4
          */
         latestValue: AccessControlExtension | null;
 
@@ -930,12 +866,12 @@ export declare namespace AccessControl {
     };
 
     /**
-     * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric restriction
+     * The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric restriction
      * review. Due to the requirement to generate this event within a bound time frame of successful receipt of the
      * ReviewFabricRestrictions command, this event may include additional steps that the client may present to the user
      * in order to help the user locate the user interface for the Managed Device feature.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
+     * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
      */
     export declare class FabricRestrictionReviewUpdateEvent {
         constructor(values?: Partial<FabricRestrictionReviewUpdateEvent>);
@@ -944,7 +880,7 @@ export declare namespace AccessControl {
          * This field shall indicate the Token that can be used to correlate a ReviewFabricRestrictionsResponse with a
          * FabricRestrictionReviewUpdate event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3.1
          */
         token: number | bigint;
 
@@ -958,7 +894,7 @@ export declare namespace AccessControl {
          * Examples include "Please try again and immediately access device display for further instructions." or
          * "Please check email associated with your Acme account."
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3.2
          */
         instruction?: string;
 
@@ -986,144 +922,28 @@ export declare namespace AccessControl {
          *     through the process to review and approve or deny the request. The device manufacturer may choose to use
          *     a constructed URL which is valid in a HTTP GET request (i.e. dedicated for the product) such as, for
          *     example, https://domain.example/arl-app?vid=FFF1&pid=1234. If a client follows or launches the
-         *     ARLRequestFlowUrl, it shall expand it as described in Section 9.10.9.3.4, “ARLRequestFlowUrl format”.
+         *     ARLRequestFlowUrl, it shall expand it as described in Section 9.10.9.3.4, "ARLRequestFlowUrl format".
          *
          *   - A manufacturer contemplating using this flow should realize that
          *
-         *     - This flow typically requires internet access to access the URL, and access extension may fail when
-         *       internet connectivity is not available.
+         *   - This flow typically requires internet access to access the URL, and access extension may fail when
+         *     internet connectivity is not available.
          *
-         *     - If the flow prefers to redirect the user to an app which is available on popular platforms, it SHOULD
-         *       also provide a fallback option such as a web browser interface to ensure users can complete access
-         *       extension.
+         *   - If the flow prefers to redirect the user to an app which is available on popular platforms, it SHOULD
+         *     also provide a fallback option such as a web browser interface to ensure users can complete access
+         *     extension.
          *
-         * ### ARLRequestFlowUrl format
+         *   - A malicious Administrator could tamper with the URL (including any parameters it contains) in order to
+         *     reduce restrictions for another Fabric. A well-implemented web service or app SHOULD validate that the
+         *     VID in flow URL invocations match recent requests for review by comparing with VID and token pairs from
+         *     recent ReviewFabricRestrictions requests.
          *
-         * The ARLRequestFlowUrl shall contain a query component (see RFC 3986 section 3.4) composed of one or more
-         * key-value pairs:
+         *   - An Administrator supporting this flow should realize that if the device serving this cluster is
+         *     malicious, it could send dangerous URLs to the client which could take the user to malicious sites. The
+         *     Administrator SHOULD provide details, such as the VID, to the user about the device sending the event so
+         *     that the user can make an informed decision about whether to trust the URL.
          *
-         *   - The query shall use the & delimiter between key/value pairs.
-         *
-         *   - The key-value pairs shall in the format name=<value> where name is the key name, and <value> is the
-         *     contents of the value encoded with proper URL-encoded escaping.
-         *
-         *   - If key MTcu is present, it shall have a value of "_" (i.e. MTcu=_). This is the "callback URL
-         *     (CallbackUrl) placeholder".
-         *
-         *   - Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for future use
-         *     by this specification. Manufacturers shall NOT include query keys starting with MT in the
-         *     ARLRequestFlowUrl unless they are referenced by a version of this specification.
-         *
-         * Any other element in the ARLRequestFlowUrl query field not covered by the above rules, as well as the
-         * fragment field (if present), shall remain including the order of query key/value pairs present.
-         *
-         * ### Expansion of ARLRequestFlowUrl by client
-         *
-         * Once the URL is obtained, it shall be expanded to form a final URL (ExpandedARLRequestFlowUrl) by proceeding
-         * with the following substitution algorithm on the original ARLRequestFlowUrl:
-         *
-         *   1. If key MTcu is present, compute the CallbackUrl desired (see Section 9.10.9.3.5, “CallbackUrl format for
-         *      ARL Request Flow response”), and substitute the placeholder value "_" (i.e. in MTcu=_) in the
-         *      ARLRequestFlowUrl with the desired contents, encoded with proper URL-encoded escaping (see RFC 3986
-         *      section 2).
-         *
-         * The final URL after expansion (ExpandedARLRequestFlowUrl) shall be the one to follow, rather than the
-         * original value obtained from the FabricRestrictionReviewUpdate event.
-         *
-         * ### CallbackUrl format for ARL Request Flow response
-         *
-         * If a CallbackUrl field (i.e. MTcu=) query field placeholder is present in the ARLRequestFlowUrl, the client
-         * may replace the placeholder value "_" in the ExpandedARLRequestFlowUrl with a URL that the manufacturer flow
-         * can use to make a smooth return to the client when the ARL flow has terminated.
-         *
-         * This URL field may contain a query component (see RFC 3986 section 3.4).
-         *
-         * If a query is present, it shall be composed of one or more key-value pairs:
-         *
-         *   - The query shall use the & delimiter between key/value pairs.
-         *
-         *   - The key-value pairs shall follow the format name=<value> where name is the key name, and <value> is the
-         *     contents of the value encoded with proper URL-encoded escaping.
-         *
-         *   - If key MTaer is present, it shall have a value of "_" (i.e. MTaer=_). This is the placeholder for a
-         *     "access extension response" provided by the manufacturer flow to the client. The manufacturer flow shall
-         *     replace this placeholder with the final status of the access extension request, which shall be formatted
-         *     following Expansion of CallbackUrl by the manufacturer custom flow and encoded with proper URL-encoded
-         *     escaping.
-         *
-         *   - Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for future use
-         *     by this specification.
-         *
-         * Any other element in the CallbackUrl query field not covered by the above rules, as well as the fragment
-         * field (if present), shall remain as provided by the client through embedding within the
-         * ExpandedARLRequestFlowUrl, including the order of query key/value pairs present.
-         *
-         * Expansion of CallbackUrl by the manufacturer custom flow Once the CallbackUrl is obtained by the manufacturer
-         * flow, it may be expanded to form a final ExpandedARLRequestCallbackUrl URL to be used by proceeding with the
-         * following substitution algorithm on the provided CallbackUrl:
-         *
-         *   - If key MTaer is present, the manufacturer custom flow having received the initial query containing the
-         *     CallbackUrl shall substitute the placeholder value "_" (i.e. in MTaer=_) in the CallbackUrl with the
-         *     final status of the access extension request flow which shall be one of the following. Any value returned
-         *     in the MTaer field not listed above shall be considered an error and shall be treated as GeneralFailure.
-         *
-         *     - Success - The flow completed successfully and the ARL attribute was updated. The client may now read
-         *       the ARL attribute to determine the new access restrictions.
-         *
-         *     - NoChange - The ARL attribute was already listing minimum restrictions for the requesting fabric.
-         *
-         *     - GeneralFailure - The flow failed for an unspecified reason.
-         *
-         *     - FlowAuthFailure - The user failed to authenticate to the flow.
-         *
-         *     - NotFound - Access extension failed because the target fabric was not found.
-         *
-         * A manufacturer custom flow having received an ExpandedARLRequestFlowUrl SHOULD attempt to open the
-         * ExpandedARLRequestCallbackUrl, on completion of the request, if an ExpandedARLRequestCallbackUrl was computed
-         * from the CallbackUrl and opening such a URL is supported.
-         *
-         * ### Examples of ARLRequestFlowUrl URLs
-         *
-         * Below are some examples of valid ExpandedARLRequestFlowUrl for several valid values of ARLRequestFlowUrl, as
-         * well as some examples of invalid values of ARLRequestFlowUrl:
-         *
-         *   - Invalid URL with no query string: http scheme is not allowed:
-         *
-         *     - http://company.domain.example/matter/arl/vFFF1p1234
-         *
-         *   - Valid URL :
-         *
-         *     - https://company.domain.example/matter/arl/vFFF1p1234
-         *
-         *   - Valid URL, CallbackUrl requested:
-         *
-         *     - Before expansion:
-         *
-         * https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=_
-         *
-         *   - After expansion:
-         *
-         * https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=https%3A%2F%2Fclient.domain.example%2Fcb%3Ftoken%3DmAsJ6_vqbr-vjDiG_w%253D%253D%26MTaer%3D_
-         *
-         *   - The ExpandedARLRequestFlowUrl URL contains:
-         *
-         *     - A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value pair
-         *       place-holder to indicate support for a return access extension completion status:
-         *       https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_
-         *
-         *     - After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example return
-         *       access extension completion status of Success, the ExpandedARLRequestCallbackUrl would be:
-         *
-         * https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success
-         *
-         * Note that the MTcu key/value pair was initially provided URL-encoded within the ExpandedARLRequestFlowUrl URL
-         * and the MTaer=_ key/value pair placeholder now contains a substituted returned completion status.
-         *
-         *   - Invalid URL, due to MTza=79 key/value pair in reserved MT-prefixed keys reserved for future use:
-         *
-         *     - https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTop=_&MTza=79
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3.3
          */
         arlRequestFlowUrl?: string;
 
@@ -1131,7 +951,7 @@ export declare namespace AccessControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.1
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.1
      */
     export enum ChangeType {
         /**
@@ -1151,7 +971,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.2
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.2
      */
     export enum AccessControlEntryPrivilege {
         /**
@@ -1169,7 +989,7 @@ export declare namespace AccessControl {
          *
          * This value implicitly grants View privileges
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.2.1
          */
         Operate = 3,
 
@@ -1178,7 +998,7 @@ export declare namespace AccessControl {
          *
          * This value implicitly grants Operate & View privileges
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.2.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.2.2
          */
         Manage = 4,
 
@@ -1187,13 +1007,13 @@ export declare namespace AccessControl {
          *
          * This value implicitly grants Manage, Operate & View privileges
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.2.3
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.2.3
          */
         Administer = 5
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.3
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.3
      */
     export enum AccessRestrictionType {
         /**
@@ -1218,7 +1038,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.4
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.4
      */
     export enum AccessControlEntryAuthMode {
         /**
@@ -1238,7 +1058,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.5
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.5
      */
     export declare class AccessControlTarget {
         constructor(values?: Partial<AccessControlTarget>);
@@ -1249,9 +1069,9 @@ export declare namespace AccessControl {
 
     /**
      * This structure describes an access restriction that would be applied to a specific data model element on a given
-     * endpoint/cluster pair (see AccessRestrictionEntryStruct).
+     * endpoint/cluster pair (see Section 9.10.5.9, "AccessRestrictionEntryStruct").
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.5.8
+     * @see {@link MatterSpecification.v151.Core} § 9.10.5.8
      */
     export declare class AccessRestriction {
         constructor(values?: Partial<AccessRestriction>);
@@ -1259,7 +1079,7 @@ export declare namespace AccessControl {
         /**
          * This field shall indicate the type of restriction, for example, AttributeAccessForbidden.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.8.1
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.8.1
          */
         type: AccessRestrictionType;
 
@@ -1274,7 +1094,7 @@ export declare namespace AccessControl {
          * A null value shall indicate the wildcard value for the given value of Type (i.e. all elements associated with
          * the Type under the associated endpoint and cluster for the containing AccessRestrictionEntryStruct).
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.5.8.2
+         * @see {@link MatterSpecification.v151.Core} § 9.10.5.8.2
          */
         id: number | null;
     };

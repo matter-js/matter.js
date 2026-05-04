@@ -48,7 +48,10 @@ export const OvenMode = Cluster(
         Field({ name: "ConvectionRoast", id: 0x4006 }),
         Field({ name: "Warming", id: 0x4007 }),
         Field({ name: "Proofing", id: 0x4008 }),
-        Field({ name: "Steam", id: 0x4009 })
+        Field({ name: "Steam", id: 0x4009 }),
+        Field({ name: "AirFry", id: 0x400a }),
+        Field({ name: "AirSousVide", id: 0x400b }),
+        Field({ name: "FrozenFood", id: 0x400c })
     )
 );
 

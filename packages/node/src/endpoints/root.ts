@@ -8,16 +8,16 @@
 
 import { PartsBehavior } from "../behavior/system/parts/PartsBehavior.js";
 import { IndexBehavior } from "../behavior/system/index/IndexBehavior.js";
+import { AccessControlServer as BaseAccessControlServer } from "../behaviors/access-control/AccessControlServer.js";
 import {
     BasicInformationServer as BaseBasicInformationServer
 } from "../behaviors/basic-information/BasicInformationServer.js";
-import { AccessControlServer as BaseAccessControlServer } from "../behaviors/access-control/AccessControlServer.js";
-import {
-    GroupKeyManagementServer as BaseGroupKeyManagementServer
-} from "../behaviors/group-key-management/GroupKeyManagementServer.js";
 import {
     GeneralCommissioningServer as BaseGeneralCommissioningServer
 } from "../behaviors/general-commissioning/GeneralCommissioningServer.js";
+import {
+    GeneralDiagnosticsServer as BaseGeneralDiagnosticsServer
+} from "../behaviors/general-diagnostics/GeneralDiagnosticsServer.js";
 import {
     AdministratorCommissioningServer as BaseAdministratorCommissioningServer
 } from "../behaviors/administrator-commissioning/AdministratorCommissioningServer.js";
@@ -25,17 +25,8 @@ import {
     OperationalCredentialsServer as BaseOperationalCredentialsServer
 } from "../behaviors/operational-credentials/OperationalCredentialsServer.js";
 import {
-    GeneralDiagnosticsServer as BaseGeneralDiagnosticsServer
-} from "../behaviors/general-diagnostics/GeneralDiagnosticsServer.js";
-import {
-    PowerSourceConfigurationServer as BasePowerSourceConfigurationServer
-} from "../behaviors/power-source-configuration/PowerSourceConfigurationServer.js";
-import {
-    TimeSynchronizationServer as BaseTimeSynchronizationServer
-} from "../behaviors/time-synchronization/TimeSynchronizationServer.js";
-import {
-    NetworkCommissioningServer as BaseNetworkCommissioningServer
-} from "../behaviors/network-commissioning/NetworkCommissioningServer.js";
+    GroupKeyManagementServer as BaseGroupKeyManagementServer
+} from "../behaviors/group-key-management/GroupKeyManagementServer.js";
 import {
     LocalizationConfigurationServer as BaseLocalizationConfigurationServer
 } from "../behaviors/localization-configuration/LocalizationConfigurationServer.js";
@@ -45,20 +36,38 @@ import {
 import {
     UnitLocalizationServer as BaseUnitLocalizationServer
 } from "../behaviors/unit-localization/UnitLocalizationServer.js";
+import {
+    PowerSourceConfigurationServer as BasePowerSourceConfigurationServer
+} from "../behaviors/power-source-configuration/PowerSourceConfigurationServer.js";
+import {
+    NetworkCommissioningServer as BaseNetworkCommissioningServer
+} from "../behaviors/network-commissioning/NetworkCommissioningServer.js";
 import { DiagnosticLogsServer as BaseDiagnosticLogsServer } from "../behaviors/diagnostic-logs/DiagnosticLogsServer.js";
 import {
     SoftwareDiagnosticsServer as BaseSoftwareDiagnosticsServer
 } from "../behaviors/software-diagnostics/SoftwareDiagnosticsServer.js";
 import {
-    EthernetNetworkDiagnosticsServer as BaseEthernetNetworkDiagnosticsServer
-} from "../behaviors/ethernet-network-diagnostics/EthernetNetworkDiagnosticsServer.js";
+    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
+} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
 import {
     WiFiNetworkDiagnosticsServer as BaseWiFiNetworkDiagnosticsServer
 } from "../behaviors/wi-fi-network-diagnostics/WiFiNetworkDiagnosticsServer.js";
 import {
-    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
-} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
+    EthernetNetworkDiagnosticsServer as BaseEthernetNetworkDiagnosticsServer
+} from "../behaviors/ethernet-network-diagnostics/EthernetNetworkDiagnosticsServer.js";
+import {
+    TimeSynchronizationServer as BaseTimeSynchronizationServer
+} from "../behaviors/time-synchronization/TimeSynchronizationServer.js";
 import { IcdManagementServer as BaseIcdManagementServer } from "../behaviors/icd-management/IcdManagementServer.js";
+import {
+    TlsCertificateManagementServer as BaseTlsCertificateManagementServer
+} from "../behaviors/tls-certificate-management/TlsCertificateManagementServer.js";
+import {
+    TlsClientManagementServer as BaseTlsClientManagementServer
+} from "../behaviors/tls-client-management/TlsClientManagementServer.js";
+import {
+    TimeSynchronizationBehavior as BaseTimeSynchronizationBehavior
+} from "../behaviors/time-synchronization/TimeSynchronizationBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -74,18 +83,11 @@ import { Identity } from "@matter/general";
  *
  *   - Other device types with Node scope may be supported on the same endpoint as this device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 2.1
+ * @see {@link MatterSpecification.v151.Device} § 2.1
  */
 export interface RootEndpoint extends Identity<typeof RootEndpointDefinition> {}
 
 export namespace RootRequirements {
-    /**
-     * The BasicInformation cluster is required by the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link BasicInformationServer} for convenience.
-     */
-    export const BasicInformationServer = BaseBasicInformationServer;
-
     /**
      * The AccessControl cluster is required by the Matter specification.
      *
@@ -94,11 +96,11 @@ export namespace RootRequirements {
     export const AccessControlServer = BaseAccessControlServer;
 
     /**
-     * The GroupKeyManagement cluster is required by the Matter specification.
+     * The BasicInformation cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupKeyManagementServer} for convenience.
+     * We provide this alias to the default implementation {@link BasicInformationServer} for convenience.
      */
-    export const GroupKeyManagementServer = BaseGroupKeyManagementServer;
+    export const BasicInformationServer = BaseBasicInformationServer;
 
     /**
      * The GeneralCommissioning cluster is required by the Matter specification.
@@ -106,6 +108,13 @@ export namespace RootRequirements {
      * We provide this alias to the default implementation {@link GeneralCommissioningServer} for convenience.
      */
     export const GeneralCommissioningServer = BaseGeneralCommissioningServer;
+
+    /**
+     * The GeneralDiagnostics cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link GeneralDiagnosticsServer} for convenience.
+     */
+    export const GeneralDiagnosticsServer = BaseGeneralDiagnosticsServer;
 
     /**
      * The AdministratorCommissioning cluster is required by the Matter specification.
@@ -122,32 +131,11 @@ export namespace RootRequirements {
     export const OperationalCredentialsServer = BaseOperationalCredentialsServer;
 
     /**
-     * The GeneralDiagnostics cluster is required by the Matter specification.
+     * The GroupKeyManagement cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GeneralDiagnosticsServer} for convenience.
+     * We provide this alias to the default implementation {@link GroupKeyManagementServer} for convenience.
      */
-    export const GeneralDiagnosticsServer = BaseGeneralDiagnosticsServer;
-
-    /**
-     * The PowerSourceConfiguration cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link PowerSourceConfigurationServer} for convenience.
-     */
-    export const PowerSourceConfigurationServer = BasePowerSourceConfigurationServer;
-
-    /**
-     * The TimeSynchronization cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link TimeSynchronizationServer} for convenience.
-     */
-    export const TimeSynchronizationServer = BaseTimeSynchronizationServer;
-
-    /**
-     * The NetworkCommissioning cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link NetworkCommissioningServer} for convenience.
-     */
-    export const NetworkCommissioningServer = BaseNetworkCommissioningServer;
+    export const GroupKeyManagementServer = BaseGroupKeyManagementServer;
 
     /**
      * The LocalizationConfiguration cluster is optional per the Matter specification.
@@ -171,6 +159,20 @@ export namespace RootRequirements {
     export const UnitLocalizationServer = BaseUnitLocalizationServer;
 
     /**
+     * The PowerSourceConfiguration cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link PowerSourceConfigurationServer} for convenience.
+     */
+    export const PowerSourceConfigurationServer = BasePowerSourceConfigurationServer;
+
+    /**
+     * The NetworkCommissioning cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link NetworkCommissioningServer} for convenience.
+     */
+    export const NetworkCommissioningServer = BaseNetworkCommissioningServer;
+
+    /**
      * The DiagnosticLogs cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link DiagnosticLogsServer} for convenience.
@@ -185,11 +187,11 @@ export namespace RootRequirements {
     export const SoftwareDiagnosticsServer = BaseSoftwareDiagnosticsServer;
 
     /**
-     * The EthernetNetworkDiagnostics cluster is optional per the Matter specification.
+     * The ThreadNetworkDiagnostics cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link EthernetNetworkDiagnosticsServer} for convenience.
+     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
      */
-    export const EthernetNetworkDiagnosticsServer = BaseEthernetNetworkDiagnosticsServer;
+    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
 
     /**
      * The WiFiNetworkDiagnostics cluster is optional per the Matter specification.
@@ -199,11 +201,18 @@ export namespace RootRequirements {
     export const WiFiNetworkDiagnosticsServer = BaseWiFiNetworkDiagnosticsServer;
 
     /**
-     * The ThreadNetworkDiagnostics cluster is optional per the Matter specification.
+     * The EthernetNetworkDiagnostics cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
+     * We provide this alias to the default implementation {@link EthernetNetworkDiagnosticsServer} for convenience.
      */
-    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
+    export const EthernetNetworkDiagnosticsServer = BaseEthernetNetworkDiagnosticsServer;
+
+    /**
+     * The TimeSynchronization cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link TimeSynchronizationServer} for convenience.
+     */
+    export const TimeSynchronizationServer = BaseTimeSynchronizationServer;
 
     /**
      * The IcdManagement cluster is optional per the Matter specification.
@@ -213,55 +222,83 @@ export namespace RootRequirements {
     export const IcdManagementServer = BaseIcdManagementServer;
 
     /**
+     * The TlsCertificateManagement cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link TlsCertificateManagementServer} for convenience.
+     */
+    export const TlsCertificateManagementServer = BaseTlsCertificateManagementServer;
+
+    /**
+     * The TlsClientManagement cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link TlsClientManagementServer} for convenience.
+     */
+    export const TlsClientManagementServer = BaseTlsClientManagementServer;
+
+    /**
+     * The TimeSynchronization cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link TimeSynchronizationBehavior} for convenience.
+     */
+    export const TimeSynchronizationBehavior = BaseTimeSynchronizationBehavior;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: {
             Parts: PartsBehavior,
             Index: IndexBehavior,
-            BasicInformation: BasicInformationServer,
             AccessControl: AccessControlServer,
-            GroupKeyManagement: GroupKeyManagementServer,
+            BasicInformation: BasicInformationServer,
             GeneralCommissioning: GeneralCommissioningServer,
+            GeneralDiagnostics: GeneralDiagnosticsServer,
             AdministratorCommissioning: AdministratorCommissioningServer,
             OperationalCredentials: OperationalCredentialsServer,
-            GeneralDiagnostics: GeneralDiagnosticsServer
+            GroupKeyManagement: GroupKeyManagementServer
         },
 
         optional: {
-            PowerSourceConfiguration: PowerSourceConfigurationServer,
-            TimeSynchronization: TimeSynchronizationServer,
-            NetworkCommissioning: NetworkCommissioningServer,
             LocalizationConfiguration: LocalizationConfigurationServer,
             TimeFormatLocalization: TimeFormatLocalizationServer,
             UnitLocalization: UnitLocalizationServer,
+            PowerSourceConfiguration: PowerSourceConfigurationServer,
+            NetworkCommissioning: NetworkCommissioningServer,
             DiagnosticLogs: DiagnosticLogsServer,
             SoftwareDiagnostics: SoftwareDiagnosticsServer,
-            EthernetNetworkDiagnostics: EthernetNetworkDiagnosticsServer,
-            WiFiNetworkDiagnostics: WiFiNetworkDiagnosticsServer,
             ThreadNetworkDiagnostics: ThreadNetworkDiagnosticsServer,
-            IcdManagement: IcdManagementServer
+            WiFiNetworkDiagnostics: WiFiNetworkDiagnosticsServer,
+            EthernetNetworkDiagnostics: EthernetNetworkDiagnosticsServer,
+            TimeSynchronization: TimeSynchronizationServer,
+            IcdManagement: IcdManagementServer,
+            TlsCertificateManagement: TlsCertificateManagementServer,
+            TlsClientManagement: TlsClientManagementServer
         }
     };
+
+    /**
+     * A definition for each client cluster supported by the endpoint per the Matter specification.
+     */
+    export const client = { optional: { TimeSynchronization: TimeSynchronizationBehavior }, mandatory: {} };
 }
 
 export const RootEndpointDefinition = MutableEndpoint({
     name: "RootNode",
     deviceType: 0x16,
-    deviceRevision: 3,
+    deviceRevision: 4,
     deviceClass: DeviceClassification.Node,
     requirements: RootRequirements,
 
     behaviors: SupportedBehaviors(
         RootRequirements.server.mandatory.Parts,
         RootRequirements.server.mandatory.Index,
-        RootRequirements.server.mandatory.BasicInformation,
         RootRequirements.server.mandatory.AccessControl,
-        RootRequirements.server.mandatory.GroupKeyManagement,
+        RootRequirements.server.mandatory.BasicInformation,
         RootRequirements.server.mandatory.GeneralCommissioning,
+        RootRequirements.server.mandatory.GeneralDiagnostics,
         RootRequirements.server.mandatory.AdministratorCommissioning,
         RootRequirements.server.mandatory.OperationalCredentials,
-        RootRequirements.server.mandatory.GeneralDiagnostics
+        RootRequirements.server.mandatory.GroupKeyManagement
     )
 });
 

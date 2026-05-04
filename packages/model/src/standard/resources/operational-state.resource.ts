@@ -22,9 +22,9 @@ Resource.add({
         "Actual state transitions are dependent on both the implementation, and the requirements that may " +
         "additionally be imposed by a derived cluster." +
         "\n" +
-        "An implementation that supports remotely starting its operation can make use of this cluster’s Start " +
+        "An implementation that supports remotely starting its operation can make use of this cluster's Start " +
         "command to do so. A device that supports remote pause or stop of its currently selected operation " +
-        "can similarly make use of this cluster’s Pause and Stop commands to do so. The ability to remotely " +
+        "can similarly make use of this cluster's Pause and Stop commands to do so. The ability to remotely " +
         "pause or stop is independent of how the operation was started (for example, an operation started by " +
         "using a manual button press can be stopped by using a Stop command if the device supports remotely " +
         "stopping the operation)." +
@@ -41,7 +41,7 @@ Resource.add({
                 "may change when a different function or mode is selected." +
                 "\n" +
                 "A null value indicates that the device does not present phases during its operation. When this " +
-                "attribute’s value is null, the CurrentPhase attribute shall also be set to null."
+                "attribute's value is null, the CurrentPhase attribute shall also be set to null."
         },
 
         {
@@ -77,7 +77,7 @@ Resource.add({
                 "  - When it increases, or" +
                 "\n" +
                 "  - When there is any increase or decrease in the estimated time remaining that was due to " +
-                "progressing insight of the server’s control logic, or" +
+                "progressing insight of the server's control logic, or" +
                 "\n" +
                 "  - When it changes at a rate significantly different from one unit per second." +
                 "\n" +
@@ -111,7 +111,7 @@ Resource.add({
             tag: "attribute", name: "OperationalError", xref: "cluster§1.14.5.6",
             details: "This attribute shall specify the details of any current error condition being experienced on the " +
                 "device when the OperationalState attribute is populated with Error. See Section 1.14.4.4, " +
-                "“ErrorStateStruct Type” for general requirements on the population of this attribute." +
+                "\"ErrorStateStruct Type\" for general requirements on the population of this attribute." +
                 "\n" +
                 "When there is no error detected, this shall have an ErrorStateID of NoError."
         },
@@ -182,7 +182,7 @@ Resource.add({
                 "\n" +
                 "States are defined as Pause-compatible as follows:" +
                 "\n" +
-                "  - For states defined in this cluster specification, in Table 3, “Pause Compatibility”." +
+                "  - For states defined in this cluster specification, in Table 3, \"Pause Compatibility\"." +
                 "\n" +
                 "  - For states defined by derived cluster specifications, in the corresponding specifications." +
                 "\n" +
@@ -272,7 +272,7 @@ Resource.add({
                 "\n" +
                 "States are defined as Resume-compatible as follows:" +
                 "\n" +
-                "  - For states defined in this cluster specification, in Table 4, “Resume Compatibility”." +
+                "  - For states defined in this cluster specification, in Table 4, \"Resume Compatibility\"." +
                 "\n" +
                 "  - For states defined by derived cluster specifications, in the corresponding specifications." +
                 "\n" +

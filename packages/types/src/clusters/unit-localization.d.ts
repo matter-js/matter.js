@@ -21,7 +21,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster supports an interface to a Node. It provides attributes for determining and configuring the units that a
  * Node shall utilize when conveying values in communication to a user.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.5
+ * @see {@link MatterSpecification.v151.Core} § 11.5
  */
 export declare namespace UnitLocalization {
     /**
@@ -58,7 +58,7 @@ export declare namespace UnitLocalization {
          * An attempt to write to this attribute with a value not included in the SupportedTemperatureUnits attribute
          * list shall result in a CONSTRAINT_ERROR.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.5.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.5.6.1
          */
         temperatureUnit: TempUnit;
 
@@ -66,7 +66,7 @@ export declare namespace UnitLocalization {
          * Indicates a list of units supported by the Node to be used when writing the TemperatureUnit attribute of this
          * cluster. Each entry in the list shall be unique.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.5.6.2
          */
         supportedTemperatureUnits: TempUnit[];
     }
@@ -86,7 +86,7 @@ export declare namespace UnitLocalization {
          * An attempt to write to this attribute with a value not included in the SupportedTemperatureUnits attribute
          * list shall result in a CONSTRAINT_ERROR.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.5.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.5.6.1
          */
         temperatureUnit: TempUnit;
 
@@ -94,7 +94,7 @@ export declare namespace UnitLocalization {
          * Indicates a list of units supported by the Node to be used when writing the TemperatureUnit attribute of this
          * cluster. Each entry in the list shall be unique.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.5.6.2
          */
         supportedTemperatureUnits: TempUnit[];
     }
@@ -105,7 +105,7 @@ export declare namespace UnitLocalization {
     /**
      * These are optional features supported by UnitLocalizationCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.5.4
+     * @see {@link MatterSpecification.v151.Core} § 11.5.4
      */
     export enum Feature {
         /**
@@ -117,7 +117,7 @@ export declare namespace UnitLocalization {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.5.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.5.5.1
      */
     export enum TempUnit {
         /**

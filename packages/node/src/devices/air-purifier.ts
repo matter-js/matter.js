@@ -26,7 +26,7 @@ import { Identity } from "@matter/general";
  * It is a device that has a fan to control the air speed while it is operating. Optionally, it can report on the
  * condition of its filters.
  *
- * @see {@link MatterSpecification.v142.Device} § 9.3
+ * @see {@link MatterSpecification.v151.Device} § 9.3
  */
 export interface AirPurifierDevice extends Identity<typeof AirPurifierDeviceDefinition> {}
 
