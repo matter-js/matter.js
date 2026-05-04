@@ -86,6 +86,14 @@ export class LevelControlBaseServer extends LevelControlBase {
     }
 
     override initialize(): MaybePromise {
+        // Spec 1.5.1 made minLevel/maxLevel mandatory at rev 7 — ensure defaults are set
+        if (this.state.minLevel === undefined) {
+            this.state.minLevel = this.features.lighting ? 1 : 0;
+        }
+        if (this.state.maxLevel === undefined) {
+            this.state.maxLevel = 0xfe;
+        }
+
         // As a virtual attribute, remaining time change only emits when we do so manually.  This works out well because
         // as a continuous value it should only emit under limited circumstances defined by spec
         //

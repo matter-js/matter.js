@@ -7,6 +7,31 @@
 import { ServerAddress } from "#net/ServerAddress.js";
 
 describe("ServerAddress", () => {
+    describe("type guards", () => {
+        // Persisted addresses can carry every optional field as an enumerable `undefined`,
+        // so the guards must inspect the value, not the property's presence.
+        it("isIp ignores enumerable undefined peripheralAddress", () => {
+            const addr = { type: "udp", ip: "abcd::2", port: 5540, peripheralAddress: undefined } as ServerAddress;
+            expect(ServerAddress.isIp(addr)).true;
+            expect(ServerAddress.isBle(addr)).false;
+            expect(ServerAddress.urlFor(addr)).equal("udp://[abcd::2]:5540");
+            expect(ServerAddress.protocolOf(addr)).equal("udp");
+        });
+
+        it("isBle ignores enumerable undefined ip", () => {
+            const addr = {
+                type: "ble",
+                peripheralAddress: "AA:BB:CC:DD:EE:FF",
+                ip: undefined,
+                port: undefined,
+            } as ServerAddress;
+            expect(ServerAddress.isBle(addr)).true;
+            expect(ServerAddress.isIp(addr)).false;
+            expect(ServerAddress.urlFor(addr)).equal("ble://AA:BB:CC:DD:EE:FF");
+            expect(ServerAddress.protocolOf(addr)).equal("ble");
+        });
+    });
+
     describe("selectionPreferenceOf", () => {
         const udp = (ip: string) => ({ type: "udp" as const, ip, port: 5540 });
 

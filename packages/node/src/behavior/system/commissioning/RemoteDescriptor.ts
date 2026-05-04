@@ -132,7 +132,7 @@ export namespace RemoteDescriptor {
         const isOperational = long.peerAddress !== undefined;
         if (isOperational) {
             if (addresses !== undefined) {
-                result.addresses = addresses?.filter(address => address.type === "udp").map(ServerAddress);
+                result.addresses = addresses?.filter(address => ServerAddress.isIp(address)).map(ServerAddress);
             }
         } else {
             if (addresses !== undefined) {

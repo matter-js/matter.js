@@ -14,58 +14,58 @@ Resource.add({
 
     children: [
         {
-            tag: "field", name: "Closure",
+            tag: "field", name: "CommonClosure",
 
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a feature of a Closure, e.g. the button to activate opening a garage door." +
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these " +
-                "tags, since the tags could be used by a server certified on a previous revision of Matter."
+                "> NOTE: This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for " +
+                "these tags, since the tags could be used by a server certified on a previous revision of Matter."
         },
 
         {
-            tag: "field", name: "CompassDirection",
+            tag: "field", name: "CommonCompassDirection",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a movement into a certain compass direction. Note the difference with Chapter 4, " +
                 "Common Compass Location Semantic Tag Namespace."
         },
 
         {
-            tag: "field", name: "CompassLocation",
+            tag: "field", name: "CommonCompassLocation",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a position in a certain compass direction (e.g. an outdoor sensor in the North " +
                 "garden). Note the difference with Chapter 3, Common Compass Direction Semantic Tag Namespace."
         },
 
         {
-            tag: "field", name: "Direction",
+            tag: "field", name: "CommonDirection",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a movement in a certain direction relative to the device. Note the difference with " +
                 "Chapter 9, Common Position Semantic Tag Namespace."
         },
 
         {
-            tag: "field", name: "Level",
+            tag: "field", name: "CommonLevel",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a certain level for a feature of a device (e.g. a button to set the speed of a " +
                 "fan)."
         },
 
         {
-            tag: "field", name: "Location",
+            tag: "field", name: "CommonLocation",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a location of a device (e.g. an outdoor temperature sensor)."
         },
         {
-            tag: "field", name: "Number",
+            tag: "field", name: "CommonNumber",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a certain numeric feature of a device (e.g. a numeric input button)."
         },
 
         {
-            tag: "field", name: "Position",
+            tag: "field", name: "CommonPosition",
 
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a position relative to the device (e.g. the temperature sensor in the top drawer of " +
@@ -90,6 +90,16 @@ Resource.add({
                 "shall NOT be used in any other domain or context."
         },
         {
+            tag: "field", name: "CommodityTariffChronology",
+            details: "The tags contained in this namespace are restricted for use in the energy calendar domain and shall " +
+                "NOT be used in any other domain or context."
+        },
+        {
+            tag: "field", name: "CommodityTariffCommodity",
+            details: "The tags contained in this namespace are restricted for use in the Commodity Tariff commodity domain " +
+                "and shall NOT be used in any other domain or context."
+        },
+        {
             tag: "field", name: "Laundry",
             details: "The tags contained in this namespace are restricted for use in the laundry domain and shall NOT be " +
                 "used in any other domain or context."
@@ -100,18 +110,18 @@ Resource.add({
                 "be used in any other domain or context."
         },
         {
-            tag: "field", name: "AreaNamespace",
+            tag: "field", name: "CommonAreaNamespace",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with an indoor or outdoor area of a home."
         },
         {
-            tag: "field", name: "LandmarkNamespace",
+            tag: "field", name: "CommonLandmarkNamespace",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a home landmark."
         },
 
         {
-            tag: "field", name: "RelativePosition",
+            tag: "field", name: "CommonRelativePosition",
             details: "The tags contained in this namespace may be used in any domain or context, to indicate an " +
                 "association with a position relative to some reference, which must be specified by the user of these " +
                 "tags. For example, the position may be relative to a household item, such as a dining table, and the " +
@@ -119,6 +129,11 @@ Resource.add({
                 "Tag Namespace, which contains tags indicating the position relative to the device."
         },
 
+        {
+            tag: "field", name: "CommodityTariffFlow",
+            details: "The tags contained in this namespace are restricted for use in the Commodity Tariff flow domain and " +
+                "shall NOT be used in any other domain or context."
+        },
         {
             tag: "field", name: "Refrigerator",
             details: "The tags contained in this namespace are restricted for use in the refrigerator domain and shall NOT " +
@@ -141,6 +156,32 @@ Resource.add({
                 "See the rules for applying these and other tags for switch devices, e.g. from the Common Position " +
                 "Namespace and the Common Number Namespace in the Generic Switch device type section in the Device " +
                 "Library."
+        },
+
+        {
+            tag: "field", name: "Closure",
+            details: "The tags contained in this namespace are restricted for use in the closure domain and shall NOT be " +
+                "used in any other domain or context."
+        },
+        {
+            tag: "field", name: "ClosurePanel",
+            details: "The tags contained in this namespace are restricted for use in the closure panel domain and shall " +
+                "NOT be used in any other domain or context."
+        },
+        {
+            tag: "field", name: "ClosureCovering",
+            details: "The tags contained in this namespace are restricted for use in the closure domain and shall NOT be " +
+                "used in any other domain or context."
+        },
+        {
+            tag: "field", name: "ClosureWindow",
+            details: "The tags contained in this namespace are restricted for use in the closure domain and shall NOT be " +
+                "used in any other domain or context."
+        },
+        {
+            tag: "field", name: "ClosureCabinet",
+            details: "The tags contained in this namespace are restricted for use in the closure domain and shall NOT be " +
+                "used in any other domain or context."
         }
     ]
 });

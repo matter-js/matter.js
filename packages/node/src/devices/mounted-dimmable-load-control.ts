@@ -8,11 +8,11 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
+import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     OccupancySensingBehavior as BaseOccupancySensingBehavior
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
@@ -31,12 +31,12 @@ import { Identity } from "@matter/general";
  *
  * > [!NOTE]
  *
- * > Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add the
- *   subset device type Dimmable Plug-In Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
- *   backward compatibility with existing clients. See [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance
- *   with these two device types.
+ * > NOTE: Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add
+ *   the subset device type Dimmable Plug-In Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint
+ *   for backward compatibility with existing clients. See Dimmable Plug-In Unit client guidance for additional
+ *   information, regarding the inclusion of these two device types.
  *
- * @see {@link MatterSpecification.v142.Device} § 5.4
+ * @see {@link MatterSpecification.v151.Device} § 5.4
  */
 export interface MountedDimmableLoadControlDevice extends Identity<typeof MountedDimmableLoadControlDeviceDefinition> {}
 
@@ -54,14 +54,6 @@ export namespace MountedDimmableLoadControlRequirements {
      * We provide this alias to the default implementation {@link GroupsServer} for convenience.
      */
     export const GroupsServer = BaseGroupsServer;
-
-    /**
-     * The ScenesManagement cluster is required by the Matter specification.
-     *
-     * This version of {@link ScenesManagementServer} is specialized per the specification.
-     */
-    export const ScenesManagementServer = BaseScenesManagementServer
-        .alter({ commands: { copyScene: { optional: false } } });
 
     /**
      * The OnOff cluster is required by the Matter specification.
@@ -86,6 +78,14 @@ export namespace MountedDimmableLoadControlRequirements {
         });
 
     /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * This version of {@link ScenesManagementServer} is specialized per the specification.
+     */
+    export const ScenesManagementServer = BaseScenesManagementServer
+        .alter({ commands: { copyScene: { optional: false } } });
+
+    /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
@@ -99,9 +99,9 @@ export namespace MountedDimmableLoadControlRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
-            ScenesManagement: ScenesManagementServer,
             OnOff: OnOffServer,
-            LevelControl: LevelControlServer
+            LevelControl: LevelControlServer,
+            ScenesManagement: ScenesManagementServer
         }
     };
 
@@ -120,9 +120,9 @@ export const MountedDimmableLoadControlDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(
         MountedDimmableLoadControlRequirements.server.mandatory.Identify,
         MountedDimmableLoadControlRequirements.server.mandatory.Groups,
-        MountedDimmableLoadControlRequirements.server.mandatory.ScenesManagement,
         MountedDimmableLoadControlRequirements.server.mandatory.OnOff,
-        MountedDimmableLoadControlRequirements.server.mandatory.LevelControl
+        MountedDimmableLoadControlRequirements.server.mandatory.LevelControl,
+        MountedDimmableLoadControlRequirements.server.mandatory.ScenesManagement
     )
 });
 

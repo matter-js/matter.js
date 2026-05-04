@@ -1,0 +1,209 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { ChannelType } from "#net/Channel.js";
+import { MockTcpConnection } from "#net/mock/MockTcpConnection.js";
+import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
+import type { TcpConnection } from "#net/tcp/TcpConnection.js";
+import { Bytes } from "#util/Bytes.js";
+
+describe("MockTcpConnection", () => {
+    it("sends data between paired sockets", async () => {
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+
+        await client.send(Bytes.fromHex("deadbeef"));
+
+        const iter = server[Symbol.asyncIterator]();
+        const result = await iter.next();
+        expect(result.done).false;
+        expect(Bytes.toHex(result.value)).equals("deadbeef");
+
+        await client.close();
+    });
+
+    it("sends data in both directions", async () => {
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+
+        await client.send(Bytes.fromHex("aa"));
+        await server.send(Bytes.fromHex("bb"));
+
+        const serverIter = server[Symbol.asyncIterator]();
+        const serverResult = await serverIter.next();
+        expect(serverResult.done).false;
+        expect(Bytes.toHex(serverResult.value)).equals("aa");
+
+        const clientIter = client[Symbol.asyncIterator]();
+        const clientResult = await clientIter.next();
+        expect(clientResult.done).false;
+        expect(Bytes.toHex(clientResult.value)).equals("bb");
+
+        await client.close();
+        await server.close();
+    });
+
+    it("propagates close to peer", async () => {
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+
+        let serverClosed = false;
+        server.onClose(() => {
+            serverClosed = true;
+        });
+
+        await client.close();
+
+        expect(serverClosed).true;
+    });
+
+    it("exposes correct addresses and ports", async () => {
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+
+        expect(client.remoteAddress).equals("5.6.7.8");
+        expect(client.remotePort).equals(6000);
+        expect(client.localPort).equals(5000);
+
+        expect(server.remoteAddress).equals("1.2.3.4");
+        expect(server.remotePort).equals(5000);
+        expect(server.localPort).equals(6000);
+
+        await client.close();
+        await server.close();
+    });
+
+    it("throws on send after close", async () => {
+        const [client] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        await client.close();
+
+        let threw = false;
+        try {
+            await client.send(Bytes.fromHex("ff"));
+        } catch {
+            threw = true;
+        }
+        expect(threw).true;
+    });
+});
+
+describe("MockTcpListener", () => {
+    it("accepts connections via MockNetwork.connectTcp", async () => {
+        const simulator = new NetworkSimulator();
+        const hostA = simulator.addHost(1);
+        const hostB = simulator.addHost(2);
+
+        const server = await hostB.createTcpListener({ listeningPort: 5540 });
+
+        let accepted: TcpConnection | undefined;
+        server.onConnection(socket => {
+            accepted = socket;
+        });
+
+        const clientSocket = await hostA.connectTcp("10.10.10.2", 5540);
+
+        expect(accepted).not.undefined;
+        // defaultRoute returns the first IP (IPv6 in NetworkSimulator)
+        expect(clientSocket.remoteAddress).equals("abcd::2");
+        expect(clientSocket.remotePort).equals(5540);
+        expect(accepted!.remoteAddress).equals("abcd::1");
+
+        await clientSocket.close();
+        await accepted!.close();
+        await server.close();
+    });
+
+    it("transfers data end-to-end", async () => {
+        const simulator = new NetworkSimulator();
+        const hostA = simulator.addHost(1);
+        const hostB = simulator.addHost(2);
+
+        const server = await hostB.createTcpListener({ listeningPort: 5540 });
+
+        let serverSocket: TcpConnection | undefined;
+        server.onConnection(socket => {
+            serverSocket = socket;
+        });
+
+        const clientSocket = await hostA.connectTcp("10.10.10.2", 5540);
+
+        // Client -> Server (via async iteration)
+        await clientSocket.send(Bytes.fromHex("cafe"));
+        const serverIter = serverSocket![Symbol.asyncIterator]();
+        const serverResult = await serverIter.next();
+        expect(serverResult.done).false;
+        expect(Bytes.toHex(serverResult.value)).equals("cafe");
+
+        // Server -> Client (via async iteration)
+        await serverSocket!.send(Bytes.fromHex("babe"));
+        const clientIter = clientSocket[Symbol.asyncIterator]();
+        const clientResult = await clientIter.next();
+        expect(clientResult.done).false;
+        expect(Bytes.toHex(clientResult.value)).equals("babe");
+
+        await clientSocket.close();
+        await serverSocket!.close();
+        await server.close();
+    });
+
+    it("propagates close between connected sockets", async () => {
+        const simulator = new NetworkSimulator();
+        const hostA = simulator.addHost(1);
+        const hostB = simulator.addHost(2);
+
+        const server = await hostB.createTcpListener({ listeningPort: 5540 });
+
+        let serverSocket: TcpConnection | undefined;
+        server.onConnection(socket => {
+            serverSocket = socket;
+        });
+
+        const clientSocket = await hostA.connectTcp("10.10.10.2", 5540);
+
+        let serverSideClosed = false;
+        serverSocket!.onClose(() => {
+            serverSideClosed = true;
+        });
+
+        await clientSocket.close();
+
+        expect(serverSideClosed).true;
+
+        await server.close();
+    });
+});
+
+describe("MockNetwork TCP support", () => {
+    it("reports TCP support", () => {
+        const simulator = new NetworkSimulator();
+        const host = simulator.addHost(1);
+        expect(host.supports(ChannelType.TCP, "10.10.10.1")).true;
+        expect(host.supports(ChannelType.UDP, "10.10.10.1")).true;
+    });
+
+    it("throws when no server is listening", async () => {
+        const simulator = new NetworkSimulator();
+        const hostA = simulator.addHost(1);
+        simulator.addHost(2);
+
+        let threw = false;
+        try {
+            await hostA.connectTcp("10.10.10.2", 9999);
+        } catch {
+            threw = true;
+        }
+        expect(threw).true;
+    });
+
+    it("throws when target host does not exist", async () => {
+        const simulator = new NetworkSimulator();
+        const hostA = simulator.addHost(1);
+
+        let threw = false;
+        try {
+            await hostA.connectTcp("10.10.10.99", 5540);
+        } catch {
+            threw = true;
+        }
+        expect(threw).true;
+    });
+});

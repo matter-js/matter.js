@@ -80,25 +80,28 @@ export const BasicInformation = Cluster(
         default: false, quality: "N"
     }),
     Attribute({ name: "Reachable", id: 0x11, type: "bool", access: "R V", conformance: "O", default: true }),
-    Attribute({ name: "UniqueId", id: 0x12, type: "string", access: "R V", conformance: "M", constraint: "max 32", quality: "F" }),
+    Attribute({
+        name: "UniqueId", id: 0x12, type: "string", access: "R V", conformance: "Rev >= v4, O",
+        constraint: "max 32", quality: "F"
+    }),
     Attribute({
         name: "CapabilityMinima", id: 0x13, type: "CapabilityMinimaStruct", access: "R V", conformance: "M",
         quality: "F"
     }),
     Attribute({
         name: "ProductAppearance", id: 0x14, type: "ProductAppearanceStruct", access: "R V",
-        conformance: "O", quality: "F"
+        conformance: "[Rev >= v2]", quality: "F"
     }),
     Attribute({
-        name: "SpecificationVersion", id: 0x15, type: "uint32", access: "R V", conformance: "M",
+        name: "SpecificationVersion", id: 0x15, type: "uint32", access: "R V", conformance: "Rev >= v3",
         constraint: "desc", default: 0, quality: "F"
     }),
     Attribute({
-        name: "MaxPathsPerInvoke", id: 0x16, type: "uint16", access: "R V", conformance: "M",
+        name: "MaxPathsPerInvoke", id: 0x16, type: "uint16", access: "R V", conformance: "Rev >= v3",
         constraint: "min 1", default: 1, quality: "F"
     }),
     Attribute({
-        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "P, M",
+        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "P, Rev >= v5",
         constraint: "min 1", default: 1, quality: "N"
     }),
     Event(
@@ -158,8 +161,14 @@ export const BasicInformation = Cluster(
 
     Datatype(
         { name: "CapabilityMinimaStruct", type: "struct" },
-        Field({ name: "CaseSessionsPerFabric", id: 0x0, type: "uint16", conformance: "M", constraint: "min 3", default: 3 }),
-        Field({ name: "SubscriptionsPerFabric", id: 0x1, type: "uint16", conformance: "M", constraint: "min 3", default: 3 }),
+        Field({
+            name: "CaseSessionsPerFabric", id: 0x0, type: "uint16", conformance: "M", constraint: "3 to 10000",
+            default: 3
+        }),
+        Field({
+            name: "SubscriptionsPerFabric", id: 0x1, type: "uint16", conformance: "M", constraint: "3 to 10000",
+            default: 3
+        }),
         Field({
             name: "SimultaneousInvocationsSupported", id: 0x2, type: "uint16", conformance: "desc",
             constraint: "1 to 10000"

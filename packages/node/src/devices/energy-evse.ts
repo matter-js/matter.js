@@ -21,7 +21,7 @@ import { Identity } from "@matter/general";
  * mains electricity supply to allow it to be charged (or discharged in case of Vehicle to Grid / Vehicle to Home
  * applications).
  *
- * @see {@link MatterSpecification.v142.Device} § 14.1
+ * @see {@link MatterSpecification.v151.Device} § 14.1
  */
 export interface EnergyEvseDevice extends Identity<typeof EnergyEvseDeviceDefinition> {}
 

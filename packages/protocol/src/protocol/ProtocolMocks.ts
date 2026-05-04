@@ -20,13 +20,13 @@ import {
     DataReadQueue,
     Environment,
     ImplementationError,
-    IpNetworkChannel,
     MAX_UDP_MESSAGE_SIZE,
     MaybePromise,
     MockCrypto,
     Observable,
     ServerAddress,
     ServerAddressUdp,
+    UdpNetworkChannel,
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
@@ -152,7 +152,7 @@ export namespace ProtocolMocks {
     /**
      * A mock channel that can act as a placeholder without full mock networking.
      */
-    export class NetworkChannel implements IpNetworkChannel<Bytes> {
+    export class NetworkChannel implements UdpNetworkChannel<Bytes> {
         maxPayloadSize: number;
         isReliable = true;
         supportsLargeMessages = false;

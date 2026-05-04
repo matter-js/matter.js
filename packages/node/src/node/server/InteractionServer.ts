@@ -19,7 +19,6 @@ import {
     Millis,
     Observable,
     Seconds,
-    ServerAddressUdp,
 } from "@matter/general";
 import { GLOBAL_IDS, Specification } from "@matter/model";
 import {
@@ -84,7 +83,6 @@ export interface PeerSubscription {
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
-    operationalAddress?: ServerAddressUdp;
 }
 
 /** Cumulative counters tracked by the interaction server since startup. */

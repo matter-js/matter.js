@@ -13,7 +13,6 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     Bytes,
     ChannelType,
-    ConnectionlessTransport,
     CryptoDecryptError,
     Diagnostic,
     hex,
@@ -22,6 +21,7 @@ import {
     Logger,
     MatterFlowError,
     STANDARD_MATTER_PORT,
+    Transport,
     UnexpectedDataError,
 } from "@matter/general";
 import { FabricIndex, GroupId, NodeId } from "@matter/types";
@@ -87,7 +87,7 @@ export class GroupSession extends SecureSession {
      */
     static async create(options: {
         manager?: SessionManager;
-        transports: ConnectionlessTransport.Provider;
+        transports: Transport.Provider;
         id: number;
         fabric: Fabric;
         keySetId: number;
@@ -106,7 +106,6 @@ export class GroupSession extends SecureSession {
         }
 
         const channel = await operationalInterface.openChannel({
-            type: ChannelType.UDP,
             ip: multicastAddress,
             port: STANDARD_MATTER_PORT,
         });

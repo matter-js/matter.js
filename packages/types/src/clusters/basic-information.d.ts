@@ -19,7 +19,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  * Commissioning and operational determination of Node characteristics, such as Vendor ID, Product ID and serial number,
  * which apply to the whole Node.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.1
+ * @see {@link MatterSpecification.v151.Core} § 11.1
  */
 export declare namespace BasicInformation {
     /**
@@ -50,23 +50,23 @@ export declare namespace BasicInformation {
     export interface BaseAttributes {
         /**
          * This attribute shall be set to the revision number of the Data Model against which the Node is certified. The
-         * value of this attribute shall be one of the valid values listed in Section 7.1.1, “Revision History”.
+         * value of this attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.1
          */
         dataModelRevision: number;
 
         /**
          * This attribute shall specify a human readable (displayable) name of the vendor for the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.2
          */
         vendorName: string;
 
         /**
          * This attribute shall specify the Vendor ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.3
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.3
          */
         vendorId: VendorId;
 
@@ -74,7 +74,7 @@ export declare namespace BasicInformation {
          * This attribute shall specify a human readable (displayable) name of the model for the Node such as the model
          * number (or other identifier) assigned by the vendor.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.4
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.4
          */
         productName: string;
 
@@ -82,7 +82,7 @@ export declare namespace BasicInformation {
          * This attribute shall specify the Product ID assigned by the vendor that is unique to the specific product of
          * the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.5
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.5
          */
         productId: number;
 
@@ -90,7 +90,7 @@ export declare namespace BasicInformation {
          * Indicates a user defined name for the Node. This attribute SHOULD be set during initial commissioning and may
          * be updated by further reconfigurations.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.6
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.6
          */
         nodeLabel: string;
 
@@ -98,14 +98,14 @@ export declare namespace BasicInformation {
          * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special
          * area of geographic interest in which the Node is located at the time of the attribute being set. This
          * attribute shall be set during initial commissioning (unless already set) and may be updated by further
-         * reconfigurations. This attribute may affect some regulatory aspects of the Node’s operation, such as radio
+         * reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, such as radio
          * transmission power levels in given spectrum allocation bands if technologies where this is applicable are
-         * used. The Location’s region code shall be interpreted in a case-insensitive manner. If the Node cannot
+         * used. The Location's region code shall be interpreted in a case-insensitive manner. If the Node cannot
          * understand the location code with which it was configured, or the location code has not yet been configured,
          * it shall configure itself in a region-agnostic manner as determined by the vendor, avoiding region-specific
          * assumptions as much as is practical. The special value XX shall indicate that region-agnostic mode is used.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.7
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.7
          */
         location: string;
 
@@ -113,7 +113,7 @@ export declare namespace BasicInformation {
          * This attribute shall specify the version number of the hardware of the Node. The meaning of its value, and
          * the versioning scheme, are vendor defined.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.8
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.8
          */
         hardwareVersion: number;
 
@@ -122,17 +122,17 @@ export declare namespace BasicInformation {
          * the versioning scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide a
          * more user-friendly value than that represented by the HardwareVersion attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.9
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.9
          */
         hardwareVersionString: string;
 
         /**
          * This attribute shall contain the current version number for the software running on this Node. A larger value
          * of SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section
-         * 11.20.3.3, “Availability of Software Images”). Nodes may query this field to determine the currently running
+         * 11.20.3.3, "Availability of Software Images"). Nodes may query this field to determine the currently running
          * version of software on another given Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.10
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.10
          */
         softwareVersion: number;
 
@@ -144,38 +144,9 @@ export declare namespace BasicInformation {
          *
          * Examples of version strings include "1.0", "1.2.3456", "1.2-2", "1.0b123", "1.2_3".
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.11
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.11
          */
         softwareVersionString: string;
-
-        /**
-         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
-         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
-         * tracking,
-         *
-         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
-         *
-         *   - it shall be updated when the device is factory reset
-         *
-         *   - it shall NOT be identical to the SerialNumber attribute
-         *
-         *   - it shall NOT be printed on the product or delivered with the product
-         *
-         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
-         * communication.
-         *
-         * > [!NOTE]
-         *
-         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
-         *
-         * > [!NOTE]
-         *
-         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-         *   Device Identifier mechanism.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
-         */
-        uniqueId: string;
 
         /**
          * This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities that are
@@ -191,7 +162,7 @@ export declare namespace BasicInformation {
          * as software versions change for a given Node, clients SHOULD take care not to assume forever unchanging
          * values and SHOULD NOT cache this value permanently at Commissioning time.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.20
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.20
          */
         capabilityMinima: CapabilityMinima;
 
@@ -228,20 +199,20 @@ export declare namespace BasicInformation {
          * Comparison of SpecificationVersion shall always include the total value over 32 bits, without masking
          * reserved parts.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.22
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.22
          */
         specificationVersion: number;
 
         /**
-         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, “Invoke Request
-         * Action”) that the Node is able to process. Note that since this attribute may change over time, both
+         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, "Invoke Request
+         * Action") that the Node is able to process. Note that since this attribute may change over time, both
          * increasing and decreasing, as software versions change for a given Node, clients SHOULD take care not to
          * assume forever unchanging values and SHOULD NOT cache this value permanently at Commissioning time.
          *
          * If the MaxPathsPerInvoke attribute is absent or zero, such as in Basic Information cluster revisions prior to
          * Revision 3, clients shall assume a value of 1.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.23
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.23
          */
         maxPathsPerInvoke: number;
 
@@ -249,7 +220,7 @@ export declare namespace BasicInformation {
          * This attribute shall contain the current version number for the configuration of the Node. A larger value of
          * ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.24
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.24
          */
         configurationVersion: number;
 
@@ -259,7 +230,7 @@ export declare namespace BasicInformation {
          * e.g., 20060814. The final 8 characters may include country, factory, line, shift or other related information
          * at the option of the vendor. The format of this information is vendor defined.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.12
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.12
          */
         manufacturingDate?: string;
 
@@ -269,7 +240,7 @@ export declare namespace BasicInformation {
          * ProductID. For instance, there may be different packaging (with different PartNumbers) for different regions;
          * also different colors of a product might share the ProductID but may have a different PartNumber.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.13
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.13
          */
         partNumber?: string;
 
@@ -279,7 +250,7 @@ export declare namespace BasicInformation {
          * syntax as specified in RFC 1738 and shall use the https scheme. The maximum length of this attribute is 256
          * ASCII characters.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.14
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.14
          */
         productUrl?: string;
 
@@ -289,24 +260,24 @@ export declare namespace BasicInformation {
          * attribute. The ProductLabel attribute SHOULD NOT include the name of the vendor as defined within the
          * VendorName attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.15
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.15
          */
         productLabel?: string;
 
         /**
          * This attribute shall specify a human readable (displayable) serial number.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.16
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.16
          */
         serialNumber?: string;
 
         /**
          * This attribute shall allow a local Node configuration to be disabled. When this attribute is set to True the
          * Node shall disable the ability to configure the Node through an on-Node user interface. The value of the
-         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user’s ability to
+         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user's ability to
          * trigger a factory reset on the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.17
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.17
          */
         localConfigDisabled?: boolean;
 
@@ -316,15 +287,44 @@ export declare namespace BasicInformation {
          * Information cluster where it is used to indicate whether the bridged device is reachable by the bridge over
          * the non-native network.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.18
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.18
          */
         reachable?: boolean;
+
+        /**
+         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
+         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
+         * tracking,
+         *
+         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
+         *
+         *   - it shall be updated when the device is factory reset
+         *
+         *   - it shall NOT be identical to the SerialNumber attribute
+         *
+         *   - it shall NOT be printed on the product or delivered with the product
+         *
+         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
+         * communication.
+         *
+         * > [!NOTE]
+         *
+         * > NOTE: The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * > [!NOTE]
+         *
+         * > NOTE: This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the
+         *   Rotating Device Identifier mechanism.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.19
+         */
+        uniqueId?: string;
 
         /**
          * This attribute shall provide information about the appearance of the product, which could be useful to a user
          * trying to locate or identify the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.21
          */
         productAppearance?: ProductAppearance;
     }
@@ -337,23 +337,23 @@ export declare namespace BasicInformation {
     export interface Attributes {
         /**
          * This attribute shall be set to the revision number of the Data Model against which the Node is certified. The
-         * value of this attribute shall be one of the valid values listed in Section 7.1.1, “Revision History”.
+         * value of this attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.1
          */
         dataModelRevision: number;
 
         /**
          * This attribute shall specify a human readable (displayable) name of the vendor for the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.2
          */
         vendorName: string;
 
         /**
          * This attribute shall specify the Vendor ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.3
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.3
          */
         vendorId: VendorId;
 
@@ -361,7 +361,7 @@ export declare namespace BasicInformation {
          * This attribute shall specify a human readable (displayable) name of the model for the Node such as the model
          * number (or other identifier) assigned by the vendor.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.4
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.4
          */
         productName: string;
 
@@ -369,7 +369,7 @@ export declare namespace BasicInformation {
          * This attribute shall specify the Product ID assigned by the vendor that is unique to the specific product of
          * the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.5
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.5
          */
         productId: number;
 
@@ -377,7 +377,7 @@ export declare namespace BasicInformation {
          * Indicates a user defined name for the Node. This attribute SHOULD be set during initial commissioning and may
          * be updated by further reconfigurations.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.6
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.6
          */
         nodeLabel: string;
 
@@ -385,14 +385,14 @@ export declare namespace BasicInformation {
          * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special
          * area of geographic interest in which the Node is located at the time of the attribute being set. This
          * attribute shall be set during initial commissioning (unless already set) and may be updated by further
-         * reconfigurations. This attribute may affect some regulatory aspects of the Node’s operation, such as radio
+         * reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, such as radio
          * transmission power levels in given spectrum allocation bands if technologies where this is applicable are
-         * used. The Location’s region code shall be interpreted in a case-insensitive manner. If the Node cannot
+         * used. The Location's region code shall be interpreted in a case-insensitive manner. If the Node cannot
          * understand the location code with which it was configured, or the location code has not yet been configured,
          * it shall configure itself in a region-agnostic manner as determined by the vendor, avoiding region-specific
          * assumptions as much as is practical. The special value XX shall indicate that region-agnostic mode is used.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.7
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.7
          */
         location: string;
 
@@ -400,7 +400,7 @@ export declare namespace BasicInformation {
          * This attribute shall specify the version number of the hardware of the Node. The meaning of its value, and
          * the versioning scheme, are vendor defined.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.8
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.8
          */
         hardwareVersion: number;
 
@@ -409,17 +409,17 @@ export declare namespace BasicInformation {
          * the versioning scheme, are vendor defined. The HardwareVersionString attribute shall be used to provide a
          * more user-friendly value than that represented by the HardwareVersion attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.9
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.9
          */
         hardwareVersionString: string;
 
         /**
          * This attribute shall contain the current version number for the software running on this Node. A larger value
          * of SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section
-         * 11.20.3.3, “Availability of Software Images”). Nodes may query this field to determine the currently running
+         * 11.20.3.3, "Availability of Software Images"). Nodes may query this field to determine the currently running
          * version of software on another given Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.10
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.10
          */
         softwareVersion: number;
 
@@ -431,38 +431,9 @@ export declare namespace BasicInformation {
          *
          * Examples of version strings include "1.0", "1.2.3456", "1.2-2", "1.0b123", "1.2_3".
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.11
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.11
          */
         softwareVersionString: string;
-
-        /**
-         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
-         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
-         * tracking,
-         *
-         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
-         *
-         *   - it shall be updated when the device is factory reset
-         *
-         *   - it shall NOT be identical to the SerialNumber attribute
-         *
-         *   - it shall NOT be printed on the product or delivered with the product
-         *
-         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
-         * communication.
-         *
-         * > [!NOTE]
-         *
-         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
-         *
-         * > [!NOTE]
-         *
-         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-         *   Device Identifier mechanism.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
-         */
-        uniqueId: string;
 
         /**
          * This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities that are
@@ -478,7 +449,7 @@ export declare namespace BasicInformation {
          * as software versions change for a given Node, clients SHOULD take care not to assume forever unchanging
          * values and SHOULD NOT cache this value permanently at Commissioning time.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.20
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.20
          */
         capabilityMinima: CapabilityMinima;
 
@@ -515,20 +486,20 @@ export declare namespace BasicInformation {
          * Comparison of SpecificationVersion shall always include the total value over 32 bits, without masking
          * reserved parts.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.22
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.22
          */
         specificationVersion: number;
 
         /**
-         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, “Invoke Request
-         * Action”) that the Node is able to process. Note that since this attribute may change over time, both
+         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, "Invoke Request
+         * Action") that the Node is able to process. Note that since this attribute may change over time, both
          * increasing and decreasing, as software versions change for a given Node, clients SHOULD take care not to
          * assume forever unchanging values and SHOULD NOT cache this value permanently at Commissioning time.
          *
          * If the MaxPathsPerInvoke attribute is absent or zero, such as in Basic Information cluster revisions prior to
          * Revision 3, clients shall assume a value of 1.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.23
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.23
          */
         maxPathsPerInvoke: number;
 
@@ -536,7 +507,7 @@ export declare namespace BasicInformation {
          * This attribute shall contain the current version number for the configuration of the Node. A larger value of
          * ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.24
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.24
          */
         configurationVersion: number;
 
@@ -546,7 +517,7 @@ export declare namespace BasicInformation {
          * e.g., 20060814. The final 8 characters may include country, factory, line, shift or other related information
          * at the option of the vendor. The format of this information is vendor defined.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.12
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.12
          */
         manufacturingDate: string;
 
@@ -556,7 +527,7 @@ export declare namespace BasicInformation {
          * ProductID. For instance, there may be different packaging (with different PartNumbers) for different regions;
          * also different colors of a product might share the ProductID but may have a different PartNumber.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.13
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.13
          */
         partNumber: string;
 
@@ -566,7 +537,7 @@ export declare namespace BasicInformation {
          * syntax as specified in RFC 1738 and shall use the https scheme. The maximum length of this attribute is 256
          * ASCII characters.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.14
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.14
          */
         productUrl: string;
 
@@ -576,24 +547,24 @@ export declare namespace BasicInformation {
          * attribute. The ProductLabel attribute SHOULD NOT include the name of the vendor as defined within the
          * VendorName attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.15
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.15
          */
         productLabel: string;
 
         /**
          * This attribute shall specify a human readable (displayable) serial number.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.16
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.16
          */
         serialNumber: string;
 
         /**
          * This attribute shall allow a local Node configuration to be disabled. When this attribute is set to True the
          * Node shall disable the ability to configure the Node through an on-Node user interface. The value of the
-         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user’s ability to
+         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user's ability to
          * trigger a factory reset on the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.17
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.17
          */
         localConfigDisabled: boolean;
 
@@ -603,15 +574,44 @@ export declare namespace BasicInformation {
          * Information cluster where it is used to indicate whether the bridged device is reachable by the bridge over
          * the non-native network.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.18
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.18
          */
         reachable: boolean;
+
+        /**
+         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
+         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
+         * tracking,
+         *
+         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
+         *
+         *   - it shall be updated when the device is factory reset
+         *
+         *   - it shall NOT be identical to the SerialNumber attribute
+         *
+         *   - it shall NOT be printed on the product or delivered with the product
+         *
+         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
+         * communication.
+         *
+         * > [!NOTE]
+         *
+         * > NOTE: The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * > [!NOTE]
+         *
+         * > NOTE: This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the
+         *   Rotating Device Identifier mechanism.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.19
+         */
+        uniqueId: string;
 
         /**
          * This attribute shall provide information about the appearance of the product, which could be useful to a user
          * trying to locate or identify the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         * @see {@link MatterSpecification.v151.Core} § 11.1.5.21
          */
         productAppearance: ProductAppearance;
     }
@@ -625,7 +625,7 @@ export declare namespace BasicInformation {
          * process. The StartUp event SHOULD be the first Data Model event recorded by the Node after it completes a
          * boot or reboot process.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.1
          */
         startUp: StartUpEvent;
 
@@ -635,7 +635,7 @@ export declare namespace BasicInformation {
          * event SHOULD be delivered urgently to current subscribers on a best-effort basis. Any subsequent incoming
          * interactions to the Node may be dropped until the completion of a future boot or reboot process.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.2
          */
         shutDown?: void;
 
@@ -649,7 +649,7 @@ export declare namespace BasicInformation {
          * Upon receipt of Leave Event on a subscription, the receiving Node may update other nodes in the fabric by
          * removing related bindings, access control list entries and other data referencing the leaving Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.3
          */
         leave?: LeaveEvent;
 
@@ -657,7 +657,7 @@ export declare namespace BasicInformation {
          * This event (when supported) shall be generated when there is a change in the Reachable attribute. Its main
          * use case is in the derived Bridged Device Basic Information cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.4
          */
         reachableChanged?: ReachableChangedEvent;
     }
@@ -673,7 +673,7 @@ export declare namespace BasicInformation {
          * process. The StartUp event SHOULD be the first Data Model event recorded by the Node after it completes a
          * boot or reboot process.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.1
          */
         startUp: StartUpEvent;
 
@@ -683,7 +683,7 @@ export declare namespace BasicInformation {
          * event SHOULD be delivered urgently to current subscribers on a best-effort basis. Any subsequent incoming
          * interactions to the Node may be dropped until the completion of a future boot or reboot process.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.2
          */
         shutDown: void;
 
@@ -697,7 +697,7 @@ export declare namespace BasicInformation {
          * Upon receipt of Leave Event on a subscription, the receiving Node may update other nodes in the fabric by
          * removing related bindings, access control list entries and other data referencing the leaving Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.3
          */
         leave: LeaveEvent;
 
@@ -705,7 +705,7 @@ export declare namespace BasicInformation {
          * This event (when supported) shall be generated when there is a change in the Reachable attribute. Its main
          * use case is in the derived Bridged Device Basic Information cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.4
          */
         reachableChanged: ReachableChangedEvent;
     }
@@ -716,7 +716,7 @@ export declare namespace BasicInformation {
      * This structure provides constant values related to overall global capabilities of this Node, that are not
      * cluster-specific.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.4.4
+     * @see {@link MatterSpecification.v151.Core} § 11.1.4.4
      */
     export declare class CapabilityMinima {
         constructor(values?: Partial<CapabilityMinima>);
@@ -725,20 +725,20 @@ export declare namespace BasicInformation {
          * This field shall indicate the actual minimum number of concurrent CASE sessions that are supported per
          * fabric.
          *
-         * This value shall NOT be smaller than the required minimum indicated in Section 4.14.2.8, “Minimal Number of
-         * CASE Sessions”.
+         * This value shall NOT be smaller than the required minimum indicated in Section 4.14.2.8, "Minimal Number of
+         * CASE Sessions".
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.4.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.4.4.1
          */
         caseSessionsPerFabric: number;
 
         /**
          * This field shall indicate the actual minimum number of concurrent subscriptions supported per fabric.
          *
-         * This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, “Subscribe
-         * Transaction”.
+         * This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, "Subscribe
+         * Transaction".
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.4.4.2
+         * @see {@link MatterSpecification.v151.Core} § 11.1.4.4.2
          */
         subscriptionsPerFabric: number;
 
@@ -770,9 +770,9 @@ export declare namespace BasicInformation {
     };
 
     /**
-     * This structure provides a description of the product’s appearance.
+     * This structure provides a description of the product's appearance.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.4.3
+     * @see {@link MatterSpecification.v151.Core} § 11.1.4.3
      */
     export declare class ProductAppearance {
         constructor(values?: Partial<ProductAppearance>);
@@ -780,7 +780,7 @@ export declare namespace BasicInformation {
         /**
          * This field shall indicate the visible finish of the product.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.4.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.4.3.1
          */
         finish: ProductFinish;
 
@@ -788,7 +788,7 @@ export declare namespace BasicInformation {
          * This field indicates the representative color of the visible parts of the product. If the product has no
          * representative color, the field shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.4.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.1.4.3.2
          */
         primaryColor: Color | null;
     };
@@ -798,7 +798,7 @@ export declare namespace BasicInformation {
      * The StartUp event SHOULD be the first Data Model event recorded by the Node after it completes a boot or reboot
      * process.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.6.1
+     * @see {@link MatterSpecification.v151.Core} § 11.1.6.1
      */
     export declare class StartUpEvent {
         constructor(values?: Partial<StartUpEvent>);
@@ -806,7 +806,7 @@ export declare namespace BasicInformation {
         /**
          * This field shall be set to the same value as the one available in the SoftwareVersion attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.1.1
          */
         softwareVersion: number;
     };
@@ -821,7 +821,7 @@ export declare namespace BasicInformation {
      * Upon receipt of Leave Event on a subscription, the receiving Node may update other nodes in the fabric by
      * removing related bindings, access control list entries and other data referencing the leaving Node.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.6.3
+     * @see {@link MatterSpecification.v151.Core} § 11.1.6.3
      */
     export declare class LeaveEvent {
         constructor(values?: Partial<LeaveEvent>);
@@ -829,7 +829,7 @@ export declare namespace BasicInformation {
         /**
          * This field shall contain the local fabric-index of the fabric which the node is about to leave.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.3.1
          */
         fabricIndex: FabricIndex;
     };
@@ -838,7 +838,7 @@ export declare namespace BasicInformation {
      * This event (when supported) shall be generated when there is a change in the Reachable attribute. Its main use
      * case is in the derived Bridged Device Basic Information cluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.6.4
+     * @see {@link MatterSpecification.v151.Core} § 11.1.6.4
      */
     export declare class ReachableChangedEvent {
         constructor(values?: Partial<ReachableChangedEvent>);
@@ -846,7 +846,7 @@ export declare namespace BasicInformation {
         /**
          * This field shall indicate the value of the Reachable attribute after it was changed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.1.6.4.1
          */
         reachableNewValue: boolean;
     };
@@ -854,7 +854,7 @@ export declare namespace BasicInformation {
     /**
      * The data type of ProductFinishEnum is derived from enum8.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.1.4.1
      */
     export enum ProductFinish {
         /**
@@ -891,7 +891,7 @@ export declare namespace BasicInformation {
     /**
      * The data type of ColorEnum is derived from enum8.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.1.4.2
+     * @see {@link MatterSpecification.v151.Core} § 11.1.4.2
      */
     export enum Color {
         /**
@@ -915,7 +915,7 @@ export declare namespace BasicInformation {
         Teal = 3,
 
         /**
-         * Approximately RGB #800080.
+         * Approximately RGB #800000.
          */
         Maroon = 4,
 

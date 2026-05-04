@@ -17,7 +17,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v142.Core} § 7.19.2.49
+ * @see {@link MatterSpecification.v151.Core} § 7.19.2.49
  */
 export const TlvLocationdesc = TlvObject({
     /**
@@ -27,15 +27,15 @@ export const TlvLocationdesc = TlvObject({
      * synthesized user-friendly, understandable, names for the location, rather than opaque values such as "private" or
      * "2fe7c241-a50a-4863-896e-c5878da5ed68".
      *
-     * @see {@link MatterSpecification.v142.Core} § 7.19.2.49.1
+     * @see {@link MatterSpecification.v151.Core} § 7.19.2.49.1
      */
     locationName: TlvField(0, TlvString.bound({ maxLength: 128 })),
 
     /**
      * This field shall indicate the level number. Negative values correspond to basement levels.
      *
-     * Value zero indicates this is the main floor, which typically includes the main entrance to the user’s home. For a
-     * building with multiple levels, it is the client’s responsibility to map each level to/from a FloorNumber tag
+     * Value zero indicates this is the main floor, which typically includes the main entrance to the user's home. For a
+     * building with multiple levels, it is the client's responsibility to map each level to/from a FloorNumber tag
      * value, using the level numbering convention of the region where the client operates. For example, if the client
      * operates in Europe, building level 1, which is one level up from the street level, SHOULD be mapped to
      * FloorNumber tag value 0x1. If the client operates in North America, building level 1, which is at street level,
@@ -55,10 +55,10 @@ export const TlvLocationdesc = TlvObject({
      *
      * > [!NOTE]
      *
-     * > Handling complex level situations, such as half levels (side split houses), or the levels from an apartment
-     *   building, is up to the client and/or user.
+     * > NOTE: Handling complex level situations, such as half levels (side split houses), or the levels from an
+     *   apartment building, is up to the client and/or user.
      *
-     * @see {@link MatterSpecification.v142.Core} § 7.19.2.49.2
+     * @see {@link MatterSpecification.v151.Core} § 7.19.2.49.2
      */
     floorNumber: TlvField(1, TlvNullable(TlvInt16)),
 
@@ -70,10 +70,10 @@ export const TlvLocationdesc = TlvObject({
      *
      * > [!NOTE]
      *
-     * > This field only indicates the type of the area. Multiple areas of the same type, such as bedrooms, may exist in
-     *   a user’s home.
+     * > NOTE: This field only indicates the type of the area. Multiple areas of the same type, such as bedrooms, may
+     *   exist in a user's home.
      *
-     * @see {@link MatterSpecification.v142.Core} § 7.19.2.49.3
+     * @see {@link MatterSpecification.v151.Core} § 7.19.2.49.3
      */
     areaType: TlvField(2, TlvNullable(TlvUInt8))
 });
@@ -83,6 +83,6 @@ export const TlvLocationdesc = TlvObject({
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v142.Core} § 7.19.2.49
+ * @see {@link MatterSpecification.v151.Core} § 7.19.2.49
  */
 export interface Locationdesc extends TypeFromSchema<typeof TlvLocationdesc> {}

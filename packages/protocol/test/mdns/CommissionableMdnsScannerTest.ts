@@ -812,7 +812,7 @@ describe("CommissionableMdnsScanner", () => {
             expect(found.length).equals(1);
             expect(found[0].deviceIdentifier).equals(INSTANCE_ID);
             expect(found[0].addresses.length).greaterThan(0);
-            expect(found[0].addresses.some(a => a.type === "udp" && a.ip === SERVER_IPv4)).true;
+            expect(found[0].addresses.some(a => "type" in a && a.type === "udp" && a.ip === SERVER_IPv4)).true;
 
             scanner.cancelCommissionableDeviceDiscovery(identifier);
             await MockTime.resolve(discoveryPromise);

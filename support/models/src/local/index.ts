@@ -18,6 +18,7 @@ import "./AlarmBaseOverrides.js";
 import "./any.js";
 import "./BasicInformationOverrides.js";
 import "./ColorControlOverrides.js";
+import "./CommodityTariffOverrides.js";
 import "./DoorLockOverrides.js";
 import "./duration.js";
 import "./ElectricalPowerMeasurementOverrides.js";

@@ -21,7 +21,7 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Water Valve device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 5.6
+ * @see {@link MatterSpecification.v151.Device} § 5.6
  */
 export interface WaterValveDevice extends Identity<typeof WaterValveDeviceDefinition> {}
 

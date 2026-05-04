@@ -47,8 +47,9 @@ Resource.add({
 
             details: "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
                 "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
-                "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
-                "in general terms referred to as the 'node-wide Group Table'." +
+                "The content of this attribute reflects data managed via the Groups cluster (see " +
+                "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
+                "Table'." +
                 "\n" +
                 "The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If " +
                 "a RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped " +
@@ -59,7 +60,7 @@ Resource.add({
             tag: "attribute", name: "MaxGroupsPerFabric", xref: "core§11.2.6.3",
             details: "Indicates the maximum number of groups that this node supports per fabric. The value of this " +
                 "attribute shall be set to be no less than the required minimum supported groups as specified in " +
-                "Section 2.11.1.2, “Group Limits”. The length of the GroupKeyMap and GroupTable list attributes shall " +
+                "Section 2.11.1.2, \"Group Limits\". The length of the GroupKeyMap and GroupTable list attributes shall " +
                 "NOT exceed the value of the MaxGroupsPerFabric attribute multiplied by the number of supported " +
                 "fabrics."
         },
@@ -68,94 +69,17 @@ Resource.add({
             tag: "attribute", name: "MaxGroupKeysPerFabric", xref: "core§11.2.6.4",
             details: "Indicates the maximum number of group key sets this node supports per fabric. The value of this " +
                 "attribute shall be set according to the minimum number of group key sets to support as specified in " +
-                "Section 2.11.1.2, “Group Limits”."
+                "Section 2.11.1.2, \"Group Limits\"."
         },
 
         {
             tag: "command", name: "KeySetWrite", xref: "core§11.2.7.1",
-
             details: "This command is used by Administrators to set the state of a given Group Key Set, including " +
-                "atomically updating the state of all epoch keys." +
-                "\n" +
-                "### Effect on Receipt" +
-                "\n" +
-                "The following validations shall be done against the content of the GroupKeySet field:" +
-                "\n" +
-                "  - If the EpochKey0 field is null or its associated EpochStartTime0 field is null, then this " +
-                "command shall fail with an INVALID_COMMAND status code responded to the client." +
-                "\n" +
-                "  - If the EpochKey0 field’s length is not exactly 16 bytes, then this command shall fail with a " +
-                "CONSTRAINT_ERROR status code responded to the client." +
-                "\n" +
-                "  - If the EpochStartTime0 is set to 0, then this command shall fail with an INVALID_COMMAND status " +
-                "code responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be " +
-                "set to zero, due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct " +
-                "(see Section 11.18.6.8.1, “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet " +
-                "field sent by a client." +
-                "\n" +
-                "  - If the EpochKey1 field is not null, then the EpochKey0 field shall NOT be null. Otherwise this " +
-                "command shall fail with an INVALID_COMMAND status code responded to the client." +
-                "\n" +
-                "  - If the EpochKey1 field is not null, and the field’s length is not exactly 16 bytes, then this " +
-                "command shall fail with a CONSTRAINT_ERROR status code responded to the client." +
-                "\n" +
-                "  - If the EpochKey1 field is not null, its associated EpochStartTime1 field shall NOT be null and " +
-                "shall contain a later epoch start time than the epoch start time found in the EpochStartTime0 " +
-                "    field. Otherwise this command shall fail with an INVALID_COMMAND status code responded to the " +
-                "client." +
-                "\n" +
-                "  - If exactly one of the EpochKey1 or EpochStartTime1 is null, rather than both being null, or " +
-                "neither being null, then this command shall fail with an INVALID_COMMAND status code responded " +
-                "to the client." +
-                "\n" +
-                "  - If the EpochKey2 field is not null, then the EpochKey1 and EpochKey0 fields shall NOT be null. " +
-                "Otherwise this command shall fail with an INVALID_COMMAND status code responded to the client." +
-                "\n" +
-                "  - If the EpochKey2 field is not null, and the field’s length is not exactly 16 bytes, then this " +
-                "command shall fail with a CONSTRAINT_ERROR status code responded to the client." +
-                "\n" +
-                "  - If the EpochKey2 field is not null, its associated EpochStartTime2 field shall NOT be null and " +
-                "shall contain a later epoch start time than the epoch start time found in the EpochStartTime1 " +
-                "    field. Otherwise this command shall fail with an INVALID_COMMAND status code responded to the " +
-                "client." +
-                "\n" +
-                "  - If exactly one of the EpochKey2 or EpochStartTime2 is null, rather than both being null, or " +
-                "neither being null, then this command shall fail with an INVALID_COMMAND status code responded " +
-                "to the client." +
-                "\n" +
-                "If there exists a Group Key Set associated with the accessing fabric which has the same " +
-                "GroupKeySetID as that provided in the GroupKeySet field, then the contents of that group key set " +
-                "shall be replaced. A replacement shall be done by executing the equivalent of entirely removing the " +
-                "previous Group Key Set with the given GroupKeySetID, followed by an addition of a Group Key Set with " +
-                "the provided configuration. Otherwise, if the GroupKeySetID did not match an existing entry, a new " +
-                "Group Key Set associated with the accessing fabric shall be created with the provided data. The " +
-                "Group Key Set shall be written to non-volatile storage." +
-                "\n" +
-                "Upon completion, this command shall send a status code back to the initiator:" +
-                "\n" +
-                "  - If the Group Key Set was properly installed or updated on the Node, the status code shall be set " +
-                "to SUCCESS." +
-                "\n" +
-                "  - If there are insufficient resources on the receiver to store an additional Group Key Set, the " +
-                "status code shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);" +
-                "\n" +
-                "  - Otherwise, this status code shall be set to FAILURE."
+                "atomically updating the state of all epoch keys."
         },
-
         {
             tag: "command", name: "KeySetRead", xref: "core§11.2.7.2",
-
-            details: "This command is used by Administrators to read the state of a given Group Key Set." +
-                "\n" +
-                "### Effect on Receipt" +
-                "\n" +
-                "If there exists a Group Key Set associated with the accessing fabric which has the same " +
-                "GroupKeySetID as that provided in the GroupKeySetID field, then the contents of that Group Key Set " +
-                "shall be sent in a KeySetReadResponse command, but with the EpochKey0, EpochKey1 and EpochKey2 " +
-                "fields replaced by null." +
-                "\n" +
-                "Otherwise, if the GroupKeySetID does not refer to a Group Key Set associated with the accessing " +
-                "fabric, then this command shall fail with a NOT_FOUND status code."
+            details: "This command is used by Administrators to read the state of a given Group Key Set."
         },
 
         {
@@ -167,38 +91,12 @@ Resource.add({
 
         {
             tag: "command", name: "KeySetRemove", xref: "core§11.2.7.4",
-
-            details: "This command is used by Administrators to remove all state of a given Group Key Set." +
-                "\n" +
-                "### Effect on Receipt" +
-                "\n" +
-                "If there exists a Group Key Set associated with the accessing fabric which has the same " +
-                "GroupKeySetID as that provided in the GroupKeySetID field, then the contents of that Group Key Set " +
-                "shall be removed, including all epoch keys it contains." +
-                "\n" +
-                "If there exist any entries for the accessing fabric within the GroupKeyMap attribute that refer to " +
-                "the GroupKeySetID just removed, then these entries shall be removed from that list." +
-                "\n" +
-                "This command shall fail with an INVALID_COMMAND status code back to the initiator if the " +
-                "GroupKeySetID being removed is 0, which is the Key Set associated with the Identity Protection Key " +
-                "(IPK). The only method to remove the IPK is usage of the RemoveFabric command or any operation which " +
-                "causes the equivalent of a RemoveFabric to occur by side-effect." +
-                "\n" +
-                "This command shall send a SUCCESS status code back to the initiator on success, or NOT_FOUND if the " +
-                "GroupKeySetID requested did not exist."
+            details: "This command is used by Administrators to remove all state of a given Group Key Set."
         },
-
         {
             tag: "command", name: "KeySetReadAllIndices", xref: "core§11.2.7.5",
-
             details: "This command is used by Administrators to query a list of all Group Key Sets associated with the " +
-                "accessing fabric." +
-                "\n" +
-                "### Effect on Receipt" +
-                "\n" +
-                "Upon receipt, this command shall iterate all stored GroupKeySetStruct associated with the accessing " +
-                "fabric and generate a KeySetReadAllIndicesResponse command containing the list of GroupKeySetID " +
-                "values from those structs."
+                "accessing fabric."
         },
 
         {
@@ -258,7 +156,7 @@ Resource.add({
                 {
                     tag: "field", name: "GroupKeySetId", xref: "core§11.2.5.3.2",
                     details: "This field references the set of group keys that generate operational group keys for use with this " +
-                        "group, as specified in Section 4.17.3.5.1, “Group Key Set ID”." +
+                        "group, as specified in Section 4.17.3.5.1, \"Group Key Set ID\"." +
                         "\n" +
                         "A GroupKeyMapStruct shall NOT accept GroupKeySetID of 0, which is reserved for the IPK."
                 }
@@ -272,7 +170,7 @@ Resource.add({
                 {
                     tag: "field", name: "GroupKeySetId", xref: "core§11.2.5.4.1",
                     details: "This field shall provide the fabric-unique index for the associated group key set, as specified in " +
-                        "Section 4.17.3.5.1, “Group Key Set ID”."
+                        "Section 4.17.3.5.1, \"Group Key Set ID\"."
                 },
 
                 {
@@ -293,7 +191,7 @@ Resource.add({
                 {
                     tag: "field", name: "EpochStartTime0", xref: "core§11.2.5.4.4",
                     details: "This field, if not null, shall define when EpochKey0 becomes valid as specified by Section 4.17.3, " +
-                        "“Epoch Keys”. Units are absolute UTC time in microseconds encoded using the epoch-us representation."
+                        "\"Epoch Keys\". Units are absolute UTC time in microseconds encoded using the epoch-us representation."
                 },
 
                 {
@@ -306,7 +204,7 @@ Resource.add({
                 {
                     tag: "field", name: "EpochStartTime1", xref: "core§11.2.5.4.6",
                     details: "This field, if not null, shall define when EpochKey1 becomes valid as specified by Section 4.17.3, " +
-                        "“Epoch Keys”. Units are absolute UTC time in microseconds encoded using the epoch-us representation."
+                        "\"Epoch Keys\". Units are absolute UTC time in microseconds encoded using the epoch-us representation."
                 },
 
                 {
@@ -319,7 +217,7 @@ Resource.add({
                 {
                     tag: "field", name: "EpochStartTime2", xref: "core§11.2.5.4.8",
                     details: "This field, if not null, shall define when EpochKey2 becomes valid as specified by Section 4.17.3, " +
-                        "“Epoch Keys”. Units are absolute UTC time in microseconds encoded using the epoch-us representation."
+                        "\"Epoch Keys\". Units are absolute UTC time in microseconds encoded using the epoch-us representation."
                 },
 
                 {
@@ -336,8 +234,8 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> Support for GroupKeyMulticastPolicy is provisional. Correct default behavior is that implied by " +
-                        "value PerGroupID."
+                        "> NOTE: Support for GroupKeyMulticastPolicy is provisional. Correct default behavior is that implied " +
+                        "by value PerGroupID."
                 }
             ]
         },

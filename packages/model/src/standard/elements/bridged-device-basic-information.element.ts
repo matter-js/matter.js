@@ -20,7 +20,7 @@ export const BridgedDeviceBasicInformation = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "BIS", conformance: "O", constraint: "20", title: "BridgedIcdSupport" })
+        Field({ name: "BIS", conformance: "[Rev >= v4]", constraint: "20", title: "BridgedIcdSupport" })
     ),
     Attribute({ name: "DataModelRevision", id: 0x0, conformance: "X" }),
     Attribute({ name: "VendorName", id: 0x1, conformance: "desc" }),
@@ -40,12 +40,12 @@ export const BridgedDeviceBasicInformation = Cluster(
     Attribute({ name: "SerialNumber", id: 0xf, conformance: "O" }),
     Attribute({ name: "LocalConfigDisabled", id: 0x10, conformance: "X" }),
     Attribute({ name: "Reachable", id: 0x11, conformance: "M" }),
-    Attribute({ name: "UniqueId", id: 0x12, conformance: "M" }),
+    Attribute({ name: "UniqueId", id: 0x12, conformance: "Rev >= v4, O" }),
     Attribute({ name: "CapabilityMinima", id: 0x13, conformance: "X" }),
-    Attribute({ name: "ProductAppearance", id: 0x14, conformance: "O" }),
+    Attribute({ name: "ProductAppearance", id: 0x14, conformance: "[Rev >= v2]" }),
     Attribute({ name: "SpecificationVersion", id: 0x15, conformance: "X" }),
     Attribute({ name: "MaxPathsPerInvoke", id: 0x16, conformance: "X" }),
-    Attribute({ name: "ConfigurationVersion", id: 0x18, conformance: "P, O" }),
+    Attribute({ name: "ConfigurationVersion", id: 0x18, conformance: "P, [Rev >= v5]" }),
     Event({ name: "StartUp", id: 0x0, conformance: "O", priority: "critical" }),
     Event({ name: "ShutDown", id: 0x1, conformance: "O", priority: "critical" }),
     Event(

@@ -40,7 +40,7 @@ export const OtaSoftwareUpdateProvider = Cluster(
     Command(
         { name: "QueryImageResponse", id: 0x1, conformance: "M", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "StatusEnum", conformance: "M" }),
-        Field({ name: "DelayedActionTime", id: 0x1, type: "uint32", conformance: "Status == Busy" }),
+        Field({ name: "DelayedActionTime", id: 0x1, type: "uint32", conformance: "Status == Busy, O", default: 0 }),
         Field({ name: "ImageUri", id: 0x2, type: "string", conformance: "Status == UpdateAvailable", constraint: "max 256" }),
         Field({ name: "SoftwareVersion", id: 0x3, type: "uint32", conformance: "Status == UpdateAvailable" }),
         Field({

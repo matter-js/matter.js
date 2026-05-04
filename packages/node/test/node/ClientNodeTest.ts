@@ -34,6 +34,8 @@ import {
     MockCrypto,
     Observable,
     Seconds,
+    ServerAddress,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -113,11 +115,11 @@ describe("ClientNode", () => {
         // Verify commissioning addresses were stored correctly
         const addresses = peer1.state.commissioning.addresses;
         expect(addresses).not.undefined;
-        const udpAddresses = addresses!.filter(a => a.type === "udp");
-        expect(udpAddresses.length).equals(1 /*2*/); // Currently we only store "last known good" address
+        const ipAddresses = addresses!.filter(a => ServerAddress.isIp(a));
+        expect(ipAddresses.length).equals(1 /*2*/); // Currently we only store "last known good" address
         // Device is index 2, so should have 10.10.10.2 and ...8802
-        //expect(udpAddresses.some(a => a.ip === "10.10.10.2")).true;
-        expect(udpAddresses.some(a => a.ip === "abcd::2")).true;
+        //expect(ipAddresses.some(a => a.ip === "10.10.10.2")).true;
+        expect(ipAddresses.some(a => (a as ServerAddressIp).ip === "abcd::2")).true;
 
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
@@ -360,8 +362,8 @@ describe("ClientNode", () => {
                 fabric,
                 passcode: 22223333,
                 addresses: [
-                    { type: "udp", ip: "abcd::2", port: 5540 },
-                    { type: "udp", ip: "abcd::3", port: 5540 },
+                    { ip: "abcd::2", port: 5540 },
+                    { ip: "abcd::3", port: 5540 },
                 ],
             }),
             { macrotasks: true },
@@ -985,8 +987,8 @@ describe("ClientNode", () => {
     it("correctly replaces behavior", async () => {
         // *** SETUP ***
 
-        const LiftWc = WindowCoveringServer.with("AbsolutePosition", "Lift", "PositionAwareLift").set({
-            currentPositionLift: 0,
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
         });
 
         await using site = new MockSite();
@@ -1004,7 +1006,7 @@ describe("ClientNode", () => {
         expect(clientEp1).not.undefined;
 
         const liftChanged = new Observable<[value: number | null]>();
-        const lift$Changed = clientEp1.eventsOf(WindowCoveringClient).currentPositionLift$Changed!;
+        const lift$Changed = clientEp1.eventsOf(WindowCoveringClient).currentPositionLiftPercent100ths$Changed!;
         expect(lift$Changed).not.undefined;
         lift$Changed.on(value => liftChanged.emit(value));
 
@@ -1014,10 +1016,10 @@ describe("ClientNode", () => {
         expect(serverEp1).not.undefined;
 
         let sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
-        await serverEp1.setStateOf(WindowCoveringClient, { currentPositionLift: 6 });
+        await serverEp1.setStateOf(WindowCoveringClient, { currentPositionLiftPercent100ths: 600 });
 
         let newValue = await MockTime.resolve(sawChange);
-        expect(newValue).equals(6);
+        expect(newValue).equals(600);
 
         // *** REPLACE CLUSTER ***
 
@@ -1025,16 +1027,10 @@ describe("ClientNode", () => {
 
         await serverEp1.erase();
 
-        const LiftTiltWc = WindowCoveringServer.with(
-            "AbsolutePosition",
-            "Lift",
-            "PositionAwareLift",
-            "Tilt",
-            "PositionAwareTilt",
-        ).set({
+        const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
-            currentPositionLift: 0,
-            currentPositionTilt: 0,
+            currentPositionLiftPercent100ths: 0,
+            currentPositionTiltPercent100ths: 0,
         });
 
         // Nudge so version number changes, otherwise new endpoint won't sync
@@ -1055,7 +1051,6 @@ describe("ClientNode", () => {
         await MockTime.resolve(replaced);
 
         expect((clientEp1.stateOf(WindowCoveringClient) as unknown as GlobalAttributeState).featureMap).deep.equals({
-            absolutePosition: true,
             lift: true,
             positionAwareLift: true,
             tilt: true,
@@ -1063,17 +1058,17 @@ describe("ClientNode", () => {
         });
 
         sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
-        await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLift: 12 });
+        await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLiftPercent100ths: 1200 });
 
         newValue = await MockTime.resolve(sawChange);
-        expect(newValue).equals(12);
+        expect(newValue).equals(1200);
     });
 
     it("correctly removes behavior", async () => {
         // *** SETUP ***
 
-        const LiftWc = WindowCoveringServer.with("AbsolutePosition", "Lift", "PositionAwareLift").set({
-            currentPositionLift: 0,
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
         });
 
         await using site = new MockSite();
@@ -1095,7 +1090,7 @@ describe("ClientNode", () => {
         const serverEp1 = device.parts.get("part0")!;
         expect(serverEp1).not.undefined;
 
-        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLift).equals(0);
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLiftPercent100ths).equals(0);
 
         expect(Object.keys(clientEp1.state)).deep.equals([
             "identify",
@@ -1308,8 +1303,8 @@ describe("ClientNode", () => {
             const updatedAddresses = peer1.state.commissioning.addresses!;
             expect(updatedAddresses.length).equals(1);
             const remainingAddress = updatedAddresses[0];
-            expect(remainingAddress.type === "udp" && remainingAddress.ip).equals(
-                originalAddresses[0].type === "udp" && originalAddresses[0].ip,
+            expect(ServerAddress.isIp(remainingAddress) && remainingAddress.ip).equals(
+                ServerAddress.isIp(originalAddresses[0]) && originalAddresses[0].ip,
             );
         });
     });
@@ -1453,7 +1448,7 @@ const PEER1_STATE = {
             interactionModelRevision: 13,
             maxPathsPerInvoke: 10,
             maxTcpMessageSize: undefined,
-            specificationVersion: 17039872,
+            specificationVersion: Specification.SPECIFICATION_VERSION,
             supportedTransports: {
                 tcpClient: false,
                 tcpServer: false,
@@ -1468,10 +1463,11 @@ const PEER1_STATE = {
         operationalPort: -1,
         defaultSubscription: undefined,
         maxEventNumber: 3n,
+        transportPreference: undefined,
     },
     basicInformation: {
         clusterRevision: 6,
-        configurationVersion: 1,
+        configurationVersion: undefined,
         dataModelRevision: Specification.DATA_MODEL_REVISION,
         vendorName: "Matter.js Test Vendor",
         vendorId: 0xfff1,
@@ -1500,10 +1496,10 @@ const PEER1_STATE = {
             subscribePathsSupported: 3,
         },
         productAppearance: undefined,
-        specificationVersion: 0x1040200,
+        specificationVersion: Specification.SPECIFICATION_VERSION,
         maxPathsPerInvoke: 10,
         featureMap: {},
-        attributeList: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, 0x18, ...GLOBAL_ATTRS],
+        attributeList: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
@@ -1524,7 +1520,7 @@ const PEER1_STATE = {
         extension: [],
         auxiliaryAcl: [],
         subjectsPerAccessControlEntry: 4,
-        targetsPerAccessControlEntry: 3,
+        targetsPerAccessControlEntry: 4,
         accessControlEntriesPerFabric: 4,
         commissioningArl: undefined,
         arl: undefined,
@@ -1547,12 +1543,15 @@ const PEER1_STATE = {
     },
     generalCommissioning: {
         clusterRevision: 2,
-        featureMap: { termsAndConditions: false },
+        featureMap: { termsAndConditions: false, networkRecovery: false },
         breadcrumb: 0,
         basicCommissioningInfo: { failSafeExpiryLengthSeconds: 0x3c, maxCumulativeFailsafeSeconds: 0x384 },
         regulatoryConfig: 2,
         locationCapability: 2,
         supportsConcurrentConnection: true,
+        isCommissioningWithoutPower: undefined,
+        networkRecoveryReason: undefined,
+        recoveryIdentifier: undefined,
         tcAcceptedVersion: undefined,
         tcMinRequiredVersion: undefined,
         tcAcknowledgements: undefined,
@@ -1639,8 +1638,8 @@ const PEER1_STATE = {
         clusterRevision: 3,
         endpointUniqueId: undefined,
         featureMap: { tagList: false },
-        deviceTypeList: [{ deviceType: 0x16, revision: 3 }],
-        serverList: [0x28, 0x1f, 0x3f, 0x30, 0x3c, 0x3e, 0x33, 0x1d],
+        deviceTypeList: [{ deviceType: 0x16, revision: 4 }],
+        serverList: [0x1f, 0x28, 0x30, 0x33, 0x3c, 0x3e, 0x3f, 0x1d],
         clientList: [],
         partsList: [1],
         tagList: undefined,
@@ -1689,7 +1688,7 @@ const EP1_STATE = {
         featureMap: { tagList: false },
         deviceTypeList: [{ deviceType: 0x100, revision: 3 }],
         endpointUniqueId: undefined,
-        serverList: [3, 4, 0x62, 6, 0x1d],
+        serverList: [3, 4, 6, 0x62, 0x1d],
         clientList: [],
         partsList: [],
         tagList: undefined,

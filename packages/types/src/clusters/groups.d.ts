@@ -32,7 +32,7 @@ import type { Status } from "../globals/Status.js";
  * Note that configuration of group addresses for outgoing commands is achieved using the Message Layer mechanisms where
  * the Group Table is not involved. Hence this cluster does not play a part in that.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.3
+ * @see {@link MatterSpecification.v151.Cluster} § 1.3
  */
 export declare namespace Groups {
     /**
@@ -66,7 +66,7 @@ export declare namespace Groups {
          * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
          * other bits shall be 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.6.1
          */
         nameSupport: NameSupport;
     }
@@ -83,7 +83,7 @@ export declare namespace Groups {
          * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
          * other bits shall be 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.6.1
          */
         nameSupport: NameSupport;
     }
@@ -95,7 +95,7 @@ export declare namespace Groups {
         /**
          * The AddGroup command allows a client to add group membership in a particular group for the server endpoint.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.1
          */
         addGroup(request: AddGroupRequest): MaybePromise<AddGroupResponse>;
 
@@ -103,7 +103,7 @@ export declare namespace Groups {
          * The ViewGroup command allows a client to request that the server responds with a ViewGroupResponse command
          * containing the name string for a particular group.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.2
          */
         viewGroup(request: ViewGroupRequest): MaybePromise<ViewGroupResponse>;
 
@@ -111,7 +111,7 @@ export declare namespace Groups {
          * The GetGroupMembership command allows a client to inquire about the group membership of the server endpoint,
          * in a number of ways.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.3
          */
         getGroupMembership(request: GetGroupMembershipRequest): MaybePromise<GetGroupMembershipResponse>;
 
@@ -119,7 +119,7 @@ export declare namespace Groups {
          * The RemoveGroup command allows a client to request that the server removes the membership for the server
          * endpoint, if any, in a particular group.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.4
          */
         removeGroup(request: RemoveGroupRequest): MaybePromise<RemoveGroupResponse>;
 
@@ -127,7 +127,7 @@ export declare namespace Groups {
          * The RemoveAllGroups command allows a client to direct the server to remove all group associations for the
          * server endpoint.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.5
          */
         removeAllGroups(): MaybePromise;
 
@@ -141,7 +141,7 @@ export declare namespace Groups {
          *
          * This command might be used to assist configuring group membership in the absence of a commissioning tool.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.6
          */
         addGroupIfIdentifying(request: AddGroupIfIdentifyingRequest): MaybePromise;
     }
@@ -157,7 +157,7 @@ export declare namespace Groups {
     /**
      * These are optional features supported by GroupsCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.4
      */
     export enum Feature {
         /**
@@ -165,13 +165,13 @@ export declare namespace Groups {
          *
          * The Group Names feature indicates the ability to store a name for a group when a group is added.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.4.1
          */
         GroupNames = "GroupNames"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.5.1
      */
     export declare class NameSupport {
         constructor(values?: Partial<NameSupport> | number);
@@ -185,7 +185,7 @@ export declare namespace Groups {
     /**
      * The AddGroup command allows a client to add group membership in a particular group for the server endpoint.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.1
      */
     export declare class AddGroupRequest {
         constructor(values?: Partial<AddGroupRequest>);
@@ -194,7 +194,7 @@ export declare namespace Groups {
          * This field shall be used to identify the group and any associated key material to which the server endpoint
          * is to be added.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.1.1
          */
         groupId: GroupId;
 
@@ -204,7 +204,7 @@ export declare namespace Groups {
          *
          * Support of group names is optional and is indicated by the FeatureMap and NameSupport attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.1.2
          */
         groupName: string;
     };
@@ -212,7 +212,7 @@ export declare namespace Groups {
     /**
      * The AddGroupResponse is sent by the Groups cluster server in response to an AddGroup command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.7
      */
     export declare class AddGroupResponse {
         constructor(values?: Partial<AddGroupResponse>);
@@ -220,14 +220,14 @@ export declare namespace Groups {
         /**
          * This field is set according to the Effect on Receipt section of the AddGroup command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.7.1
          */
         status: Status;
 
         /**
          * This field is set to the GroupID field of the received AddGroup command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.7.2
          */
         groupId: GroupId;
     };
@@ -236,7 +236,7 @@ export declare namespace Groups {
      * The ViewGroup command allows a client to request that the server responds with a ViewGroupResponse command
      * containing the name string for a particular group.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.2
      */
     export declare class ViewGroupRequest {
         constructor(values?: Partial<ViewGroupRequest>);
@@ -246,7 +246,7 @@ export declare namespace Groups {
     /**
      * The ViewGroupResponse command is sent by the Groups cluster server in response to a ViewGroup command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.8
      */
     export declare class ViewGroupResponse {
         constructor(values?: Partial<ViewGroupResponse>);
@@ -254,14 +254,14 @@ export declare namespace Groups {
         /**
          * This field is according to the Effect on Receipt section of the ViewGroup command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.8.1
          */
         status: Status;
 
         /**
          * This field is set to the GroupID field of the received ViewGroup command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.8.2
          */
         groupId: GroupId;
 
@@ -269,7 +269,7 @@ export declare namespace Groups {
          * If the status is SUCCESS, and group names are supported, this field is set to the group name associated with
          * that group in the Group Table; otherwise it is set to the empty string.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.8.3
          */
         groupName: string;
     };
@@ -278,7 +278,7 @@ export declare namespace Groups {
      * The GetGroupMembership command allows a client to inquire about the group membership of the server endpoint, in a
      * number of ways.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.3
      */
     export declare class GetGroupMembershipRequest {
         constructor(values?: Partial<GetGroupMembershipRequest>);
@@ -289,7 +289,7 @@ export declare namespace Groups {
      * The GetGroupMembershipResponse command is sent by the Groups cluster server in response to a GetGroupMembership
      * command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.9
      */
     export declare class GetGroupMembershipResponse {
         constructor(values?: Partial<GetGroupMembershipResponse>);
@@ -305,7 +305,7 @@ export declare namespace Groups {
          *
          *   - null - It is unknown if any further groups may be added.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.9.1
          */
         capacity: number | null;
 
@@ -319,7 +319,7 @@ export declare namespace Groups {
          * payload length of a frame to be exceeded, then the GroupList field shall contain only as many groups as will
          * fit.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.9.2
          */
         groupList: GroupId[];
     };
@@ -328,7 +328,7 @@ export declare namespace Groups {
      * The RemoveGroup command allows a client to request that the server removes the membership for the server
      * endpoint, if any, in a particular group.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.4
      */
     export declare class RemoveGroupRequest {
         constructor(values?: Partial<RemoveGroupRequest>);
@@ -338,7 +338,7 @@ export declare namespace Groups {
     /**
      * The RemoveGroupResponse command is generated by the server in response to the receipt of a RemoveGroup command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.10
      */
     export declare class RemoveGroupResponse {
         constructor(values?: Partial<RemoveGroupResponse>);
@@ -346,14 +346,14 @@ export declare namespace Groups {
         /**
          * This field is according to the Effect on Receipt section of the RemoveGroup command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.10.1
          */
         status: Status;
 
         /**
          * This field is set to the GroupID field of the received RemoveGroup command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.10.2
          */
         groupId: GroupId;
     };
@@ -368,7 +368,7 @@ export declare namespace Groups {
      *
      * This command might be used to assist configuring group membership in the absence of a commissioning tool.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
+     * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.6
      */
     export declare class AddGroupIfIdentifyingRequest {
         constructor(values?: Partial<AddGroupIfIdentifyingRequest>);
@@ -377,7 +377,7 @@ export declare namespace Groups {
          * This field shall be used to identify the group and any associated key material to which the server endpoint
          * is to be added.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.6.1
          */
         groupId: GroupId;
 
@@ -387,7 +387,7 @@ export declare namespace Groups {
          *
          * Support of group names is optional and is indicated by the FeatureMap and NameSupport attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.3.7.6.2
          */
         groupName: string;
     };

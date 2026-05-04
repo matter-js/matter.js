@@ -45,7 +45,7 @@ import type { MaybePromise, Bytes } from "@matter/general";
  * (e.g. a weak Wi-Fi signal). It also allows for a charging profile to be pre-configured, in case there is a temporary
  * communications loss during a charging session.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.3
+ * @see {@link MatterSpecification.v151.Cluster} § 9.3
  */
 export declare namespace EnergyEvse {
     /**
@@ -61,7 +61,7 @@ export declare namespace EnergyEvse {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the EnergyEvse cluster.
@@ -83,21 +83,21 @@ export declare namespace EnergyEvse {
          *
          * > [!NOTE]
          *
-         * > SessionEnding is not really a state but a transition. However, the transition period may take a few seconds
-         *   and is useful for some clean up purposes.
+         * > NOTE: SessionEnding is not really a state but a transition. However, the transition period may take a few
+         *   seconds and is useful for some clean up purposes.
          *
          * The Fault state is used to indicate that the FaultState attribute is not NoError.
          *
          * A null value shall indicate that the state cannot be determined.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.1
          */
         state: State | null;
 
         /**
          * Indicates whether the EV is currently allowed to charge from or discharge to the EVSE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.2
          */
         supplyState: SupplyState;
 
@@ -108,7 +108,7 @@ export declare namespace EnergyEvse {
          * FaultStateEnum, except NoError. For all values of SupplyState other than DisabledError, the FaultState
          * attribute shall be NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.3
          */
         faultState: FaultState;
 
@@ -123,7 +123,7 @@ export declare namespace EnergyEvse {
          * This attribute shall be persisted, for example a temporary power failure should not stop the vehicle from
          * being charged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.4
          */
         chargingEnabledUntil: number | null;
 
@@ -132,7 +132,7 @@ export declare namespace EnergyEvse {
          * implementation of a self-managed network of EVSEs. It is assumed that the device will allow the setting of
          * such values by an installer.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.6
          */
         circuitCapacity: number | bigint;
 
@@ -141,7 +141,7 @@ export declare namespace EnergyEvse {
          *
          * The attribute can be set using the EnableCharging command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.7
          */
         minimumChargeCurrent: number | bigint;
 
@@ -155,32 +155,28 @@ export declare namespace EnergyEvse {
          * The attribute can be initially set using the EnableCharging command or by adjusting the
          * UserMaximumChargeCurrent attribute.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumChargeCurrent field
+         *   in the EnableCharging command - UserMaximumChargeCurrent attribute
          *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumChargeCurrent field in the EnableCharging command
-         *
-         *   - UserMaximumChargeCurrent attribute
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.8
          */
         maximumChargeCurrent: number | bigint;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionId: number | null;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionDuration: number | null;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionEnergyCharged: number | bigint | null;
 
@@ -192,13 +188,12 @@ export declare namespace EnergyEvse {
          *
          * This attribute value shall be limited by the EVSE to be in the range of:
          *
-         * MinimumChargeCurrent <= UserMaximumChargeCurrent <= MaximumChargeCurrent where MinimumChargeCurrent and
-         * MaximumChargeCurrent are the values received in the EnableCharging command.
+         * where MinimumChargeCurrent and MaximumChargeCurrent are the values received in the EnableCharging command.
          *
          * Its default value SHOULD be initialized to the same as the CircuitCapacity attribute. This value shall be
          * persisted across reboots to ensure it does not cause charging issues during temporary power failures.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.10
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.10
          */
         userMaximumChargeCurrent?: number | bigint;
 
@@ -213,7 +208,7 @@ export declare namespace EnergyEvse {
          * starting at 00:30, then the EVSE must compute a random delay between 0-599s and add this to its initial
          * planned start time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.11
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.11
          */
         randomizationDelayWindow?: number;
     }
@@ -233,7 +228,7 @@ export declare namespace EnergyEvse {
          * This attribute shall be persisted, for example a temporary power failure should not stop the vehicle from
          * being discharged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.5
          */
         dischargingEnabledUntil: number | null;
 
@@ -242,20 +237,18 @@ export declare namespace EnergyEvse {
          *
          * This attribute can be set using the EnableDischarging command.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumDischargeCurrent
+         *   field in the EnableDischarging command
          *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumDischargeCurrent field in the EnableDischarging command
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.9
          */
         maximumDischargeCurrent: number | bigint;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionEnergyDischarged: number | bigint | null;
     }
@@ -271,7 +264,7 @@ export declare namespace EnergyEvse {
          * A null value indicates that there is no scheduled charging (for example, the EVSE Mode is set to use Manual
          * mode tag), or that the vehicle is not plugged in with the SupplyState indicating that charging is enabled.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.12
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.12
          */
         nextChargeStartTime: number | null;
 
@@ -282,7 +275,7 @@ export declare namespace EnergyEvse {
          * A null value indicates that there is no scheduled charging (for example, the EVSE Mode is set to use Manual
          * mode tag), or that the vehicle is not plugged in with the SupplyState indicating that charging is enabled.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.13
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.13
          */
         nextChargeTargetTime: number | null;
 
@@ -294,7 +287,7 @@ export declare namespace EnergyEvse {
          * mode tag), or that the vehicle is not plugged in with the SupplyState indicating that charging is enabled, or
          * that the next ChargingTargetStruct is using the TargetSoC value to charge the vehicle.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.14
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.14
          */
         nextChargeRequiredEnergy: number | bigint | null;
 
@@ -307,7 +300,7 @@ export declare namespace EnergyEvse {
          *
          * If the SOC feature is not supported, only the values null and 100% are supported.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.15
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.15
          */
         nextChargeTargetSoC: number | null;
 
@@ -322,19 +315,15 @@ export declare namespace EnergyEvse {
          * A null value indicates that the EV efficiency is unknown and the NextChargeRequiredEnergy attribute cannot be
          * converted from Wh to miles or km.
          *
-         * To convert from Wh into Range:
+         * > [!NOTE]
          *
-         * AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) AddedRange (Miles) = AddedEnergy (Wh)
-         * x ApproxEVEfficiency (km/kWh x 1000) x 0.6213
+         * > To convert from Wh into Range: AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000)
+         *   AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x 0.6213 Example:
+         *   ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000 AddedRange (km) =
+         *   10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x
+         *   1000) x 0.6213 = 29.82 Miles
          *
-         * Example:
-         *
-         * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000
-         *
-         * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x
-         * ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.16
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.16
          */
         approximateEvEfficiency?: number | null;
     }
@@ -348,14 +337,14 @@ export declare namespace EnergyEvse {
          * is only available on EVSEs which can read the state of charge from the vehicle and that support the SOC
          * feature. If the StateOfCharge cannot be read from the vehicle it shall be returned with a NULL value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.17
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.17
          */
         stateOfCharge: number | null;
 
         /**
          * Indicates the capacity of the EV battery in mWh. This value is always positive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.18
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.18
          */
         batteryCapacity: number | bigint | null;
     }
@@ -372,7 +361,7 @@ export declare namespace EnergyEvse {
          *
          * A null value shall indicate that this is unknown.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.19
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.19
          */
         vehicleId: string | null;
     }
@@ -393,21 +382,21 @@ export declare namespace EnergyEvse {
          *
          * > [!NOTE]
          *
-         * > SessionEnding is not really a state but a transition. However, the transition period may take a few seconds
-         *   and is useful for some clean up purposes.
+         * > NOTE: SessionEnding is not really a state but a transition. However, the transition period may take a few
+         *   seconds and is useful for some clean up purposes.
          *
          * The Fault state is used to indicate that the FaultState attribute is not NoError.
          *
          * A null value shall indicate that the state cannot be determined.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.1
          */
         state: State | null;
 
         /**
          * Indicates whether the EV is currently allowed to charge from or discharge to the EVSE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.2
          */
         supplyState: SupplyState;
 
@@ -418,7 +407,7 @@ export declare namespace EnergyEvse {
          * FaultStateEnum, except NoError. For all values of SupplyState other than DisabledError, the FaultState
          * attribute shall be NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.3
          */
         faultState: FaultState;
 
@@ -433,7 +422,7 @@ export declare namespace EnergyEvse {
          * This attribute shall be persisted, for example a temporary power failure should not stop the vehicle from
          * being charged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.4
          */
         chargingEnabledUntil: number | null;
 
@@ -442,7 +431,7 @@ export declare namespace EnergyEvse {
          * implementation of a self-managed network of EVSEs. It is assumed that the device will allow the setting of
          * such values by an installer.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.6
          */
         circuitCapacity: number | bigint;
 
@@ -451,7 +440,7 @@ export declare namespace EnergyEvse {
          *
          * The attribute can be set using the EnableCharging command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.7
          */
         minimumChargeCurrent: number | bigint;
 
@@ -465,32 +454,28 @@ export declare namespace EnergyEvse {
          * The attribute can be initially set using the EnableCharging command or by adjusting the
          * UserMaximumChargeCurrent attribute.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumChargeCurrent field
+         *   in the EnableCharging command - UserMaximumChargeCurrent attribute
          *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumChargeCurrent field in the EnableCharging command
-         *
-         *   - UserMaximumChargeCurrent attribute
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.8
          */
         maximumChargeCurrent: number | bigint;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionId: number | null;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionDuration: number | null;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionEnergyCharged: number | bigint | null;
 
@@ -502,13 +487,12 @@ export declare namespace EnergyEvse {
          *
          * This attribute value shall be limited by the EVSE to be in the range of:
          *
-         * MinimumChargeCurrent <= UserMaximumChargeCurrent <= MaximumChargeCurrent where MinimumChargeCurrent and
-         * MaximumChargeCurrent are the values received in the EnableCharging command.
+         * where MinimumChargeCurrent and MaximumChargeCurrent are the values received in the EnableCharging command.
          *
          * Its default value SHOULD be initialized to the same as the CircuitCapacity attribute. This value shall be
          * persisted across reboots to ensure it does not cause charging issues during temporary power failures.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.10
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.10
          */
         userMaximumChargeCurrent: number | bigint;
 
@@ -523,7 +507,7 @@ export declare namespace EnergyEvse {
          * starting at 00:30, then the EVSE must compute a random delay between 0-599s and add this to its initial
          * planned start time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.11
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.11
          */
         randomizationDelayWindow: number;
 
@@ -538,7 +522,7 @@ export declare namespace EnergyEvse {
          * This attribute shall be persisted, for example a temporary power failure should not stop the vehicle from
          * being discharged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.5
          */
         dischargingEnabledUntil: number | null;
 
@@ -547,20 +531,18 @@ export declare namespace EnergyEvse {
          *
          * This attribute can be set using the EnableDischarging command.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumDischargeCurrent
+         *   field in the EnableDischarging command
          *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumDischargeCurrent field in the EnableDischarging command
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.9
          */
         maximumDischargeCurrent: number | bigint;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8
          */
         sessionEnergyDischarged: number | bigint | null;
 
@@ -571,7 +553,7 @@ export declare namespace EnergyEvse {
          * A null value indicates that there is no scheduled charging (for example, the EVSE Mode is set to use Manual
          * mode tag), or that the vehicle is not plugged in with the SupplyState indicating that charging is enabled.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.12
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.12
          */
         nextChargeStartTime: number | null;
 
@@ -582,7 +564,7 @@ export declare namespace EnergyEvse {
          * A null value indicates that there is no scheduled charging (for example, the EVSE Mode is set to use Manual
          * mode tag), or that the vehicle is not plugged in with the SupplyState indicating that charging is enabled.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.13
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.13
          */
         nextChargeTargetTime: number | null;
 
@@ -594,7 +576,7 @@ export declare namespace EnergyEvse {
          * mode tag), or that the vehicle is not plugged in with the SupplyState indicating that charging is enabled, or
          * that the next ChargingTargetStruct is using the TargetSoC value to charge the vehicle.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.14
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.14
          */
         nextChargeRequiredEnergy: number | bigint | null;
 
@@ -607,7 +589,7 @@ export declare namespace EnergyEvse {
          *
          * If the SOC feature is not supported, only the values null and 100% are supported.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.15
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.15
          */
         nextChargeTargetSoC: number | null;
 
@@ -622,19 +604,15 @@ export declare namespace EnergyEvse {
          * A null value indicates that the EV efficiency is unknown and the NextChargeRequiredEnergy attribute cannot be
          * converted from Wh to miles or km.
          *
-         * To convert from Wh into Range:
+         * > [!NOTE]
          *
-         * AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) AddedRange (Miles) = AddedEnergy (Wh)
-         * x ApproxEVEfficiency (km/kWh x 1000) x 0.6213
+         * > To convert from Wh into Range: AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000)
+         *   AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x 0.6213 Example:
+         *   ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000 AddedRange (km) =
+         *   10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x
+         *   1000) x 0.6213 = 29.82 Miles
          *
-         * Example:
-         *
-         * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000
-         *
-         * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x
-         * ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.16
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.16
          */
         approximateEvEfficiency: number | null;
 
@@ -643,14 +621,14 @@ export declare namespace EnergyEvse {
          * is only available on EVSEs which can read the state of charge from the vehicle and that support the SOC
          * feature. If the StateOfCharge cannot be read from the vehicle it shall be returned with a NULL value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.17
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.17
          */
         stateOfCharge: number | null;
 
         /**
          * Indicates the capacity of the EV battery in mWh. This value is always positive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.18
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.18
          */
         batteryCapacity: number | bigint | null;
 
@@ -662,7 +640,7 @@ export declare namespace EnergyEvse {
          *
          * A null value shall indicate that this is unknown.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.19
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.19
          */
         vehicleId: string | null;
     }
@@ -674,7 +652,7 @@ export declare namespace EnergyEvse {
         /**
          * Allows a client to disable the EVSE from charging and discharging.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.1
          */
         disable(): MaybePromise;
 
@@ -682,14 +660,14 @@ export declare namespace EnergyEvse {
          * This command allows a client to enable the EVSE to charge an EV, and to provide or update the maximum and
          * minimum charge current.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2
          */
         enableCharging(request: EnableChargingRequest): MaybePromise;
 
         /**
          * Allows a client to put the EVSE into a self-diagnostics mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.4
          */
         startDiagnostics(): MaybePromise;
     }
@@ -702,7 +680,7 @@ export declare namespace EnergyEvse {
          * Upon receipt, this shall allow a client to enable the discharge of an EV, and to provide or update the
          * maximum discharge current.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.3
          */
         enableDischarging(request: EnableDischargingRequest): MaybePromise;
     }
@@ -714,21 +692,21 @@ export declare namespace EnergyEvse {
         /**
          * Allows a client to set the user specified charging targets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.5
          */
         setTargets(request: SetTargetsRequest): MaybePromise;
 
         /**
          * Allows a client to retrieve the current set of charging targets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.6
          */
         getTargets(): MaybePromise<GetTargetsResponse>;
 
         /**
          * Allows a client to clear all stored charging targets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.8
          */
         clearTargets(): MaybePromise;
     }
@@ -749,7 +727,7 @@ export declare namespace EnergyEvse {
         /**
          * This event shall be generated when the EV is plugged in.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.1
          */
         evConnected: EvConnectedEvent;
 
@@ -757,7 +735,7 @@ export declare namespace EnergyEvse {
          * This event shall be generated when the EV is unplugged or not detected (having been previously plugged in).
          * When the vehicle is unplugged then the session is ended.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2
          */
         evNotDetected: EvNotDetectedEvent;
 
@@ -766,7 +744,7 @@ export declare namespace EnergyEvse {
          * between charging and discharging under the control of the PowerAdjustment feature of the Device Energy
          * Management cluster of the associated Device Energy Management device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3
          */
         energyTransferStarted: EnergyTransferStartedEvent;
 
@@ -775,7 +753,7 @@ export declare namespace EnergyEvse {
          * between charging and discharging under the control of the PowerAdjustment feature of the Device Energy
          * Management cluster of the associated Device Energy Management device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4
          */
         energyTransferStopped: EnergyTransferStoppedEvent;
 
@@ -790,7 +768,7 @@ export declare namespace EnergyEvse {
          * the EVSE device shall set the FaultState attribute to NoError and the SupplyState attribute shall be set back
          * to its previous state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5
          */
         fault: FaultEvent;
     }
@@ -803,7 +781,7 @@ export declare namespace EnergyEvse {
          * This event shall be generated when a RFID card has been read. This allows a controller to register the card
          * ID and use this to authenticate and start the charging session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.6
          */
         rfid?: RfidEvent;
     }
@@ -818,7 +796,7 @@ export declare namespace EnergyEvse {
         /**
          * This event shall be generated when the EV is plugged in.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.1
          */
         evConnected: EvConnectedEvent;
 
@@ -826,7 +804,7 @@ export declare namespace EnergyEvse {
          * This event shall be generated when the EV is unplugged or not detected (having been previously plugged in).
          * When the vehicle is unplugged then the session is ended.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2
          */
         evNotDetected: EvNotDetectedEvent;
 
@@ -835,7 +813,7 @@ export declare namespace EnergyEvse {
          * between charging and discharging under the control of the PowerAdjustment feature of the Device Energy
          * Management cluster of the associated Device Energy Management device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3
          */
         energyTransferStarted: EnergyTransferStartedEvent;
 
@@ -844,7 +822,7 @@ export declare namespace EnergyEvse {
          * between charging and discharging under the control of the PowerAdjustment feature of the Device Energy
          * Management cluster of the associated Device Energy Management device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4
          */
         energyTransferStopped: EnergyTransferStoppedEvent;
 
@@ -859,7 +837,7 @@ export declare namespace EnergyEvse {
          * the EVSE device shall set the FaultState attribute to NoError and the SupplyState attribute shall be set back
          * to its previous state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5
          */
         fault: FaultEvent;
 
@@ -867,7 +845,7 @@ export declare namespace EnergyEvse {
          * This event shall be generated when a RFID card has been read. This allows a controller to register the card
          * ID and use this to authenticate and start the charging session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.6
          */
         rfid: RfidEvent;
     }
@@ -890,25 +868,25 @@ export declare namespace EnergyEvse {
     /**
      * These are optional features supported by EnergyEvseCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.4
      */
     export enum Feature {
         /**
          * ChargingPreferences (PREF)
          *
          * Since some EVSEs cannot obtain the SoC from the vehicle, some EV charging solutions allow the consumer to
-         * specify a daily charging target (for adding energy to the EV’s battery). This feature allows the consumer to
+         * specify a daily charging target (for adding energy to the EV's battery). This feature allows the consumer to
          * specify how many miles or km of additional range they need for their typical daily commute. This range
          * requirement can be converted into a daily energy demand with a target charging completion time.
          *
          * The EVSE itself can use this information (or may allow a controller such as an EMS) to compute an optimized
-         * charging schedule.
+         * charging schedule. For example, an optimizer may be able to use the Commodity Price cluster to determine the
+         * cheapest and lowest GHG based charging schedule for the vehicle.
          *
          * An EVSE device which includes a Device Energy Management device with the Device Energy Management cluster PFR
-         * (Power Forecast Reporting) feature can use the charging preferences information to produce its power
-         * forecast.
+         * (PowerForecastReporting) feature can use the charging preferences information to produce its power forecast.
          *
-         * EVSE devices that support the Device Energy Management cluster’s FA feature can have their charging profiles
+         * EVSE devices that support the Device Energy Management cluster's FA feature can have their charging profiles
          * set by a controller device such as an EMS. For example, if the EVSE advertises a simple power forecast which
          * allows the EMS to adjust over a wide range of power and time durations, then the EVSE may allow the EMS to
          * propose a revised optimized forecast (which is the charging profile). For example, a solar PV ESA may also
@@ -917,7 +895,7 @@ export declare namespace EnergyEvse {
          *
          * See the Device Energy Management Cluster for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.4.1
          */
         ChargingPreferences = "ChargingPreferences",
 
@@ -934,7 +912,7 @@ export declare namespace EnergyEvse {
          * Note some EVSEs may use other undefined mechanisms to obtain vehicle State of Charge outside the scope of
          * this cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.4.2
          */
         SoCReporting = "SoCReporting",
 
@@ -947,7 +925,7 @@ export declare namespace EnergyEvse {
          *
          * If the EVSE supports the Plug and Charge feature, it will only work if a compatible EV is connected.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.4.3
          */
         PlugAndCharge = "PlugAndCharge",
 
@@ -962,7 +940,7 @@ export declare namespace EnergyEvse {
          * subscribed to by the EVSE Management cluster client. This client may use this to enable the EV to charge or
          * discharge. The lookup and authorization of RIFD UID is outside the scope of this cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.4.4
          */
         Rfid = "Rfid",
 
@@ -974,17 +952,17 @@ export declare namespace EnergyEvse {
          *
          * The charging and discharging may be controlled by a home Energy Management System (EMS) using the Device
          * Energy Management cluster of the associated Device Energy Management device. For example, an EMS may use the
-         * PA (Power Adjustment) feature to continually adjust the charge/discharge current to/from the EV so as to
+         * PA (PowerAdjustment) feature to continually adjust the charge/discharge current to/from the EV so as to
          * minimise the energy flow from/to the grid as the demand in the home and the solar supply to the home both
          * fluctuate.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.4.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.4.5
          */
         V2X = "V2X"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.2
      */
     export enum State {
         /**
@@ -1024,7 +1002,7 @@ export declare namespace EnergyEvse {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.3
      */
     export enum SupplyState {
         /**
@@ -1060,7 +1038,7 @@ export declare namespace EnergyEvse {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.4
      */
     export enum FaultState {
         /**
@@ -1153,7 +1131,7 @@ export declare namespace EnergyEvse {
      * This command allows a client to enable the EVSE to charge an EV, and to provide or update the maximum and minimum
      * charge current.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2
      */
     export declare class EnableChargingRequest {
         constructor(values?: Partial<EnableChargingRequest>);
@@ -1164,7 +1142,7 @@ export declare namespace EnergyEvse {
          * A value in the past in this field shall disable the EVSE charging whereas a null value shall enable it
          * permanently.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2.1
          */
         chargingEnabledUntil: number | null;
 
@@ -1173,9 +1151,9 @@ export declare namespace EnergyEvse {
          * The EVSE current limit can be advertised to an EV in 0.6A steps.
          *
          * The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see Section 9.3.8.7,
-         * “MinimumChargeCurrent Attribute” for further details).
+         * "MinimumChargeCurrent Attribute" for further details).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2.2
          */
         minimumChargeCurrent: number | bigint;
 
@@ -1187,7 +1165,7 @@ export declare namespace EnergyEvse {
          * attribute. For example, if the UserMaximumChargeCurrent attribute is adjusted below then this value, and then
          * later adjusted above this value, the resulting MaximumChargeCurrent attribute will be limited to this value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2.3
          */
         maximumChargeCurrent: number | bigint;
     };
@@ -1196,7 +1174,7 @@ export declare namespace EnergyEvse {
      * Upon receipt, this shall allow a client to enable the discharge of an EV, and to provide or update the maximum
      * discharge current.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.3
      */
     export declare class EnableDischargingRequest {
         constructor(values?: Partial<EnableDischargingRequest>);
@@ -1207,7 +1185,7 @@ export declare namespace EnergyEvse {
          * A value in the past in this field shall disable the EVSE discharging whereas a null value shall enable EVSE
          * discharging permanently.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.3.1
          */
         dischargingEnabledUntil: number | null;
 
@@ -1216,7 +1194,7 @@ export declare namespace EnergyEvse {
          * limit can be advertised to an EV in 0.6A steps. The value of the MaximumDischargeCurrent attribute shall be
          * stored and persisted across reboots by the EVSE to the value of this field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.3.2
          */
         maximumDischargeCurrent: number | bigint;
     };
@@ -1224,7 +1202,7 @@ export declare namespace EnergyEvse {
     /**
      * Allows a client to set the user specified charging targets.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.5
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.5
      */
     export declare class SetTargetsRequest {
         constructor(values?: Partial<SetTargetsRequest>);
@@ -1234,7 +1212,7 @@ export declare namespace EnergyEvse {
          * days of the week. Each of the days of the week may only be included in a single ChargingTargetSchedule within
          * this list field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.5.1
          */
         chargingTargetSchedules: ChargingTargetSchedule[];
     };
@@ -1242,7 +1220,7 @@ export declare namespace EnergyEvse {
     /**
      * The GetTargetsResponse is sent in response to the GetTargets Command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.7
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.7
      */
     export declare class GetTargetsResponse {
         constructor(values?: Partial<GetTargetsResponse>);
@@ -1251,7 +1229,7 @@ export declare namespace EnergyEvse {
          * This field shall indicate a list of up to 7 sets of daily charging targets together with their associated
          * days of the week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.7.1
          */
         chargingTargetSchedules: ChargingTargetSchedule[];
     };
@@ -1259,7 +1237,7 @@ export declare namespace EnergyEvse {
     /**
      * This event shall be generated when the EV is plugged in.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.1
      */
     export declare class EvConnectedEvent {
         constructor(values?: Partial<EvConnectedEvent>);
@@ -1267,7 +1245,7 @@ export declare namespace EnergyEvse {
         /**
          * This is the new session ID created after the vehicle is plugged in.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.1.1
          */
         sessionId: number;
     };
@@ -1276,7 +1254,7 @@ export declare namespace EnergyEvse {
      * This event shall be generated when the EV is unplugged or not detected (having been previously plugged in). When
      * the vehicle is unplugged then the session is ended.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2
      */
     export declare class EvNotDetectedEvent {
         constructor(values?: Partial<EvNotDetectedEvent>);
@@ -1284,14 +1262,14 @@ export declare namespace EnergyEvse {
         /**
          * This field shall indicate the current value of the SessionID attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2.1
          */
         sessionId: number;
 
         /**
          * This field shall indicate the value of the State attribute prior to the EV not being detected.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2.2
          */
         state: State;
 
@@ -1299,7 +1277,7 @@ export declare namespace EnergyEvse {
          * This field shall indicate the total duration of the session, from the start of the session when the EV was
          * plugged in, until it was unplugged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2.3
          */
         sessionDuration: number;
 
@@ -1309,7 +1287,7 @@ export declare namespace EnergyEvse {
          * Note that if bi-directional charging occurs during the session, then this value shall only include the sum of
          * energy transferred from the EVSE to the EV, and shall NOT be a net value of charging and discharging energy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2.4
          */
         sessionEnergyCharged: number | bigint;
 
@@ -1320,7 +1298,7 @@ export declare namespace EnergyEvse {
          * of energy transferred from the EV to the EVSE, and shall NOT be a net value of charging and discharging
          * energy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2.5
          */
         sessionEnergyDischarged?: number | bigint;
     };
@@ -1330,7 +1308,7 @@ export declare namespace EnergyEvse {
      * between charging and discharging under the control of the PowerAdjustment feature of the Device Energy Management
      * cluster of the associated Device Energy Management device.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3
      */
     export declare class EnergyTransferStartedEvent {
         constructor(values?: Partial<EnergyTransferStartedEvent>);
@@ -1338,14 +1316,14 @@ export declare namespace EnergyEvse {
         /**
          * This field shall indicate the value of the SessionID attribute at the time the event was generated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3.1
          */
         sessionId: number;
 
         /**
          * This field shall indicate the value of the State attribute at the time the event was generated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3.2
          */
         state: State;
 
@@ -1355,7 +1333,7 @@ export declare namespace EnergyEvse {
          * A non-zero value indicates that the EV has been enabled for charging and the value is taken directly from the
          * MaximumChargeCurrent attribute. A zero value indicates that the EV has not been enabled for charging.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3.3
          */
         maximumCurrent: number | bigint;
 
@@ -1366,7 +1344,7 @@ export declare namespace EnergyEvse {
          * the MaximumDischargeCurrent attribute. A zero value indicates that the EV has not been enabled for
          * discharging.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3.4
          */
         maximumDischargeCurrent?: number | bigint;
     };
@@ -1376,7 +1354,7 @@ export declare namespace EnergyEvse {
      * between charging and discharging under the control of the PowerAdjustment feature of the Device Energy Management
      * cluster of the associated Device Energy Management device.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4
      */
     export declare class EnergyTransferStoppedEvent {
         constructor(values?: Partial<EnergyTransferStoppedEvent>);
@@ -1384,21 +1362,21 @@ export declare namespace EnergyEvse {
         /**
          * This field shall indicate the value of the SessionID attribute prior to the energy transfer stopping.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4.1
          */
         sessionId: number;
 
         /**
          * This field shall indicate the value of the State attribute prior to the energy transfer stopping.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4.2
          */
         state: State;
 
         /**
          * This field shall indicate the reason why the energy transferred stopped.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4.3
          */
         reason: EnergyTransferStoppedReason;
 
@@ -1406,7 +1384,7 @@ export declare namespace EnergyEvse {
          * This field shall indicate the amount of energy transferred from the EVSE to the EV since the previous
          * EnergyTransferStarted event, in mWh.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4.4
          */
         energyTransferred: number | bigint;
 
@@ -1414,7 +1392,7 @@ export declare namespace EnergyEvse {
          * This field shall indicate the amount of energy transferred from the EV to the EVSE since the previous
          * EnergyTransferStarted event, in mWh.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4.5
          */
         energyDischarged?: number | bigint;
     };
@@ -1430,7 +1408,7 @@ export declare namespace EnergyEvse {
      * EVSE device shall set the FaultState attribute to NoError and the SupplyState attribute shall be set back to its
      * previous state.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5
      */
     export declare class FaultEvent {
         constructor(values?: Partial<FaultEvent>);
@@ -1439,28 +1417,28 @@ export declare namespace EnergyEvse {
          * This field shall indicate the value of the SessionID attribute prior to the Fault State being changed. A
          * value of null indicates no sessions have occurred before the fault occurred.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5.1
          */
         sessionId: number | null;
 
         /**
          * This field shall indicate the value of the State attribute prior to the Fault State being changed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5.2
          */
         state: State;
 
         /**
          * This field shall indicate the value of the FaultState attribute prior to the Fault State being changed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5.3
          */
         faultStatePreviousState: FaultState;
 
         /**
          * This field shall indicate the current value of the FaultState attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5.4
          */
         faultStateCurrentState: FaultState;
     };
@@ -1469,7 +1447,7 @@ export declare namespace EnergyEvse {
      * This event shall be generated when a RFID card has been read. This allows a controller to register the card ID
      * and use this to authenticate and start the charging session.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.6
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.6
      */
     export declare class RfidEvent {
         constructor(values?: Partial<RfidEvent>);
@@ -1477,13 +1455,13 @@ export declare namespace EnergyEvse {
         /**
          * The UID field (ISO 14443A UID) is either 4, 7 or 10 bytes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.6.1
          */
         uid: Bytes;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.1
      */
     export declare class TargetDayOfWeek {
         constructor(values?: Partial<TargetDayOfWeek> | number);
@@ -1525,7 +1503,7 @@ export declare namespace EnergyEvse {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.5
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.5
      */
     export enum EnergyTransferStoppedReason {
         /**
@@ -1553,13 +1531,13 @@ export declare namespace EnergyEvse {
      * The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement can be
      * fulfilled by knowing the charging Power (W) and the time needed to charge.
      *
-     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600
+     * > [!NOTE]
      *
-     * Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)
+     * > To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore:
+     *   ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W) To compute the charging time: Charging StartTime =
+     *   TargetTimeMinutesPastMidnight - ChargingTime
      *
-     * To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6
      */
     export declare class ChargingTarget {
         constructor(values?: Partial<ChargingTarget>);
@@ -1587,7 +1565,7 @@ export declare namespace EnergyEvse {
          * that the EVSE may need to begin charging immediately, and may not be able to guarantee that the vehicle will
          * be able to reach the target.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6.1
          */
         targetTimeMinutesPastMidnight: number;
 
@@ -1613,7 +1591,7 @@ export declare namespace EnergyEvse {
          *   - if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and charge
          *     until the vehicle stops demanding a charge.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6.2
          */
         targetSoC?: number;
 
@@ -1633,11 +1611,11 @@ export declare namespace EnergyEvse {
          *
          * > [!NOTE]
          *
-         * > If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy value to
-         *   the Battery Capacity of the vehicle, since the EV may also require energy for heating and cooling of the
-         *   battery during charging, or for heating or cooling the cabin.
+         * > NOTE: If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy
+         *   value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and cooling
+         *   of the battery during charging, or for heating or cooling the cabin.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6.3
          */
         addedEnergy?: number | bigint;
     };
@@ -1645,7 +1623,7 @@ export declare namespace EnergyEvse {
     /**
      * This represents a set of user specified charging targets for an EV for a set of specified days.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.7
+     * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.7
      */
     export declare class ChargingTargetSchedule {
         constructor(values?: Partial<ChargingTargetSchedule>);
@@ -1654,14 +1632,14 @@ export declare namespace EnergyEvse {
          * This field shall indicate the days of the week that the charging targets SHOULD be associated to. This field
          * is a bitmap and therefore the associated targets could be applied to multiple days.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.8
          */
         dayOfWeekForSequence: TargetDayOfWeek;
 
         /**
          * This field shall indicate a list of up to 10 charging targets for each of the associated days of the week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.9
          */
         chargingTargets: ChargingTarget[];
     };

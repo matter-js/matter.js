@@ -16,7 +16,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster provides an interface to allow configuration of the user interface for a thermostat, or a thermostat
  * controller device, that supports a keypad and LCD screen.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 4.5
+ * @see {@link MatterSpecification.v151.Cluster} § 4.5
  */
 export declare namespace ThermostatUserInterfaceConfiguration {
     /**
@@ -48,14 +48,14 @@ export declare namespace ThermostatUserInterfaceConfiguration {
         /**
          * Indicates the units of the temperature displayed on the thermostat screen.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.5.6.1
          */
         temperatureDisplayMode: TemperatureDisplayMode;
 
         /**
          * Indicates the level of functionality that is available to the user via the keypad.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.5.6.2
          */
         keypadLockout: KeypadLockout;
 
@@ -68,7 +68,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
          * programmed by users or service providers via a more capable remote interface. The programming schedule shall
          * continue to run even though it is not visible to the user locally at the thermostat.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.5.6.3
          */
         scheduleProgrammingVisibility?: ScheduleProgrammingVisibility;
     }
@@ -82,14 +82,14 @@ export declare namespace ThermostatUserInterfaceConfiguration {
         /**
          * Indicates the units of the temperature displayed on the thermostat screen.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.5.6.1
          */
         temperatureDisplayMode: TemperatureDisplayMode;
 
         /**
          * Indicates the level of functionality that is available to the user via the keypad.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.5.6.2
          */
         keypadLockout: KeypadLockout;
 
@@ -102,7 +102,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
          * programmed by users or service providers via a more capable remote interface. The programming schedule shall
          * continue to run even though it is not visible to the user locally at the thermostat.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.5.6.3
          */
         scheduleProgrammingVisibility: ScheduleProgrammingVisibility;
     }
@@ -110,7 +110,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
     export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.5.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.5.5.1
      */
     export enum TemperatureDisplayMode {
         /**
@@ -127,7 +127,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
     /**
      * The interpretation of the various levels is device-dependent.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.5.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 4.5.5.2
      */
     export enum KeypadLockout {
         /**
@@ -162,7 +162,7 @@ export declare namespace ThermostatUserInterfaceConfiguration {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.5.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 4.5.5.3
      */
     export enum ScheduleProgrammingVisibility {
         /**

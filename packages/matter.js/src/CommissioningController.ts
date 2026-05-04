@@ -219,6 +219,16 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
     readonly enableOtaProvider?: boolean;
 
     /**
+     * Enable TCP transport. true = both incoming+outgoing. Default: false (UDP only).
+     */
+    readonly tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+
+    /**
+     * Preferred transport for outgoing connections. Default: "udp".
+     */
+    readonly transportPreference?: "tcp" | "udp";
+
+    /**
      * Options for the BasicInformation cluster of the Controller node.
      * The vendorId is determined by the adminVendorId!
      */
@@ -387,6 +397,8 @@ export class CommissioningController {
             rootCertificateAuthority,
             rootFabric,
             ble: !!(this.#environment.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)),
+            tcp: this.#options.tcp,
+            transportPreference: this.#options.transportPreference,
             ipv4: !this.#ipv4Disabled,
             listeningAddressIpv4: this.#listeningAddressIpv4,
             listeningAddressIpv6: this.#listeningAddressIpv6,

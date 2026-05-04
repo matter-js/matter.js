@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpInterface } from "@matter/general";
+import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpTransport } from "@matter/general";
 import { Fabric, FabricManager } from "@matter/protocol";
 import { FabricIndex, GroupId } from "@matter/types";
 
@@ -11,7 +11,7 @@ const logger = Logger.get("ServerGroupNetworking");
 
 export class ServerGroupNetworking {
     #construction: Construction<ServerGroupNetworking>;
-    #udpInterface: UdpInterface;
+    #udpInterface: UdpTransport;
     #activeGroupMemberships = new Map<FabricIndex, Map<GroupId, string>>();
     #fabricObservers = new Map<FabricIndex, ObserverGroup>();
     #observers = new ObserverGroup(this);
@@ -24,7 +24,7 @@ export class ServerGroupNetworking {
      * The server group networking is not implemented in the Node.js environment.
      * This class is a placeholder to maintain compatibility with the Matter.js architecture.
      */
-    constructor(env: Environment, udpInterface: UdpInterface) {
+    constructor(env: Environment, udpInterface: UdpTransport) {
         this.#udpInterface = udpInterface;
         this.#construction = Construction(this);
         this.#construction.start(env);

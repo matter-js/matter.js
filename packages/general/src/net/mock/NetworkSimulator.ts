@@ -11,12 +11,31 @@ import { MockRouter } from "./MockRouter.js";
 
 export class NetworkSimulator {
     readonly router = MockRouter();
+    readonly #hosts = new Set<MockNetwork>();
 
     addHost(lastIdentifierByte: number) {
-        return new MockNetwork(this, `00:11:22:33:44:${hex.byte(lastIdentifierByte)}`, [
+        const host = new MockNetwork(this, `00:11:22:33:44:${hex.byte(lastIdentifierByte)}`, [
             `abcd::${lastIdentifierByte.toString(16)}`,
             `10.10.10.${lastIdentifierByte}`,
         ]);
+        this.#hosts.add(host);
+        return host;
+    }
+
+    removeHost(host: MockNetwork) {
+        this.#hosts.delete(host);
+    }
+
+    /**
+     * Find the MockNetwork that owns a given IP address.
+     */
+    findNetwork(ip: string): MockNetwork | undefined {
+        for (const host of this.#hosts) {
+            if (host.shouldReceive(ip)) {
+                return host;
+            }
+        }
+        return undefined;
     }
 }
 

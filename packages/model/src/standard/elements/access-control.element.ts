@@ -37,27 +37,27 @@ export const AccessControl = Cluster(
     ),
     Attribute({
         name: "SubjectsPerAccessControlEntry", id: 0x2, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min 4", default: 4, quality: "F"
+        constraint: "4 to 65534", quality: "F"
     }),
     Attribute({
         name: "TargetsPerAccessControlEntry", id: 0x3, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min 3", default: 3, quality: "F"
+        constraint: "3 to 65534", quality: "F"
     }),
     Attribute({
         name: "AccessControlEntriesPerFabric", id: 0x4, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min 4", default: 4, quality: "F"
+        constraint: "4 to 65534", quality: "F"
     }),
 
     Attribute(
         {
             name: "CommissioningArl", id: 0x5, type: "list", access: "R V", conformance: "MNGD",
-            constraint: "desc", default: [], quality: "F"
+            constraint: "desc", quality: "F"
         },
         Field({ name: "entry", type: "CommissioningAccessRestrictionEntryStruct" })
     ),
 
     Attribute(
-        { name: "Arl", id: 0x6, type: "list", access: "R F V", conformance: "MNGD", constraint: "desc", default: [] },
+        { name: "Arl", id: 0x6, type: "list", access: "R F V", conformance: "MNGD", constraint: "desc" },
         Field({ name: "entry", type: "AccessRestrictionEntryStruct" })
     ),
 

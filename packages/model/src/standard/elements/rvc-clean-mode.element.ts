@@ -16,10 +16,11 @@ import {
 
 export const RvcCleanMode = Cluster(
     { name: "RvcCleanMode", id: 0x55, type: "ModeBase", classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "DEPONOFF", conformance: "X", constraint: "0", title: "OnOff" })
+        Field({ name: "DEPONOFF", conformance: "X", constraint: "0", title: "OnOff" }),
+        Field({ name: "DIRECTMODECH", conformance: "O", constraint: "20", title: "DirectModeChange" })
     ),
     Attribute({ name: "SupportedModes", id: 0x0 }),
     Attribute({ name: "CurrentMode", id: 0x1 }),

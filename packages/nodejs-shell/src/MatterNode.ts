@@ -98,6 +98,7 @@ export class MatterNode {
                 autoConnect: false,
                 adminFabricLabel: "matter.js Shell",
                 enableOtaProvider: true,
+                tcp: true,
                 basicInformation: {
                     productName: "matter.js Shell",
                 },

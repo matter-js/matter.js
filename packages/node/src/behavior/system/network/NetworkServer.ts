@@ -128,10 +128,10 @@ export namespace NetworkServer {
         conservative?: LimitsConfig;
 
         @field(LimitsConfig)
-        unlimited?: LimitsConfig;
+        unknown?: LimitsConfig;
 
         @field(LimitsConfig)
-        unknown?: LimitsConfig;
+        unlimited?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {
@@ -143,6 +143,18 @@ export namespace NetworkServer {
             onIpNetwork: true,
         };
         subscriptionOptions?: ServerSubscriptionConfig = undefined;
+
+        /**
+         * Enable TCP transport. `true` enables both incoming (server) and outgoing (client).
+         * Fine-grained control via `{ incoming?: boolean; outgoing?: boolean }`.
+         * Disabled by default.
+         */
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+
+        /**
+         * Preferred transport for outgoing connections. Defaults to UDP when not set.
+         */
+        transportPreference?: "tcp" | "udp";
 
         @field(TimingConfig)
         timing?: TimingConfig;
@@ -156,5 +168,21 @@ export namespace NetworkServer {
          */
         @field(duration)
         clientCacheFlushInterval?: Duration = Minutes(20);
+    }
+
+    /**
+     * Resolve the tcp shorthand to explicit incoming/outgoing booleans.
+     */
+    export function resolveTcpConfig(tcp?: boolean | { incoming?: boolean; outgoing?: boolean }): {
+        incoming: boolean;
+        outgoing: boolean;
+    } {
+        if (tcp === true) {
+            return { incoming: true, outgoing: true };
+        }
+        if (tcp === false || tcp === undefined) {
+            return { incoming: false, outgoing: false };
+        }
+        return { incoming: tcp.incoming ?? false, outgoing: tcp.outgoing ?? false };
     }
 }

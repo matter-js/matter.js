@@ -61,7 +61,7 @@ Resource.add({
             tag: "command", name: "RenameInput", xref: "cluster§6.9.7.4",
             details: "Upon receipt, this command shall rename the input at a specific index in the Input List." +
                 "\n" +
-                "Updates to the input name shall appear in the device’s settings menus."
+                "Updates to the input name shall appear in the device's settings menus."
         },
 
         {

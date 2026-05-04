@@ -19,7 +19,6 @@ import {
     causedBy,
     Channel,
     ClosedError,
-    ConnectionlessTransport,
     Construction,
     Crypto,
     Duration,
@@ -38,6 +37,7 @@ import {
     Time,
     Timestamp,
     toHex,
+    Transport,
     UnexpectedDataError,
 } from "@matter/general";
 import { CaseAuthenticatedTag, ClusterId, EndpointNumber, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
@@ -543,7 +543,7 @@ export class SessionManager {
      *
      * Returns the session for the current group epoch key.  The source is this node and the peer is the group.
      */
-    async groupSessionForAddress(address: PeerAddress, transports: ConnectionlessTransport.Provider) {
+    async groupSessionForAddress(address: PeerAddress, transports: Transport.Provider) {
         const groupId = GroupId.fromNodeId(address.nodeId);
         GroupId.assertGroupId(groupId);
 

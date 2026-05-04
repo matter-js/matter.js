@@ -356,12 +356,12 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * When a key-list selector is provided, each returned value may be `undefined` — absent on unsupported
      * attributes or those excluded by {@link EndpointReadFailedError}.
      */
-    getStateOf<B extends BehaviorOf<T>>(
+    getStateOf<B extends Behavior.Type>(
         type: B,
         selector?: true,
         options?: Endpoint.GetOptions,
     ): Promise<Behavior.StateOf<B>>;
-    getStateOf<B extends BehaviorOf<T>, K extends keyof Behavior.StateOf<B>>(
+    getStateOf<B extends Behavior.Type, K extends keyof Behavior.StateOf<B>>(
         type: B,
         selector: readonly K[],
         options?: Endpoint.GetOptions,

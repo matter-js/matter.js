@@ -14,7 +14,7 @@ Resource.add({
         "\n" +
         "> [!NOTE]" +
         "\n" +
-        "> Support for Energy Preference cluster is provisional.",
+        "> NOTE: Support for Energy Preference cluster is provisional.",
 
     children: [
         {

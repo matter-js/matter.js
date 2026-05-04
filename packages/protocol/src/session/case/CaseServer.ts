@@ -114,12 +114,12 @@ export class CaseServer implements ProtocolHandler {
         }
 
         // Attempt resumption
-        if (await this.#resume(context, messenger.channel.channel)) {
+        if (await this.#resume(context, messenger.channel.transportChannel)) {
             return;
         }
 
         // Attempt sigma2 negotiation
-        if (await this.#generateSigma2(context, messenger.channel.channel)) {
+        if (await this.#generateSigma2(context, messenger.channel.transportChannel)) {
             return;
         }
 
