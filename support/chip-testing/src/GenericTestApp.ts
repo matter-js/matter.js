@@ -40,6 +40,21 @@ export function getIntParameter(name: string) {
     return intValue;
 }
 
+export function getParameters(name: string): string[] {
+    const result = new Array<string>();
+    for (let i = 0; i < commandArguments.length; i++) {
+        const arg = commandArguments[i];
+        if (arg === `-${name}` || arg === `--${name}`) {
+            if (i + 1 >= commandArguments.length) {
+                throw new ValidationError(`Missing value for parameter ${name}`);
+            }
+            result.push(commandArguments[i + 1]);
+            i++;
+        }
+    }
+    return result;
+}
+
 const allocatedIds = new Set();
 
 export abstract class TestInstance {
