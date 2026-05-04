@@ -62,6 +62,11 @@ describe("Endpoint get type helpers", () => {
         const _selectorEmpty: StateSelector<TestEndpoint> = {};
         void _selectorEmpty;
 
+        // StateSelector rejects attribute keys that are not in the behavior's State for typed endpoints.
+        // @ts-expect-error - "missing" is not a key of FakeState
+        const _selectorBadKey: StateSelector<TestEndpoint> = { fake: ["missing"] as const };
+        void _selectorBadKey;
+
         // StateSliceOf with { fake: true } produces a slice with full fake state
         type _TrueSlice = StateSliceOf<TestEndpoint, { fake: true }>;
         const _checkTrueSlice: _TrueSlice = {} as { fake: Immutable<Behavior.StateOf<FakeBehaviorType>> };
