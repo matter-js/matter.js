@@ -31,7 +31,7 @@ function parseDeviceArgs(): DeviceSpec[] {
         if (colonIdx === -1) continue;
         const epStr = token.substring(colonIdx + 1);
         const ep = Number.parseInt(epStr, 10);
-        if (!Number.isInteger(ep) || ep < 1 || String(ep) !== epStr) {
+        if (!Number.isInteger(ep) || ep < 1 || ep > 0xfffe || String(ep) !== epStr) {
             throw new ValidationError(`Invalid endpoint in --device "${token}"`);
         }
         if (reserved.has(ep)) {
