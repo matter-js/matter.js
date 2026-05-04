@@ -9,6 +9,7 @@ import type {
     BehaviorAt,
     BehaviorOf,
     BehaviorSelection,
+    Endpoint,
     RawBehaviorSelection,
     StateSelector,
     StateSliceOf,
@@ -120,5 +121,39 @@ describe("Endpoint get type helpers", () => {
             fake: Immutable<Partial<Pick<Behavior.StateOf<FakeBehaviorType>, "value">>>;
         };
         void _checkPickSlice;
+
+        // getStateOf overload return types — assert each overload resolves to the documented shape.
+        // The `(false as boolean) === true` guard keeps the body type-checked but unreachable at
+        // runtime, so the phantom `_ep`/`_fakeBeh` values are never dereferenced. The cast through
+        // `boolean` is required to defeat TypeScript's constant-condition unreachable-code check
+        // that a literal `if (false)` would trigger.
+        if ((false as boolean) === true) {
+            const _ep = null as unknown as Endpoint<TestEndpoint>;
+            const _fakeBeh = null as unknown as FakeBehaviorType;
+
+            // Overload 1: (B) and (B, true) → Promise<Behavior.StateOf<B>>
+            const _stateOfNoSelector: Promise<Behavior.StateOf<FakeBehaviorType>> = _ep.getStateOf(_fakeBeh);
+            void _stateOfNoSelector;
+            const _stateOfTrue: Promise<Behavior.StateOf<FakeBehaviorType>> = _ep.getStateOf(_fakeBeh, true);
+            void _stateOfTrue;
+
+            // Overload 2: (B, K[]) → Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>.
+            // Each selected key is optional because partial-state-on-failure may omit it.
+            // Use the bidirectional `_AssertEqual` helper so the assertion fails if the resolved
+            // shape gains or loses properties (a one-sided assignability check would not catch
+            // an extra optional property creeping into the return type).
+            const _stateOfKeys = _ep.getStateOf(_fakeBeh, ["value"] as const);
+            const _checkKeysExact: _AssertEqual<Awaited<typeof _stateOfKeys>, { readonly value?: number }> = true;
+            void _checkKeysExact;
+
+            // Overload 2 must reject keys not in the behavior's State.
+            // @ts-expect-error - "missing" is not a key of FakeState
+            const _stateOfBadKey = _ep.getStateOf(_fakeBeh, ["missing"] as const);
+            void _stateOfBadKey;
+
+            // Overload 3: (string, readonly string[]) → Promise<Val.Struct>. Accepts arbitrary string keys.
+            const _stateOfStringId = _ep.getStateOf("anyId", ["foo", "bar"]);
+            void _stateOfStringId;
+        }
     });
 });
