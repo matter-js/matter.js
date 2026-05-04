@@ -67,6 +67,16 @@ describe("Endpoint get type helpers", () => {
         const _selectorBadKey: StateSelector<TestEndpoint> = { fake: ["missing"] as const };
         void _selectorBadKey;
 
+        // Fallback branch: unbound `T extends EndpointType` widens `keyof T["behaviors"]` to `string`
+        // via the SupportedBehaviors index signature, so values must accept RawBehaviorSelection
+        // (arbitrary string-keyed attribute lists) for backward compatibility with generic code.
+        type _GenericValue = NonNullable<StateSelector<EndpointType>[string]>;
+        type _AssertEqual<A, B> = (<T>() => T extends A ? 1 : 0) extends <T>() => T extends B ? 1 : 0 ? true : false;
+        const _genericValueIsRaw: _AssertEqual<_GenericValue, RawBehaviorSelection> = true;
+        void _genericValueIsRaw;
+        const _genericSelector: StateSelector<EndpointType> = { someBehavior: ["arbitraryAttr"] as const };
+        void _genericSelector;
+
         // StateSliceOf with { fake: true } produces a slice with full fake state
         type _TrueSlice = StateSliceOf<TestEndpoint, { fake: true }>;
         const _checkTrueSlice: _TrueSlice = {} as { fake: Immutable<Behavior.StateOf<FakeBehaviorType>> };
