@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Behavior } from "#behavior/Behavior.js";
+import { Behavior } from "#behavior/Behavior.js";
 import type {
     BehaviorAt,
     BehaviorOf,
@@ -13,7 +13,8 @@ import type {
     StateSelector,
     StateSliceOf,
 } from "#endpoint/Endpoint.js";
-import type { EndpointType } from "#endpoint/type/EndpointType.js";
+import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
 import type { Immutable } from "@matter/general";
 
 type FakeState = { value: number; label: string };
@@ -76,6 +77,37 @@ describe("Endpoint get type helpers", () => {
         void _genericValueIsRaw;
         const _genericSelector: StateSelector<EndpointType> = { someBehavior: ["arbitraryAttr"] as const };
         void _genericSelector;
+
+        // Real factory path: exercise EndpointType(...) + SupportedBehaviors(...) + MapOf<>, not a
+        // hand-built intersection. Catches regressions in EndpointType.For<T> / MapOf<T> that would
+        // widen `keyof T["behaviors"]` back to `string` and silently drop the per-behavior tightening.
+        class FactoryTestBehavior extends Behavior {
+            static override readonly id = "factoryTest";
+            static override readonly State = class FactoryTestState {
+                value = 0;
+                label = "";
+            };
+        }
+        const FactoryTestEndpoint = EndpointType({
+            name: "FactoryTest",
+            deviceType: 0xfff1,
+            deviceRevision: 1,
+            behaviors: SupportedBehaviors(FactoryTestBehavior),
+        });
+        type _FactoryTestType = typeof FactoryTestEndpoint;
+
+        // Behavior keys must remain narrow (literal "factoryTest"), not widened to `string`.
+        type _FactoryKeys = keyof _FactoryTestType["behaviors"];
+        const _factoryKeysNarrow: string extends _FactoryKeys ? false : true = true;
+        void _factoryKeysNarrow;
+
+        // Typed attribute key accepted on factory-built endpoint
+        const _factoryGood: StateSelector<_FactoryTestType> = { factoryTest: ["value"] as const };
+        void _factoryGood;
+
+        // @ts-expect-error - "missing" is not a key of FactoryTestBehavior State
+        const _factoryBad: StateSelector<_FactoryTestType> = { factoryTest: ["missing"] as const };
+        void _factoryBad;
 
         // StateSliceOf with { fake: true } produces a slice with full fake state
         type _TrueSlice = StateSliceOf<TestEndpoint, { fake: true }>;
