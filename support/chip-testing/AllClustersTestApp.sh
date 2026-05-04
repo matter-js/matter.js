@@ -16,11 +16,12 @@ CHILD_PID=""
 # Function to handle SIGTERM
 sigterm_handler() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - Received SIGTERM, forwarding to child process (PID: $CHILD_PID)" | tee -a "$LOG_FILE"
+    EXIT_CODE=0
     if [ -n "$CHILD_PID" ]; then
         kill -TERM "$CHILD_PID" 2>/dev/null
         wait "$CHILD_PID"
+        EXIT_CODE=$?
     fi
-    EXIT_CODE=$?
 
     # If the child reported 134 (abort), normalize to 0 for the SIGTERM case
     if [ "$EXIT_CODE" -eq 134 ]; then
