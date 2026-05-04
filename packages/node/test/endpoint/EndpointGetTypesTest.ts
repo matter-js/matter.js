@@ -123,7 +123,10 @@ describe("Endpoint get type helpers", () => {
         void _checkPickSlice;
 
         // getStateOf overload return types — assert each overload resolves to the documented shape.
-        // Wrapped in `if (false)` so runtime never executes; TypeScript still type-checks the body.
+        // The `(false as boolean) === true` guard keeps the body type-checked but unreachable at
+        // runtime, so the phantom `_ep`/`_fakeBeh` values are never dereferenced. The cast through
+        // `boolean` is required to defeat TypeScript's constant-condition unreachable-code check
+        // that a literal `if (false)` would trigger.
         if ((false as boolean) === true) {
             const _ep = null as unknown as Endpoint<TestEndpoint>;
             const _fakeBeh = null as unknown as FakeBehaviorType;
@@ -136,9 +139,12 @@ describe("Endpoint get type helpers", () => {
 
             // Overload 2: (B, K[]) → Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>.
             // Each selected key is optional because partial-state-on-failure may omit it.
+            // Use the bidirectional `_AssertEqual` helper so the assertion fails if the resolved
+            // shape gains or loses properties (a one-sided assignability check would not catch
+            // an extra optional property creeping into the return type).
             const _stateOfKeys = _ep.getStateOf(_fakeBeh, ["value"] as const);
-            const _checkKeysAwait: Awaited<typeof _stateOfKeys> = {} as { readonly value?: number };
-            void _checkKeysAwait;
+            const _checkKeysExact: _AssertEqual<Awaited<typeof _stateOfKeys>, { readonly value?: number }> = true;
+            void _checkKeysExact;
 
             // Overload 2 must reject keys not in the behavior's State.
             // @ts-expect-error - "missing" is not a key of FakeState
