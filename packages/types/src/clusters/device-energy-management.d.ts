@@ -19,6 +19,8 @@ import type { MaybePromise } from "@matter/general";
  *
  * In most deployments the EMS will be the client, and the ESA will host the Device Energy Management Cluster server.
  *
+ * !ESA EMS Cluster
+ *
  * This cluster is intended to be generic in nature and could apply to any electrical load or generator (e.g. a Battery
  * Electric Storage System - BESS, solar PV inverter, EVSE, HVAC, heat pump, hot water heater, white goods appliances
  * etc).
@@ -45,17 +47,19 @@ import type { MaybePromise } from "@matter/general";
  * intensity', 'time of use' or 'type of use' tariffs to schedule its operation to run at the cheapest and greenest
  * times.
  *
- * > [!NOTE]
- *
- * > Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to communicate grid
- *   events to the EMS. These are outside the scope of Matter.
+ * !HVAC ESA Example with EMS
  *
  * > [!NOTE]
  *
- * > Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give examples of how
- *   ESAs may be mandated to support these features in the future.
+ * > NOTE: Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to communicate
+ *   grid events to the EMS. These are outside the scope of Matter.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.2
+ * > [!NOTE]
+ *
+ * > NOTE: Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give examples
+ *   of how ESAs may be mandated to support these features in the future.
+ *
+ * @see {@link MatterSpecification.v151.Cluster} § 9.2
  */
 export declare namespace DeviceEnergyManagement {
     /**
@@ -98,7 +102,7 @@ export declare namespace DeviceEnergyManagement {
          * typical best use of energy. For example, an EVSE may not always have an EV plugged in, so knowing the type of
          * ESA that is being controlled can allow advanced energy management strategies.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.1
          */
         esaType: EsaType;
 
@@ -116,11 +120,9 @@ export declare namespace DeviceEnergyManagement {
          * generating its forecast or advertising its PowerAdjustmentCapability, the power values shall be negative to
          * indicate discharging to the loads in the home, and positive to indicate when it is charging its battery.
          *
-         * GRID meter = Σ LoadPowers + Σ GeneratorPowers
-         *
          * Example:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.2
          */
         esaCanGenerate: boolean;
 
@@ -134,7 +136,7 @@ export declare namespace DeviceEnergyManagement {
          * The ESA may have a local user interface to allow a service technician to put the ESA into Offline mode, for
          * example to avoid the EMS accidentally starting or stopping the appliance when it is being serviced or tested.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.3
          */
         esaState: EsaState;
 
@@ -144,11 +146,11 @@ export declare namespace DeviceEnergyManagement {
          *
          * > [!NOTE]
          *
-         * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads in
-         *   the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
-         *   discharge its internal battery.
+         * > NOTE: For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to
+         *   loads in the home, the AbsMinPower will be a negative number representing the maximum power that the ESA
+         *   can discharge its internal battery.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.4
          */
         absMinPower: number | bigint;
 
@@ -162,7 +164,7 @@ export declare namespace DeviceEnergyManagement {
          * For example, a battery storage inverter that can charge its battery at a maximum power of 2000W and can
          * discharge the battery at a maximum power of 3000W, would have a AbsMinPower: -3000, AbsMaxPower: 2000W.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.5
          */
         absMaxPower: number | bigint;
     }
@@ -186,7 +188,7 @@ export declare namespace DeviceEnergyManagement {
          *
          *   - When it changes from null to any other value and vice versa.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.6
          */
         powerAdjustmentCapability: PowerAdjustCapability | null;
     }
@@ -217,7 +219,7 @@ export declare namespace DeviceEnergyManagement {
          *   - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
          *     forecast.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.7
          */
         forecast: Forecast | null;
     }
@@ -257,7 +259,7 @@ export declare namespace DeviceEnergyManagement {
          * If the ESA is in the LocalOptOut, GridOptOut, or NoOptOut states, the device is still permitted to optimize
          * its own energy usage, for example, using tariff information it may obtain.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.8
          */
         optOutState: OptOutState;
     }
@@ -283,7 +285,7 @@ export declare namespace DeviceEnergyManagement {
          * typical best use of energy. For example, an EVSE may not always have an EV plugged in, so knowing the type of
          * ESA that is being controlled can allow advanced energy management strategies.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.1
          */
         esaType: EsaType;
 
@@ -301,11 +303,9 @@ export declare namespace DeviceEnergyManagement {
          * generating its forecast or advertising its PowerAdjustmentCapability, the power values shall be negative to
          * indicate discharging to the loads in the home, and positive to indicate when it is charging its battery.
          *
-         * GRID meter = Σ LoadPowers + Σ GeneratorPowers
-         *
          * Example:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.2
          */
         esaCanGenerate: boolean;
 
@@ -319,7 +319,7 @@ export declare namespace DeviceEnergyManagement {
          * The ESA may have a local user interface to allow a service technician to put the ESA into Offline mode, for
          * example to avoid the EMS accidentally starting or stopping the appliance when it is being serviced or tested.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.3
          */
         esaState: EsaState;
 
@@ -329,11 +329,11 @@ export declare namespace DeviceEnergyManagement {
          *
          * > [!NOTE]
          *
-         * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads in
-         *   the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
-         *   discharge its internal battery.
+         * > NOTE: For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to
+         *   loads in the home, the AbsMinPower will be a negative number representing the maximum power that the ESA
+         *   can discharge its internal battery.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.4
          */
         absMinPower: number | bigint;
 
@@ -347,7 +347,7 @@ export declare namespace DeviceEnergyManagement {
          * For example, a battery storage inverter that can charge its battery at a maximum power of 2000W and can
          * discharge the battery at a maximum power of 3000W, would have a AbsMinPower: -3000, AbsMaxPower: 2000W.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.5
          */
         absMaxPower: number | bigint;
 
@@ -366,7 +366,7 @@ export declare namespace DeviceEnergyManagement {
          *
          *   - When it changes from null to any other value and vice versa.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.6
          */
         powerAdjustmentCapability: PowerAdjustCapability | null;
 
@@ -391,7 +391,7 @@ export declare namespace DeviceEnergyManagement {
          *   - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
          *     forecast.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.7
          */
         forecast: Forecast | null;
 
@@ -425,7 +425,7 @@ export declare namespace DeviceEnergyManagement {
          * If the ESA is in the LocalOptOut, GridOptOut, or NoOptOut states, the device is still permitted to optimize
          * its own energy usage, for example, using tariff information it may obtain.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.8
          */
         optOutState: OptOutState;
     }
@@ -437,14 +437,14 @@ export declare namespace DeviceEnergyManagement {
         /**
          * Allows a client to request an adjustment in the power consumption of an ESA for a specified duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1
          */
         powerAdjustRequest(request: PowerAdjustRequest): MaybePromise;
 
         /**
          * Allows a client to cancel an ongoing PowerAdjustmentRequest operation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.2
          */
         cancelPowerAdjustRequest(): MaybePromise;
     }
@@ -456,14 +456,14 @@ export declare namespace DeviceEnergyManagement {
         /**
          * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.4
          */
         pauseRequest(request: PauseRequest): MaybePromise;
 
         /**
          * Allows a client to cancel the PauseRequest command and enable earlier resumption of operation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.5
          */
         resumeRequest(): MaybePromise;
     }
@@ -476,7 +476,7 @@ export declare namespace DeviceEnergyManagement {
          * Allows a client to adjust the start time of a Forecast sequence that has not yet started operation (i.e.
          * where the current Forecast StartTime is in the future).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.3
          */
         startTimeAdjustRequest(request: StartTimeAdjustRequest): MaybePromise;
     }
@@ -488,7 +488,7 @@ export declare namespace DeviceEnergyManagement {
         /**
          * Allows a client to modify a Forecast within the limits allowed by the ESA.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6
          */
         modifyForecastRequest(request: ModifyForecastRequest): MaybePromise;
     }
@@ -500,7 +500,7 @@ export declare namespace DeviceEnergyManagement {
         /**
          * Allows a client to ask the ESA to recompute its Forecast based on power and time constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.7
          */
         requestConstraintBasedForecast(request: RequestConstraintBasedForecastRequest): MaybePromise;
     }
@@ -514,7 +514,7 @@ export declare namespace DeviceEnergyManagement {
          * Allows a client to request cancellation of a previous adjustment request in a StartTimeAdjustRequest,
          * ModifyForecastRequest or RequestConstraintBasedForecast command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.8
          */
         cancelRequest(): MaybePromise;
     }
@@ -538,14 +538,14 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This event shall be generated when the Power Adjustment session is started.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.1
          */
         powerAdjustStart: void;
 
         /**
          * This event shall be generated when the Power Adjustment session ends.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2
          */
         powerAdjustEnd: PowerAdjustEndEvent;
     }
@@ -559,14 +559,14 @@ export declare namespace DeviceEnergyManagement {
          *
          * There is no data for this event.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.3
          */
         paused: void;
 
         /**
          * This event shall be generated when the ESA leaves the Paused state and resumes operation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.4
          */
         resumed: ResumedEvent;
     }
@@ -581,14 +581,14 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This event shall be generated when the Power Adjustment session is started.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.1
          */
         powerAdjustStart: void;
 
         /**
          * This event shall be generated when the Power Adjustment session ends.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2
          */
         powerAdjustEnd: PowerAdjustEndEvent;
 
@@ -597,14 +597,14 @@ export declare namespace DeviceEnergyManagement {
          *
          * There is no data for this event.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.3
          */
         paused: void;
 
         /**
          * This event shall be generated when the ESA leaves the Paused state and resumes operation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.4
          */
         resumed: ResumedEvent;
     }
@@ -670,7 +670,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * These are optional features supported by DeviceEnergyManagementCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.4
      */
     export enum Feature {
         /**
@@ -691,7 +691,7 @@ export declare namespace DeviceEnergyManagement {
          * discharging (and re-charging) of the vehicle if the EVSE and vehicle support the V2X feature of the EVSE
          * cluster of the associated EVSE device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.1
          */
         PowerAdjustment = "PowerAdjustment",
 
@@ -711,7 +711,7 @@ export declare namespace DeviceEnergyManagement {
          * the duration of that stage.
          *
          * In some circumstances the ESA may allow the stage to be delayed or paused (subject to safety and
-         * manufacturer’s discretion and user preferences).
+         * manufacturer's discretion and user preferences).
          *
          * Typically, appliances with a heating element cannot have their power consumption adjusted and can only be
          * paused or delayed.
@@ -735,7 +735,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * The ESA indicates its power adjustment range and its nominal power consumption as part of its Forecast.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.2
          */
         PowerForecastReporting = "PowerForecastReporting",
 
@@ -755,7 +755,7 @@ export declare namespace DeviceEnergyManagement {
          * Once the EMS has built a model of the state vs observed power consumption, it may request a forecast
          * adjustment for particular times of the day, encouraging the ESA to use power at alternative times.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.3
          */
         StateForecastReporting = "StateForecastReporting",
 
@@ -780,7 +780,7 @@ export declare namespace DeviceEnergyManagement {
          * It does this by sending a StartTimeAdjustRequest to the washing machine to request delaying the start of the
          * washing cycle.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.4
          */
         StartTimeAdjustment = "StartTimeAdjustment",
 
@@ -805,7 +805,7 @@ export declare namespace DeviceEnergyManagement {
          * It does this by sending a PauseRequest to the washing machine to request pausing the current step of the
          * forecast power usage for a period to allow other home loads to finish before resuming the washing cycle.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.5
          */
         Pausable = "Pausable",
 
@@ -835,7 +835,7 @@ export declare namespace DeviceEnergyManagement {
          * lower power consumption (within the solar excess power) which requires the heat pump to run for a longer
          * duration to achieve its required energy demand.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.6
          */
         ForecastAdjustment = "ForecastAdjustment",
 
@@ -863,13 +863,13 @@ export declare namespace DeviceEnergyManagement {
          * NominalPower consumption during the constraint period, which may require it to decrease its charge rate
          * outside the constraint period to achieve its required energy demand.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.4.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.4.7
          */
         ConstraintBasedAdjustment = "ConstraintBasedAdjustment"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.2
      */
     export enum EsaType {
         /**
@@ -949,7 +949,7 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.3
      */
     export enum EsaState {
         /**
@@ -979,7 +979,7 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.11
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.11
      */
     export declare class PowerAdjustCapability {
         constructor(values?: Partial<PowerAdjustCapability>);
@@ -1000,7 +1000,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * In this example the list of PowerAdjustStructs allows multiple scenarios to be offered as follows:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.12
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.12
          */
         powerAdjustCapability: PowerAdjust[] | null;
 
@@ -1008,14 +1008,14 @@ export declare namespace DeviceEnergyManagement {
     };
 
     /**
-     * This indicates a list of 'slots' describing the overall timing of the ESA’s planned energy and power use, with
+     * This indicates a list of 'slots' describing the overall timing of the ESA's planned energy and power use, with
      * different power and energy demands per slot. For example, slots might be used to describe the distinct stages of
      * a washing machine cycle.
      *
      * Where an ESA does not know the actual power and energy use of the system, it may support the SFR feature and
      * instead report its internal state.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13
      */
     export declare class Forecast {
         constructor(values?: Partial<Forecast>);
@@ -1030,7 +1030,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * The value of ForecastID is allowed to wrap.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.1
          */
         forecastId: number;
 
@@ -1038,21 +1038,21 @@ export declare namespace DeviceEnergyManagement {
          * This field shall indicate which element of the Slots list is currently active in the Forecast sequence. A
          * null value indicates that the sequence has not yet started.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.2
          */
         activeSlotNumber: number | null;
 
         /**
          * This field shall indicate the planned start time, in UTC, for the entire Forecast.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.3
          */
         startTime: number;
 
         /**
          * This field shall indicate the planned end time, in UTC, for the entire Forecast.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.4
          */
         endTime: number;
 
@@ -1061,7 +1061,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * A null value indicates that it can be started immediately.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.5
          */
         earliestStartTime?: number | null;
 
@@ -1071,7 +1071,7 @@ export declare namespace DeviceEnergyManagement {
          * e.g. for an EVSE charging session, this may indicate the departure time for the vehicle, by which time the
          * charging session must end.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.6
          */
         latestEndTime?: number;
 
@@ -1080,7 +1080,7 @@ export declare namespace DeviceEnergyManagement {
          * this flag and if it is false, then none of the slots contain SlotIsPausable set to true. This can save a
          * client from having to check each slot in the list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.7
          */
         isPausable: boolean;
 
@@ -1089,20 +1089,20 @@ export declare namespace DeviceEnergyManagement {
          *
          * It shall contain at least 1 entry, and a maximum of 10.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.8
          */
         slots: Slot[];
 
         /**
          * This field shall contain the reason the current Forecast was generated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.9
          */
         forecastUpdateReason: ForecastUpdateReason;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.4
      */
     export enum OptOutState {
         /**
@@ -1129,7 +1129,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * Allows a client to request an adjustment in the power consumption of an ESA for a specified duration.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1
      */
     export declare class PowerAdjustRequest {
         constructor(values?: Partial<PowerAdjustRequest>);
@@ -1140,7 +1140,7 @@ export declare namespace DeviceEnergyManagement {
          * This value shall be between the MinPower and MaxPower fields of the PowerAdjustStruct in the
          * PowerAdjustmentCapability attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1.1
          */
         power: number | bigint;
 
@@ -1150,14 +1150,14 @@ export declare namespace DeviceEnergyManagement {
          * This value shall be between the MinDuration and MaxDuration fields of the PowerAdjustStruct in the
          * PowerAdjustmentCapability attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1.2
          */
         duration: number;
 
         /**
          * This field shall indicate the cause of the request from the EMS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1.3
          */
         cause: AdjustmentCause;
     };
@@ -1165,7 +1165,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.4
      */
     export declare class PauseRequest {
         constructor(values?: Partial<PauseRequest>);
@@ -1175,14 +1175,14 @@ export declare namespace DeviceEnergyManagement {
          * MinPauseDuration and MaxPauseDuration indicated in the ActiveSlotNumber index in the Slots list in the
          * Forecast.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.4.1
          */
         duration: number;
 
         /**
          * This field shall indicate the cause of the request from the EMS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.4.2
          */
         cause: AdjustmentCause;
     };
@@ -1191,14 +1191,14 @@ export declare namespace DeviceEnergyManagement {
      * Allows a client to adjust the start time of a Forecast sequence that has not yet started operation (i.e. where
      * the current Forecast StartTime is in the future).
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.3
      */
     export declare class StartTimeAdjustRequest {
         constructor(values?: Partial<StartTimeAdjustRequest>);
 
         /**
          * This field shall indicate the requested start time, in UTC, that the client would like the appliance to shift
-         * its Forecast to. This value MUST be in the future.
+         * its Forecast to. This value shall be in the future.
          *
          * A client can estimate the entire Forecast sequence duration by computing the EndTime - StartTime fields from
          * the Forecast attribute, and therefore avoid scheduling the start time too late.
@@ -1206,14 +1206,14 @@ export declare namespace DeviceEnergyManagement {
          * This value shall be after the EarliestStartTime in the Forecast attribute. The new EndTime, that can be
          * computed from the RequestedStartTime and the Forecast sequence duration, shall be before the LatestEndTime.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.3.1
          */
         requestedStartTime: number;
 
         /**
          * This field shall indicate the cause of the request from the EMS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.3.2
          */
         cause: AdjustmentCause;
     };
@@ -1221,7 +1221,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * Allows a client to modify a Forecast within the limits allowed by the ESA.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6
      */
     export declare class ModifyForecastRequest {
         constructor(values?: Partial<ModifyForecastRequest>);
@@ -1229,7 +1229,7 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This field shall indicate the ForecastID that is to be modified.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6.1
          */
         forecastId: number;
 
@@ -1237,14 +1237,14 @@ export declare namespace DeviceEnergyManagement {
          * This field shall contain a list of SlotAdjustment parameters that should be modified in the corresponding
          * Forecast with matching ForecastID.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6.2
          */
         slotAdjustments: SlotAdjustment[];
 
         /**
          * This field shall indicate the cause of the request from the EMS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6.3
          */
         cause: AdjustmentCause;
     };
@@ -1252,7 +1252,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * Allows a client to ask the ESA to recompute its Forecast based on power and time constraints.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.7
      */
     export declare class RequestConstraintBasedForecastRequest {
         constructor(values?: Partial<RequestConstraintBasedForecastRequest>);
@@ -1272,14 +1272,14 @@ export declare namespace DeviceEnergyManagement {
          * that use more energy, it could be requested to use more or less energy using the LoadControl field as
          * follows:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.7.1
          */
         constraints: Constraints[];
 
         /**
          * This field shall indicate the cause of the request from the EMS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.7.2
          */
         cause: AdjustmentCause;
     };
@@ -1287,7 +1287,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * This event shall be generated when the Power Adjustment session ends.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2
      */
     export declare class PowerAdjustEndEvent {
         constructor(values?: Partial<PowerAdjustEndEvent>);
@@ -1295,14 +1295,14 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This field shall indicate the reason why the power adjustment session ended.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2.1
          */
         cause: Cause;
 
         /**
          * This field shall indicate the number of seconds that the power adjustment session lasted before ending.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2.2
          */
         duration: number;
 
@@ -1313,7 +1313,7 @@ export declare namespace DeviceEnergyManagement {
          * battery inverter that was requested to discharge it would have a negative EnergyUse value. If this was a
          * normal load that was turned on, then it will have positive value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2.3
          */
         energyUse: number | bigint;
     };
@@ -1321,7 +1321,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * This event shall be generated when the ESA leaves the Paused state and resumes operation.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.4
      */
     export declare class ResumedEvent {
         constructor(values?: Partial<ResumedEvent>);
@@ -1329,13 +1329,13 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This field shall indicate the reason why the pause ended.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.4.1
          */
         cause: Cause;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.1
      */
     export enum CostType {
         /**
@@ -1343,7 +1343,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * This value shall indicate that the cost is related to the financial cost to provide the energy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.1.1
          */
         Financial = 0,
 
@@ -1352,7 +1352,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * This value shall indicate that the cost is related to greenhouse gas emissions (in grams of CO2e).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.1.2
          */
         GhgEmissions = 1,
 
@@ -1365,7 +1365,7 @@ export declare namespace DeviceEnergyManagement {
          * hospital. Or the consumer may feel inconvenienced by the fact that they need to wait for the washing machine
          * to finish its load so that they can use it again.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.1.3
          */
         Comfort = 2,
 
@@ -1377,13 +1377,13 @@ export declare namespace DeviceEnergyManagement {
          *
          * This is expressed in degrees Celsius.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.1.4
          */
         Temperature = 3
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.5
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.5
      */
     export enum Cause {
         /**
@@ -1402,7 +1402,7 @@ export declare namespace DeviceEnergyManagement {
         Fault = 2,
 
         /**
-         * The user has disabled the ESA’s flexibility capability
+         * The user has disabled the ESA's flexibility capability
          */
         UserOptOut = 3,
 
@@ -1413,7 +1413,7 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.6
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.6
      */
     export enum AdjustmentCause {
         /**
@@ -1428,7 +1428,7 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.7
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.7
      */
     export enum ForecastUpdateReason {
         /**
@@ -1448,7 +1448,7 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.8
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.8
      */
     export enum PowerAdjustReason {
         /**
@@ -1471,7 +1471,7 @@ export declare namespace DeviceEnergyManagement {
      * This indicates a generic mechanism for expressing cost to run an appliance, in terms of financial, GHG emissions,
      * comfort value etc.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9
      */
     export declare class Cost {
         constructor(values?: Partial<Cost>);
@@ -1479,7 +1479,7 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This field shall indicate the type of cost being represented (see CostTypeEnum).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9.1
          */
         costType: CostType;
 
@@ -1489,7 +1489,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * For example, if the Value was -302 and DecimalPoints was 2, then this would represent a benefit of 3.02.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9.2
          */
         value: number;
 
@@ -1497,7 +1497,7 @@ export declare namespace DeviceEnergyManagement {
          * This field shall indicate the number of digits to the right of the decimal point in the Value field. For
          * example, if the Value was 102 and DecimalPoints was 2, then this would represent a cost of 1.02.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9.3
          */
         decimalPoints: number;
 
@@ -1507,13 +1507,13 @@ export declare namespace DeviceEnergyManagement {
          *
          * This is an optional field. It shall be included if CostType is Financial.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9.4
          */
         currency?: number;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10
      */
     export declare class PowerAdjust {
         constructor(values?: Partial<PowerAdjust>);
@@ -1524,7 +1524,7 @@ export declare namespace DeviceEnergyManagement {
          * Note that this is a signed value. Negative values indicate power flows out of the node (e.g. discharging a
          * battery).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10.1
          */
         minPower: number | bigint;
 
@@ -1544,7 +1544,7 @@ export declare namespace DeviceEnergyManagement {
          * In another example, if a battery storage inverter can charge its internal battery, between 0W and 2000W. Here
          * power is flowing into the node when charging. As such the MinPower becomes 0W and MaxPower becomes 2000W.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10.2
          */
         maxPower: number | bigint;
 
@@ -1553,7 +1553,7 @@ export declare namespace DeviceEnergyManagement {
          * adjustment. Manufacturers may use this to as an anti-cycling capability to avoid controllers from rapidly
          * making power adjustments.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10.3
          */
         minDuration: number;
 
@@ -1562,15 +1562,15 @@ export declare namespace DeviceEnergyManagement {
          * adjustment. Manufacturers may use this to protect the user experience, to avoid over heating of the ESA,
          * ensuring that there is sufficient headroom to use or store energy in the ESA or for any other reason.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10.4
          */
         maxDuration: number;
     };
 
     /**
-     * This indicates a specific stage of an ESA’s operation.
+     * This indicates a specific stage of an ESA's operation.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14
      */
     export declare class Slot {
         constructor(values?: Partial<Slot>);
@@ -1578,21 +1578,21 @@ export declare namespace DeviceEnergyManagement {
         /**
          * This field shall indicate the minimum time (in seconds) that the appliance expects to be in this slot for.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.1
          */
         minDuration: number;
 
         /**
          * This field shall indicate the maximum time (in seconds) that the appliance expects to be in this slot for.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.2
          */
         maxDuration: number;
 
         /**
          * This field shall indicate the expected time (in seconds) that the appliance expects to be in this slot for.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.3
          */
         defaultDuration: number;
 
@@ -1606,7 +1606,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * When the Forecast attribute is read, then this value shall be the most recent value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.4
          */
         elapsedSlotTime: number;
 
@@ -1623,14 +1623,14 @@ export declare namespace DeviceEnergyManagement {
          *
          * When the Forecast attribute is read, then this value shall be the most recent value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.5
          */
         remainingSlotTime: number;
 
         /**
          * This field shall indicate whether this slot can be paused.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.6
          */
         slotIsPausable?: boolean;
 
@@ -1639,14 +1639,14 @@ export declare namespace DeviceEnergyManagement {
          * controllers trying to pause ESAs for short periods and then resuming operation in a cyclic fashion which may
          * damage or cause excess energy to be consumed with restarting of an operation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.7
          */
         minPauseDuration?: number;
 
         /**
          * This field shall indicate the longest period that the slot can be paused for.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.8
          */
         maxPauseDuration?: number;
 
@@ -1665,14 +1665,14 @@ export declare namespace DeviceEnergyManagement {
          *
          * > [!NOTE]
          *
-         * > An ESA shall always use the same value to represent the same operating state.
+         * > NOTE: An ESA shall always use the same value to represent the same operating state.
          *
          * By providing this information a smart EMS may be able to learn the observed power draw when the ESA is put
          * into a specific state. It can potentially then use the ManufacturerESAState field in the Forecast attribute
          * along with observed power drawn to predict the power draw from the appliance and potentially ask it to modify
          * its timing via one of the adjustment request commands, or adjust other ESAs power to compensate.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.9
          */
         manufacturerEsaState?: number;
 
@@ -1681,7 +1681,7 @@ export declare namespace DeviceEnergyManagement {
          * considered the average value over the slot, and some variation from this would be expected (for example, as
          * it is ramping up).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.10
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.10
          */
         nominalPower?: number | bigint;
 
@@ -1691,7 +1691,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * Some appliances (e.g. battery inverters which can charge and discharge) may have a negative power.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.11
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.11
          */
         minPower?: number | bigint;
 
@@ -1701,7 +1701,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * Some appliances (e.g. battery inverters which can charge and discharge) may have a negative power.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.12
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.12
          */
         maxPower?: number | bigint;
 
@@ -1710,7 +1710,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * Some appliances (e.g. battery inverters which can charge and discharge) may have a negative energy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.13
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.13
          */
         nominalEnergy?: number | bigint;
 
@@ -1734,7 +1734,7 @@ export declare namespace DeviceEnergyManagement {
          * If the ESA cannot calculate its cost for any reason (such as losing its connection to a Price server) it may
          * omit this field. This is treated as extra meta data that an EMS may use to optimize a system.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.14
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.14
          */
         costs?: Cost[];
 
@@ -1745,7 +1745,7 @@ export declare namespace DeviceEnergyManagement {
          * the slot indicates a NominalPower of 0W (indicating it is expecting to be off), this allows an ESA to
          * indicate it could be switched on to charge, but this would be the minimum power limit it can be set to.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.15
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.15
          */
         minPowerAdjustment?: number | bigint;
 
@@ -1756,7 +1756,7 @@ export declare namespace DeviceEnergyManagement {
          * the slot indicates a NominalPower of 0W (indicating it is expecting to be off), this allows an ESA to
          * indicate it could be switched on to charge, but this would be the maximum power limit it can be set to.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.16
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.16
          */
         maxPowerAdjustment?: number | bigint;
 
@@ -1769,7 +1769,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * For example, a heat pump compressor may have a minimum cycle time of order a few minutes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.17
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.17
          */
         minDurationAdjustment?: number;
 
@@ -1782,13 +1782,13 @@ export declare namespace DeviceEnergyManagement {
          * which can be discharged, it may equally indicate the maximum time the battery could be discharged for (at the
          * MaxPowerAdjustment power level).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.18
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.18
          */
         maxDurationAdjustment?: number;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.15
      */
     export declare class SlotAdjustment {
         constructor(values?: Partial<SlotAdjustment>);
@@ -1798,28 +1798,28 @@ export declare namespace DeviceEnergyManagement {
          * be less than the actual length of the Slots list (implicitly it must be in the range 0 to 9 based on the
          * maximum length of the Slots list constraint).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.15.1
          */
         slotIndex: number;
 
         /**
-         * This field shall indicate the new requested power that the ESA shall operate at. It MUST be between the
+         * This field shall indicate the new requested power that the ESA shall operate at. It shall be between the
          * AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports PFR.
          *
          * This is a signed value and can be used to indicate charging or discharging.
          *
          * If the ESA does NOT support PFR this value shall be ignored by the ESA.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.15.2
          */
         nominalPower?: number | bigint;
 
         /**
          * This field shall indicate the new requested duration, in seconds, that the ESA shall extend or shorten the
-         * slot duration to. It MUST be between the MinDurationAdjustment and MaxDurationAdjustment for the slot as
+         * slot duration to. It shall be between the MinDurationAdjustment and MaxDurationAdjustment for the slot as
          * advertised by the ESA.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.15.3
          */
         duration: number;
     };
@@ -1829,7 +1829,7 @@ export declare namespace DeviceEnergyManagement {
      * perhaps excess solar PV). The format allows the client to suggest that the ESA can either turn up its energy
      * consumption, or turn down its energy consumption during this period.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16
+     * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16
      */
     export declare class Constraints {
         constructor(values?: Partial<Constraints>);
@@ -1838,27 +1838,27 @@ export declare namespace DeviceEnergyManagement {
          * This field shall indicate the start time of the constraint period that the client wishes the ESA to compute a
          * new Forecast.
          *
-         * This value is in UTC and MUST be in the future.
+         * This value is in UTC and shall be in the future.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16.1
          */
         startTime: number;
 
         /**
          * This field shall indicate the duration of the constraint in seconds.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16.2
          */
         duration: number;
 
         /**
          * This field shall indicate the nominal power that client wishes the ESA to operate at during the constrained
-         * period. It MUST be between the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports
-         * PFR.
+         * period. It shall be between the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it
+         * supports PFR.
          *
          * This is a signed value and can be used to indicate charging or discharging.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16.3
          */
         nominalPower?: number | bigint;
 
@@ -1868,7 +1868,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * This is a signed value and can be used to indicate charging or discharging.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16.4
          */
         maximumEnergy?: number | bigint;
 
@@ -1882,7 +1882,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * Note that the mapping between values and operation is manufacturer specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16.5
          */
         loadControl?: number;
     };

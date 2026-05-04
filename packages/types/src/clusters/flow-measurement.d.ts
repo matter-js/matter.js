@@ -16,7 +16,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster provides an interface to flow measurement functionality, including configuration and provision of
  * notifications of flow measurements.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.5
+ * @see {@link MatterSpecification.v151.Cluster} § 2.5
  */
 export declare namespace FlowMeasurement {
     /**
@@ -32,7 +32,7 @@ export declare namespace FlowMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the FlowMeasurement cluster.
@@ -53,7 +53,7 @@ export declare namespace FlowMeasurement {
          * The null value indicates that the flow measurement is unknown, otherwise the range shall be as described in
          * Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.1
          */
         measuredValue: number | null;
 
@@ -62,7 +62,7 @@ export declare namespace FlowMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.2
          */
         minMeasuredValue: number | null;
 
@@ -71,14 +71,14 @@ export declare namespace FlowMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.4
          */
         tolerance?: number;
     }
@@ -97,7 +97,7 @@ export declare namespace FlowMeasurement {
          * The null value indicates that the flow measurement is unknown, otherwise the range shall be as described in
          * Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.1
          */
         measuredValue: number | null;
 
@@ -106,7 +106,7 @@ export declare namespace FlowMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.2
          */
         minMeasuredValue: number | null;
 
@@ -115,14 +115,14 @@ export declare namespace FlowMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.5.4.4
          */
         tolerance: number;
     }

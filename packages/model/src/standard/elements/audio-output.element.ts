@@ -27,15 +27,8 @@ export const AudioOutput = Cluster(
         Field({ name: "entry", type: "OutputInfoStruct" })
     ),
     Attribute({ name: "CurrentOutput", id: 0x1, type: "uint8", access: "R V", conformance: "M" }),
-    Command(
-        { name: "SelectOutput", id: 0x0, access: "O", conformance: "M", direction: "request", response: "status" },
-        Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" })
-    ),
-    Command(
-        { name: "RenameOutput", id: 0x1, access: "M", conformance: "NU", direction: "request", response: "status" },
-        Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" }),
-        Field({ name: "Name", id: 0x1, type: "string", conformance: "M" })
-    ),
+    Command({ name: "SelectOutput", id: 0x0, access: "O", conformance: "M", direction: "request", response: "status" }),
+    Command({ name: "RenameOutput", id: 0x1, access: "M", conformance: "NU", direction: "request", response: "status" }),
 
     Datatype(
         { name: "OutputTypeEnum", type: "enum8" },
@@ -51,7 +44,7 @@ export const AudioOutput = Cluster(
         { name: "OutputInfoStruct", type: "struct" },
         Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" }),
         Field({ name: "OutputType", id: 0x1, type: "OutputTypeEnum", conformance: "M", constraint: "desc" }),
-        Field({ name: "Name", id: 0x2, type: "string", conformance: "M" })
+        Field({ name: "Name", id: 0x2, type: "string", conformance: "M", constraint: "max 32" })
     )
 );
 

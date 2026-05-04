@@ -18,7 +18,7 @@ import type { MaybePromise } from "@matter/general";
  * This cluster is derived from the Operational State cluster and provides an interface for monitoring the operational
  * state of an oven.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 8.10
+ * @see {@link MatterSpecification.v151.Cluster} § 8.10
  */
 export declare namespace OvenCavityOperationalState {
     /**
@@ -53,10 +53,10 @@ export declare namespace OvenCavityOperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
          */
         phaseList: string[] | null;
 
@@ -68,7 +68,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.2
          */
         currentPhase: number | null;
 
@@ -82,7 +82,7 @@ export declare namespace OvenCavityOperationalState {
          * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of states
          * that are applicable to that specific device type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.4
          */
         operationalStateList: OperationalState.OperationalStateStruct[];
 
@@ -90,18 +90,18 @@ export declare namespace OvenCavityOperationalState {
          * This attribute specifies the current operational state of a device. This shall be populated with a valid
          * OperationalStateID from the set of values in the OperationalStateList Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.5
          */
         operationalState: OperationalState.OperationalStateEnum;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.6
          */
         operationalError: OperationalState.ErrorStateStruct;
 
@@ -124,7 +124,7 @@ export declare namespace OvenCavityOperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -134,7 +134,7 @@ export declare namespace OvenCavityOperationalState {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.3
          */
         countdownTime?: number | null;
     }
@@ -151,10 +151,10 @@ export declare namespace OvenCavityOperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
          */
         phaseList: string[] | null;
 
@@ -166,7 +166,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.2
          */
         currentPhase: number | null;
 
@@ -180,7 +180,7 @@ export declare namespace OvenCavityOperationalState {
          * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of states
          * that are applicable to that specific device type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.4
          */
         operationalStateList: OperationalState.OperationalStateStruct[];
 
@@ -188,18 +188,18 @@ export declare namespace OvenCavityOperationalState {
          * This attribute specifies the current operational state of a device. This shall be populated with a valid
          * OperationalStateID from the set of values in the OperationalStateList Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.5
          */
         operationalState: OperationalState.OperationalStateEnum;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.6
          */
         operationalError: OperationalState.ErrorStateStruct;
 
@@ -222,7 +222,7 @@ export declare namespace OvenCavityOperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -232,7 +232,7 @@ export declare namespace OvenCavityOperationalState {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.3
          */
         countdownTime: number | null;
     }
@@ -242,12 +242,12 @@ export declare namespace OvenCavityOperationalState {
      */
     export interface BaseCommands {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.10.5
+         * @see {@link MatterSpecification.v151.Cluster} § 8.10.5
          */
         stop(): MaybePromise<OperationalCommandResponse>;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.10.5
+         * @see {@link MatterSpecification.v151.Cluster} § 8.10.5
          */
         start(): MaybePromise<OperationalCommandResponse>;
     }
@@ -267,7 +267,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.1
          */
         operationalError: OperationalState.OperationalErrorEvent;
 
@@ -282,7 +282,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2
          */
         operationCompletion?: OperationalState.OperationCompletionEvent;
     }
@@ -299,7 +299,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.1
          */
         operationalError: OperationalState.OperationalErrorEvent;
 
@@ -314,7 +314,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2
          */
         operationCompletion: OperationalState.OperationCompletionEvent;
     }
@@ -322,7 +322,7 @@ export declare namespace OvenCavityOperationalState {
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 8.10.5
+     * @see {@link MatterSpecification.v151.Cluster} § 8.10.5
      */
     export declare class OperationalCommandResponse {
         constructor(values?: Partial<OperationalCommandResponse>);
@@ -332,7 +332,7 @@ export declare namespace OvenCavityOperationalState {
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.5.1
          */
         commandResponseState: OperationalState.ErrorStateStruct;
     };

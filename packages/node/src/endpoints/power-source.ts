@@ -13,10 +13,12 @@ import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js
 import { Identity } from "@matter/general";
 
 /**
+ * A Power Source device type provides information about the source of power.
+ *
  * PowerSourceEndpoint requires PowerSource cluster but PowerSource is not added by default because you must select the
  * features your device supports. You can add manually using PowerSourceEndpoint.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 2.2
+ * @see {@link MatterSpecification.v151.Device} § 2.2
  */
 export interface PowerSourceEndpoint extends Identity<typeof PowerSourceEndpointDefinition> {}
 

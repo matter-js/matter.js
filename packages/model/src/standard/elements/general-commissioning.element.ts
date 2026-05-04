@@ -20,7 +20,8 @@ export const GeneralCommissioning = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "TC", conformance: "O", constraint: "0", title: "TermsAndConditions" })
+        Field({ name: "TC", conformance: "O", constraint: "0", title: "TermsAndConditions" }),
+        Field({ name: "NR", conformance: "P, O", constraint: "1", title: "NetworkRecovery" })
     ),
     Attribute({ name: "Breadcrumb", id: 0x0, type: "uint64", access: "RW VA", conformance: "M", default: 0 }),
     Attribute({
@@ -47,6 +48,15 @@ export const GeneralCommissioning = Cluster(
         default: true, quality: "N"
     }),
     Attribute({ name: "TcUpdateDeadline", id: 0x9, type: "uint32", access: "R A", conformance: "TC", quality: "X N" }),
+    Attribute({
+        name: "RecoveryIdentifier", id: 0xa, type: "octstr", access: "R M", conformance: "P, NR",
+        constraint: "8", default: { type: "bytes", value: "0" }, quality: "N"
+    }),
+    Attribute({
+        name: "NetworkRecoveryReason", id: 0xb, type: "NetworkRecoveryReasonEnum", access: "R M",
+        conformance: "P, NR", default: null, quality: "X"
+    }),
+    Attribute({ name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "P, O", default: false }),
 
     Command(
         {
@@ -119,6 +129,13 @@ export const GeneralCommissioning = Cluster(
         Field({ name: "Indoor", id: 0x0, conformance: "M" }),
         Field({ name: "Outdoor", id: 0x1, conformance: "M" }),
         Field({ name: "IndoorOutdoor", id: 0x2, conformance: "M" })
+    ),
+
+    Datatype(
+        { name: "NetworkRecoveryReasonEnum", type: "enum8" },
+        Field({ name: "Unspecified", id: 0x0, conformance: "M" }),
+        Field({ name: "Auth", id: 0x1, conformance: "M" }),
+        Field({ name: "Visibility", id: 0x2, conformance: "M" })
     ),
 
     Datatype(

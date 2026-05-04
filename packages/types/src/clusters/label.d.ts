@@ -15,7 +15,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster provides a feature to tag an endpoint with zero or more labels. This is a base cluster that requires a
  * derived cluster to create an instance.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.7
+ * @see {@link MatterSpecification.v151.Core} § 9.7
  */
 export declare namespace Label {
     /**
@@ -42,7 +42,7 @@ export declare namespace Label {
         /**
          * This is a list of string tuples. Each entry is a LabelStruct.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.7.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.7.5.1
          */
         labelList: LabelStruct[];
     }
@@ -54,7 +54,7 @@ export declare namespace Label {
         /**
          * This is a list of string tuples. Each entry is a LabelStruct.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.7.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.7.5.1
          */
         labelList: LabelStruct[];
     }
@@ -64,7 +64,7 @@ export declare namespace Label {
     /**
      * This is a string tuple with strings that are user defined.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.7.4.1
+     * @see {@link MatterSpecification.v151.Core} § 9.7.4.1
      */
     export declare class LabelStruct {
         constructor(values?: Partial<LabelStruct>);
@@ -74,7 +74,7 @@ export declare namespace Label {
          *
          * Label examples: "room", "zone", "group", "direction".
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.7.4.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.7.4.1.1
          */
         label: string;
 
@@ -84,7 +84,7 @@ export declare namespace Label {
          *
          * Label:Value examples: "room":"bedroom 2", "orientation":"North", "floor":"2", "direction":"up"
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.7.4.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.7.4.1.2
          */
         value: string;
     };

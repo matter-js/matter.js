@@ -27,7 +27,7 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
  * When this cluster is implemented for a Content App endpoint, the Video Player device containing the endpoint shall
  * launch the Content App when a client invokes the NavigateTarget command.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.11
+ * @see {@link MatterSpecification.v151.Cluster} § 6.11
  */
 export declare namespace TargetNavigator {
     /**
@@ -61,7 +61,7 @@ export declare namespace TargetNavigator {
          * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier in
          * the TargetInfoStruct object.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.5.1
          */
         targetList: TargetInfo[];
 
@@ -72,7 +72,7 @@ export declare namespace TargetNavigator {
          * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the TargetInfoStruct
          * objects in the TargetList attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.5.2
          */
         currentTarget?: number;
     }
@@ -88,7 +88,7 @@ export declare namespace TargetNavigator {
          * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier in
          * the TargetInfoStruct object.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.5.1
          */
         targetList: TargetInfo[];
 
@@ -99,7 +99,7 @@ export declare namespace TargetNavigator {
          * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the TargetInfoStruct
          * objects in the TargetList attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.5.2
          */
         currentTarget: number;
     }
@@ -111,7 +111,7 @@ export declare namespace TargetNavigator {
         /**
          * Upon receipt, this shall navigation the UX to the target identified.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.1
          */
         navigateTarget(request: NavigateTargetRequest): MaybePromise<NavigateTargetResponse>;
     }
@@ -129,7 +129,7 @@ export declare namespace TargetNavigator {
          * This event shall be generated when there is a change in either the active target or the list of available
          * targets or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.7.1
          */
         targetUpdated?: TargetUpdatedEvent;
     }
@@ -144,7 +144,7 @@ export declare namespace TargetNavigator {
          * This event shall be generated when there is a change in either the active target or the list of available
          * targets or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.7.1
          */
         targetUpdated: TargetUpdatedEvent;
     }
@@ -154,7 +154,7 @@ export declare namespace TargetNavigator {
     /**
      * This indicates an object describing the navigable target.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.2
      */
     export declare class TargetInfo {
         constructor(values?: Partial<TargetInfo>);
@@ -162,14 +162,14 @@ export declare namespace TargetNavigator {
         /**
          * This field shall contain an unique id within the TargetList.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.2.1
          */
         identifier: number;
 
         /**
          * This field shall contain a name string for the TargetInfoStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.2.2
          */
         name: string;
     };
@@ -177,7 +177,7 @@ export declare namespace TargetNavigator {
     /**
      * Upon receipt, this shall navigation the UX to the target identified.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.1
      */
     export declare class NavigateTargetRequest {
         constructor(values?: Partial<NavigateTargetRequest>);
@@ -186,14 +186,14 @@ export declare namespace TargetNavigator {
          * This field shall indicate the Identifier for the target for UX navigation. The Target shall be an Identifier
          * value contained within one of the TargetInfoStruct objects in the TargetList attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.1.1
          */
         target: number;
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.1.2
          */
         data?: string;
     };
@@ -201,7 +201,7 @@ export declare namespace TargetNavigator {
     /**
      * This command shall be generated in response to NavigateTarget command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.2
      */
     export declare class NavigateTargetResponse {
         constructor(values?: Partial<NavigateTargetResponse>);
@@ -209,14 +209,14 @@ export declare namespace TargetNavigator {
         /**
          * This field shall indicate the of the command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.2.1
          */
         status: Status;
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.2.2
          */
         data?: string;
     };
@@ -225,7 +225,7 @@ export declare namespace TargetNavigator {
      * This event shall be generated when there is a change in either the active target or the list of available targets
      * or both.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.7.1
      */
     export declare class TargetUpdatedEvent {
         constructor(values?: Partial<TargetUpdatedEvent>);
@@ -235,7 +235,7 @@ export declare namespace TargetNavigator {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.1
      */
     export enum Status {
         /**
@@ -257,7 +257,7 @@ export declare namespace TargetNavigator {
     /**
      * Thrown for cluster status code {@link Status.TargetNotFound}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.1
      */
     export class TargetNotFoundError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -266,7 +266,7 @@ export declare namespace TargetNavigator {
     /**
      * Thrown for cluster status code {@link Status.NotAllowed}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.1
      */
     export class NotAllowedError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)

@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const DimmableLightDt = DeviceType(
-    { name: "DimmableLight", id: 0x101, classification: "simple" },
+    { name: "DimmableLight", id: 0x101, type: "OnOffLight", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 257, revision: 3 } ], element: "attribute" })
@@ -20,10 +20,6 @@ export const DimmableLightDt = DeviceType(
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
     ),
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
-    Requirement(
-        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
-    ),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
         Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
@@ -38,6 +34,10 @@ export const DimmableLightDt = DeviceType(
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
     ),
 
+    Requirement(
+        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+    ),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" })
 );
 

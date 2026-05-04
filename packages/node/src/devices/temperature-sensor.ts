@@ -10,6 +10,9 @@ import {
     TemperatureMeasurementServer as BaseTemperatureMeasurementServer
 } from "../behaviors/temperature-measurement/TemperatureMeasurementServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import {
+    ThermostatUserInterfaceConfigurationServer as BaseThermostatUserInterfaceConfigurationServer
+} from "../behaviors/thermostat-user-interface-configuration/ThermostatUserInterfaceConfigurationServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -17,7 +20,7 @@ import { Identity } from "@matter/general";
 /**
  * A Temperature Sensor device reports measurements of temperature.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.4
+ * @see {@link MatterSpecification.v151.Device} § 7.4
  */
 export interface TemperatureSensorDevice extends Identity<typeof TemperatureSensorDeviceDefinition> {}
 
@@ -37,15 +40,26 @@ export namespace TemperatureSensorRequirements {
     export const IdentifyServer = BaseIdentifyServer;
 
     /**
+     * The ThermostatUserInterfaceConfiguration cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ThermostatUserInterfaceConfigurationServer} for
+     * convenience.
+     */
+    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { TemperatureMeasurement: TemperatureMeasurementServer, Identify: IdentifyServer } };
+    export const server = {
+        mandatory: { TemperatureMeasurement: TemperatureMeasurementServer, Identify: IdentifyServer },
+        optional: { ThermostatUserInterfaceConfiguration: ThermostatUserInterfaceConfigurationServer }
+    };
 }
 
 export const TemperatureSensorDeviceDefinition = MutableEndpoint({
     name: "TemperatureSensor",
     deviceType: 0x302,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: TemperatureSensorRequirements,
     behaviors: SupportedBehaviors(
         TemperatureSensorRequirements.server.mandatory.TemperatureMeasurement,

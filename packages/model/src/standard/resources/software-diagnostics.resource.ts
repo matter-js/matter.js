@@ -77,18 +77,7 @@ Resource.add({
                 "\n" +
                 "  - The StackFreeMinimum field of the ThreadMetrics attribute" +
                 "\n" +
-                "  - The CurrentHeapHighWatermark attribute" +
-                "\n" +
-                "### Effect on Receipt" +
-                "\n" +
-                "On receipt of this command, the Node shall make the following modifications to attributes it " +
-                "supports:" +
-                "\n" +
-                "If implemented, the server shall set the value of the CurrentHeapHighWatermark attribute to the " +
-                "value of the CurrentHeapUsed attribute." +
-                "\n" +
-                "If implemented, the server shall set the value of the StackFreeMinimum field for every thread to the " +
-                "value of the corresponding thread’s StackFreeCurrent field."
+                "  - The CurrentHeapHighWatermark attribute"
         },
 
         {

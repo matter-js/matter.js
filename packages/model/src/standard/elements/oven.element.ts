@@ -15,6 +15,7 @@ export const OvenDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 123, revision: 2 } ], element: "attribute" })
     ),
+    Requirement({ name: "Heater", type: "TemperatureControlledCabinet.Heater", conformance: "M", element: "condition" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType" }),
     Requirement({ name: "Cooktop", id: 0x78, conformance: "O", element: "deviceType" })

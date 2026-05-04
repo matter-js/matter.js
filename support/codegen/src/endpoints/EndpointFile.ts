@@ -113,7 +113,9 @@ export class EndpointFile extends TsFile {
         this.atom(`Object.freeze(${this.definitionName}Definition)`);
 
         this.addImport("!node/endpoint/properties/SupportedBehaviors.js", "SupportedBehaviors");
-        definition.atom(`requirements: ${this.requirementsName}`);
+        if (this.definitions.length) {
+            definition.atom(`requirements: ${this.requirementsName}`);
+        }
         const behaviors = definition.expressions("behaviors: SupportedBehaviors(", ")");
 
         if (requirements.default.length) {

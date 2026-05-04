@@ -21,7 +21,7 @@ import { Identity } from "@matter/general";
  * An On/Off Light Switch is a controller device that, when bound to a lighting device such as an On/Off Light, is
  * capable of being used to switch the device on or off.
  *
- * @see {@link MatterSpecification.v142.Device} § 6.1
+ * @see {@link MatterSpecification.v151.Device} § 6.1
  */
 export interface OnOffLightSwitchDevice extends Identity<typeof OnOffLightSwitchDeviceDefinition> {}
 

@@ -50,6 +50,17 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
     declare internal: AccessControlServer.Internal;
 
     override initialize() {
+        // Spec 1.5.1 tightened constraints to "4 to 65534" / "3 to 65534" — ensure valid defaults
+        if (!this.state.subjectsPerAccessControlEntry) {
+            this.state.subjectsPerAccessControlEntry = 4;
+        }
+        if (!this.state.targetsPerAccessControlEntry) {
+            this.state.targetsPerAccessControlEntry = 4;
+        }
+        if (!this.state.accessControlEntriesPerFabric) {
+            this.state.accessControlEntriesPerFabric = 4;
+        }
+
         this.reactTo(this.events.acl$Changing, this.#validateAccessControlListChanges); // Enhanced Validation
         this.reactTo(this.events.acl$Changed, this.#handleAccessControlListChange); // Event handling for changes
         if (this.state.extension !== undefined) {

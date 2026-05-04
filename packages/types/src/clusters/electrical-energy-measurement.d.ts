@@ -16,7 +16,7 @@ import type { MeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
  *
  * This cluster provides a mechanism for querying data about the electrical energy imported or provided by the server.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.12
+ * @see {@link MatterSpecification.v151.Cluster} § 2.12
  */
 export declare namespace ElectricalEnergyMeasurement {
     /**
@@ -32,7 +32,7 @@ export declare namespace ElectricalEnergyMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the ElectricalEnergyMeasurement cluster.
@@ -49,7 +49,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on this
          * MeasurementAccuracyStruct shall be ElectricalEnergy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.1
          */
         accuracy: MeasurementAccuracy;
     }
@@ -74,7 +74,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.2
          */
         cumulativeEnergyImported: EnergyMeasurement | null;
     }
@@ -99,7 +99,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.3
          */
         cumulativeEnergyExported: EnergyMeasurement | null;
     }
@@ -124,7 +124,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.4
          */
         periodicEnergyImported: EnergyMeasurement | null;
     }
@@ -149,7 +149,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.5
          */
         periodicEnergyExported: EnergyMeasurement | null;
     }
@@ -161,7 +161,7 @@ export declare namespace ElectricalEnergyMeasurement {
         /**
          * Indicates when cumulative measurements were most recently zero.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.6
          */
         cumulativeEnergyReset?: CumulativeEnergyReset | null;
     }
@@ -177,7 +177,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on this
          * MeasurementAccuracyStruct shall be ElectricalEnergy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.1
          */
         accuracy: MeasurementAccuracy;
 
@@ -196,7 +196,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.2
          */
         cumulativeEnergyImported: EnergyMeasurement | null;
 
@@ -215,7 +215,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.3
          */
         cumulativeEnergyExported: EnergyMeasurement | null;
 
@@ -234,7 +234,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.4
          */
         periodicEnergyImported: EnergyMeasurement | null;
 
@@ -253,14 +253,14 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.5
          */
         periodicEnergyExported: EnergyMeasurement | null;
 
         /**
          * Indicates when cumulative measurements were most recently zero.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.6.6
          */
         cumulativeEnergyReset: CumulativeEnergyReset | null;
     }
@@ -274,7 +274,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * server, exported from the server, or both, but not more frequently than the rate mentioned in the description
          * above of the related attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.1
          */
         cumulativeEnergyMeasured: CumulativeEnergyMeasuredEvent;
     }
@@ -287,7 +287,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * This event shall be generated when the server reaches the end of a reporting period for imported energy,
          * exported energy, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.2
          */
         periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
     }
@@ -304,7 +304,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * server, exported from the server, or both, but not more frequently than the rate mentioned in the description
          * above of the related attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.1
          */
         cumulativeEnergyMeasured: CumulativeEnergyMeasuredEvent;
 
@@ -312,7 +312,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * This event shall be generated when the server reaches the end of a reporting period for imported energy,
          * exported energy, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.2
          */
         periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
     }
@@ -339,12 +339,12 @@ export declare namespace ElectricalEnergyMeasurement {
         { flags: { periodicEnergy: true }, events: PeriodicEnergyEvents }
     ];
 
-    export type Features = "ImportedEnergy" | "ExportedEnergy" | "CumulativeEnergy" | "PeriodicEnergy";
+    export type Features = "ImportedEnergy" | "ExportedEnergy" | "CumulativeEnergy" | "PeriodicEnergy" | "ApparentEnergy" | "ReactiveEnergy";
 
     /**
      * These are optional features supported by ElectricalEnergyMeasurementCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.12.4
+     * @see {@link MatterSpecification.v151.Cluster} § 2.12.4
      */
     export enum Feature {
         /**
@@ -352,7 +352,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * The feature indicates the server is capable of measuring how much energy is imported by the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.4.1
          */
         ImportedEnergy = "ImportedEnergy",
 
@@ -361,7 +361,7 @@ export declare namespace ElectricalEnergyMeasurement {
          *
          * The feature indicates the server is capable of measuring how much energy is exported by the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.4.2
          */
         ExportedEnergy = "ExportedEnergy",
 
@@ -369,11 +369,11 @@ export declare namespace ElectricalEnergyMeasurement {
          * CumulativeEnergy (CUME)
          *
          * The feature indicates the server is capable of measuring how much energy has been imported or exported by the
-         * server over the device’s lifetime. This measurement may start from when a device’s firmware is updated to
-         * include this feature, when a device’s firmware is updated to correct measurement errors, or when a device is
+         * server over the device's lifetime. This measurement may start from when a device's firmware is updated to
+         * include this feature, when a device's firmware is updated to correct measurement errors, or when a device is
          * factory reset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.4.3
          */
         CumulativeEnergy = "CumulativeEnergy",
 
@@ -384,9 +384,23 @@ export declare namespace ElectricalEnergyMeasurement {
          * server during a certain period of time. The start and end times for measurement periods shall be determined
          * by the server, and may represent overlapping periods.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.4.4
          */
-        PeriodicEnergy = "PeriodicEnergy"
+        PeriodicEnergy = "PeriodicEnergy",
+
+        /**
+         * ApparentEnergy (APPE)
+         *
+         * Measurements report apparent energy
+         */
+        ApparentEnergy = "ApparentEnergy",
+
+        /**
+         * ReactiveEnergy (REAE)
+         *
+         * Measurements report reactive energy
+         */
+        ReactiveEnergy = "ReactiveEnergy"
     }
 
     /**
@@ -402,7 +416,7 @@ export declare namespace ElectricalEnergyMeasurement {
      * Elements using this data type shall indicate whether it represents cumulative or periodic energy, e.g. in the
      * name or in the element description.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2
      */
     export declare class EnergyMeasurement {
         constructor(values?: Partial<EnergyMeasurement>);
@@ -417,7 +431,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * during the period specified by either the StartTimestamp and EndTimestamp fields, the period specified by the
          * StartSystime and EndSystime fields, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.1
          */
         energy: number | bigint;
 
@@ -433,7 +447,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * Otherwise, if the server had not yet determined the time in UTC at or before the beginning of the measurement
          * period, or does not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.2
          */
         startTimestamp?: number;
 
@@ -447,7 +461,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * Otherwise, if the server had not yet determined the time in UTC by the end of the measurement period, or does
          * not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.3
          */
         endTimestamp?: number;
 
@@ -464,7 +478,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * this field may be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC time
          * indicated in StartTimestamp.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.4
          */
         startSystime?: number | bigint;
 
@@ -479,16 +493,46 @@ export declare namespace ElectricalEnergyMeasurement {
          * be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC time indicated in
          * EndTimestamp.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.5
          */
         endSystime?: number | bigint;
+
+        /**
+         * This field shall indicate the reported apparent energy.
+         *
+         * If the EnergyMeasurementStruct represents cumulative energy, then this shall represent the cumulative
+         * apparent energy recorded at either the value of the EndTimestamp field or the value of the EndSystime field,
+         * or both.
+         *
+         * If the EnergyMeasurementStruct represents periodic energy, then this shall represent the apparent energy
+         * recorded during the period specified by either the StartTimestamp and EndTimestamp fields, the period
+         * specified by the StartSystime and EndSystime fields, or both.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.6
+         */
+        apparentEnergy?: number | bigint;
+
+        /**
+         * This field shall be the reported reactive energy.
+         *
+         * If the EnergyMeasurementStruct represents cumulative energy, then this shall represent the cumulative
+         * reactive energy recorded at either the value of the EndTimestamp field or the value of the EndSystime field,
+         * or both.
+         *
+         * If the EnergyMeasurementStruct represents periodic energy, then this shall represent the reactive energy
+         * recorded during the period specified by either the StartTimestamp and EndTimestamp fields, the period
+         * specified by the StartSystime and EndSystime fields, or both.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.2.7
+         */
+        reactiveEnergy?: number | bigint;
     };
 
     /**
      * This struct shall represent the times at which cumulative measurements were last zero, either due to
      * initialization of the device, or an internal reset of the cumulative value.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.3
      */
     export declare class CumulativeEnergyReset {
         constructor(values?: Partial<CumulativeEnergyReset>);
@@ -507,7 +551,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * If the timestamp in UTC when the value of the Energy field on the CumulativeEnergyImported attribute was most
          * recently zero cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.3.1
          */
         importedResetTimestamp?: number | null;
 
@@ -525,7 +569,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * If the timestamp in UTC when the value of the Energy field on the CumulativeEnergyExported attribute was most
          * recently zero cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.3.2
          */
         exportedResetTimestamp?: number | null;
 
@@ -541,7 +585,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * CumulativeEnergyImported attribute was most recently zero, this field may be omitted; if it is indicated, its
          * value shall be the time elapsed since boot at the UTC time indicated in ImportedResetTimestamp.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.3.3
          */
         importedResetSystime?: number | bigint | null;
 
@@ -557,7 +601,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * CumulativeEnergyExported attribute was most recently zero, this field may be omitted; if it is indicated, its
          * value shall be the time elapsed since boot at the UTC time indicated in ImportedResetTimestamp.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.3.4
          */
         exportedResetSystime?: number | bigint | null;
     };
@@ -567,7 +611,7 @@ export declare namespace ElectricalEnergyMeasurement {
      * exported from the server, or both, but not more frequently than the rate mentioned in the description above of
      * the related attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.1
      */
     export declare class CumulativeEnergyMeasuredEvent {
         constructor(values?: Partial<CumulativeEnergyMeasuredEvent>);
@@ -576,7 +620,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * This field shall be the value of CumulativeEnergyImported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.1.1
          */
         energyImported?: EnergyMeasurement;
 
@@ -584,7 +628,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * This field shall be the value of CumulativeEnergyExported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.1.2
          */
         energyExported?: EnergyMeasurement;
     };
@@ -593,7 +637,7 @@ export declare namespace ElectricalEnergyMeasurement {
      * This event shall be generated when the server reaches the end of a reporting period for imported energy, exported
      * energy, or both.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.2
      */
     export declare class PeriodicEnergyMeasuredEvent {
         constructor(values?: Partial<PeriodicEnergyMeasuredEvent>);
@@ -602,7 +646,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * This field shall be the value of PeriodicEnergyImported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.2.1
          */
         energyImported?: EnergyMeasurement;
 
@@ -610,13 +654,13 @@ export declare namespace ElectricalEnergyMeasurement {
          * This field shall be the value of PeriodicEnergyExported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.12.7.2.2
          */
         energyExported?: EnergyMeasurement;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 2.12.5.1
      */
     export enum MeasurementType {
         Unspecified = 0,

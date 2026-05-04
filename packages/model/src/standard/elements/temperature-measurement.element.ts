@@ -11,10 +11,10 @@ import { ClusterElement as Cluster, AttributeElement as Attribute } from "../../
 
 export const TemperatureMeasurement = Cluster(
     { name: "TemperatureMeasurement", id: 0x402, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "temperature", access: "R V", conformance: "M",
-        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P"
+        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "MinMeasuredValue", id: 0x1, type: "temperature", access: "R V", conformance: "M",

@@ -51,7 +51,7 @@ Resource.add({
         },
         {
             tag: "attribute", name: "Rssi", xref: "core§11.15.6.5",
-            details: "Indicates the current RSSI of the Node’s Wi-Fi radio in dBm."
+            details: "Indicates the current RSSI of the Node's Wi-Fi radio in dBm."
         },
         {
             tag: "attribute", name: "BeaconLostCount", xref: "core§11.15.6.6",
@@ -97,7 +97,7 @@ Resource.add({
 
         {
             tag: "event", name: "Disconnection", xref: "core§11.15.8.1",
-            details: "The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a " +
+            details: "The Disconnection Event shall indicate that a Node's Wi-Fi connection has been disconnected as a " +
                 "result of de-authenticated or dis-association and indicates the reason.",
 
             children: [{
@@ -140,7 +140,7 @@ Resource.add({
 
         {
             tag: "event", name: "ConnectionStatus", xref: "core§11.15.8.3",
-            details: "The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has " +
+            details: "The ConnectionStatus Event shall indicate that a Node's connection status to a Wi-Fi network has " +
                 "changed. Connected, in this context, shall mean that a Node acting as a Wi-Fi station is " +
                 "successfully associated to a Wi-Fi Access Point."
         },

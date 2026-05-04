@@ -6,13 +6,13 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThermostatServer as BaseThermostatServer } from "../behaviors/thermostat/ThermostatServer.js";
 import {
     WaterHeaterManagementServer as BaseWaterHeaterManagementServer
 } from "../behaviors/water-heater-management/WaterHeaterManagementServer.js";
 import {
     WaterHeaterModeServer as BaseWaterHeaterModeServer
 } from "../behaviors/water-heater-mode/WaterHeaterModeServer.js";
+import { ThermostatServer as BaseThermostatServer } from "../behaviors/thermostat/ThermostatServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -24,18 +24,11 @@ import { Identity } from "@matter/general";
  * WaterHeaterDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
  * features your device supports. You can add manually using WaterHeaterDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 14.2
+ * @see {@link MatterSpecification.v151.Device} § 14.2
  */
 export interface WaterHeaterDevice extends Identity<typeof WaterHeaterDeviceDefinition> {}
 
 export namespace WaterHeaterRequirements {
-    /**
-     * The Thermostat cluster is required by the Matter specification.
-     *
-     * This version of {@link ThermostatServer} is specialized per the specification.
-     */
-    export const ThermostatServer = BaseThermostatServer.with("Heating");
-
     /**
      * The WaterHeaterManagement cluster is required by the Matter specification.
      *
@@ -51,6 +44,13 @@ export namespace WaterHeaterRequirements {
     export const WaterHeaterModeServer = BaseWaterHeaterModeServer;
 
     /**
+     * The Thermostat cluster is required by the Matter specification.
+     *
+     * This version of {@link ThermostatServer} is specialized per the specification.
+     */
+    export const ThermostatServer = BaseThermostatServer.with("Heating");
+
+    /**
      * The Identify cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
@@ -62,9 +62,9 @@ export namespace WaterHeaterRequirements {
      */
     export const server = {
         mandatory: {
-            Thermostat: ThermostatServer,
             WaterHeaterManagement: WaterHeaterManagementServer,
-            WaterHeaterMode: WaterHeaterModeServer
+            WaterHeaterMode: WaterHeaterModeServer,
+            Thermostat: ThermostatServer
         },
         optional: { Identify: IdentifyServer }
     };

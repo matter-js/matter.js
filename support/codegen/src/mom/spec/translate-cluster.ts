@@ -17,20 +17,20 @@ import {
 } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
+import { repairConformance } from "./repairs/aspect-repairs.js";
+import { ClusterReference, SpecReference, Table } from "./spec-types.js";
+import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
+import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
+    CompactStr,
     ConformanceCode,
     Identifier,
     Integer,
     LowerIdentifier,
-    NoSpace,
     Str,
     StrWithSuperscripts,
     UpperIdentifier,
-} from "./html-translators.js";
-import { repairConformance } from "./repairs/aspect-repairs.js";
-import { ClusterReference, HtmlReference, Table } from "./spec-types.js";
-import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
-import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+} from "./translators.js";
 
 const logger = Logger.get("translate-cluster");
 
@@ -45,6 +45,30 @@ export function* translateCluster(definition: ClusterReference) {
 
     const metadata = translateMetadata(definition, children);
     if (!metadata) {
+        if (definition.ids) {
+            // Section has a cluster ID table but IDs couldn't be parsed — likely a table format
+            // issue that needs a column alias fix in translateIds()
+            logger.error(`${definition.name} has a cluster ID section but no parseable IDs`);
+            return;
+        }
+
+        // Sections without cluster IDs (e.g. common/shared sections like "WebRTC Transport") contain
+        // datatypes shared across related clusters.  Emit as an abstract cluster (no ID) so the types
+        // have a home in the model without being duplicated into each consuming cluster.
+        translateDatatypes(definition, children);
+
+        if (children.length) {
+            const cluster = ClusterElement({
+                name: `${camelize(definition.name, true)}Definitions`,
+                xref: definition.xref,
+                children,
+            });
+
+            logCluster(cluster);
+            addDocumentation(cluster, definition);
+            yield cluster;
+        }
+
         return;
     }
 
@@ -91,7 +115,7 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
 
     const ids = translateIds();
     if (!ids) {
-        logger.warn(`no IDs for ${definition.name}, skipping`);
+        logger.debug(`no IDs for ${definition.name}, checking for shared datatypes`);
         return;
     }
 
@@ -137,8 +161,8 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
             // you're defining a standard?  Normalize to "id"
             //
             // Note that ID is optional because base clusters may have no ID
-            id: Alias(Str, "identifier"),
-            name: Identifier,
+            id: Alias(Str, "identifier", "clusterid"),
+            name: Alias(Identifier, "clustername"),
             pics: Optional(Alias(UpperIdentifier, "picscode")),
         });
 
@@ -243,7 +267,7 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
             name: Alias(UpperIdentifier, "code"),
 
             // We let Model handle translation to the proper type
-            default: Optional(Alias(NoSpace, "def", "fallback")),
+            default: Optional(Alias(CompactStr, "def", "fallback")),
         });
 
         for (const record of records) {
@@ -287,11 +311,12 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
 
     function translateCommands() {
         const records = translateTable("command", definition.commands, {
-            id: Integer,
-            name: Identifier,
+            id: Alias(Integer, "commandid"),
+            name: Alias(Identifier, "commandname"),
             direction: Optional(Str),
             response: Optional(Identifier),
             access: Optional(Str),
+            quality: Optional(Str),
             conformance: Optional(ConformanceCode),
             children: Details(translateValueChildren),
         });
@@ -299,7 +324,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
         const commands = translateRecordsToMatter("command", records, r => {
             let direction: CommandElement.Direction | undefined;
 
-            if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i)) {
+            if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i) || r.direction?.match(/client\s*<=\s*server/i)) {
                 direction = CommandElement.Direction.Response;
             } else if (r.direction?.match(/client.*server/i)) {
                 direction = CommandElement.Direction.Request;
@@ -335,6 +360,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             id: Integer,
             name: Identifier,
             priority: Optional(LowerIdentifier),
+            quality: Optional(Str),
             access: Optional(Str),
             conformance: Optional(ConformanceCode),
             children: Details(translateValueChildren),
@@ -403,7 +429,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
     //
     // So I think it's safe to say it's a spec bug and probably should have just handled with override, but keeping in
     // as a precaution since I put in the effort to implement
-    function extractAccessModifier(_tag: string, _parentRecord: Record<string, unknown>, definition: HtmlReference) {
+    function extractAccessModifier(_tag: string, _parentRecord: Record<string, unknown>, definition: SpecReference) {
         return accessModifierOf(definition);
     }
 }

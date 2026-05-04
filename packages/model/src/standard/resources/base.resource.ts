@@ -12,55 +12,50 @@ Resource.add({
     tag: "deviceType", name: "Base", xref: "device§1.1",
 
     children: [
+        { tag: "condition", name: "Ethernet", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "WiFi", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Thread", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Tcp", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Udp", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Ip", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "IPv4", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "IPv6", xref: "device§1.1.3.1" },
         {
-            tag: "field", name: "conditions",
-
-            children: [
-                { tag: "field", name: "Zha", description: "Zigbee Home Automation standard", xref: "device§1.1.3.1" },
-                { tag: "field", name: "Zse", description: "Zigbee Smart Energy standard", xref: "device§1.1.3.1" },
-                { tag: "field", name: "Gp", description: "Zigbee Green Power standard", xref: "device§1.1.3.1" },
-                { tag: "field", name: "Zigbee", description: "Zigbee standard", xref: "device§1.1.3.1" },
-                { tag: "field", name: "SuZi", description: "Zigbee PRO Sub-GHz standard", xref: "device§1.1.3.1" },
-                { tag: "field", name: "Matter", description: "Matter standard", xref: "device§1.1.3.1" },
-                {
-                    tag: "field", name: "LanguageLocale",
-                    description: "The node supports localization for conveying text to the user",
-                    xref: "device§1.1.3.3"
-                },
-                {
-                    tag: "field", name: "TimeLocale",
-                    description: "The node supports localization for conveying time to the user",
-                    xref: "device§1.1.3.3"
-                },
-                {
-                    tag: "field", name: "UnitLocale",
-                    description: "The node supports localization for conveying units of measure to the user",
-                    xref: "device§1.1.3.3"
-                },
-                {
-                    tag: "field", name: "Sit",
-                    description: "The node is a short idle time intermittently connected device", xref: "device§1.1.4"
-                },
-                {
-                    tag: "field", name: "Lit",
-                    description: "The node is a long idle time intermittently connected device", xref: "device§1.1.4"
-                },
-                {
-                    tag: "field", name: "Active", description: "The node is always able to communicate",
-                    xref: "device§1.1.4"
-                },
-                { tag: "field", name: "Node", xref: "device§1.1.5" },
-                { tag: "field", name: "App", xref: "device§1.1.5" },
-                { tag: "field", name: "Simple", xref: "device§1.1.5" },
-                { tag: "field", name: "Dynamic", xref: "device§1.1.5" },
-                { tag: "field", name: "Composed", xref: "device§1.1.5" },
-                { tag: "field", name: "Client", xref: "device§1.1.6" },
-                { tag: "field", name: "Server", xref: "device§1.1.6" },
-                { tag: "field", name: "Duplicate", xref: "device§1.1.6" },
-                { tag: "field", name: "BridgedPowerSourceInfo", xref: "device§1.1.6" }
-            ]
+            tag: "condition", name: "LanguageLocale",
+            description: "The node supports localization for conveying text to the user",
+            xref: "device§1.1.3.2"
         },
-
+        {
+            tag: "condition", name: "TimeLocale",
+            description: "The node supports localization for conveying time to the user",
+            xref: "device§1.1.3.2"
+        },
+        {
+            tag: "condition", name: "UnitLocale",
+            description: "The node supports localization for conveying units of measure to the user",
+            xref: "device§1.1.3.2"
+        },
+        {
+            tag: "condition", name: "Sit",
+            description: "The node is a short idle time intermittently connected device", xref: "device§1.1.4"
+        },
+        {
+            tag: "condition", name: "Lit",
+            description: "The node is a long idle time intermittently connected device", xref: "device§1.1.4"
+        },
+        {
+            tag: "condition", name: "Active", description: "The node is always able to communicate",
+            xref: "device§1.1.4"
+        },
+        { tag: "condition", name: "Node", xref: "device§1.1.5" },
+        { tag: "condition", name: "App", xref: "device§1.1.5" },
+        { tag: "condition", name: "Simple", xref: "device§1.1.5" },
+        { tag: "condition", name: "Dynamic", xref: "device§1.1.5" },
+        { tag: "condition", name: "Composed", xref: "device§1.1.5" },
+        { tag: "condition", name: "Client", xref: "device§1.1.6" },
+        { tag: "condition", name: "Server", xref: "device§1.1.6" },
+        { tag: "condition", name: "Duplicate", xref: "device§1.1.6" },
+        { tag: "condition", name: "BridgedPowerSourceInfo", xref: "device§1.1.6" },
         { tag: "requirement", name: "Descriptor", xref: "device§1.1.7" },
         { tag: "requirement", name: "Binding", xref: "device§1.1.7" },
         { tag: "requirement", name: "FixedLabel", xref: "device§1.1.7" },

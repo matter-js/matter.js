@@ -24,12 +24,13 @@ Resource.add({
         "such as a DVD Player, or a device that provides input to another device like a TV or computer " +
         "monitor." +
         "\n" +
-        "See Section 10.1, “Video Player Architecture” for additional Basic Video Player requirements " +
+        "See Section 10.1, \"Video Player Architecture\" for additional Basic Video Player requirements " +
         "relating to Video Player device endpoint composition, commissioning, feature representation in " +
         "clusters, and UI context.",
 
     children: [
         { tag: "requirement", name: "OnOff", xref: "device§10.2.4" },
+        { tag: "requirement", name: "Messages", xref: "device§10.2.4" },
         { tag: "requirement", name: "WakeOnLan", xref: "device§10.2.4" },
         { tag: "requirement", name: "Channel", xref: "device§10.2.4" },
         { tag: "requirement", name: "TargetNavigator", xref: "device§10.2.4" },
@@ -39,14 +40,9 @@ Resource.add({
         { tag: "requirement", name: "KeypadInput", xref: "device§10.2.4" },
         { tag: "requirement", name: "AudioOutput", xref: "device§10.2.4" },
         { tag: "requirement", name: "ContentControl", xref: "device§10.2.4" },
-        { tag: "requirement", name: "Messages", xref: "device§10.2.4" },
-
         {
-            tag: "field", name: "conditions",
-            children: [{
-                tag: "field", name: "PhysicalInputs", description: "The device has physical inputs for media.",
-                xref: "device§10.2.3"
-            }]
+            tag: "condition", name: "PhysicalInputs", description: "The device has physical inputs for media.",
+            xref: "device§10.2.3"
         }
     ]
 });

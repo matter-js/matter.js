@@ -19,7 +19,7 @@ Resource.add({
         "A history of revision numbers for a cluster specification release is listed in the Revision History " +
         "section for a cluster specification. Each new revision of a cluster specification shall specify a " +
         "new revision number incremented (by 1) from the last. The highest revision number in a cluster " +
-        "specification’s Revision History is the revision number for the cluster specification. Therefore, a " +
+        "specification's Revision History is the revision number for the cluster specification. Therefore, a " +
         "ClusterRevision attribute value shall be the (highest) revision number of the cluster specification " +
         "that has been implemented."
 });

@@ -17,6 +17,7 @@ export const CastingVideoClientDt = DeviceType(
     ),
     Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "clientCluster" }),
+    Requirement({ name: "Messages", id: 0x97, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "WakeOnLan", id: 0x503, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "Channel", id: 0x504, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "TargetNavigator", id: 0x505, conformance: "O", element: "clientCluster" }),
@@ -30,8 +31,7 @@ export const CastingVideoClientDt = DeviceType(
     Requirement({ name: "ApplicationBasic", id: 0x50d, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "ContentControl", id: 0x50f, conformance: "P, O", element: "clientCluster" }),
-    Requirement({ name: "ContentAppObserver", id: 0x510, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "Messages", id: 0x97, conformance: "O", element: "clientCluster" })
+    Requirement({ name: "ContentAppObserver", id: 0x510, conformance: "O", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(CastingVideoClientDt);

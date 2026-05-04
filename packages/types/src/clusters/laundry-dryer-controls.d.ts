@@ -15,7 +15,7 @@ import type { ClusterModel } from "@matter/model";
  *
  * This cluster provides a way to access options associated with the operation of a laundry dryer device type.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 8.9
+ * @see {@link MatterSpecification.v151.Cluster} § 8.9
  */
 export declare namespace LaundryDryerControls {
     /**
@@ -50,7 +50,7 @@ export declare namespace LaundryDryerControls {
          * in the SupportedDrynessLevels list. The list of dryness levels may change depending on the currently-selected
          * Laundry Dryer mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.9.5.1
          */
         supportedDrynessLevels: DrynessLevel[];
 
@@ -64,7 +64,7 @@ export declare namespace LaundryDryerControls {
          * INVALID_IN_STATE error shall be sent as the response. A value of null shall indicate that there will be no
          * dryness level setting for the current mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.9.5.2
          */
         selectedDrynessLevel: DrynessLevel | null;
     }
@@ -79,7 +79,7 @@ export declare namespace LaundryDryerControls {
          * in the SupportedDrynessLevels list. The list of dryness levels may change depending on the currently-selected
          * Laundry Dryer mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.9.5.1
          */
         supportedDrynessLevels: DrynessLevel[];
 
@@ -93,7 +93,7 @@ export declare namespace LaundryDryerControls {
          * INVALID_IN_STATE error shall be sent as the response. A value of null shall indicate that there will be no
          * dryness level setting for the current mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.9.5.2
          */
         selectedDrynessLevel: DrynessLevel | null;
     }
@@ -106,7 +106,7 @@ export declare namespace LaundryDryerControls {
      * It is up to the device manufacturer to determine the mapping between the enum values and the corresponding
      * temperature level.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.9.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 8.9.4.1
      */
     export enum DrynessLevel {
         /**

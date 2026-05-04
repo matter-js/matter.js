@@ -5,7 +5,7 @@
  */
 
 import { Bytes, InternalError, Logger, Millis, Seconds } from "@matter/general";
-import { Endpoint, NumberTag, ServerNode } from "@matter/main";
+import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
 import {
     AdministratorCommissioningServer,
     AirQualityServer,
@@ -617,7 +617,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     managedTransitionTimeHandling: true, // enable transition management
                 },
                 descriptor: {
-                    tagList: [NumberTag.One],
+                    tagList: [CommonNumberTag.One],
                 },
                 deviceEnergyManagementMode: {
                     supportedModes: [
@@ -1115,16 +1115,10 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     currentPositionLiftPercent100ths: 0,
                     currentPositionTiltPercent100ths: 0,
                     safetyStatus: {},
-                    currentPositionLift: 0,
-                    currentPositionTilt: 0,
                     numberOfActuationsLift: 0,
                     numberOfActuationsTilt: 0,
                     currentPositionLiftPercentage: 0,
                     currentPositionTiltPercentage: 0,
-                    physicalClosedLimitLift: 0,
-                    physicalClosedLimitTilt: 0,
-                    installedOpenLimitLift: 0,
-                    installedOpenLimitTilt: 0,
                 },
             },
         );
@@ -1136,7 +1130,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
             descriptor: {
                 tagList: [
                     {
-                        ...NumberTag.Two,
+                        ...CommonNumberTag.Two,
                         label: "EP2",
                     },
                 ],
@@ -1160,7 +1154,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 descriptor: {
                     tagList: [
                         {
-                            ...NumberTag.Three,
+                            ...CommonNumberTag.Three,
                             label: "EP3",
                         },
                     ],
@@ -1191,7 +1185,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 descriptor: {
                     tagList: [
                         {
-                            ...NumberTag.Four,
+                            ...CommonNumberTag.Four,
                             label: "EP4",
                         },
                     ],
