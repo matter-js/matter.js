@@ -85,6 +85,8 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
             },
             network: {
                 port: 5540,
+                tcp: true,
+                transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
                 //advertiseOnStartup: false,
             },
             commissioning: {
