@@ -14,7 +14,12 @@ import {
     UnitLocalizationServer,
     UserLabelServer,
 } from "@matter/main/behaviors";
-import { AdministratorCommissioning, BasicInformation, TimeFormatLocalization } from "@matter/main/clusters";
+import {
+    AdministratorCommissioning,
+    BasicInformation,
+    NetworkCommissioning,
+    TimeFormatLocalization,
+} from "@matter/main/clusters";
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, VendorId } from "@matter/main/types";
 import { TestGeneralDiagnosticsServer } from "../cluster/TestGeneralDiagnosticsServer.js";
@@ -150,6 +155,9 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
                       maxNetworks: 1,
                       interfaceEnabled: true,
                       networks: [],
+                      supportedWiFiBands: [NetworkCommissioning.WiFiBand["2G4"]],
+                      scanMaxTimeSeconds: 1,
+                      connectMaxTimeSeconds: 1,
                   }
                 : {
                       maxNetworks: 1,
