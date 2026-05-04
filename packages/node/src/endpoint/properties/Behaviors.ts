@@ -686,6 +686,16 @@ export class Behaviors {
     }
 
     /**
+     * @throws ImplementationError if the behavior is not supported.
+     */
+    backingFor(type: Behavior.Type): BehaviorBacking {
+        if (!this.has(type)) {
+            throw new ImplementationError(`Endpoint ${this.#endpoint} does not support behavior ${type.id}`);
+        }
+        return this.#backingFor(type);
+    }
+
+    /**
      * Access elements supported by a behavior.
      */
     elementsOf(type: Behavior.Type): SupportedElements {
@@ -821,7 +831,17 @@ export class Behaviors {
     #augmentEndpoint(type: Behavior.Type) {
         const { id, Events } = type;
 
-        const get = () => this.#backingFor(type).stateView;
+        // Descriptors persist across the lifetime of the Behaviors instance (constructor + inject install them and
+        // close does not remove them so reuse paths like factory-reset can re-activate the same getter).  Returning
+        // undefined for endpoints that are tearing down keeps post-close access from re-entering #backingFor on a
+        // missing backing and surfacing a misleading BehaviorInitializationError.
+        const get = () => {
+            const status = this.#endpoint.construction.status;
+            if (status === Lifecycle.Status.Destroying || status === Lifecycle.Status.Destroyed) {
+                return undefined;
+            }
+            return this.#backingFor(type).stateView;
+        };
         Object.defineProperty(this.#endpoint.state, id, { get, enumerable: true, configurable: true });
         if (type.schema.id !== undefined) {
             Object.defineProperty(this.#endpoint.state, type.schema.id, { get, configurable: true });

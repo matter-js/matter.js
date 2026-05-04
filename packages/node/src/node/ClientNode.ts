@@ -20,6 +20,7 @@ import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
+    DependencyLifecycleError,
     Diagnostic,
     Identity,
     ImplementationError,
@@ -47,6 +48,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter: MatterModel;
     #interaction?: ClientNodeInteraction;
     #blockInteractions = false;
+    #cachedPeerAddress?: PeerAddress;
 
     constructor(options: ClientNode.Options) {
         const opts = {
@@ -68,9 +70,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.#matter = options.matter ?? Matter;
     }
 
-    get isGroup() {
-        return false;
-    }
+    override readonly nodeType: "client" | "group" = "client";
 
     /**
      * Model of Matter semantics understood by this node.
@@ -206,14 +206,15 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     protected async eraseWithMutex() {
-        // First, ensure we're offline
         await this.cancelWithMutex();
-
-        // Then reset
         await super.resetWithMutex();
-
-        // and erase
+        this.#cachedPeerAddress = undefined;
         await this.env.get(EndpointInitializer).eraseDescendant(this);
+    }
+
+    protected override async resetWithMutex() {
+        this.#cachedPeerAddress = undefined;
+        await super.resetWithMutex();
     }
 
     protected createRuntime(): NetworkRuntime {
@@ -274,15 +275,32 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     get peerAddress(): PeerAddress | undefined {
-        // If commissioned, use the peer address for logging purposes
-        let address = PeerAddress(this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined);
-
-        // During early initialization commissioning state may not be loaded, so check directly in storage too
-        if (!address) {
-            address = PeerAddress(this.store.storeForEndpoint(this).peerAddress as PeerAddress | undefined);
+        // Whenever the commissioning backing is loaded its state is authoritative - mirror it (set or cleared)
+        // so the cache cannot survive a decommission as a stale value
+        const state = this.behaviors.maybeStateOf("commissioning");
+        if (state !== undefined) {
+            const live = PeerAddress(state.peerAddress as PeerAddress | undefined);
+            this.#cachedPeerAddress = live;
+            return live;
         }
 
-        return address;
+        if (this.#cachedPeerAddress !== undefined) {
+            return this.#cachedPeerAddress;
+        }
+
+        // Backing not yet loaded; consult storage directly, tolerating teardown
+        try {
+            const stored = PeerAddress(this.store.storeForEndpoint(this).peerAddress as PeerAddress | undefined);
+            if (stored !== undefined) {
+                this.#cachedPeerAddress = stored;
+                return stored;
+            }
+        } catch (error) {
+            DependencyLifecycleError.accept(error);
+            logger.info("Cannot resolve peer address from storage:", error);
+        }
+
+        return undefined;
     }
 
     override get identity() {
