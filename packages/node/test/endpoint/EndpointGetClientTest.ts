@@ -67,10 +67,11 @@ describe("Endpoint.get on a client endpoint", () => {
         expect(result).to.deep.equal({});
     });
 
-    // The `fabricFilter` option threads through to the protocol Read on client-side reads
-    // (`Endpoint.ts:1069`). Server-side reads ignore it (hardcoded false at line 1120). This test
-    // covers the option's plumbing on the client path: passing `fabricFilter: false` must not
-    // throw and must still return a usable slice.
+    // The `fabricFilter` option threads through to the protocol Read on the client branch of
+    // `Endpoint.#performRead`. The server branch ignores it (the request is built with
+    // `fabricFilter: false` unconditionally). This test covers the option's plumbing on the
+    // client path: passing `fabricFilter: false` must not throw and must still return a usable
+    // slice.
     it("accepts the fabricFilter option on the client read path", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
