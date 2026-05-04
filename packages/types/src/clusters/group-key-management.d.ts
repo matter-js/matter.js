@@ -43,7 +43,7 @@ export declare namespace GroupKeyManagement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 2;
+    export const revision: 3;
 
     /**
      * Canonical metadata for the GroupKeyManagement cluster.
@@ -188,7 +188,7 @@ export declare namespace GroupKeyManagement {
     export interface Commands extends BaseCommands {}
 
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
-    export type Features = "CacheAndSync";
+    export type Features = "CacheAndSync" | "Groupcast";
 
     /**
      * These are optional features supported by GroupKeyManagementCluster.
@@ -201,7 +201,15 @@ export declare namespace GroupKeyManagement {
          *
          * The ability to support CacheAndSync security policy and MCSP.
          */
-        CacheAndSync = "CacheAndSync"
+        CacheAndSync = "CacheAndSync",
+
+        /**
+         * Groupcast (GCAST)
+         *
+         * When set, group management is done using the Groupcast cluster. This cluster is used solely for key
+         * management.
+         */
+        Groupcast = "Groupcast"
     }
 
     /**

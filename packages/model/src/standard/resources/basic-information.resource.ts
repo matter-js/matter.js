@@ -388,6 +388,31 @@ Resource.add({
                         "\n" +
                         "This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, \"Subscribe " +
                         "Transaction\"."
+                },
+
+                {
+                    tag: "field", name: "SimultaneousInvocationsSupported",
+                    details: "This field shall indicate the actual maximum number of concurrent Invoke interactions that can be " +
+                        "processed simultaneously by the node before possibly returning a BUSY status code."
+                },
+                {
+                    tag: "field", name: "SimultaneousWritesSupported",
+                    details: "This field shall indicate the actual minimum number of concurrent Write interactions that can be " +
+                        "processed simultaneously by the node before possibly returning a BUSY status code."
+                },
+
+                {
+                    tag: "field", name: "ReadPathsSupported",
+                    details: "This field shall indicate the actual maximum number of read paths (i.e. the sum of lengths of the " +
+                        "lists of AttributePathIB and EventPathIB in the action) which a node guarantees being able to " +
+                        "process in any Read Request Action."
+                },
+
+                {
+                    tag: "field", name: "SubscribePathsSupported",
+                    details: "This field shall indicate the actual maximum number of subscription paths (i.e. the sum of lengths " +
+                        "of the lists of AttributePathIB and EventPathIB in the action) which a node guarantees being able to " +
+                        "process in any Subscribe Request Action."
                 }
             ]
         }

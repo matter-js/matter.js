@@ -8,6 +8,7 @@ import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/Messa
 import { Mark } from "#common/Mark.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
+import { GroupSession } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager, ShutdownError } from "#session/SessionManager.js";
@@ -36,7 +37,8 @@ import {
     UdpTransport,
     UnexpectedDataError,
 } from "@matter/general";
-import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
+import { FabricIndex, GroupId, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { MRP } from "./MRP.js";
@@ -127,8 +129,8 @@ export class ExchangeManager implements Transport.Provider {
         return this.#transports.hasInterfaceFor(type, address);
     }
 
-    initiateExchange(address: PeerAddress, protocolId: number) {
-        return this.initiateExchangeForSession(this.#sessions.sessionFor(address), protocolId);
+    initiateExchange(address: PeerAddress, protocolId: number, options?: MessageExchange.Options) {
+        return this.initiateExchangeForSession(this.#sessions.sessionFor(address), protocolId, options);
     }
 
     initiateExchangeForSession(session: Session, protocolId: number, options?: MessageExchange.Options) {
@@ -264,6 +266,12 @@ export class ExchangeManager implements Transport.Provider {
             } catch (e) {
                 DuplicateMessageError.accept(e);
                 isDuplicate = true;
+                // Report replay for Groupcast testing — observable is a no-op without listeners.
+                this.#sessions.emitGroupMessage({
+                    result: Groupcast.GroupcastTestResult.MessageReplay,
+                    fabric: (session as GroupSession).fabric,
+                    groupId: packet.header.destGroupId !== undefined ? GroupId(packet.header.destGroupId) : undefined,
+                });
             }
         } else {
             throw new MatterFlowError(`Unsupported session type: ${packet.header.sessionType}`);

@@ -1287,6 +1287,7 @@ describe("InteractionProtocol", () => {
                     authMode: 2,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex), // Set from session
                 },
                 {
@@ -1294,6 +1295,7 @@ describe("InteractionProtocol", () => {
                     authMode: 3,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex), // existing value 2, we override hard
                 },
             ]);
@@ -1409,6 +1411,7 @@ describe("InteractionProtocol", () => {
                     authMode: 2,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex),
                 },
                 {
@@ -1416,6 +1419,7 @@ describe("InteractionProtocol", () => {
                     authMode: 3,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex),
                 },
             ]);

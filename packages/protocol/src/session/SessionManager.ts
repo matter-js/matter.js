@@ -12,10 +12,11 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
-import { GroupSession } from "#session/GroupSession.js";
+import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
     BasicSet,
     Bytes,
+    causedBy,
     Channel,
     ClosedError,
     Construction,
@@ -39,7 +40,8 @@ import {
     Transport,
     UnexpectedDataError,
 } from "@matter/general";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
+import { CaseAuthenticatedTag, ClusterId, EndpointNumber, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
@@ -100,6 +102,24 @@ export interface ActiveSessionInformation {
 }
 
 /**
+ * Metadata about a received group message, emitted via {@link SessionManager.onGroupMessage} for Groupcast testing.
+ * Uses {@link Groupcast.GroupcastTestResult} directly so consumers can forward the value without mapping.
+ */
+export interface GroupMessageEventInfo {
+    result: Groupcast.GroupcastTestResult;
+    fabric?: Fabric;
+    groupId?: GroupId;
+    sourceIp?: string;
+    destIp?: string;
+    endpointId?: EndpointNumber;
+    clusterId?: ClusterId;
+    elementId?: number;
+
+    /** Whether the ACL granted access for the dispatched command (only set for Success). */
+    accessAllowed?: boolean;
+}
+
+/**
  * Interfaces {@link SessionManager} with other components.
  */
 export interface SessionManagerContext {
@@ -149,6 +169,7 @@ export class SessionManager {
 
     readonly #subscriptionsChanged = Observable<[session: NodeSession, subscription: Subscription]>();
     readonly #retry = Observable<[session: Session, number: number]>();
+    readonly #onGroupMessage = Observable<[info: GroupMessageEventInfo]>();
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
@@ -261,6 +282,14 @@ export class SessionManager {
      */
     get retry() {
         return this.#retry;
+    }
+
+    /**
+     * Emits for each received group message (success or failure).  Observers remain inactive until at least one
+     * listener attaches, so fabrics not under test incur no emission overhead.
+     */
+    get onGroupMessage() {
+        return this.#onGroupMessage;
     }
 
     /**
@@ -551,17 +580,27 @@ export class SessionManager {
      * result in an error.
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
-        const groupId = packet.header.destGroupId;
-        if (groupId === undefined) {
+        const rawGroupId = packet.header.destGroupId;
+        if (rawGroupId === undefined) {
             throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
         }
-        GroupId.assertGroupId(GroupId(groupId));
+        const groupId = GroupId(rawGroupId);
+        GroupId.assertGroupId(groupId);
 
-        const { message, key, sessionId, sourceNodeId, keySetId, fabric } = GroupSession.decode(
-            this.#context.fabrics,
-            packet,
-            aad,
-        );
+        let decoded;
+        try {
+            decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
+        } catch (error) {
+            // Emit Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.
+            if (causedBy(error, GroupSessionNoKeyError)) {
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey, groupId });
+            } else if (causedBy(error, GroupSessionDecodeError)) {
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth, groupId });
+            }
+            throw error;
+        }
+
+        const { message, key, sessionId, sourceNodeId, keySetId, fabric } = decoded;
 
         let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
         if (session === undefined) {
@@ -572,10 +611,16 @@ export class SessionManager {
                 keySetId,
                 operationalGroupKey: key,
                 peerNodeId: sourceNodeId,
+                multicastAddress: fabric.groups.multicastAddressFor(groupId),
             });
         }
 
         return { session, message, key };
+    }
+
+    /** Report a group message event (used by ExchangeManager for replay and InteractionServer for dispatch). */
+    emitGroupMessage(info: GroupMessageEventInfo) {
+        this.#onGroupMessage.emit(info);
     }
 
     registerGroupSession(session: GroupSession) {

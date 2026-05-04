@@ -59,6 +59,21 @@ export class BasicInformationServer extends Base {
         setDefault("softwareVersionString", state.softwareVersion.toString());
         setDefault("specificationVersion", Specification.SPECIFICATION_VERSION);
         setDefault("maxPathsPerInvoke", DEFAULT_MAX_PATHS_PER_INVOKE);
+
+        // Set defaults for new CapabilityMinima fields (Matter 1.6 Rev 6 TCR extension).
+        // These reflect conservative but valid minimums for matter.js implementations.
+        // Use nullish coalescing so existing state values take priority but undefined is treated as unset.
+        // TODO add reasonable defaults for us
+        // TODO use these limits in all relevant places also as limits
+        const capabilityMinima = this.state.capabilityMinima;
+        this.state.capabilityMinima = {
+            ...capabilityMinima,
+            simultaneousInvocationsSupported: capabilityMinima.simultaneousInvocationsSupported ?? 6,
+            simultaneousWritesSupported: capabilityMinima.simultaneousWritesSupported ?? 4,
+            readPathsSupported: capabilityMinima.readPathsSupported ?? 9,
+            subscribePathsSupported: capabilityMinima.subscribePathsSupported ?? 3,
+        };
+
         if (this.state.uniqueId === undefined) {
             this.state.uniqueId = BasicInformationServer.createUniqueId();
         }

@@ -25,8 +25,14 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "FeatureMap", xref: "core§11.2.4",
+
             children: [
-                { tag: "field", name: "CS", details: "The ability to support CacheAndSync security policy and MCSP." }
+                { tag: "field", name: "CS", details: "The ability to support CacheAndSync security policy and MCSP." },
+                {
+                    tag: "field", name: "GCAST",
+                    details: "When set, group management is done using the Groupcast cluster. This cluster is used solely for key " +
+                        "management."
+                }
             ]
         },
 

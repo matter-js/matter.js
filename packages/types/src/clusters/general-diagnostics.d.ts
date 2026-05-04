@@ -35,7 +35,7 @@ export declare namespace GeneralDiagnostics {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 2;
+    export const revision: 3;
 
     /**
      * Canonical metadata for the GeneralDiagnostics cluster.
@@ -144,6 +144,11 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.6.8
          */
         activeNetworkFaults?: NetworkFault[];
+
+        /**
+         * This attribute shall indicate the status of various resources used.
+         */
+        deviceLoadStatus?: DeviceLoad;
     }
 
     /**
@@ -249,6 +254,11 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.6.8
          */
         activeNetworkFaults: NetworkFault[];
+
+        /**
+         * This attribute shall indicate the status of various resources used.
+         */
+        deviceLoadStatus: DeviceLoad;
     }
 
     /**
@@ -645,6 +655,40 @@ export declare namespace GeneralDiagnostics {
          */
         ConnectionFailed = 3
     }
+
+    export declare class DeviceLoad {
+        constructor(values?: Partial<DeviceLoad>);
+
+        /**
+         * This field shall indicate the number of currently-active Interaction Model subscriptions across all fabrics
+         * on the node.
+         */
+        currentSubscriptions: number;
+
+        /**
+         * This field shall indicate the number of currently-active Interaction Model subscriptions for the accessing
+         * fabric only. If no accessing fabric is available, this field shall be set to zero.
+         */
+        currentSubscriptionsForFabric: number;
+
+        /**
+         * This field shall indicate the total number of Interaction Model subscriptions successfully established across
+         * all fabrics on the node since start-up.
+         */
+        totalSubscriptionsEstablished: number;
+
+        /**
+         * This field shall indicate the number of outgoing Interaction Model protocol messages sent since start-up,
+         * excluding any retries of such messages.
+         */
+        totalInteractionModelMessagesSent: number;
+
+        /**
+         * This field shall indicate the number of incoming Interaction Model protocol messages received since start-up,
+         * excluding any retries of such messages.
+         */
+        totalInteractionModelMessagesReceived: number;
+    };
 
     /**
      * This command shall be supported to provide a means for certification tests to trigger some test-plan-specific
