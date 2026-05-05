@@ -45,6 +45,7 @@ const Values = {
     singleUseSubject: false,
     closers: Array<() => Promise<void>>(),
     subjects: new Map<Subject.Factory, Record<string, Subject>>(),
+    subjectsByApp: new Map<string, Subject.Factory>(),
     snapshots: new Map<Subject, {}>(),
     containerLifecycleInstalled: false,
     testMap: new Map<TestDescriptor, Test>(),
@@ -80,6 +81,17 @@ export const State = {
         }
 
         return subject;
+    },
+
+    registerSubjectForApp(app: string, factory: Subject.Factory) {
+        if (Values.subjectsByApp.has(app)) {
+            throw new Error(`Subject factory already registered for app "${app}"`);
+        }
+        Values.subjectsByApp.set(app, factory);
+    },
+
+    subjectForApp(app: string): Subject.Factory | undefined {
+        return Values.subjectsByApp.get(app);
     },
 
     get pullBeforeTesting() {

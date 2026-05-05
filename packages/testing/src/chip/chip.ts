@@ -66,6 +66,14 @@ export interface Chip {
     defaultSubject: Subject.Factory;
 
     /**
+     * Register a {@link Subject.Factory} for a chip-test-header app name (e.g. `"all-clusters"`,
+     * `"all-devices"`). When a test descriptor has an `app` field set by the descriptor generator,
+     * the framework dispatches to the registered factory automatically. Manual `.subject(...)`
+     * overrides on a builder still take precedence over the registry.
+     */
+    subjectFor(app: string, factory: Subject.Factory): void;
+
+    /**
      * Clear the MDNS cache.
      */
     clearMdns(): Promise<void>;
@@ -323,6 +331,12 @@ Object.defineProperties(chipFn, {
     defaultSubject: {
         set(subject: Subject.Factory) {
             State.subject = subject;
+        },
+    },
+
+    subjectFor: {
+        value: (app: string, factory: Subject.Factory) => {
+            State.registerSubjectForApp(app, factory);
         },
     },
 
