@@ -80,8 +80,9 @@ function printDescriptor(descriptor: TestDescriptor, includeDisabled?: boolean, 
             title = `${title} ${colors.cyan(`(${steps} steps)`)}`;
         }
 
-        if (member.app) {
-            title = `${title} ${colors.magenta(`[${member.app}]`)}`;
+        const app = member.app ?? (member.config?.["app"] as string | undefined);
+        if (app) {
+            title = `${title} ${colors.magenta(`[${app}]`)}`;
         }
 
         if (member.pics) {
