@@ -211,6 +211,21 @@ jobs:
           test-group: app-cc-2
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
+  test-diag:
+    # Diagnostic-only — runs a single chip test with --all-logs to capture full chip subprocess output.
+    # Allowed to fail; intended for triage of test_TC_LVL_9_1 against newer chip pins.
+    needs: [workflow-conditions, chip-image]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/run-chip-tests
+        with:
+          image-source: ${{ needs.chip-image.outputs.source }}
+          test-group: diag
+
   # Publish if this is nightly run or triggered manually
   # TODO - create PR to commit SHA from chip-image action?
   publish-image:
