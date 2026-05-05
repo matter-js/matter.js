@@ -584,7 +584,11 @@ async function configureLocalController() {
 }
 
 /**
- * Obtain a subject.  Subjects are qualified by factory, test domain, and per-run appArgs.
+ * Obtain a subject.  Subjects are qualified by factory and test domain.
+ *
+ * appArgs are forwarded to the factory only on first construct — subsequent restores reuse the cached subject so
+ * commissioning/fabric stays stable across runs that share a factory (chip multi-run tests often differ only in
+ * script-side flags like --app-pipe / --test-case which the in-process subject does not care about).
  */
 function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"], appArgs?: string[]) {
     let forFactory = Values.subjects.get(factory);
@@ -592,12 +596,9 @@ function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"], app
         Values.subjects.set(factory, (forFactory = {}));
     }
 
-    // Different per-run app-args yield different subjects; \x1f keeps joined args distinct from arg content.
-    const cacheKey = appArgs?.length ? `${kind}\x1f${appArgs.join("\x1f")}` : kind;
-
-    let subject = forFactory[cacheKey];
+    let subject = forFactory[kind];
     if (subject === undefined) {
-        subject = forFactory[cacheKey] = factory(kind, { appArgs });
+        subject = forFactory[kind] = factory(kind, { appArgs });
     }
 
     return subject;
