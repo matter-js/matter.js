@@ -119,7 +119,9 @@ export abstract class Certificate<CT extends MatterCertificate> {
      * Serialize as DER without signature.
      */
     asUnsignedDer(): Bytes {
-        // Serialize
+        if (this.#cert.tbsDer !== undefined) {
+            return this.#cert.tbsDer;
+        }
         const certBytes = X509.certificateToDer(matterToX509(this.cert));
         assertCertificateDerSize(certBytes);
         return certBytes;
@@ -487,6 +489,7 @@ export namespace Certificate {
         }
 
         const [certificateNode, , signatureNode] = rootElements;
+        const tbsDer = Bytes.of(DerCodec.encode(certificateNode));
 
         // Parse TBSCertificate
         const { _elements: certElements } = certificateNode;
@@ -567,6 +570,7 @@ export namespace Certificate {
             signatureAlgorithm,
             issuer,
             issuerDer,
+            tbsDer,
             notBefore,
             notAfter,
             subject,

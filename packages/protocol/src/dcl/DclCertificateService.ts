@@ -941,19 +941,11 @@ export class DclCertificateService {
         const signerDer = Pem.asDer(point.crlSignerCertificate);
         const signerCert = point.isPAA ? Paa.fromAsn1(signerDer) : Pai.fromAsn1(signerDer);
 
-        // Extract raw TBS DER for signature verification — asUnsignedDer() re-encodes
-        // from parsed fields which may differ from the original encoding
-        const signerDecoded = DerCodec.decode(signerDer);
-        const signerTbsDer = DerCodec.encode(signerDecoded._elements![0]);
-
         // Parse CRLSignerDelegator if present
         let delegatorCert: Pai | undefined;
-        let delegatorTbsDer: Bytes | undefined;
         if (point.crlSignerDelegator) {
             const delegatorDer = Pem.asDer(point.crlSignerDelegator);
             delegatorCert = Pai.fromAsn1(delegatorDer);
-            const delegatorDecoded = DerCodec.decode(delegatorDer);
-            delegatorTbsDer = DerCodec.encode(delegatorDecoded._elements![0]);
         }
 
         // Steps 3-4: VendorID matching
@@ -999,7 +991,7 @@ export class DclCertificateService {
                 const paa = Paa.fromAsn1(paaDer);
                 await this.#crypto.verifyEcdsa(
                     PublicKey(paa.cert.ellipticCurvePublicKey),
-                    delegatorTbsDer!,
+                    delegatorCert.asUnsignedDer(),
                     delegatorCert.signature,
                 );
                 issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
@@ -1015,7 +1007,11 @@ export class DclCertificateService {
                 );
             }
 
-            await this.#crypto.verifyEcdsa(PublicKey(issuerPublicKey), signerTbsDer, signerCert.signature);
+            await this.#crypto.verifyEcdsa(
+                PublicKey(issuerPublicKey),
+                signerCert.asUnsignedDer(),
+                signerCert.signature,
+            );
         }
 
         return signerCert.cert.ellipticCurvePublicKey;
