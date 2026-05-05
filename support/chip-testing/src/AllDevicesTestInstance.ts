@@ -11,7 +11,7 @@ import { BackchannelCommand } from "@matter/testing";
 import "./devices/all-devices.js";
 import { EndpointHandle, getDeviceType, listDeviceTypes } from "./devices/DeviceTypeRegistry.js";
 import { buildRootNode } from "./devices/RootEndpoint.js";
-import { DeviceTestInstanceConfig, getParameter, getParameters, hasParameter } from "./GenericTestApp.js";
+import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
 
 const logger = Logger.get("AllDevicesTestInstance");
@@ -21,8 +21,35 @@ interface DeviceSpec {
     endpoint: EndpointNumber;
 }
 
-function parseDeviceArgs(): DeviceSpec[] {
-    const tokens = getParameters("device");
+interface RuntimeArgs {
+    specs: DeviceSpec[];
+    wifi: boolean;
+    enableKeyHex?: string;
+}
+
+function collectValues(args: string[], name: string): string[] {
+    const result = new Array<string>();
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (arg === `-${name}` || arg === `--${name}`) {
+            if (i + 1 >= args.length) {
+                throw new ValidationError(`Missing value for parameter ${name}`);
+            }
+            result.push(args[i + 1]);
+            i++;
+        }
+    }
+    return result;
+}
+
+function hasFlag(args: string[], name: string): boolean {
+    return args.includes(`-${name}`) || args.includes(`--${name}`);
+}
+
+function parseRuntimeArgs(args: string[]): RuntimeArgs {
+    const tokens = collectValues(args, "device");
+    const wifi = hasFlag(args, "wifi");
+    const enableKeyHex = collectValues(args, "enable-key")[0];
 
     // Pass 1: collect explicit-endpoint reservations so auto-allocation can skip them.
     const reserved = new Set<number>();
@@ -41,7 +68,7 @@ function parseDeviceArgs(): DeviceSpec[] {
     }
 
     // Pass 2: walk tokens in CLI order, allocating each entry's endpoint number.
-    const result = new Array<DeviceSpec>();
+    const specs = new Array<DeviceSpec>();
     const used = new Set<number>();
     let nextAuto = 1;
     for (const token of tokens) {
@@ -60,18 +87,21 @@ function parseDeviceArgs(): DeviceSpec[] {
             throw new ValidationError(`Endpoint ${endpoint} declared twice in --device flags`);
         }
         used.add(endpoint);
-        result.push({ type, endpoint: EndpointNumber(endpoint) });
+        specs.push({ type, endpoint: EndpointNumber(endpoint) });
     }
-    return result;
+
+    return { specs, wifi, enableKeyHex };
 }
 
 export class AllDevicesTestInstance extends NodeTestInstance {
     static override id = "alldevices-6100";
 
     #endpoints = new Map<EndpointNumber, EndpointHandle>();
+    #appArgs?: string[];
 
     constructor(config: DeviceTestInstanceConfig) {
         super(config);
+        this.#appArgs = config.appArgs;
     }
 
     override async initialize() {
@@ -80,16 +110,16 @@ export class AllDevicesTestInstance extends NodeTestInstance {
     }
 
     async setupServer(): Promise<ServerNode> {
-        const wifi = hasParameter("wifi");
-        const specs = parseDeviceArgs();
+        // Prefer per-run app-args injected by the chip test framework; fall back to process.argv for standalone CLI
+        // invocations (chip-tool-tests CI binary, local smoke runs).
+        const sourceArgs = this.#appArgs ?? process.argv.slice(2);
+        const { specs, wifi, enableKeyHex } = parseRuntimeArgs(sourceArgs);
 
         if (specs.length === 0) {
             throw new ValidationError(
                 `--device <type[:endpoint]> required (supported: ${listDeviceTypes().join(", ")})`,
             );
         }
-
-        const enableKeyHex = getParameter("enable-key");
 
         const serverNode = await buildRootNode({
             id: this.id,
