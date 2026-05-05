@@ -298,10 +298,15 @@ def load_python():
                 "subpath": test_method_name,
             }
 
-            # Extract description if present
-            desc = instance.get_test_desc(name)
-            if desc != name:
-                props["description"] = desc
+            # Extract description if present.  chip's get_test_desc(test) does getattr(self, test)
+            # so it needs the full method name; legacy short-form aliases (e.g. "CGEN_2_4") were
+            # removed upstream and now raise AttributeError.
+            try:
+                desc = instance.get_test_desc(test_method_name)
+                if desc and desc != test_method_name:
+                    props["description"] = desc
+            except Exception as e:
+                sys.stderr.write(f"Error extracting description for {path}::{test_method_name}: {e}\n")
 
             # Extract PICS if present
             pics = None
