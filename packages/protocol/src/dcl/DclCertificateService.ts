@@ -29,6 +29,7 @@ import {
     StorageService,
     Time,
     Timer,
+    asError,
 } from "@matter/general";
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
@@ -194,8 +195,8 @@ export class DclCertificateService {
         let entry: DclCertificateService.RevocationEntry;
         try {
             entry = await this.#revocationCache.get(akid);
-        } catch (error) {
-            logger.info(`Failed to fetch revocation data for ${akid}:`, error);
+        } catch {
+            // Underlying fetch already logged the cause; treat unreachable CRL as not-revoked
             return false;
         }
 
@@ -398,7 +399,10 @@ export class DclCertificateService {
             const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
             return { publicKey: cert.ellipticCurvePublicKey, isProduction: true };
         } catch (error) {
-            logger.info(`Failed to fetch CD signer ${normalizedSkid} from DCL:`, error);
+            logger.info(
+                `Failed to fetch CD signer ${normalizedSkid} from DCL:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
             return undefined;
         }
     }
@@ -476,7 +480,7 @@ export class DclCertificateService {
             });
             await this.#fetchPromise;
         } catch (error) {
-            logger.info("Certificate update failed", error);
+            logger.info("Certificate update failed", Diagnostic.errorMessage(asError(error)));
             return false;
         }
         return true;
@@ -630,7 +634,10 @@ export class DclCertificateService {
                 logger.debug(`Stored certificate`, Diagnostic.dict({ skid: normalizedSubjectKeyId, vid: cert.vid }));
             }
         } catch (error) {
-            logger.info(`Failed to fetch certificate ${certRef.subject}/${certRef.subjectKeyId}`, error);
+            logger.info(
+                `Failed to fetch certificate ${certRef.subject}/${certRef.subjectKeyId}`,
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
     }
 
@@ -660,7 +667,7 @@ export class DclCertificateService {
                 await this.#fetchGitHubCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch certificates from GitHub", error);
+            logger.info("Failed to fetch certificates from GitHub", Diagnostic.errorMessage(asError(error)));
         }
     }
 
@@ -687,7 +694,7 @@ export class DclCertificateService {
                 await this.#fetchGitHubCdSignerCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch CD signer certificates from GitHub", error);
+            logger.info("Failed to fetch CD signer certificates from GitHub", Diagnostic.errorMessage(asError(error)));
         }
     }
 
@@ -726,7 +733,10 @@ export class DclCertificateService {
 
             logger.debug(`Stored GitHub CD signer certificate`, Diagnostic.dict({ skid: subjectKeyId, filename }));
         } catch (error) {
-            logger.info(`Failed to fetch GitHub CD signer certificate ${filename}`, error);
+            logger.info(
+                `Failed to fetch GitHub CD signer certificate ${filename}`,
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
     }
 
@@ -770,7 +780,7 @@ export class DclCertificateService {
 
             logger.debug(`Stored GitHub certificate`, Diagnostic.dict({ skid: subjectKeyId, filename }));
         } catch (error) {
-            logger.info(`Failed to fetch GitHub certificate ${filename}`, error);
+            logger.info(`Failed to fetch GitHub certificate ${filename}`, Diagnostic.errorMessage(asError(error)));
         }
     }
 
@@ -822,12 +832,16 @@ export class DclCertificateService {
                 timeout: revocationTimeout,
             });
         } catch (error) {
-            if (error instanceof MatterDclResponseError && error.response.code === 404) {
-                // No revocation data registered for this issuer — cache the empty result
+            // gRPC NOT_FOUND (5) — the issuer simply has no CRL registered, cache the empty result
+            if (error instanceof MatterDclResponseError && error.response.code === 5) {
+                logger.debug(`No CRL registered in DCL for AKID ${akid}`);
                 return empty;
             }
             // Transient failure (timeout, network error) — throw so AsyncCache does NOT cache
-            logger.warn(`DCL revocation lookup failed for AKID ${akid} (will retry on next check):`, error);
+            logger.warn(
+                `DCL revocation lookup failed for AKID ${akid} (will retry on next check):`,
+                Diagnostic.errorMessage(asError(error)),
+            );
             throw error;
         }
 
@@ -844,7 +858,7 @@ export class DclCertificateService {
             } catch (error) {
                 logger.warn(
                     `Failed to process revocation point for ${point.issuerSubjectKeyId} (will retry on next check):`,
-                    error,
+                    Diagnostic.errorMessage(asError(error)),
                 );
             }
         }
@@ -872,7 +886,7 @@ export class DclCertificateService {
             // This is expected for entries with delegated signers or chains we can't verify.
             logger.info(
                 `CRL signer validation failed for ${point.issuerSubjectKeyId}, skipping CRL signature check:`,
-                error,
+                Diagnostic.errorMessage(asError(error)),
             );
         }
 
