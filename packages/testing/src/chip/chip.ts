@@ -305,6 +305,7 @@ function createBuilder(initial: {
             // (chip-test-header app), then chip.defaultSubject. A descriptor that names an app
             // we have not registered fails loud rather than silently using the default.
             let factory = subject;
+            let appArgs: string[] | undefined;
             if (factory === undefined && descriptor.app !== undefined) {
                 factory = State.subjectForApp(descriptor.app);
                 if (factory === undefined) {
@@ -313,12 +314,15 @@ function createBuilder(initial: {
                             `is registered. Call chip.subjectFor("${descriptor.app}", <factory>) in your test setup.`,
                     );
                 }
+                // app-args are scoped to the named app; forwarding them to defaultSubject would
+                // pollute the subject cache with per-test variants (e.g. --trace-to paths) and
+                // thrash setup on tests that don't need per-run dispatch.
+                appArgs = parseAppArgs(descriptor);
             }
             if (factory === undefined) {
                 factory = State.subject;
             }
 
-            const appArgs = parseAppArgs(descriptor);
             await State.activateSubject(
                 factory,
                 startCommissioned,
