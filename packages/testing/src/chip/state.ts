@@ -289,14 +289,15 @@ export const State = {
         startCommissioned: boolean,
         test: Test,
         beforeStart?: chip.BeforeHook,
+        appArgs?: string[],
     ) {
         let subject;
         if (startCommissioned) {
             // We cache commissioned subjects
-            subject = loadSubject(factory, test.descriptor.kind);
+            subject = loadSubject(factory, test.descriptor.kind, appArgs);
         } else {
             // No need to cache uncommissioned subjects
-            subject = factory(test.descriptor.kind ?? "unknown");
+            subject = factory(test.descriptor.kind ?? "unknown", { appArgs });
         }
 
         if (Values.activeSubject === subject) {
@@ -583,17 +584,20 @@ async function configureLocalController() {
 }
 
 /**
- * Obtain a subject.  Subjects are qualified by factory and test domain.
+ * Obtain a subject.  Subjects are qualified by factory, test domain, and per-run appArgs.
  */
-function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"]) {
+function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"], appArgs?: string[]) {
     let forFactory = Values.subjects.get(factory);
     if (forFactory === undefined) {
         Values.subjects.set(factory, (forFactory = {}));
     }
 
-    let subject = forFactory[kind];
+    // Different per-run app-args yield different subjects; \x1f keeps joined args distinct from arg content.
+    const cacheKey = appArgs?.length ? `${kind}\x1f${appArgs.join("\x1f")}` : kind;
+
+    let subject = forFactory[cacheKey];
     if (subject === undefined) {
-        subject = forFactory[kind] = factory(kind);
+        subject = forFactory[cacheKey] = factory(kind, { appArgs });
     }
 
     return subject;

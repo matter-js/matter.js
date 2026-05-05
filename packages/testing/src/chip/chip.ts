@@ -300,17 +300,50 @@ function createBuilder(initial: {
 
         // We do this separately from the test itself because we don't want activation to appear as part of the test if
         // it fails
-        beforeOne(mochaTest, async () =>
-            State.activateSubject(subject ?? State.subject, startCommissioned, test, (subject, test) =>
-                runBeforeHooks(beforeStartHooks, subject, test),
-            ),
-        );
+        beforeOne(mochaTest, async () => {
+            // Resolution order: explicit .subject() override on the builder, then descriptor.app
+            // (chip-test-header app), then chip.defaultSubject. A descriptor that names an app
+            // we have not registered fails loud rather than silently using the default.
+            let factory = subject;
+            if (factory === undefined && descriptor.app !== undefined) {
+                factory = State.subjectForApp(descriptor.app);
+                if (factory === undefined) {
+                    throw new Error(
+                        `Test ${descriptor.name} requests app "${descriptor.app}" but no Subject.Factory ` +
+                            `is registered. Call chip.subjectFor("${descriptor.app}", <factory>) in your test setup.`,
+                    );
+                }
+            }
+            if (factory === undefined) {
+                factory = State.subject;
+            }
+
+            const appArgs = parseAppArgs(descriptor);
+            await State.activateSubject(
+                factory,
+                startCommissioned,
+                test,
+                (subject, test) => runBeforeHooks(beforeStartHooks, subject, test),
+                appArgs,
+            );
+        });
 
         mochaTest.descriptor = test.descriptor;
         implementations.set(descriptor, mochaTest);
 
         afterOne(mochaTest, State.deactivateSubject);
     }
+}
+
+function parseAppArgs(descriptor: TestDescriptor): string[] | undefined {
+    const raw = descriptor.config?.["app-args"];
+    if (raw === undefined) return undefined;
+    if (Array.isArray(raw)) return raw.map(String);
+    if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        return trimmed === "" ? undefined : trimmed.split(/\s+/);
+    }
+    return undefined;
 }
 
 function chipFn(subjectOrFirstInclusion: Subject.Factory | string | undefined, ...include: string[]): chip.Builder {
