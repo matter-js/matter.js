@@ -300,19 +300,18 @@ function createBuilder(initial: {
 
         // We do this separately from the test itself because we don't want activation to appear as part of the test if
         // it fails
-        beforeOne(mochaTest, async () => {
+        beforeOne(mochaTest, async function (this: Mocha.Context) {
             // Resolution order: explicit .subject() override on the builder, then descriptor.app
-            // (chip-test-header app), then chip.defaultSubject. A descriptor that names an app
-            // we have not registered fails loud rather than silently using the default.
+            // (chip-test-header app for multi-run suite members), then chip.defaultSubject. A
+            // multi-run member that names an unregistered app is skipped (other runs of the same
+            // test continue) — chip CI lists more apps than we mimic, and ignoring those runs is
+            // the whitelist behavior we want.
             let factory = subject;
             let appArgs: string[] | undefined;
             if (factory === undefined && descriptor.app !== undefined) {
                 factory = State.subjectForApp(descriptor.app);
                 if (factory === undefined) {
-                    throw new Error(
-                        `Test ${descriptor.name} requests app "${descriptor.app}" but no Subject.Factory ` +
-                            `is registered. Call chip.subjectFor("${descriptor.app}", <factory>) in your test setup.`,
-                    );
+                    this.skip();
                 }
                 // app-args are scoped to the named app; forwarding them to defaultSubject would
                 // pollute the subject cache with per-test variants (e.g. --trace-to paths) and
