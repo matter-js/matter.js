@@ -167,6 +167,13 @@ export interface DeviceTestInstanceConfig extends TestInstanceConfig {
      * necessary to close the pipe.  When running containerized this is unnecessary as the test harness manages pipes.
      */
     commandPipeFactory: (app: DeviceTestInstance, name: string) => Promise<void | CommandPipe>;
+
+    /**
+     * Per-run CLI-style app arguments forwarded by the chip test framework. Subjects that accept runtime configuration
+     * (e.g. AllDevicesTestApp's --device list) read this in their setupServer(). Standalone CLI invocations rely on
+     * process.argv as a fallback.
+     */
+    appArgs?: string[];
 }
 
 export interface DeviceTestInstanceConstructor<T extends DeviceTestInstance = DeviceTestInstance> {
