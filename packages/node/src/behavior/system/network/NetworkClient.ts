@@ -12,7 +12,7 @@ import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { ChannelType, Observable, ServerAddress, ServerAddressIp } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
+import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription, Val } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -59,7 +59,8 @@ export class NetworkClient extends NetworkBehavior {
                 // Set transport preference: per-peer override from NetworkClient, or inherit
                 // from the controller (owner) NetworkServer default. Maps "tcp"/"udp" string to ChannelType.
                 const pref =
-                    this.state.transportPreference ?? (this.#node.owner?.state as any)?.network?.transportPreference;
+                    this.state.transportPreference ??
+                    (this.#node.owner?.state as Record<string, Val.Struct> | undefined)?.network?.transportPreference;
                 if (pref === "tcp") {
                     peer.transportPreference = ChannelType.TCP;
                 }
