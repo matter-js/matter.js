@@ -134,7 +134,7 @@ function hasColumn(definition: SpecReference, ...names: string[]) {
 }
 
 const FieldSchema = {
-    id: Integer,
+    id: Alias(Integer, "fieldid"),
     name: Alias(Identifier, "field"),
 
     // Not really optional, but we want to process rows even if missing
