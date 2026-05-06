@@ -25,6 +25,7 @@ import {
     Duration,
     Identity,
     Instant,
+    IpChannelType,
     IpService,
     isIpNetworkChannel,
     Lifetime,
@@ -65,8 +66,12 @@ export class Peer {
 
     /**
      * Preferred transport for outgoing connections to this peer.
+     *
+     * Only `ChannelType.TCP` has meaning here — UDP is the default with no preference, and BLE is
+     * not used for operational connections. Setting TCP is a soft hint: the connect path still falls
+     * back to UDP if the peer does not advertise TCP server support.
      */
-    transportPreference?: ChannelType;
+    transportPreference?: ChannelType.TCP;
     #connecting?: ConnectionProcess;
     #service: IpService;
     #observers = new ObserverGroup();
@@ -278,13 +283,9 @@ export class Peer {
             return await this.#context.sessions.groupSessionForAddress(this.address, this.#context.exchanges);
         }
 
+        const transports = PeerConnection.normalizeTransports(options?.transport);
+
         while (true) {
-            const transports =
-                options?.transport === undefined
-                    ? undefined
-                    : Array.isArray(options.transport)
-                      ? options.transport
-                      : [options.transport];
             let session: NodeSession | undefined;
             if (transports === undefined) {
                 session = this.newestSession();
@@ -551,13 +552,13 @@ export namespace Peer {
         /**
          * Constrain or prefer the transport type for this connection.
          *
-         * - `ChannelType` — single hard constraint (only this transport is attempted).
-         * - `ChannelType[]` — ordered list of transports to attempt in priority order. The first transport
-         *   that successfully pairs wins; the others run as parallel fallbacks. Used to express a
-         *   preference with fallback (e.g. `[TCP, UDP]` to try TCP first but fall back to UDP).
-         * - `undefined` — default behavior, no constraint.
+         * - `IpChannelType` — single hard constraint (only this transport is attempted).
+         * - `IpChannelType[]` — ordered list of transports to attempt in priority order. Subsequent
+         *   transports start in priority order with `delayBeforeNextAddress` between starts; the first
+         *   one to pair wins. Used to express a preference with fallback (e.g. `[TCP, UDP]`).
+         * - Empty array or `undefined` — default behavior, no constraint.
          */
-        transport?: ChannelType | ChannelType[];
+        transport?: IpChannelType | IpChannelType[];
 
         /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.

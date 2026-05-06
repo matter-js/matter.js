@@ -9,7 +9,7 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
-import { ChannelType, Duration, InternalError } from "@matter/general";
+import { ChannelType, Duration, InternalError, IpChannelType } from "@matter/general";
 import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
@@ -21,8 +21,8 @@ import { PeerConnection } from "./PeerConnection.js";
  * - Otherwise, if TCP is preferred and the peer advertises TCP server support, return [TCP, UDP].
  * - Otherwise return undefined (default UDP, no constraint).
  */
-function resolveTransports(peer: Peer, requiredTransport: ChannelType | undefined): ChannelType[] | undefined {
-    if (requiredTransport !== undefined) {
+function resolveTransports(peer: Peer, requiredTransport: ChannelType | undefined): IpChannelType[] | undefined {
+    if (requiredTransport === ChannelType.TCP || requiredTransport === ChannelType.UDP) {
         return [requiredTransport];
     }
     if (peer.transportPreference !== ChannelType.TCP) {

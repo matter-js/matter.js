@@ -15,6 +15,11 @@ export enum ChannelType {
     TCP = "tcp",
 }
 
+/**
+ * Subset of {@link ChannelType} usable for IP-based peer connections (excludes BLE).
+ */
+export type IpChannelType = ChannelType.UDP | ChannelType.TCP;
+
 export interface Channel<T> {
     /** Maximum Payload size for this channel */
     maxPayloadSize: number;

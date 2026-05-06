@@ -23,6 +23,7 @@ import {
     Diagnostic,
     Duration,
     Heap,
+    IpChannelType,
     Lifetime,
     Logger,
     Millis,
@@ -30,6 +31,7 @@ import {
     ServerAddress,
     ServerAddressIp,
     ServerAddressSet,
+    ServerAddressTcp,
     ServerAddressUdp,
     Time,
     Timestamp,
@@ -94,15 +96,7 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
-    const rawTransports = options?.transport;
-    const transports: ChannelType[] | undefined =
-        rawTransports === undefined
-            ? undefined
-            : Array.isArray(rawTransports)
-              ? rawTransports.length === 0
-                  ? undefined
-                  : [...rawTransports]
-              : [rawTransports];
+    const transports = PeerConnection.normalizeTransports(options?.transport);
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -254,7 +248,11 @@ export async function PeerConnection(
         if (transports === undefined) {
             return [address];
         }
-        return transports.map(type => ({ ...address, type }) as ServerAddressIp);
+        return transports.map(type =>
+            type === ChannelType.TCP
+                ? ({ ...address, type } satisfies ServerAddressTcp)
+                : ({ ...address, type } satisfies ServerAddressUdp),
+        );
     }
 
     /**
@@ -628,7 +626,7 @@ export namespace PeerConnection {
          * the full semantics. {@link PeerConnection} expands each discovered/fallback address into one
          * variant per listed transport, enqueued in array order.
          */
-        transport?: ChannelType | ChannelType[];
+        transport?: IpChannelType | IpChannelType[];
 
         /**
          * Per-call overrides for timing parameters.
@@ -642,6 +640,20 @@ export namespace PeerConnection {
          * Per-call error handler, overrides {@link Context.handleError} for this connection only.
          */
         handleError?: (error: Error) => Duration | void;
+    }
+
+    /**
+     * Normalize a single-or-array transport option into an ordered list (or undefined for the
+     * default UDP path). An empty array is treated as "no constraint".
+     */
+    export function normalizeTransports(opt: IpChannelType | IpChannelType[] | undefined): IpChannelType[] | undefined {
+        if (opt === undefined) {
+            return undefined;
+        }
+        if (!Array.isArray(opt)) {
+            return [opt];
+        }
+        return opt.length === 0 ? undefined : [...opt];
     }
 
     export function createExchange(
