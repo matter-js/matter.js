@@ -603,11 +603,11 @@ export namespace PeerConnection {
         kicker?: Observable<[KickOrigin]>;
 
         /**
-         * Constrain the transport type for this connection. When set to `ChannelType.TCP`, the
-         * connection will be established over TCP (requires peer TCP Server support and local
-         * TCP outgoing enabled). When undefined, the default transport (UDP/MRP) is used.
+         * Constrain or prefer transport(s) for this connection. See {@link Peer.ConnectOptions.transport} for
+         * the full semantics. {@link PeerConnection} expands each discovered/fallback address into one
+         * variant per listed transport, enqueued in array order.
          */
-        transport?: ChannelType;
+        transport?: ChannelType | ChannelType[];
 
         /**
          * Per-call overrides for timing parameters.

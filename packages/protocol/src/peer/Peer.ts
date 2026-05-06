@@ -279,7 +279,21 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession(options?.transport);
+            const transports =
+                options?.transport === undefined
+                    ? undefined
+                    : Array.isArray(options.transport)
+                      ? options.transport
+                      : [options.transport];
+            let session: NodeSession | undefined;
+            if (transports === undefined) {
+                session = this.newestSession();
+            } else {
+                for (const t of transports) {
+                    session = this.newestSession(t);
+                    if (session) break;
+                }
+            }
             if (session) {
                 return session;
             }
@@ -535,9 +549,15 @@ export namespace Peer {
         timing?: Partial<PeerTimingParameters>;
 
         /**
-         * Constrain the transport type for this connection.
+         * Constrain or prefer the transport type for this connection.
+         *
+         * - `ChannelType` — single hard constraint (only this transport is attempted).
+         * - `ChannelType[]` — ordered list of transports to attempt in priority order. The first transport
+         *   that successfully pairs wins; the others run as parallel fallbacks. Used to express a
+         *   preference with fallback (e.g. `[TCP, UDP]` to try TCP first but fall back to UDP).
+         * - `undefined` — default behavior, no constraint.
          */
-        transport?: ChannelType;
+        transport?: ChannelType | ChannelType[];
 
         /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.
