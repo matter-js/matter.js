@@ -200,20 +200,12 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                         // Skip nodes that are already commissioned — they cannot be re-commissioned and
                         // should not be surfaced by a new commissioning discovery flow.
                         let node = factory.find(descriptor);
-                        const wasCommissioned = !!node?.lifecycle.isCommissioned;
-                        if (wasCommissioned) {
+                        if (node?.lifecycle.isCommissioned) {
                             node = undefined;
                         }
 
                         if (node) {
                             // Found a known uncommissioned node; update its commissioning metadata
-                            logger.info(
-                                "Discovery callback: reuse existing node",
-                                Diagnostic.dict({
-                                    nodeId: node.id,
-                                    deviceIdentifier: descriptor.deviceIdentifier,
-                                }),
-                            );
                             const updatePromise = node.act(agent => {
                                 agent.commissioning.descriptor = descriptor;
                             });
@@ -224,13 +216,6 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                         } else {
                             // This node is new to us — defer onDiscovered until construction completes
                             // so that node.state.commissioning is committed and readable by listeners.
-                            logger.info(
-                                "Discovery callback: create new node",
-                                Diagnostic.dict({
-                                    deviceIdentifier: descriptor.deviceIdentifier,
-                                    skippedCommissioned: wasCommissioned,
-                                }),
-                            );
                             node = factory.create({
                                 id,
                                 environment: this.#owner.env,
