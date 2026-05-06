@@ -618,19 +618,26 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
     /** Discover commissionable devices */
     async handleDiscovery({ findBy }: DiscoveryRequest): Promise<DiscoveryResponse> {
+        logger.info("Discovery request", { findBy });
         const result = await this.#controllerInstance.discoverCommissionableDevices(
             findBy,
             { onIpNetwork: true },
             undefined,
             Seconds(3),
         );
-        logger.info("Discovered result", result);
+        logger.info(`Discovered ${result.length} result(s)`, result);
         // Chip is not removing old discoveries when being stopped, so we still have old and new devices in the result
         // but the expectation is that it was reset and only new devices are in the result
         const latestDiscovery = result[result.length - 1];
         if (latestDiscovery === undefined) {
+            logger.info("Discovery returning empty (no results)");
             return [];
         }
+        logger.info("Discovery picking last entry", {
+            deviceIdentifier: latestDiscovery.deviceIdentifier,
+            D: latestDiscovery.D,
+            CM: latestDiscovery.CM,
+        });
         return [latestDiscovery].map(({ DT, DN, CM, D, RI, PH, PI, T, VP, deviceIdentifier, addresses }) => {
             const { tcpClient: supportsTcpClient, tcpServer: supportsTcpServer } = SupportedTransportsSchema.decode(
                 T ?? 0,

@@ -81,7 +81,7 @@ jobs:
       - name: Determine controllers to test
         id: controllers
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
             echo 'controllers=["chiptool","matterjs"]' >> $GITHUB_OUTPUT
           else
             echo 'controllers=["chiptool"]' >> $GITHUB_OUTPUT

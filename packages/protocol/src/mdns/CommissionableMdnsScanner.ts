@@ -180,23 +180,54 @@ export class CommissionableMdnsScanner implements Scanner {
                 if (matchesIdentifier(device, identifier) && !seen.has(device.deviceIdentifier)) {
                     seen.add(device.deviceIdentifier);
                     result.push(device);
+                    logger.info(
+                        "Discovery waiter: notify new device",
+                        Diagnostic.dict({ id: device.deviceIdentifier, D: device.D, CM: device.CM }),
+                    );
                     callback(device);
                 }
             },
         };
         this.#waiters.add(waiter);
 
+        logger.info(
+            "Discovery start: iterating cache",
+            Diagnostic.dict({ cacheSize: this.#cache.size, identifier: JSON.stringify(identifier) }),
+        );
+
         // Callback may trigger an async cancel chain that must settle before we start discovery
         let callbackInvoked = false;
+        let cacheMatched = 0;
+        let cacheRejectedNoAddr = 0;
+        let cacheRejectedFilter = 0;
         for (const cached of this.#cache.values()) {
             const device = refreshAddresses(cached);
-            if (matchesIdentifier(device, identifier) && device.addresses.length > 0) {
+            const matches = matchesIdentifier(device, identifier);
+            const hasAddr = device.addresses.length > 0;
+            if (matches && hasAddr) {
                 seen.add(device.deviceIdentifier);
                 result.push(device);
                 callbackInvoked = true;
+                cacheMatched++;
                 callback(device);
+            } else if (matches && !hasAddr) {
+                cacheRejectedNoAddr++;
+                logger.info(
+                    "Discovery cache: reject (no addresses)",
+                    Diagnostic.dict({ id: device.deviceIdentifier, D: device.D, CM: device.CM }),
+                );
+            } else {
+                cacheRejectedFilter++;
             }
         }
+        logger.info(
+            "Discovery cache iteration done",
+            Diagnostic.dict({
+                matched: cacheMatched,
+                rejectedNoAddr: cacheRejectedNoAddr,
+                rejectedFilter: cacheRejectedFilter,
+            }),
+        );
 
         const sleepTimer = timeout !== undefined ? Time.sleep("commissionable scanner timeout", timeout) : undefined;
         const signals: Promise<unknown>[] = [internalCancel];
@@ -235,6 +266,10 @@ export class CommissionableMdnsScanner implements Scanner {
             this.#waiters.delete(waiter);
         }
 
+        logger.info(
+            "Discovery complete",
+            Diagnostic.dict({ resultSize: result.length, cacheSize: this.#cache.size }),
+        );
         return result;
     }
 
@@ -364,6 +399,14 @@ export class CommissionableMdnsScanner implements Scanner {
             if (!changedName.isDiscovered) {
                 const cached = this.#cache.get(lower);
                 if (cached) {
+                    logger.info(
+                        "Cache delete: name no longer discovered",
+                        Diagnostic.dict({
+                            qname: lower,
+                            id: cached.device.deviceIdentifier,
+                            cacheSizeAfter: this.#cache.size - 1,
+                        }),
+                    );
                     this.#cache.delete(lower);
                     this.#observers.off(name, cached.observer);
                     if (cached.onAddresses) {
@@ -378,6 +421,16 @@ export class CommissionableMdnsScanner implements Scanner {
         const cached: CachedDevice = { device, ipService, name, observer };
         this.#cache.set(lower, cached);
         this.#observers.on(name, observer);
+        logger.info(
+            "Cache add",
+            Diagnostic.dict({
+                qname: lower,
+                id: device.deviceIdentifier,
+                D: device.D,
+                CM: device.CM,
+                cacheSize: this.#cache.size,
+            }),
+        );
 
         // Only notify waiters once the device has resolved IP addresses.
         // A/AAAA records may arrive after the initial SRV/TXT discovery;
