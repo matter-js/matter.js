@@ -94,7 +94,13 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
-    const useTcp = options?.transport === ChannelType.TCP;
+    // Normalize transport option to an ordered array of variants to try (or undefined for default UDP).
+    const transports: ChannelType[] | undefined =
+        options?.transport === undefined
+            ? undefined
+            : Array.isArray(options.transport)
+              ? [...options.transport]
+              : [options.transport];
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -235,35 +241,40 @@ export async function PeerConnection(
     }
 
     /**
-     * When TCP transport is required, stamp the address with the TCP type.
+     * Expand an address into one variant per requested transport.
+     *
+     * If `transports` is undefined, returns the address unchanged so the discovery layer's typing wins.
+     * Otherwise returns one address per listed transport, in array order. The caller pushes them into
+     * the priority heap; insertion order breaks ties between same-IP variants, so the first transport
+     * in the array is attempted first.
      */
-    function applyTransportConstraint(address: ServerAddressIp): ServerAddressIp {
-        if (useTcp) {
-            return { ...address, type: "tcp" } as ServerAddressIp;
+    function expandAddresses(address: ServerAddressIp): ServerAddressIp[] {
+        if (transports === undefined) {
+            return [address];
         }
-        return address;
+        return transports.map(type => ({ ...address, type }) as ServerAddressIp);
     }
 
     /**
      * Enqueue an address if not already attempting.
      */
     function addAddress(address: ServerAddressIp) {
-        address = applyTransportConstraint(address);
-        address = addresses.add(address);
+        for (const variant of expandAddresses(address)) {
+            const interned = addresses.add(variant);
 
-        // Skip if we're already attempting connection to this address
-        const attempt = attempts.get(address);
-        if (attempt !== undefined) {
-            if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
-                // The "fallback" is now a "real" address
-                attemptingFallback = undefined;
-                kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
+            // Skip if we're already attempting connection to this exact (ip,port,type) variant
+            const attempt = attempts.get(interned);
+            if (attempt !== undefined) {
+                if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, interned)) {
+                    // The "fallback" is now a "real" address
+                    attemptingFallback = undefined;
+                    kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
+                }
+                continue;
             }
 
-            return;
+            pendingAddresses.add(interned);
         }
-
-        pendingAddresses.add(address);
     }
 
     /**
@@ -275,9 +286,16 @@ export async function PeerConnection(
         }
 
         const fallback = peer.descriptor.operationalAddress;
-        attemptingFallback = fallback ? applyTransportConstraint(fallback) : undefined;
-        if (attemptingFallback) {
-            pendingAddresses.add(attemptingFallback);
+        if (!fallback) {
+            attemptingFallback = undefined;
+            return;
+        }
+        const variants = expandAddresses(fallback);
+        // The first variant (highest-priority transport) is the one we treat as the "fallback marker"
+        // for delete/rediscovery semantics. All variants are enqueued.
+        attemptingFallback = variants[0];
+        for (const variant of variants) {
+            pendingAddresses.add(variant);
         }
     }
 
