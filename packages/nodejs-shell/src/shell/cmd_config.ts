@@ -326,6 +326,41 @@ export default function commands(theNode: MatterNode) {
                                 async argv => doStrictAttestation(theNode, { action: "set", ...argv }),
                             );
                     },
+                )
+
+                // Transport Preference (TCP vs UDP) for outgoing connections
+                .command(
+                    "transport-preference",
+                    "Manage preferred transport (TCP/UDP) for outgoing connections from this controller",
+                    yargs => {
+                        return yargs
+                            .command(
+                                "* [action]",
+                                "Get or delete the transport preference",
+                                yargs => {
+                                    return yargs.positional("action", {
+                                        describe: "get/delete",
+                                        choices: ["get", "delete"] as const,
+                                        default: "get",
+                                        type: "string",
+                                    });
+                                },
+                                async argv => doTransportPreference(theNode, argv),
+                            )
+                            .command(
+                                "set <value>",
+                                "Set transport preference for outgoing connections",
+                                yargs => {
+                                    return yargs.positional("value", {
+                                        describe: "Preferred transport",
+                                        type: "string",
+                                        choices: ["tcp", "udp"] as const,
+                                        demandOption: true,
+                                    });
+                                },
+                                async argv => doTransportPreference(theNode, { action: "set", ...argv }),
+                            );
+                    },
                 ),
         handler: async (argv: any) => {
             argv.unhandled = true;
@@ -640,6 +675,41 @@ async function doStrictAttestation(
         case "delete":
             await theNode.Store.delete("StrictAttestationValidation");
             console.log(`Strict attestation setting reset to default (disabled).`);
+            break;
+    }
+}
+
+async function doTransportPreference(
+    theNode: MatterNode,
+    args: {
+        action: string;
+        value?: string;
+    },
+) {
+    const { action, value } = args;
+    switch (action) {
+        case "get": {
+            const stored = await theNode.Store.get<string>("TransportPreference", "");
+            const pref = stored === "tcp" || stored === "udp" ? stored : undefined;
+            console.log(`Transport preference: ${pref === undefined ? "default (UDP-preferred)" : pref.toUpperCase()}`);
+            break;
+        }
+        case "set": {
+            if (value !== "tcp" && value !== "udp") {
+                console.log(`Cannot change transport preference: value must be tcp or udp`);
+                return;
+            }
+            await theNode.Store.set("TransportPreference", value);
+            console.log(
+                `Transport preference: ${value.toUpperCase()}. Please restart the shell for the change to take effect.`,
+            );
+            break;
+        }
+        case "delete":
+            await theNode.Store.delete("TransportPreference");
+            console.log(
+                `Transport preference reset to default (UDP-preferred). Please restart the shell for the change to take effect.`,
+            );
             break;
     }
 }
