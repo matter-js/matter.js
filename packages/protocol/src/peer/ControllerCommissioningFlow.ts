@@ -1191,6 +1191,11 @@ export class ControllerCommissioningFlow {
                         `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
                     );
                 }
+                logger.info(
+                    `Device attestation successfully verified with ${result.findings.length} accepted finding(s)`,
+                );
+            } else {
+                logger.info("Device attestation successfully verified");
             }
         } catch (error) {
             if (error instanceof DeviceAttestationError) {
