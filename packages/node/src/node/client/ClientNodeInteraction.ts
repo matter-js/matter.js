@@ -18,6 +18,7 @@ import {
     ClientRead,
     ClientSubscribe,
     ClientSubscription,
+    ClientSubscriptions,
     ClientWrite,
     DecodedInvokeResult,
     Interactable,
@@ -163,6 +164,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     async probe(options?: ClientProbeOptions): Promise<boolean> {
         return this.#interaction.probe(options);
+    }
+
+    get subscriptions(): ClientSubscriptions {
+        return this.#node.env.get(ClientSubscriptions);
     }
 
     get #interaction() {
