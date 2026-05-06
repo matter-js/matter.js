@@ -28,12 +28,20 @@ export namespace Subject {
     /**
      * Producer for test subjects.
      *
-     * We cache subjects based on the subject factory although a factory may be invoked multiple times if the subject
-     * initializes differently for different test implementations.
+     * Subjects are cached per (factory, domain, appArgs). A factory may be invoked multiple times if the subject
+     * initializes differently for different test implementations (e.g. chip multi-run tests with distinct app-args).
      */
     export interface Factory {
-        (domain: string): Subject;
+        (domain: string, options?: Subject.Options): Subject;
         pics?: PicsFile;
+    }
+
+    /**
+     * Per-invocation overrides for a {@link Subject.Factory}. Used to forward chip header `app-args:` into the
+     * in-process subject without going through process.argv.
+     */
+    export interface Options {
+        appArgs?: string[];
     }
 
     export type CommissioningMethod = "onnetwork";

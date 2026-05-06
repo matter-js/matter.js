@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Wrapper script for allclustersapp
+# Wrapper script for alldevicesapp
 # Captures stdout/stderr to log file and handles SIGTERM
 
 # Path to the real executable
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REAL_PROGRAM="$SCRIPT_DIR/dist/esm/AllClustersTestApp.js"
+REAL_PROGRAM="$SCRIPT_DIR/dist/esm/AllDevicesTestApp.js"
 
 # Log file (hardcoded)
-LOG_FILE="./test_allclusters.log"
+LOG_FILE="./test_alldevices.log"
 
 # Variable to store the PID of the wrapped process
 CHILD_PID=""
@@ -30,7 +30,7 @@ sigterm_handler() {
     fi
 
     # Log completion
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - allclustersapp exited with code after SIGTERM: $EXIT_CODE" | tee -a "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - alldevicesapp exited with code after SIGTERM: $EXIT_CODE" | tee -a "$LOG_FILE"
 
     # Exit with the same code as the wrapped program
     exit $EXIT_CODE
@@ -40,7 +40,7 @@ sigterm_handler() {
 trap sigterm_handler SIGTERM
 
 # Log start
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting allclustersapp with arguments: $@" | tee -a "$LOG_FILE"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting alldevicesapp with arguments: $@" | tee -a "$LOG_FILE"
 
 # Run the real program with all arguments, capturing stdout and stderr
 # Using process substitution to tee both streams
@@ -54,7 +54,7 @@ wait "$CHILD_PID"
 EXIT_CODE=$?
 
 # Log completion
-echo "$(date '+%Y-%m-%d %H:%M:%S') - allclustersapp exited with code: $EXIT_CODE" | tee -a "$LOG_FILE"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - alldevicesapp exited with code: $EXIT_CODE" | tee -a "$LOG_FILE"
 
 # Exit with the same code as the wrapped program
 exit $EXIT_CODE

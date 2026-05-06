@@ -108,7 +108,7 @@ const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 export class ClientInteraction<
     SessionT extends InteractionSession = InteractionSession,
 > implements Interactable<SessionT> {
-    protected readonly environment: Environment;
+    readonly #environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchangeProvider: ExchangeProvider;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
@@ -125,7 +125,7 @@ export class ClientInteraction<
     #nextCommandRef = 1;
 
     constructor({ environment, abort, sustainRetries, exchangeProvider, address, network }: ClientInteractionContext) {
-        this.environment = environment;
+        this.#environment = environment;
         this.#exchangeProvider = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
             this.#subscriptions = environment.get(ClientSubscriptions);
@@ -180,7 +180,7 @@ export class ClientInteraction<
 
     get subscriptions() {
         if (this.#subscriptions === undefined) {
-            this.#subscriptions = this.environment.get(ClientSubscriptions);
+            this.#subscriptions = this.#environment.get(ClientSubscriptions);
         }
         return this.#subscriptions;
     }
