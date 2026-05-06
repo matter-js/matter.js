@@ -229,4 +229,52 @@ describe("ClientNodeTcp", () => {
             expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
     });
+
+    describe("soft TCP preference fallback", () => {
+        it("connects via UDP when transportPreference=TCP but device does not advertise TCP server", async () => {
+            await using site = new MockSite();
+            // Controller has TCP enabled, but device does NOT — so device mDNS won't advertise the
+            // TCP server bit and resolveTransports must suppress the TCP attempt.
+            const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
+
+            const peer = protocolPeer(controller);
+            // Confirm precondition: the device did not advertise TCP server support.
+            const T = peer.descriptor.discoveryData?.T;
+            expect(T === undefined || (T & 0x04) === 0).true;
+
+            // Opt the peer into TCP preference. Without the soft-fallback fix this would lock the
+            // connect process to TCP-only and never establish a session.
+            peer.transportPreference = ChannelType.TCP;
+
+            // Force a fresh connect by closing the existing session, then asking for one again.
+            const oldSession = peer.newestSession();
+            expect(oldSession).not.undefined;
+            await oldSession!.initiateClose();
+
+            const newSession = await MockTime.resolve(peer.connect(), { macrotasks: true });
+            expect(newSession).not.undefined;
+            expect(newSession!.channel.transportChannel.type).equals(ChannelType.UDP);
+        });
+
+        it("does not break connect when transportPreference=TCP and device advertises TCP server", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            // Precondition: device advertised TCP server support.
+            const T = peer.descriptor.discoveryData?.T;
+            expect(T !== undefined && (T & 0x04) !== 0).true;
+
+            peer.transportPreference = ChannelType.TCP;
+
+            // We can't reliably establish a fresh CASE over mock TCP (see file-header comment).
+            // What we CAN verify is that the existing UDP session is still selected via the
+            // session-lookup loop in Peer.connect (which now handles the [TCP, UDP] array case
+            // and falls back to any session when no TCP one exists yet).
+            const session = await MockTime.resolve(peer.connect(), { macrotasks: true });
+            expect(session).not.undefined;
+            // Session is whatever already existed (UDP from commissioning) — we just want the call to succeed.
+            expect([ChannelType.UDP, ChannelType.TCP]).contains(session!.channel.transportChannel.type);
+        });
+    });
 });
