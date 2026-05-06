@@ -88,15 +88,16 @@ export class PeerExchangeProvider extends ExchangeProvider {
                         this.#peer.address,
                         this.#context.exchanges,
                     );
-                } else if (options?.requiredTransport === ChannelType.TCP) {
-                    // When TCP is explicitly required (e.g. Large Message Quality), only use TCP.
-                    // No fallback — the caller needs TCP or nothing.
-                    session = this.#peer.newestSession(ChannelType.TCP);
-                } else if (this.#peer.transportPreference === ChannelType.TCP) {
-                    // When TCP is preferred, try TCP first but fall back to any available session.
-                    session = this.#peer.newestSession(ChannelType.TCP) ?? this.#peer.newestSession();
                 } else {
-                    session = this.#peer.newestSession();
+                    const transports = resolveTransports(this.#peer, options?.requiredTransport);
+                    if (transports === undefined) {
+                        session = this.#peer.newestSession();
+                    } else {
+                        for (const t of transports) {
+                            session = this.#peer.newestSession(t);
+                            if (session) break;
+                        }
+                    }
                 }
                 if (session === undefined) {
                     if (options?.requireExistingSession) {

@@ -293,9 +293,9 @@ export async function PeerConnection(
             return;
         }
         const variants = expandAddresses(fallback);
-        // The first variant (highest-priority transport) is the one we treat as the "fallback marker"
-        // for delete/rediscovery semantics. All variants are enqueued.
-        attemptingFallback = variants[0];
+        // The interned first variant is the fallback marker; reference equality
+        // must match what comes back out of pendingAddresses.
+        attemptingFallback = addresses.add(variants[0]);
         for (const variant of variants) {
             pendingAddresses.add(variant);
         }
@@ -333,30 +333,31 @@ export async function PeerConnection(
     }
 
     /**
-     * End connection attempt.
+     * End connection attempt(s) for the given address. Discovery emits bare addresses without
+     * transport type; expand into the same variants `addAddress` enqueued so the typed
+     * entries in `attempts`/`pendingAddresses` actually match.
      */
     function deleteAddress(address: ServerAddressIp, why: string) {
-        address = addresses.add(address);
-        const attempt = attempts.get(address);
+        const variants = expandAddresses(address).map(v => addresses.add(v));
+        const operationalAddress = peer.descriptor.operationalAddress;
+        const isOperational = operationalAddress !== undefined && ServerAddress.isEqual(operationalAddress, address);
 
-        if (attempt) {
-            const operationalAddress = peer.descriptor.operationalAddress;
-            if (
-                attempts.size === 1 &&
-                operationalAddress !== undefined &&
-                ServerAddress.isEqual(operationalAddress, address)
-            ) {
-                // If we only have one attempt running and this is for the known operational address,
-                // fall back to fallback mode and just keep it running
-                attemptingFallback = address;
-                return;
-            }
-            debug(via, address, why);
-            attempt.abort();
-            attempts.delete(address);
+        // If only operational-address attempts remain, keep them alive as fallback.
+        const remainingNonOperational = attempts.size - variants.filter(v => attempts.has(v)).length;
+        if (isOperational && remainingNonOperational === 0) {
+            attemptingFallback = variants[0];
+            return;
         }
 
-        pendingAddresses.delete(address);
+        for (const variant of variants) {
+            const attempt = attempts.get(variant);
+            if (attempt) {
+                debug(via, variant, why);
+                attempt.abort();
+                attempts.delete(variant);
+            }
+            pendingAddresses.delete(variant);
+        }
     }
 
     function error(address: ServerAddressIp, ...message: unknown[]) {
