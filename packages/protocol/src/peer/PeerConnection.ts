@@ -132,11 +132,19 @@ export async function PeerConnection(
     // Address set used for interning
     const addresses = ServerAddressSet<ServerAddressIp>();
 
-    // Addresses we will attempt to connect to in priority order
-    const pendingAddresses = new Heap<ServerAddressIp>(
-        ServerAddressSet.compareDesirability,
-        addresses.add.bind(addresses),
-    );
+    // Addresses to try, ordered by desirability and (for same-IP variants) by transport-list index.
+    const pendingAddresses = new Heap<ServerAddressIp>((a, b) => {
+        const primary = ServerAddressSet.compareDesirability(a, b);
+        if (primary !== 0 || transports === undefined) {
+            return primary;
+        }
+        return transportIndex(a) - transportIndex(b);
+    }, addresses.add.bind(addresses));
+
+    function transportIndex(address: ServerAddressIp): number {
+        const type = (address as { type?: IpChannelType }).type;
+        return type === undefined || transports === undefined ? -1 : transports.indexOf(type);
+    }
 
     // When the service is undiscovered, we attempt to connect to the last-known good address and store it here
     let attemptingFallback: ServerAddressIp | undefined;
@@ -237,12 +245,8 @@ export async function PeerConnection(
     }
 
     /**
-     * Expand an address into one variant per requested transport.
-     *
-     * If `transports` is undefined, returns the address unchanged so the discovery layer's typing wins.
-     * Otherwise returns one address per listed transport, in array order. The caller pushes them into
-     * the priority heap; insertion order breaks ties between same-IP variants, so the first transport
-     * in the array is attempted first.
+     * Expand an address into one variant per requested transport, or return it unchanged when no
+     * transport list is set.
      */
     function expandAddresses(address: ServerAddressIp): ServerAddressIp[] {
         if (transports === undefined) {
