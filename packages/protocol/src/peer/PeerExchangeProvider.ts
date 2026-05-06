@@ -12,6 +12,7 @@ import { ChannelType, Duration, InternalError } from "@matter/general";
 import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
+import { resolveTransports } from "./transportResolution.js";
 
 /**
  * Produces {@link MessageExchange}s for a peer.
@@ -48,8 +49,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
     }
 
     override async connect(options?: NewExchangeOptions): Promise<void> {
-        // Use explicit requirement, or fall back to the peer's transport preference
-        const transport = options?.requiredTransport ?? this.#peer.transportPreference;
+        // Resolve the ordered list of transports to try. `requiredTransport` (e.g. set by Large
+        // Message Quality) is a hard constraint; the peer's `transportPreference` is a soft hint
+        // that only applies if the peer advertises matching server capability in discovery data.
+        const transport = resolveTransports(this.#peer, options?.requiredTransport);
 
         await this.#peer.connect({
             abort: options?.abort,
