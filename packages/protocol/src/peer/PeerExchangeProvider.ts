@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
@@ -28,11 +27,7 @@ function resolveTransports(peer: Peer, requiredTransport: ChannelType | undefine
     if (peer.transportPreference !== ChannelType.TCP) {
         return undefined;
     }
-    const T = peer.descriptor.discoveryData?.T;
-    if (typeof T !== "number") {
-        return undefined;
-    }
-    return SupportedTransportsSchema.decode(T).tcpServer ? [ChannelType.TCP, ChannelType.UDP] : undefined;
+    return peer.descriptor.discoveryData?.T?.tcpServer ? [ChannelType.TCP, ChannelType.UDP] : undefined;
 }
 
 /**

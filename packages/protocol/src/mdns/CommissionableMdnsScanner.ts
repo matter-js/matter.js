@@ -449,8 +449,8 @@ function buildCommissionableDevice(name: DnssdName): CommissionableDevice | unde
 
     const dd = DiscoveryData(params);
 
-    // Default T and ICD to 0 when absent, matching legacy MdnsClient behavior
-    dd.T ??= 0;
+    // Default T and ICD to "none" when absent, matching legacy MdnsClient behavior
+    dd.T ??= { tcpClient: false, tcpServer: false };
     dd.ICD ??= 0;
 
     return {

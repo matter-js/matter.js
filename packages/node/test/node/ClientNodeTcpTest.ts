@@ -6,7 +6,7 @@
 
 import { OnOffClient } from "#behaviors/on-off";
 import { ChannelType, Crypto, MockCrypto, Seconds, ServerAddress } from "@matter/general";
-import { ExchangeManager, Peer, PeerSet, SupportedTransportsSchema } from "@matter/protocol";
+import { ExchangeManager, Peer, PeerSet } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
 
@@ -238,9 +238,7 @@ describe("ClientNodeTcp", () => {
             const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
 
             const peer = protocolPeer(controller);
-            const T = peer.descriptor.discoveryData?.T;
-            const advertisesTcpServer = T !== undefined && SupportedTransportsSchema.decode(T).tcpServer;
-            expect(advertisesTcpServer).false;
+            expect(peer.descriptor.discoveryData?.T?.tcpServer).not.true;
 
             // Opt the peer into TCP preference. Without the soft-fallback fix this would lock the
             // connect process to TCP-only and never establish a session.
