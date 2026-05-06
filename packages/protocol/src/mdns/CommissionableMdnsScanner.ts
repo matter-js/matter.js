@@ -192,7 +192,7 @@ export class CommissionableMdnsScanner implements Scanner {
 
         logger.info(
             "Discovery start: iterating cache",
-            Diagnostic.dict({ cacheSize: this.#cache.size, identifier: JSON.stringify(identifier) }),
+            Diagnostic.dict({ cacheSize: this.#cache.size, identifierKeys: Object.keys(identifier).join(",") }),
         );
 
         // Callback may trigger an async cancel chain that must settle before we start discovery
@@ -266,10 +266,7 @@ export class CommissionableMdnsScanner implements Scanner {
             this.#waiters.delete(waiter);
         }
 
-        logger.info(
-            "Discovery complete",
-            Diagnostic.dict({ resultSize: result.length, cacheSize: this.#cache.size }),
-        );
+        logger.info("Discovery complete", Diagnostic.dict({ resultSize: result.length, cacheSize: this.#cache.size }));
         return result;
     }
 
