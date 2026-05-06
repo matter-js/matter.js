@@ -213,9 +213,12 @@ export class CommissionableMdnsScanner implements Scanner {
             } else if (matches && !hasAddr) {
                 cacheRejectedNoAddr++;
                 logger.info(
-                    "Discovery cache: reject (no addresses)",
+                    "Discovery cache: stale entry, re-soliciting A/AAAA",
                     Diagnostic.dict({ id: device.deviceIdentifier, D: device.D, CM: device.CM }),
                 );
+                // Kick off A/AAAA refresh and arm onAddresses observer so this discovery's waiter
+                // is notified if addresses resolve before the timeout fires.
+                this.#solicitAndArmAddresses(cached);
             } else {
                 cacheRejectedFilter++;
             }
@@ -433,29 +436,44 @@ export class CommissionableMdnsScanner implements Scanner {
         // A/AAAA records may arrive after the initial SRV/TXT discovery;
         // defer notification until addresses become available.
         if (!this.#deliverDeviceIfResolved(cached)) {
-            // SRV target hostname may have lost its A/AAAA records (TTL expired) while the instance
-            // SRV/TXT was still valid.  Solicit address records for all SRV target hostnames so we
-            // don't wait for the next unsolicited broadcast to deliver the device.
-            for (const record of name.records) {
-                if (record.recordType !== DnsRecordType.SRV) {
-                    continue;
-                }
-                const hostname = this.#names.get(record.value.target);
-                this.#names.solicitor.solicit({
-                    name: hostname,
-                    recordTypes: [DnsRecordType.A, DnsRecordType.AAAA],
-                });
-            }
-
-            const onAddresses = () => {
-                if (this.#deliverDeviceIfResolved(cached)) {
-                    this.#observers.off(ipService.changed, onAddresses);
-                    cached.onAddresses = undefined;
-                }
-            };
-            cached.onAddresses = onAddresses;
-            this.#observers.on(ipService.changed, onAddresses);
+            this.#solicitAndArmAddresses(cached);
         }
+    }
+
+    /**
+     * Solicit A/AAAA records for the cached device's SRV target hostnames and arm an onAddresses observer
+     * that delivers via {@link #deliverDeviceIfResolved} once addresses resolve.  Used both when a device is
+     * first cached without addresses AND when an active discovery encounters a cached entry whose A/AAAA
+     * records have since expired (matter commissionable A/AAAA TTL is short and may lapse between the device's
+     * unsolicited broadcasts).  Idempotent: skips re-arming if onAddresses observer already attached.
+     */
+    #solicitAndArmAddresses(cached: CachedDevice) {
+        // SRV target hostname may have lost its A/AAAA records (TTL expired) while the instance
+        // SRV/TXT was still valid.  Solicit address records for all SRV target hostnames so we
+        // don't wait for the next unsolicited broadcast to deliver the device.
+        for (const record of cached.name.records) {
+            if (record.recordType !== DnsRecordType.SRV) {
+                continue;
+            }
+            const hostname = this.#names.get(record.value.target);
+            this.#names.solicitor.solicit({
+                name: hostname,
+                recordTypes: [DnsRecordType.A, DnsRecordType.AAAA],
+            });
+        }
+
+        if (cached.onAddresses !== undefined) {
+            return;
+        }
+
+        const onAddresses = () => {
+            if (this.#deliverDeviceIfResolved(cached)) {
+                this.#observers.off(cached.ipService.changed, onAddresses);
+                cached.onAddresses = undefined;
+            }
+        };
+        cached.onAddresses = onAddresses;
+        this.#observers.on(cached.ipService.changed, onAddresses);
     }
 
     #deliverDeviceIfResolved(cached: CachedDevice): boolean {
