@@ -1676,4 +1676,122 @@ describe("DclCertificateService", () => {
             await service.close();
         });
     });
+
+    describe("test certificate visibility", () => {
+        const TEST_PAA_NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
+        const TEST_PAA_FFF1_SKID = "6AFD22771F511FECBF1641976710DCDC31A1717E";
+
+        // Set up storage with two test PAAs cached from a prior `fetchTestCertificates: true` run.
+        async function seedStorageWithTestPaas() {
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const seed = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await seed.construction;
+            expect(seed.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+            expect(seed.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+            await seed.close();
+
+            fetchMock.uninstall();
+            fetchMock = new MockFetch();
+        }
+
+        it("hides cached test certificates from getCertificate when fetchTestCertificates is disabled", async () => {
+            await seedStorageWithTestPaas();
+
+            // Reopen with test fetching disabled — cached test certs must not surface.
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: false });
+            await service.construction;
+
+            expect(service.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+            expect(service.getCertificate(TEST_PAA_FFF1_SKID)).to.be.undefined;
+            // Raw enumeration still exposes the cached entries for management commands.
+            expect(service.certificates.length).to.equal(2);
+
+            await service.close();
+        });
+
+        it("returns cached test certificates again when fetchTestCertificates is re-enabled", async () => {
+            await seedStorageWithTestPaas();
+
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            expect(service.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+            expect(service.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+
+            await service.close();
+        });
+
+        it("rejects DER/PEM lookups for hidden test certificates", async () => {
+            await seedStorageWithTestPaas();
+
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: false });
+            await service.construction;
+
+            await expect(service.getCertificateAsDer(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+            await expect(service.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+
+            await service.close();
+        });
+
+        it("does not affect production certificates", async () => {
+            // Seed a production cert (no test fetching needed).
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: false });
+            await service.construction;
+
+            expect(service.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.true;
+            expect(service.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.true;
+
+            await service.close();
+        });
+    });
 });

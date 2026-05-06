@@ -111,15 +111,33 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate metadata by subject key identifier. Returns undefined if not found.
+     * Whether a stored entry is relevant under the current trust policy. Production certificates
+     * are always relevant. Test PAAs are only relevant when `fetchTestCertificates` is enabled,
+     * so cached test PAAs left in storage from a previous run are ignored once the option is
+     * turned off without requiring a storage purge. CD signer certificates are managed
+     * separately and are always relevant.
      */
-    getCertificate(subjectKeyId: Bytes | string) {
-        this.construction.assert();
-        return this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
+    #isRelevant(metadata: DclCertificateService.CertificateMetadata) {
+        const kind = metadata.kind ?? "PAA";
+        return kind !== "PAA" || metadata.isProduction || !!this.#options.fetchTestCertificates;
     }
 
     /**
-     * Get all certificate metadata entries.
+     * Get certificate metadata by subject key identifier. Returns undefined if not found or if the
+     * entry is a test certificate while `fetchTestCertificates` is disabled.
+     */
+    getCertificate(subjectKeyId: Bytes | string) {
+        this.construction.assert();
+        const metadata = this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
+        if (metadata === undefined || !this.#isRelevant(metadata)) {
+            return undefined;
+        }
+        return metadata;
+    }
+
+    /**
+     * Get all certificate metadata entries (raw enumeration, unaffected by the
+     * `fetchTestCertificates` filter so management commands can still inspect cached test certs).
      */
     get certificates() {
         this.construction.assert();
@@ -135,7 +153,7 @@ export class DclCertificateService {
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata) {
+        if (!metadata || !this.#isRelevant(metadata)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
@@ -161,7 +179,7 @@ export class DclCertificateService {
     async #getCertificateDer(subjectKeyId: Bytes | string) {
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata) {
+        if (!metadata || !this.#isRelevant(metadata)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
