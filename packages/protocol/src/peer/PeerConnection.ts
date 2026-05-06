@@ -94,13 +94,15 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
-    // Normalize transport option to an ordered array of variants to try (or undefined for default UDP).
+    const rawTransports = options?.transport;
     const transports: ChannelType[] | undefined =
-        options?.transport === undefined
+        rawTransports === undefined
             ? undefined
-            : Array.isArray(options.transport)
-              ? [...options.transport]
-              : [options.transport];
+            : Array.isArray(rawTransports)
+              ? rawTransports.length === 0
+                  ? undefined
+                  : [...rawTransports]
+              : [rawTransports];
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
