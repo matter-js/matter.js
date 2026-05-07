@@ -92,10 +92,11 @@
         "mocha": {
             "diff": "^8.0.3",
             "serialize-javascript": "^7.0.4"
-        }
+        },
+        "@typescript/native-preview": "7.0.0-dev.20260505.1"
     },
     "dependencies": {
-        "@nacho-iot/js-tools": "^0.1.4",
+        "@nacho-iot/js-tools": "^0.1.5",
         "memlab": "^2.0.2"
     }
 }
