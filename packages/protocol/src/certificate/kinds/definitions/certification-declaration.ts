@@ -16,6 +16,16 @@ import {
     TlvVendorId,
 } from "@matter/types";
 
+/** Certification Declaration certification_type field values per Matter spec Section 6.3.1 */
+export enum CertificationType {
+    /** Development/test certification (not for production use) */
+    Test = 0,
+    /** Provisional certification (in process, not yet fully certified) */
+    Provisional = 1,
+    /** Official CSA certification */
+    Official = 2,
+}
+
 /** Definitions for Matter Certification Declaration */
 export namespace CertificationDeclaration {
     export const TlvDc = TlvObject({

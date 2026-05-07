@@ -33,6 +33,7 @@ export class MatterNode {
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
     #allowTestOtaImages = false;
+    #transportPreference?: "tcp" | "udp";
     #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
@@ -88,8 +89,18 @@ export class MatterNode {
                 this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
             }
 
-            // Build up the "Not-so-legacy" Controller
             const id = `shell-${this.#nodeNum.toString()}`;
+
+            // Open storage up front so persisted settings can flow into the CommissioningController constructor.
+            this.#storageManager = await this.#environment.get(StorageService).open(id);
+            this.#storageContext = this.#storageManager.createContext("Node");
+
+            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
+            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
+            const storedPref = await this.#storageContext.get<string>("TransportPreference", "");
+            this.#transportPreference = storedPref === "tcp" || storedPref === "udp" ? storedPref : undefined;
+
+            // Build up the "Not-so-legacy" Controller
             this.commissioningController = new CommissioningController({
                 environment: {
                     environment: this.#environment,
@@ -99,6 +110,7 @@ export class MatterNode {
                 adminFabricLabel: "matter.js Shell",
                 enableOtaProvider: true,
                 tcp: true,
+                transportPreference: this.#transportPreference,
                 basicInformation: {
                     productName: "matter.js Shell",
                 },
@@ -112,17 +124,6 @@ export class MatterNode {
             if (resetStorage) {
                 await this.commissioningController.node.erase();
             }
-
-            // We side open a storage with the same ID as the ServerNode but only care about the "Node" sub context which
-            // is consistent.
-            this.#storageManager = await env.get(StorageService).open(id);
-            this.#storageContext = this.#storageManager.createContext("Node");
-
-            // Read DCL test certificates setting
-            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
-
-            // Read OTA test images setting
-            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
         } else {
             console.log(
                 "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",

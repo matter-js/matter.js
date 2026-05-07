@@ -35,7 +35,10 @@ export interface DclGithubConfig {
     owner: string;
     repo: string;
     branch: string;
+    /** Path within the repo to the directory containing PAA root .der files. */
     certPath: string;
+    /** Path within the repo to the directory containing CD signer .der files. */
+    cdSignerCertPath: string;
 }
 
 export namespace DclGithubConfig {
@@ -45,5 +48,6 @@ export namespace DclGithubConfig {
         repo: "connectedhomeip",
         branch: "master",
         certPath: "credentials/development/paa-root-certs",
+        cdSignerCertPath: "credentials/development/cd-certs",
     };
 }

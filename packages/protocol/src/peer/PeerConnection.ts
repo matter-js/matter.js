@@ -23,6 +23,7 @@ import {
     Diagnostic,
     Duration,
     Heap,
+    IpChannelType,
     Lifetime,
     Logger,
     Millis,
@@ -30,6 +31,7 @@ import {
     ServerAddress,
     ServerAddressIp,
     ServerAddressSet,
+    ServerAddressTcp,
     ServerAddressUdp,
     Time,
     Timestamp,
@@ -94,7 +96,11 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
-    const useTcp = options?.transport === ChannelType.TCP;
+    const requiredTransport = options?.requiredTransport;
+    const preferredTransport = options?.preferredTransport;
+
+    // Lazy so descriptor.T arriving mid-connect (operational mDNS) is honored for later expansions.
+    const resolveTransports = () => peer.resolveTransports(requiredTransport, preferredTransport);
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -130,11 +136,20 @@ export async function PeerConnection(
     // Address set used for interning
     const addresses = ServerAddressSet<ServerAddressIp>();
 
-    // Addresses we will attempt to connect to in priority order
-    const pendingAddresses = new Heap<ServerAddressIp>(
-        ServerAddressSet.compareDesirability,
-        addresses.add.bind(addresses),
-    );
+    // Addresses to try, ordered by desirability and (for same-IP variants) by transport-list index.
+    const pendingAddresses = new Heap<ServerAddressIp>((a, b) => {
+        const primary = ServerAddressSet.compareDesirability(a, b);
+        const transports = resolveTransports();
+        if (primary !== 0 || transports === undefined) {
+            return primary;
+        }
+        return transportIndex(a, transports) - transportIndex(b, transports);
+    }, addresses.add.bind(addresses));
+
+    function transportIndex(address: ServerAddressIp, transports: IpChannelType[]): number {
+        const type = (address as { type?: IpChannelType }).type;
+        return type === undefined ? -1 : transports.indexOf(type);
+    }
 
     // When the service is undiscovered, we attempt to connect to the last-known good address and store it here
     let attemptingFallback: ServerAddressIp | undefined;
@@ -235,35 +250,41 @@ export async function PeerConnection(
     }
 
     /**
-     * When TCP transport is required, stamp the address with the TCP type.
+     * Expand an address into one variant per requested transport, or return it unchanged when no
+     * transport list is set.
      */
-    function applyTransportConstraint(address: ServerAddressIp): ServerAddressIp {
-        if (useTcp) {
-            return { ...address, type: "tcp" } as ServerAddressIp;
+    function expandAddresses(address: ServerAddressIp): ServerAddressIp[] {
+        const transports = resolveTransports();
+        if (transports === undefined) {
+            return [address];
         }
-        return address;
+        return transports.map(type =>
+            type === ChannelType.TCP
+                ? ({ ...address, type } satisfies ServerAddressTcp)
+                : ({ ...address, type } satisfies ServerAddressUdp),
+        );
     }
 
     /**
      * Enqueue an address if not already attempting.
      */
     function addAddress(address: ServerAddressIp) {
-        address = applyTransportConstraint(address);
-        address = addresses.add(address);
+        for (const variant of expandAddresses(address)) {
+            const interned = addresses.add(variant);
 
-        // Skip if we're already attempting connection to this address
-        const attempt = attempts.get(address);
-        if (attempt !== undefined) {
-            if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
-                // The "fallback" is now a "real" address
-                attemptingFallback = undefined;
-                kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
+            // Skip if we're already attempting connection to this exact (ip,port,type) variant
+            const attempt = attempts.get(interned);
+            if (attempt !== undefined) {
+                if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, interned)) {
+                    // The "fallback" is now a "real" address
+                    attemptingFallback = undefined;
+                    kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
+                }
+                continue;
             }
 
-            return;
+            pendingAddresses.add(interned);
         }
-
-        pendingAddresses.add(address);
     }
 
     /**
@@ -275,9 +296,16 @@ export async function PeerConnection(
         }
 
         const fallback = peer.descriptor.operationalAddress;
-        attemptingFallback = fallback ? applyTransportConstraint(fallback) : undefined;
-        if (attemptingFallback) {
-            pendingAddresses.add(attemptingFallback);
+        if (!fallback) {
+            attemptingFallback = undefined;
+            return;
+        }
+        const variants = expandAddresses(fallback);
+        // The interned first variant is the fallback marker; reference equality
+        // must match what comes back out of pendingAddresses.
+        attemptingFallback = addresses.add(variants[0]);
+        for (const variant of variants) {
+            pendingAddresses.add(variant);
         }
     }
 
@@ -313,30 +341,31 @@ export async function PeerConnection(
     }
 
     /**
-     * End connection attempt.
+     * End connection attempt(s) for the given address. Discovery emits bare addresses without
+     * transport type; expand into the same variants `addAddress` enqueued so the typed
+     * entries in `attempts`/`pendingAddresses` actually match.
      */
     function deleteAddress(address: ServerAddressIp, why: string) {
-        address = addresses.add(address);
-        const attempt = attempts.get(address);
+        const variants = expandAddresses(address).map(v => addresses.add(v));
+        const operationalAddress = peer.descriptor.operationalAddress;
+        const isOperational = operationalAddress !== undefined && ServerAddress.isEqual(operationalAddress, address);
 
-        if (attempt) {
-            const operationalAddress = peer.descriptor.operationalAddress;
-            if (
-                attempts.size === 1 &&
-                operationalAddress !== undefined &&
-                ServerAddress.isEqual(operationalAddress, address)
-            ) {
-                // If we only have one attempt running and this is for the known operational address,
-                // fall back to fallback mode and just keep it running
-                attemptingFallback = address;
-                return;
-            }
-            debug(via, address, why);
-            attempt.abort();
-            attempts.delete(address);
+        // If only operational-address attempts remain, keep them alive as fallback.
+        const remainingNonOperational = attempts.size - variants.filter(v => attempts.has(v)).length;
+        if (isOperational && remainingNonOperational === 0) {
+            attemptingFallback = variants[0];
+            return;
         }
 
-        pendingAddresses.delete(address);
+        for (const variant of variants) {
+            const attempt = attempts.get(variant);
+            if (attempt) {
+                debug(via, variant, why);
+                attempt.abort();
+                attempts.delete(variant);
+            }
+            pendingAddresses.delete(variant);
+        }
     }
 
     function error(address: ServerAddressIp, ...message: unknown[]) {
@@ -602,12 +631,11 @@ export namespace PeerConnection {
         network?: string;
         kicker?: Observable<[KickOrigin]>;
 
-        /**
-         * Constrain the transport type for this connection. When set to `ChannelType.TCP`, the
-         * connection will be established over TCP (requires peer TCP Server support and local
-         * TCP outgoing enabled). When undefined, the default transport (UDP/MRP) is used.
-         */
-        transport?: ChannelType;
+        /** See {@link Peer.ConnectOptions.requiredTransport}. */
+        requiredTransport?: ChannelType;
+
+        /** See {@link Peer.ConnectOptions.preferredTransport}. */
+        preferredTransport?: ChannelType;
 
         /**
          * Per-call overrides for timing parameters.

@@ -10,9 +10,16 @@ import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalPro
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ChannelType, Observable, ServerAddress, ServerAddressIp } from "@matter/general";
+import { ChannelType, Observable, ServerAddress } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
+import {
+    ClientSubscription,
+    OperationalAddress,
+    PeerSet,
+    Subscribe,
+    SustainedSubscription,
+    Val,
+} from "@matter/protocol";
 import { EventNumber } from "@matter/types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -41,13 +48,15 @@ export class NetworkClient extends NetworkBehavior {
             if (!peerSet.has(peerAddress)) {
                 const ipAddresses = this.#node.state.commissioning.addresses?.filter(a => ServerAddress.isIp(a)) ?? [];
                 if (ipAddresses.length) {
-                    const operationalAddress = ServerAddress(ipAddresses[0]) as ServerAddressIp;
-                    // Make sure the PeerSet knows about this peer now too
-                    peerSet.addKnownPeer({
-                        address: peerAddress,
-                        operationalAddress,
-                        discoveryData: RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
-                    });
+                    const operationalAddress = OperationalAddress.from(ServerAddress(ipAddresses[0]));
+                    if (operationalAddress !== undefined) {
+                        // Make sure the PeerSet knows about this peer now too
+                        peerSet.addKnownPeer({
+                            address: peerAddress,
+                            operationalAddress,
+                            discoveryData: RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
+                        });
+                    }
                 }
             }
 
@@ -57,12 +66,12 @@ export class NetworkClient extends NetworkBehavior {
                 peer.physicalProperties = ClientNodePhysicalProperties(this.#node);
 
                 // Set transport preference: per-peer override from NetworkClient, or inherit
-                // from the controller (owner) NetworkServer default. Maps "tcp"/"udp" string to ChannelType.
+                // from the controller (owner) NetworkServer default. Explicit "udp" clears any
+                // controller-wide TCP default already applied by PeerSet.#applyDefaultPreference.
                 const pref =
-                    this.state.transportPreference ?? (this.#node.owner?.state as any)?.network?.transportPreference;
-                if (pref === "tcp") {
-                    peer.transportPreference = ChannelType.TCP;
-                }
+                    this.state.transportPreference ??
+                    (this.#node.owner?.state as Record<string, Val.Struct> | undefined)?.network?.transportPreference;
+                peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
             }
         }
 

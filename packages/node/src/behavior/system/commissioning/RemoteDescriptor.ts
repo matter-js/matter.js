@@ -5,7 +5,7 @@
  */
 
 import { Immutable, ServerAddress } from "@matter/general";
-import { CommissionableDevice, OperationalDevice, PeerAddress } from "@matter/protocol";
+import { CommissionableDevice, OperationalDevice, PeerAddress, SupportedTransportsSchema } from "@matter/protocol";
 import { DeviceTypeId, VendorId } from "@matter/types";
 import type { CommissioningClient } from "./CommissioningClient.js";
 
@@ -122,7 +122,8 @@ export namespace RemoteDescriptor {
         }
 
         if (tcpSupport !== undefined) {
-            result.T = tcpSupport;
+            // Long form persists the wire-format number; short form (DiscoveryData.T) holds the decoded bitmap.
+            result.T = SupportedTransportsSchema.decode(tcpSupport);
         }
 
         if (longIdleTimeOperatingMode !== undefined) {
@@ -197,7 +198,7 @@ export namespace RemoteDescriptor {
         long.rotatingIdentifier = RI;
         long.pairingHint = PH;
         long.pairingInstructions = PI;
-        long.tcpSupport = T;
+        long.tcpSupport = T === undefined ? undefined : SupportedTransportsSchema.encode(T);
         long.longIdleTimeOperatingMode = ICD === undefined ? undefined : ICD === 1;
 
         if ("D" in descriptor) {

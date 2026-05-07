@@ -228,13 +228,13 @@ export class SubscriptionsServer extends Behavior {
                         const { operationalAddress } = peer.descriptor;
 
                         // If the peer's last known address was TCP, prefer TCP for re-establishment
-                        const transport =
+                        const preferredTransport =
                             operationalAddress && "type" in operationalAddress && operationalAddress.type === "tcp"
                                 ? ChannelType.TCP
                                 : undefined;
                         session = await peer.connect({
                             connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT,
-                            transport,
+                            preferredTransport,
                         });
                         if (GroupSession.is(session)) {
                             // Should never happen but add for easier typing

@@ -148,6 +148,40 @@ export default function commands(theNode: MatterNode) {
                         const count = (await theNode.certificateService()).certificates.length;
                         console.log(`Total certificates in storage: ${count}`);
                     },
+                )
+                .command(
+                    "check-revoked <issuer-key-id> <serial-number>",
+                    "Check if a certificate is revoked (fetches from DCL on demand)",
+                    yargs => {
+                        return yargs
+                            .positional("issuer-key-id", {
+                                describe: "Authority Key Identifier of the issuer (hex, with or without colons)",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("serial-number", {
+                                describe: "Serial number of the certificate to check (hex)",
+                                type: "string",
+                                demandOption: true,
+                            });
+                    },
+                    async argv => {
+                        const { issuerKeyId, serialNumber } = argv;
+                        await theNode.start();
+                        const service = await theNode.certificateService();
+
+                        console.log("Checking revocation status against DCL...");
+                        const revoked = await service.isRevoked(issuerKeyId, serialNumber);
+                        if (revoked) {
+                            console.log(
+                                `REVOKED: Certificate with serial ${serialNumber} (issuer ${issuerKeyId}) is revoked.`,
+                            );
+                        } else {
+                            console.log(
+                                `OK: Certificate with serial ${serialNumber} (issuer ${issuerKeyId}) is not revoked.`,
+                            );
+                        }
+                    },
                 ),
         handler: async (argv: any) => {
             argv.unhandled = true;

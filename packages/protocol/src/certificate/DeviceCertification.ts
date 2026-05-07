@@ -9,6 +9,7 @@ import { NodeSession } from "#session/NodeSession.js";
 import { Bytes, Construction, Crypto, ImplementationError, InternalError, PrivateKey } from "@matter/general";
 import { ProductDescription } from "@matter/types";
 import { AttestationCertificateManager } from "./AttestationCertificateManager.js";
+import { Dac, Pai } from "./kinds/AttestationCertificates.js";
 
 /**
  * Device certification used by the OperationalCredentials cluster.
@@ -76,10 +77,40 @@ export class DeviceCertification {
         });
     }
 
-    #validateCertification(_product: ProductDescription) {
-        //const { privateKey, certificate, intermediateCertificate, declaration } = this.#assertInitialized();
-        // TODO extract and validate vendorIds from certificate and intermediateCertificate and compare to product.vendorId
-        // TODO extract and validate productId from certificate and compare to product.productId
+    #validateCertification(product: ProductDescription) {
+        const certificate = this.#certificate;
+        const intermediateCertificate = this.#intermediateCertificate;
+        if (certificate === undefined || intermediateCertificate === undefined) {
+            return;
+        }
+
+        // Parse DAC and PAI
+        const dac = Dac.fromAsn1(certificate);
+        const pai = Pai.fromAsn1(intermediateCertificate);
+
+        // Validate vendorId from DAC matches product
+        const dacVendorId = dac.cert.subject.vendorId;
+        if (dacVendorId !== undefined && dacVendorId !== product.vendorId) {
+            throw new ImplementationError(
+                `DAC VendorID ${dacVendorId} does not match product VendorID ${product.vendorId}`,
+            );
+        }
+
+        // Validate productId from DAC matches product
+        const dacProductId = dac.cert.subject.productId;
+        if (dacProductId !== undefined && dacProductId !== product.productId) {
+            throw new ImplementationError(
+                `DAC ProductID ${dacProductId} does not match product ProductID ${product.productId}`,
+            );
+        }
+
+        // Validate vendorId from PAI matches product
+        const paiVendorId = pai.cert.subject.vendorId;
+        if (paiVendorId !== undefined && paiVendorId !== product.vendorId) {
+            throw new ImplementationError(
+                `PAI VendorID ${paiVendorId} does not match product VendorID ${product.vendorId}`,
+            );
+        }
     }
 
     async sign(session: NodeSession, data: Bytes) {

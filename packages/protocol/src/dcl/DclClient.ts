@@ -9,12 +9,16 @@ import {
     DclModelModelsWithVidPidResponse,
     DclModelVersionsWithVidPidResponse,
     DclModelVersionWithVidPidSoftwareVersionResponse,
+    DclPkiAllCertificatesBySkidResponse,
     DclPkiCertificateResponse,
+    DclPkiRevocationDistributionPointRaw,
+    DclPkiRevocationPointsByIssuerResponse,
     DclPkiRootCertificatesResponse,
     DclPkiRootCertificateSubjectReference,
     DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
 import { Duration, Logger, MatterError, Seconds } from "@matter/general";
+import { DeviceAttestationPkiRevocationDclSchema, ProductAttestationDclSchema, VendorId } from "@matter/types";
 
 const logger = new Logger("DclClient");
 
@@ -112,6 +116,29 @@ export class DclClient {
         return certList.approvedRootCertificates.certs;
     }
 
+    /**
+     * Fetch certificates by their SubjectKeyIdentifier from the DCL. Useful for looking up
+     * certificates without knowing their subject DN (e.g. CD signer certificates referenced
+     * only by SKID in Certification Declarations).
+     *
+     * Returns an empty array if no matching certificates exist.
+     */
+    async fetchCertificatesBySubjectKeyId(subjectKeyId: string, options?: DclClient.Options) {
+        // DCL expects SKID as colon-separated uppercase hex (e.g. "FE:34:3F:...")
+        const normalized = subjectKeyId.replace(/:/g, "").toUpperCase();
+        const skidWithColons = normalized.match(/.{1,2}/g)?.join(":") ?? normalized;
+        const path = `/dcl/pki/all-certificates?subjectKeyId=${encodeURIComponent(skidWithColons)}`;
+        const response = await this.#fetchJson<DclPkiAllCertificatesBySkidResponse>(path, options);
+        const groups = response?.certificates ?? [];
+        const results: ProductAttestationDclSchema[] = [];
+        for (const group of groups) {
+            for (const cert of group.certs ?? []) {
+                results.push(cert);
+            }
+        }
+        return results;
+    }
+
     async fetchRootCertificateBySubject(subject: DclPkiRootCertificateSubjectReference, options?: DclClient.Options) {
         const path = `/dcl/pki/certificates/${encodeURIComponent(subject.subject)}/${encodeURIComponent(subject.subjectKeyId)}`;
         const response = await this.#fetchJson<DclPkiCertificateResponse>(path, options);
@@ -188,6 +215,57 @@ export class DclClient {
     async fetchAllVendors(options?: DclClient.Options) {
         return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", "vendorInfo", options);
     }
+
+    /**
+     * Fetch all revocation distribution point entries from DCL.
+     * Uses pagination to retrieve all entries across multiple pages.
+     */
+    async fetchRevocationDistributionPoints(
+        options?: DclClient.Options,
+    ): Promise<DeviceAttestationPkiRevocationDclSchema[]> {
+        const rawItems = await this.#fetchPaginatedJson<DclPkiRevocationDistributionPointRaw>(
+            "/dcl/pki/revocation-points",
+            "PkiRevocationDistributionPoint",
+            options,
+        );
+        return rawItems.map(mapRawRevocationPoint);
+    }
+
+    /**
+     * Fetch revocation distribution points for a specific issuer by their subject key identifier.
+     */
+    async fetchRevocationDistributionPointsByIssuer(
+        issuerSubjectKeyId: string,
+        options?: DclClient.Options,
+    ): Promise<DeviceAttestationPkiRevocationDclSchema[]> {
+        const path = `/dcl/pki/revocation-points/${encodeURIComponent(issuerSubjectKeyId)}`;
+        const response = await this.#fetchJson<DclPkiRevocationPointsByIssuerResponse>(path, options);
+        const rawPoints = response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID?.points ?? [];
+        return rawPoints.map(mapRawRevocationPoint);
+    }
+}
+
+/**
+ * Maps a raw DCL revocation distribution point entry to the DeviceAttestationPkiRevocationDclSchema format.
+ * The DCL API uses "issuerSubjectKeyID" (capital ID) and "dataURL" (capital URL), while the
+ * DeviceAttestationPkiRevocationDclSchema uses "issuerSubjectKeyId" and "dataUrl".
+ */
+function mapRawRevocationPoint(raw: DclPkiRevocationDistributionPointRaw): DeviceAttestationPkiRevocationDclSchema {
+    return {
+        vid: VendorId(raw.vid, false),
+        pid: raw.pid || undefined,
+        isPAA: raw.isPAA,
+        label: raw.label,
+        crlSignerDelegator: raw.crlSignerDelegator || undefined,
+        crlSignerCertificate: raw.crlSignerCertificate,
+        issuerSubjectKeyId: raw.issuerSubjectKeyID,
+        dataUrl: raw.dataURL,
+        dataFileSize: raw.dataFileSize ? parseInt(raw.dataFileSize, 10) || undefined : undefined,
+        dataDigest: raw.dataDigest || undefined,
+        dataDigestType: raw.dataDigestType || undefined,
+        revocationType: raw.revocationType,
+        schemaVersion: raw.schemaVersion,
+    };
 }
 
 export namespace DclClient {

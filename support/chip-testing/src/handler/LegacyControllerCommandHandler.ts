@@ -17,7 +17,6 @@ import {
     PeerSet,
     SecureSession,
     SessionManager,
-    SupportedTransportsSchema,
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
 import {
@@ -528,6 +527,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 nodeId: data.nodeId,
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
+                onAttestationFailure: true, // Test controller always accepts attestation findings
             },
             discovery: {
                 knownAddress,
@@ -632,9 +632,10 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             return [];
         }
         return [latestDiscovery].map(({ DT, DN, CM, D, RI, PH, PI, T, VP, deviceIdentifier, addresses }) => {
-            const { tcpClient: supportsTcpClient, tcpServer: supportsTcpServer } = SupportedTransportsSchema.decode(
-                T ?? 0,
-            );
+            const { tcpClient: supportsTcpClient, tcpServer: supportsTcpServer } = T ?? {
+                tcpClient: false,
+                tcpServer: false,
+            };
             const vendorId = VP === undefined ? -1 : VP.includes("+") ? parseInt(VP.split("+")[0]) : parseInt(VP);
             const productId = VP === undefined ? -1 : VP.includes("+") ? parseInt(VP.split("+")[1]) : -1;
             const port = addresses.length ? (addresses[0] as ServerAddressUdp).port : 0;
