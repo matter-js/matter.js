@@ -9,6 +9,7 @@ import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     AddressInUseError,
+    ChannelType,
     Crypto,
     InterfaceType,
     Logger,
@@ -325,6 +326,17 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const tcpConfig = NetworkServer.resolveTcpConfig(owner.state.network.tcp);
         if (tcpConfig.incoming || tcpConfig.outgoing) {
             advertiser.supportedTransports = { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming };
+        }
+
+        // Apply default outgoing transport preference to peers created by this controller, so
+        // peers used during commissioning (before their per-peer NetworkClient hook runs) inherit
+        // the TCP preference and use it for the post-commissioning Reconnect step.
+        if (owner.state.network.transportPreference === "tcp") {
+            if (tcpConfig.outgoing) {
+                env.get(PeerSet).transportPreference = ChannelType.TCP;
+            } else {
+                logger.warn("transportPreference is 'tcp' but outgoing TCP is disabled; preference ignored");
+            }
         }
 
         await this.addBroadcasters(advertiser);

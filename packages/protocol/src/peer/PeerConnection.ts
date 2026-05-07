@@ -96,7 +96,11 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
-    const transports = PeerConnection.normalizeTransports(options?.transport);
+    const requiredTransport = options?.requiredTransport;
+    const preferredTransport = options?.preferredTransport;
+
+    // Lazy so descriptor.T arriving mid-connect (operational mDNS) is honored for later expansions.
+    const resolveTransports = () => peer.resolveTransports(requiredTransport, preferredTransport);
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -135,15 +139,16 @@ export async function PeerConnection(
     // Addresses to try, ordered by desirability and (for same-IP variants) by transport-list index.
     const pendingAddresses = new Heap<ServerAddressIp>((a, b) => {
         const primary = ServerAddressSet.compareDesirability(a, b);
+        const transports = resolveTransports();
         if (primary !== 0 || transports === undefined) {
             return primary;
         }
-        return transportIndex(a) - transportIndex(b);
+        return transportIndex(a, transports) - transportIndex(b, transports);
     }, addresses.add.bind(addresses));
 
-    function transportIndex(address: ServerAddressIp): number {
+    function transportIndex(address: ServerAddressIp, transports: IpChannelType[]): number {
         const type = (address as { type?: IpChannelType }).type;
-        return type === undefined || transports === undefined ? -1 : transports.indexOf(type);
+        return type === undefined ? -1 : transports.indexOf(type);
     }
 
     // When the service is undiscovered, we attempt to connect to the last-known good address and store it here
@@ -249,6 +254,7 @@ export async function PeerConnection(
      * transport list is set.
      */
     function expandAddresses(address: ServerAddressIp): ServerAddressIp[] {
+        const transports = resolveTransports();
         if (transports === undefined) {
             return [address];
         }
@@ -625,12 +631,11 @@ export namespace PeerConnection {
         network?: string;
         kicker?: Observable<[KickOrigin]>;
 
-        /**
-         * Constrain or prefer transport(s) for this connection. See {@link Peer.ConnectOptions.transport} for
-         * the full semantics. {@link PeerConnection} expands each discovered/fallback address into one
-         * variant per listed transport, enqueued in array order.
-         */
-        transport?: IpChannelType | IpChannelType[];
+        /** See {@link Peer.ConnectOptions.requiredTransport}. */
+        requiredTransport?: ChannelType;
+
+        /** See {@link Peer.ConnectOptions.preferredTransport}. */
+        preferredTransport?: ChannelType;
 
         /**
          * Per-call overrides for timing parameters.
@@ -644,20 +649,6 @@ export namespace PeerConnection {
          * Per-call error handler, overrides {@link Context.handleError} for this connection only.
          */
         handleError?: (error: Error) => Duration | void;
-    }
-
-    /**
-     * Normalize a single-or-array transport option into an ordered list (or undefined for the
-     * default UDP path). An empty array is treated as "no constraint".
-     */
-    export function normalizeTransports(opt: IpChannelType | IpChannelType[] | undefined): IpChannelType[] | undefined {
-        if (opt === undefined) {
-            return undefined;
-        }
-        if (!Array.isArray(opt)) {
-            return [opt];
-        }
-        return opt.length === 0 ? undefined : [...opt];
     }
 
     export function createExchange(

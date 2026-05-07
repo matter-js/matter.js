@@ -24,7 +24,6 @@ import {
     Observable,
     Seconds,
     ServerAddress,
-    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -58,6 +57,7 @@ import {
     FabricAuthority,
     FabricManager,
     LocatedNodeCommissioningOptions,
+    OperationalAddress,
     Peer,
     PeerAddress,
     PeerLeftError,
@@ -431,7 +431,7 @@ export class CommissioningClient extends Behavior {
         const peers = node.env.get(PeerSet);
         peer = peers.addKnownPeer({
             address: addr,
-            operationalAddress: this.state.addresses?.find(a => ServerAddress.isIp(a)) as ServerAddressIp | undefined,
+            operationalAddress: OperationalAddress.from(this.state.addresses?.find(a => ServerAddress.isIp(a))),
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
             caseAuthenticatedTags: this.state.caseAuthenticatedTags,
         });

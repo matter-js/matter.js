@@ -114,7 +114,7 @@ export function DiscoveryDataDiagnostics(data: DiscoveryData & { addresses?: Ser
         SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
         SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
         SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
-        T: data.T,
+        T: data.T !== undefined ? Diagnostic.asFlags(data.T) : undefined,
         DT: data.DT,
         PH: data.PH,
         ICD: data.ICD,
