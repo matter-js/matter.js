@@ -736,9 +736,10 @@ export class ClientInteraction<
             const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            // Always skip validation here — commands were already validated when originally submitted
+            // Skip validation: already validated on submit. timed=false: only non-timed commands
+            // reach this path (gate in invoke()); prevents Invoke() spec-based auto-promotion.
             const batchRequest = {
-                ...Invoke({ commands: invokeRequests, skipValidation: true }),
+                ...Invoke({ commands: invokeRequests, skipValidation: true, timed: false }),
                 network: batchNetwork,
             } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
