@@ -6,13 +6,6 @@
 
 import { MatterAggregateError, MatterError } from "@matter/general";
 
-export class DiscoveryError extends MatterError {
-    static override [Symbol.hasInstance](instance: unknown) {
-        if (instance instanceof DiscoveryAggregateError) {
-            return true;
-        }
-        return super[Symbol.hasInstance](instance);
-    }
-}
+export class DiscoveryError extends MatterError {}
 
 export class DiscoveryAggregateError extends MatterAggregateError {}
