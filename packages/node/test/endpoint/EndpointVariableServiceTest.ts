@@ -5,8 +5,8 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { EndpointBehaviorsError } from "#endpoint/errors.js";
 import { Environment } from "@matter/general";
+import { UnsupportedCastError } from "@matter/model";
 import { MockServerNode } from "../node/mock-server-node.js";
 import { MockEndpoint } from "./mock-endpoint.js";
 
@@ -44,7 +44,7 @@ describe("EndpointVariableService", () => {
             const environment = new Environment("test");
             environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_BASICINFORMATION_VENDORSPECIES: "Frog" });
             await expect(MockServerNode.create(MockServerNode.RootEndpoint, { environment })).rejectedWith(
-                EndpointBehaviorsError,
+                UnsupportedCastError,
             );
         });
     });
@@ -93,7 +93,7 @@ describe("EndpointVariableService", () => {
             const environment = new Environment("test");
             environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_PARTS_PART0_ONOFF_ONTIME: "Fred" });
 
-            await expect(MockEndpoint.create(OnOffLightDevice, { environment })).rejectedWith(EndpointBehaviorsError);
+            await expect(MockEndpoint.create(OnOffLightDevice, { environment })).rejectedWith(UnsupportedCastError);
         });
     });
 });

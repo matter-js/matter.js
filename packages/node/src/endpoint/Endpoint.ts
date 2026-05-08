@@ -459,7 +459,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * This is the recommended way to access events for a specific behavior because it provides proper type checking
      * and enforces the correctness of the used Behavior type including all enabled features.
      */
-    eventsOf<T extends Behavior.Type>(type: T | string): Behavior.EventsOf<T>;
+    eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
 
     eventsOf(type: Behavior.Type | string): unknown {
         if (typeof type === "string") {

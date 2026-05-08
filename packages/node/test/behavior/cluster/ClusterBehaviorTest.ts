@@ -350,11 +350,11 @@ describe("ClusterBehavior", () => {
                 } as any);
                 throw new Error("MockEndpoint should have thrown FeatureMismatchError");
             } catch (e) {
-                expect(e instanceof MatterAggregateError);
+                expect(e instanceof MatterAggregateError).true;
                 const cause1 = (e as MatterAggregateError).errors[0];
-                expect(cause1 instanceof BehaviorInitializationError);
+                expect(cause1 instanceof BehaviorInitializationError).true;
                 const cause2 = cause1.cause;
-                expect(cause2) instanceof FeatureMismatchError;
+                expect(cause2 instanceof FeatureMismatchError).true;
                 expect(cause2.message).equals(
                     'The featureMap for node0.part0.myCluster does not match the implementation; please use MyClusterBehavior.with("FeatureName") to configure features',
                 );
