@@ -90,10 +90,10 @@ describe("Legacy Endpoint get type helpers", () => {
             ep.eventsOf(42);
 
             // @ts-expect-error - patch shape must match FakeState (value: number)
-            ep.setStateOf(fakeBeh, { value: "not a number" });
+            void ep.setStateOf(fakeBeh, { value: "not a number" });
 
             // @ts-expect-error - unknown attribute on typed patch
-            ep.setStateOf(fakeBeh, { missing: 1 });
+            void ep.setStateOf(fakeBeh, { missing: 1 });
         }
     });
 });
