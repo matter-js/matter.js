@@ -83,7 +83,7 @@ describe("Behavior accessors typing", () => {
             it("invokes a parameter-less command (toggle) on a server endpoint", () => {
                 const _call = () => onOffEndpoint.commandsOf(OnOffServer).toggle();
                 type R = ReturnType<typeof _call>;
-                ({}) as R satisfies Promise<unknown>;
+                void ({} as R satisfies Promise<unknown>);
                 void _call;
             });
 
@@ -94,7 +94,7 @@ describe("Behavior accessors typing", () => {
                         amount: 1,
                     });
                 type R = ReturnType<typeof _call>;
-                ({}) as R satisfies Promise<unknown>;
+                void ({} as R satisfies Promise<unknown>);
                 void _call;
             });
 
@@ -112,7 +112,7 @@ describe("Behavior accessors typing", () => {
                         .commandsOf(ThermostatServer.with(Thermostat.Feature.Presets))
                         .setActivePresetRequest({ presetHandle: null });
                 type R = ReturnType<typeof _call>;
-                ({}) as R satisfies Promise<unknown>;
+                void ({} as R satisfies Promise<unknown>);
                 void _call;
             });
 
@@ -151,7 +151,7 @@ describe("Behavior accessors typing", () => {
             it("accepts a partial patch shape that matches the cluster state", () => {
                 const _set = () => onOffEndpoint.setStateOf(OnOffServer, { onOff: true });
                 type R = ReturnType<typeof _set>;
-                ({}) as R satisfies Promise<void>;
+                void ({} as R satisfies Promise<void>);
                 void _set;
             });
 
@@ -209,7 +209,7 @@ describe("Behavior accessors typing", () => {
             it("accepts a behavior-keyed patch shape", () => {
                 const _set = () => onOffEndpoint.set({ onOff: { onOff: true } });
                 type R = ReturnType<typeof _set>;
-                ({}) as R satisfies Promise<void>;
+                void ({} as R satisfies Promise<void>);
                 void _set;
             });
 
@@ -272,7 +272,7 @@ describe("Behavior accessors typing", () => {
                 const _call = () =>
                     cnode.commandsOf(OperationalCredentialsClient).removeFabric({ fabricIndex: FabricIndex(1) });
                 type R = ReturnType<typeof _call>;
-                ({}) as R satisfies Promise<unknown>;
+                void ({} as R satisfies Promise<unknown>);
                 void _call;
             });
 
@@ -280,7 +280,7 @@ describe("Behavior accessors typing", () => {
                 const _call = () =>
                     cnode.commandsOf(OperationalCredentialsClient).removeFabric({ fabricIndex: FabricIndex(1) });
                 type R = ReturnType<typeof _call>;
-                ({}) as R satisfies Promise<unknown>;
+                void ({} as R satisfies Promise<unknown>);
             });
         });
 
@@ -306,7 +306,7 @@ describe("Behavior accessors typing", () => {
                 const _set = () =>
                     cnode.setStateOf(OperationalCredentialsClient, { currentFabricIndex: FabricIndex(1) });
                 type R = ReturnType<typeof _set>;
-                ({}) as R satisfies Promise<void>;
+                void ({} as R satisfies Promise<void>);
             });
 
             it("rejects keys that are not part of the cluster state", () => {
@@ -365,7 +365,7 @@ describe("Behavior accessors typing", () => {
         it("setStateOf(string, ...) accepts Val.Struct", () => {
             const _set = () => endpoint.setStateOf("onOff", { onOff: true });
             type R = ReturnType<typeof _set>;
-            ({}) as R satisfies Promise<void>;
+            void ({} as R satisfies Promise<void>);
             void _set;
         });
 
