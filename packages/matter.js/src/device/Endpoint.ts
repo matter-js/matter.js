@@ -5,7 +5,15 @@
  */
 
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
-import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
+import {
+    AtLeastOne,
+    Diagnostic,
+    Immutable,
+    ImplementationError,
+    InternalError,
+    NotImplementedError,
+    Observable,
+} from "@matter/general";
 import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
 import { ClusterClientObj, Val } from "@matter/protocol";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
@@ -67,15 +75,38 @@ export class Endpoint {
     }
 
     /**
-     * Access to typed cached cluster state values
-     * Returns immutable cached attribute values from cluster clients
+     * Access cached state for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
+     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
      */
-    stateOf<T extends Behavior.Type>(type: T) {
-        return this.#endpoint.stateOf(type);
+    stateOf(type: string): Immutable<Val.Struct>;
+
+    /**
+     * Access cached state for a specific behavior.
+     *
+     * This is the recommended way to access state for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
+
+    stateOf(type: Behavior.Type | string) {
+        return this.#endpoint.stateOf(type as any);
     }
 
-    maybeStateOf<T extends Behavior.Type>(type: T) {
-        return this.#endpoint.maybeStateOf(type);
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
+    maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
+
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
+    maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
+
+    maybeStateOf(type: Behavior.Type | string) {
+        return this.#endpoint.maybeStateOf(type as any);
     }
 
     /**
@@ -115,6 +146,27 @@ export class Endpoint {
      */
     commandsOf<T extends Behavior.Type>(type: T) {
         return this.#endpoint.commandsOf(type);
+    }
+
+    /**
+     * Events for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this each event is typed as Observable | undefined.
+     * Please ensure to have proper checks in place when using this method with string type.
+     */
+    eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
+
+    /**
+     * Events for a specific behavior.
+     *
+     * This is the recommended way to access events for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
+
+    eventsOf(type: Behavior.Type | string): unknown {
+        return this.#endpoint.eventsOf(type as any);
     }
 
     get behaviors() {
