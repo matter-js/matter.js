@@ -393,7 +393,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.3
      */
-    export declare class Mptz {
+    export class Mptz {
         constructor(values?: Partial<Mptz>);
 
         /**
@@ -424,7 +424,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.3.3
          */
         zoom?: number;
-    };
+    }
 
     /**
      * The PhysicalMovementEnum provides an enumeration of the possible physical movement states in which the camera
@@ -458,7 +458,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.4
      */
-    export declare class MptzPreset {
+    export class MptzPreset {
         constructor(values?: Partial<MptzPreset>);
 
         /**
@@ -482,14 +482,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.4.3
          */
         settings: Mptz;
-    };
+    }
 
     /**
      * This type is used to indicate support for the per stream digital pan, tilt, and zoom values.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.2
      */
-    export declare class Dptz {
+    export class Dptz {
         constructor(values?: Partial<Dptz>);
 
         /**
@@ -506,14 +506,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.2.2
          */
         viewport: Viewport;
-    };
+    }
 
     /**
      * This command shall move the camera to the provided values for pan, tilt, and zoom in the mechanical PTZ.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1
      */
-    export declare class MptzSetPositionRequest {
+    export class MptzSetPositionRequest {
         constructor(values?: Partial<MptzSetPositionRequest>);
 
         /**
@@ -536,14 +536,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1.3
          */
         zoom?: number;
-    };
+    }
 
     /**
      * This command shall move the camera by the delta values relative to the currently defined position.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2
      */
-    export declare class MptzRelativeMoveRequest {
+    export class MptzRelativeMoveRequest {
         constructor(values?: Partial<MptzRelativeMoveRequest>);
 
         /**
@@ -569,14 +569,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2.3
          */
         zoomDelta?: number;
-    };
+    }
 
     /**
      * This command shall move the camera to the positions specified by the Preset passed.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.3
      */
-    export declare class MptzMoveToPresetRequest {
+    export class MptzMoveToPresetRequest {
         constructor(values?: Partial<MptzMoveToPresetRequest>);
 
         /**
@@ -585,14 +585,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.3.1
          */
         presetId: number;
-    };
+    }
 
     /**
      * This command allows creating a new preset or updating the values of an existing one.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.4
      */
-    export declare class MptzSavePresetRequest {
+    export class MptzSavePresetRequest {
         constructor(values?: Partial<MptzSavePresetRequest>);
 
         /**
@@ -603,14 +603,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         presetId?: number;
 
         name: string;
-    };
+    }
 
     /**
      * This command shall remove a preset entry from the PresetMptzTable.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.5
      */
-    export declare class MptzRemovePresetRequest {
+    export class MptzRemovePresetRequest {
         constructor(values?: Partial<MptzRemovePresetRequest>);
 
         /**
@@ -619,7 +619,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.5.1
          */
         presetId: number;
-    };
+    }
 
     /**
      * This command allows for setting the digital viewport for a specific Video Stream. This command is a per-stream
@@ -627,7 +627,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.6
      */
-    export declare class DptzSetViewportRequest {
+    export class DptzSetViewportRequest {
         constructor(values?: Partial<DptzSetViewportRequest>);
 
         /**
@@ -644,7 +644,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.6.2
          */
         viewport: Viewport;
-    };
+    }
 
     /**
      * This command shall change the per stream viewport by the amount specified in a relative fashion. This allows for
@@ -653,7 +653,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7
      */
-    export declare class DptzRelativeMoveRequest {
+    export class DptzRelativeMoveRequest {
         constructor(values?: Partial<DptzRelativeMoveRequest>);
 
         /**
@@ -689,7 +689,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7.4
          */
         zoomDelta?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

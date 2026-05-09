@@ -427,7 +427,9 @@ export class Block extends Entry {
 
     protected delimiterAfter(entry: Entry, serialized: string): string {
         if (
-            serialized.match(/^\s*(?:\/\*(?!\*\/)\*\/\s*)?(?:export\s*)?(?:enum|function|namespace|interface|class)\s/m)
+            serialized.match(
+                /^\s*(?:\/\*(?!\*\/)\*\/\s*)?(?:export\s*)?(?:declare\s*)?(?:enum|function|namespace|interface|class)\s/m,
+            )
         ) {
             // Do not delimit functions structures that eslint will complain about
             return "";

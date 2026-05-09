@@ -326,6 +326,25 @@ export class MapOfIndexedSet<
         return this.#index ? this.#index.has(key) : this.#set.get(this.#key, key) !== undefined;
     }
 
+    getOrInsert(key: T[K], value: T): T {
+        const existing = this.get(key);
+        if (existing !== undefined) {
+            return existing;
+        }
+        this.set(key, value);
+        return value;
+    }
+
+    getOrInsertComputed(key: T[K], callbackfn: (key: T[K]) => T): T {
+        const existing = this.get(key);
+        if (existing !== undefined) {
+            return existing;
+        }
+        const value = callbackfn(key);
+        this.set(key, value);
+        return value;
+    }
+
     set(key: T[K], value: T): this {
         if (value[this.#key] !== key) {
             throw new MapOfIndexedSet.KeyValueMismatchError(

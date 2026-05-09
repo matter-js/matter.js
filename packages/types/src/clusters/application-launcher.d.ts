@@ -205,11 +205,11 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.3
      */
-    export declare class ApplicationEp {
+    export class ApplicationEp {
         constructor(values?: Partial<ApplicationEp>);
         application: Application;
         endpoint?: EndpointNumber;
-    };
+    }
 
     /**
      * Upon receipt of this command, the server shall launch the application with optional data. The application shall
@@ -229,7 +229,7 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.1
      */
-    export declare class LaunchAppRequest {
+    export class LaunchAppRequest {
         constructor(values?: Partial<LaunchAppRequest>);
 
         /**
@@ -252,14 +252,14 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.1.2
          */
         data?: Bytes;
-    };
+    }
 
     /**
      * This command shall be generated in response to LaunchApp/StopApp/HideApp commands.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.4
      */
-    export declare class LauncherResponse {
+    export class LauncherResponse {
         constructor(values?: Partial<LauncherResponse>);
 
         /**
@@ -275,7 +275,7 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.4.2
          */
         data?: Bytes;
-    };
+    }
 
     /**
      * Upon receipt of this command, the server shall stop the application if it is running. The application shall be
@@ -293,7 +293,7 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.2
      */
-    export declare class StopAppRequest {
+    export class StopAppRequest {
         constructor(values?: Partial<StopAppRequest>);
 
         /**
@@ -302,7 +302,7 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.2.1
          */
         application?: Application;
-    };
+    }
 
     /**
      * Upon receipt of this command, the server shall hide the application. The application shall be either
@@ -321,7 +321,7 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.3
      */
-    export declare class HideAppRequest {
+    export class HideAppRequest {
         constructor(values?: Partial<HideAppRequest>);
 
         /**
@@ -330,7 +330,7 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.3.1
          */
         application?: Application;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
@@ -417,7 +417,7 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.2
      */
-    export declare class Application {
+    export class Application {
         constructor(values?: Partial<Application>);
 
         /**
@@ -440,7 +440,7 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.2.2
          */
         applicationId: string;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

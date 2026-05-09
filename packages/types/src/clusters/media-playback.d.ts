@@ -671,7 +671,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.4
      */
-    export declare class PlaybackPosition {
+    export class PlaybackPosition {
         constructor(values?: Partial<PlaybackPosition>);
 
         /**
@@ -693,14 +693,14 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.4.2
          */
         position: number | bigint | null;
-    };
+    }
 
     /**
      * This structure defines a uniquely identifiable Text Track or Audio Track.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.5
      */
-    export declare class Track {
+    export class Track {
         constructor(values?: Partial<Track>);
 
         /**
@@ -717,7 +717,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.5.2
          */
         trackAttributes: TrackAttributes;
-    };
+    }
 
     /**
      * This command is used to indicate the status of the command that was issued by the client.
@@ -726,7 +726,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.12
      */
-    export declare class PlaybackResponse {
+    export class PlaybackResponse {
         constructor(values?: Partial<PlaybackResponse>);
 
         /**
@@ -742,7 +742,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.12.2
          */
         data?: string;
-    };
+    }
 
     /**
      * This command is used to skip forward in the media.
@@ -751,7 +751,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.9
      */
-    export declare class SkipForwardRequest {
+    export class SkipForwardRequest {
         constructor(values?: Partial<SkipForwardRequest>);
 
         /**
@@ -765,7 +765,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.9.1
          */
         deltaPositionMilliseconds: number | bigint;
-    };
+    }
 
     /**
      * This command is used to skip backward in the media.
@@ -774,7 +774,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.10
      */
-    export declare class SkipBackwardRequest {
+    export class SkipBackwardRequest {
         constructor(values?: Partial<SkipBackwardRequest>);
 
         /**
@@ -788,7 +788,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.10.1
          */
         deltaPositionMilliseconds: number | bigint;
-    };
+    }
 
     /**
      * This command is used to seek to a specific position in the media.
@@ -797,7 +797,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.11
      */
-    export declare class SeekRequest {
+    export class SeekRequest {
         constructor(values?: Partial<SeekRequest>);
 
         /**
@@ -811,7 +811,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.11.1
          */
         position: number | bigint;
-    };
+    }
 
     /**
      * This command is used to activate a specific Audio Track for the media being played.
@@ -823,7 +823,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.13
      */
-    export declare class ActivateAudioTrackRequest {
+    export class ActivateAudioTrackRequest {
         constructor(values?: Partial<ActivateAudioTrackRequest>);
 
         /**
@@ -842,7 +842,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.13.2
          */
         audioOutputIndex?: number | null;
-    };
+    }
 
     /**
      * This command is used to activate a specific Text Track for the media being played.
@@ -854,7 +854,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.14
      */
-    export declare class ActivateTextTrackRequest {
+    export class ActivateTextTrackRequest {
         constructor(values?: Partial<ActivateTextTrackRequest>);
 
         /**
@@ -863,7 +863,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.14.1
          */
         trackId: string;
-    };
+    }
 
     /**
      * This command is used to rewind the media.
@@ -881,7 +881,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.7
      */
-    export declare class RewindRequest {
+    export class RewindRequest {
         constructor(values?: Partial<RewindRequest>);
 
         /**
@@ -893,7 +893,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.7.1
          */
         audioAdvanceUnmuted?: boolean;
-    };
+    }
 
     /**
      * This command is used to fast forward the media.
@@ -911,7 +911,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.8
      */
-    export declare class FastForwardRequest {
+    export class FastForwardRequest {
         constructor(values?: Partial<FastForwardRequest>);
 
         /**
@@ -923,7 +923,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.8.1
          */
         audioAdvanceUnmuted?: boolean;
-    };
+    }
 
     /**
      * If supported, this event shall be generated when there is a change in any of the supported attributes of the
@@ -931,7 +931,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1
      */
-    export declare class StateChangedEvent {
+    export class StateChangedEvent {
         constructor(values?: Partial<StateChangedEvent>);
 
         /**
@@ -1020,7 +1020,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.9
          */
         audioAdvanceUnmuted?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
@@ -1216,7 +1216,7 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.6
      */
-    export declare class TrackAttributes {
+    export class TrackAttributes {
         constructor(values?: Partial<TrackAttributes>);
 
         /**
@@ -1242,7 +1242,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.6.3
          */
         displayName?: string | null;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

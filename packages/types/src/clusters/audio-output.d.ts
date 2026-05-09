@@ -153,7 +153,7 @@ export declare namespace AudioOutput {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.2
      */
-    export declare class OutputInfo {
+    export class OutputInfo {
         constructor(values?: Partial<OutputInfo>);
 
         /**
@@ -177,7 +177,7 @@ export declare namespace AudioOutput {
          * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.2.3
          */
         name: string;
-    };
+    }
 
     /**
      * Upon receipt, this shall change the output on the device to the output at a specific index in the Output List.
@@ -187,7 +187,7 @@ export declare namespace AudioOutput {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.1
      */
-    export declare class SelectOutputRequest {
+    export class SelectOutputRequest {
         constructor(values?: Partial<SelectOutputRequest>);
 
         /**
@@ -197,7 +197,7 @@ export declare namespace AudioOutput {
          * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.1.1
          */
         index: number;
-    };
+    }
 
     /**
      * Upon receipt, this shall rename the output at a specific index in the Output List.
@@ -207,11 +207,11 @@ export declare namespace AudioOutput {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.2
      */
-    export declare class RenameOutputRequest {
+    export class RenameOutputRequest {
         constructor(values?: Partial<RenameOutputRequest>);
         index: number;
         name: string;
-    };
+    }
 
     /**
      * The type of output, expressed as an enum, with the following values:

@@ -449,7 +449,7 @@ export declare namespace WiFiNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
      */
-    export declare class DisconnectionEvent {
+    export class DisconnectionEvent {
         constructor(values?: Partial<DisconnectionEvent>);
 
         /**
@@ -459,7 +459,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.15.8.1.1
          */
         reasonCode: number;
-    };
+    }
 
     /**
      * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a Wi-Fi access
@@ -468,7 +468,7 @@ export declare namespace WiFiNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.15.8.2
      */
-    export declare class AssociationFailureEvent {
+    export class AssociationFailureEvent {
         constructor(values?: Partial<AssociationFailureEvent>);
 
         /**
@@ -494,7 +494,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.15.8.2.2
          */
         status: number;
-    };
+    }
 
     /**
      * The ConnectionStatus Event shall indicate that a Node's connection status to a Wi-Fi network has changed.
@@ -503,10 +503,10 @@ export declare namespace WiFiNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.15.8.3
      */
-    export declare class ConnectionStatusEvent {
+    export class ConnectionStatusEvent {
         constructor(values?: Partial<ConnectionStatusEvent>);
         connectionStatus: ConnectionStatus;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.15.5.3

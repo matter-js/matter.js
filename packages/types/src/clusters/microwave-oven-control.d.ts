@@ -329,7 +329,7 @@ export declare namespace MicrowaveOvenControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 8.13.6.2
      */
-    export declare class SetCookingParametersRequest {
+    export class SetCookingParametersRequest {
         constructor(values?: Partial<SetCookingParametersRequest>);
 
         /**
@@ -384,7 +384,7 @@ export declare namespace MicrowaveOvenControl {
          * @see {@link MatterSpecification.v151.Cluster} § 8.13.6.2.5
          */
         startAfterSetting?: boolean;
-    };
+    }
 
     /**
      * This command is used to add more time to the CookTime attribute of the server.
@@ -393,7 +393,7 @@ export declare namespace MicrowaveOvenControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 8.13.6.3
      */
-    export declare class AddMoreTimeRequest {
+    export class AddMoreTimeRequest {
         constructor(values?: Partial<AddMoreTimeRequest>);
 
         /**
@@ -402,7 +402,7 @@ export declare namespace MicrowaveOvenControl {
          * @see {@link MatterSpecification.v151.Cluster} § 8.13.6.3.1
          */
         timeToAdd: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -111,7 +111,7 @@ export declare namespace ContentAppObserver {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.12.5.1
      */
-    export declare class ContentAppMessageRequest {
+    export class ContentAppMessageRequest {
         constructor(values?: Partial<ContentAppMessageRequest>);
 
         /**
@@ -127,14 +127,14 @@ export declare namespace ContentAppObserver {
          * @see {@link MatterSpecification.v151.Cluster} § 6.12.5.1.2
          */
         encodingHint?: string;
-    };
+    }
 
     /**
      * This command shall be generated in response to ContentAppMessage command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.12.5.2
      */
-    export declare class ContentAppMessageResponse {
+    export class ContentAppMessageResponse {
         constructor(values?: Partial<ContentAppMessageResponse>);
 
         /**
@@ -157,7 +157,7 @@ export declare namespace ContentAppObserver {
          * @see {@link MatterSpecification.v151.Cluster} § 6.12.5.2.3
          */
         encodingHint?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.12.4.1

@@ -246,7 +246,7 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.1
      */
-    export declare class GetSetupPinRequest {
+    export class GetSetupPinRequest {
         constructor(values?: Partial<GetSetupPinRequest>);
 
         /**
@@ -256,7 +256,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.1.1
          */
         tempAccountIdentifier: string;
-    };
+    }
 
     /**
      * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
@@ -264,7 +264,7 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.2
      */
-    export declare class GetSetupPinResponse {
+    export class GetSetupPinResponse {
         constructor(values?: Partial<GetSetupPinResponse>);
 
         /**
@@ -279,7 +279,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.2.1
          */
         setupPin: string;
-    };
+    }
 
     /**
      * The purpose of this command is to allow the Content App to assume the user account of a given Commissionee by
@@ -321,7 +321,7 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3
      */
-    export declare class LoginRequest {
+    export class LoginRequest {
         constructor(values?: Partial<LoginRequest>);
 
         /**
@@ -350,7 +350,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.3
          */
         node?: NodeId;
-    };
+    }
 
     /**
      * The purpose of this command is to instruct the Content App to clear the current user account. This command SHOULD
@@ -358,7 +358,7 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.4
      */
-    export declare class LogoutRequest {
+    export class LogoutRequest {
         constructor(values?: Partial<LogoutRequest>);
 
         /**
@@ -368,7 +368,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.4.1
          */
         node?: NodeId;
-    };
+    }
 
     /**
      * This event can be used by the Content App to indicate that the current user has logged out. In response to this
@@ -377,7 +377,7 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.2.5.1
      */
-    export declare class LoggedOutEvent {
+    export class LoggedOutEvent {
         constructor(values?: Partial<LoggedOutEvent>);
 
         /**
@@ -387,7 +387,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.5.1.1
          */
         node?: NodeId;
-    };
+    }
 
     /**
      * Command metadata objects keyed by name.

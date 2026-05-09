@@ -351,7 +351,7 @@ export declare namespace RvcOperationalState {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.2
      */
-    export declare class OperationalStateStruct {
+    export class OperationalStateStruct {
         constructor(values?: Partial<OperationalStateStruct>);
 
         /**
@@ -368,7 +368,7 @@ export declare namespace RvcOperationalState {
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.2.2
          */
         operationalStateLabel?: string;
-    };
+    }
 
     /**
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to
@@ -446,7 +446,7 @@ export declare namespace RvcOperationalState {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.4
      */
-    export declare class ErrorStateStruct {
+    export class ErrorStateStruct {
         constructor(values?: Partial<ErrorStateStruct>);
 
         /**
@@ -472,12 +472,12 @@ export declare namespace RvcOperationalState {
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.4.3
          */
         errorStateDetails?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 7.4.5
      */
-    export declare class OperationalCommandResponse {
+    export class OperationalCommandResponse {
         constructor(values?: Partial<OperationalCommandResponse>);
 
         /**
@@ -488,7 +488,7 @@ export declare namespace RvcOperationalState {
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.5.1
          */
         commandResponseState: ErrorStateStruct;
-    };
+    }
 
     /**
      * This event is generated when a reportable error condition is detected. A device that generates this event shall
@@ -498,10 +498,10 @@ export declare namespace RvcOperationalState {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.1
      */
-    export declare class OperationalErrorEvent {
+    export class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ErrorStateStruct;
-    };
+    }
 
     /**
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to

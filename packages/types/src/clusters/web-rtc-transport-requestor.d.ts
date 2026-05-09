@@ -140,7 +140,7 @@ export declare namespace WebRtcTransportRequestor {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1
      */
-    export declare class OfferRequest {
+    export class OfferRequest {
         constructor(values?: Partial<OfferRequest>);
 
         /**
@@ -173,7 +173,7 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1.4
          */
         iceTransportPolicy?: string;
-    };
+    }
 
     /**
      * This command provides the stream requestor with the WebRTC session details (i.e. Session ID and SDP answer), It
@@ -185,7 +185,7 @@ export declare namespace WebRtcTransportRequestor {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.2
      */
-    export declare class AnswerRequest {
+    export class AnswerRequest {
         constructor(values?: Partial<AnswerRequest>);
 
         /**
@@ -202,7 +202,7 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.2.2
          */
         sdp: string;
-    };
+    }
 
     /**
      * This command allows for the object based ICE candidates generated after the initial Offer / Answer exchange, via
@@ -216,7 +216,7 @@ export declare namespace WebRtcTransportRequestor {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.3
      */
-    export declare class IceCandidatesRequest {
+    export class IceCandidatesRequest {
         constructor(values?: Partial<IceCandidatesRequest>);
 
         /**
@@ -232,14 +232,14 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.3.2
          */
         iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
-    };
+    }
 
     /**
      * This command notifies the stream requestor that the provider has ended the WebRTC session.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.4
      */
-    export declare class EndRequest {
+    export class EndRequest {
         constructor(values?: Partial<EndRequest>);
 
         /**
@@ -255,7 +255,7 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.4.2
          */
         reason: WebRtcTransportDefinitions.WebRtcEndReason;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

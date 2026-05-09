@@ -196,7 +196,7 @@ export declare namespace SoftwareDiagnostics {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.13.5.1
      */
-    export declare class ThreadMetrics {
+    export class ThreadMetrics {
         constructor(values?: Partial<ThreadMetrics>);
 
         /**
@@ -240,14 +240,14 @@ export declare namespace SoftwareDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.13.5.1.5
          */
         stackSize?: number;
-    };
+    }
 
     /**
      * This Event shall be generated when a software fault occurs on the Node.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.13.8.1
      */
-    export declare class SoftwareFaultEvent {
+    export class SoftwareFaultEvent {
         constructor(values?: Partial<SoftwareFaultEvent>);
 
         /**
@@ -273,7 +273,7 @@ export declare namespace SoftwareDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.13.8.1.3
          */
         faultRecording?: Bytes;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

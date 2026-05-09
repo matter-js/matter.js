@@ -505,7 +505,7 @@ export declare namespace BridgedDeviceBasicInformation {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.13.6.1
      */
-    export declare class KeepActiveRequest {
+    export class KeepActiveRequest {
         constructor(values?: Partial<KeepActiveRequest>);
 
         /**
@@ -536,7 +536,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v151.Core} § 9.13.6.1.2
          */
         timeoutMs: number;
-    };
+    }
 
     /**
      * This event shall be generated when there is a change in the Reachable attribute. Its purpose is to provide an
@@ -546,7 +546,7 @@ export declare namespace BridgedDeviceBasicInformation {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.13.7.2
      */
-    export declare class ReachableChangedEvent {
+    export class ReachableChangedEvent {
         constructor(values?: Partial<ReachableChangedEvent>);
 
         /**
@@ -555,12 +555,12 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v151.Core} § 11.1.6.4.1
          */
         reachableNewValue: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.13.7
      */
-    export declare class StartUpEvent {
+    export class StartUpEvent {
         constructor(values?: Partial<StartUpEvent>);
 
         /**
@@ -569,7 +569,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v151.Core} § 11.1.6.1.1
          */
         softwareVersion: number;
-    };
+    }
 
     /**
      * This event (when supported) shall be generated the next time a bridged device becomes active after a KeepActive
@@ -577,7 +577,7 @@ export declare namespace BridgedDeviceBasicInformation {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.13.7.3
      */
-    export declare class ActiveChangedEvent {
+    export class ActiveChangedEvent {
         constructor(values?: Partial<ActiveChangedEvent>);
 
         /**
@@ -593,7 +593,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v151.Core} § 9.13.7.3.1
          */
         promisedActiveDuration: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

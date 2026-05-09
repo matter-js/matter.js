@@ -269,7 +269,7 @@ export declare namespace EnergyPreference {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.7.5.2
      */
-    export declare class Balance {
+    export class Balance {
         constructor(values?: Partial<Balance>);
 
         /**
@@ -286,7 +286,7 @@ export declare namespace EnergyPreference {
          * @see {@link MatterSpecification.v151.Cluster} § 9.7.5.2.2
          */
         label?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.7.5.1
