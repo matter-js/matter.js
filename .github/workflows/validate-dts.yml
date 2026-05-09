@@ -1,0 +1,36 @@
+# Validates that the published .d.ts artifacts of @matter/* packages compile cleanly under strict
+# TypeScript without skipLibCheck.  Catches issues that matter.js's internal build hides via
+# skipLibCheck=true and customConditions=["dev-types"], but which downstream consumers will hit.
+#
+# Runs daily on schedule and on demand via workflow_dispatch.  Also runs on PRs that touch the
+# codegen pipeline so regressions are caught at PR time.
+name: Validate published .d.ts
+
+on:
+  schedule:
+    - cron: "37 4 * * *" # daily at 04:37 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "support/codegen/**"
+      - "support/tools/check-dts.mjs"
+      - "packages/**/src/**/*.ts"
+      - "packages/**/src/**/*.d.ts"
+      - ".github/workflows/validate-dts.yml"
+
+concurrency:
+  group: ${{ github.ref }}-validate-dts
+  cancel-in-progress: true
+
+jobs:
+  validate-dts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare environment
+        uses: ./.github/actions/prepare-env
+      - name: Build packages
+        run: npm run build-clean
+      - name: Validate published .d.ts
+        run: npm run validate-dts
