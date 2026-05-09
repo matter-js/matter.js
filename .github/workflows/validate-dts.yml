@@ -17,6 +17,9 @@ on:
       - "support/tools/check-dts.mjs"
       - "packages/**/src/**/*.ts"
       - "packages/**/src/**/*.d.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "packages/**/package.json"
       - ".github/workflows/validate-dts.yml"
 
 concurrency:
