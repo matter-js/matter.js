@@ -52,6 +52,15 @@ const MATTER_MODULE_FRAGMENTS = ["'@matter/", '"@matter/', "'@project-chip/matte
 //   TS6053 — File not found
 const FATAL_HARNESS_ERROR_CODES = ["TS2307", "TS2792", "TS2882", "TS6053"];
 
+// Errors tolerated under the CJS pass only.  The CJS bundle of @matter/general imports `@noble/
+// curves` subpaths via `import`/type-import — but `@noble/curves` v2+ is ESM-only.  Under node16
+// CJS resolution this is illegal.  ESM consumers (the primary distribution) are unaffected.
+// Tracked separately; these codes are NOT tolerated in the ESM pass or outside dist/cjs.
+//   TS1479 — CommonJS file imports an ESM module
+//   TS1542 — Type import of ESM module from CJS missing 'resolution-mode' attribute
+const CJS_ALLOWED_ERROR_CODES = ["TS1479", "TS1542"];
+const CJS_ALLOWED_PATH_FRAGMENT = "/dist/cjs/";
+
 function tscPath() {
     return resolve(REPO_ROOT, "node_modules", "typescript", "bin", "tsc");
 }
@@ -72,36 +81,36 @@ function isFatalHarnessError(line) {
     return FATAL_HARNESS_ERROR_CODES.some(code => line.includes(`error ${code}:`));
 }
 
-function main() {
-    const tmp = mkdtempSync(join(tmpdir(), "matter-dts-check-"));
+function isCjsAllowedError(line) {
+    const normalized = normalizePath(line);
+    if (!normalized.includes(CJS_ALLOWED_PATH_FRAGMENT)) return false;
+    return CJS_ALLOWED_ERROR_CODES.some(code => line.includes(`error ${code}:`));
+}
+
+/**
+ * Run a single tsc pass against the synthetic consumer and classify diagnostics.  The caller
+ * supplies the compilerOptions for the pass; everything else (the import list, harness self-check,
+ * matter-vs-noise filtering) is shared.
+ *
+ * @param {string} label - "ESM" or "CJS", used only for log output
+ * @param {object} compilerOptions - tsconfig compilerOptions for this pass
+ * @param {(line: string) => boolean} extraIgnore - additional predicate for ignoring lines
+ * @returns {{ matterErrors: string[], harnessErrors: string[], ignoredCount: number }}
+ */
+function runPass(label, compilerOptions, extraIgnore = () => false) {
+    const tmp = mkdtempSync(join(tmpdir(), `matter-dts-${label.toLowerCase()}-`));
     try {
         const importStatements = PACKAGES.map(p => `import ${JSON.stringify(p)};`).join("\n");
         writeFileSync(join(tmp, "repro.ts"), `${importStatements}\n`);
 
-        // Use bundler resolution (TypeScript's recommended default since 5.0).  This is what most
-        // downstream consumers hit when they don't pin a specific module strategy.  node16/nodenext
-        // resolution surfaces additional pre-existing CJS/ESM interop issues in @matter/general's
-        // CJS bundle (TS1479/TS1542); those are real but out-of-scope for this codegen-cleanup
-        // validator and should be addressed in a separate PR.
-        const tsconfig = {
-            compilerOptions: {
-                target: "esnext",
-                module: "esnext",
-                moduleResolution: "bundler",
-                strict: true,
-                noEmit: true,
-                skipLibCheck: false,
-            },
-            include: ["repro.ts"],
-        };
-        writeFileSync(join(tmp, "tsconfig.json"), JSON.stringify(tsconfig, null, 4));
+        writeFileSync(join(tmp, "tsconfig.json"), JSON.stringify({ compilerOptions, include: ["repro.ts"] }, null, 4));
 
         // Symlink node_modules from the repo so imports resolve against built dist.  Use Node's fs
         // API (not `ln`) for cross-platform support; "junction" works on Windows for directories.
         try {
             symlinkSync(join(REPO_ROOT, "node_modules"), join(tmp, "node_modules"), "junction");
         } catch (err) {
-            console.error(`✗ Failed to create node_modules symlink: ${err.message}`);
+            console.error(`✗ [${label}] Failed to create node_modules symlink: ${err.message}`);
             process.exit(2);
         }
 
@@ -113,38 +122,74 @@ function main() {
         const output = `${result.stdout || ""}${result.stderr || ""}`;
         const errorLines = output.split("\n").filter(l => l.includes("error TS"));
 
-        // A fatal harness error in repro.ts means the validator never actually checked the
-        // packages.  Treat as a hard failure so the run can't silently succeed.
         const harnessErrors = errorLines.filter(
             l => l.includes("repro.ts") && (isFatalHarnessError(l) || isMatterError(l)),
         );
-        if (harnessErrors.length > 0) {
-            console.error("✗ Harness self-check failed — validator did not actually validate the packages:\n");
-            for (const err of harnessErrors) {
-                console.error(err);
-            }
-            process.exit(2);
-        }
+        const matterErrors = errorLines.filter(l => isMatterError(l) && !extraIgnore(l));
+        const ignoredCount = errorLines.length - matterErrors.length - harnessErrors.length;
 
-        const matterErrors = errorLines.filter(isMatterError);
-
-        if (matterErrors.length === 0) {
-            console.log(
-                `✓ All ${PACKAGES.length} packages produce clean .d.ts ` +
-                    `(${errorLines.length - matterErrors.length} non-matter errors ignored)`,
-            );
-            process.exit(0);
-        }
-
-        console.error(`✗ ${matterErrors.length} matter.js .d.ts error(s):\n`);
-        for (const err of matterErrors) {
-            console.error(err);
-        }
-        console.error(`\n${errorLines.length - matterErrors.length} non-matter errors ignored.`);
-        process.exit(1);
+        return { matterErrors, harnessErrors, ignoredCount };
     } finally {
         rmSync(tmp, { recursive: true, force: true });
     }
+}
+
+function reportPass(label, result) {
+    if (result.harnessErrors.length > 0) {
+        console.error(`✗ [${label}] Harness self-check failed — validator did not actually validate the packages:\n`);
+        for (const err of result.harnessErrors) {
+            console.error(err);
+        }
+        return 2;
+    }
+    if (result.matterErrors.length === 0) {
+        console.log(
+            `✓ [${label}] All ${PACKAGES.length} packages produce clean .d.ts ` +
+                `(${result.ignoredCount} non-matter errors ignored)`,
+        );
+        return 0;
+    }
+    console.error(`✗ [${label}] ${result.matterErrors.length} matter.js .d.ts error(s):\n`);
+    for (const err of result.matterErrors) {
+        console.error(err);
+    }
+    console.error(`\n${result.ignoredCount} non-matter errors ignored.`);
+    return 1;
+}
+
+function main() {
+    // Two passes mirror the two artifacts each package ships:
+    //   ESM (primary):  module=esnext + moduleResolution=bundler — what modern bundler/Node ESM
+    //                   consumers see.  Strict; no allowlist.
+    //   CJS (fallback): module=node16 + moduleResolution=node16 — what pure-CJS Node consumers see.
+    //                   Tolerates documented TS1479/TS1542 in matter's dist/cjs (caused by
+    //                   ESM-only deps such as @noble/curves); strict otherwise.
+    const esmResult = runPass("ESM", {
+        target: "esnext",
+        module: "esnext",
+        moduleResolution: "bundler",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: false,
+    });
+    const esmExit = reportPass("ESM", esmResult);
+
+    const cjsResult = runPass(
+        "CJS",
+        {
+            target: "esnext",
+            module: "node16",
+            moduleResolution: "node16",
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+            esModuleInterop: true,
+        },
+        isCjsAllowedError,
+    );
+    const cjsExit = reportPass("CJS", cjsResult);
+
+    process.exit(Math.max(esmExit, cjsExit));
 }
 
 main();
