@@ -13,7 +13,7 @@
 // Run via: `npm run validate-dts`
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,7 +114,12 @@ function runPass(label, compilerOptions, extraIgnore = () => false) {
             process.exit(2);
         }
 
-        const result = spawnSync(process.execPath, [tscPath(), "-p", "."], {
+        const tsc = tscPath();
+        if (!existsSync(tsc)) {
+            return { spawnError: `tsc binary not found at ${tsc}` };
+        }
+
+        const result = spawnSync(process.execPath, [tsc, "-p", "."], {
             cwd: tmp,
             encoding: "utf8",
         });
@@ -122,10 +127,28 @@ function runPass(label, compilerOptions, extraIgnore = () => false) {
         const output = `${result.stdout || ""}${result.stderr || ""}`;
         const errorLines = output.split("\n").filter(l => l.includes("error TS"));
 
+        // Distinguish a real tsc invocation from a spawn failure.  tsc returns 0 on a clean
+        // type-check (no output) or 1/2 with `error TS` lines when it reports diagnostics.  Any
+        // other state — process killed by signal (status=null), spawn ENOENT (result.error), or
+        // non-zero exit with no diagnostics produced — means tsc didn't actually run a check.
+        if (result.error || result.status === null || (result.status !== 0 && errorLines.length === 0)) {
+            const detail =
+                result.error?.message ??
+                (result.status === null
+                    ? `terminated by signal ${result.signal}`
+                    : `exit ${result.status} with no diagnostics; stderr:\n${result.stderr}`);
+            return { spawnError: detail };
+        }
+
+        // Bucket diagnostics into disjoint sets so counts add up:
+        //   harness errors — repro.ts lines that imply the validator never ran the actual check
+        //   matter errors  — code-owned errors outside repro.ts (after the CJS/ESM allowlist)
+        //   ignored        — everything else (transitive deps, lib bundle bugs, etc.)
         const harnessErrors = errorLines.filter(
             l => l.includes("repro.ts") && (isFatalHarnessError(l) || isMatterError(l)),
         );
-        const matterErrors = errorLines.filter(l => isMatterError(l) && !extraIgnore(l));
+        const harnessSet = new Set(harnessErrors);
+        const matterErrors = errorLines.filter(l => !harnessSet.has(l) && isMatterError(l) && !extraIgnore(l));
         const ignoredCount = errorLines.length - matterErrors.length - harnessErrors.length;
 
         return { matterErrors, harnessErrors, ignoredCount };
@@ -135,6 +158,10 @@ function runPass(label, compilerOptions, extraIgnore = () => false) {
 }
 
 function reportPass(label, result) {
+    if (result.spawnError) {
+        console.error(`✗ [${label}] tsc invocation failed: ${result.spawnError}`);
+        return 2;
+    }
     if (result.harnessErrors.length > 0) {
         console.error(`✗ [${label}] Harness self-check failed — validator did not actually validate the packages:\n`);
         for (const err of result.harnessErrors) {
