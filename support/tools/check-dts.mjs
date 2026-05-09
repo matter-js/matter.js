@@ -13,9 +13,9 @@
 // Run via: `npm run validate-dts`
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,16 +38,38 @@ const PACKAGES = [
 ];
 
 // An error is attributed to matter.js if its file path is inside one of these prefixes (matched
-// against the absolute path printed by tsc).  Errors in TypeScript's bundled lib or in transitive
-// dependencies are ignored because they're not produced by our codegen.
+// against the path printed by tsc, normalized to forward slashes for cross-platform consistency).
+// Transitive deps and TypeScript's bundled lib are ignored because they're not produced by our
+// codegen.  We also flag errors whose body references a matter package (e.g. TS2307 from a missing
+// `import "@matter/..."` in the harness) so a broken harness can't silently pass.
 const MATTER_PATH_FRAGMENTS = ["/@matter/", "/@project-chip/matter.js/"];
+const MATTER_MODULE_FRAGMENTS = ["'@matter/", '"@matter/', "'@project-chip/matter.js", '"@project-chip/matter.js'];
+
+// Errors that always indicate the harness itself is broken.  Treat as hard failures.
+//   TS2307 — Cannot find module 'X' (failed import)
+//   TS2792 — Cannot find module (with did-you-mean)
+//   TS2882 — Cannot find module or type declarations for side-effect import
+//   TS6053 — File not found
+const FATAL_HARNESS_ERROR_CODES = ["TS2307", "TS2792", "TS2882", "TS6053"];
 
 function tscPath() {
     return resolve(REPO_ROOT, "node_modules", "typescript", "bin", "tsc");
 }
 
+function normalizePath(line) {
+    return line.replaceAll(sep, "/").replaceAll("\\\\", "/");
+}
+
 function isMatterError(line) {
-    return MATTER_PATH_FRAGMENTS.some(frag => line.includes(frag));
+    const normalized = normalizePath(line);
+    return (
+        MATTER_PATH_FRAGMENTS.some(frag => normalized.includes(frag)) ||
+        MATTER_MODULE_FRAGMENTS.some(frag => line.includes(frag))
+    );
+}
+
+function isFatalHarnessError(line) {
+    return FATAL_HARNESS_ERROR_CODES.some(code => line.includes(`error ${code}:`));
 }
 
 function main() {
@@ -56,6 +78,11 @@ function main() {
         const importStatements = PACKAGES.map(p => `import ${JSON.stringify(p)};`).join("\n");
         writeFileSync(join(tmp, "repro.ts"), `${importStatements}\n`);
 
+        // Use bundler resolution (TypeScript's recommended default since 5.0).  This is what most
+        // downstream consumers hit when they don't pin a specific module strategy.  node16/nodenext
+        // resolution surfaces additional pre-existing CJS/ESM interop issues in @matter/general's
+        // CJS bundle (TS1479/TS1542); those are real but out-of-scope for this codegen-cleanup
+        // validator and should be addressed in a separate PR.
         const tsconfig = {
             compilerOptions: {
                 target: "esnext",
@@ -69,10 +96,14 @@ function main() {
         };
         writeFileSync(join(tmp, "tsconfig.json"), JSON.stringify(tsconfig, null, 4));
 
-        // Symlink node_modules from the repo so imports resolve against built dist.
-        spawnSync("ln", ["-s", join(REPO_ROOT, "node_modules"), join(tmp, "node_modules")], {
-            stdio: "inherit",
-        });
+        // Symlink node_modules from the repo so imports resolve against built dist.  Use Node's fs
+        // API (not `ln`) for cross-platform support; "junction" works on Windows for directories.
+        try {
+            symlinkSync(join(REPO_ROOT, "node_modules"), join(tmp, "node_modules"), "junction");
+        } catch (err) {
+            console.error(`✗ Failed to create node_modules symlink: ${err.message}`);
+            process.exit(2);
+        }
 
         const result = spawnSync(process.execPath, [tscPath(), "-p", "."], {
             cwd: tmp,
@@ -81,6 +112,20 @@ function main() {
 
         const output = `${result.stdout || ""}${result.stderr || ""}`;
         const errorLines = output.split("\n").filter(l => l.includes("error TS"));
+
+        // A fatal harness error in repro.ts means the validator never actually checked the
+        // packages.  Treat as a hard failure so the run can't silently succeed.
+        const harnessErrors = errorLines.filter(
+            l => l.includes("repro.ts") && (isFatalHarnessError(l) || isMatterError(l)),
+        );
+        if (harnessErrors.length > 0) {
+            console.error("✗ Harness self-check failed — validator did not actually validate the packages:\n");
+            for (const err of harnessErrors) {
+                console.error(err);
+            }
+            process.exit(2);
+        }
+
         const matterErrors = errorLines.filter(isMatterError);
 
         if (matterErrors.length === 0) {
