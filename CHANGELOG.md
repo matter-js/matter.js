@@ -32,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added locking to storage implementations to prevent concurrent access issues and data corruption
     - Enhancement: Split out Blob-Storage into its own `dir`-based BlobStorage implementation
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
+    - Enhancement: `LogFormat.format(value, format?)` renders any Diagnostic-loggable value to a string in the specified format (defaults to plain text)
 
 - @matter/\*:
     - Upgraded to Matter specification version 1.5
@@ -40,6 +41,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
     - Feature: `onAttestationFailure` commissioning option for controlling attestation validation policy (true/false/callback with typed findings)
+    - Feature: ServerNode Network behavior options allow to set `tcp` (boolean) to enable TCP support for the server node
+    - Feature: ServerNode Network behavior options allow to set `transportPreference` ("udp"/"tcp") to define the preferred connection type when peers support both. "udp" is the default and fallback
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: The new Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
     - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
@@ -114,6 +117,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
 
 - @project-chip/matter.js
+    - Feature: CommissioningController allows to set `tcp` (boolean) to enable TCP support for the controller
+    - Feature: CommissioningController allows to set `transportPreference` ("udp"/"tcp") to define the preferred connection type when devices support both. "udp" is the default and fallback
+    - Feature: CommissioningOptions when commission a new device allows to set an `onAttestationFailure` callback that gets called with attestation validation options and allows decisions to continue or block the commissioning. Default accepts but logs all failures.
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
     - Fix: Fixes inverted autoConnect logic in CommissioningController

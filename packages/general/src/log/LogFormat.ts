@@ -61,6 +61,13 @@ export namespace LogFormat {
      * Built in formatter that produces HTML.
      */
     export const HTML = "html";
+
+    /**
+     * Format a value to string using the specified format.
+     */
+    export function format(value: unknown, format: string | Formatter = PLAIN): string {
+        return LogFormat(format)(value);
+    }
 }
 
 export type DiagnosticProducer = () => string;
