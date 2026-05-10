@@ -5,6 +5,8 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import type { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { ContextAgents } from "#behavior/context/server/ContextAgents.js";
@@ -33,6 +35,7 @@ import { RootEndpoint } from "../endpoints/root.js";
 import { Agent } from "./Agent.js";
 import {
     AttributeNotPresentError,
+    EndpointBehaviorNotClusterError,
     EndpointBehaviorNotPresentError,
     EndpointReadFailedError,
     EndpointReadFailure,
@@ -199,13 +202,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
     stateOf(type: Behavior.Type | string) {
-        const state = this.maybeStateOf(type as any);
-        if (state) {
-            return state;
-        }
-
-        const id = typeof type === "string" ? type : type.id;
-        throw new ImplementationError(`Behavior ${id} is not supported by ${this}`);
+        return this.#requirePresent(type, this.maybeStateOf(type as Behavior.Type));
     }
 
     /**
@@ -254,7 +251,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             for (const behaviorId in values) {
                 const behavior = agent[behaviorId];
                 if (!(behavior instanceof Behavior)) {
-                    throw new ImplementationError(`Behavior ID ${behaviorId} does not exist`);
+                    throw new EndpointBehaviorNotPresentError(behaviorId);
                 }
 
                 const vals = values[behaviorId];
@@ -319,7 +316,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             const typeName = type;
             type = this.behaviors.supported[type];
             if (type === undefined) {
-                throw new ImplementationError(`Behavior ${typeName} is not supported by ${this}`);
+                throw new EndpointBehaviorNotPresentError(typeName);
             }
         }
 
@@ -380,9 +377,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         options?: Endpoint.GetOptions,
     ): Promise<unknown> {
         const id = typeof type === "string" ? type : type.id;
-
-        const resolved = typeof type === "string" ? this.behaviors.supported[id] : type;
-        if (resolved === undefined || !this.behaviors.has(resolved)) {
+        if (!this.behaviors.has(type as Behavior.Type)) {
             throw new EndpointBehaviorNotPresentError(id);
         }
 
@@ -428,13 +423,21 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Commands for a specific behavior.
+     * Commands for a specific behavior id. Untyped: each command is `Commands.Command`.
+     *
+     * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
      */
-    commandsOf<T extends Behavior.Type>(type: T) {
-        if (!this.behaviors.has(type)) {
-            throw new ImplementationError(`Behavior ${type.id} is not supported by this endpoint`);
+    commandsOf(type: string): Record<string, Commands.Command>;
+
+    /** Typed variant of {@link commandsOf}; preserves the behavior's command interface. */
+    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T>;
+
+    commandsOf(type: Behavior.Type | string): unknown {
+        const id = typeof type === "string" ? type : type.id;
+        if (!this.behaviors.has(type as Behavior.Type)) {
+            throw new EndpointBehaviorNotPresentError(id);
         }
-        return this.commands[type.id] as unknown as Commands.OfBehavior<T>;
+        return this.commands[id];
     }
 
     /**
@@ -462,17 +465,111 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
 
     eventsOf(type: Behavior.Type | string): unknown {
-        if (typeof type === "string") {
-            if (!(type in this.#stateView)) {
-                throw new ImplementationError(`Behavior ${type} is not supported by ${this}`);
-            }
-        } else {
-            if (!this.behaviors.has(type)) {
-                throw new ImplementationError(`Behavior ${type.id} is not supported by ${this}`);
-            }
-            type = type.id;
+        const id = typeof type === "string" ? type : type.id;
+        const present = typeof type === "string" ? id in this.#stateView : this.behaviors.has(type);
+        if (!present) {
+            throw new EndpointBehaviorNotPresentError(id);
         }
-        return this.#events[type];
+        return this.#events[id];
+    }
+
+    /**
+     * Activated cluster features for a behavior id, keyed by the camelCased feature title - same shape as the
+     * static `features` map on cluster behavior types and as `this.features` inside a server cluster instance.
+     *
+     * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
+     * @throws {@link EndpointBehaviorNotClusterError} if `type` is present but is not a cluster behavior.
+     */
+    featuresOf(type: string): Immutable<Record<string, boolean>>;
+
+    /** Typed variant of {@link featuresOf}; preserves the cluster's feature flag type from {@link ClusterBehavior.Type}. */
+    featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
+
+    featuresOf(type: ClusterBehavior.Type | string) {
+        return this.#requireClusterBehavior(type).features;
+    }
+
+    /** Returns undefined if `type` is unknown or not a cluster behavior; otherwise behaves like {@link featuresOf}. */
+    maybeFeaturesOf(type: string): Immutable<Record<string, boolean>> | undefined;
+    maybeFeaturesOf<T extends ClusterBehavior.Type>(type: T): T["features"] | undefined;
+    maybeFeaturesOf(type: ClusterBehavior.Type | string) {
+        return this.#installedClusterBehavior(type)?.features;
+    }
+
+    /**
+     * Global attribute state (clusterRevision, featureMap, attributeList, acceptedCommandList, generatedCommandList)
+     * for a behavior id. These attributes are managed automatically and omitted from the default {@link stateOf}
+     * shape to reduce noise; this accessor exposes them when needed.
+     *
+     * For server clusters values are populated at construction. For client clusters values come from remote
+     * subscription / read responses and may be empty arrays before the first read completes.
+     *
+     * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
+     * @throws {@link EndpointBehaviorNotClusterError} if `type` is present but is not a cluster behavior.
+     */
+    globalsOf(type: string): Immutable<GlobalAttributeState>;
+
+    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
+    globalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
+
+    globalsOf(type: ClusterBehavior.Type | string) {
+        const cluster = this.#requireClusterBehavior(type);
+        return this.maybeStateOf(cluster.id) as Immutable<GlobalAttributeState>;
+    }
+
+    /** Returns undefined if `type` is unknown or not a cluster behavior; otherwise behaves like {@link globalsOf}. */
+    maybeGlobalsOf(type: string): Immutable<GlobalAttributeState> | undefined;
+    maybeGlobalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }> | undefined;
+    maybeGlobalsOf(type: ClusterBehavior.Type | string) {
+        const cluster = this.#installedClusterBehavior(type);
+        if (cluster === undefined) {
+            return undefined;
+        }
+        // Cluster behavior state always carries the global attributes (managed automatically per
+        // {@link GlobalAttributeState}); cast is type-only.
+        return this.maybeStateOf(cluster.id) as Immutable<GlobalAttributeState> | undefined;
+    }
+
+    /** Resolve an installed cluster behavior by type or behavior id; returns undefined for unknown / non-cluster. */
+    #installedClusterBehavior(type: ClusterBehavior.Type | string): ClusterBehavior.Type | undefined {
+        if (typeof type === "string") {
+            const installed = this.behaviors.supported[type];
+            return installed !== undefined && ClusterBehavior.isType(installed) ? installed : undefined;
+        }
+        return this.behaviors.has(type) ? this.behaviors.typeFor(type)! : undefined;
+    }
+
+    /**
+     * Resolve an installed cluster behavior, throwing if the behavior is absent or not a cluster behavior.
+     */
+    #requireClusterBehavior(type: ClusterBehavior.Type | string): ClusterBehavior.Type {
+        const id = typeof type === "string" ? type : type.id;
+        if (typeof type === "string") {
+            const installed = this.behaviors.supported[id];
+            if (installed === undefined) {
+                throw new EndpointBehaviorNotPresentError(id);
+            }
+            if (!ClusterBehavior.isType(installed)) {
+                throw new EndpointBehaviorNotClusterError(id);
+            }
+            return installed;
+        }
+        if (!this.behaviors.has(type)) {
+            throw new EndpointBehaviorNotPresentError(id);
+        }
+        return this.behaviors.typeFor(type)!;
+    }
+
+    /** Throw {@link EndpointBehaviorNotPresentError} if `result` is undefined; otherwise return it. */
+    #requirePresent<T>(type: Behavior.Type | string, result: T | undefined): T {
+        if (result === undefined) {
+            throw new EndpointBehaviorNotPresentError(typeof type === "string" ? type : type.id);
+        }
+        return result;
     }
 
     get construction() {

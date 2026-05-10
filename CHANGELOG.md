@@ -46,6 +46,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: The new Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
     - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
+    - Feature: Added `Endpoint.featuresOf()` / `maybeFeaturesOf()` — typed access to a cluster behavior's active feature flags
+    - Feature: Added `Endpoint.globalsOf()` / `maybeGlobalsOf()` — exposes the global cluster attribute state
+    - Enhancement: Added string-id overloads to `commandsOf()`, `eventsOf()`, `stateOf()`/`maybeStateOf()`
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Enhancement: Added more warnings on invalid values for BasicInformation cluster
     - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to respond to mDNS queries, we increased the discovery time for commissioning targets to 3 minutes (previously 1 minute)
@@ -122,6 +125,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: CommissioningController allows to set `transportPreference` ("udp"/"tcp") to define the preferred connection type when devices support both. "udp" is the default and fallback
     - Feature: CommissioningOptions when commission a new device allows to set an `onAttestationFailure` callback that gets called with attestation validation options and allows decisions to continue or block the commissioning. Default accepts but logs all failures.
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
+    - Enhancement: Legacy `Endpoint` and `PairedNode` wrappers expose `featuresOf()` / `maybeFeaturesOf()` and `globalsOf()` / `maybeGlobalsOf()` matching the modern client endpoint
+    - Enhancement: Legacy `Endpoint` and `PairedNode` wrappers now also expose `get()`, `getStateOf()`, `eventsOf()`, `maybeStateOf()` and string-id overloads on existing accessors for parity with the modern client endpoint
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
     - Fix: Fixes inverted autoConnect logic in CommissioningController
 

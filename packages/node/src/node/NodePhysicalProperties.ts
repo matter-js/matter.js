@@ -41,36 +41,34 @@ export function NodePhysicalProperties(node: Node) {
 
 function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDeviceProperties) {
     // Network interface support
-    const network = endpoint.behaviors.typeFor(NetworkCommissioningClient);
-    if (network) {
-        const features = network.schema.supportedFeatures;
-        if (features.has("WI")) {
+    const networkFeatures = endpoint.maybeFeaturesOf(NetworkCommissioningClient);
+    if (networkFeatures) {
+        if (networkFeatures.wiFiNetworkInterface) {
             properties.supportsWifi = true;
         }
-        if (features.has("TH")) {
+        if (networkFeatures.threadNetworkInterface) {
             properties.supportsThread = true;
         }
-        if (features.has("ET")) {
+        if (networkFeatures.ethernetNetworkInterface) {
             properties.supportsEthernet = true;
         }
     }
 
     // Battery power
-    const powerSource = endpoint.behaviors.typeFor(PowerSourceClient);
-    if (powerSource) {
-        const features = powerSource.schema.supportedFeatures;
+    const powerSourceFeatures = endpoint.maybeFeaturesOf(PowerSourceClient);
+    if (powerSourceFeatures) {
         const status = endpoint.stateOf(PowerSourceClient).status;
-        if (features.has("WIRED")) {
+        if (powerSourceFeatures.wired) {
             if (status === PowerSource.PowerSourceStatus.Active) {
                 // Should we only consider A/C "mains" powered?  What is a DC adapter?  What is an external battery?
                 // For now assuming "wired" means "don't worry about power consumption"
                 properties.isMainsPowered = true;
             }
         } else if (
-            features.has("BAT") ||
+            powerSourceFeatures.battery ||
             // Perform additional checks because we've encountered devices with incorrect features
-            !features.has("WIRED") ||
-            endpoint.behaviors.elementsOf(powerSource).attributes.has("batChargeLevel")
+            !powerSourceFeatures.wired ||
+            endpoint.behaviors.elementsOf(PowerSourceClient).attributes.has("batChargeLevel")
         ) {
             if (
                 status === PowerSource.PowerSourceStatus.Active ||
