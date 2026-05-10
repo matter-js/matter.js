@@ -201,13 +201,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
     stateOf(type: Behavior.Type | string) {
-        const state = this.maybeStateOf(type as any);
-        if (state) {
-            return state;
-        }
-
-        const id = typeof type === "string" ? type : type.id;
-        throw new ImplementationError(`Behavior ${id} is not supported by ${this}`);
+        return this.#requirePresent(type, this.maybeStateOf(type as Behavior.Type));
     }
 
     /**
@@ -256,7 +250,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             for (const behaviorId in values) {
                 const behavior = agent[behaviorId];
                 if (!(behavior instanceof Behavior)) {
-                    throw new ImplementationError(`Behavior ID ${behaviorId} does not exist`);
+                    throw new EndpointBehaviorNotPresentError(behaviorId);
                 }
 
                 const vals = values[behaviorId];
@@ -321,7 +315,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             const typeName = type;
             type = this.behaviors.supported[type];
             if (type === undefined) {
-                throw new ImplementationError(`Behavior ${typeName} is not supported by ${this}`);
+                throw new EndpointBehaviorNotPresentError(typeName);
             }
         }
 
@@ -440,7 +434,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     commandsOf(type: Behavior.Type | string): unknown {
         const id = typeof type === "string" ? type : type.id;
         if (!this.behaviors.has(type as Behavior.Type)) {
-            throw new ImplementationError(`Behavior ${id} is not supported by this endpoint`);
+            throw new EndpointBehaviorNotPresentError(id);
         }
         return this.commands[id];
     }
@@ -470,17 +464,12 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
 
     eventsOf(type: Behavior.Type | string): unknown {
-        if (typeof type === "string") {
-            if (!(type in this.#stateView)) {
-                throw new ImplementationError(`Behavior ${type} is not supported by ${this}`);
-            }
-        } else {
-            if (!this.behaviors.has(type)) {
-                throw new ImplementationError(`Behavior ${type.id} is not supported by ${this}`);
-            }
-            type = type.id;
+        const id = typeof type === "string" ? type : type.id;
+        const present = typeof type === "string" ? id in this.#stateView : this.behaviors.has(type);
+        if (!present) {
+            throw new EndpointBehaviorNotPresentError(id);
         }
-        return this.#events[type];
+        return this.#events[id];
     }
 
     /**
