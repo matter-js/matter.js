@@ -195,6 +195,25 @@ describe("Client cluster feature access on a commissioned peer endpoint", () => 
         });
     });
 
+    describe("commandsOf", () => {
+        it("commandsOf(string) returns a proxy with the same keys as commandsOf(type)", () => {
+            const byType = ep1.commandsOf(OnOffClient);
+            const byString = ep1.commandsOf("onOff") as Record<string, unknown>;
+            expect(Object.keys(byString).sort()).to.deep.equal(Object.keys(byType).sort());
+        });
+
+        it("commandsOf(string) commands are callable functions", () => {
+            const cmds = ep1.commandsOf("onOff") as Record<string, unknown>;
+            expect(typeof cmds.off).to.equal("function");
+            expect(typeof cmds.on).to.equal("function");
+            expect(typeof cmds.toggle).to.equal("function");
+        });
+
+        it("commandsOf(string) throws EndpointBehaviorNotPresentError for an unknown behavior", () => {
+            expect(() => ep1.commandsOf("clusterThatDoesNotExistXyz")).to.throw(EndpointBehaviorNotPresentError);
+        });
+    });
+
     // featuresOf / globalsOf only make sense on cluster behaviors. State accessors must still work for non-cluster
     // behaviors (e.g. `network` on ClientNode) since those carry plain state.
     describe("non-cluster behaviors", () => {
