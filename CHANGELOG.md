@@ -32,7 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added locking to storage implementations to prevent concurrent access issues and data corruption
     - Enhancement: Split out Blob-Storage into its own `dir`-based BlobStorage implementation
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
-    - Enhancement: `LogFormat.format(value, format?)` renders any Diagnostic-loggable value to a string in the specified format (defaults to plain text)
+    - Enhancement: `LogFormat.format` renders any Diagnostic-loggable value to a string in the specified format (defaults to plain text)
 
 - @matter/\*:
     - Upgraded to Matter specification version 1.5
@@ -1198,7 +1198,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: We've deprecated the hand-generated device type definitions used by the pre-0.8.0 API in DeviceTypes.ts. These device type definitions remain at Matter 1.1.
     - Removal: We removed old Scenes cluster implementation which was never fully implemented or used by any Matter controller
 - matter.js-react-native:
-    - Feature: Introduces new package to provides a React Native compatible platform Implementations for Matter.js. This package is still in development and not fully working and should be considered experimental for now! Currently it tries to support UDP, BLE, AsyncStorage, and Crypto platform features. See [README](./packages/matter.js-react-native/README.md) for more information.
+    - Feature: Introduces new package to provides a React Native compatible platform Implementations for Matter.js. This package is still in development and not fully working and should be considered experimental for now! Currently it tries to support UDP, BLE, AsyncStorage, and Crypto platform features. See [README](./packages/react-native/README.md) for more information.
 - matter.js chip and python Testing:
     - Includes updates and infrastructure improvements for Matter.js use of tests defined in [connectedhomeip](https://github.com/project-chip/connectedhomeip)
 
@@ -1609,7 +1609,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Remove the exposed legacy API classes (MatterDevice/MatterController) and legacy examples from the exported lists
     - Feature: Autoregister Crypto, Time, and Network in their Node.js variants when including packages from @project-chip/matter-node.js root package but only if not yet registered (so can be overridden by the developer)
     - Examples/Reference implementations:
-        - The reference implementations are moved to the example directory and details moved into an own [README.md](./packages/matter-node.js-examples/README.md) file
+        - The reference implementations are moved to the example directory and details moved into an own [README.md](./examples/README.md) file
         - the "npm run matter" command got renamed to "npm run matter-device" (same for binary usage
         - Add hints for all imports in the examples to show what the corresponding "matter-node.js" import would be (because they cannot be used directly for build reasons)
         - Added the "npm run matter-\*" commands also to the base package.json
