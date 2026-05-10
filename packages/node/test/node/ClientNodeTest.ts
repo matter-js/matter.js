@@ -6,8 +6,10 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
+import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
+import { AccessControlClient } from "#behaviors/access-control";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import {
     BooleanStateConfigurationClient,
@@ -41,7 +43,8 @@ import {
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
-import { FabricIndex, Status, StatusResponseError } from "@matter/types";
+import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
@@ -817,6 +820,123 @@ describe("ClientNode", () => {
         });
     });
 
+    describe("writes a fabric-scoped struct attribute via setStateOf", () => {
+        // Matter §7.13.6: callers pass OMIT_FABRIC for the mandatory FabricIndex field; the validator
+        // substitutes the peer's assigned index (or skips on a relaxed remote-write context).
+
+        it("accepts FabricIndex.OMIT_FABRIC as the mandatory placeholder", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const newSubject = NodeId(BigInt(0x55));
+
+            await MockTime.resolve(
+                peer1.setStateOf(AccessControlClient, {
+                    acl: [
+                        {
+                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                            subjects: [newSubject],
+                            targets: null,
+                            fabricIndex: FabricIndex.OMIT_FABRIC,
+                        },
+                    ],
+                }),
+            );
+
+            const aclOnServer = device.state.accessControl.acl;
+            const written = aclOnServer.find(entry => entry.subjects?.[0] === newSubject);
+            expect(written, "server-side ACL entry written by peer is missing").to.be.ok;
+            expect(written!.fabricIndex).greaterThan(0);
+            expect(written!.fabricIndex).lessThan(255);
+
+            const aclOnPeerCache = peer1.stateOf(AccessControlClient).acl;
+            const cached = aclOnPeerCache.find(entry => entry.subjects?.[0] === newSubject);
+            expect(cached, "local ClientNode cache is missing the written ACL entry").to.be.ok;
+            expect(cached!.fabricIndex).equals(written!.fabricIndex);
+        });
+
+        it("rejects FabricIndex.NO_FABRIC (0)", async () => {
+            // Matter §7.5.2: fabric-scoped data SHALL NOT use fabric-index 0.  Caller bug surface preserved.
+
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf(AccessControlClient, {
+                    acl: [
+                        {
+                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                            subjects: [NodeId(BigInt(0x56))],
+                            targets: null,
+                            fabricIndex: FabricIndex.NO_FABRIC,
+                        },
+                    ],
+                }),
+            );
+
+            expect((caught as Error)?.message).match(/Constraint .*Value 0 is not within bounds/);
+        });
+
+        it("does not relax server-side fabricIndex validation", async () => {
+            // Guards against leakage of `underClientNode` onto server-rooted contexts.
+
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair();
+
+            const caught = await captureRejection(() =>
+                device.setStateOf("accessControl", {
+                    acl: [
+                        {
+                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                            subjects: [NodeId(BigInt(0x57))],
+                            targets: null,
+                            fabricIndex: FabricIndex.OMIT_FABRIC,
+                        },
+                    ],
+                }),
+            );
+
+            expect((caught as Error)?.message).match(/Value -1 is below the uint8 minimum/);
+        });
+    });
+
+    describe("captures and backfills the peer-assigned fabric index", () => {
+        it("captures fabricIndexOnPeer at commissioning", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+
+            const captured = peer1.state.commissioning.fabricIndexOnPeer;
+            expect(captured).is.a("number");
+            expect(captured).greaterThan(0);
+            expect(captured).lessThan(255);
+        });
+
+        it("backfills fabricIndexOnPeer from operational credentials on reload when state was cleared", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const captured = peer1.state.commissioning.fabricIndexOnPeer;
+            expect(captured).is.a("number");
+
+            // Simulate a peer commissioned before this field existed: clear and persist.
+            await peer1.setStateOf(CommissioningClient, { fabricIndexOnPeer: undefined });
+            expect(peer1.state.commissioning.fabricIndexOnPeer).equals(undefined);
+
+            // Close + reload — partsReady triggers backfill from OperationalCredentialsClient.currentFabricIndex.
+            await site.close();
+            const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+
+            expect(peer1b.state.commissioning.fabricIndexOnPeer).equals(captured);
+        });
+    });
+
     it("emits Matter events", async () => {
         // *** SETUP ***
 
@@ -1426,6 +1546,7 @@ const PEER1_STATE = {
         ],
         caseAuthenticatedTags: undefined,
         commissionedAt: expect.NUMBER,
+        fabricIndexOnPeer: expect.NUMBER,
         discoveredAt: expect.NUMBER,
         onlineAt: undefined,
         offlineAt: undefined,

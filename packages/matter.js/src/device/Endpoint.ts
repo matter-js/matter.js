@@ -14,7 +14,13 @@ import {
     NotImplementedError,
     Observable,
 } from "@matter/general";
-import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
+import {
+    Behavior,
+    Endpoint as ClientEndpoint,
+    ClusterBehavior,
+    Commands,
+    type GlobalAttributeState,
+} from "@matter/node";
 import { ClusterClientObj, Val } from "@matter/protocol";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
@@ -137,15 +143,90 @@ export class Endpoint {
     setStateOf(type: string, values: Val.Struct): Promise<void>;
 
     setStateOf(type: Behavior.Type | string, values: Val.Struct) {
-        return this.#endpoint.setStateOf(<Behavior.Type>type, values);
+        return this.#endpoint.setStateOf(type as Behavior.Type, values);
+    }
+
+    /** Cluster commands for a behavior id (untyped: each command is `Commands.Command`). */
+    commandsOf(type: string): Record<string, Commands.Command>;
+
+    /** Typed variant of {@link commandsOf}; preserves the behavior's command interface. */
+    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T>;
+
+    commandsOf(type: Behavior.Type | string): unknown {
+        return this.#endpoint.commandsOf(type as Behavior.Type);
+    }
+
+    /** Activated cluster features for a behavior id (untyped). */
+    featuresOf(type: string): Immutable<Record<string, boolean>>;
+
+    /** Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type. */
+    featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
+
+    featuresOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.featuresOf(type as ClusterBehavior.Type);
+    }
+
+    /** {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors. */
+    maybeFeaturesOf(type: string): Immutable<Record<string, boolean>> | undefined;
+    maybeFeaturesOf<T extends ClusterBehavior.Type>(type: T): T["features"] | undefined;
+    maybeFeaturesOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.maybeFeaturesOf(type as ClusterBehavior.Type);
+    }
+
+    /** Global cluster attribute state (clusterRevision, featureMap, attributeList, ...) for a behavior id. */
+    globalsOf(type: string): Immutable<GlobalAttributeState>;
+
+    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
+    globalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
+
+    globalsOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.globalsOf(type as ClusterBehavior.Type);
+    }
+
+    /** {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors. */
+    maybeGlobalsOf(type: string): Immutable<GlobalAttributeState> | undefined;
+    maybeGlobalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }> | undefined;
+    maybeGlobalsOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.maybeGlobalsOf(type as ClusterBehavior.Type);
     }
 
     /**
-     * Access to typed cluster commands
-     * Returns async functions that can be called to invoke commands on cluster clients
+     * Read selected behavior state via the underlying client endpoint.
+     *
+     * @see {@link ClientEndpoint.get}
      */
-    commandsOf<T extends Behavior.Type>(type: T) {
-        return this.#endpoint.commandsOf(type);
+    get(): Promise<unknown>;
+    get(selector: object | undefined, options?: ClientEndpoint.GetOptions): Promise<unknown>;
+    get(selector?: object, options?: ClientEndpoint.GetOptions): Promise<unknown> {
+        return this.#endpoint.get(selector as never, options);
+    }
+
+    /**
+     * Read state for a single behavior via the underlying client endpoint.
+     *
+     * @see {@link ClientEndpoint.getStateOf}
+     */
+    getStateOf<B extends Behavior.Type>(
+        type: B,
+        selector?: true,
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<Behavior.StateOf<B>>;
+    getStateOf<B extends Behavior.Type, K extends keyof Behavior.StateOf<B>>(
+        type: B,
+        selector: readonly K[],
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
+    getStateOf(type: string, selector?: readonly string[], options?: ClientEndpoint.GetOptions): Promise<Val.Struct>;
+    getStateOf(
+        type: Behavior.Type | string,
+        selector?: true | readonly (string | number | symbol)[],
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<unknown> {
+        return this.#endpoint.getStateOf(type as Behavior.Type, selector as never, options);
     }
 
     /**

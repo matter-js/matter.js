@@ -32,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added locking to storage implementations to prevent concurrent access issues and data corruption
     - Enhancement: Split out Blob-Storage into its own `dir`-based BlobStorage implementation
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
+    - Enhancement: `LogFormat.format` renders any Diagnostic-loggable value to a string in the specified format (defaults to plain text)
 
 - @matter/\*:
     - Upgraded to Matter specification version 1.5
@@ -40,9 +41,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
     - Feature: `onAttestationFailure` commissioning option for controlling attestation validation policy (true/false/callback with typed findings)
+    - Feature: ServerNode Network behavior options allow to set `tcp` (boolean) to enable TCP support for the server node
+    - Feature: ServerNode Network behavior options allow to set `transportPreference` ("udp"/"tcp") to define the preferred connection type when peers support both. "udp" is the default and fallback
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: The new Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
     - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
+    - Feature: Added `Endpoint.featuresOf()` / `maybeFeaturesOf()` — typed access to a cluster behavior's active feature flags
+    - Feature: Added `Endpoint.globalsOf()` / `maybeGlobalsOf()` — exposes the global cluster attribute state
+    - Enhancement: Added string-id overloads to `commandsOf()`, `eventsOf()`, `stateOf()`/`maybeStateOf()`
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Enhancement: Added more warnings on invalid values for BasicInformation cluster
     - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to respond to mDNS queries, we increased the discovery time for commissioning targets to 3 minutes (previously 1 minute)
@@ -51,6 +57,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
     - Fix: Preserves clusters in the structure even if they are not specified in the serverList of the endpoint but are reported in data ("Schrödinger's cluster")
     - Fix: You can now assign bare objects composed of managed values to state properties
+    - Fix: ClientNode `setStateOf` accepts `FabricIndex.OMIT_FABRIC` for fabric-scoped struct entries (Matter §7.13.6) and substitutes the peer's assigned fabric index so the local cache mirrors what the peer stores
 
 - @matter/nodejs-ble
     - Fix: Fixes several crash or blocking cases around BLE and the usage in commissioning
@@ -114,7 +121,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
 
 - @project-chip/matter.js
+    - Feature: CommissioningController allows to set `tcp` (boolean) to enable TCP support for the controller
+    - Feature: CommissioningController allows to set `transportPreference` ("udp"/"tcp") to define the preferred connection type when devices support both. "udp" is the default and fallback
+    - Feature: CommissioningOptions when commission a new device allows to set an `onAttestationFailure` callback that gets called with attestation validation options and allows decisions to continue or block the commissioning. Default accepts but logs all failures.
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
+    - Enhancement: Legacy `Endpoint` and `PairedNode` wrappers expose `featuresOf()` / `maybeFeaturesOf()` and `globalsOf()` / `maybeGlobalsOf()` matching the modern client endpoint
+    - Enhancement: Legacy `Endpoint` and `PairedNode` wrappers now also expose `get()`, `getStateOf()`, `eventsOf()`, `maybeStateOf()` and string-id overloads on existing accessors for parity with the modern client endpoint
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
     - Fix: Fixes inverted autoConnect logic in CommissioningController
 
@@ -1192,7 +1204,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: We've deprecated the hand-generated device type definitions used by the pre-0.8.0 API in DeviceTypes.ts. These device type definitions remain at Matter 1.1.
     - Removal: We removed old Scenes cluster implementation which was never fully implemented or used by any Matter controller
 - matter.js-react-native:
-    - Feature: Introduces new package to provides a React Native compatible platform Implementations for Matter.js. This package is still in development and not fully working and should be considered experimental for now! Currently it tries to support UDP, BLE, AsyncStorage, and Crypto platform features. See [README](./packages/matter.js-react-native/README.md) for more information.
+    - Feature: Introduces new package to provides a React Native compatible platform Implementations for Matter.js. This package is still in development and not fully working and should be considered experimental for now! Currently it tries to support UDP, BLE, AsyncStorage, and Crypto platform features. See [README](./packages/react-native/README.md) for more information.
 - matter.js chip and python Testing:
     - Includes updates and infrastructure improvements for Matter.js use of tests defined in [connectedhomeip](https://github.com/project-chip/connectedhomeip)
 
@@ -1603,7 +1615,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Remove the exposed legacy API classes (MatterDevice/MatterController) and legacy examples from the exported lists
     - Feature: Autoregister Crypto, Time, and Network in their Node.js variants when including packages from @project-chip/matter-node.js root package but only if not yet registered (so can be overridden by the developer)
     - Examples/Reference implementations:
-        - The reference implementations are moved to the example directory and details moved into an own [README.md](./packages/matter-node.js-examples/README.md) file
+        - The reference implementations are moved to the example directory and details moved into an own [README.md](./examples/README.md) file
         - the "npm run matter" command got renamed to "npm run matter-device" (same for binary usage
         - Add hints for all imports in the examples to show what the corresponding "matter-node.js" import would be (because they cannot be used directly for build reasons)
         - Added the "npm run matter-\*" commands also to the base package.json

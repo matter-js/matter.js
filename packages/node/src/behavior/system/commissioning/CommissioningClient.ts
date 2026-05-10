@@ -108,6 +108,16 @@ export class CommissioningClient extends Behavior {
             this.state.discoveredAt = Time.nowMs;
         }
 
+        // Defends against storage corruption / direct state manipulation; backfill from
+        // OperationalCredentialsClient recovers on partsReady.
+        const persistedFabricIndexOnPeer = this.state.fabricIndexOnPeer;
+        if (persistedFabricIndexOnPeer !== undefined && !FabricIndex.isValid(persistedFabricIndexOnPeer)) {
+            logger.warn(
+                `Discarding invalid persisted fabricIndexOnPeer ${persistedFabricIndexOnPeer} for ${this.endpoint}`,
+            );
+            this.state.fabricIndexOnPeer = undefined;
+        }
+
         if (this.state.peerAddress !== undefined) {
             // And ensure we are coupled to the Peer instance
             this.#bindPeer(this.state.peerAddress);
@@ -234,9 +244,10 @@ export class CommissioningClient extends Behavior {
         }
 
         try {
-            await commissioner.commission(commissioningOptions);
+            const { fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
             this.state.commissionedAt = Time.nowMs;
+            this.state.fabricIndexOnPeer = fabricIndexOnPeer;
 
             // Apply changes from the peer
             await this.#update(this.env.get(PeerSet).for(address));
@@ -312,6 +323,7 @@ export class CommissioningClient extends Behavior {
 
         this.state.peerAddress = undefined;
         this.state.commissionedAt = undefined;
+        this.state.fabricIndexOnPeer = undefined;
 
         await this.context.transaction.commit();
 
@@ -343,7 +355,29 @@ export class CommissioningClient extends Behavior {
 
     #initializeNode() {
         const endpoint = this.endpoint as ClientNode;
+        this.#backfillFabricIndexOnPeer();
+
+        // If the synchronous backfill missed (OpCreds subscription still in-flight), self-heal on the next
+        // currentFabricIndex update.  Reactor is idempotent — once state is filled it short-circuits.
+        if (this.state.fabricIndexOnPeer === undefined && this.endpoint.behaviors.has(OperationalCredentialsClient)) {
+            this.reactTo(
+                this.endpoint.eventsOf(OperationalCredentialsClient).currentFabricIndex$Changed,
+                this.#backfillFabricIndexOnPeer,
+            );
+        }
+
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
+    }
+
+    /** Recover `state.fabricIndexOnPeer` from `OperationalCredentialsClient.currentFabricIndex` when missing. */
+    #backfillFabricIndexOnPeer() {
+        if (this.state.peerAddress === undefined || this.state.fabricIndexOnPeer !== undefined) {
+            return;
+        }
+        const value = this.endpoint.maybeStateOf(OperationalCredentialsClient)?.currentFabricIndex;
+        if (value !== undefined && value !== FabricIndex.NO_FABRIC) {
+            this.state.fabricIndexOnPeer = value;
+        }
     }
 
     #operationalAddressesChanged(newAddresses: ServerAddress[] | undefined, oldAddresses: ServerAddress[] | undefined) {
@@ -664,6 +698,16 @@ export namespace CommissioningClient {
          */
         @field(systimeMs, nonvolatile)
         commissionedAt?: Timestamp;
+
+        /**
+         * Fabric index the peer assigned to our identity (from the AddNoc response).  Substituted for the
+         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors
+         * the value the peer will store.
+         *
+         * Distinct from {@link peerAddress.fabricIndex} which is our local fabric index.
+         */
+        @field(fabricIdx, nonvolatile)
+        fabricIndexOnPeer?: FabricIndex;
 
         /**
          * The TTL of the discovery record if applicable (in seconds).

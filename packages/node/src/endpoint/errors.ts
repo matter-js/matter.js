@@ -62,6 +62,15 @@ export class EndpointBehaviorNotPresentError extends MatterError {
 }
 
 /**
+ * Thrown when a behavior is present on an endpoint but the requested operation requires a cluster behavior.
+ */
+export class EndpointBehaviorNotClusterError extends MatterError {
+    constructor(behaviorId: string) {
+        super(`Behavior "${behaviorId}" is present but is not a cluster behavior`);
+    }
+}
+
+/**
  * Thrown when an attribute is not present on a behavior.
  */
 export class AttributeNotPresentError extends MatterError {
