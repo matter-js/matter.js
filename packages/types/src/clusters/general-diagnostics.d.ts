@@ -656,7 +656,7 @@ export declare namespace GeneralDiagnostics {
         ConnectionFailed = 3
     }
 
-    export declare class DeviceLoad {
+    export class DeviceLoad {
         constructor(values?: Partial<DeviceLoad>);
 
         /**
@@ -688,7 +688,7 @@ export declare namespace GeneralDiagnostics {
          * excluding any retries of such messages.
          */
         totalInteractionModelMessagesReceived: number;
-    };
+    }
 
     /**
      * This command shall be supported to provide a means for certification tests to trigger some test-plan-specific

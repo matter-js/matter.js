@@ -139,7 +139,7 @@ export declare namespace Groupcast {
         PerGroup = "PerGroup"
     }
 
-    export declare class Membership {
+    export class Membership {
         constructor(values?: Partial<Membership>);
         groupId: GroupId;
         endpoints?: EndpointNumber[];
@@ -147,9 +147,9 @@ export declare namespace Groupcast {
         hasAuxiliaryAcl?: boolean;
         mcastAddrPolicy: MulticastAddrPolicy;
         fabricIndex: FabricIndex;
-    };
+    }
 
-    export declare class JoinGroupRequest {
+    export class JoinGroupRequest {
         constructor(values?: Partial<JoinGroupRequest>);
         groupId: GroupId;
         endpoints: EndpointNumber[];
@@ -158,38 +158,38 @@ export declare namespace Groupcast {
         useAuxiliaryAcl?: boolean;
         replaceEndpoints?: boolean;
         mcastAddrPolicy?: MulticastAddrPolicy;
-    };
+    }
 
-    export declare class LeaveGroupRequest {
+    export class LeaveGroupRequest {
         constructor(values?: Partial<LeaveGroupRequest>);
         groupId: GroupId;
         endpoints?: EndpointNumber[];
-    };
-    export declare class LeaveGroupResponse {
+    }
+    export class LeaveGroupResponse {
         constructor(values?: Partial<LeaveGroupResponse>);
         groupId: GroupId;
         endpoints: EndpointNumber[];
-    };
+    }
 
-    export declare class UpdateGroupKeyRequest {
+    export class UpdateGroupKeyRequest {
         constructor(values?: Partial<UpdateGroupKeyRequest>);
         groupId: GroupId;
         keySetId: number;
         key?: Bytes;
-    };
+    }
 
-    export declare class GroupcastTestingRequest {
+    export class GroupcastTestingRequest {
         constructor(values?: Partial<GroupcastTestingRequest>);
         testOperation: GroupcastTesting;
         durationSeconds?: number;
-    };
-    export declare class ConfigureAuxiliaryAclRequest {
+    }
+    export class ConfigureAuxiliaryAclRequest {
         constructor(values?: Partial<ConfigureAuxiliaryAclRequest>);
         groupId: GroupId;
         useAuxiliaryAcl: boolean;
-    };
+    }
 
-    export declare class GroupcastTestingEvent {
+    export class GroupcastTestingEvent {
         constructor(values?: Partial<GroupcastTestingEvent>);
         sourceIpAddress?: Bytes;
         destinationIpAddress?: Bytes;
@@ -200,7 +200,7 @@ export declare namespace Groupcast {
         accessAllowed?: boolean;
         groupcastTestResult: GroupcastTestResult;
         fabricIndex: FabricIndex;
-    };
+    }
 
     export enum MulticastAddrPolicy {
         /**
