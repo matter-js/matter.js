@@ -313,6 +313,14 @@ export class ControllerCommissioningFlow {
     }
 
     /**
+     * Fabric index assigned to our identity by the peer device, captured from the AddNoc response.  Defined
+     * after `executeCommissioning()` resolves successfully.
+     */
+    get fabricIndexOnPeer(): FabricIndex | undefined {
+        return this.collectedCommissioningData.fabricIndex;
+    }
+
+    /**
      * Execute the commissioning process in the defined order. The steps are sorted before execution based on the step
      * number and sub step number.
      * If >50% of the failsafe time has passed, the failsafe timer is re-armed (50% of 60s default are 30s and each

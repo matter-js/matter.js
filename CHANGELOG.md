@@ -54,6 +54,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
     - Fix: Preserves clusters in the structure even if they are not specified in the serverList of the endpoint but are reported in data ("Schrödinger's cluster")
     - Fix: You can now assign bare objects composed of managed values to state properties
+    - Fix: ClientNode `setStateOf` accepts `FabricIndex.OMIT_FABRIC` for fabric-scoped struct entries (Matter §7.13.6) and substitutes the peer's assigned fabric index so the local cache mirrors what the peer stores
 
 - @matter/nodejs-ble
     - Fix: Fixes several crash or blocking cases around BLE and the usage in commissioning
