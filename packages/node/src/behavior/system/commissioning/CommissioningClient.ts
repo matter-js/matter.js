@@ -108,6 +108,16 @@ export class CommissioningClient extends Behavior {
             this.state.discoveredAt = Time.nowMs;
         }
 
+        // Defends against storage corruption / direct state manipulation; backfill from
+        // OperationalCredentialsClient recovers on partsReady.
+        const persistedFabricIndexOnPeer = this.state.fabricIndexOnPeer;
+        if (persistedFabricIndexOnPeer !== undefined && !FabricIndex.isValid(persistedFabricIndexOnPeer)) {
+            logger.warn(
+                `Discarding invalid persisted fabricIndexOnPeer ${persistedFabricIndexOnPeer} for ${this.endpoint}`,
+            );
+            this.state.fabricIndexOnPeer = undefined;
+        }
+
         if (this.state.peerAddress !== undefined) {
             // And ensure we are coupled to the Peer instance
             this.#bindPeer(this.state.peerAddress);
