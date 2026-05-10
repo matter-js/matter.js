@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, InternalError } from "@matter/general";
+import { camelize, InternalError, Logger } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
 import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
-import { Status } from "@matter/types";
+import { FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
@@ -25,7 +25,10 @@ import {
 } from "./assertions.js";
 import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
+import { isFabricIndexSentinel } from "./FabricIndexSentinel.js";
 import { ValidationLocation } from "./location.js";
+
+const logger = Logger.get("ValueValidator");
 
 /**
  * Generate a function that performs data validation.
@@ -245,7 +248,33 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
         throw new InternalError(`No integer assertion implemented for integer type ${name}`);
     }
 
-    return createSimpleValidator(schema, supervisor, assertion);
+    const inner = createSimpleValidator(schema, supervisor, assertion);
+
+    // OMIT_FABRIC handling for the fabric-scoped struct FabricIndex sentinel (Matter §7.13.6).  Mutation of
+    // `siblings.fabricIndex` is an intentional bend of the read-only validator contract — covers both the
+    // per-field StructManager setter path AND the ListManager.writeEntry path (which writes raw entry objects
+    // bypassing per-field setters).  One mechanism handles every setStateOf path.
+    if (isFabricIndexSentinel(schema)) {
+        const fabricSentinelOrSubstitute: ValueSupervisor.Validate = (value, session, location) => {
+            const peerContext = session.clientPeerContext;
+            if (value !== FabricIndex.OMIT_FABRIC || peerContext === undefined) {
+                inner(value, session, location);
+                return;
+            }
+            const siblings = location.siblings as Val.Struct | undefined;
+            if (siblings !== undefined && peerContext.fabricIndexOnPeer !== undefined) {
+                siblings.fabricIndex = peerContext.fabricIndexOnPeer;
+                return;
+            }
+            logger.debug(
+                "fabricIndex was not replaced with the peer's fabric index because it is not yet known; local cache will hold the OMIT_FABRIC sentinel (-1) until the peer's subscription delivers the real value at",
+                location.path,
+            );
+        };
+        return fabricSentinelOrSubstitute;
+    }
+
+    return inner;
 }
 
 function createStructValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate {

@@ -45,7 +45,7 @@ import {
     ServerAddress,
     TransportSet,
 } from "@matter/general";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
+import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { PeerAddress } from "./PeerAddress.js";
@@ -209,7 +209,7 @@ export class ControllerCommissioner {
     /**
      * Commission a previously discovered node.
      */
-    async commission(options: LocatedNodeCommissioningOptions): Promise<PeerAddress> {
+    async commission(options: LocatedNodeCommissioningOptions): Promise<CommissionResult> {
         const {
             passcode,
             addresses,
@@ -470,7 +470,7 @@ export class ControllerCommissioner {
         ephemeralSession: NodeSession,
         options: CommissioningOptions,
         discoveryData?: DiscoveryData,
-    ): Promise<PeerAddress> {
+    ): Promise<CommissionResult> {
         const {
             fabric,
             finalizeCommissioning: performCaseCommissioning,
@@ -606,8 +606,12 @@ export class ControllerCommissioner {
             },
         );
 
+        let fabricIndexOnPeer: FabricIndex | undefined;
         try {
             await commissioner.executeCommissioning();
+            const captured = commissioner.fabricIndexOnPeer;
+            // Treat the spec-invalid NO_FABRIC (0) as "unknown" so callers don't have to filter it again.
+            fabricIndexOnPeer = captured === FabricIndex.NO_FABRIC ? undefined : captured;
         } catch (error) {
             // We might have added data for an operational address that we need to cleanup
             await this.#context.peers.get(address)?.delete();
@@ -627,6 +631,15 @@ export class ControllerCommissioner {
             });
         }
 
-        return address;
+        return { address, fabricIndexOnPeer };
     }
+}
+
+/** Result of a successful commissioning operation. */
+export interface CommissionResult {
+    /** Controller-side {@link PeerAddress} (interned). */
+    address: PeerAddress;
+
+    /** Fabric index the peer assigned to our identity, from the AddNoc response. */
+    fabricIndexOnPeer?: FabricIndex;
 }

@@ -7,6 +7,7 @@
 import type { AsyncObservable, Transaction } from "@matter/general";
 import { DataModelPath, Schema } from "@matter/model";
 import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
+import type { FabricIndex } from "@matter/types";
 import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
@@ -81,6 +82,16 @@ export namespace ValueSupervisor {
          * deferred.
          */
         acceptInvalid?: boolean;
+
+        /**
+         * Present on contexts rooted at a ClientNode (peer node).  Drives substitution of the
+         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes (Matter §7.13.6) so the local
+         * cache mirrors the post-write peer state.
+         */
+        clientPeerContext?: {
+            /** Fabric index the peer assigned to our identity, when known. */
+            fabricIndexOnPeer?: FabricIndex;
+        };
 
         /**
          * Controls how per-instance supervision config is scoped.
