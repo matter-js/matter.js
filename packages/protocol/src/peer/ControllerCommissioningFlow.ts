@@ -627,7 +627,7 @@ export class ControllerCommissioningFlow {
         { statusCode, debugText, fabricIndex }: OperationalCredentials.NocResponse,
     ) {
         logger.debug(
-            `Commissioning step ${context} returned ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode}), ${debugText}${
+            `Commissioning step ${context} returned ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode})${debugText ? `, ${debugText}` : ""}${
                 fabricIndex !== undefined ? `, fabricIndex: ${fabricIndex}` : ""
             }`,
         );
@@ -653,7 +653,7 @@ export class ControllerCommissioningFlow {
             );
         }
         throw new CommissioningError(
-            `Commission error for "${context}": ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode}), ${debugText}${
+            `Commission error for "${context}": ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode})${debugText ? `, ${debugText}` : ""}${
                 fabricIndex !== undefined ? `, fabricIndex: ${fabricIndex}` : ""
             }`,
         );
@@ -661,7 +661,7 @@ export class ControllerCommissioningFlow {
 
     /** Helper method to check for errorCode/debugTest responses and throw error on failure */
     #ensureGeneralCommissioningSuccess(context: string, { errorCode, debugText }: CommissioningSuccessFailureResponse) {
-        logger.debug(`Commissioning step ${context} returned ${errorCode}, ${debugText}`);
+        logger.debug(`Commissioning step ${context} returned ${errorCode}${debugText ? `, ${debugText}` : ""}`);
 
         if (errorCode === GeneralCommissioning.CommissioningError.Ok) return;
         throw new CommissioningError(
@@ -1542,7 +1542,9 @@ export class ControllerCommissioningFlow {
             );
 
             if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-                throw new WifiNetworkSetupFailedError(`Commissionee failed to scan for WiFi networks: ${debugText}`);
+                throw new WifiNetworkSetupFailedError(
+                    `Commissionee failed to scan for WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${debugText ? `: ${debugText}` : ""}`,
+                );
             }
             if (wiFiScanResults === undefined || wiFiScanResults.length === 0) {
                 throw new WifiNetworkSetupFailedError(
@@ -1572,7 +1574,9 @@ export class ControllerCommissioningFlow {
         );
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-            throw new WifiNetworkSetupFailedError(`Commissionee failed to add WiFi network: ${addDebugText}`);
+            throw new WifiNetworkSetupFailedError(
+                `Commissionee failed to add WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${addDebugText ? `: ${addDebugText}` : ""}`,
+            );
         }
         if (networkIndex === undefined) {
             throw new WifiNetworkSetupFailedError(`Commissionee did not return network index`);
@@ -1617,7 +1621,7 @@ export class ControllerCommissioningFlow {
 
         if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new WifiNetworkSetupFailedError(
-                `Commissionee failed to connect to WiFi network: ${connectResult.debugText}`,
+                `Commissionee failed to connect to WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${connectResult.debugText ? `: ${connectResult.debugText}` : ""}`,
             );
         }
         this.collectedCommissioningData.successfullyConnectedToNetwork = true;
@@ -1714,7 +1718,7 @@ export class ControllerCommissioningFlow {
 
             if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
                 throw new ThreadNetworkSetupFailedError(
-                    `Commissionee failed to scan for Thread networks: ${debugText}`,
+                    `Commissionee failed to scan for Thread networks${debugText ? `: ${debugText}` : ""}`,
                 );
             }
             if (threadScanResults === undefined || threadScanResults.length === 0) {
@@ -1760,7 +1764,7 @@ export class ControllerCommissioningFlow {
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
-                `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? ` ${addDebugText}` : ""}`,
+                `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? `, ${addDebugText}` : ""}`,
             );
         }
         if (networkIndex === undefined) {
@@ -1807,7 +1811,7 @@ export class ControllerCommissioningFlow {
         const { networkingStatus, debugText } = connectResult;
         if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
-                `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? ` ${debugText}` : ""}`,
+                `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}`,
             );
         }
         logger.debug(
