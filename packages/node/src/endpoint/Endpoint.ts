@@ -35,6 +35,7 @@ import { RootEndpoint } from "../endpoints/root.js";
 import { Agent } from "./Agent.js";
 import {
     AttributeNotPresentError,
+    EndpointBehaviorNotClusterError,
     EndpointBehaviorNotPresentError,
     EndpointReadFailedError,
     EndpointReadFailure,
@@ -477,18 +478,15 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * static `features` map on cluster behavior types and as `this.features` inside a server cluster instance.
      *
      * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
+     * @throws {@link EndpointBehaviorNotClusterError} if `type` is present but is not a cluster behavior.
      */
     featuresOf(type: string): Immutable<Record<string, boolean>>;
 
-    /**
-     * Typed variant of {@link featuresOf}; preserves the cluster's feature flag type from {@link ClusterBehavior.Type}.
-     *
-     * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
-     */
+    /** Typed variant of {@link featuresOf}; preserves the cluster's feature flag type from {@link ClusterBehavior.Type}. */
     featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
 
     featuresOf(type: ClusterBehavior.Type | string) {
-        return this.#requirePresent(type, this.maybeFeaturesOf(type as ClusterBehavior.Type));
+        return this.#requireClusterBehavior(type).features;
     }
 
     /** Returns undefined if `type` is unknown or not a cluster behavior; otherwise behaves like {@link featuresOf}. */
@@ -507,20 +505,18 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * subscription / read responses and may be empty arrays before the first read completes.
      *
      * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
+     * @throws {@link EndpointBehaviorNotClusterError} if `type` is present but is not a cluster behavior.
      */
     globalsOf(type: string): Immutable<GlobalAttributeState>;
 
-    /**
-     * Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type.
-     *
-     * @throws {@link EndpointBehaviorNotPresentError} if `type` is not present on the endpoint.
-     */
+    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
     globalsOf<T extends ClusterBehavior.Type>(
         type: T,
     ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
 
     globalsOf(type: ClusterBehavior.Type | string) {
-        return this.#requirePresent(type, this.maybeGlobalsOf(type as ClusterBehavior.Type));
+        const cluster = this.#requireClusterBehavior(type);
+        return this.maybeStateOf(cluster.id) as Immutable<GlobalAttributeState>;
     }
 
     /** Returns undefined if `type` is unknown or not a cluster behavior; otherwise behaves like {@link globalsOf}. */
@@ -543,6 +539,21 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         const id = typeof type === "string" ? type : type.id;
         const installed = this.behaviors.supported[id];
         return installed !== undefined && ClusterBehavior.isType(installed) ? installed : undefined;
+    }
+
+    /**
+     * Resolve an installed cluster behavior, throwing if the behavior is absent or not a cluster behavior.
+     */
+    #requireClusterBehavior(type: ClusterBehavior.Type | string): ClusterBehavior.Type {
+        const id = typeof type === "string" ? type : type.id;
+        const installed = this.behaviors.supported[id];
+        if (installed === undefined) {
+            throw new EndpointBehaviorNotPresentError(id);
+        }
+        if (!ClusterBehavior.isType(installed)) {
+            throw new EndpointBehaviorNotClusterError(id);
+        }
+        return installed;
     }
 
     /** Throw {@link EndpointBehaviorNotPresentError} if `result` is undefined; otherwise return it. */

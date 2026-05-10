@@ -6,7 +6,7 @@
 
 import { OnOffClient } from "#behaviors/on-off";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
+import { EndpointBehaviorNotClusterError, EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
 import { camelize } from "@matter/general";
 import { AttributeId, CommandId } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
@@ -15,6 +15,7 @@ import { subscribedPeer } from "../node/node-helpers.js";
 
 describe("Client cluster feature access on a commissioned peer endpoint", () => {
     let site: MockSite;
+    let peer1: Endpoint;
     let ep1: Endpoint;
 
     before(() => {
@@ -26,7 +27,7 @@ describe("Client cluster feature access on a commissioned peer endpoint", () => 
     beforeEach(async () => {
         site = new MockSite();
         const { controller } = await site.addCommissionedPair();
-        const peer1 = await subscribedPeer(controller, "peer1");
+        peer1 = await subscribedPeer(controller, "peer1");
         ep1 = peer1.parts.get("ep1")!;
     });
 
@@ -191,6 +192,31 @@ describe("Client cluster feature access on a commissioned peer endpoint", () => 
 
         it("maybeGlobalsOf returns undefined for an unknown behavior", () => {
             expect(ep1.maybeGlobalsOf("clusterThatDoesNotExistXyz")).to.equal(undefined);
+        });
+    });
+
+    // featuresOf / globalsOf only make sense on cluster behaviors. State accessors must still work for non-cluster
+    // behaviors (e.g. `network` on ClientNode) since those carry plain state.
+    describe("non-cluster behaviors", () => {
+        it("stateOf works for a non-cluster behavior on the root endpoint", () => {
+            const state = peer1.stateOf("network");
+            expect(state).to.be.an("object");
+        });
+
+        it("featuresOf throws EndpointBehaviorNotClusterError for a present non-cluster behavior", () => {
+            expect(() => peer1.featuresOf("network")).to.throw(EndpointBehaviorNotClusterError);
+        });
+
+        it("globalsOf throws EndpointBehaviorNotClusterError for a present non-cluster behavior", () => {
+            expect(() => peer1.globalsOf("network")).to.throw(EndpointBehaviorNotClusterError);
+        });
+
+        it("maybeFeaturesOf returns undefined for a present non-cluster behavior", () => {
+            expect(peer1.maybeFeaturesOf("network")).to.equal(undefined);
+        });
+
+        it("maybeGlobalsOf returns undefined for a present non-cluster behavior", () => {
+            expect(peer1.maybeGlobalsOf("network")).to.equal(undefined);
         });
     });
 });
