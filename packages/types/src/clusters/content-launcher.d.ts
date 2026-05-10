@@ -199,7 +199,7 @@ export declare namespace ContentLauncher {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.1
      */
-    export declare class SupportedProtocols {
+    export class SupportedProtocols {
         constructor(values?: Partial<SupportedProtocols> | number);
 
         /**
@@ -211,7 +211,7 @@ export declare namespace ContentLauncher {
          * Device supports HTTP Live Streaming (HLS)
          */
         hls?: boolean;
-    };
+    }
 
     /**
      * Upon receipt, this shall launch content from the specified URL.
@@ -231,7 +231,7 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2
      */
-    export declare class LaunchUrlRequest {
+    export class LaunchUrlRequest {
         constructor(values?: Partial<LaunchUrlRequest>);
 
         /**
@@ -271,14 +271,14 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2.4
          */
         playbackPreferences?: PlaybackPreferences;
-    };
+    }
 
     /**
      * This command shall be generated in response to LaunchContent and LaunchURL commands.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.3
      */
-    export declare class LauncherResponse {
+    export class LauncherResponse {
         constructor(values?: Partial<LauncherResponse>);
 
         /**
@@ -294,7 +294,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.3.2
          */
         data?: string;
-    };
+    }
 
     /**
      * Upon receipt, this shall launch the specified content with optional search criteria.
@@ -303,7 +303,7 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1
      */
-    export declare class LaunchContentRequest {
+    export class LaunchContentRequest {
         constructor(values?: Partial<LaunchContentRequest>);
 
         /**
@@ -355,7 +355,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1.5
          */
         useCurrentContext?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.2
@@ -554,7 +554,7 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.5
      */
-    export declare class AdditionalInfo {
+    export class AdditionalInfo {
         constructor(values?: Partial<AdditionalInfo>);
 
         /**
@@ -570,14 +570,14 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.5.2
          */
         value: string;
-    };
+    }
 
     /**
      * This object defines inputs to a search for content for display or playback.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.6
      */
-    export declare class ParameterStruct {
+    export class ParameterStruct {
         constructor(values?: Partial<ParameterStruct>);
 
         /**
@@ -600,14 +600,14 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.6.3
          */
         externalIdList?: AdditionalInfo[];
-    };
+    }
 
     /**
      * This object defines inputs to a search for content for display or playback.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.7
      */
-    export declare class ContentSearch {
+    export class ContentSearch {
         constructor(values?: Partial<ContentSearch>);
 
         /**
@@ -618,14 +618,14 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.7.1
          */
         parameterList: ParameterStruct[];
-    };
+    }
 
     /**
      * This object defines dimension which can be used for defining Size of background images.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.8
      */
-    export declare class Dimension {
+    export class Dimension {
         constructor(values?: Partial<Dimension>);
 
         /**
@@ -648,7 +648,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.8.3
          */
         metric: MetricType;
-    };
+    }
 
     /**
      * This object defines style information which can be used by content providers to change the Media Player's style
@@ -656,7 +656,7 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9
      */
-    export declare class StyleInformation {
+    export class StyleInformation {
         constructor(values?: Partial<StyleInformation>);
 
         /**
@@ -688,7 +688,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9.3
          */
         size?: Dimension;
-    };
+    }
 
     /**
      * This object defines Branding Information which can be provided by the client in order to customize the skin of
@@ -696,7 +696,7 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10
      */
-    export declare class BrandingInformation {
+    export class BrandingInformation {
         constructor(values?: Partial<BrandingInformation>);
 
         /**
@@ -743,7 +743,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.6
          */
         watermark?: StyleInformation;
-    };
+    }
 
     /**
      * PlaybackPreferencesStruct defines the preferences sent by the client to the receiver in the ContentLauncher
@@ -751,7 +751,7 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.11
      */
-    export declare class PlaybackPreferences {
+    export class PlaybackPreferences {
         constructor(values?: Partial<PlaybackPreferences>);
 
         /**
@@ -783,14 +783,14 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.11.3
          */
         audioTracks?: TrackPreference[] | null;
-    };
+    }
 
     /**
      * This structure defines Text/Audio Track preferences.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.12
      */
-    export declare class TrackPreference {
+    export class TrackPreference {
         constructor(values?: Partial<TrackPreference>);
 
         /**
@@ -822,7 +822,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.12.3
          */
         audioOutputIndex?: number | null;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

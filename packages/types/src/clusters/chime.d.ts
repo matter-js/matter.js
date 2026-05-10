@@ -162,7 +162,7 @@ export declare namespace Chime {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.8.4.1
      */
-    export declare class ChimeSound {
+    export class ChimeSound {
         constructor(values?: Partial<ChimeSound>);
 
         /**
@@ -178,7 +178,7 @@ export declare namespace Chime {
          * @see {@link MatterSpecification.v151.Cluster} § 11.8.4.1.2
          */
         name: string;
-    };
+    }
 
     /**
      * This command will play the currently selected chime or the chime passed in. In either case the server shall
@@ -186,7 +186,7 @@ export declare namespace Chime {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.8.6.1
      */
-    export declare class PlayChimeSoundRequest {
+    export class PlayChimeSoundRequest {
         constructor(values?: Partial<PlayChimeSoundRequest>);
 
         /**
@@ -196,7 +196,7 @@ export declare namespace Chime {
          * @see {@link MatterSpecification.v151.Cluster} § 11.8.6.1.1
          */
         chimeId?: number;
-    };
+    }
 
     /**
      * This event shall indicate a Chime sound has just started playing.
@@ -205,7 +205,7 @@ export declare namespace Chime {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.8.7.1
      */
-    export declare class ChimeStartedPlayingEvent {
+    export class ChimeStartedPlayingEvent {
         constructor(values?: Partial<ChimeStartedPlayingEvent>);
 
         /**
@@ -214,7 +214,7 @@ export declare namespace Chime {
          * @see {@link MatterSpecification.v151.Cluster} § 11.8.7.1.1
          */
         chimeId: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -164,7 +164,7 @@ export declare namespace WiFiNetworkManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.2.5.2
      */
-    export declare class NetworkPassphraseResponse {
+    export class NetworkPassphraseResponse {
         constructor(values?: Partial<NetworkPassphraseResponse>);
 
         /**
@@ -187,7 +187,7 @@ export declare namespace WiFiNetworkManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 10.2.5.2.1
          */
         passphrase: Bytes;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

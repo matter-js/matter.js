@@ -324,7 +324,7 @@ export declare namespace AdministratorCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.19.8.1
      */
-    export declare class OpenCommissioningWindowRequest {
+    export class OpenCommissioningWindowRequest {
         constructor(values?: Partial<OpenCommissioningWindowRequest>);
 
         /**
@@ -392,7 +392,7 @@ export declare namespace AdministratorCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.5
          */
         salt: Bytes;
-    };
+    }
 
     /**
      * This command may be used by a current Administrator to instruct a Node to go into commissioning mode, if the node
@@ -415,7 +415,7 @@ export declare namespace AdministratorCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.19.8.2
      */
-    export declare class OpenBasicCommissioningWindowRequest {
+    export class OpenBasicCommissioningWindowRequest {
         constructor(values?: Partial<OpenBasicCommissioningWindowRequest>);
 
         /**
@@ -435,7 +435,7 @@ export declare namespace AdministratorCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.19.8.2.1
          */
         commissioningTimeout: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.19.6.1

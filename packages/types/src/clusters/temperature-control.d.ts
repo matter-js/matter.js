@@ -265,7 +265,7 @@ export declare namespace TemperatureControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 8.2.6.1
      */
-    export declare class SetTemperatureRequest {
+    export class SetTemperatureRequest {
         constructor(values?: Partial<SetTemperatureRequest>);
 
         /**
@@ -286,7 +286,7 @@ export declare namespace TemperatureControl {
          * @see {@link MatterSpecification.v151.Cluster} § 8.2.6.1.2
          */
         targetTemperatureLevel?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -1468,21 +1468,39 @@ export class PairedNode {
         return this.#clientNode.commands;
     }
 
-    /** Cached cluster state values for a behavior id on the root endpoint (untyped: `Val.Struct`). */
+    /**
+     * Access cached state of the root endpoint for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
+     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
+     */
     stateOf(type: string): Immutable<Val.Struct>;
 
-    /** Cached cluster state values for a behavior on the root endpoint (typed). */
+    /**
+     * Access cached state of the root endpoint for a specific behavior.
+     *
+     * This is the recommended way to access state for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
     stateOf(type: Behavior.Type | string) {
-        return this.#clientNode.stateOf(type as Behavior.Type);
+        return this.#clientNode.stateOf(type as any);
     }
 
-    /** {@link stateOf} variant returning undefined instead of throwing if `type` is unsupported. */
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
     maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
+
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
     maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
+
     maybeStateOf(type: Behavior.Type | string) {
-        return this.#clientNode.maybeStateOf(type as Behavior.Type);
+        return this.#clientNode.maybeStateOf(type as any);
     }
 
     /** Cluster commands for a behavior id on the root endpoint (untyped). */
@@ -1495,20 +1513,10 @@ export class PairedNode {
         return this.#clientNode.commandsOf(type as Behavior.Type);
     }
 
-    /** Cluster events for a behavior id on the root endpoint (untyped). */
-    eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
-
-    /** Typed variant of {@link eventsOf}. */
-    eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
-
-    eventsOf(type: Behavior.Type | string): unknown {
-        return this.#clientNode.eventsOf(type as Behavior.Type);
-    }
-
     /** Activated cluster features for a behavior id on the root endpoint (untyped). */
     featuresOf(type: string): Immutable<Record<string, boolean>>;
 
-    /** Activated cluster features for a behavior on the root endpoint (typed). */
+    /** Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type. */
     featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
 
     featuresOf(type: ClusterBehavior.Type | string) {
@@ -1522,7 +1530,7 @@ export class PairedNode {
         return this.#clientNode.maybeFeaturesOf(type as ClusterBehavior.Type);
     }
 
-    /** Global attribute state for a behavior id on the root endpoint (untyped). */
+    /** Global cluster attribute state for a behavior id on the root endpoint (untyped). */
     globalsOf(type: string): Immutable<GlobalAttributeState>;
 
     /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
@@ -1576,6 +1584,31 @@ export class PairedNode {
         options?: ClientEndpoint.GetOptions,
     ): Promise<unknown> {
         return this.#clientNode.getStateOf(type as Behavior.Type, selector as never, options);
+    }
+
+    /**
+     * Events of the root endpoint for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this each event is typed as Observable | undefined.
+     * Please ensure to have proper checks in place when using this method with string type.
+     *
+     * Note: this exposes per-behavior events of the root endpoint. The {@link events} field on this class is the
+     * lifecycle event bus of the {@link PairedNode} itself ({@link PairedNode.Events}) and unrelated to behavior
+     * events.
+     */
+    eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
+
+    /**
+     * Events of the root endpoint for a specific behavior.
+     *
+     * This is the recommended way to access events for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
+
+    eventsOf(type: Behavior.Type | string): unknown {
+        return this.#clientNode.eventsOf(type as any);
     }
 }
 

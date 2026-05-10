@@ -99,7 +99,7 @@ export declare namespace Binding {
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.6.5.1
      */
-    export declare class Target {
+    export class Target {
         constructor(values?: Partial<Target>);
 
         /**
@@ -135,7 +135,7 @@ export declare namespace Binding {
         cluster?: ClusterId;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

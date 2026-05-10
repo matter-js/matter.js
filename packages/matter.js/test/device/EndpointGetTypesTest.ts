@@ -4,205 +4,187 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Type-only regression tests for the legacy `Endpoint` accessor surface in this package. The methods are
-// thin wrappers around the modern `@matter/node` Endpoint - this file pins the wrapper signatures so a
-// drift between the two layers fails compilation here rather than at downstream callers.
-//
-// Coverage:
-//   * stateOf / maybeStateOf      — typed + string overloads
-//   * setStateOf                  — typed + string overloads
-//   * commandsOf                  — typed + string overloads
-//   * eventsOf                    — typed + string overloads
-//   * featuresOf / maybeFeaturesOf — typed + string overloads
-//   * get / getStateOf            — selector + string-id overloads delegated from the client endpoint
-//
-// Assertions are checked at compile time (`satisfies` + `@ts-expect-error`); the runtime body of the
-// `it` block never executes.
-
 import { Endpoint } from "#device/Endpoint.js";
-import { OnOffClient } from "@matter/node/behaviors/on-off";
-import { OperationalCredentialsClient } from "@matter/node/behaviors/operational-credentials";
-import { FabricIndex } from "@matter/types";
+import type { Immutable, Observable } from "@matter/general";
+import { Behavior, ClusterBehavior, Commands, type GlobalAttributeState } from "@matter/node";
+import type { Val } from "@matter/protocol";
 
-declare const ep: Endpoint;
+type FakeState = { value: number; label: string };
+type FakeBehaviorType = Behavior.Type & { readonly State: new () => FakeState; readonly id: "fake" };
+
+type FakeFeatures = { lighting: boolean; offOnly: boolean };
+type FakeClusterBehaviorType = ClusterBehavior.Type & {
+    readonly features: FakeFeatures;
+    readonly id: "fakeCluster";
+};
+
+type _AssertEqual<A, B> = (<T>() => T extends A ? 1 : 0) extends <T>() => T extends B ? 1 : 0 ? true : false;
 
 describe("Legacy Endpoint get type helpers", () => {
-    it("stateOf — typed overload preserves the cluster state shape", () => {
-        const _state = () => ep.stateOf(OperationalCredentialsClient);
-        type S = ReturnType<typeof _state>;
-        ({}) as S satisfies { currentFabricIndex: FabricIndex };
-        void _state;
-    });
+    it("compiles correctly (parity with modern Endpoint, types validated at compile time)", () => {
+        // The body never executes at runtime; the boolean cast defeats the
+        // unreachable-code check so the type assertions still get checked.
+        if ((false as boolean) === true) {
+            const ep = null as unknown as Endpoint;
+            const fakeBeh = null as unknown as FakeBehaviorType;
+            const fakeCluster = null as unknown as FakeClusterBehaviorType;
 
-    it("stateOf — string overload returns an untyped record", () => {
-        const _state = () => ep.stateOf("operationalCredentials");
-        type S = ReturnType<typeof _state>;
-        ({}) as S satisfies Record<string, unknown>;
-        void _state;
-    });
+            // stateOf(string) → Immutable<Val.Struct>
+            const _stateString: Immutable<Val.Struct> = ep.stateOf("anyId");
+            const _stateStringExact: _AssertEqual<typeof _stateString, Immutable<Val.Struct>> = true;
+            void _stateString;
+            void _stateStringExact;
 
-    it("maybeStateOf — typed overload widens to undefined", () => {
-        const _state = () => ep.maybeStateOf(OperationalCredentialsClient);
-        type S = ReturnType<typeof _state>;
-        ({}) as S satisfies { currentFabricIndex: FabricIndex } | undefined;
-        void _state;
-    });
+            // stateOf<T>(T) → Immutable<Behavior.StateOf<T>>
+            const _stateTyped = ep.stateOf(fakeBeh);
+            const _stateTypedExact: _AssertEqual<typeof _stateTyped, Immutable<FakeState>> = true;
+            void _stateTyped;
+            void _stateTypedExact;
 
-    it("maybeStateOf — string overload returns Val.Struct | undefined", () => {
-        const _state = () => ep.maybeStateOf("operationalCredentials");
-        type S = ReturnType<typeof _state>;
-        ({}) as S satisfies Record<string, unknown> | undefined;
-        void _state;
-    });
+            // maybeStateOf(string) → Immutable<Val.Struct> | undefined
+            const _maybeString = ep.maybeStateOf("anyId");
+            const _maybeStringExact: _AssertEqual<typeof _maybeString, Immutable<Val.Struct> | undefined> = true;
+            void _maybeString;
+            void _maybeStringExact;
 
-    it("setStateOf — typed overload accepts a typed patch", () => {
-        const _set = () => ep.setStateOf(OperationalCredentialsClient, { currentFabricIndex: FabricIndex(1) });
-        type R = ReturnType<typeof _set>;
-        void ({} as R satisfies Promise<void>);
-        void _set;
-    });
+            // maybeStateOf<T>(T) → Immutable<Behavior.StateOf<T>> | undefined
+            const _maybeTyped = ep.maybeStateOf(fakeBeh);
+            const _maybeTypedExact: _AssertEqual<typeof _maybeTyped, Immutable<FakeState> | undefined> = true;
+            void _maybeTyped;
+            void _maybeTypedExact;
 
-    it("setStateOf — string overload accepts a Val.Struct", () => {
-        const _set = () => ep.setStateOf("operationalCredentials", { currentFabricIndex: FabricIndex(1) });
-        type R = ReturnType<typeof _set>;
-        void ({} as R satisfies Promise<void>);
-        void _set;
-    });
+            // commandsOf<T>(T) → Commands.OfBehavior<T>
+            const _commandsTyped = ep.commandsOf(fakeBeh);
+            const _commandsTypedExact: _AssertEqual<
+                typeof _commandsTyped,
+                Commands.OfBehavior<FakeBehaviorType>
+            > = true;
+            void _commandsTyped;
+            void _commandsTypedExact;
 
-    it("setStateOf — typed overload rejects keys not in the cluster state", () => {
-        // @ts-expect-error `bogus` is not a key of OperationalCredentials state
-        const _err = () => ep.setStateOf(OperationalCredentialsClient, { bogus: true });
-        void _err;
-    });
+            // eventsOf(string) → Immutable<Record<string, Observable | undefined>>
+            const _eventsString = ep.eventsOf("anyId");
+            const _eventsStringExact: _AssertEqual<
+                typeof _eventsString,
+                Immutable<Record<string, Observable | undefined>>
+            > = true;
+            void _eventsString;
+            void _eventsStringExact;
 
-    it("commandsOf — typed overload exposes typed cluster commands", () => {
-        const _call = () => ep.commandsOf(OperationalCredentialsClient).removeFabric({ fabricIndex: FabricIndex(1) });
-        type R = ReturnType<typeof _call>;
-        void ({} as R satisfies Promise<unknown>);
-        void _call;
-    });
+            // eventsOf<T>(T) → Behavior.EventsOf<T>
+            const _eventsTyped = ep.eventsOf(fakeBeh);
+            const _eventsTypedExact: _AssertEqual<typeof _eventsTyped, Behavior.EventsOf<FakeBehaviorType>> = true;
+            void _eventsTyped;
+            void _eventsTypedExact;
 
-    it("commandsOf — string overload returns an untyped command record", () => {
-        const _commands = () => ep.commandsOf("operationalCredentials");
-        type R = ReturnType<typeof _commands>;
-        ({}) as R satisfies Record<string, unknown>;
-        void _commands;
-    });
+            // setStateOf(string, Val.Struct) → Promise<void>
+            const _setString: Promise<void> = ep.setStateOf("anyId", { foo: 1 });
+            void _setString;
 
-    it("eventsOf — typed overload exposes typed events", () => {
-        const _events = () => ep.eventsOf(OperationalCredentialsClient);
-        type E = ReturnType<typeof _events>;
-        "currentFabricIndex$Changed" satisfies keyof E;
-        void _events;
-    });
+            // setStateOf<T>(T, Behavior.PatchStateOf<T>) → Promise<void>
+            const _setTyped: Promise<void> = ep.setStateOf(fakeBeh, { value: 2 });
+            void _setTyped;
 
-    it("eventsOf — string overload returns an untyped record", () => {
-        const _events = () => ep.eventsOf("operationalCredentials");
-        type E = ReturnType<typeof _events>;
-        ({}) as E satisfies Record<string, unknown>;
-        void _events;
-    });
+            // commandsOf(string) → Record<string, Commands.Command>
+            const _commandsString = ep.commandsOf("anyId");
+            const _commandsStringExact: _AssertEqual<typeof _commandsString, Record<string, Commands.Command>> = true;
+            void _commandsString;
+            void _commandsStringExact;
 
-    it("featuresOf — typed overload preserves the cluster's feature flag type", () => {
-        const _features = () => ep.featuresOf(OnOffClient);
-        type F = ReturnType<typeof _features>;
-        // `lighting` is one of OnOff's named feature flags.
-        ({}) as F satisfies { lighting: boolean };
-        void _features;
-    });
+            // featuresOf(string) → Immutable<Record<string, boolean>>
+            const _featuresString = ep.featuresOf("anyId");
+            const _featuresStringExact: _AssertEqual<typeof _featuresString, Immutable<Record<string, boolean>>> = true;
+            void _featuresString;
+            void _featuresStringExact;
 
-    it("featuresOf — string overload returns Record<string, boolean>", () => {
-        const _features = () => ep.featuresOf("onOff");
-        type F = ReturnType<typeof _features>;
-        ({}) as F satisfies Record<string, boolean>;
-        void _features;
-    });
+            // featuresOf<T>(T) → T["features"]
+            const _featuresTyped: FakeFeatures = ep.featuresOf(fakeCluster);
+            void _featuresTyped;
 
-    it("maybeFeaturesOf — typed overload widens to undefined", () => {
-        const _features = () => ep.maybeFeaturesOf(OnOffClient);
-        type F = ReturnType<typeof _features>;
-        ({}) as F satisfies { lighting: boolean } | undefined;
-        void _features;
-    });
+            // maybeFeaturesOf(string) → Immutable<Record<string, boolean>> | undefined
+            const _maybeFeaturesString = ep.maybeFeaturesOf("anyId");
+            const _maybeFeaturesStringExact: _AssertEqual<
+                typeof _maybeFeaturesString,
+                Immutable<Record<string, boolean>> | undefined
+            > = true;
+            void _maybeFeaturesString;
+            void _maybeFeaturesStringExact;
 
-    it("maybeFeaturesOf — string overload returns Record<string, boolean> | undefined", () => {
-        const _features = () => ep.maybeFeaturesOf("onOff");
-        type F = ReturnType<typeof _features>;
-        ({}) as F satisfies Record<string, boolean> | undefined;
-        void _features;
-    });
+            // maybeFeaturesOf<T>(T) → T["features"] | undefined
+            const _maybeFeaturesTyped: FakeFeatures | undefined = ep.maybeFeaturesOf(fakeCluster);
+            void _maybeFeaturesTyped;
 
-    it("globalsOf — typed overload narrows featureMap to the cluster's feature flag type", () => {
-        const _globals = () => ep.globalsOf(OnOffClient);
-        type G = ReturnType<typeof _globals>;
-        ({}) as G satisfies { clusterRevision: number; featureMap: { lighting: boolean } };
-        void _globals;
-    });
+            // globalsOf(string) → Immutable<GlobalAttributeState>
+            const _globalsString: Immutable<GlobalAttributeState> = ep.globalsOf("anyId");
+            void _globalsString;
 
-    it("globalsOf — string overload returns the unnarrowed GlobalAttributeState", () => {
-        const _globals = () => ep.globalsOf("onOff");
-        type G = ReturnType<typeof _globals>;
-        ({}) as G satisfies { clusterRevision: number };
-        void _globals;
-    });
+            // globalsOf<T>(T) → narrowed featureMap
+            const _globalsTyped = ep.globalsOf(fakeCluster);
+            const _globalsTypedFeatureMap: FakeFeatures = _globalsTyped.featureMap;
+            const _globalsTypedRevision: number = _globalsTyped.clusterRevision;
+            void _globalsTyped;
+            void _globalsTypedFeatureMap;
+            void _globalsTypedRevision;
 
-    it("maybeGlobalsOf — typed overload widens to undefined", () => {
-        const _globals = () => ep.maybeGlobalsOf(OnOffClient);
-        type G = ReturnType<typeof _globals>;
-        ({}) as G satisfies { clusterRevision: number; featureMap: { lighting: boolean } } | undefined;
-        void _globals;
-    });
+            // maybeGlobalsOf(string) → Immutable<GlobalAttributeState> | undefined
+            const _maybeGlobalsString: Immutable<GlobalAttributeState> | undefined = ep.maybeGlobalsOf("anyId");
+            void _maybeGlobalsString;
 
-    it("maybeGlobalsOf — string overload returns GlobalAttributeState | undefined", () => {
-        const _globals = () => ep.maybeGlobalsOf("onOff");
-        type G = ReturnType<typeof _globals>;
-        ({}) as G satisfies { clusterRevision: number } | undefined;
-        void _globals;
-    });
+            // maybeGlobalsOf<T>(T) → narrowed featureMap | undefined
+            const _maybeGlobalsTyped = ep.maybeGlobalsOf(fakeCluster);
+            const _maybeGlobalsTypedFM: FakeFeatures | undefined = _maybeGlobalsTyped?.featureMap;
+            void _maybeGlobalsTyped;
+            void _maybeGlobalsTypedFM;
 
-    it("get — returns a Promise via the underlying client endpoint", () => {
-        const _read = () => ep.get();
-        type R = ReturnType<typeof _read>;
-        void ({} as R satisfies Promise<unknown>);
-        void _read;
-    });
+            // get() → Promise<unknown>
+            const _getResult: Promise<unknown> = ep.get();
+            void _getResult;
 
-    it("getStateOf — typed full-state overload returns the cluster state", () => {
-        const _read = () => ep.getStateOf(OperationalCredentialsClient);
-        type R = Awaited<ReturnType<typeof _read>>;
-        ({}) as R satisfies { currentFabricIndex: FabricIndex };
-        void _read;
-    });
+            // getStateOf<T>(T) → Promise<Behavior.StateOf<T>>
+            const _getStateTyped: Promise<FakeState> = ep.getStateOf(fakeBeh);
+            void _getStateTyped;
 
-    it("getStateOf — typed key-list overload returns a partial slice", () => {
-        const _read = () => ep.getStateOf(OperationalCredentialsClient, ["currentFabricIndex"] as const);
-        type R = Awaited<ReturnType<typeof _read>>;
-        ({}) as R satisfies { readonly currentFabricIndex?: FabricIndex };
-        void _read;
-    });
+            // getStateOf<T>(T, key-list) → Promise<{ readonly [P in K]?: ... }>
+            const _getStatePartial = ep.getStateOf(fakeBeh, ["value"] as const);
+            const _getStatePartialExact: _AssertEqual<
+                typeof _getStatePartial,
+                Promise<{ readonly value?: number }>
+            > = true;
+            void _getStatePartial;
+            void _getStatePartialExact;
 
-    it("getStateOf — string overload returns Val.Struct", () => {
-        const _read = () => ep.getStateOf("operationalCredentials");
-        type R = Awaited<ReturnType<typeof _read>>;
-        ({}) as R satisfies Record<string, unknown>;
-        void _read;
-    });
+            // getStateOf(string) → Promise<Val.Struct>
+            const _getStateString: Promise<Val.Struct> = ep.getStateOf("anyId");
+            void _getStateString;
 
-    it("rejects calls with non-string / non-Behavior arguments", () => {
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e1 = () => ep.stateOf(42);
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e2 = () => ep.maybeStateOf(42);
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e3 = () => ep.eventsOf(42);
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e4 = () => ep.featuresOf(42);
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e5 = () => ep.maybeFeaturesOf(42);
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e6 = () => ep.globalsOf(42);
-        // @ts-expect-error number is not a valid behavior identifier
-        const _e7 = () => ep.maybeGlobalsOf(42);
-        void [_e1, _e2, _e3, _e4, _e5, _e6, _e7];
+            // Negative cases — must fail to type-check.
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.stateOf(42);
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.maybeStateOf(42);
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.eventsOf(42);
+
+            // @ts-expect-error - patch shape must match FakeState (value: number)
+            void ep.setStateOf(fakeBeh, { value: "not a number" });
+
+            // @ts-expect-error - unknown attribute on typed patch
+            void ep.setStateOf(fakeBeh, { missing: 1 });
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.featuresOf(42);
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.maybeFeaturesOf(42);
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.globalsOf(42);
+
+            // @ts-expect-error - number is not a valid behavior type or id
+            ep.maybeGlobalsOf(42);
+        }
     });
 });

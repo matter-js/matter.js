@@ -60,6 +60,7 @@
         "device-smoke-co-alarm": "nacho-run examples/device-smoke-co-alarm/src/SmokeCOAlarmDeviceNode.ts",
         "test": "matter-test -w",
         "lint": "oxlint --type-aware --tsconfig tsconfig.json examples packages support",
+        "validate-dts": "node support/tools/check-dts.mjs",
         "lint-fix": "oxlint --fix --type-aware --tsconfig tsconfig.json examples packages support",
         "format": "prettier --write \"packages/**/*.ts\" \"support/codegen/**/*.ts\" \"support/chip-testing/**/*.ts\"",
         "format-verify": "prettier --check \"packages/**/*.ts\" \"support/codegen/**/*.ts\" \"support/chip-testing/**/*.ts\"",
@@ -92,11 +93,10 @@
         "mocha": {
             "diff": "^8.0.3",
             "serialize-javascript": "^7.0.4"
-        },
-        "@typescript/native-preview": "7.0.0-dev.20260505.1"
+        }
     },
     "dependencies": {
-        "@nacho-iot/js-tools": "^0.1.5",
+        "@nacho-iot/js-tools": "^0.1.7",
         "memlab": "^2.0.2"
     }
 }

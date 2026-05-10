@@ -870,7 +870,7 @@ export declare namespace ElectricalPowerMeasurement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.13.5.3
      */
-    export declare class MeasurementRange {
+    export class MeasurementRange {
         constructor(values?: Partial<MeasurementRange>);
 
         /**
@@ -979,12 +979,12 @@ export declare namespace ElectricalPowerMeasurement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.13.5.3.11
          */
         maxSystime?: number | bigint;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 2.13.5.4
      */
-    export declare class HarmonicMeasurement {
+    export class HarmonicMeasurement {
         constructor(values?: Partial<HarmonicMeasurement>);
 
         /**
@@ -1011,7 +1011,7 @@ export declare namespace ElectricalPowerMeasurement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.13.5.4.2
          */
         measurement: number | bigint | null;
-    };
+    }
 
     /**
      * If supported, this event shall be generated at the end of a measurement period. The start and end times for
@@ -1019,7 +1019,7 @@ export declare namespace ElectricalPowerMeasurement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.13.7.1
      */
-    export declare class MeasurementPeriodRangesEvent {
+    export class MeasurementPeriodRangesEvent {
         constructor(values?: Partial<MeasurementPeriodRangesEvent>);
 
         /**
@@ -1028,7 +1028,7 @@ export declare namespace ElectricalPowerMeasurement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.13.7.1.1
          */
         ranges: MeasurementRange[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 2.13.5.2

@@ -346,7 +346,7 @@ export declare namespace WaterHeaterManagement {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.1
      */
-    export declare class WaterHeaterHeatSource {
+    export class WaterHeaterHeatSource {
         constructor(values?: Partial<WaterHeaterHeatSource> | number);
 
         /**
@@ -373,7 +373,7 @@ export declare namespace WaterHeaterManagement {
          * Other Heating
          */
         other?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.2
@@ -395,10 +395,10 @@ export declare namespace WaterHeaterManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.5.8.1
      */
-    export declare class BoostRequest {
+    export class BoostRequest {
         constructor(values?: Partial<BoostRequest>);
         boostInfo: WaterHeaterBoostInfo;
-    };
+    }
 
     /**
      * This event shall be generated whenever a Boost command is accepted.
@@ -407,15 +407,15 @@ export declare namespace WaterHeaterManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.5.9.1
      */
-    export declare class BoostStartedEvent {
+    export class BoostStartedEvent {
         constructor(values?: Partial<BoostStartedEvent>);
         boostInfo: WaterHeaterBoostInfo;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3
      */
-    export declare class WaterHeaterBoostInfo {
+    export class WaterHeaterBoostInfo {
         constructor(values?: Partial<WaterHeaterBoostInfo>);
 
         /**
@@ -484,7 +484,7 @@ export declare namespace WaterHeaterManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.6
          */
         targetReheat?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

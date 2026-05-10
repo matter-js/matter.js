@@ -324,7 +324,7 @@ export declare namespace OvenCavityOperationalState {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 8.10.5
      */
-    export declare class OperationalCommandResponse {
+    export class OperationalCommandResponse {
         constructor(values?: Partial<OperationalCommandResponse>);
 
         /**
@@ -335,7 +335,7 @@ export declare namespace OvenCavityOperationalState {
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.5.1
          */
         commandResponseState: OperationalState.ErrorStateStruct;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

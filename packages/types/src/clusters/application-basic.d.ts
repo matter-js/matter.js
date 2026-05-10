@@ -186,7 +186,7 @@ export declare namespace ApplicationBasic {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.2
      */
-    export declare class Application {
+    export class Application {
         constructor(values?: Partial<Application>);
 
         /**
@@ -210,7 +210,7 @@ export declare namespace ApplicationBasic {
          * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.2.2
          */
         applicationId: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.1

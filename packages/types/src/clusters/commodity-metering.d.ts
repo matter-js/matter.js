@@ -123,7 +123,7 @@ export declare namespace CommodityMetering {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.11.4.1
      */
-    export declare class MeteredQuantity {
+    export class MeteredQuantity {
         constructor(values?: Partial<MeteredQuantity>);
 
         /**
@@ -139,7 +139,7 @@ export declare namespace CommodityMetering {
          * @see {@link MatterSpecification.v151.Cluster} § 9.11.4.1.2
          */
         quantity: number | bigint;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

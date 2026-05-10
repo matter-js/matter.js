@@ -103,7 +103,7 @@ export declare namespace BooleanState {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.7.5.1
      */
-    export declare class StateChangeEvent {
+    export class StateChangeEvent {
         constructor(values?: Partial<StateChangeEvent>);
 
         /**
@@ -112,7 +112,7 @@ export declare namespace BooleanState {
          * @see {@link MatterSpecification.v151.Cluster} § 1.7.5.1.1
          */
         stateValue: boolean;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

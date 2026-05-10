@@ -635,7 +635,7 @@ export declare namespace ClosureControl {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5
      */
-    export declare class OverallCurrentState {
+    export class OverallCurrentState {
         constructor(values?: Partial<OverallCurrentState>);
 
         /**
@@ -715,12 +715,12 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5.4
          */
         secureState: boolean | null;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.6
      */
-    export declare class OverallTargetState {
+    export class OverallTargetState {
         constructor(values?: Partial<OverallTargetState>);
 
         /**
@@ -747,12 +747,12 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.6.3
          */
         speed?: ThreeLevelAuto;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.7
      */
-    export declare class LatchControlModes {
+    export class LatchControlModes {
         constructor(values?: Partial<LatchControlModes> | number);
 
         /**
@@ -780,7 +780,7 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.7.2
          */
         remoteUnlatching?: boolean;
-    };
+    }
 
     /**
      * On receipt of this command, the closure shall operate to update its position, latch state and/or motion speed.
@@ -793,7 +793,7 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2
      */
-    export declare class MoveToRequest {
+    export class MoveToRequest {
         constructor(values?: Partial<MoveToRequest>);
 
         /**
@@ -852,7 +852,7 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2.3
          */
         speed?: ThreeLevelAuto;
-    };
+    }
 
     /**
      * This event shall be generated when a reportable error condition is detected. A closure that generates this event
@@ -862,10 +862,10 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.1
      */
-    export declare class OperationalErrorEvent {
+    export class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ClosureError[];
-    };
+    }
 
     /**
      * This event, if supported, shall be generated when the SecureState field in the OverallCurrentState attribute
@@ -879,10 +879,10 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.4
      */
-    export declare class SecureStateChangedEvent {
+    export class SecureStateChangedEvent {
         constructor(values?: Partial<SecureStateChangedEvent>);
         secureValue: boolean;
-    };
+    }
 
     /**
      * This event, if supported, shall be generated when the MainStateEnum attribute changes state to and from
@@ -896,10 +896,10 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.3
      */
-    export declare class EngageStateChangedEvent {
+    export class EngageStateChangedEvent {
         constructor(values?: Partial<EngageStateChangedEvent>);
         engageValue: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.1

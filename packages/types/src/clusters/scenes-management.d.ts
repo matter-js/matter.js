@@ -197,7 +197,7 @@ export declare namespace ScenesManagement {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.2
      */
-    export declare class SceneInfo {
+    export class SceneInfo {
         constructor(values?: Partial<SceneInfo>);
 
         /**
@@ -255,7 +255,7 @@ export declare namespace ScenesManagement {
         remainingCapacity: number;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to add a new scene.
@@ -266,7 +266,7 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.2
      */
-    export declare class AddSceneRequest {
+    export class AddSceneRequest {
         constructor(values?: Partial<AddSceneRequest>);
 
         /**
@@ -303,14 +303,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.2.5
          */
         extensionFieldSetStructs: ExtensionFieldSet[];
-    };
+    }
 
     /**
      * This command is sent in response to the AddScene command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.3
      */
-    export declare class AddSceneResponse {
+    export class AddSceneResponse {
         constructor(values?: Partial<AddSceneResponse>);
 
         /**
@@ -333,14 +333,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.3.3
          */
         sceneId: number;
-    };
+    }
 
     /**
      * This command returns the details for the requested scene.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.4
      */
-    export declare class ViewSceneRequest {
+    export class ViewSceneRequest {
         constructor(values?: Partial<ViewSceneRequest>);
 
         /**
@@ -356,14 +356,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.4.2
          */
         sceneId: number;
-    };
+    }
 
     /**
      * This command is sent in response to the ViewScene command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.5
      */
-    export declare class ViewSceneResponse {
+    export class ViewSceneResponse {
         constructor(values?: Partial<ViewSceneResponse>);
 
         /**
@@ -407,14 +407,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.5.6
          */
         extensionFieldSetStructs?: ExtensionFieldSet[];
-    };
+    }
 
     /**
      * This command removes the specified scene.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.6
      */
-    export declare class RemoveSceneRequest {
+    export class RemoveSceneRequest {
         constructor(values?: Partial<RemoveSceneRequest>);
 
         /**
@@ -430,14 +430,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.6.2
          */
         sceneId: number;
-    };
+    }
 
     /**
      * This command is sent in response to the RemoveScene command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.7
      */
-    export declare class RemoveSceneResponse {
+    export class RemoveSceneResponse {
         constructor(values?: Partial<RemoveSceneResponse>);
 
         /**
@@ -460,14 +460,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.7.3
          */
         sceneId: number;
-    };
+    }
 
     /**
      * This command removes all scenes for the specified GroupID.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.8
      */
-    export declare class RemoveAllScenesRequest {
+    export class RemoveAllScenesRequest {
         constructor(values?: Partial<RemoveAllScenesRequest>);
 
         /**
@@ -476,14 +476,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.8.1
          */
         groupId: GroupId;
-    };
+    }
 
     /**
      * This command is sent in response to the RemoveAllScenes command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.9
      */
-    export declare class RemoveAllScenesResponse {
+    export class RemoveAllScenesResponse {
         constructor(values?: Partial<RemoveAllScenesResponse>);
 
         /**
@@ -499,14 +499,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.9.2
          */
         groupId: GroupId;
-    };
+    }
 
     /**
      * This command will create a new entry for the requested scene.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.10
      */
-    export declare class StoreSceneRequest {
+    export class StoreSceneRequest {
         constructor(values?: Partial<StoreSceneRequest>);
 
         /**
@@ -522,14 +522,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.10.2
          */
         sceneId: number;
-    };
+    }
 
     /**
      * This command is sent in response to the StoreScene command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.11
      */
-    export declare class StoreSceneResponse {
+    export class StoreSceneResponse {
         constructor(values?: Partial<StoreSceneResponse>);
 
         /**
@@ -552,14 +552,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.11.3
          */
         sceneId: number;
-    };
+    }
 
     /**
      * This command will cause the specified scene to be recalled.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.12
      */
-    export declare class RecallSceneRequest {
+    export class RecallSceneRequest {
         constructor(values?: Partial<RecallSceneRequest>);
 
         /**
@@ -582,7 +582,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.12.3
          */
         transitionTime?: number | null;
-    };
+    }
 
     /**
      * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
@@ -590,7 +590,7 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.13
      */
-    export declare class GetSceneMembershipRequest {
+    export class GetSceneMembershipRequest {
         constructor(values?: Partial<GetSceneMembershipRequest>);
 
         /**
@@ -599,14 +599,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.13.1
          */
         groupId: GroupId;
-    };
+    }
 
     /**
      * This command is sent in response to the GetSceneMembership command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.14
      */
-    export declare class GetSceneMembershipResponse {
+    export class GetSceneMembershipResponse {
         constructor(values?: Partial<GetSceneMembershipResponse>);
 
         /**
@@ -646,7 +646,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.14.4
          */
         sceneList?: number[];
-    };
+    }
 
     /**
      * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
@@ -654,7 +654,7 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.15
      */
-    export declare class CopySceneRequest {
+    export class CopySceneRequest {
         constructor(values?: Partial<CopySceneRequest>);
 
         /**
@@ -699,14 +699,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.15.5
          */
         sceneIdentifierTo: number;
-    };
+    }
 
     /**
      * This command is sent in response to the CopyScene command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.16
      */
-    export declare class CopySceneResponse {
+    export class CopySceneResponse {
         constructor(values?: Partial<CopySceneResponse>);
 
         /**
@@ -729,26 +729,26 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.9.16.3
          */
         sceneIdentifierFrom: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.1
      */
-    export declare class CopyMode {
+    export class CopyMode {
         constructor(values?: Partial<CopyMode> | number);
 
         /**
          * Copy all scenes in the scene table
          */
         copyAllScenes?: boolean;
-    };
+    }
 
     /**
      * This data type indicates a combination of an identifier and the value of an attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.3
      */
-    export declare class AttributeValuePair {
+    export class AttributeValuePair {
         constructor(values?: Partial<AttributeValuePair>);
 
         /**
@@ -772,14 +772,14 @@ export declare namespace ScenesManagement {
         valueSigned32?: number;
         valueUnsigned64?: number | bigint;
         valueSigned64?: number | bigint;
-    };
+    }
 
     /**
      * This data type indicates for a given cluster a set of attributes and their values.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.4
      */
-    export declare class ExtensionFieldSet {
+    export class ExtensionFieldSet {
         constructor(values?: Partial<ExtensionFieldSet>);
 
         /**
@@ -798,7 +798,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.4.2
          */
         attributeValueList: AttributeValuePair[];
-    };
+    }
 
     /**
      * The Scene Table is used to store information for each scene capable of being invoked on the server. Each scene is
@@ -812,7 +812,7 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.5
      */
-    export declare class LogicalSceneTable {
+    export class LogicalSceneTable {
         constructor(values?: Partial<LogicalSceneTable>);
 
         /**
@@ -857,7 +857,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 1.4.7.5.5
          */
         extensionFields: ExtensionFieldSet[];
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

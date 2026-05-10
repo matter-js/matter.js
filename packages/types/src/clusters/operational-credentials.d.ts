@@ -450,7 +450,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.4.4
      */
-    export declare class Noc {
+    export class Noc {
         constructor(values?: Partial<Noc>);
 
         /**
@@ -480,14 +480,14 @@ export declare namespace OperationalCredentials {
         vvsc?: Bytes;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This structure encodes a Fabric Reference for a fabric within which a given Node is currently commissioned.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.4.5
      */
-    export declare class FabricDescriptor {
+    export class FabricDescriptor {
         constructor(values?: Partial<FabricDescriptor>);
 
         /**
@@ -552,7 +552,7 @@ export declare namespace OperationalCredentials {
         vidVerificationStatement?: Bytes;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to perform an attestation request.
@@ -564,10 +564,10 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.1
      */
-    export declare class AttestationRequest {
+    export class AttestationRequest {
         constructor(values?: Partial<AttestationRequest>);
         attestationNonce: Bytes;
-    };
+    }
 
     /**
      * This command is used to report the results of the AttestationRequest command. This command shall be generated in
@@ -580,7 +580,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.2
      */
-    export declare class AttestationResponse {
+    export class AttestationResponse {
         constructor(values?: Partial<AttestationResponse>);
 
         /**
@@ -597,7 +597,7 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.2.2
          */
         attestationSignature: Bytes;
-    };
+    }
 
     /**
      * This command is used to request a certificate from the device attestation certificate chain.
@@ -607,10 +607,10 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.3
      */
-    export declare class CertificateChainRequest {
+    export class CertificateChainRequest {
         constructor(values?: Partial<CertificateChainRequest>);
         certificateType: CertificateChainType;
-    };
+    }
 
     /**
      * This command is used to report the results of the CertificateChainRequest command. This command shall be
@@ -618,7 +618,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.4
      */
-    export declare class CertificateChainResponse {
+    export class CertificateChainResponse {
         constructor(values?: Partial<CertificateChainResponse>);
 
         /**
@@ -628,7 +628,7 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.4.1
          */
         certificate: Bytes;
-    };
+    }
 
     /**
      * This command is used to perform a CSR request.
@@ -660,11 +660,11 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.5
      */
-    export declare class CsrRequest {
+    export class CsrRequest {
         constructor(values?: Partial<CsrRequest>);
         csrNonce: Bytes;
         isForUpdateNoc?: boolean;
-    };
+    }
 
     /**
      * This command is used to report the results of the CSRRequest command. This command shall be generated in response
@@ -677,7 +677,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.6
      */
-    export declare class CsrResponse {
+    export class CsrResponse {
         constructor(values?: Partial<CsrResponse>);
 
         /**
@@ -694,7 +694,7 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.6.2
          */
         attestationSignature: Bytes;
-    };
+    }
 
     /**
      * This command is used to add a new NOC to the device.
@@ -711,7 +711,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.8
      */
-    export declare class AddNocRequest {
+    export class AddNocRequest {
         constructor(values?: Partial<AddNocRequest>);
         nocValue: Bytes;
         icacValue?: Bytes;
@@ -761,7 +761,7 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.8.3
          */
         adminVendorId: VendorId;
-    };
+    }
 
     /**
      * This command is used to report the results of the AddNOC, UpdateNOC, UpdateFabricLabel and RemoveFabric commands.
@@ -780,7 +780,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.10
      */
-    export declare class NocResponse {
+    export class NocResponse {
         constructor(values?: Partial<NocResponse>);
 
         /**
@@ -805,7 +805,7 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.10.3
          */
         debugText?: string;
-    };
+    }
 
     /**
      * This command is used to update an existing NOC on the device.
@@ -821,12 +821,12 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.9
      */
-    export declare class UpdateNocRequest {
+    export class UpdateNocRequest {
         constructor(values?: Partial<UpdateNocRequest>);
         nocValue: Bytes;
         icacValue?: Bytes;
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to set the user-visible fabric label for a given Fabric.
@@ -845,7 +845,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.11
      */
-    export declare class UpdateFabricLabelRequest {
+    export class UpdateFabricLabelRequest {
         constructor(values?: Partial<UpdateFabricLabelRequest>);
 
         /**
@@ -856,7 +856,7 @@ export declare namespace OperationalCredentials {
         label: string;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to remove a Fabric from the device.
@@ -886,7 +886,7 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.12
      */
-    export declare class RemoveFabricRequest {
+    export class RemoveFabricRequest {
         constructor(values?: Partial<RemoveFabricRequest>);
 
         /**
@@ -896,7 +896,7 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.12.1
          */
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to add a trusted root certificate to the device.
@@ -927,10 +927,10 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.13
      */
-    export declare class AddTrustedRootCertificateRequest {
+    export class AddTrustedRootCertificateRequest {
         constructor(values?: Partial<AddTrustedRootCertificateRequest>);
         rootCaCertificate: Bytes;
-    };
+    }
 
     /**
      * This command is used to manage the VendorID and VIDVerificationStatement fields of the Fabrics attribute, and the
@@ -950,12 +950,12 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.14
      */
-    export declare class SetVidVerificationStatementRequest {
+    export class SetVidVerificationStatementRequest {
         constructor(values?: Partial<SetVidVerificationStatementRequest>);
         vendorId?: VendorId;
         vidVerificationStatement?: Bytes;
         vvsc?: Bytes;
-    };
+    }
 
     /**
      * This command is used to authenticate the fabric associated with the FabricIndex.
@@ -970,11 +970,11 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.15
      */
-    export declare class SignVidVerificationRequest {
+    export class SignVidVerificationRequest {
         constructor(values?: Partial<SignVidVerificationRequest>);
         fabricIndex: FabricIndex;
         clientChallenge: Bytes;
-    };
+    }
 
     /**
      * This command is used to report the results of the SignVIDVerificationRequest command. This command shall contain
@@ -1014,12 +1014,12 @@ export declare namespace OperationalCredentials {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.18.6.16
      */
-    export declare class SignVidVerificationResponse {
+    export class SignVidVerificationResponse {
         constructor(values?: Partial<SignVidVerificationResponse>);
         fabricIndex: FabricIndex;
         fabricBindingVersion: number;
         signature: Bytes;
-    };
+    }
 
     /**
      * This enumeration is used by the CertificateChainRequest command to convey which certificate from the device

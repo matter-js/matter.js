@@ -12,14 +12,13 @@ import { LightSensorDevice } from "#devices/light-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
+import { EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
-    CrashedDependenciesError,
     Crypto,
     DnsCodec,
     DnsMessage,
@@ -34,7 +33,7 @@ import {
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
+import { AccessLevel, BasicInformation, ElementTag, FeatureMap, UnsupportedCastError } from "@matter/model";
 import {
     AttestationCertificateManager,
     CertificationDeclaration,
@@ -486,7 +485,7 @@ describe("ServerNode", () => {
             it("from root behavior error", async () => {
                 await expect(
                     MockServerNode.create(MockServerNode.RootEndpoint, { environment: badNodeEnv }),
-                ).rejectedWith(EndpointBehaviorsError);
+                ).rejectedWith(UnsupportedCastError);
             });
 
             it("from behavior error on child during node create", async () => {
@@ -500,7 +499,7 @@ describe("ServerNode", () => {
 
             it("from behavior on child after node create", async () => {
                 const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment: badEndpointEnv });
-                await expect(node.add(new Endpoint(LightSensorDevice))).rejectedWith(EndpointBehaviorsError);
+                await expect(node.add(new Endpoint(LightSensorDevice))).rejectedWith(UnsupportedCastError);
             });
         });
 
@@ -512,7 +511,7 @@ describe("ServerNode", () => {
                         environment: badNodeEnv,
                         device: undefined,
                     }),
-                ).rejectedWith(EndpointBehaviorsError, 'Cannot convert "not a number" to an integer');
+                ).rejectedWith(UnsupportedCastError, 'Cannot convert "not a number" to an integer');
             });
 
             it("from behavior error on child during startup", async () => {
@@ -523,7 +522,7 @@ describe("ServerNode", () => {
                         id: "foo",
                         device: LightSensorDevice,
                     }),
-                ).rejectedWith(EndpointBehaviorsError, 'Property "diet" is unsupported');
+                ).rejectedWith(UnsupportedCastError, 'Property "diet" is unsupported');
             });
 
             it("from behavior error on child added after startup", async () => {
@@ -533,7 +532,7 @@ describe("ServerNode", () => {
                     device: undefined,
                 });
                 await expect(node.add(LightSensorDevice)).rejectedWith(
-                    CrashedDependenciesError,
+                    UnsupportedCastError,
                     'Property "diet" is unsupported',
                 );
             });

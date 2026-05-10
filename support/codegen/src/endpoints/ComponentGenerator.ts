@@ -502,7 +502,7 @@ export class ComponentGenerator {
         this.#definedNames.add(name);
 
         this.file.components.undefine(name);
-        const struct = this.file.components.statements(`export declare class ${name} {`, "}");
+        const struct = this.file.components.statements(`export class ${name} {`, "}");
         struct.document(model);
         struct.atom(`constructor(values?: Partial<${name}>)`);
 
@@ -527,7 +527,7 @@ export class ComponentGenerator {
         this.#definedNames.add(name);
 
         this.file.components.undefine(name);
-        const intf = this.file.components.statements(`export declare class ${name} {`, "}");
+        const intf = this.file.components.statements(`export class ${name} {`, "}");
         intf.document(model);
         intf.atom(`constructor(values?: Partial<${name}> | number)`);
 

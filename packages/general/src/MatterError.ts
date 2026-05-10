@@ -164,15 +164,6 @@ export class MatterError extends Error {
             }
         }
     }
-
-    // TODO - this is probably correct; MatterAggregateError should be typeof MatterError.  Need to diagnose some test
-    // breakage before enabling though
-    // static [Symbol.hasInstance](instance: unknown) {
-    //     if (instance instanceof MatterAggregateError) {
-    //         return true;
-    //     }
-    //     return Error[Symbol.hasInstance](instance);
-    // }
 }
 
 /**
@@ -248,14 +239,6 @@ export class MatterAggregateError extends AggregateError {
     addStackless(error: Error) {
         error.stack = undefined;
         this.errors.push(error);
-    }
-
-    // TODO - see comment on MatterError.  If that one is correct this is incorrect
-    static override [Symbol.hasInstance](instance: unknown) {
-        if (instance instanceof MatterError) {
-            return true;
-        }
-        return AggregateError[Symbol.hasInstance](instance);
     }
 
     /**
