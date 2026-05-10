@@ -536,9 +536,11 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
     /** Resolve an installed cluster behavior by type or behavior id; returns undefined for unknown / non-cluster. */
     #installedClusterBehavior(type: ClusterBehavior.Type | string): ClusterBehavior.Type | undefined {
-        const id = typeof type === "string" ? type : type.id;
-        const installed = this.behaviors.supported[id];
-        return installed !== undefined && ClusterBehavior.isType(installed) ? installed : undefined;
+        if (typeof type === "string") {
+            const installed = this.behaviors.supported[type];
+            return installed !== undefined && ClusterBehavior.isType(installed) ? installed : undefined;
+        }
+        return this.behaviors.has(type) ? this.behaviors.typeFor(type)! : undefined;
     }
 
     /**
@@ -546,14 +548,20 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      */
     #requireClusterBehavior(type: ClusterBehavior.Type | string): ClusterBehavior.Type {
         const id = typeof type === "string" ? type : type.id;
-        const installed = this.behaviors.supported[id];
-        if (installed === undefined) {
+        if (typeof type === "string") {
+            const installed = this.behaviors.supported[id];
+            if (installed === undefined) {
+                throw new EndpointBehaviorNotPresentError(id);
+            }
+            if (!ClusterBehavior.isType(installed)) {
+                throw new EndpointBehaviorNotClusterError(id);
+            }
+            return installed;
+        }
+        if (!this.behaviors.has(type)) {
             throw new EndpointBehaviorNotPresentError(id);
         }
-        if (!ClusterBehavior.isType(installed)) {
-            throw new EndpointBehaviorNotClusterError(id);
-        }
-        return installed;
+        return this.behaviors.typeFor(type)!;
     }
 
     /** Throw {@link EndpointBehaviorNotPresentError} if `result` is undefined; otherwise return it. */
