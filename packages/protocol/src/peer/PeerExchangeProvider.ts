@@ -48,14 +48,12 @@ export class PeerExchangeProvider extends ExchangeProvider {
     }
 
     override async connect(options?: NewExchangeOptions): Promise<void> {
-        // Use explicit requirement, or fall back to the peer's transport preference
-        const transport = options?.requiredTransport ?? this.#peer.transportPreference;
-
         await this.#peer.connect({
             abort: options?.abort,
             network: options?.network,
             connectionTimeout: options?.connectionTimeout,
-            transport,
+            requiredTransport: options?.requiredTransport,
+            preferredTransport: options?.preferredTransport,
         });
     }
 
@@ -85,15 +83,19 @@ export class PeerExchangeProvider extends ExchangeProvider {
                         this.#peer.address,
                         this.#context.exchanges,
                     );
-                } else if (options?.requiredTransport === ChannelType.TCP) {
-                    // When TCP is explicitly required (e.g. Large Message Quality), only use TCP.
-                    // No fallback — the caller needs TCP or nothing.
-                    session = this.#peer.newestSession(ChannelType.TCP);
-                } else if (this.#peer.transportPreference === ChannelType.TCP) {
-                    // When TCP is preferred, try TCP first but fall back to any available session.
-                    session = this.#peer.newestSession(ChannelType.TCP) ?? this.#peer.newestSession();
                 } else {
-                    session = this.#peer.newestSession();
+                    const transports = this.#peer.resolveTransports(
+                        options?.requiredTransport,
+                        options?.preferredTransport,
+                    );
+                    if (transports === undefined) {
+                        session = this.#peer.newestSession();
+                    } else {
+                        for (const t of transports) {
+                            session = this.#peer.newestSession(t);
+                            if (session) break;
+                        }
+                    }
                 }
                 if (session === undefined) {
                     if (options?.requireExistingSession) {

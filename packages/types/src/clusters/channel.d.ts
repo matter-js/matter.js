@@ -268,7 +268,7 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.5
      */
-    export declare class ChannelInfo {
+    export class ChannelInfo {
         constructor(values?: Partial<ChannelInfo>);
 
         /**
@@ -330,7 +330,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.5.7
          */
         type?: ChannelType;
-    };
+    }
 
     /**
      * The Lineup Info allows references to external lineup sources like Gracenote. The combination of OperatorName,
@@ -338,7 +338,7 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.6
      */
-    export declare class LineupInfo {
+    export class LineupInfo {
         constructor(values?: Partial<LineupInfo>);
 
         /**
@@ -370,14 +370,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.6.4
          */
         lineupInfoType: LineupInfoType;
-    };
+    }
 
     /**
      * Change the channel to the channel with the given Number in the ChannelList attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.3
      */
-    export declare class ChangeChannelByNumberRequest {
+    export class ChangeChannelByNumberRequest {
         constructor(values?: Partial<ChangeChannelByNumberRequest>);
 
         /**
@@ -393,7 +393,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.3.2
          */
         minorNumber: number;
-    };
+    }
 
     /**
      * This command provides channel up and channel down functionality, but allows channel index jumps of size Count.
@@ -409,7 +409,7 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.4
      */
-    export declare class SkipChannelRequest {
+    export class SkipChannelRequest {
         constructor(values?: Partial<SkipChannelRequest>);
 
         /**
@@ -419,7 +419,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.4.1
          */
         count: number;
-    };
+    }
 
     /**
      * Change the channel to the channel case-insensitive exact matching the value passed as an argument.
@@ -433,7 +433,7 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.1
      */
-    export declare class ChangeChannelRequest {
+    export class ChangeChannelRequest {
         constructor(values?: Partial<ChangeChannelRequest>);
 
         /**
@@ -442,14 +442,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.1.1
          */
         match: string;
-    };
+    }
 
     /**
      * This command shall be generated in response to a ChangeChannel command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.2
      */
-    export declare class ChangeChannelResponse {
+    export class ChangeChannelResponse {
         constructor(values?: Partial<ChangeChannelResponse>);
 
         /**
@@ -465,7 +465,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.2.2
          */
         data?: string;
-    };
+    }
 
     /**
      * This command retrieves the program guide. It accepts several filter parameters to return specific schedule and
@@ -475,7 +475,7 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.5
      */
-    export declare class GetProgramGuideRequest {
+    export class GetProgramGuideRequest {
         constructor(values?: Partial<GetProgramGuideRequest>);
 
         /**
@@ -531,14 +531,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.5.7
          */
         data?: Bytes;
-    };
+    }
 
     /**
      * This command is a response to the GetProgramGuide command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.6
      */
-    export declare class ProgramGuideResponse {
+    export class ProgramGuideResponse {
         constructor(values?: Partial<ProgramGuideResponse>);
 
         /**
@@ -555,14 +555,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.6.2
          */
         programList: Program[];
-    };
+    }
 
     /**
      * Record a specific program or series when it goes live. This functionality enables DVR recording features.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.7
      */
-    export declare class RecordProgramRequest {
+    export class RecordProgramRequest {
         constructor(values?: Partial<RecordProgramRequest>);
 
         /**
@@ -595,14 +595,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.7.4
          */
         data?: Bytes;
-    };
+    }
 
     /**
      * Cancel recording for a specific program or series.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.8
      */
-    export declare class CancelRecordProgramRequest {
+    export class CancelRecordProgramRequest {
         constructor(values?: Partial<CancelRecordProgramRequest>);
 
         /**
@@ -635,12 +635,12 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.7.8.4
          */
         data?: Bytes;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.1
      */
-    export declare class RecordingFlag {
+    export class RecordingFlag {
         constructor(values?: Partial<RecordingFlag> | number);
 
         /**
@@ -657,7 +657,7 @@ export declare namespace Channel {
          * The program is recorded and available to be played.
          */
         recorded?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.2
@@ -737,7 +737,7 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.7
      */
-    export declare class Program {
+    export class Program {
         constructor(values?: Partial<Program>);
 
         /**
@@ -893,14 +893,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.7.19
          */
         externalIdList?: ContentLauncher.AdditionalInfo[];
-    };
+    }
 
     /**
      * This object defines the category associated to a program.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.8
      */
-    export declare class ProgramCategory {
+    export class ProgramCategory {
         constructor(values?: Partial<ProgramCategory>);
 
         /**
@@ -916,14 +916,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.8.2
          */
         subCategory?: string;
-    };
+    }
 
     /**
      * This object provides the episode information related to a program.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.9
      */
-    export declare class SeriesInfo {
+    export class SeriesInfo {
         constructor(values?: Partial<SeriesInfo>);
 
         /**
@@ -939,14 +939,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.9.2
          */
         episode: string;
-    };
+    }
 
     /**
      * This object provides the cast information related to a program.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.10
      */
-    export declare class ProgramCast {
+    export class ProgramCast {
         constructor(values?: Partial<ProgramCast>);
 
         /**
@@ -962,14 +962,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.10.2
          */
         role: string;
-    };
+    }
 
     /**
      * This object defines the pagination structure.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.11
      */
-    export declare class PageToken {
+    export class PageToken {
         constructor(values?: Partial<PageToken>);
 
         /**
@@ -999,14 +999,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.11.3
          */
         before?: string;
-    };
+    }
 
     /**
      * This object defines the paging structure that includes the previous and next pagination tokens.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.12
      */
-    export declare class ChannelPaging {
+    export class ChannelPaging {
         constructor(values?: Partial<ChannelPaging>);
 
         /**
@@ -1024,7 +1024,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v151.Cluster} § 6.6.5.12.2
          */
         nextToken?: PageToken | null;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

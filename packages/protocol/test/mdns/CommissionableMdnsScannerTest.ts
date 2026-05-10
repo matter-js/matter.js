@@ -823,4 +823,110 @@ describe("CommissionableMdnsScanner", () => {
             await clientSocket.close();
         }
     });
+
+    it("re-solicits A/AAAA when cached entry's addresses expired before next discovery", async () => {
+        // Regression: the matter commissionable A/AAAA TTL is short and may lapse between
+        // a responder's unsolicited rebroadcasts.  When SRV/TXT remain valid the cache entry
+        // persists but its addresses go empty, and a follow-up findCommissionableDevicesContinuously
+        // call must re-solicit A/AAAA so the entry is delivered once addresses come back.
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({
+            socket: clientSocket,
+            entropy: MockCrypto(0x0c),
+            minTtl: Millis(0),
+        });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            const longTtl = Seconds(120);
+            const shortAddrTtl = Seconds(2);
+
+            // Initial advertisement: SRV/TXT long-lived, A short-lived to model the real-world
+            // mismatch where instance records survive past hostname A/AAAA TTL.
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: longTtl,
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: longTtl,
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: shortAddrTtl,
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device cached with resolved addresses
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+
+            // Advance past A TTL — A pruned, SRV/TXT survive, cache entry stays but addresses empty
+            await MockTime.advance(Seconds(3));
+            await MockTime.advance(10);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+
+            // Responder replies with fresh A when client re-solicits the hostname
+            serverSocket.receipt.on(async message => {
+                if (message.queries.find(q => q.name === HOSTNAME && q.recordType === DnsRecordType.A)) {
+                    await serverSocket.send({
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: HOSTNAME,
+                                recordType: DnsRecordType.A,
+                                recordClass: DnsRecordClass.IN,
+                                ttl: longTtl,
+                                value: SERVER_IPv4,
+                            },
+                        ],
+                        additionalRecords: [],
+                    });
+                }
+            });
+
+            // Second discovery: cache iteration encounters the zero-address entry, fires
+            // #solicitAndArmAddresses, the server replies, onAddresses observer delivers the device.
+            const found: CommissionableDevice[] = [];
+            const identifier = { longDiscriminator: 3840 };
+            const discoveryPromise = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                device => found.push(device),
+                Seconds(10),
+            );
+            await MockTime.resolve(Time.sleep("wait for re-solicit", Seconds(5)));
+
+            expect(found.length).equals(1);
+            expect(found[0].deviceIdentifier).equals(INSTANCE_ID);
+            expect(found[0].addresses.length).greaterThan(0);
+
+            scanner.cancelCommissionableDeviceDiscovery(identifier);
+            await MockTime.resolve(discoveryPromise);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
 });

@@ -378,7 +378,7 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8
      */
-    export declare class ZoneInformation {
+    export class ZoneInformation {
         constructor(values?: Partial<ZoneInformation>);
 
         /**
@@ -408,7 +408,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8.4
          */
         twoDCartesianZone?: TwoDCartesianZone;
-    };
+    }
 
     /**
      * This struct is used to encode a set of values for controlling the generation of ZoneTriggered and ZoneStopped
@@ -444,7 +444,7 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9
      */
-    export declare class ZoneTriggerControl {
+    export class ZoneTriggerControl {
         constructor(values?: Partial<ZoneTriggerControl>);
 
         /**
@@ -494,14 +494,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.6
          */
         sensitivity?: number;
-    };
+    }
 
     /**
      * This struct is used to encode a point on the 2 Dimensional Cartesian Plane for the TwoDCartesianZone feature.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.6
      */
-    export declare class TwoDCartesianVertex {
+    export class TwoDCartesianVertex {
         constructor(values?: Partial<TwoDCartesianVertex>);
 
         /**
@@ -517,14 +517,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.6.2
          */
         y: number;
-    };
+    }
 
     /**
      * This command is used to create or update a Trigger for the specified motion Zone.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.5
      */
-    export declare class CreateOrUpdateTriggerRequest {
+    export class CreateOrUpdateTriggerRequest {
         constructor(values?: Partial<CreateOrUpdateTriggerRequest>);
 
         /**
@@ -534,14 +534,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.5.1
          */
         trigger: ZoneTriggerControl;
-    };
+    }
 
     /**
      * This command shall remove the Trigger for the provided ZoneID.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.6
      */
-    export declare class RemoveTriggerRequest {
+    export class RemoveTriggerRequest {
         constructor(values?: Partial<RemoveTriggerRequest>);
 
         /**
@@ -550,14 +550,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.6.1
          */
         zoneId: number;
-    };
+    }
 
     /**
      * This command shall remove the user-defined Zone indicated by ZoneID.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.4
      */
-    export declare class RemoveZoneRequest {
+    export class RemoveZoneRequest {
         constructor(values?: Partial<RemoveZoneRequest>);
 
         /**
@@ -566,14 +566,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.4.1
          */
         zoneId: number;
-    };
+    }
 
     /**
      * This command shall create and store a TwoD Cartesian Zone.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.1
      */
-    export declare class CreateTwoDCartesianZoneRequest {
+    export class CreateTwoDCartesianZoneRequest {
         constructor(values?: Partial<CreateTwoDCartesianZoneRequest>);
 
         /**
@@ -583,14 +583,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.1.1
          */
         zone: TwoDCartesianZone;
-    };
+    }
 
     /**
      * This command shall be generated in response to a CreateTwoDCartesianZone command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.2
      */
-    export declare class CreateTwoDCartesianZoneResponse {
+    export class CreateTwoDCartesianZoneResponse {
         constructor(values?: Partial<CreateTwoDCartesianZoneResponse>);
 
         /**
@@ -599,14 +599,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.2.1
          */
         zoneId: number;
-    };
+    }
 
     /**
      * The UpdateTwoDCartesianZone shall update a stored TwoD Cartesian Zone.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.3
      */
-    export declare class UpdateTwoDCartesianZoneRequest {
+    export class UpdateTwoDCartesianZoneRequest {
         constructor(values?: Partial<UpdateTwoDCartesianZoneRequest>);
 
         /**
@@ -622,14 +622,14 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.3.2
          */
         zone: TwoDCartesianZone;
-    };
+    }
 
     /**
      * This event shall be generated when a Zone is first triggered.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1
      */
-    export declare class ZoneTriggeredEvent {
+    export class ZoneTriggeredEvent {
         constructor(values?: Partial<ZoneTriggeredEvent>);
 
         /**
@@ -645,7 +645,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1.2
          */
         reason: ZoneEventTriggeredReason;
-    };
+    }
 
     /**
      * This event shall be generated when either the TriggerDetectedDuration value is exceeded by the
@@ -654,7 +654,7 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
      */
-    export declare class ZoneStoppedEvent {
+    export class ZoneStoppedEvent {
         constructor(values?: Partial<ZoneStoppedEvent>);
 
         /**
@@ -670,7 +670,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2.2
          */
         reason: ZoneEventStoppedReason;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.1
@@ -773,7 +773,7 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7
      */
-    export declare class TwoDCartesianZone {
+    export class TwoDCartesianZone {
         constructor(values?: Partial<TwoDCartesianZone>);
 
         /**
@@ -818,7 +818,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7.4
          */
         color?: string;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

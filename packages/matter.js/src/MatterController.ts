@@ -39,7 +39,6 @@ import {
     MockStorageService,
     ObserverGroup,
     ServerAddress,
-    ServerAddressIp,
     StorageManager,
     StorageService,
     SupportedStorageTypes,
@@ -71,6 +70,7 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
+    OperationalAddress,
     PeerAddress,
     PeerDescriptor,
     PeerSet,
@@ -95,7 +95,7 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export type CommissionedNodeDetails = {
-    operationalServerAddress?: ServerAddressIp;
+    operationalServerAddress?: OperationalAddress;
     discoveryData?: DiscoveryData;
     deviceData?: DeviceInformationData;
 };
@@ -955,11 +955,11 @@ class CommissionedNodeStore {
                         return [
                             address.nodeId,
                             {
-                                operationalServerAddress:
-                                    operationalServerAddress !== undefined &&
-                                    ServerAddress.isIp(operationalServerAddress)
-                                        ? (ServerAddress(operationalServerAddress) as ServerAddressIp)
+                                operationalServerAddress: OperationalAddress.from(
+                                    operationalServerAddress !== undefined
+                                        ? ServerAddress(operationalServerAddress)
                                         : undefined,
+                                ),
                                 discoveryData,
                                 deviceData,
                             },

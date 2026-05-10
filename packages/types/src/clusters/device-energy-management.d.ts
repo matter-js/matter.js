@@ -981,7 +981,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.11
      */
-    export declare class PowerAdjustCapability {
+    export class PowerAdjustCapability {
         constructor(values?: Partial<PowerAdjustCapability>);
 
         /**
@@ -1005,7 +1005,7 @@ export declare namespace DeviceEnergyManagement {
         powerAdjustCapability: PowerAdjust[] | null;
 
         cause: PowerAdjustReason;
-    };
+    }
 
     /**
      * This indicates a list of 'slots' describing the overall timing of the ESA's planned energy and power use, with
@@ -1017,7 +1017,7 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13
      */
-    export declare class Forecast {
+    export class Forecast {
         constructor(values?: Partial<Forecast>);
 
         /**
@@ -1099,7 +1099,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.13.9
          */
         forecastUpdateReason: ForecastUpdateReason;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.4
@@ -1131,7 +1131,7 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1
      */
-    export declare class PowerAdjustRequest {
+    export class PowerAdjustRequest {
         constructor(values?: Partial<PowerAdjustRequest>);
 
         /**
@@ -1160,14 +1160,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.1.3
          */
         cause: AdjustmentCause;
-    };
+    }
 
     /**
      * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.4
      */
-    export declare class PauseRequest {
+    export class PauseRequest {
         constructor(values?: Partial<PauseRequest>);
 
         /**
@@ -1185,7 +1185,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.4.2
          */
         cause: AdjustmentCause;
-    };
+    }
 
     /**
      * Allows a client to adjust the start time of a Forecast sequence that has not yet started operation (i.e. where
@@ -1193,7 +1193,7 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.3
      */
-    export declare class StartTimeAdjustRequest {
+    export class StartTimeAdjustRequest {
         constructor(values?: Partial<StartTimeAdjustRequest>);
 
         /**
@@ -1216,14 +1216,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.3.2
          */
         cause: AdjustmentCause;
-    };
+    }
 
     /**
      * Allows a client to modify a Forecast within the limits allowed by the ESA.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6
      */
-    export declare class ModifyForecastRequest {
+    export class ModifyForecastRequest {
         constructor(values?: Partial<ModifyForecastRequest>);
 
         /**
@@ -1247,14 +1247,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.6.3
          */
         cause: AdjustmentCause;
-    };
+    }
 
     /**
      * Allows a client to ask the ESA to recompute its Forecast based on power and time constraints.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.7
      */
-    export declare class RequestConstraintBasedForecastRequest {
+    export class RequestConstraintBasedForecastRequest {
         constructor(values?: Partial<RequestConstraintBasedForecastRequest>);
 
         /**
@@ -1282,14 +1282,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.9.7.2
          */
         cause: AdjustmentCause;
-    };
+    }
 
     /**
      * This event shall be generated when the Power Adjustment session ends.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2
      */
-    export declare class PowerAdjustEndEvent {
+    export class PowerAdjustEndEvent {
         constructor(values?: Partial<PowerAdjustEndEvent>);
 
         /**
@@ -1316,14 +1316,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.2.3
          */
         energyUse: number | bigint;
-    };
+    }
 
     /**
      * This event shall be generated when the ESA leaves the Paused state and resumes operation.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.4
      */
-    export declare class ResumedEvent {
+    export class ResumedEvent {
         constructor(values?: Partial<ResumedEvent>);
 
         /**
@@ -1332,7 +1332,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.10.4.1
          */
         cause: Cause;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.1
@@ -1473,7 +1473,7 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9
      */
-    export declare class Cost {
+    export class Cost {
         constructor(values?: Partial<Cost>);
 
         /**
@@ -1510,12 +1510,12 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.9.4
          */
         currency?: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10
      */
-    export declare class PowerAdjust {
+    export class PowerAdjust {
         constructor(values?: Partial<PowerAdjust>);
 
         /**
@@ -1565,14 +1565,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.10.4
          */
         maxDuration: number;
-    };
+    }
 
     /**
      * This indicates a specific stage of an ESA's operation.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14
      */
-    export declare class Slot {
+    export class Slot {
         constructor(values?: Partial<Slot>);
 
         /**
@@ -1785,12 +1785,12 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14.18
          */
         maxDurationAdjustment?: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.15
      */
-    export declare class SlotAdjustment {
+    export class SlotAdjustment {
         constructor(values?: Partial<SlotAdjustment>);
 
         /**
@@ -1822,7 +1822,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.15.3
          */
         duration: number;
-    };
+    }
 
     /**
      * The ConstraintsStruct allows a client to inform an ESA about a constraint period (such as a grid event, or
@@ -1831,7 +1831,7 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16
      */
-    export declare class Constraints {
+    export class Constraints {
         constructor(values?: Partial<Constraints>);
 
         /**
@@ -1885,7 +1885,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.16.5
          */
         loadControl?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

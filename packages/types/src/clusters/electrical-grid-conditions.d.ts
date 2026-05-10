@@ -185,7 +185,7 @@ export declare namespace ElectricalGridConditions {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2
      */
-    export declare class ElectricalGridConditionsStruct {
+    export class ElectricalGridConditionsStruct {
         constructor(values?: Partial<ElectricalGridConditionsStruct>);
 
         /**
@@ -261,14 +261,14 @@ export declare namespace ElectricalGridConditions {
          * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.6
          */
         localCarbonLevel: ThreeLevel;
-    };
+    }
 
     /**
      * This event shall be generated when the value of the CurrentConditions attribute changes.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.13.7.1
      */
-    export declare class CurrentConditionsChangedEvent {
+    export class CurrentConditionsChangedEvent {
         constructor(values?: Partial<CurrentConditionsChangedEvent>);
 
         /**
@@ -277,7 +277,7 @@ export declare namespace ElectricalGridConditions {
          * @see {@link MatterSpecification.v151.Cluster} § 9.13.7.1.1
          */
         currentConditions: ElectricalGridConditionsStruct | null;
-    };
+    }
 
     /**
      * This data type is derived from enum8 and is used for indicating three levels: Low, Medium, High.

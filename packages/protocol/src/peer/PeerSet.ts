@@ -33,7 +33,7 @@ import { FabricIndex } from "@matter/types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
-import { PeerDescriptor } from "./PeerDescriptor.js";
+import { OperationalAddress, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 /**
@@ -61,6 +61,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #networks: NetworkProfiles;
     readonly #observers = new ObserverGroup();
     #exchanges?: ExchangeManager;
+    #transportPreference?: ChannelType.TCP;
 
     constructor(context: PeerSetContext) {
         const { lifetime, sessions, names, networks, timing, handleError } = context;
@@ -139,6 +140,18 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     /**
+     * Default outgoing transport preference applied to peers created by this set when they have
+     * no per-peer override. Honored as a soft preference at connect time.
+     */
+    get transportPreference() {
+        return this.#transportPreference;
+    }
+
+    set transportPreference(pref: ChannelType.TCP | undefined) {
+        this.#transportPreference = pref;
+    }
+
+    /**
      * Unconditional get.
      *
      * Creates the peer if not already present.
@@ -150,9 +163,16 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         }
 
         peer = new Peer({ address }, this.#peerContext);
+        this.#applyDefaultPreference(peer);
         this.#peers.add(peer);
 
         return peer;
+    }
+
+    #applyDefaultPreference(peer: Peer) {
+        if (peer.transportPreference === undefined && this.#transportPreference !== undefined) {
+            peer.transportPreference = this.#transportPreference;
+        }
     }
 
     has(item: PeerAddress | PeerDescriptor | Peer) {
@@ -270,6 +290,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         let peer = this.get(descriptor.address);
         if (peer === undefined) {
             peer = new Peer(descriptor, this.#peerContext);
+            this.#applyDefaultPreference(peer);
             this.#peers.add(peer);
         }
 
@@ -299,7 +320,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 }
 
-function operationalAddressOf(session: Session) {
+function operationalAddressOf(session: Session): OperationalAddress | undefined {
     if (session.isClosed || !isIpNetworkChannel(session.channel)) {
         return;
     }
@@ -307,5 +328,5 @@ function operationalAddressOf(session: Session) {
     if (session.channel.transportChannel.type === ChannelType.TCP) {
         return;
     }
-    return session.channel.networkAddress;
+    return { ...session.channel.networkAddress, type: "udp" };
 }

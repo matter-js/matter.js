@@ -441,7 +441,7 @@ export declare namespace IcdManagement {
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.16.5.3
      */
-    export declare class MonitoringRegistration {
+    export class MonitoringRegistration {
         constructor(values?: Partial<MonitoringRegistration>);
 
         /**
@@ -485,14 +485,14 @@ export declare namespace IcdManagement {
         clientType: ClientType;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * See the UserActiveModeTriggerHint table for requirements associated to each bit.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.5.1
      */
-    export declare class UserActiveModeTrigger {
+    export class UserActiveModeTrigger {
         constructor(values?: Partial<UserActiveModeTrigger> | number);
 
         /**
@@ -579,7 +579,7 @@ export declare namespace IcdManagement {
          * Press the N Button to transition the device to ActiveMode
          */
         appDefinedButton?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.16.5.2
@@ -607,10 +607,10 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
      */
-    export declare class StayActiveRequest {
+    export class StayActiveRequest {
         constructor(values?: Partial<StayActiveRequest>);
         stayActiveDuration: number;
-    };
+    }
 
     /**
      * This message shall be sent by the ICD in response to the StayActiveRequest command and shall contain the computed
@@ -618,7 +618,7 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.5
      */
-    export declare class StayActiveResponse {
+    export class StayActiveResponse {
         constructor(values?: Partial<StayActiveResponse>);
 
         /**
@@ -628,7 +628,7 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1
          */
         promisedActiveDuration: number;
-    };
+    }
 
     /**
      * This command allows a client to register itself with the ICD to be notified when the device is available for
@@ -636,7 +636,7 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.1
      */
-    export declare class RegisterClientRequest {
+    export class RegisterClientRequest {
         constructor(values?: Partial<RegisterClientRequest>);
 
         /**
@@ -680,7 +680,7 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v151.Core} § 9.16.7.1.5
          */
         clientType: ClientType;
-    };
+    }
 
     /**
      * This command shall be sent by the ICD Management Cluster server in response to a successful RegisterClient
@@ -688,10 +688,10 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.2
      */
-    export declare class RegisterClientResponse {
+    export class RegisterClientResponse {
         constructor(values?: Partial<RegisterClientResponse>);
         icdCounter: number;
-    };
+    }
 
     /**
      * This command allows a client to unregister itself with the ICD. Example: a client that is leaving the network
@@ -700,7 +700,7 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
      */
-    export declare class UnregisterClientRequest {
+    export class UnregisterClientRequest {
         constructor(values?: Partial<UnregisterClientRequest>);
 
         /**
@@ -722,7 +722,7 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v151.Core} § 9.16.7.3.2
          */
         verificationKey?: Bytes;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.16.5.1.1

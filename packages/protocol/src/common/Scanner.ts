@@ -17,6 +17,7 @@ import {
     ServerAddressIp,
 } from "@matter/general";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema, VendorId } from "@matter/types";
+import { SupportedTransportsBitmap, SupportedTransportsSchema } from "./SupportedTransportsBitmap.js";
 
 /**
  * All information exposed by a device via announcements.
@@ -51,8 +52,8 @@ export type DiscoveryData = {
     /** Session active threshold */
     SAT?: Duration;
 
-    /** TCP supported */
-    T?: number; // SupportedTransportsBitmap but comes in as number, so converted on usage
+    /** Supported transports (TCP client/server). */
+    T?: SupportedTransportsBitmap;
 
     /** ICD Long Idle Time operating mode supported */
     ICD?: number;
@@ -72,11 +73,18 @@ export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
 
             case "DT":
             case "PH":
-            case "T":
             case "ICD": {
                 const num = Number(kvs.get(key));
                 if (isFinite(num)) {
                     dd[key] = num;
+                }
+                break;
+            }
+
+            case "T": {
+                const num = Number(kvs.get(key));
+                if (isFinite(num)) {
+                    dd.T = SupportedTransportsSchema.decode(num);
                 }
                 break;
             }
@@ -106,7 +114,7 @@ export function DiscoveryDataDiagnostics(data: DiscoveryData & { addresses?: Ser
         SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
         SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
         SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
-        T: data.T,
+        T: data.T !== undefined ? Diagnostic.asFlags(data.T) : undefined,
         DT: data.DT,
         PH: data.PH,
         ICD: data.ICD,

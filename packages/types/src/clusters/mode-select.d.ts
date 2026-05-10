@@ -264,7 +264,7 @@ export declare namespace ModeSelect {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.2
      */
-    export declare class ModeOption {
+    export class ModeOption {
         constructor(values?: Partial<ModeOption>);
 
         /**
@@ -300,7 +300,7 @@ export declare namespace ModeSelect {
          * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.2.3
          */
         semanticTags: SemanticTag[];
-    };
+    }
 
     /**
      * On receipt of this command, if the NewMode field indicates a valid mode transition within the supported list, the
@@ -309,17 +309,17 @@ export declare namespace ModeSelect {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.9.7.1
      */
-    export declare class ChangeToModeRequest {
+    export class ChangeToModeRequest {
         constructor(values?: Partial<ChangeToModeRequest>);
         newMode: number;
-    };
+    }
 
     /**
      * A Semantic Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.1
      */
-    export declare class SemanticTag {
+    export class SemanticTag {
         constructor(values?: Partial<SemanticTag>);
 
         /**
@@ -340,7 +340,7 @@ export declare namespace ModeSelect {
          * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.1.1
          */
         value: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

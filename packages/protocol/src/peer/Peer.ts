@@ -25,6 +25,7 @@ import {
     Duration,
     Identity,
     Instant,
+    IpChannelType,
     IpService,
     isIpNetworkChannel,
     Lifetime,
@@ -65,8 +66,12 @@ export class Peer {
 
     /**
      * Preferred transport for outgoing connections to this peer.
+     *
+     * Only `ChannelType.TCP` has meaning here — UDP is the default with no preference, and BLE is
+     * not used for operational connections. Setting TCP is a soft hint: the connect path still falls
+     * back to UDP if the peer does not advertise TCP server support.
      */
-    transportPreference?: ChannelType;
+    transportPreference?: ChannelType.TCP;
     #connecting?: ConnectionProcess;
     #service: IpService;
     #observers = new ObserverGroup();
@@ -117,8 +122,8 @@ export class Peer {
         });
 
         this.#observers.on(this.#sessions.added, session => {
-            const updateNetworkAddress = (networkAddress: ServerAddressIp) => {
-                this.#descriptor.operationalAddress = networkAddress;
+            const tagUdp = (addr: ServerAddressIp) => {
+                this.#descriptor.operationalAddress = { ...addr, type: "udp" };
             };
 
             // Ensure the operational address is always set to the most recent IP
@@ -129,14 +134,15 @@ export class Peer {
                         // For incoming TCP the remote port is ephemeral — use the mDNS port
                         const discoveredPort = [...this.#service.addresses][0]?.port;
                         if (discoveredPort !== undefined) {
-                            updateNetworkAddress({
+                            this.#descriptor.operationalAddress = {
+                                type: "tcp",
                                 ip: channel.networkAddress.ip,
                                 port: discoveredPort,
-                            });
+                            };
                         }
                     } else {
-                        updateNetworkAddress(channel.networkAddress);
-                        channel.networkAddressChanged.on(updateNetworkAddress);
+                        tagUdp(channel.networkAddress);
+                        channel.networkAddressChanged.on(tagUdp);
                     }
                 }
             }
@@ -146,7 +152,7 @@ export class Peer {
                 this.#sessions.delete(session);
                 const channel = session.channel.transportChannel;
                 if (isIpNetworkChannel(channel)) {
-                    channel.networkAddressChanged.off(updateNetworkAddress);
+                    channel.networkAddressChanged.off(tagUdp);
                 }
             });
 
@@ -271,6 +277,31 @@ export class Peer {
     }
 
     /**
+     * Resolve the ordered list of transports to attempt for this peer.
+     *
+     * - `requiredTransport` is a hard constraint: only that transport.
+     * - Else effective soft preference is `preferredTransport ?? transportPreference`. When TCP
+     *   and the peer advertises TCP server support, returns `[TCP, UDP]`.
+     * - Else `undefined` (default UDP, no constraint).
+     */
+    resolveTransports(requiredTransport?: ChannelType, preferredTransport?: ChannelType): IpChannelType[] | undefined {
+        if (requiredTransport === ChannelType.TCP || requiredTransport === ChannelType.UDP) {
+            return [requiredTransport];
+        }
+        const effectivePreference = preferredTransport ?? this.transportPreference;
+        if (effectivePreference !== ChannelType.TCP) {
+            return undefined;
+        }
+        // Live-read from service TXT params; the descriptor cache lags by one observer tick when
+        // operational TXT and addresses arrive in the same mDNS response. Trade-off: if `tcpServer`
+        // is later withdrawn, the heap ordering of already-enqueued addresses becomes stale —
+        // acceptable since TCP-server-capability withdrawal mid-connect is not a real-world flow.
+        const liveT = DiscoveryData(this.#service.parameters).T;
+        const T = liveT ?? this.#descriptor.discoveryData?.T;
+        return T?.tcpServer ? [ChannelType.TCP, ChannelType.UDP] : undefined;
+    }
+
+    /**
      * Obtain a session with the peer, establishing anew as necessary.
      */
     async connect(options?: Peer.ConnectOptions) {
@@ -279,7 +310,16 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession(options?.transport);
+            const transports = this.resolveTransports(options?.requiredTransport, options?.preferredTransport);
+            let session: NodeSession | undefined;
+            if (transports === undefined) {
+                session = this.newestSession();
+            } else {
+                for (const t of transports) {
+                    session = this.newestSession(t);
+                    if (session) break;
+                }
+            }
             if (session) {
                 return session;
             }
@@ -465,7 +505,8 @@ export class Peer {
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
                 timing: options?.timing,
-                transport: options?.transport,
+                requiredTransport: options?.requiredTransport,
+                preferredTransport: options?.preferredTransport,
                 handleError: options?.handleError,
                 abort,
                 kicker,
@@ -535,9 +576,16 @@ export namespace Peer {
         timing?: Partial<PeerTimingParameters>;
 
         /**
-         * Constrain the transport type for this connection.
+         * Hard transport constraint for this connection (e.g. Large Message Quality requires TCP).
+         * When omitted, transports are resolved per {@link Peer.resolveTransports}.
          */
-        transport?: ChannelType;
+        requiredTransport?: ChannelType;
+
+        /**
+         * Per-call soft transport preference. Overrides {@link Peer.transportPreference} for this
+         * connection only and is honored only when the peer advertises matching server capability.
+         */
+        preferredTransport?: ChannelType;
 
         /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.

@@ -593,7 +593,7 @@ export declare namespace ClosureDimension {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.9
      */
-    export declare class DimensionState {
+    export class DimensionState {
         constructor(values?: Partial<DimensionState>);
 
         /**
@@ -624,7 +624,7 @@ export declare namespace ClosureDimension {
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.9.3
          */
         speed?: ThreeLevelAuto;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.5
@@ -644,20 +644,20 @@ export declare namespace ClosureDimension {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.8
      */
-    export declare class UnitRange {
+    export class UnitRange {
         constructor(values?: Partial<UnitRange>);
         min: number;
         max: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.7
      */
-    export declare class RangePercent100ths {
+    export class RangePercent100ths {
         constructor(values?: Partial<RangePercent100ths>);
         min: number;
         max: number;
-    };
+    }
 
     /**
      * Legend: !legendOpen Open !legendClosed Closed
@@ -881,7 +881,7 @@ export declare namespace ClosureDimension {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.10
      */
-    export declare class LatchControlModes {
+    export class LatchControlModes {
         constructor(values?: Partial<LatchControlModes> | number);
 
         /**
@@ -909,7 +909,7 @@ export declare namespace ClosureDimension {
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.10.2
          */
         remoteUnlatching?: boolean;
-    };
+    }
 
     /**
      * This command is used to move a dimension of the closure to a target position.
@@ -922,7 +922,7 @@ export declare namespace ClosureDimension {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1
      */
-    export declare class SetTargetRequest {
+    export class SetTargetRequest {
         constructor(values?: Partial<SetTargetRequest>);
 
         /**
@@ -1001,14 +1001,14 @@ export declare namespace ClosureDimension {
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1.3
          */
         speed?: ThreeLevelAuto;
-    };
+    }
 
     /**
      * This command is used to move a dimension of the closure to a target position by a number of steps.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2
      */
-    export declare class StepRequest {
+    export class StepRequest {
         constructor(values?: Partial<StepRequest>);
 
         /**
@@ -1036,7 +1036,7 @@ export declare namespace ClosureDimension {
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2.3
          */
         speed?: ThreeLevelAuto;
-    };
+    }
 
     /**
      * This data type is derived from enum8 and used for the Step command to indicate the direction of the steps.

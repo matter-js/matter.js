@@ -165,7 +165,7 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.7.2
      */
-    export declare class IcaccsrResponse {
+    export class IcaccsrResponse {
         constructor(values?: Partial<IcaccsrResponse>);
 
         /**
@@ -175,7 +175,7 @@ export declare namespace JointFabricAdministrator {
          * @see {@link MatterSpecification.v151.Core} § 11.25.7.2.1
          */
         icaccsr: Bytes;
-    };
+    }
 
     /**
      * This command shall be generated and executed during Joint Commissioning Method and subsequently be responded in
@@ -191,7 +191,7 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.7.3
      */
-    export declare class AddIcacRequest {
+    export class AddIcacRequest {
         constructor(values?: Partial<AddIcacRequest>);
 
         /**
@@ -200,14 +200,14 @@ export declare namespace JointFabricAdministrator {
          * @see {@link MatterSpecification.v151.Core} § 11.25.7.3.1
          */
         icacValue: Bytes;
-    };
+    }
 
     /**
      * This command shall be generated in response to the AddICAC command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.7.4
      */
-    export declare class IcacResponse {
+    export class IcacResponse {
         constructor(values?: Partial<IcacResponse>);
 
         /**
@@ -216,7 +216,7 @@ export declare namespace JointFabricAdministrator {
          * @see {@link MatterSpecification.v151.Core} § 11.25.7.4.1
          */
         statusCode: IcacResponseStatus;
-    };
+    }
 
     /**
      * > [!NOTE]
@@ -231,24 +231,24 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.7.5
      */
-    export declare class OpenJointCommissioningWindowRequest {
+    export class OpenJointCommissioningWindowRequest {
         constructor(values?: Partial<OpenJointCommissioningWindowRequest>);
         commissioningTimeout: number;
         pakePasscodeVerifier: Bytes;
         discriminator: number;
         iterations: number;
         salt: Bytes;
-    };
+    }
 
     /**
      * This command shall be generated in response to the Transfer Anchor Request command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.7.7
      */
-    export declare class TransferAnchorResponse {
+    export class TransferAnchorResponse {
         constructor(values?: Partial<TransferAnchorResponse>);
         statusCode: TransferAnchorResponseStatus;
-    };
+    }
 
     /**
      * This command shall be used for communicating to client the endpoint that holds the Joint Fabric Administrator
@@ -259,10 +259,10 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.7.9
      */
-    export declare class AnnounceJointFabricAdministratorRequest {
+    export class AnnounceJointFabricAdministratorRequest {
         constructor(values?: Partial<AnnounceJointFabricAdministratorRequest>);
         endpointId: EndpointNumber;
-    };
+    }
 
     /**
      * This enumeration is used by the AddICAC command to convey the outcome of this cluster's operations.

@@ -147,7 +147,7 @@ export declare namespace RvcRunMode {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 7.2.5.1
      */
-    export declare class ModeOption {
+    export class ModeOption {
         constructor(values?: Partial<ModeOption>);
 
         /**
@@ -205,14 +205,14 @@ export declare namespace RvcRunMode {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
-    };
+    }
 
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2
      */
-    export declare class ChangeToModeResponse {
+    export class ChangeToModeResponse {
         constructor(values?: Partial<ChangeToModeResponse>);
 
         /**
@@ -221,7 +221,7 @@ export declare namespace RvcRunMode {
         status: ModeChangeStatus | ModeBase.ModeChangeStatus;
 
         statusText: string;
-    };
+    }
 
     export enum ModeChangeStatus {
         /**
@@ -356,7 +356,7 @@ export declare namespace RvcRunMode {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
-    export declare class ModeTagStruct {
+    export class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
 
         /**
@@ -381,7 +381,7 @@ export declare namespace RvcRunMode {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

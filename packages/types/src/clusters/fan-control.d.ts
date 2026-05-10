@@ -608,7 +608,7 @@ export declare namespace FanControl {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.1
      */
-    export declare class Rock {
+    export class Rock {
         constructor(values?: Partial<Rock> | number);
 
         /**
@@ -625,12 +625,12 @@ export declare namespace FanControl {
          * Indicate rock around
          */
         rockRound?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.2
      */
-    export declare class Wind {
+    export class Wind {
         constructor(values?: Partial<Wind> | number);
 
         /**
@@ -651,7 +651,7 @@ export declare namespace FanControl {
          * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.2.2
          */
         naturalWind?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.4
@@ -689,7 +689,7 @@ export declare namespace FanControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1
      */
-    export declare class StepRequest {
+    export class StepRequest {
         constructor(values?: Partial<StepRequest>);
 
         /**
@@ -713,7 +713,7 @@ export declare namespace FanControl {
          * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1.3
          */
         lowestOff?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.3

@@ -24,7 +24,6 @@ import {
     Observable,
     Seconds,
     ServerAddress,
-    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -52,11 +51,13 @@ import {
     ControllerCommissioner,
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
+    DeviceAttestationValidator,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
     LocatedNodeCommissioningOptions,
+    OperationalAddress,
     Peer,
     PeerAddress,
     PeerLeftError,
@@ -203,6 +204,7 @@ export class CommissioningClient extends Behavior {
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
+            onAttestationFailure: options.onAttestationFailure,
             abort: options.abort,
             continueCommissioningAfterPase: options.continueCommissioningAfterPase,
             wifiNetwork: options.wifiNetwork,
@@ -429,7 +431,7 @@ export class CommissioningClient extends Behavior {
         const peers = node.env.get(PeerSet);
         peer = peers.addKnownPeer({
             address: addr,
-            operationalAddress: this.state.addresses?.find(a => ServerAddress.isIp(a)) as ServerAddressIp | undefined,
+            operationalAddress: OperationalAddress.from(this.state.addresses?.find(a => ServerAddress.isIp(a))),
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
             caseAuthenticatedTags: this.state.caseAuthenticatedTags,
         });
@@ -852,6 +854,12 @@ export namespace CommissioningClient {
          * Case Authenticated Tags (CATs)
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
+
+        /**
+         * Controls behavior when device attestation produces findings.
+         * See {@link ControllerCommissioningFlowOptions.onAttestationFailure} for details.
+         */
+        onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
 
         /**
          * WiFi network credentials to configure on the device during commissioning.  Required if the device connects

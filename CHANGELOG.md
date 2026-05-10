@@ -39,6 +39,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
+    - Feature: `onAttestationFailure` commissioning option for controlling attestation validation policy (true/false/callback with typed findings)
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: The new Supervision() factory allows for fine-grained control of validation for state, commands, and arbitrary JS values
     - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
@@ -55,6 +56,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes several crash or blocking cases around BLE and the usage in commissioning
 
 - @matter/nodejs-shell
+    - Feature: Added `cert check-revoked` command for checking certificate revocation data
     - Enhancement: Allows configuring whether test OTA images are also accepted when devices query for updates
 
 - @matter/tools
@@ -73,6 +75,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: matter.js now responds immediately to IP changes advertised via MDNS
     - Feature: (@adeepn) `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
+    - Feature: Device attestation validation during commissioning per Matter spec 6.2.3.1 — certificate chain verification, attestation signature/nonce, Certification Declaration validation, and certificate revocation checks via CRL
+    - Feature: Attestation findings model with error/warning/info levels and configurable policy callback for custom commissioning decisions
+    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL on demand, validates signer chain against trusted PAAs, verifies CRL signature and integrity
+    - Feature: `CertificationDeclaration.parse()` for CMS/PKCS#7 signed CD extraction and signature verification
+    - Enhancement: Attestation local checks (nonce, signature, VendorID, CD fields) run even without `DclCertificateService`; DCL-dependent checks (PAA trust, chain, revocation) require it
+    - Enhancement: Server-side `DeviceCertification` validates DAC/PAI VendorID and ProductID against product description at startup
     - Enhancement: Enhances the strategy when multiple devices are discovered for the same commissioning target
     - Enhancement: When multiple IP addresses are available for a device during commissioning, all are tried in parallel for faster connection
     - Enhancement: An `AbortSignal` can now be passed to cancel an in-progress commissioning attempt; the PASE layer sends `InvalidParameter` to avoid a 60-second device lockout
@@ -96,6 +104,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/react-native
     - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
+
+- @matter/tools
+    - Breaking: This package is no longer published and replaced in internal usage
+
+- @matter/types
+    - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
+    - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
+    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
 
 - @project-chip/matter.js
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated

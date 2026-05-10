@@ -241,7 +241,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.4.4
      */
-    export declare class ProviderLocation {
+    export class ProviderLocation {
         constructor(values?: Partial<ProviderLocation>);
 
         /**
@@ -262,7 +262,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
         endpoint: EndpointNumber;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.4.2
@@ -362,7 +362,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.6.1
      */
-    export declare class AnnounceOtaProviderRequest {
+    export class AnnounceOtaProviderRequest {
         constructor(values?: Partial<AnnounceOtaProviderRequest>);
 
         /**
@@ -412,7 +412,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
         endpoint: EndpointNumber;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This event shall be generated when a change of the UpdateState attribute occurs due to an OTA Requestor moving
@@ -420,7 +420,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.7.1
      */
-    export declare class StateTransitionEvent {
+    export class StateTransitionEvent {
         constructor(values?: Partial<StateTransitionEvent>);
 
         /**
@@ -452,7 +452,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v151.Core} § 11.20.7.7.1.4
          */
         targetSoftwareVersion: number | null;
-    };
+    }
 
     /**
      * This event shall be generated whenever a new version starts executing after being applied due to a software
@@ -460,7 +460,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.7.2
      */
-    export declare class VersionAppliedEvent {
+    export class VersionAppliedEvent {
         constructor(values?: Partial<VersionAppliedEvent>);
 
         /**
@@ -480,14 +480,14 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v151.Core} § 11.20.7.7.2.2
          */
         productId: number;
-    };
+    }
 
     /**
      * This event shall be generated whenever an error occurs during OTA Requestor download operation.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.7.3
      */
-    export declare class DownloadErrorEvent {
+    export class DownloadErrorEvent {
         constructor(values?: Partial<DownloadErrorEvent>);
 
         /**
@@ -523,7 +523,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v151.Core} § 11.20.7.7.3.4
          */
         platformCode: number | bigint | null;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.20.7.4.1

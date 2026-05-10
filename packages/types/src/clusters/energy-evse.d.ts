@@ -1133,7 +1133,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2
      */
-    export declare class EnableChargingRequest {
+    export class EnableChargingRequest {
         constructor(values?: Partial<EnableChargingRequest>);
 
         /**
@@ -1168,7 +1168,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2.3
          */
         maximumChargeCurrent: number | bigint;
-    };
+    }
 
     /**
      * Upon receipt, this shall allow a client to enable the discharge of an EV, and to provide or update the maximum
@@ -1176,7 +1176,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.3
      */
-    export declare class EnableDischargingRequest {
+    export class EnableDischargingRequest {
         constructor(values?: Partial<EnableDischargingRequest>);
 
         /**
@@ -1197,14 +1197,14 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.3.2
          */
         maximumDischargeCurrent: number | bigint;
-    };
+    }
 
     /**
      * Allows a client to set the user specified charging targets.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.5
      */
-    export declare class SetTargetsRequest {
+    export class SetTargetsRequest {
         constructor(values?: Partial<SetTargetsRequest>);
 
         /**
@@ -1215,14 +1215,14 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.5.1
          */
         chargingTargetSchedules: ChargingTargetSchedule[];
-    };
+    }
 
     /**
      * The GetTargetsResponse is sent in response to the GetTargets Command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.7
      */
-    export declare class GetTargetsResponse {
+    export class GetTargetsResponse {
         constructor(values?: Partial<GetTargetsResponse>);
 
         /**
@@ -1232,14 +1232,14 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.7.1
          */
         chargingTargetSchedules: ChargingTargetSchedule[];
-    };
+    }
 
     /**
      * This event shall be generated when the EV is plugged in.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.1
      */
-    export declare class EvConnectedEvent {
+    export class EvConnectedEvent {
         constructor(values?: Partial<EvConnectedEvent>);
 
         /**
@@ -1248,7 +1248,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.1.1
          */
         sessionId: number;
-    };
+    }
 
     /**
      * This event shall be generated when the EV is unplugged or not detected (having been previously plugged in). When
@@ -1256,7 +1256,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2
      */
-    export declare class EvNotDetectedEvent {
+    export class EvNotDetectedEvent {
         constructor(values?: Partial<EvNotDetectedEvent>);
 
         /**
@@ -1301,7 +1301,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.2.5
          */
         sessionEnergyDischarged?: number | bigint;
-    };
+    }
 
     /**
      * This event shall be generated whenever the EV starts charging or discharging, except when an EV has switched
@@ -1310,7 +1310,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3
      */
-    export declare class EnergyTransferStartedEvent {
+    export class EnergyTransferStartedEvent {
         constructor(values?: Partial<EnergyTransferStartedEvent>);
 
         /**
@@ -1347,7 +1347,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.3.4
          */
         maximumDischargeCurrent?: number | bigint;
-    };
+    }
 
     /**
      * This event shall be generated whenever the EV stops charging or discharging, except when an EV has switched
@@ -1356,7 +1356,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4
      */
-    export declare class EnergyTransferStoppedEvent {
+    export class EnergyTransferStoppedEvent {
         constructor(values?: Partial<EnergyTransferStoppedEvent>);
 
         /**
@@ -1395,7 +1395,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.4.5
          */
         energyDischarged?: number | bigint;
-    };
+    }
 
     /**
      * If the EVSE detects a fault it shall generate a Fault Event. The SupplyState attribute shall be set to
@@ -1410,7 +1410,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5
      */
-    export declare class FaultEvent {
+    export class FaultEvent {
         constructor(values?: Partial<FaultEvent>);
 
         /**
@@ -1441,7 +1441,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.5.4
          */
         faultStateCurrentState: FaultState;
-    };
+    }
 
     /**
      * This event shall be generated when a RFID card has been read. This allows a controller to register the card ID
@@ -1449,7 +1449,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.6
      */
-    export declare class RfidEvent {
+    export class RfidEvent {
         constructor(values?: Partial<RfidEvent>);
 
         /**
@@ -1458,12 +1458,12 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.10.6.1
          */
         uid: Bytes;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.1
      */
-    export declare class TargetDayOfWeek {
+    export class TargetDayOfWeek {
         constructor(values?: Partial<TargetDayOfWeek> | number);
 
         /**
@@ -1500,7 +1500,7 @@ export declare namespace EnergyEvse {
          * Saturday
          */
         saturday?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.5
@@ -1539,7 +1539,7 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6
      */
-    export declare class ChargingTarget {
+    export class ChargingTarget {
         constructor(values?: Partial<ChargingTarget>);
 
         /**
@@ -1618,14 +1618,14 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6.3
          */
         addedEnergy?: number | bigint;
-    };
+    }
 
     /**
      * This represents a set of user specified charging targets for an EV for a set of specified days.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.7
      */
-    export declare class ChargingTargetSchedule {
+    export class ChargingTargetSchedule {
         constructor(values?: Partial<ChargingTargetSchedule>);
 
         /**
@@ -1642,7 +1642,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.9
          */
         chargingTargets: ChargingTarget[];
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

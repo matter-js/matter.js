@@ -1908,7 +1908,7 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.5
      */
-    export declare class RemoteSensing {
+    export class RemoteSensing {
         constructor(values?: Partial<RemoteSensing> | number);
 
         /**
@@ -1925,7 +1925,7 @@ export declare namespace Thermostat {
          * Occupancy is derived from a remote node
          */
         occupancy?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.21
@@ -1945,7 +1945,7 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.4
      */
-    export declare class RelayState {
+    export class RelayState {
         constructor(values?: Partial<RelayState> | number);
 
         /**
@@ -1982,7 +1982,7 @@ export declare namespace Thermostat {
          * Fan 3^rd Stage On
          */
         fanStage3?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.17
@@ -2087,7 +2087,7 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.1
      */
-    export declare class AcErrorCode {
+    export class AcErrorCode {
         constructor(values?: Partial<AcErrorCode> | number);
 
         /**
@@ -2114,7 +2114,7 @@ export declare namespace Thermostat {
          * Fan Failure
          */
         fanFail?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.11
@@ -2159,7 +2159,7 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.2
      */
-    export declare class Occupancy {
+    export class Occupancy {
         constructor(values?: Partial<Occupancy> | number);
 
         /**
@@ -2171,7 +2171,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.2.1
          */
         occupied?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.20
@@ -2196,7 +2196,7 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.23
      */
-    export declare class PresetType {
+    export class PresetType {
         constructor(values?: Partial<PresetType>);
 
         /**
@@ -2219,12 +2219,12 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.23.3
          */
         presetTypeFeatures: PresetTypeFeatures;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.22
      */
-    export declare class Preset {
+    export class Preset {
         constructor(values?: Partial<Preset>);
 
         /**
@@ -2278,12 +2278,12 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.22.6
          */
         builtIn: boolean | null;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.27
      */
-    export declare class ScheduleType {
+    export class ScheduleType {
         constructor(values?: Partial<ScheduleType>);
 
         /**
@@ -2308,12 +2308,12 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.27.3
          */
         scheduleTypeFeatures: ScheduleTypeFeatures;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.25
      */
-    export declare class Schedule {
+    export class Schedule {
         constructor(values?: Partial<Schedule>);
 
         /**
@@ -2388,14 +2388,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.25.6
          */
         builtIn: boolean | null;
-    };
+    }
 
     /**
      * This command will raise or lower the setpoint based on the provided values.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.1
      */
-    export declare class SetpointRaiseLowerRequest {
+    export class SetpointRaiseLowerRequest {
         constructor(values?: Partial<SetpointRaiseLowerRequest>);
 
         /**
@@ -2412,14 +2412,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.1.2
          */
         amount: number;
-    };
+    }
 
     /**
      * This command will set the active preset to the provided preset handle.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.3
      */
-    export declare class SetActivePresetRequest {
+    export class SetActivePresetRequest {
         constructor(values?: Partial<SetActivePresetRequest>);
 
         /**
@@ -2429,14 +2429,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.3.1
          */
         presetHandle: Bytes | null;
-    };
+    }
 
     /**
      * This command will set the active schedule to the provided schedule handle.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.2
      */
-    export declare class SetActiveScheduleRequest {
+    export class SetActiveScheduleRequest {
         constructor(values?: Partial<SetActiveScheduleRequest>);
 
         /**
@@ -2445,26 +2445,26 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.2.1
          */
         scheduleHandle: Bytes;
-    };
+    }
 
-    export declare class AtomicRequest {
+    export class AtomicRequest {
         constructor(values?: Partial<AtomicRequest>);
         requestType: RequestType;
         attributeRequests: AttributeId[];
         timeout?: number;
-    };
+    }
 
-    export declare class AtomicResponse {
+    export class AtomicResponse {
         constructor(values?: Partial<AtomicResponse>);
         statusCode: Status;
         attributeStatus: Entry[];
         timeout?: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.3
      */
-    export declare class PresetTypeFeatures {
+    export class PresetTypeFeatures {
         constructor(values?: Partial<PresetTypeFeatures> | number);
 
         /**
@@ -2476,12 +2476,12 @@ export declare namespace Thermostat {
          * Preset supports user-provided names
          */
         supportsNames?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.6
      */
-    export declare class ScheduleTypeFeatures {
+    export class ScheduleTypeFeatures {
         constructor(values?: Partial<ScheduleTypeFeatures> | number);
 
         /**
@@ -2525,12 +2525,12 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.6.4
          */
         supportsOff?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.7
      */
-    export declare class ScheduleDayOfWeek {
+    export class ScheduleDayOfWeek {
         constructor(values?: Partial<ScheduleDayOfWeek> | number);
 
         /**
@@ -2572,12 +2572,12 @@ export declare namespace Thermostat {
          * Away or Vacation
          */
         away?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.8
      */
-    export declare class ScheduleMode {
+    export class ScheduleMode {
         constructor(values?: Partial<ScheduleMode> | number);
 
         /**
@@ -2589,7 +2589,7 @@ export declare namespace Thermostat {
          * Adjust Cool Setpoint
          */
         coolSetpointPresent?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.14
@@ -2700,7 +2700,7 @@ export declare namespace Thermostat {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.24
      */
-    export declare class WeeklyScheduleTransition {
+    export class WeeklyScheduleTransition {
         constructor(values?: Partial<WeeklyScheduleTransition>);
 
         /**
@@ -2725,7 +2725,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.24.3
          */
         coolSetpoint: number | null;
-    };
+    }
 
     /**
      * This struct provides a time of day and a set of days of the week for a state transition within a schedule. The
@@ -2789,7 +2789,7 @@ export declare namespace Thermostat {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.26
      */
-    export declare class ScheduleTransition {
+    export class ScheduleTransition {
         constructor(values?: Partial<ScheduleTransition>);
 
         /**
@@ -2842,18 +2842,18 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.26.6
          */
         heatingSetpoint?: number;
-    };
+    }
 
     export enum RequestType {
         BeginWrite = 0,
         CommitWrite = 1,
         RollbackWrite = 2
     }
-    export declare class Entry {
+    export class Entry {
         constructor(values?: Partial<Entry>);
         attributeId: AttributeId;
         statusCode: Status;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

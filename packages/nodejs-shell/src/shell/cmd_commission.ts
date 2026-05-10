@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, MatterError } from "@matter/general";
+import { Diagnostic, Logger, MatterError } from "@matter/general";
 import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, QrPairingCodeCodec } from "@matter/types";
 import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning } from "@matter/types/clusters";
 import { NodeCommissioningOptions } from "@project-chip/matter.js";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 import { createDiagnosticCallbacks } from "./cmd_nodes.js";
+
+const logger = Logger.get("Commission");
 
 export default function commands(theNode: MatterNode) {
     return {
@@ -130,13 +132,34 @@ export default function commands(theNode: MatterNode) {
                                         ...createDiagnosticCallbacks(),
                                     } as NodeCommissioningOptions;
 
+                                    // Attestation policy: strict rejects errors but allows warnings/info
+                                    const strictAttestation = await theNode.Store.get<boolean>(
+                                        "StrictAttestationValidation",
+                                        false,
+                                    );
+
                                     options.commissioning = {
                                         nodeId: nodeId !== undefined ? NodeId(nodeId) : undefined,
                                         regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Set to the most restrictive if relevant
                                         regulatoryCountryCode: "XX",
+                                        onAttestationFailure: findings => {
+                                            const accept = strictAttestation
+                                                ? findings.every(f => f.level !== "error")
+                                                : true;
+                                            for (const f of findings) {
+                                                logger.info(
+                                                    `Attestation finding ${accept ? "accepted" : "rejected"} (${f.level}):`,
+                                                    f.type,
+                                                    f.message,
+                                                );
+                                            }
+                                            return accept;
+                                        },
                                     };
 
                                     console.log(Diagnostic.json(options));
+
+                                    await theNode.certificateService();
 
                                     if (theNode.Store.has("WiFiSsid") && theNode.Store.has("WiFiPassword")) {
                                         options.commissioning.wifiNetwork = {

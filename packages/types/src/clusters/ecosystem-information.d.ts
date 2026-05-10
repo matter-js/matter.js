@@ -128,7 +128,7 @@ export declare namespace EcosystemInformation {
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.17.4.2
      */
-    export declare class EcosystemDevice {
+    export class EcosystemDevice {
         constructor(values?: Partial<EcosystemDevice>);
 
         /**
@@ -200,12 +200,12 @@ export declare namespace EcosystemInformation {
         uniqueLocationIDsLastEdit: number | bigint;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.17.4.3
      */
-    export declare class EcosystemLocation {
+    export class EcosystemLocation {
         constructor(values?: Partial<EcosystemLocation>);
 
         /**
@@ -253,7 +253,7 @@ export declare namespace EcosystemInformation {
         locationDescriptorLastEdit: number | bigint;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
@@ -261,7 +261,7 @@ export declare namespace EcosystemInformation {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.17.4.1
      */
-    export declare class DeviceType {
+    export class DeviceType {
         constructor(values?: Partial<DeviceType>);
 
         /**
@@ -277,7 +277,7 @@ export declare namespace EcosystemInformation {
          * @see {@link MatterSpecification.v151.Core} § 9.17.4.1.2
          */
         revision: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

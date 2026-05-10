@@ -246,7 +246,7 @@ export declare namespace ModeBase {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2
      */
-    export declare class ModeOption {
+    export class ModeOption {
         constructor(values?: Partial<ModeOption>);
 
         /**
@@ -304,7 +304,7 @@ export declare namespace ModeBase {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
-    };
+    }
 
     /**
      * This command is used to change device modes.
@@ -313,7 +313,7 @@ export declare namespace ModeBase {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
      */
-    export declare class ChangeToModeRequest {
+    export class ChangeToModeRequest {
         constructor(values?: Partial<ChangeToModeRequest>);
 
         /**
@@ -342,14 +342,14 @@ export declare namespace ModeBase {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1.1
          */
         newMode: number;
-    };
+    }
 
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2
      */
-    export declare class ChangeToModeResponse {
+    export class ChangeToModeResponse {
         constructor(values?: Partial<ChangeToModeResponse>);
 
         /**
@@ -358,14 +358,14 @@ export declare namespace ModeBase {
         status: ModeChangeStatus;
 
         statusText: string;
-    };
+    }
 
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
-    export declare class ModeTagStruct {
+    export class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
 
         /**
@@ -390,7 +390,7 @@ export declare namespace ModeBase {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag;
-    };
+    }
 
     export enum ModeChangeStatus {
         /**

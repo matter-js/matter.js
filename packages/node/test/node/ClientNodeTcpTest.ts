@@ -229,4 +229,29 @@ describe("ClientNodeTcp", () => {
             expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
     });
+
+    describe("soft TCP preference fallback", () => {
+        it("connects via UDP when transportPreference=TCP but device does not advertise TCP server", async () => {
+            await using site = new MockSite();
+            // Controller has TCP enabled, device does not — so the device mDNS will not advertise the
+            // TCP server bit and the soft preference must be suppressed at the connect path.
+            const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
+
+            const peer = protocolPeer(controller);
+            expect(peer.descriptor.discoveryData?.T?.tcpServer).not.true;
+
+            // Opt the peer into TCP preference. Without the soft-fallback fix this would lock the
+            // connect process to TCP-only and never establish a session.
+            peer.transportPreference = ChannelType.TCP;
+
+            // Force a fresh connect by closing the existing session, then asking for one again.
+            const oldSession = peer.newestSession();
+            expect(oldSession).not.undefined;
+            await oldSession!.initiateClose();
+
+            const newSession = await MockTime.resolve(peer.connect(), { macrotasks: true });
+            expect(newSession).not.undefined;
+            expect(newSession!.channel.transportChannel.type).equals(ChannelType.UDP);
+        });
+    });
 });

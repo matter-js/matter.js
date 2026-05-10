@@ -66,7 +66,7 @@ export declare namespace Label {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.7.4.1
      */
-    export declare class LabelStruct {
+    export class LabelStruct {
         constructor(values?: Partial<LabelStruct>);
 
         /**
@@ -87,7 +87,7 @@ export declare namespace Label {
          * @see {@link MatterSpecification.v151.Core} § 9.7.4.1.2
          */
         value: string;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

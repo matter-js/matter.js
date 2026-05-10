@@ -278,7 +278,7 @@ export declare namespace ThreadBorderRouterManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.3.6.3
      */
-    export declare class DatasetResponse {
+    export class DatasetResponse {
         constructor(values?: Partial<DatasetResponse>);
 
         /**
@@ -291,7 +291,7 @@ export declare namespace ThreadBorderRouterManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 10.3.6.3.1
          */
         dataset: Bytes;
-    };
+    }
 
     /**
      * This command shall be used to set the active Dataset of the Thread network to which the Border Router is
@@ -299,7 +299,7 @@ export declare namespace ThreadBorderRouterManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.3.6.4
      */
-    export declare class SetActiveDatasetRequest {
+    export class SetActiveDatasetRequest {
         constructor(values?: Partial<SetActiveDatasetRequest>);
 
         /**
@@ -317,7 +317,7 @@ export declare namespace ThreadBorderRouterManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 10.3.6.4.2
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * This command shall be used to set or update the pending Dataset of the Thread network to which the Border Router
@@ -339,10 +339,10 @@ export declare namespace ThreadBorderRouterManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.3.6.5
      */
-    export declare class SetPendingDatasetRequest {
+    export class SetPendingDatasetRequest {
         constructor(values?: Partial<SetPendingDatasetRequest>);
         pendingDataset: Bytes;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

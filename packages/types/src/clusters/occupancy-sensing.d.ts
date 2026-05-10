@@ -422,7 +422,7 @@ export declare namespace OccupancySensing {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.1
      */
-    export declare class Occupancy {
+    export class Occupancy {
         constructor(values?: Partial<Occupancy> | number);
 
         /**
@@ -434,7 +434,7 @@ export declare namespace OccupancySensing {
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.1.1
          */
         occupied?: boolean;
-    };
+    }
 
     /**
      * > [!NOTE]
@@ -474,7 +474,7 @@ export declare namespace OccupancySensing {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.2
      */
-    export declare class OccupancySensorTypeBitmap {
+    export class OccupancySensorTypeBitmap {
         constructor(values?: Partial<OccupancySensorTypeBitmap> | number);
 
         /**
@@ -491,14 +491,14 @@ export declare namespace OccupancySensing {
          * Indicates a physical contact sensor.
          */
         physicalContact?: boolean;
-    };
+    }
 
     /**
      * This structure provides information on the server's supported values for the HoldTime attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4
      */
-    export declare class HoldTimeLimits {
+    export class HoldTimeLimits {
         constructor(values?: Partial<HoldTimeLimits>);
 
         /**
@@ -524,14 +524,14 @@ export declare namespace OccupancySensing {
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.3
          */
         holdTimeDefault: number;
-    };
+    }
 
     /**
      * If this event is supported, it shall be generated when the Occupancy attribute changes.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.7.1
      */
-    export declare class OccupancyChangedEvent {
+    export class OccupancyChangedEvent {
         constructor(values?: Partial<OccupancyChangedEvent>);
 
         /**
@@ -540,7 +540,7 @@ export declare namespace OccupancySensing {
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.7.1.1
          */
         occupancy: Occupancy;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

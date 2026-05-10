@@ -421,7 +421,7 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.5.6
      */
-    export declare class NetworkInterface {
+    export class NetworkInterface {
         constructor(values?: Partial<NetworkInterface>);
 
         /**
@@ -489,7 +489,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.5.6.8
          */
         type: InterfaceType;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.12.5.5
@@ -699,7 +699,7 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.7.1
      */
-    export declare class TestEventTriggerRequest {
+    export class TestEventTriggerRequest {
         constructor(values?: Partial<TestEventTriggerRequest>);
 
         /**
@@ -746,7 +746,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.7.1.2
          */
         eventTrigger: number | bigint;
-    };
+    }
 
     /**
      * This command shall be generated in response to a TimeSnapshot command.
@@ -759,7 +759,7 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.7.3
      */
-    export declare class TimeSnapshotResponse {
+    export class TimeSnapshotResponse {
         constructor(values?: Partial<TimeSnapshotResponse>);
 
         /**
@@ -785,7 +785,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.7.3.2
          */
         posixTimeMs: number | bigint | null;
-    };
+    }
 
     /**
      * This command provides a means for certification tests or manufacturer's internal tests to validate particular
@@ -799,7 +799,7 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.7.4
      */
-    export declare class PayloadTestRequest {
+    export class PayloadTestRequest {
         constructor(values?: Partial<PayloadTestRequest>);
 
         /**
@@ -822,14 +822,14 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.7.4.3
          */
         count: number;
-    };
+    }
 
     /**
      * This command is sent by the server on receipt of the PayloadTestRequest command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.7.5
      */
-    export declare class PayloadTestResponse {
+    export class PayloadTestResponse {
         constructor(values?: Partial<PayloadTestResponse>);
 
         /**
@@ -838,14 +838,14 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.7.5.1
          */
         payload: Bytes;
-    };
+    }
 
     /**
      * The BootReason Event shall indicate the reason that caused the device to start-up.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.8.4
      */
-    export declare class BootReasonEvent {
+    export class BootReasonEvent {
         constructor(values?: Partial<BootReasonEvent>);
 
         /**
@@ -854,7 +854,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.8.4.1
          */
         bootReason: BootReason;
-    };
+    }
 
     /**
      * The HardwareFaultChange Event shall indicate a change in the set of hardware faults currently detected by the
@@ -862,7 +862,7 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.8.1
      */
-    export declare class HardwareFaultChangeEvent {
+    export class HardwareFaultChangeEvent {
         constructor(values?: Partial<HardwareFaultChangeEvent>);
 
         /**
@@ -878,14 +878,14 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.8.1.2
          */
         previous: HardwareFault[];
-    };
+    }
 
     /**
      * The RadioFaultChange Event shall indicate a change in the set of radio faults currently detected by the Node.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.8.2
      */
-    export declare class RadioFaultChangeEvent {
+    export class RadioFaultChangeEvent {
         constructor(values?: Partial<RadioFaultChangeEvent>);
 
         /**
@@ -901,14 +901,14 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.8.2.2
          */
         previous: RadioFault[];
-    };
+    }
 
     /**
      * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by the Node.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.12.8.3
      */
-    export declare class NetworkFaultChangeEvent {
+    export class NetworkFaultChangeEvent {
         constructor(values?: Partial<NetworkFaultChangeEvent>);
 
         /**
@@ -924,7 +924,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.8.3.2
          */
         previous: NetworkFault[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.12.5.4

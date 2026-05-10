@@ -215,7 +215,7 @@ export declare namespace GroupKeyManagement {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.2.5.3
      */
-    export declare class GroupKeyMap {
+    export class GroupKeyMap {
         constructor(values?: Partial<GroupKeyMap>);
 
         /**
@@ -236,12 +236,12 @@ export declare namespace GroupKeyManagement {
         groupKeySetId: number;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.2.5.5
      */
-    export declare class GroupInfoMap {
+    export class GroupInfoMap {
         constructor(values?: Partial<GroupInfoMap>);
 
         /**
@@ -267,7 +267,7 @@ export declare namespace GroupKeyManagement {
         groupName?: string;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used by Administrators to set the state of a given Group Key Set, including atomically updating
@@ -275,20 +275,20 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.2.7.1
      */
-    export declare class KeySetWriteRequest {
+    export class KeySetWriteRequest {
         constructor(values?: Partial<KeySetWriteRequest>);
         groupKeySet: GroupKeySet;
-    };
+    }
 
     /**
      * This command is used by Administrators to read the state of a given Group Key Set.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.2.7.2
      */
-    export declare class KeySetReadRequest {
+    export class KeySetReadRequest {
         constructor(values?: Partial<KeySetReadRequest>);
         groupKeySetId: number;
-    };
+    }
 
     /**
      * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
@@ -297,20 +297,20 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.2.7.3
      */
-    export declare class KeySetReadResponse {
+    export class KeySetReadResponse {
         constructor(values?: Partial<KeySetReadResponse>);
         groupKeySet: GroupKeySet;
-    };
+    }
 
     /**
      * This command is used by Administrators to remove all state of a given Group Key Set.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.2.7.4
      */
-    export declare class KeySetRemoveRequest {
+    export class KeySetRemoveRequest {
         constructor(values?: Partial<KeySetRemoveRequest>);
         groupKeySetId: number;
-    };
+    }
 
     /**
      * This command shall be generated in response to KeySetReadAllIndices and it shall contain the list of
@@ -318,7 +318,7 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.2.7.6
      */
-    export declare class KeySetReadAllIndicesResponse {
+    export class KeySetReadAllIndicesResponse {
         constructor(values?: Partial<KeySetReadAllIndicesResponse>);
 
         /**
@@ -330,7 +330,7 @@ export declare namespace GroupKeyManagement {
          * @see {@link MatterSpecification.v151.Core} § 11.2.7.6.1
          */
         groupKeySetIDs: number[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.2.5.1
@@ -373,7 +373,7 @@ export declare namespace GroupKeyManagement {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.2.5.4
      */
-    export declare class GroupKeySet {
+    export class GroupKeySet {
         constructor(values?: Partial<GroupKeySet>);
 
         /**
@@ -461,7 +461,7 @@ export declare namespace GroupKeyManagement {
         groupKeyMulticastPolicy?: GroupKeyMulticastPolicy;
 
         fabricIndex?: FabricIndex;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

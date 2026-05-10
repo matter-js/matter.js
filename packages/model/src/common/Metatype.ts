@@ -100,6 +100,30 @@ export namespace Metatype {
                       : never;
 
     /**
+     * Shape of {@link cast}: a generic call signature for dispatch + per-metatype converters.
+     */
+    interface Cast {
+        <const T extends `${Metatype}`>(type: T, value: unknown): Native<T>;
+        any: (value: unknown) => unknown;
+        boolean: (value: unknown) => boolean | null | undefined;
+        bitmap: (value: any) => number | bigint | Record<string, number> | null | undefined;
+        enum: (value: any) => number | string | null | undefined;
+        integer: (value: any) => number | bigint | null | undefined;
+        float: (value: any) => number | null | undefined;
+        bytes: (value: any) => Bytes | null | undefined;
+        array: (value: any) => Array<unknown> | null | undefined;
+        object: (value: any) => Record<string, unknown> | null | undefined;
+        string: (value: any) => string | null | undefined;
+        date: (value: any) => Date | null | undefined;
+        duration: (value: any) => Duration | null | undefined;
+    }
+
+    function castFn<const T extends `${Metatype}`>(type: T, value: unknown): Native<T> {
+        const caster = cast[type as Exclude<keyof Cast, never>];
+        return caster(value) as Native<T>;
+    }
+
+    /**
      * Functions that perform conversion of arbitrary values to a metatype.
      *
      * This is a "best effort" that ensures the value is an appropriate JS type but cannot ensure semantic validity in
@@ -107,250 +131,250 @@ export namespace Metatype {
      *
      * @throws {@link UnsupportedCastError} if the cast is deemed impossible
      */
-    export function cast<const T extends `${Metatype}`>(type: T, value: unknown) {
-        const caster = cast[type];
-        return caster(value) as Native<T>;
-    }
+    export const cast: Cast = Object.assign(castFn, {
+        any: (value: unknown) => value,
 
-    cast.any = (value: unknown) => value;
-
-    cast.boolean = (value: unknown): boolean | null | undefined => {
-        if (typeof value === "boolean" || value === null || value === undefined) {
-            return value;
-        }
-
-        if (typeof value === "string") {
-            const normalized = value.toLowerCase().trim();
-            switch (normalized) {
-                case "":
-                case "0":
-                case "off":
-                case "no":
-                case "false":
-                    return false;
-
-                case "1":
-                case "on":
-                case "yes":
-                case "true":
-                    return true;
+        boolean: (value: unknown): boolean | null | undefined => {
+            if (typeof value === "boolean" || value === null || value === undefined) {
+                return value;
             }
-        }
 
-        if (typeof value === "number" || typeof value === "bigint") {
-            return !!value;
-        }
+            if (typeof value === "string") {
+                const normalized = value.toLowerCase().trim();
+                switch (normalized) {
+                    case "":
+                    case "0":
+                    case "off":
+                    case "no":
+                    case "false":
+                        return false;
 
-        if (ArrayBuffer.isView(value)) {
-            for (const byte of new Uint8Array(value.buffer)) {
-                if (byte) {
-                    return true;
+                    case "1":
+                    case "on":
+                    case "yes":
+                    case "true":
+                        return true;
                 }
             }
-            return false;
-        }
 
-        throw new UnsupportedCastError(`Cannot convert "${value}" to boolean`);
-    };
+            if (typeof value === "number" || typeof value === "bigint") {
+                return !!value;
+            }
 
-    cast.bitmap = (value: any): number | bigint | Record<string, number> | null | undefined => {
-        if (value === null || value === undefined) {
-            return value;
-        }
+            if (ArrayBuffer.isView(value)) {
+                for (const byte of new Uint8Array(value.buffer)) {
+                    if (byte) {
+                        return true;
+                    }
+                }
+                return false;
+            }
 
-        if (typeof value === "string") {
-            value = cast.integer(value);
-        }
+            throw new UnsupportedCastError(`Cannot convert "${value}" to boolean`);
+        },
 
-        if (typeof value === "number") {
+        bitmap: (value: any): number | bigint | Record<string, number> | null | undefined => {
+            if (value === null || value === undefined) {
+                return value;
+            }
+
+            if (typeof value === "string") {
+                value = cast.integer(value);
+            }
+
+            if (typeof value === "number") {
+                if (Number.isFinite(value)) {
+                    return value;
+                }
+            } else if (typeof value === "bigint") {
+                return value;
+            } else if (isObject(value)) {
+                return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, cast.integer(v)])) as Record<
+                    string,
+                    number
+                >;
+            }
+
+            throw new UnsupportedCastError(`Cannot convert "${value}" to bitmap`);
+        },
+
+        enum: (value: any): number | string | null | undefined => {
+            if (typeof value === "string") {
+                if (value.trim().match(/^(?:\d+|0x[0-9a-f]+|0b[01]+)$/)) {
+                    value = Number.parseInt(value);
+                } else {
+                    return value;
+                }
+            }
+
+            if (typeof value === "number" && Number.isFinite(value)) {
+                return value;
+            }
+
+            throw new UnsupportedCastError(`Cannot convert "${value}" to an enum value`);
+        },
+
+        integer: (value: any): number | bigint | null | undefined => {
+            if (value === null || value === undefined) {
+                return value;
+            }
+
+            switch (typeof value) {
+                case "number":
+                    return Math.floor(value);
+
+                case "bigint":
+                    return value;
+
+                case "boolean":
+                    return value ? 1 : 0;
+            }
+
+            if (value instanceof Date) {
+                return value.getTime();
+            }
+
+            if (typeof value === "string") {
+                try {
+                    const big = BigInt(value);
+                    const little = Number.parseInt(value);
+                    if (big === BigInt(little)) {
+                        return little;
+                    }
+                    return big;
+                } catch (e) {
+                    if (!(e instanceof SyntaxError)) {
+                        throw e;
+                    }
+                }
+            }
+
+            throw new UnsupportedCastError(`Cannot convert "${value}" to an integer`);
+        },
+
+        float: (value: any): number | null | undefined => {
+            if (typeof value === "number" || value === null || value === undefined) {
+                return value;
+            }
+
+            if (value instanceof Date) {
+                return value.getTime();
+            }
+
+            const number = Number(value);
             if (Number.isFinite(value)) {
+                return number;
+            }
+
+            throw new UnsupportedCastError(`Cannot convert "${value}" to a float`);
+        },
+
+        bytes: (value: any): Bytes | null | undefined => {
+            if (value === undefined || value === null || Bytes.isBytes(value)) {
                 return value;
             }
-        } else if (typeof value === "bigint") {
-            return value;
-        } else if (isObject(value)) {
-            return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, cast.integer(v)])) as Record<
-                string,
-                number
-            >;
-        }
 
-        throw new UnsupportedCastError(`Cannot convert "${value}" to bitmap`);
-    };
+            if (typeof value === "string") {
+                return Bytes.fromHex(value);
+            }
 
-    cast.enum = (value: any): number | string | null | undefined => {
-        if (typeof value === "string") {
-            if (value.trim().match(/^(?:\d+|0x[0-9a-f]+|0b[01]+)$/)) {
-                value = Number.parseInt(value);
-            } else {
+            if (typeof value === "boolean") {
+                return new Uint8Array([value ? 1 : 0]);
+            }
+
+            if (typeof value === "number" || typeof value === "bigint") {
+                return Bytes.fromHex(value.toString(16));
+            }
+
+            throw new UnsupportedCastError(`Cannot convert "${value}" to bytes`);
+        },
+
+        array: (value: any): Array<unknown> | null | undefined => {
+            if (value === undefined || value === null || Array.isArray(value)) {
                 return value;
             }
-        }
 
-        if (typeof value === "number" && Number.isFinite(value)) {
-            return value;
-        }
-
-        throw new UnsupportedCastError(`Cannot convert "${value}" to an enum value`);
-    };
-
-    cast.integer = (value: any): number | bigint | null | undefined => {
-        if (value === null || value === undefined) {
-            return value;
-        }
-
-        switch (typeof value) {
-            case "number":
-                return Math.floor(value);
-
-            case "bigint":
-                return value;
-
-            case "boolean":
-                return value ? 1 : 0;
-        }
-
-        if (value instanceof Date) {
-            return value.getTime();
-        }
-
-        if (typeof value === "string") {
-            try {
-                const big = BigInt(value);
-                const little = Number.parseInt(value);
-                if (big === BigInt(little)) {
-                    return little;
-                }
-                return big;
-            } catch (e) {
-                if (!(e instanceof SyntaxError)) {
-                    throw e;
+            if (typeof value === "string") {
+                try {
+                    const parsed = JSON.parse(value);
+                    if (Array.isArray(parsed)) {
+                        return parsed;
+                    }
+                } catch (e) {
+                    if (!(e instanceof SyntaxError)) {
+                        throw e;
+                    }
                 }
             }
-        }
 
-        throw new UnsupportedCastError(`Cannot convert "${value}" to an integer`);
-    };
+            throw new UnsupportedCastError(`Cannot convert "${value}" to array`);
+        },
 
-    cast.float = (value: any): number | null | undefined => {
-        if (typeof value === "number" || value === null || value === undefined) {
-            return value;
-        }
+        object: (value: any): Record<string, unknown> | null | undefined => {
+            if (
+                value === undefined ||
+                (typeof value === "object" && !Array.isArray(value) && !(value instanceof Date))
+            ) {
+                return value;
+            }
 
-        if (value instanceof Date) {
-            return value.getTime();
-        }
-
-        const number = Number(value);
-        if (Number.isFinite(value)) {
-            return number;
-        }
-
-        throw new UnsupportedCastError(`Cannot convert "${value}" to a float`);
-    };
-
-    cast.bytes = (value: any): Bytes | null | undefined => {
-        if (value === undefined || value === null || Bytes.isBytes(value)) {
-            return value;
-        }
-
-        if (typeof value === "string") {
-            return Bytes.fromHex(value);
-        }
-
-        if (typeof value === "boolean") {
-            return new Uint8Array([value ? 1 : 0]);
-        }
-
-        if (typeof value === "number" || typeof value === "bigint") {
-            return Bytes.fromHex(value.toString(16));
-        }
-
-        throw new UnsupportedCastError(`Cannot convert "${value}" to bytes`);
-    };
-
-    cast.array = (value: any): Array<unknown> | null | undefined => {
-        if (value === undefined || value === null || Array.isArray(value)) {
-            return value;
-        }
-
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value);
-                if (Array.isArray(parsed)) {
+            if (typeof value === "string") {
+                try {
+                    const parsed = JSON.parse(value);
                     return parsed;
-                }
-            } catch (e) {
-                if (!(e instanceof SyntaxError)) {
-                    throw e;
-                }
-            }
-        }
-
-        throw new UnsupportedCastError(`Cannot convert "${value}" to array`);
-    };
-
-    cast.object = (value: any): Record<string, unknown> | null | undefined => {
-        if (value === undefined || (typeof value === "object" && !Array.isArray(value) && !(value instanceof Date))) {
-            return value;
-        }
-
-        if (typeof value === "string") {
-            try {
-                const parsed = JSON.parse(value);
-                return parsed;
-            } catch (e) {
-                if (!(e instanceof SyntaxError)) {
-                    throw e;
+                } catch (e) {
+                    if (!(e instanceof SyntaxError)) {
+                        throw e;
+                    }
                 }
             }
-        }
 
-        throw new UnsupportedCastError(`Cannot convert "${value}" to object`);
-    };
+            throw new UnsupportedCastError(`Cannot convert "${value}" to object`);
+        },
 
-    cast.string = (value: any): string | null | undefined => {
-        if (value === undefined || value === null) {
-            return value;
-        }
-
-        if (typeof value === "string") {
-            return value;
-        }
-
-        if (value instanceof Date) {
-            return value.toISOString();
-        }
-
-        if (typeof value === "object" || Array.isArray(value)) {
-            return JSON.stringify(value);
-        }
-
-        return value.toString();
-    };
-
-    cast.date = (value: any): Date | null | undefined => {
-        if (value === undefined || value === null || value instanceof Date) {
-            return value;
-        }
-
-        if (typeof value === "number" || typeof value === "string") {
-            const date = new Date(value);
-            if (Number.isFinite(date.getTime())) {
-                return date;
+        string: (value: any): string | null | undefined => {
+            if (value === undefined || value === null) {
+                return value;
             }
-        }
 
-        throw new UnexpectedDataError("Invalid date value");
-    };
+            if (typeof value === "string") {
+                return value;
+            }
 
-    cast.duration = (value: any): Duration | null | undefined => {
-        if (value === undefined || value === null) {
-            return value;
-        }
+            if (value instanceof Date) {
+                return value.toISOString();
+            }
 
-        return Duration(value);
-    };
+            if (typeof value === "object" || Array.isArray(value)) {
+                return JSON.stringify(value);
+            }
+
+            return value.toString();
+        },
+
+        date: (value: any): Date | null | undefined => {
+            if (value === undefined || value === null || value instanceof Date) {
+                return value;
+            }
+
+            if (typeof value === "number" || typeof value === "string") {
+                const date = new Date(value);
+                if (Number.isFinite(date.getTime())) {
+                    return date;
+                }
+            }
+
+            throw new UnexpectedDataError("Invalid date value");
+        },
+
+        duration: (value: any): Duration | null | undefined => {
+            if (value === undefined || value === null) {
+                return value;
+            }
+
+            return Duration(value);
+        },
+    });
 
     /**
      * These are the native types used by this module.

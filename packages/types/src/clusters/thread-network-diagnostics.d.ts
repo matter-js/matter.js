@@ -1300,7 +1300,7 @@ export declare namespace ThreadNetworkDiagnostics {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.14.5.4
      */
-    export declare class NeighborTable {
+    export class NeighborTable {
         constructor(values?: Partial<NeighborTable>);
 
         /**
@@ -1418,12 +1418,12 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.14.5.4.14
          */
         isChild: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.14.5.5
      */
-    export declare class RouteTable {
+    export class RouteTable {
         constructor(values?: Partial<RouteTable>);
 
         /**
@@ -1506,12 +1506,12 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.14.5.5.10
          */
         linkEstablished: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.14.5.6
      */
-    export declare class SecurityPolicy {
+    export class SecurityPolicy {
         constructor(values?: Partial<SecurityPolicy>);
 
         /**
@@ -1529,12 +1529,12 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.14.5.6.2
          */
         flags: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.14.5.7
      */
-    export declare class OperationalDatasetComponents {
+    export class OperationalDatasetComponents {
         constructor(values?: Partial<OperationalDatasetComponents>);
 
         /**
@@ -1622,7 +1622,7 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.14.5.7.12
          */
         channelMaskPresent: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.14.5.1
@@ -1654,17 +1654,17 @@ export declare namespace ThreadNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.14.8.2
      */
-    export declare class ConnectionStatusEvent {
+    export class ConnectionStatusEvent {
         constructor(values?: Partial<ConnectionStatusEvent>);
         connectionStatus: ConnectionStatus;
-    };
+    }
 
     /**
      * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by the Node.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.14.8.1
      */
-    export declare class NetworkFaultChangeEvent {
+    export class NetworkFaultChangeEvent {
         constructor(values?: Partial<NetworkFaultChangeEvent>);
 
         /**
@@ -1682,7 +1682,7 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.14.8.1.2
          */
         previous: NetworkFault[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.14.5.2

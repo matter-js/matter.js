@@ -506,7 +506,7 @@ export declare namespace ValveConfigurationAndControl {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.6.5.1
      */
-    export declare class ValveFault {
+    export class ValveFault {
         constructor(values?: Partial<ValveFault> | number);
 
         /**
@@ -538,14 +538,14 @@ export declare namespace ValveConfigurationAndControl {
          * The available current has been exceeded
          */
         currentExceeded?: boolean;
-    };
+    }
 
     /**
      * This command is used to set the valve to its open position.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.1
      */
-    export declare class OpenRequest {
+    export class OpenRequest {
         constructor(values?: Partial<OpenRequest>);
 
         /**
@@ -564,7 +564,7 @@ export declare namespace ValveConfigurationAndControl {
          * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.1.2
          */
         targetLevel?: number;
-    };
+    }
 
     /**
      * This event shall be generated when the valve state changed. For level changes, after the end of movement, for
@@ -572,7 +572,7 @@ export declare namespace ValveConfigurationAndControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1
      */
-    export declare class ValveStateChangedEvent {
+    export class ValveStateChangedEvent {
         constructor(values?: Partial<ValveStateChangedEvent>);
 
         /**
@@ -588,7 +588,7 @@ export declare namespace ValveConfigurationAndControl {
          * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1.2
          */
         valveLevel?: number;
-    };
+    }
 
     /**
      * This event shall be generated when the valve registers or clears a fault, e.g. not being able to transition to
@@ -596,7 +596,7 @@ export declare namespace ValveConfigurationAndControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.2
      */
-    export declare class ValveFaultEvent {
+    export class ValveFaultEvent {
         constructor(values?: Partial<ValveFaultEvent>);
 
         /**
@@ -605,7 +605,7 @@ export declare namespace ValveConfigurationAndControl {
          * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.2.1
          */
         valveFault: ValveFault;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.6.6.1

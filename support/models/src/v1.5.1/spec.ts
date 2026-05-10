@@ -16273,26 +16273,39 @@ export const SpecMatter = Matter(
             details: "This attribute contains the value of the index field of the currently selected OutputInfoStruct."
         }),
 
-        Command({
-            name: "SelectOutput", id: 0x0, access: "O", conformance: "M", direction: "request",
-            response: "status", xref: "cluster§6.5.7.1",
+        Command(
+            {
+                name: "SelectOutput", id: 0x0, access: "O", conformance: "M", direction: "request",
+                response: "status", xref: "cluster§6.5.7.1",
 
-            details: "Upon receipt, this shall change the output on the device to the output at a specific index in the " +
-                "Output List." +
-                "\n" +
-                "Note that when the current output is set to an output of type HDMI, adjustments to volume via a " +
-                "Speaker endpoint on the same node may cause HDMI volume up/down commands to be sent to the given " +
-                "HDMI output."
-        }),
+                details: "Upon receipt, this shall change the output on the device to the output at a specific index in the " +
+                    "Output List." +
+                    "\n" +
+                    "Note that when the current output is set to an output of type HDMI, adjustments to volume via a " +
+                    "Speaker endpoint on the same node may cause HDMI volume up/down commands to be sent to the given " +
+                    "HDMI output."
+            },
 
-        Command({
-            name: "RenameOutput", id: 0x1, access: "M", conformance: "NU", direction: "request",
-            response: "status", xref: "cluster§6.5.7.2",
-            details: "Upon receipt, this shall rename the output at a specific index in the Output List." +
-                "\n" +
-                "Updates to the output name shall appear in the device's settings menus. Name updates may " +
-                "automatically be sent to the actual device to which the output connects."
-        }),
+            Field({
+                name: "Index", id: 0x0, type: "uint8", conformance: "M", xref: "cluster§6.5.7.1.1",
+                details: "This shall indicate the index field of the OutputInfoStruct from the OutputList attribute in which " +
+                    "to change to."
+            })
+        ),
+
+        Command(
+            {
+                name: "RenameOutput", id: 0x1, access: "M", conformance: "NU", direction: "request",
+                response: "status", xref: "cluster§6.5.7.2",
+                details: "Upon receipt, this shall rename the output at a specific index in the Output List." +
+                    "\n" +
+                    "Updates to the output name shall appear in the device's settings menus. Name updates may " +
+                    "automatically be sent to the actual device to which the output connects."
+            },
+
+            Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" }),
+            Field({ name: "Name", id: 0x1, type: "string", conformance: "M", constraint: "max 32" })
+        ),
 
         Datatype(
             {

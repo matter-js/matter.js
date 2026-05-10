@@ -875,7 +875,7 @@ export declare namespace TimeSynchronization {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.17.6.4
      */
-    export declare class TrustedTimeSource {
+    export class TrustedTimeSource {
         constructor(values?: Partial<TrustedTimeSource>);
 
         /**
@@ -899,12 +899,12 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.6.4.3
          */
         endpoint: EndpointNumber;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.17.6.6
      */
-    export declare class TimeZone {
+    export class TimeZone {
         constructor(values?: Partial<TimeZone>);
 
         /**
@@ -930,12 +930,12 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.6.6.3
          */
         name?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.17.6.7
      */
-    export declare class DstOffset {
+    export class DstOffset {
         constructor(values?: Partial<DstOffset>);
 
         /**
@@ -961,7 +961,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.6.7.3
          */
         validUntil: number | bigint | null;
-    };
+    }
 
     /**
      * It indicates what the device knows about the contents of the IANA Time Zone Database. Partial support on a device
@@ -1007,7 +1007,7 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.1
      */
-    export declare class SetUtcTimeRequest {
+    export class SetUtcTimeRequest {
         constructor(values?: Partial<SetUtcTimeRequest>);
 
         /**
@@ -1030,7 +1030,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.3
          */
         timeSource?: TimeSource;
-    };
+    }
 
     /**
      * This command is used to set the TrustedTimeSource attribute.
@@ -1046,7 +1046,7 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.2
      */
-    export declare class SetTrustedTimeSourceRequest {
+    export class SetTrustedTimeSourceRequest {
         constructor(values?: Partial<SetTrustedTimeSourceRequest>);
 
         /**
@@ -1057,7 +1057,7 @@ export declare namespace TimeSynchronization {
         trustedTimeSource: FabricScopedTrustedTimeSource | null;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to set the DefaultNTP attribute.
@@ -1070,7 +1070,7 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.6
      */
-    export declare class SetDefaultNtpRequest {
+    export class SetDefaultNtpRequest {
         constructor(values?: Partial<SetDefaultNtpRequest>);
 
         /**
@@ -1080,7 +1080,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.6.1
          */
         defaultNtp: string | null;
-    };
+    }
 
     /**
      * This command is used to set the time zone of the node.
@@ -1101,10 +1101,10 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.3
      */
-    export declare class SetTimeZoneRequest {
+    export class SetTimeZoneRequest {
         constructor(values?: Partial<SetTimeZoneRequest>);
         timeZone: TimeZone[];
-    };
+    }
 
     /**
      * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
@@ -1112,7 +1112,7 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.4
      */
-    export declare class SetTimeZoneResponse {
+    export class SetTimeZoneResponse {
         constructor(values?: Partial<SetTimeZoneResponse>);
 
         /**
@@ -1123,7 +1123,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.4.1
          */
         dstOffsetRequired: boolean;
-    };
+    }
 
     /**
      * This command is used to set the DST offsets for a node.
@@ -1141,17 +1141,17 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.5
      */
-    export declare class SetDstOffsetRequest {
+    export class SetDstOffsetRequest {
         constructor(values?: Partial<SetDstOffsetRequest>);
         dstOffset: DstOffset[];
-    };
+    }
 
     /**
      * This event shall be generated when the node starts or stops applying a DST offset.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.10.2
      */
-    export declare class DstStatusEvent {
+    export class DstStatusEvent {
         constructor(values?: Partial<DstStatusEvent>);
 
         /**
@@ -1161,7 +1161,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.10.2.1
          */
         dstOffsetActive: boolean;
-    };
+    }
 
     /**
      * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for DST
@@ -1169,7 +1169,7 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.10.3
      */
-    export declare class TimeZoneStatusEvent {
+    export class TimeZoneStatusEvent {
         constructor(values?: Partial<TimeZoneStatusEvent>);
 
         /**
@@ -1186,12 +1186,12 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.10.3.2
          */
         name?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.17.6.5
      */
-    export declare class FabricScopedTrustedTimeSource {
+    export class FabricScopedTrustedTimeSource {
         constructor(values?: Partial<FabricScopedTrustedTimeSource>);
 
         /**
@@ -1209,7 +1209,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.6.5.2
          */
         endpoint: EndpointNumber;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.17.7.1

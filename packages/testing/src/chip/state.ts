@@ -45,6 +45,7 @@ const Values = {
     singleUseSubject: false,
     closers: Array<() => Promise<void>>(),
     subjects: new Map<Subject.Factory, Record<string, Subject>>(),
+    subjectsByApp: new Map<string, Subject.Factory>(),
     snapshots: new Map<Subject, {}>(),
     containerLifecycleInstalled: false,
     testMap: new Map<TestDescriptor, Test>(),
@@ -80,6 +81,17 @@ export const State = {
         }
 
         return subject;
+    },
+
+    registerSubjectForApp(app: string, factory: Subject.Factory) {
+        if (Values.subjectsByApp.has(app)) {
+            throw new Error(`Subject factory already registered for app "${app}"`);
+        }
+        Values.subjectsByApp.set(app, factory);
+    },
+
+    subjectForApp(app: string): Subject.Factory | undefined {
+        return Values.subjectsByApp.get(app);
     },
 
     get pullBeforeTesting() {
@@ -277,14 +289,15 @@ export const State = {
         startCommissioned: boolean,
         test: Test,
         beforeStart?: chip.BeforeHook,
+        appArgs?: string[],
     ) {
         let subject;
         if (startCommissioned) {
             // We cache commissioned subjects
-            subject = loadSubject(factory, test.descriptor.kind);
+            subject = loadSubject(factory, test.descriptor.kind, appArgs);
         } else {
             // No need to cache uncommissioned subjects
-            subject = factory(test.descriptor.kind ?? "unknown");
+            subject = factory(test.descriptor.kind ?? "unknown", { appArgs });
         }
 
         if (Values.activeSubject === subject) {
@@ -572,8 +585,12 @@ async function configureLocalController() {
 
 /**
  * Obtain a subject.  Subjects are qualified by factory and test domain.
+ *
+ * appArgs are forwarded to the factory only on first construct — subsequent restores reuse the cached subject so
+ * commissioning/fabric stays stable across runs that share a factory (chip multi-run tests often differ only in
+ * script-side flags like --app-pipe / --test-case which the in-process subject does not care about).
  */
-function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"]) {
+function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"], appArgs?: string[]) {
     let forFactory = Values.subjects.get(factory);
     if (forFactory === undefined) {
         Values.subjects.set(factory, (forFactory = {}));
@@ -581,7 +598,7 @@ function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"]) {
 
     let subject = forFactory[kind];
     if (subject === undefined) {
-        subject = forFactory[kind] = factory(kind);
+        subject = forFactory[kind] = factory(kind, { appArgs });
     }
 
     return subject;

@@ -434,19 +434,19 @@ export declare namespace BooleanStateConfiguration {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.8.5.2
      */
-    export declare class SensorFault {
+    export class SensorFault {
         constructor(values?: Partial<SensorFault> | number);
 
         /**
          * Unspecified fault detected
          */
         generalFault?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.8.5.1
      */
-    export declare class AlarmMode {
+    export class AlarmMode {
         constructor(values?: Partial<AlarmMode> | number);
 
         /**
@@ -458,14 +458,14 @@ export declare namespace BooleanStateConfiguration {
          * Audible alarming
          */
         audible?: boolean;
-    };
+    }
 
     /**
      * This command allows setting the enable or disable value for the specified alarm modes.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.2
      */
-    export declare class EnableDisableAlarmRequest {
+    export class EnableDisableAlarmRequest {
         constructor(values?: Partial<EnableDisableAlarmRequest>);
 
         /**
@@ -475,14 +475,14 @@ export declare namespace BooleanStateConfiguration {
          * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.2.1
          */
         alarmsToEnableDisable: AlarmMode;
-    };
+    }
 
     /**
      * This command will suppress the alarm modes specified.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.1
      */
-    export declare class SuppressAlarmRequest {
+    export class SuppressAlarmRequest {
         constructor(values?: Partial<SuppressAlarmRequest>);
 
         /**
@@ -491,14 +491,14 @@ export declare namespace BooleanStateConfiguration {
          * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.1.1
          */
         alarmsToSuppress: AlarmMode;
-    };
+    }
 
     /**
      * This event shall be generated when the device registers or clears a fault.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2
      */
-    export declare class SensorFaultEvent {
+    export class SensorFaultEvent {
         constructor(values?: Partial<SensorFaultEvent>);
 
         /**
@@ -507,7 +507,7 @@ export declare namespace BooleanStateConfiguration {
          * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2.1
          */
         sensorFault: SensorFault;
-    };
+    }
 
     /**
      * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressed attributes change. This
@@ -520,7 +520,7 @@ export declare namespace BooleanStateConfiguration {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1
      */
-    export declare class AlarmsStateChangedEvent {
+    export class AlarmsStateChangedEvent {
         constructor(values?: Partial<AlarmsStateChangedEvent>);
 
         /**
@@ -538,7 +538,7 @@ export declare namespace BooleanStateConfiguration {
          * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1.2
          */
         alarmsSuppressed?: AlarmMode;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

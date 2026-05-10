@@ -162,9 +162,7 @@ export default function commands(theNode: MatterNode) {
                             if (dd.VP) console.log(`    Vendor/Prod:  ${dd.VP}`);
                             if (dd.DT !== undefined) console.log(`    Device Type:  ${dd.DT}`);
                             if (dd.T !== undefined) {
-                                const tcpClient = !!(dd.T & 0x02);
-                                const tcpServer = !!(dd.T & 0x04);
-                                console.log(`    TCP Support:  T=${dd.T} (client=${tcpClient}, server=${tcpServer})`);
+                                console.log(`    TCP Support:  client=${dd.T.tcpClient}, server=${dd.T.tcpServer}`);
                             } else {
                                 console.log(`    TCP Support:  not advertised`);
                             }

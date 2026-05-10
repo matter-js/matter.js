@@ -596,7 +596,7 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.4
      */
-    export declare class Area {
+    export class Area {
         constructor(values?: Partial<Area>);
 
         /**
@@ -631,14 +631,14 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.4.3
          */
         areaInfo: AreaInfo;
-    };
+    }
 
     /**
      * This is a struct representing a map.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.3
      */
-    export declare class Map {
+    export class Map {
         constructor(values?: Partial<Map>);
 
         /**
@@ -656,14 +656,14 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.3.2
          */
         name: string;
-    };
+    }
 
     /**
      * This is a struct indicating the progress.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.5
      */
-    export declare class Progress {
+    export class Progress {
         constructor(values?: Partial<Progress>);
 
         /**
@@ -712,7 +712,7 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.5.4
          */
         estimatedTime?: number | null;
-    };
+    }
 
     /**
      * This command is used to select a set of device areas, where the device is to operate.
@@ -721,7 +721,7 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.7.1
      */
-    export declare class SelectAreasRequest {
+    export class SelectAreasRequest {
         constructor(values?: Partial<SelectAreasRequest>);
 
         /**
@@ -734,14 +734,14 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.7.1.1
          */
         newAreas: number[];
-    };
+    }
 
     /**
      * This command is sent by the device on receipt of the SelectAreas command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.7.2
      */
-    export declare class SelectAreasResponse {
+    export class SelectAreasResponse {
         constructor(values?: Partial<SelectAreasResponse>);
 
         /**
@@ -759,7 +759,7 @@ export declare namespace ServiceArea {
         status: SelectAreasStatus;
 
         statusText: string;
-    };
+    }
 
     /**
      * This command is used to skip the given area, and to attempt operating at other areas on the SupportedAreas
@@ -769,7 +769,7 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.7.3
      */
-    export declare class SkipAreaRequest {
+    export class SkipAreaRequest {
         constructor(values?: Partial<SkipAreaRequest>);
 
         /**
@@ -780,14 +780,14 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.7.3.1
          */
         skippedArea: number;
-    };
+    }
 
     /**
      * This command is sent by the device on receipt of the SkipArea command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.7.4
      */
-    export declare class SkipAreaResponse {
+    export class SkipAreaResponse {
         constructor(values?: Partial<SkipAreaResponse>);
 
         /**
@@ -805,14 +805,14 @@ export declare namespace ServiceArea {
         status: SkipAreaStatus;
 
         statusText: string;
-    };
+    }
 
     /**
      * The data from this structure indicates a landmark and position relative to the landmark.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.1
      */
-    export declare class LandmarkInfo {
+    export class LandmarkInfo {
         constructor(values?: Partial<LandmarkInfo>);
 
         /**
@@ -841,7 +841,7 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.1.2
          */
         relativePositionTag: number | null;
-    };
+    }
 
     /**
      * The data from this structure indicates the name and/or semantic data describing an area, as detailed below.
@@ -881,7 +881,7 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.2
      */
-    export declare class AreaInfo {
+    export class AreaInfo {
         constructor(values?: Partial<AreaInfo>);
 
         /**
@@ -913,7 +913,7 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.2.2
          */
         landmarkInfo: LandmarkInfo | null;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.6

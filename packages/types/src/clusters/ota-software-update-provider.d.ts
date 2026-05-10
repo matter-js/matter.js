@@ -84,7 +84,7 @@ export declare namespace OtaSoftwareUpdateProvider {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1
      */
-    export declare class QueryImageRequest {
+    export class QueryImageRequest {
         constructor(values?: Partial<QueryImageRequest>);
 
         /**
@@ -183,14 +183,14 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.8
          */
         metadataForProvider?: Bytes;
-    };
+    }
 
     /**
      * This command is sent in response to the QueryImage command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2
      */
-    export declare class QueryImageResponse {
+    export class QueryImageResponse {
         constructor(values?: Partial<QueryImageResponse>);
 
         /**
@@ -383,14 +383,14 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.8
          */
         metadataForRequestor?: Bytes;
-    };
+    }
 
     /**
      * This command requests the specified version be installed on the device.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.3
      */
-    export declare class ApplyUpdateRequest {
+    export class ApplyUpdateRequest {
         constructor(values?: Partial<ApplyUpdateRequest>);
 
         /**
@@ -410,14 +410,14 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.3.2
          */
         newVersion: number;
-    };
+    }
 
     /**
      * This command is sent in response to the ApplyUpdateRequest command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.4
      */
-    export declare class ApplyUpdateResponse {
+    export class ApplyUpdateResponse {
         constructor(values?: Partial<ApplyUpdateResponse>);
 
         /**
@@ -438,14 +438,14 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.4.2
          */
         delayedActionTime: number;
-    };
+    }
 
     /**
      * This command tells the Provider that the specified update has been applied.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.5
      */
-    export declare class NotifyUpdateAppliedRequest {
+    export class NotifyUpdateAppliedRequest {
         constructor(values?: Partial<NotifyUpdateAppliedRequest>);
 
         /**
@@ -463,7 +463,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.5.2
          */
         softwareVersion: number;
-    };
+    }
 
     /**
      * See Section 11.20.3.2, "Querying the OTA Provider" for the semantics of these values.

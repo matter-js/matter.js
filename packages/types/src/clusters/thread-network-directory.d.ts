@@ -188,7 +188,7 @@ export declare namespace ThreadNetworkDirectory {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1
      */
-    export declare class ThreadNetwork {
+    export class ThreadNetwork {
         constructor(values?: Partial<ThreadNetwork>);
 
         /**
@@ -218,7 +218,7 @@ export declare namespace ThreadNetworkDirectory {
          * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1.4
          */
         activeTimestamp: number | bigint;
-    };
+    }
 
     /**
      * Adds an entry to the ThreadNetworks attribute with the specified Thread Operational Dataset.
@@ -229,7 +229,7 @@ export declare namespace ThreadNetworkDirectory {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1
      */
-    export declare class AddNetworkRequest {
+    export class AddNetworkRequest {
         constructor(values?: Partial<AddNetworkRequest>);
 
         /**
@@ -240,37 +240,37 @@ export declare namespace ThreadNetworkDirectory {
          * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1.1
          */
         operationalDataset: Bytes;
-    };
+    }
 
     /**
      * Removes the network with the given Extended PAN ID from the ThreadNetworks attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.2
      */
-    export declare class RemoveNetworkRequest {
+    export class RemoveNetworkRequest {
         constructor(values?: Partial<RemoveNetworkRequest>);
         extendedPanId: Bytes;
-    };
+    }
 
     /**
      * Retrieves the Thread Operational Dataset with the given Extended PAN ID.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.3
      */
-    export declare class GetOperationalDatasetRequest {
+    export class GetOperationalDatasetRequest {
         constructor(values?: Partial<GetOperationalDatasetRequest>);
         extendedPanId: Bytes;
-    };
+    }
 
     /**
      * Contains the Thread Operational Dataset for the Extended PAN specified in GetOperationalDataset.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.4
      */
-    export declare class OperationalDatasetResponse {
+    export class OperationalDatasetResponse {
         constructor(values?: Partial<OperationalDatasetResponse>);
         operationalDataset: Bytes;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -562,11 +562,11 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.7
      */
-    export declare class MultiPressCompleteEvent {
+    export class MultiPressCompleteEvent {
         constructor(values?: Partial<MultiPressCompleteEvent>);
         previousPosition: number;
         totalNumberOfPressesCounted: number;
-    };
+    }
 
     /**
      * This event shall be generated, when the latching switch is moved to a new position. It may have been delayed by
@@ -574,7 +574,7 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.1
      */
-    export declare class SwitchLatchedEvent {
+    export class SwitchLatchedEvent {
         constructor(values?: Partial<SwitchLatchedEvent>);
 
         /**
@@ -583,14 +583,14 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.1.1
          */
         newPosition: number;
-    };
+    }
 
     /**
      * This event shall be generated, when the momentary switch starts to be pressed (after debouncing).
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.2
      */
-    export declare class InitialPressEvent {
+    export class InitialPressEvent {
         constructor(values?: Partial<InitialPressEvent>);
 
         /**
@@ -599,7 +599,7 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.2.1
          */
         newPosition: number;
-    };
+    }
 
     /**
      * This event shall be generated when the momentary switch has been pressed for a "long" time. The time interval
@@ -634,7 +634,7 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.3
      */
-    export declare class LongPressEvent {
+    export class LongPressEvent {
         constructor(values?: Partial<LongPressEvent>);
 
         /**
@@ -643,7 +643,7 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.3.1
          */
         newPosition: number;
-    };
+    }
 
     /**
      * This event shall be generated, when the momentary switch has been released (after debouncing) and after having
@@ -653,7 +653,7 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.5
      */
-    export declare class LongReleaseEvent {
+    export class LongReleaseEvent {
         constructor(values?: Partial<LongReleaseEvent>);
 
         /**
@@ -662,7 +662,7 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.5.1
          */
         previousPosition: number;
-    };
+    }
 
     /**
      * If the server has the Action Switch (AS) feature flag set, this event shall NOT be generated at all, since
@@ -681,7 +681,7 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.4
      */
-    export declare class ShortReleaseEvent {
+    export class ShortReleaseEvent {
         constructor(values?: Partial<ShortReleaseEvent>);
 
         /**
@@ -690,7 +690,7 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.4.1
          */
         previousPosition: number;
-    };
+    }
 
     /**
      * If the server has the Action Switch (AS) feature flag set, this event shall NOT be generated at all. Otherwise,
@@ -701,7 +701,7 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6
      */
-    export declare class MultiPressOngoingEvent {
+    export class MultiPressOngoingEvent {
         constructor(values?: Partial<MultiPressOngoingEvent>);
 
         /**
@@ -723,7 +723,7 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6.2
          */
         currentNumberOfPressesCounted: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

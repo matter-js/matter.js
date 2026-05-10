@@ -7,6 +7,7 @@
 import { Environment, RuntimeService } from "@matter/main";
 import { Subject } from "@matter/testing";
 import { AllClustersTestInstance } from "../src/AllClustersTestInstance.js";
+import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
 import { NodeTestInstance } from "../src/NodeTestInstance.js";
@@ -23,7 +24,7 @@ NodeTestInstance.nonvolatileEvents = true;
 NodeTestInstance.testEnableKey = "000102030405060708090a0b0c0d0e0f";
 
 export function App(implementation: DeviceTestInstanceConstructor<NodeTestInstance>): Subject.Factory {
-    const factory = (domain: string) => {
+    const factory: Subject.Factory = (domain: string, options?: Subject.Options) => {
         return new implementation({
             domain,
             async commandPipeFactory(_subject, name) {
@@ -31,6 +32,7 @@ export function App(implementation: DeviceTestInstanceConstructor<NodeTestInstan
             },
             discriminator: 3840,
             passcode: 20202021,
+            appArgs: options?.appArgs,
         });
     };
 
@@ -40,8 +42,18 @@ export function App(implementation: DeviceTestInstanceConstructor<NodeTestInstan
 }
 
 export const AllClustersApp = App(AllClustersTestInstance);
+export const AllDevicesApp = App(AllDevicesTestInstance);
 export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);
 export const RvcApp = App(RvcTestInstance);
+
+// chip-test-header app names (after generate-test-descriptor normalization: strip ${...},
+// CHIP_/_APP affixes, lower-kebab-case) → factory. When a python test descriptor names an
+// app via chip header `app: ${FOO_APP}`, the framework dispatches to the matching factory.
+chip.subjectFor("all-clusters", AllClustersApp);
+chip.subjectFor("all-devices", AllDevicesApp);
+chip.subjectFor("bridge", BridgeApp);
+chip.subjectFor("tv", TvApp);
+chip.subjectFor("rvc", RvcApp);
 
 chip.defaultSubject = AllClustersApp;

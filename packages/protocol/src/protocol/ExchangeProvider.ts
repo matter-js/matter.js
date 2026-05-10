@@ -46,6 +46,13 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
 
     /** Required transport type for this exchange. If set, only sessions of this transport type are used. */
     requiredTransport?: ChannelType;
+
+    /**
+     * Per-call soft transport preference. Honored only when the peer advertises matching server
+     * capability; otherwise the connect path falls back to UDP. Has no effect when
+     * {@link requiredTransport} is set.
+     */
+    preferredTransport?: ChannelType;
 }
 
 /**

@@ -675,7 +675,7 @@ export declare namespace WindowCovering {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1
      */
-    export declare class ConfigStatus {
+    export class ConfigStatus {
         constructor(values?: Partial<ConfigStatus> | number);
 
         /**
@@ -759,7 +759,7 @@ export declare namespace WindowCovering {
          * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.6
          */
         tiltEncoderControlled?: boolean;
-    };
+    }
 
     /**
      * The OperationalStatusBitmap is using several internal operational state fields (composed of 2 bits) following
@@ -775,7 +775,7 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3
      */
-    export declare class OperationalStatus {
+    export class OperationalStatus {
         constructor(values?: Partial<OperationalStatus> | number);
 
         /**
@@ -805,7 +805,7 @@ export declare namespace WindowCovering {
          * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3.3
          */
         tilt?: MovementStatus;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.6
@@ -940,7 +940,7 @@ export declare namespace WindowCovering {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2
      */
-    export declare class Mode {
+    export class Mode {
         constructor(values?: Partial<Mode> | number);
 
         /**
@@ -994,12 +994,12 @@ export declare namespace WindowCovering {
          * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2.4
          */
         ledFeedback?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.4
      */
-    export declare class SafetyStatus {
+    export class SafetyStatus {
         constructor(values?: Partial<SafetyStatus> | number);
 
         /**
@@ -1064,7 +1064,7 @@ export declare namespace WindowCovering {
          * Protection is activated.
          */
         protection?: boolean;
-    };
+    }
 
     /**
      * This command is used to set the target lift position of the window covering to the percentage value specified in
@@ -1087,10 +1087,10 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.4
      */
-    export declare class GoToLiftPercentageRequest {
+    export class GoToLiftPercentageRequest {
         constructor(values?: Partial<GoToLiftPercentageRequest>);
         liftPercent100thsValue: number;
-    };
+    }
 
     /**
      * This command is used to set the target tilt position of the window covering to the percentage value specified in
@@ -1113,10 +1113,10 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.5
      */
-    export declare class GoToTiltPercentageRequest {
+    export class GoToTiltPercentageRequest {
         constructor(values?: Partial<GoToTiltPercentageRequest>);
         tiltPercent100thsValue: number;
-    };
+    }
 
     /**
      * Values for OperationalStatus attribute fields.
