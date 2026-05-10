@@ -438,6 +438,20 @@ describe("Logger", () => {
         });
     });
 
+    describe("LogFormat.format", () => {
+        it("renders plain string with default format", () => {
+            expect(LogFormat.format("hello")).equal("hello");
+        });
+
+        it("renders structured value to plain text", () => {
+            expect(LogFormat.format(Diagnostic.dict({ foo: "bar", biz: 1 }))).equal("foo: bar biz: 1");
+        });
+
+        it("renders with named format", () => {
+            expect(LogFormat.format(Diagnostic.strong("hello"), LogFormat.ANSI)).equal("[1mhello[0m");
+        });
+    });
+
     describe("setFormat", () => {
         it("throws if format is unknown", () => {
             let message;
