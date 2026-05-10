@@ -357,7 +357,7 @@ export declare namespace OnOff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.4
      */
-    export declare class OffWithEffectRequest {
+    export class OffWithEffectRequest {
         constructor(values?: Partial<OffWithEffectRequest>);
 
         /**
@@ -377,7 +377,7 @@ export declare namespace OnOff {
          * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.4.2
          */
         effectVariant: number;
-    };
+    }
 
     /**
      * This command allows devices to be turned on for a specific duration with a guarded off duration so that SHOULD
@@ -387,7 +387,7 @@ export declare namespace OnOff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6
      */
-    export declare class OnWithTimedOffRequest {
+    export class OnWithTimedOffRequest {
         constructor(values?: Partial<OnWithTimedOffRequest>);
 
         /**
@@ -410,19 +410,19 @@ export declare namespace OnOff {
          * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6.3
          */
         offWaitTime: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.1
      */
-    export declare class OnOffControl {
+    export class OnOffControl {
         constructor(values?: Partial<OnOffControl> | number);
 
         /**
          * Indicates a command is only accepted when in On state.
          */
         acceptOnlyWhenOn?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.3

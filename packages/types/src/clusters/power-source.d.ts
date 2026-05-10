@@ -1656,7 +1656,7 @@ export declare namespace PowerSource {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.7.8.1
      */
-    export declare class WiredFaultChangeEvent {
+    export class WiredFaultChangeEvent {
         constructor(values?: Partial<WiredFaultChangeEvent>);
 
         /**
@@ -1672,7 +1672,7 @@ export declare namespace PowerSource {
          * @see {@link MatterSpecification.v151.Core} § 11.7.8.1.2
          */
         previous: WiredFault[];
-    };
+    }
 
     /**
      * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on this
@@ -1680,7 +1680,7 @@ export declare namespace PowerSource {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.7.8.2
      */
-    export declare class BatFaultChangeEvent {
+    export class BatFaultChangeEvent {
         constructor(values?: Partial<BatFaultChangeEvent>);
 
         /**
@@ -1696,7 +1696,7 @@ export declare namespace PowerSource {
          * @see {@link MatterSpecification.v151.Core} § 11.7.8.2.2
          */
         previous: BatFault[];
-    };
+    }
 
     /**
      * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the Node on
@@ -1704,7 +1704,7 @@ export declare namespace PowerSource {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.7.8.3
      */
-    export declare class BatChargeFaultChangeEvent {
+    export class BatChargeFaultChangeEvent {
         constructor(values?: Partial<BatChargeFaultChangeEvent>);
 
         /**
@@ -1721,7 +1721,7 @@ export declare namespace PowerSource {
          * @see {@link MatterSpecification.v151.Core} § 11.7.8.3.2
          */
         previous: BatChargeFault[];
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

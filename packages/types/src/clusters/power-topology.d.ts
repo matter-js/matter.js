@@ -139,7 +139,7 @@ export declare namespace PowerTopology {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.8.5.1
      */
-    export declare class CircuitNode {
+    export class CircuitNode {
         constructor(values?: Partial<CircuitNode>);
 
         /**
@@ -166,7 +166,7 @@ export declare namespace PowerTopology {
         label?: string;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

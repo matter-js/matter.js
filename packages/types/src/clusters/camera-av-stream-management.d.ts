@@ -1098,7 +1098,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.6
      */
-    export declare class VideoSensorParams {
+    export class VideoSensorParams {
         constructor(values?: Partial<VideoSensorParams>);
 
         /**
@@ -1134,7 +1134,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.6.4
          */
         maxHdrfps?: number;
-    };
+    }
 
     /**
      * This object defines the resolution parameters in pixels which can be used for defining the resolutions of
@@ -1142,7 +1142,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.7
      */
-    export declare class VideoResolution {
+    export class VideoResolution {
         constructor(values?: Partial<VideoResolution>);
 
         /**
@@ -1158,7 +1158,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.7.2
          */
         height: number;
-    };
+    }
 
     /**
      * This struct is used to define a set of parameters of the hardware video encoder that alter the rate distortion
@@ -1166,7 +1166,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.8
      */
-    export declare class RateDistortionTradeOffPoints {
+    export class RateDistortionTradeOffPoints {
         constructor(values?: Partial<RateDistortionTradeOffPoints>);
 
         /**
@@ -1190,14 +1190,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.8.3
          */
         minBitRate: number;
-    };
+    }
 
     /**
      * This struct is used to capture all constituent parameters of a video stream in order to fully characterize it.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.11
      */
-    export declare class VideoStream {
+    export class VideoStream {
         constructor(values?: Partial<VideoStream>);
 
         /**
@@ -1298,7 +1298,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.11.13
          */
         referenceCount: number;
-    };
+    }
 
     /**
      * This data type is derived from enum8 and is used for tri-state settings on a device, where a setting can be in
@@ -1328,7 +1328,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.10
      */
-    export declare class AudioCapabilities {
+    export class AudioCapabilities {
         constructor(values?: Partial<AudioCapabilities>);
 
         /**
@@ -1360,14 +1360,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.10.4
          */
         supportedBitDepths: number[];
-    };
+    }
 
     /**
      * This struct is used to capture all constituent parameters of an audio stream in order to fully characterize it.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.12
      */
-    export declare class AudioStream {
+    export class AudioStream {
         constructor(values?: Partial<AudioStream>);
 
         /**
@@ -1431,7 +1431,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.12.8
          */
         referenceCount: number;
-    };
+    }
 
     /**
      * This data type provides an enumeration of the different modes of bi-directional audio communication that are
@@ -1462,7 +1462,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.9
      */
-    export declare class SnapshotCapabilities {
+    export class SnapshotCapabilities {
         constructor(values?: Partial<SnapshotCapabilities>);
 
         /**
@@ -1509,14 +1509,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.9.5
          */
         requiresHardwareEncoder?: boolean;
-    };
+    }
 
     /**
      * This struct is used to capture all constituent parameters of a snapshot stream in order to fully characterize it.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.13
      */
-    export declare class SnapshotStream {
+    export class SnapshotStream {
         constructor(values?: Partial<SnapshotStream>);
 
         /**
@@ -1608,7 +1608,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.13.11
          */
         osdEnabled?: boolean;
-    };
+    }
 
     /**
      * This command shall set the relative priorities of the various stream usages on the camera. The camera then bases
@@ -1619,7 +1619,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.12
      */
-    export declare class SetStreamPrioritiesRequest {
+    export class SetStreamPrioritiesRequest {
         constructor(values?: Partial<SetStreamPrioritiesRequest>);
 
         /**
@@ -1630,14 +1630,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.12.1
          */
         streamPriorities: StreamUsage[];
-    };
+    }
 
     /**
      * This command shall allocate a video stream on the camera and return an allocated video stream identifier.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.4
      */
-    export declare class VideoStreamAllocateRequest {
+    export class VideoStreamAllocateRequest {
         constructor(values?: Partial<VideoStreamAllocateRequest>);
 
         /**
@@ -1719,7 +1719,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.4.11
          */
         osdEnabled?: boolean;
-    };
+    }
 
     /**
      * This command shall be sent by the camera in response to the VideoStreamAllocate command, carrying the newly
@@ -1727,7 +1727,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.5
      */
-    export declare class VideoStreamAllocateResponse {
+    export class VideoStreamAllocateResponse {
         constructor(values?: Partial<VideoStreamAllocateResponse>);
 
         /**
@@ -1736,14 +1736,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.5.1
          */
         videoStreamId: number;
-    };
+    }
 
     /**
      * This command shall deallocate a video stream on the camera, corresponding to the given video stream identifier.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.7
      */
-    export declare class VideoStreamDeallocateRequest {
+    export class VideoStreamDeallocateRequest {
         constructor(values?: Partial<VideoStreamDeallocateRequest>);
 
         /**
@@ -1752,14 +1752,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.7.1
          */
         videoStreamId: number;
-    };
+    }
 
     /**
      * This command shall allocate an audio stream on the camera and return an allocated audio stream identifier.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.1
      */
-    export declare class AudioStreamAllocateRequest {
+    export class AudioStreamAllocateRequest {
         constructor(values?: Partial<AudioStreamAllocateRequest>);
 
         /**
@@ -1807,7 +1807,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.1.6
          */
         bitDepth: number;
-    };
+    }
 
     /**
      * This command shall be sent by the camera in response to the AudioStreamAllocate command, carrying the newly
@@ -1815,7 +1815,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.2
      */
-    export declare class AudioStreamAllocateResponse {
+    export class AudioStreamAllocateResponse {
         constructor(values?: Partial<AudioStreamAllocateResponse>);
 
         /**
@@ -1824,14 +1824,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.2.1
          */
         audioStreamId: number;
-    };
+    }
 
     /**
      * This command shall deallocate an audio stream on the camera, corresponding to the given audio stream identifier.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.3
      */
-    export declare class AudioStreamDeallocateRequest {
+    export class AudioStreamDeallocateRequest {
         constructor(values?: Partial<AudioStreamDeallocateRequest>);
 
         /**
@@ -1841,14 +1841,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.3.1
          */
         audioStreamId: number;
-    };
+    }
 
     /**
      * This command shall allocate a snapshot stream on the device and return an allocated snapshot stream identifier.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.8
      */
-    export declare class SnapshotStreamAllocateRequest {
+    export class SnapshotStreamAllocateRequest {
         constructor(values?: Partial<SnapshotStreamAllocateRequest>);
 
         /**
@@ -1911,7 +1911,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.8.7
          */
         osdEnabled?: boolean;
-    };
+    }
 
     /**
      * This command shall be sent by the device in response to the SnapshotStreamAllocate command, carrying the newly
@@ -1919,7 +1919,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.9
      */
-    export declare class SnapshotStreamAllocateResponse {
+    export class SnapshotStreamAllocateResponse {
         constructor(values?: Partial<SnapshotStreamAllocateResponse>);
 
         /**
@@ -1929,7 +1929,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.9.1
          */
         snapshotStreamId: number;
-    };
+    }
 
     /**
      * This command shall deallocate an snapshot stream on the camera, corresponding to the given snapshot stream
@@ -1937,7 +1937,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.10
      */
-    export declare class SnapshotStreamDeallocateRequest {
+    export class SnapshotStreamDeallocateRequest {
         constructor(values?: Partial<SnapshotStreamDeallocateRequest>);
 
         /**
@@ -1947,14 +1947,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.10.1
          */
         snapshotStreamId: number;
-    };
+    }
 
     /**
      * This command shall return a Snapshot from the camera.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.13
      */
-    export declare class CaptureSnapshotRequest {
+    export class CaptureSnapshotRequest {
         constructor(values?: Partial<CaptureSnapshotRequest>);
 
         /**
@@ -1972,7 +1972,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.13.2
          */
         requestedResolution: VideoResolution;
-    };
+    }
 
     /**
      * This command shall be sent by the device in response to the CaptureSnapshot command, carrying the requested
@@ -1980,7 +1980,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.14
      */
-    export declare class CaptureSnapshotResponse {
+    export class CaptureSnapshotResponse {
         constructor(values?: Partial<CaptureSnapshotResponse>);
 
         /**
@@ -2004,14 +2004,14 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.14.3
          */
         resolution: VideoResolution;
-    };
+    }
 
     /**
      * This command shall be used to modify a stream specified by the VideoStreamID.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.6
      */
-    export declare class VideoStreamModifyRequest {
+    export class VideoStreamModifyRequest {
         constructor(values?: Partial<VideoStreamModifyRequest>);
 
         /**
@@ -2038,7 +2038,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.8.6.3
          */
         osdEnabled?: boolean;
-    };
+    }
 
     /**
      * This data type provides an enumeration of the video codecs supported by the camera.
@@ -2142,7 +2142,7 @@ export declare namespace CameraAvStreamManagement {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.14
      */
-    export declare class AvMetadata {
+    export class AvMetadata {
         constructor(values?: Partial<AvMetadata>);
 
         /**
@@ -2179,7 +2179,7 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.14.4
          */
         userDefined?: Bytes;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

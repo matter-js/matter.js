@@ -1147,7 +1147,7 @@ export declare namespace PumpConfigurationAndControl {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 4.2.6.1
      */
-    export declare class PumpStatus {
+    export class PumpStatus {
         constructor(values?: Partial<PumpStatus> | number);
 
         /**
@@ -1223,7 +1223,7 @@ export declare namespace PumpConfigurationAndControl {
          * @see {@link MatterSpecification.v151.Cluster} § 4.2.6.1.6
          */
         remoteTemperature?: boolean;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

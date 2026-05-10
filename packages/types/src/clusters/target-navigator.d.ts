@@ -156,7 +156,7 @@ export declare namespace TargetNavigator {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.2
      */
-    export declare class TargetInfo {
+    export class TargetInfo {
         constructor(values?: Partial<TargetInfo>);
 
         /**
@@ -172,14 +172,14 @@ export declare namespace TargetNavigator {
          * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.2.2
          */
         name: string;
-    };
+    }
 
     /**
      * Upon receipt, this shall navigation the UX to the target identified.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.1
      */
-    export declare class NavigateTargetRequest {
+    export class NavigateTargetRequest {
         constructor(values?: Partial<NavigateTargetRequest>);
 
         /**
@@ -196,14 +196,14 @@ export declare namespace TargetNavigator {
          * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.1.2
          */
         data?: string;
-    };
+    }
 
     /**
      * This command shall be generated in response to NavigateTarget command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.2
      */
-    export declare class NavigateTargetResponse {
+    export class NavigateTargetResponse {
         constructor(values?: Partial<NavigateTargetResponse>);
 
         /**
@@ -219,7 +219,7 @@ export declare namespace TargetNavigator {
          * @see {@link MatterSpecification.v151.Cluster} § 6.11.6.2.2
          */
         data?: string;
-    };
+    }
 
     /**
      * This event shall be generated when there is a change in either the active target or the list of available targets
@@ -227,12 +227,12 @@ export declare namespace TargetNavigator {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.11.7.1
      */
-    export declare class TargetUpdatedEvent {
+    export class TargetUpdatedEvent {
         constructor(values?: Partial<TargetUpdatedEvent>);
         targetList?: TargetInfo[];
         currentTarget?: number;
         data?: Bytes;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.11.4.1

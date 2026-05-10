@@ -264,7 +264,7 @@ export declare namespace Descriptor {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.5.5.1
      */
-    export declare class DeviceType {
+    export class DeviceType {
         constructor(values?: Partial<DeviceType>);
 
         /**
@@ -282,7 +282,7 @@ export declare namespace Descriptor {
          * @see {@link MatterSpecification.v151.Core} § 9.5.5.1.2
          */
         revision: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

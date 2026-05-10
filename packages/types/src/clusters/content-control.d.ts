@@ -794,7 +794,7 @@ export declare namespace ContentControl {
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.2
      */
-    export declare class RatingName {
+    export class RatingName {
         constructor(values?: Partial<RatingName>);
 
         /**
@@ -812,12 +812,12 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.2.2
          */
         ratingNameDesc?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3
      */
-    export declare class BlockChannel {
+    export class BlockChannel {
         constructor(values?: Partial<BlockChannel>);
 
         /**
@@ -855,12 +855,12 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3.4
          */
         identifier?: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.4
      */
-    export declare class AppInfo {
+    export class AppInfo {
         constructor(values?: Partial<AppInfo>);
 
         /**
@@ -881,12 +881,12 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.4.2
          */
         applicationId: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.5
      */
-    export declare class TimeWindow {
+    export class TimeWindow {
         constructor(values?: Partial<TimeWindow>);
 
         /**
@@ -910,7 +910,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.5.3
          */
         timePeriod: TimePeriod[];
-    };
+    }
 
     /**
      * The purpose of this command is to set the OnDemandRatingThreshold attribute.
@@ -921,7 +921,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.10
      */
-    export declare class SetOnDemandRatingThresholdRequest {
+    export class SetOnDemandRatingThresholdRequest {
         constructor(values?: Partial<SetOnDemandRatingThresholdRequest>);
 
         /**
@@ -931,7 +931,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.10.1
          */
         rating: string;
-    };
+    }
 
     /**
      * The purpose of this command is to set ScheduledContentRatingThreshold attribute.
@@ -942,7 +942,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.11
      */
-    export declare class SetScheduledContentRatingThresholdRequest {
+    export class SetScheduledContentRatingThresholdRequest {
         constructor(values?: Partial<SetScheduledContentRatingThresholdRequest>);
 
         /**
@@ -952,7 +952,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.11.1
          */
         rating: string;
-    };
+    }
 
     /**
      * The purpose of this command is to add the extra screen time for the user.
@@ -976,7 +976,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.6
      */
-    export declare class AddBonusTimeRequest {
+    export class AddBonusTimeRequest {
         constructor(values?: Partial<AddBonusTimeRequest>);
 
         /**
@@ -998,7 +998,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.6.2
          */
         bonusTime: number;
-    };
+    }
 
     /**
      * The purpose of this command is to set the ScreenDailyTime attribute.
@@ -1008,7 +1008,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.7
      */
-    export declare class SetScreenDailyTimeRequest {
+    export class SetScreenDailyTimeRequest {
         constructor(values?: Partial<SetScreenDailyTimeRequest>);
 
         /**
@@ -1018,7 +1018,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.7.1
          */
         screenTime: number;
-    };
+    }
 
     /**
      * The purpose of this command is to set BlockChannelList attribute.
@@ -1036,7 +1036,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.12
      */
-    export declare class AddBlockChannelsRequest {
+    export class AddBlockChannelsRequest {
         constructor(values?: Partial<AddBlockChannelsRequest>);
 
         /**
@@ -1047,7 +1047,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.12.1
          */
         channels: BlockChannel[];
-    };
+    }
 
     /**
      * The purpose of this command is to remove channels from the BlockChannelList attribute.
@@ -1059,7 +1059,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.13
      */
-    export declare class RemoveBlockChannelsRequest {
+    export class RemoveBlockChannelsRequest {
         constructor(values?: Partial<RemoveBlockChannelsRequest>);
 
         /**
@@ -1069,7 +1069,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.13.1
          */
         channelIndexes: number[];
-    };
+    }
 
     /**
      * The purpose of this command is to set applications to the BlockApplicationList attribute.
@@ -1087,7 +1087,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.14
      */
-    export declare class AddBlockApplicationsRequest {
+    export class AddBlockApplicationsRequest {
         constructor(values?: Partial<AddBlockApplicationsRequest>);
 
         /**
@@ -1097,7 +1097,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.14.1
          */
         applications: AppInfo[];
-    };
+    }
 
     /**
      * The purpose of this command is to remove applications from the BlockApplicationList attribute.
@@ -1109,7 +1109,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.15
      */
-    export declare class RemoveBlockApplicationsRequest {
+    export class RemoveBlockApplicationsRequest {
         constructor(values?: Partial<RemoveBlockApplicationsRequest>);
 
         /**
@@ -1118,7 +1118,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.15.1
          */
         applications: AppInfo[];
-    };
+    }
 
     /**
      * The purpose of this command is to set the BlockContentTimeWindow attribute.
@@ -1135,7 +1135,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.16
      */
-    export declare class SetBlockContentTimeWindowRequest {
+    export class SetBlockContentTimeWindowRequest {
         constructor(values?: Partial<SetBlockContentTimeWindowRequest>);
 
         /**
@@ -1144,7 +1144,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.16.1
          */
         timeWindow: TimeWindow;
-    };
+    }
 
     /**
      * The purpose of this command is to remove the selected time windows from the BlockContentTimeWindow attribute.
@@ -1157,7 +1157,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.17
      */
-    export declare class RemoveBlockContentTimeWindowRequest {
+    export class RemoveBlockContentTimeWindowRequest {
         constructor(values?: Partial<RemoveBlockContentTimeWindowRequest>);
 
         /**
@@ -1167,7 +1167,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.17.1
          */
         timeWindowIndexes: number[];
-    };
+    }
 
     /**
      * The purpose of this command is to update the PIN used for protecting configuration of the content control
@@ -1188,7 +1188,7 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.1
      */
-    export declare class UpdatePinRequest {
+    export class UpdatePinRequest {
         constructor(values?: Partial<UpdatePinRequest>);
 
         /**
@@ -1205,14 +1205,14 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.1.2
          */
         newPin: string;
-    };
+    }
 
     /**
      * This command shall be generated in response to a ResetPIN command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.3
      */
-    export declare class ResetPinResponse {
+    export class ResetPinResponse {
         constructor(values?: Partial<ResetPinResponse>);
 
         /**
@@ -1221,12 +1221,12 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.3.1
          */
         pinCode: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.1
      */
-    export declare class DayOfWeek {
+    export class DayOfWeek {
         constructor(values?: Partial<DayOfWeek> | number);
 
         /**
@@ -1263,12 +1263,12 @@ export declare namespace ContentControl {
          * Saturday
          */
         saturday?: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6
      */
-    export declare class TimePeriod {
+    export class TimePeriod {
         constructor(values?: Partial<TimePeriod>);
 
         /**
@@ -1300,7 +1300,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6.4
          */
         endMinute: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1

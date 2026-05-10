@@ -210,7 +210,7 @@ export declare namespace AlarmBase {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.2
      */
-    export declare class ModifyEnabledAlarmsRequest {
+    export class ModifyEnabledAlarmsRequest {
         constructor(values?: Partial<ModifyEnabledAlarmsRequest>);
 
         /**
@@ -235,7 +235,7 @@ export declare namespace AlarmBase {
          * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.2.1
          */
         mask: number;
-    };
+    }
 
     /**
      * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields that
@@ -243,7 +243,7 @@ export declare namespace AlarmBase {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.1
      */
-    export declare class ResetRequest {
+    export class ResetRequest {
         constructor(values?: Partial<ResetRequest>);
 
         /**
@@ -255,14 +255,14 @@ export declare namespace AlarmBase {
          * @see {@link MatterSpecification.v151.Cluster} § 1.15.7.1.1
          */
         alarms: number;
-    };
+    }
 
     /**
      * This event shall be generated when one or more alarms change state.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1
      */
-    export declare class NotifyEvent {
+    export class NotifyEvent {
         constructor(values?: Partial<NotifyEvent>);
 
         /**
@@ -293,7 +293,7 @@ export declare namespace AlarmBase {
          * @see {@link MatterSpecification.v151.Cluster} § 1.15.8.1.3
          */
         mask: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

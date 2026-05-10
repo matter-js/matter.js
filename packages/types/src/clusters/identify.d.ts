@@ -200,10 +200,10 @@ export declare namespace Identify {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.1
      */
-    export declare class IdentifyRequest {
+    export class IdentifyRequest {
         constructor(values?: Partial<IdentifyRequest>);
         identifyTime: number;
-    };
+    }
 
     /**
      * This command allows the support of feedback to the user, such as a certain light effect. It is used to allow an
@@ -214,7 +214,7 @@ export declare namespace Identify {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.2
      */
-    export declare class TriggerEffectRequest {
+    export class TriggerEffectRequest {
         constructor(values?: Partial<TriggerEffectRequest>);
 
         /**
@@ -236,7 +236,7 @@ export declare namespace Identify {
          * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.2.2
          */
         effectVariant: EffectVariant;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 1.2.4.2

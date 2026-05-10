@@ -981,7 +981,7 @@ export declare namespace JointFabricDatastore {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.18
      */
-    export declare class DatastoreGroupKeySet {
+    export class DatastoreGroupKeySet {
         constructor(values?: Partial<DatastoreGroupKeySet>);
         groupKeySetId: number;
         groupKeySecurityPolicy: DatastoreGroupKeySecurityPolicy;
@@ -992,12 +992,12 @@ export declare namespace JointFabricDatastore {
         epochKey2: Bytes | null;
         epochStartTime2: number | bigint | null;
         groupKeyMulticastPolicy?: DatastoreGroupKeyMulticastPolicy;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.5
      */
-    export declare class DatastoreGroupInformationEntry {
+    export class DatastoreGroupInformationEntry {
         constructor(values?: Partial<DatastoreGroupInformationEntry>);
 
         /**
@@ -1054,12 +1054,12 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.6
          */
         groupPermission: DatastoreAccessControlEntryPrivilege;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.14
      */
-    export declare class DatastoreNodeInformationEntry {
+    export class DatastoreNodeInformationEntry {
         constructor(values?: Partial<DatastoreNodeInformationEntry>);
 
         /**
@@ -1083,12 +1083,12 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.14.3
          */
         commissioningStatusEntry: DatastoreStatusEntry;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.15
      */
-    export declare class DatastoreAdministratorInformationEntry {
+    export class DatastoreAdministratorInformationEntry {
         constructor(values?: Partial<DatastoreAdministratorInformationEntry>);
 
         /**
@@ -1118,12 +1118,12 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.15.4
          */
         icac: Bytes;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.2
      */
-    export declare class DatastoreStatusEntry {
+    export class DatastoreStatusEntry {
         constructor(values?: Partial<DatastoreStatusEntry>);
 
         /**
@@ -1147,12 +1147,12 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.2.3
          */
         failureCode: Status;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.8
      */
-    export declare class DatastoreEndpointGroupIdEntry {
+    export class DatastoreEndpointGroupIdEntry {
         constructor(values?: Partial<DatastoreEndpointGroupIdEntry>);
 
         /**
@@ -1182,12 +1182,12 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.8.4
          */
         statusEntry: DatastoreStatusEntry;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.7
      */
-    export declare class DatastoreEndpointBindingEntry {
+    export class DatastoreEndpointBindingEntry {
         constructor(values?: Partial<DatastoreEndpointBindingEntry>);
 
         /**
@@ -1228,12 +1228,12 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.7.5
          */
         statusEntry: DatastoreStatusEntry;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.3
      */
-    export declare class DatastoreNodeKeySetEntry {
+    export class DatastoreNodeKeySetEntry {
         constructor(values?: Partial<DatastoreNodeKeySetEntry>);
 
         /**
@@ -1251,7 +1251,7 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.3.3
          */
         statusEntry: DatastoreStatusEntry;
-    };
+    }
 
     /**
      * The DatastoreACLEntryStruct is a holder for an ACL (DatastoreAccessControlEntryStruct) on a specific Node which
@@ -1260,7 +1260,7 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.13
      */
-    export declare class DatastoreAclEntry {
+    export class DatastoreAclEntry {
         constructor(values?: Partial<DatastoreAclEntry>);
 
         /**
@@ -1290,7 +1290,7 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.13.4
          */
         statusEntry: DatastoreStatusEntry;
-    };
+    }
 
     /**
      * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
@@ -1299,7 +1299,7 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.9
      */
-    export declare class DatastoreEndpointEntry {
+    export class DatastoreEndpointEntry {
         constructor(values?: Partial<DatastoreEndpointEntry>);
 
         /**
@@ -1331,7 +1331,7 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.9.4
          */
         statusEntry: DatastoreStatusEntry;
-    };
+    }
 
     /**
      * This command shall be used to add a KeySet to the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1348,10 +1348,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.1
      */
-    export declare class AddKeySetRequest {
+    export class AddKeySetRequest {
         constructor(values?: Partial<AddKeySetRequest>);
         groupKeySet: DatastoreGroupKeySet;
-    };
+    }
 
     /**
      * This command shall be used to update a KeySet in the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1383,10 +1383,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.2
      */
-    export declare class UpdateKeySetRequest {
+    export class UpdateKeySetRequest {
         constructor(values?: Partial<UpdateKeySetRequest>);
         groupKeySet: DatastoreGroupKeySet;
-    };
+    }
 
     /**
      * This command shall be used to remove a KeySet from the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1411,10 +1411,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.3
      */
-    export declare class RemoveKeySetRequest {
+    export class RemoveKeySetRequest {
         constructor(values?: Partial<RemoveKeySetRequest>);
         groupKeySetId: number;
-    };
+    }
 
     /**
      * This command shall be used to add a group to the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1434,7 +1434,7 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.4
      */
-    export declare class AddGroupRequest {
+    export class AddGroupRequest {
         constructor(values?: Partial<AddGroupRequest>);
         groupId: GroupId;
         friendlyName: string;
@@ -1442,7 +1442,7 @@ export declare namespace JointFabricDatastore {
         groupCat: number | null;
         groupCatVersion: number | null;
         groupPermission: DatastoreAccessControlEntryPrivilege;
-    };
+    }
 
     /**
      * This command shall be used to update a group in the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1509,7 +1509,7 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.5
      */
-    export declare class UpdateGroupRequest {
+    export class UpdateGroupRequest {
         constructor(values?: Partial<UpdateGroupRequest>);
         groupId: GroupId;
         friendlyName: string | null;
@@ -1517,7 +1517,7 @@ export declare namespace JointFabricDatastore {
         groupCat: number | null;
         groupCatVersion: number | null;
         groupPermission: DatastoreAccessControlEntryPrivilege | null;
-    };
+    }
 
     /**
      * This command shall be used to remove a group from the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1543,10 +1543,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.6
      */
-    export declare class RemoveGroupRequest {
+    export class RemoveGroupRequest {
         constructor(values?: Partial<RemoveGroupRequest>);
         groupId: GroupId;
-    };
+    }
 
     /**
      * This command shall be used to add an admin to the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1555,13 +1555,13 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.7
      */
-    export declare class AddAdminRequest {
+    export class AddAdminRequest {
         constructor(values?: Partial<AddAdminRequest>);
         nodeId: NodeId;
         friendlyName: string;
         vendorId: VendorId;
         icac: Bytes;
-    };
+    }
 
     /**
      * This command shall be used to update an admin in the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1573,12 +1573,12 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.8
      */
-    export declare class UpdateAdminRequest {
+    export class UpdateAdminRequest {
         constructor(values?: Partial<UpdateAdminRequest>);
         nodeId: NodeId | null;
         friendlyName: string | null;
         icac: Bytes | null;
-    };
+    }
 
     /**
      * This command shall be used to remove an admin from the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1589,10 +1589,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.9
      */
-    export declare class RemoveAdminRequest {
+    export class RemoveAdminRequest {
         constructor(values?: Partial<RemoveAdminRequest>);
         nodeId: NodeId;
-    };
+    }
 
     /**
      * The command shall be used to add a node to the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1608,11 +1608,11 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.10
      */
-    export declare class AddPendingNodeRequest {
+    export class AddPendingNodeRequest {
         constructor(values?: Partial<AddPendingNodeRequest>);
         nodeId: NodeId;
         friendlyName: string;
-    };
+    }
 
     /**
      * The command shall be used to request that Datastore information relating to a Node of the accessing fabric is
@@ -1744,10 +1744,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.11
      */
-    export declare class RefreshNodeRequest {
+    export class RefreshNodeRequest {
         constructor(values?: Partial<RefreshNodeRequest>);
         nodeId: NodeId;
-    };
+    }
 
     /**
      * The command shall be used to update the friendly name for a node in the Joint Fabric Datastore Cluster of the
@@ -1760,11 +1760,11 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.12
      */
-    export declare class UpdateNodeRequest {
+    export class UpdateNodeRequest {
         constructor(values?: Partial<UpdateNodeRequest>);
         nodeId: NodeId;
         friendlyName: string;
-    };
+    }
 
     /**
      * This command shall be used to remove a node from the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1776,10 +1776,10 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.13
      */
-    export declare class RemoveNodeRequest {
+    export class RemoveNodeRequest {
         constructor(values?: Partial<RemoveNodeRequest>);
         nodeId: NodeId;
-    };
+    }
 
     /**
      * This command shall be used to update the state of an endpoint for a node in the Joint Fabric Datastore Cluster of
@@ -1794,12 +1794,12 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.14
      */
-    export declare class UpdateEndpointForNodeRequest {
+    export class UpdateEndpointForNodeRequest {
         constructor(values?: Partial<UpdateEndpointForNodeRequest>);
         endpointId: EndpointNumber;
         nodeId: NodeId;
         friendlyName: string;
-    };
+    }
 
     /**
      * This command shall be used to add a Group ID to an endpoint for a node in the Joint Fabric Datastore Cluster of
@@ -1843,12 +1843,12 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.15
      */
-    export declare class AddGroupIdToEndpointForNodeRequest {
+    export class AddGroupIdToEndpointForNodeRequest {
         constructor(values?: Partial<AddGroupIdToEndpointForNodeRequest>);
         nodeId: NodeId;
         endpointId: EndpointNumber;
         groupId: GroupId;
-    };
+    }
 
     /**
      * This command shall be used to remove a Group ID from an endpoint for a node in the Joint Fabric Datastore Cluster
@@ -1892,12 +1892,12 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.16
      */
-    export declare class RemoveGroupIdFromEndpointForNodeRequest {
+    export class RemoveGroupIdFromEndpointForNodeRequest {
         constructor(values?: Partial<RemoveGroupIdFromEndpointForNodeRequest>);
         nodeId: NodeId;
         endpointId: EndpointNumber;
         groupId: GroupId;
-    };
+    }
 
     /**
      * This command shall be used to add a binding to an endpoint for a node in the Joint Fabric Datastore Cluster of
@@ -1929,12 +1929,12 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.17
      */
-    export declare class AddBindingToEndpointForNodeRequest {
+    export class AddBindingToEndpointForNodeRequest {
         constructor(values?: Partial<AddBindingToEndpointForNodeRequest>);
         nodeId: NodeId;
         endpointId: EndpointNumber;
         binding: DatastoreBindingTarget;
-    };
+    }
 
     /**
      * This command shall be used to remove a binding from an endpoint for a node in the Joint Fabric Datastore Cluster
@@ -1966,12 +1966,12 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.18
      */
-    export declare class RemoveBindingFromEndpointForNodeRequest {
+    export class RemoveBindingFromEndpointForNodeRequest {
         constructor(values?: Partial<RemoveBindingFromEndpointForNodeRequest>);
         listId: number;
         endpointId: EndpointNumber;
         nodeId: NodeId;
-    };
+    }
 
     /**
      * This command shall be used to add an ACL to a node in the Joint Fabric Datastore Cluster of the accessing fabric.
@@ -1998,11 +1998,11 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.19
      */
-    export declare class AddAclToNodeRequest {
+    export class AddAclToNodeRequest {
         constructor(values?: Partial<AddAclToNodeRequest>);
         nodeId: NodeId;
         aclEntry: DatastoreAccessControlEntry;
-    };
+    }
 
     /**
      * This command shall be used to remove an ACL from a node in the Joint Fabric Datastore Cluster of the accessing
@@ -2031,11 +2031,11 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.7.20
      */
-    export declare class RemoveAclFromNodeRequest {
+    export class RemoveAclFromNodeRequest {
         constructor(values?: Partial<RemoveAclFromNodeRequest>);
         listId: number;
         nodeId: NodeId;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.1
@@ -2100,7 +2100,7 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.6
      */
-    export declare class DatastoreBindingTarget {
+    export class DatastoreBindingTarget {
         constructor(values?: Partial<DatastoreBindingTarget>);
 
         /**
@@ -2135,7 +2135,7 @@ export declare namespace JointFabricDatastore {
          * @see {@link MatterSpecification.v151.Core} § 11.24.5.6.4
          */
         cluster?: ClusterId;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.10
@@ -2160,12 +2160,12 @@ export declare namespace JointFabricDatastore {
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.11
      */
-    export declare class DatastoreAccessControlTarget {
+    export class DatastoreAccessControlTarget {
         constructor(values?: Partial<DatastoreAccessControlTarget>);
         cluster: ClusterId | null;
         endpoint: EndpointNumber | null;
         deviceType: DeviceTypeId | null;
-    };
+    }
 
     /**
      * The DatastoreAccessControlEntryStruct represents an ACL on a specific Node (identified by the
@@ -2175,13 +2175,13 @@ export declare namespace JointFabricDatastore {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.12
      */
-    export declare class DatastoreAccessControlEntry {
+    export class DatastoreAccessControlEntry {
         constructor(values?: Partial<DatastoreAccessControlEntry>);
         privilege: DatastoreAccessControlEntryPrivilege;
         authMode: DatastoreAccessControlEntryAuthMode;
         subjects: SubjectId[] | null;
         targets: DatastoreAccessControlTarget[] | null;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.24.5.16

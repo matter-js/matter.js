@@ -653,7 +653,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.5.5
      */
-    export declare class NetworkInfo {
+    export class NetworkInfo {
         constructor(values?: Partial<NetworkInfo>);
 
         /**
@@ -692,7 +692,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.5.5.2
          */
         connected: boolean;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.9.5.4
@@ -812,7 +812,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.5.2
      */
-    export declare class ThreadCapabilities {
+    export class ThreadCapabilities {
         constructor(values?: Partial<ThreadCapabilities> | number);
 
         /**
@@ -839,7 +839,7 @@ export declare namespace NetworkCommissioning {
          * Synchronized sleepy end-device mode is supported
          */
         isSynchronizedSleepyEndDeviceCapable?: boolean;
-    };
+    }
 
     /**
      * This command is used to scan for available networks on the network interface associated with the cluster
@@ -885,7 +885,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.1
      */
-    export declare class ScanNetworksRequest {
+    export class ScanNetworksRequest {
         constructor(values?: Partial<ScanNetworksRequest>);
 
         /**
@@ -905,7 +905,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.1.2
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * This command is used to report the results of a ScanNetworks command.
@@ -920,7 +920,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.2
      */
-    export declare class ScanNetworksResponse {
+    export class ScanNetworksResponse {
         constructor(values?: Partial<ScanNetworksResponse>);
 
         /**
@@ -983,7 +983,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.2.4
          */
         threadScanResults?: ThreadInterfaceScanResult[];
-    };
+    }
 
     /**
      * This command is used to remove a network configuration on the network interface associated with the cluster
@@ -1004,7 +1004,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.6
      */
-    export declare class RemoveNetworkRequest {
+    export class RemoveNetworkRequest {
         constructor(values?: Partial<RemoveNetworkRequest>);
 
         /**
@@ -1020,7 +1020,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.6.2
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * This command is used to report the results of a network configuration command (AddOrUpdateWiFiNetwork,
@@ -1038,7 +1038,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.7
      */
-    export declare class NetworkConfigResponse {
+    export class NetworkConfigResponse {
         constructor(values?: Partial<NetworkConfigResponse>);
 
         /**
@@ -1074,7 +1074,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.7.3
          */
         networkIndex?: number;
-    };
+    }
 
     /**
      * This command is used to connect to a network on the network interface associated with the cluster instance.
@@ -1155,7 +1155,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.8
      */
-    export declare class ConnectNetworkRequest {
+    export class ConnectNetworkRequest {
         constructor(values?: Partial<ConnectNetworkRequest>);
 
         /**
@@ -1172,7 +1172,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.8.2
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * This command is used to report the results of a ConnectNetwork command.
@@ -1189,7 +1189,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.9
      */
-    export declare class ConnectNetworkResponse {
+    export class ConnectNetworkResponse {
         constructor(values?: Partial<ConnectNetworkResponse>);
 
         /**
@@ -1247,7 +1247,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.9.3
          */
         errorValue: number | null;
-    };
+    }
 
     /**
      * This command is used to re-order the network configuration list.
@@ -1257,7 +1257,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.10
      */
-    export declare class ReorderNetworkRequest {
+    export class ReorderNetworkRequest {
         constructor(values?: Partial<ReorderNetworkRequest>);
 
         /**
@@ -1281,7 +1281,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.10.3
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * This command is used to add or update a Wi-Fi network configuration.
@@ -1302,7 +1302,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.3
      */
-    export declare class AddOrUpdateWiFiNetworkRequest {
+    export class AddOrUpdateWiFiNetworkRequest {
         constructor(values?: Partial<AddOrUpdateWiFiNetworkRequest>);
 
         /**
@@ -1356,7 +1356,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.3.3
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * This command is used to add or update a Thread network configuration.
@@ -1377,7 +1377,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.7.4
      */
-    export declare class AddOrUpdateThreadNetworkRequest {
+    export class AddOrUpdateThreadNetworkRequest {
         constructor(values?: Partial<AddOrUpdateThreadNetworkRequest>);
 
         /**
@@ -1398,7 +1398,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.4.2
          */
         breadcrumb?: number | bigint;
-    };
+    }
 
     /**
      * WiFiSecurityBitmap encodes the supported Wi-Fi security types present in the Security field of the
@@ -1406,7 +1406,7 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.5.1
      */
-    export declare class WiFiSecurity {
+    export class WiFiSecurity {
         constructor(values?: Partial<WiFiSecurity> | number);
 
         /**
@@ -1433,14 +1433,14 @@ export declare namespace NetworkCommissioning {
          * Supports Wi-Fi using WPA3-Personal security
          */
         wpa3Personal?: boolean;
-    };
+    }
 
     /**
      * WiFiInterfaceScanResultStruct represents a single Wi-Fi network scan result.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.5.6
      */
-    export declare class WiFiInterfaceScanResult {
+    export class WiFiInterfaceScanResult {
         constructor(values?: Partial<WiFiInterfaceScanResult>);
         security?: WiFiSecurity;
         ssid?: Bytes;
@@ -1461,14 +1461,14 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.9.5.6.2
          */
         rssi?: number;
-    };
+    }
 
     /**
      * ThreadInterfaceScanResultStruct represents a single Thread network scan result.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.9.5.7
      */
-    export declare class ThreadInterfaceScanResult {
+    export class ThreadInterfaceScanResult {
         constructor(values?: Partial<ThreadInterfaceScanResult>);
         panId?: number;
         extendedPanId?: number | bigint;
@@ -1485,7 +1485,7 @@ export declare namespace NetworkCommissioning {
 
         rssi?: number;
         lqi?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

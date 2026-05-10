@@ -143,7 +143,7 @@ export declare namespace DeviceEnergyManagementMode {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.8.5.1
      */
-    export declare class ModeOption {
+    export class ModeOption {
         constructor(values?: Partial<ModeOption>);
 
         /**
@@ -201,7 +201,7 @@ export declare namespace DeviceEnergyManagementMode {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
-    };
+    }
 
     export enum ModeTag {
         /**
@@ -289,7 +289,7 @@ export declare namespace DeviceEnergyManagementMode {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
-    export declare class ModeTagStruct {
+    export class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
 
         /**
@@ -314,7 +314,7 @@ export declare namespace DeviceEnergyManagementMode {
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

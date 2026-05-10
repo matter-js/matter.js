@@ -167,7 +167,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1
      */
-    export declare class SolicitOfferRequest {
+    export class SolicitOfferRequest {
         constructor(values?: Partial<SolicitOfferRequest>);
 
         /**
@@ -267,7 +267,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.10
          */
         audioStreams?: number[];
-    };
+    }
 
     /**
      * This command shall be generated in response to a SolicitOffer command.
@@ -285,7 +285,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2
      */
-    export declare class SolicitOfferResponse {
+    export class SolicitOfferResponse {
         constructor(values?: Partial<SolicitOfferResponse>);
 
         /**
@@ -327,7 +327,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2.4
          */
         audioStreamId?: number | null;
-    };
+    }
 
     /**
      * This command allows an SDP Offer to be set and start a new session. This command can also be used in the re-offer
@@ -335,7 +335,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3
      */
-    export declare class ProvideOfferRequest {
+    export class ProvideOfferRequest {
         constructor(values?: Partial<ProvideOfferRequest>);
 
         /**
@@ -447,7 +447,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.12
          */
         audioStreams?: number[];
-    };
+    }
 
     /**
      * This command contains information about the session and streams created as a response to the requestor's offer.
@@ -459,7 +459,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4
      */
-    export declare class ProvideOfferResponse {
+    export class ProvideOfferResponse {
         constructor(values?: Partial<ProvideOfferResponse>);
 
         /**
@@ -486,7 +486,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4.3
          */
         audioStreamId?: number | null;
-    };
+    }
 
     /**
      * This command shall be initiated from a Node in response to an Offer that was previously received from a remote
@@ -498,7 +498,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5
      */
-    export declare class ProvideAnswerRequest {
+    export class ProvideAnswerRequest {
         constructor(values?: Partial<ProvideAnswerRequest>);
 
         /**
@@ -515,7 +515,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5.2
          */
         sdp: string;
-    };
+    }
 
     /**
      * This command allows for string based ICE candidates generated after the initial Offer / Answer exchange, via a
@@ -529,7 +529,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6
      */
-    export declare class ProvideIceCandidatesRequest {
+    export class ProvideIceCandidatesRequest {
         constructor(values?: Partial<ProvideIceCandidatesRequest>);
 
         /**
@@ -545,14 +545,14 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6.2
          */
         iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
-    };
+    }
 
     /**
      * This command instructs the stream provider to end the WebRTC session.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.7
      */
-    export declare class EndSessionRequest {
+    export class EndSessionRequest {
         constructor(values?: Partial<EndSessionRequest>);
 
         /**
@@ -568,7 +568,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.7.2
          */
         reason: WebRtcTransportDefinitions.WebRtcEndReason;
-    };
+    }
 
     /**
      * This type shall specify the RFC 9605 data needed to use SFrames as an end-to-end encryption mechanism with
@@ -576,7 +576,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1
      */
-    export declare class SFrame {
+    export class SFrame {
         constructor(values?: Partial<SFrame>);
 
         /**
@@ -602,7 +602,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1.3
          */
         kid: Bytes;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -74,9 +74,12 @@ function generateComponents(file: ClusterFile) {
         hasAttrs = result.hasAttrs;
         hasCommands = result.hasCommands;
         hasEvents = result.hasEvents;
-
-        gen.generateTypes();
     }
+
+    // Always emit standalone compound datatypes (enums, structs, bitmaps) — clusters that only export shared
+    // datatypes (e.g. WebRtcTransportDefinitions) have no attrs/commands/events but their datatypes are
+    // referenced by other clusters and must appear in the namespace.
+    gen.generateTypes();
 
     gen.generateFeatures();
     generateFeatureEnum(file);

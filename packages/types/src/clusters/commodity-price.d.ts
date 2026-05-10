@@ -233,7 +233,7 @@ export declare namespace CommodityPrice {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3
      */
-    export declare class CommodityPriceStruct {
+    export class CommodityPriceStruct {
         constructor(values?: Partial<CommodityPriceStruct>);
 
         /**
@@ -286,14 +286,14 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.6
          */
         components?: CommodityPriceComponent[];
-    };
+    }
 
     /**
      * Upon receipt, this shall generate a GetDetailedPrice Response command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.1
      */
-    export declare class GetDetailedPriceRequest {
+    export class GetDetailedPriceRequest {
         constructor(values?: Partial<GetDetailedPriceRequest>);
 
         /**
@@ -303,14 +303,14 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.1.1
          */
         details: CommodityPriceDetail;
-    };
+    }
 
     /**
      * This command shall be generated in response to a GetDetailedPrice Request command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.2
      */
-    export declare class GetDetailedPriceResponse {
+    export class GetDetailedPriceResponse {
         constructor(values?: Partial<GetDetailedPriceResponse>);
 
         /**
@@ -323,14 +323,14 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.2.1
          */
         currentPrice: CommodityPriceStruct | null;
-    };
+    }
 
     /**
      * Upon receipt, this shall generate a GetDetailedForecast Response command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.3
      */
-    export declare class GetDetailedForecastRequest {
+    export class GetDetailedForecastRequest {
         constructor(values?: Partial<GetDetailedForecastRequest>);
 
         /**
@@ -340,14 +340,14 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.3.1
          */
         details: CommodityPriceDetail;
-    };
+    }
 
     /**
      * This command shall be generated in response to a GetDetailedForecast Request command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.4
      */
-    export declare class GetDetailedForecastResponse {
+    export class GetDetailedForecastResponse {
         constructor(values?: Partial<GetDetailedForecastResponse>);
 
         /**
@@ -360,14 +360,14 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.4.1
          */
         priceForecast: CommodityPriceStruct[];
-    };
+    }
 
     /**
      * This event shall be generated when the value of the CurrentPrice attribute changes.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.8.1
      */
-    export declare class PriceChangeEvent {
+    export class PriceChangeEvent {
         constructor(values?: Partial<PriceChangeEvent>);
 
         /**
@@ -376,12 +376,12 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.8.1.1
          */
         currentPrice: CommodityPriceStruct | null;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.1
      */
-    export declare class CommodityPriceDetail {
+    export class CommodityPriceDetail {
         constructor(values?: Partial<CommodityPriceDetail> | number);
 
         /**
@@ -393,14 +393,14 @@ export declare namespace CommodityPrice {
          * A breakdown of the component parts of a price; e.g. generation, delivery, etc.
          */
         components?: boolean;
-    };
+    }
 
     /**
      * This represents a component of a given price; it is only used in the Components field.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2
      */
-    export declare class CommodityPriceComponent {
+    export class CommodityPriceComponent {
         constructor(values?: Partial<CommodityPriceComponent>);
 
         /**
@@ -434,7 +434,7 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2.5
          */
         tariffComponentId?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

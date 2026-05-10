@@ -132,7 +132,7 @@ export declare namespace TlsClientManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 14.5.4.2
      */
-    export declare class TlsEndpoint {
+    export class TlsEndpoint {
         constructor(values?: Partial<TlsEndpoint>);
 
         /**
@@ -181,14 +181,14 @@ export declare namespace TlsClientManagement {
         referenceCount: number;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command is used to provision a TLS Endpoint for the provided Hostname / Port combination.
      *
      * @see {@link MatterSpecification.v151.Core} § 14.5.7.1
      */
-    export declare class ProvisionEndpointRequest {
+    export class ProvisionEndpointRequest {
         constructor(values?: Partial<ProvisionEndpointRequest>);
 
         /**
@@ -227,14 +227,14 @@ export declare namespace TlsClientManagement {
          * @see {@link MatterSpecification.v151.Core} § 14.5.7.1.5
          */
         endpointId: number | null;
-    };
+    }
 
     /**
      * This command is used to report the result of the ProvisionEndpoint command.
      *
      * @see {@link MatterSpecification.v151.Core} § 14.5.7.2
      */
-    export declare class ProvisionEndpointResponse {
+    export class ProvisionEndpointResponse {
         constructor(values?: Partial<ProvisionEndpointResponse>);
 
         /**
@@ -243,7 +243,7 @@ export declare namespace TlsClientManagement {
          * @see {@link MatterSpecification.v151.Core} § 14.5.7.2.1
          */
         endpointId: number;
-    };
+    }
 
     /**
      * This command is used to find a TLS Endpoint by its ID.
@@ -252,7 +252,7 @@ export declare namespace TlsClientManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 14.5.7.3
      */
-    export declare class FindEndpointRequest {
+    export class FindEndpointRequest {
         constructor(values?: Partial<FindEndpointRequest>);
 
         /**
@@ -261,14 +261,14 @@ export declare namespace TlsClientManagement {
          * @see {@link MatterSpecification.v151.Core} § 14.5.7.3.1
          */
         endpointId: number;
-    };
+    }
 
     /**
      * This command is used to report the result of the FindEndpoint command.
      *
      * @see {@link MatterSpecification.v151.Core} § 14.5.7.4
      */
-    export declare class FindEndpointResponse {
+    export class FindEndpointResponse {
         constructor(values?: Partial<FindEndpointResponse>);
 
         /**
@@ -277,7 +277,7 @@ export declare namespace TlsClientManagement {
          * @see {@link MatterSpecification.v151.Core} § 14.5.7.4.1
          */
         endpoint: TlsEndpoint;
-    };
+    }
 
     /**
      * This command is used to remove a TLS Endpoint by its ID.
@@ -286,7 +286,7 @@ export declare namespace TlsClientManagement {
      *
      * @see {@link MatterSpecification.v151.Core} § 14.5.7.5
      */
-    export declare class RemoveEndpointRequest {
+    export class RemoveEndpointRequest {
         constructor(values?: Partial<RemoveEndpointRequest>);
 
         /**
@@ -295,7 +295,7 @@ export declare namespace TlsClientManagement {
          * @see {@link MatterSpecification.v151.Core} § 14.5.7.5.1
          */
         endpointId: number;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 14.5.5.1

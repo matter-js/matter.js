@@ -283,7 +283,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.6
      */
-    export declare class SupportedFormat {
+    export class SupportedFormat {
         constructor(values?: Partial<SupportedFormat>);
 
         /**
@@ -301,14 +301,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.6.2
          */
         ingestMethod: IngestMethods;
-    };
+    }
 
     /**
      * This encodes the current configuration of an allocated transport.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.16
      */
-    export declare class TransportConfiguration {
+    export class TransportConfiguration {
         constructor(values?: Partial<TransportConfiguration>);
 
         /**
@@ -333,14 +333,14 @@ export declare namespace PushAvStreamTransport {
         transportOptions?: TransportOptions;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command shall allocate a transport and return a PushTransportConnectionID.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.1
      */
-    export declare class AllocatePushTransportRequest {
+    export class AllocatePushTransportRequest {
         constructor(values?: Partial<AllocatePushTransportRequest>);
 
         /**
@@ -349,14 +349,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.1.1
          */
         transportOptions: TransportOptions;
-    };
+    }
 
     /**
      * This command shall be generated in response to a successful AllocatePushTransport command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.2
      */
-    export declare class AllocatePushTransportResponse {
+    export class AllocatePushTransportResponse {
         constructor(values?: Partial<AllocatePushTransportResponse>);
 
         /**
@@ -369,14 +369,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.2.1
          */
         transportConfiguration: TransportConfiguration;
-    };
+    }
 
     /**
      * This command shall be generated to request the Node deallocates the specified transport.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.3
      */
-    export declare class DeallocatePushTransportRequest {
+    export class DeallocatePushTransportRequest {
         constructor(values?: Partial<DeallocatePushTransportRequest>);
 
         /**
@@ -385,14 +385,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.3.1
          */
         connectionId: number;
-    };
+    }
 
     /**
      * This command is used to request the Node modifies the configuration of the specified push transport.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.4
      */
-    export declare class ModifyPushTransportRequest {
+    export class ModifyPushTransportRequest {
         constructor(values?: Partial<ModifyPushTransportRequest>);
 
         /**
@@ -408,7 +408,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.4.2
          */
         transportOptions: TransportOptions;
-    };
+    }
 
     /**
      * This command shall be generated to request the Node modifies the Transport Status of a specified transport or all
@@ -416,7 +416,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.5
      */
-    export declare class SetTransportStatusRequest {
+    export class SetTransportStatusRequest {
         constructor(values?: Partial<SetTransportStatusRequest>);
 
         /**
@@ -433,14 +433,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.5.2
          */
         transportStatus: TransportStatus;
-    };
+    }
 
     /**
      * This command shall be generated to request the Node to manually start the specified push transport.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.6
      */
-    export declare class ManuallyTriggerTransportRequest {
+    export class ManuallyTriggerTransportRequest {
         constructor(values?: Partial<ManuallyTriggerTransportRequest>);
 
         /**
@@ -473,7 +473,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.6.4
          */
         userDefined?: Bytes;
-    };
+    }
 
     /**
      * This command shall return the Transport Configuration for the specified push transport or all allocated
@@ -481,7 +481,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.7
      */
-    export declare class FindTransportRequest {
+    export class FindTransportRequest {
         constructor(values?: Partial<FindTransportRequest>);
 
         /**
@@ -490,14 +490,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.7.1
          */
         connectionId: number | null;
-    };
+    }
 
     /**
      * This command shall be generated in response to a successful FindTransport command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.8
      */
-    export declare class FindTransportResponse {
+    export class FindTransportResponse {
         constructor(values?: Partial<FindTransportResponse>);
 
         /**
@@ -506,7 +506,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.10.8.1
          */
         transportConfigurations: TransportConfiguration[];
-    };
+    }
 
     /**
      * This event shall indicate a push transport transmission has begun.
@@ -521,7 +521,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.11.1
      */
-    export declare class PushTransportBeginEvent {
+    export class PushTransportBeginEvent {
         constructor(values?: Partial<PushTransportBeginEvent>);
 
         /**
@@ -558,7 +558,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.11.1.5
          */
         cmafSessionNumber?: number | bigint;
-    };
+    }
 
     /**
      * This event shall indicate a push transport upload of the indicated recording has completed.
@@ -570,7 +570,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.11.2
      */
-    export declare class PushTransportEndEvent {
+    export class PushTransportEndEvent {
         constructor(values?: Partial<PushTransportEndEvent>);
 
         /**
@@ -593,7 +593,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.11.2.3
          */
         cmafSessionNumber?: number | bigint;
-    };
+    }
 
     /**
      * The Trigger Type determines the basic operation of the Push Transport and when it will actually transmit content.
@@ -744,7 +744,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.8
      */
-    export declare class VideoStream {
+    export class VideoStream {
         constructor(values?: Partial<VideoStream>);
 
         /**
@@ -762,7 +762,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.8.2
          */
         videoStreamId: number;
-    };
+    }
 
     /**
      * This struct holds a video stream id and the symbolic stream name associated with it. For CMAF based transports,
@@ -770,7 +770,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.9
      */
-    export declare class AudioStream {
+    export class AudioStream {
         constructor(values?: Partial<AudioStream>);
 
         /**
@@ -788,14 +788,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.9.2
          */
         audioStreamId: number;
-    };
+    }
 
     /**
      * This struct encodes options for configuration of the CMAF container format.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.10
      */
-    export declare class CmafContainerOptions {
+    export class CmafContainerOptions {
         constructor(values?: Partial<CmafContainerOptions>);
 
         /**
@@ -885,14 +885,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.10.8
          */
         metadataEnabled?: boolean;
-    };
+    }
 
     /**
      * This struct encodes the specific container type options struct
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.11
      */
-    export declare class ContainerOptions {
+    export class ContainerOptions {
         constructor(values?: Partial<ContainerOptions>);
 
         /**
@@ -909,14 +909,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.11.2
          */
         cmafContainerOptions?: CmafContainerOptions;
-    };
+    }
 
     /**
      * This struct encodes the options that configure the per Zone portion of a Trigger configuration.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.12
      */
-    export declare class TransportZoneOptions {
+    export class TransportZoneOptions {
         constructor(values?: Partial<TransportZoneOptions>);
 
         /**
@@ -937,7 +937,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.12.2
          */
         sensitivity?: number;
-    };
+    }
 
     /**
      * This struct encodes the conditions and options that configures the trigger for the push transport. The transport
@@ -945,7 +945,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.13
      */
-    export declare class TransportTriggerOptions {
+    export class TransportTriggerOptions {
         constructor(values?: Partial<TransportTriggerOptions>);
 
         /**
@@ -1006,7 +1006,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.13.5
          */
         maxPreRollLen?: number;
-    };
+    }
 
     /**
      * This struct is used to encode a set of values for controlling the lifecycle of a motion triggered transport.
@@ -1043,7 +1043,7 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.14
      */
-    export declare class TransportMotionTriggerTimeControl {
+    export class TransportMotionTriggerTimeControl {
         constructor(values?: Partial<TransportMotionTriggerTimeControl>);
 
         /**
@@ -1076,14 +1076,14 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.14.4
          */
         blindDuration: number;
-    };
+    }
 
     /**
      * This encodes the options and configuration of a transport.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.15
      */
-    export declare class TransportOptions {
+    export class TransportOptions {
         constructor(values?: Partial<TransportOptions>);
 
         /**
@@ -1193,7 +1193,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.15.11
          */
         audioStreams?: AudioStream[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.8.1

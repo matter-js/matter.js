@@ -504,7 +504,7 @@ export declare namespace AccessControl {
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.6
      */
-    export declare class AccessControlEntry {
+    export class AccessControlEntry {
         constructor(values?: Partial<AccessControlEntry>);
 
         /**
@@ -592,12 +592,12 @@ export declare namespace AccessControl {
         targets: AccessControlTarget[] | null;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.7
      */
-    export declare class AccessControlExtension {
+    export class AccessControlExtension {
         constructor(values?: Partial<AccessControlExtension>);
 
         /**
@@ -623,14 +623,14 @@ export declare namespace AccessControl {
         data: Bytes;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This structure describes a current access restriction when there is no accessing fabric.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.10
      */
-    export declare class CommissioningAccessRestrictionEntry {
+    export class CommissioningAccessRestrictionEntry {
         constructor(values?: Partial<CommissioningAccessRestrictionEntry>);
 
         /**
@@ -658,14 +658,14 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.3
          */
         restrictions: AccessRestriction[];
-    };
+    }
 
     /**
      * This structure describes a current access restriction on the fabric.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.9
      */
-    export declare class AccessRestrictionEntry {
+    export class AccessRestrictionEntry {
         constructor(values?: Partial<AccessRestrictionEntry>);
 
         /**
@@ -695,7 +695,7 @@ export declare namespace AccessControl {
         restrictions: AccessRestriction[];
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This command signals to the service associated with the device vendor that the fabric administrator would like a
@@ -723,7 +723,7 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.8.1
      */
-    export declare class ReviewFabricRestrictionsRequest {
+    export class ReviewFabricRestrictionsRequest {
         constructor(values?: Partial<ReviewFabricRestrictionsRequest>);
 
         /**
@@ -733,7 +733,7 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v151.Core} § 9.10.8.1.1
          */
         arl: CommissioningAccessRestrictionEntry[];
-    };
+    }
 
     /**
      * Returns the review token for the request, which can be used to correlate with a FabricRestrictionReviewUpdate
@@ -741,7 +741,7 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.8.2
      */
-    export declare class ReviewFabricRestrictionsResponse {
+    export class ReviewFabricRestrictionsResponse {
         constructor(values?: Partial<ReviewFabricRestrictionsResponse>);
 
         /**
@@ -751,7 +751,7 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v151.Core} § 9.10.8.2.1
          */
         token: number | bigint;
-    };
+    }
 
     /**
      * The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
@@ -765,7 +765,7 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
      */
-    export declare class AccessControlEntryChangedEvent {
+    export class AccessControlEntryChangedEvent {
         constructor(values?: Partial<AccessControlEntryChangedEvent>);
 
         /**
@@ -807,7 +807,7 @@ export declare namespace AccessControl {
         latestValue: AccessControlEntry | null;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * The server shall generate AccessControlExtensionChanged events whenever its extension attribute data is changed
@@ -821,7 +821,7 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
      */
-    export declare class AccessControlExtensionChangedEvent {
+    export class AccessControlExtensionChangedEvent {
         constructor(values?: Partial<AccessControlExtensionChangedEvent>);
 
         /**
@@ -863,7 +863,7 @@ export declare namespace AccessControl {
         latestValue: AccessControlExtension | null;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric restriction
@@ -873,7 +873,7 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
      */
-    export declare class FabricRestrictionReviewUpdateEvent {
+    export class FabricRestrictionReviewUpdateEvent {
         constructor(values?: Partial<FabricRestrictionReviewUpdateEvent>);
 
         /**
@@ -948,7 +948,7 @@ export declare namespace AccessControl {
         arlRequestFlowUrl?: string;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.1
@@ -1060,12 +1060,12 @@ export declare namespace AccessControl {
     /**
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.5
      */
-    export declare class AccessControlTarget {
+    export class AccessControlTarget {
         constructor(values?: Partial<AccessControlTarget>);
         cluster: ClusterId | null;
         endpoint: EndpointNumber | null;
         deviceType: DeviceTypeId | null;
-    };
+    }
 
     /**
      * This structure describes an access restriction that would be applied to a specific data model element on a given
@@ -1073,7 +1073,7 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v151.Core} § 9.10.5.8
      */
-    export declare class AccessRestriction {
+    export class AccessRestriction {
         constructor(values?: Partial<AccessRestriction>);
 
         /**
@@ -1097,7 +1097,7 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v151.Core} § 9.10.5.8.2
          */
         id: number | null;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

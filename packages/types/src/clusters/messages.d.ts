@@ -251,7 +251,7 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.5
      */
-    export declare class Message {
+    export class Message {
         constructor(values?: Partial<Message>);
 
         /**
@@ -312,7 +312,7 @@ export declare namespace Messages {
         responses?: MessageResponseOption[];
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * Upon receipt, this shall cause the message in the passed fields to be appended to the Messages attribute.
@@ -337,7 +337,7 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1
      */
-    export declare class PresentMessagesRequest {
+    export class PresentMessagesRequest {
         constructor(values?: Partial<PresentMessagesRequest>);
 
         /**
@@ -398,14 +398,14 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.1.7
          */
         responses?: MessageResponseOption[];
-    };
+    }
 
     /**
      * This command will cancel the message IDs specified.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.2
      */
-    export declare class CancelMessagesRequest {
+    export class CancelMessagesRequest {
         constructor(values?: Partial<CancelMessagesRequest>);
 
         /**
@@ -420,14 +420,14 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v151.Cluster} § 1.16.7.2.1
          */
         messageIDs: Bytes[];
-    };
+    }
 
     /**
      * This event shall be generated when a message is added to the messages attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.1
      */
-    export declare class MessageQueuedEvent {
+    export class MessageQueuedEvent {
         constructor(values?: Partial<MessageQueuedEvent>);
 
         /**
@@ -438,14 +438,14 @@ export declare namespace Messages {
         messageId: Bytes;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This event shall be generated when the message is presented to the user.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.2
      */
-    export declare class MessagePresentedEvent {
+    export class MessagePresentedEvent {
         constructor(values?: Partial<MessagePresentedEvent>);
 
         /**
@@ -456,7 +456,7 @@ export declare namespace Messages {
         messageId: Bytes;
 
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
@@ -464,7 +464,7 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.8.3
      */
-    export declare class MessageCompleteEvent {
+    export class MessageCompleteEvent {
         constructor(values?: Partial<MessageCompleteEvent>);
 
         /**
@@ -492,14 +492,14 @@ export declare namespace Messages {
 
         futureMessagesPreference: FutureMessagePreference | null;
         fabricIndex: FabricIndex;
-    };
+    }
 
     /**
      * This data type is derived from map16, and indicates control information related to a message.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2
      */
-    export declare class MessageControl {
+    export class MessageControl {
         constructor(values?: Partial<MessageControl> | number);
 
         /**
@@ -551,7 +551,7 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.2.5
          */
         messageProtected?: boolean;
-    };
+    }
 
     /**
      * A display device may include this preference in the MessageComplete event as a hint to clients about how to
@@ -619,7 +619,7 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.6
      */
-    export declare class MessageResponseOption {
+    export class MessageResponseOption {
         constructor(values?: Partial<MessageResponseOption>);
 
         /**
@@ -635,7 +635,7 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v151.Cluster} § 1.16.5.6.2
          */
         label: string;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

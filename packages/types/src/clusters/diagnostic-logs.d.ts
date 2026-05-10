@@ -70,7 +70,7 @@ export declare namespace DiagnosticLogs {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.11.5.1
      */
-    export declare class RetrieveLogsRequest {
+    export class RetrieveLogsRequest {
         constructor(values?: Partial<RetrieveLogsRequest>);
 
         /**
@@ -99,7 +99,7 @@ export declare namespace DiagnosticLogs {
          * @see {@link MatterSpecification.v151.Core} § 11.11.5.1.3
          */
         transferFileDesignator?: string;
-    };
+    }
 
     /**
      * This shall be generated as a response to the RetrieveLogsRequest.
@@ -108,7 +108,7 @@ export declare namespace DiagnosticLogs {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.11.5.2
      */
-    export declare class RetrieveLogsResponse {
+    export class RetrieveLogsResponse {
         constructor(values?: Partial<RetrieveLogsResponse>);
 
         /**
@@ -144,7 +144,7 @@ export declare namespace DiagnosticLogs {
          * @see {@link MatterSpecification.v151.Core} § 11.11.5.2.4
          */
         timeSinceBoot?: number | bigint;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Core} § 11.11.4.1

@@ -613,7 +613,7 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.5.4
      */
-    export declare class BasicCommissioningInfo {
+    export class BasicCommissioningInfo {
         constructor(values?: Partial<BasicCommissioningInfo>);
 
         /**
@@ -638,7 +638,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.10.5.4.2
          */
         maxCumulativeFailsafeSeconds: number;
-    };
+    }
 
     /**
      * This enumeration is used by the RegulatoryConfig and LocationCapability attributes to indicate possible radio
@@ -730,18 +730,18 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.2
      */
-    export declare class ArmFailSafeRequest {
+    export class ArmFailSafeRequest {
         constructor(values?: Partial<ArmFailSafeRequest>);
         expiryLengthSeconds: number;
         breadcrumb: number | bigint;
-    };
+    }
 
     /**
      * This command is used to report the result of the ArmFailSafe command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.3
      */
-    export declare class ArmFailSafeResponse {
+    export class ArmFailSafeResponse {
         constructor(values?: Partial<ArmFailSafeResponse>);
 
         /**
@@ -758,7 +758,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.10.7.3.2
          */
         debugText: string;
-    };
+    }
 
     /**
      * This command is used to set the regulatory configuration for the device.
@@ -794,19 +794,19 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.4
      */
-    export declare class SetRegulatoryConfigRequest {
+    export class SetRegulatoryConfigRequest {
         constructor(values?: Partial<SetRegulatoryConfigRequest>);
         newRegulatoryConfig: RegulatoryLocationType;
         countryCode: string;
         breadcrumb: number | bigint;
-    };
+    }
 
     /**
      * This command is used to report the result of the SetRegulatoryConfig command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.5
      */
-    export declare class SetRegulatoryConfigResponse {
+    export class SetRegulatoryConfigResponse {
         constructor(values?: Partial<SetRegulatoryConfigResponse>);
 
         /**
@@ -823,14 +823,14 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.10.7.5.2
          */
         debugText: string;
-    };
+    }
 
     /**
      * This command is used to report the result of the CommissioningComplete command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.7
      */
-    export declare class CommissioningCompleteResponse {
+    export class CommissioningCompleteResponse {
         constructor(values?: Partial<CommissioningCompleteResponse>);
 
         /**
@@ -847,7 +847,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.10.7.7.2
          */
         debugText: string;
-    };
+    }
 
     /**
      * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions into
@@ -855,7 +855,7 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.8
      */
-    export declare class SetTcAcknowledgementsRequest {
+    export class SetTcAcknowledgementsRequest {
         constructor(values?: Partial<SetTcAcknowledgementsRequest>);
 
         /**
@@ -874,14 +874,14 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.10.7.8.2
          */
         tcUserResponse: number;
-    };
+    }
 
     /**
      * This command is used to report the result of the SetTCAcknowledgements command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.10.7.9
      */
-    export declare class SetTcAcknowledgementsResponse {
+    export class SetTcAcknowledgementsResponse {
         constructor(values?: Partial<SetTcAcknowledgementsResponse>);
 
         /**
@@ -891,7 +891,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v151.Core} § 11.10.7.9.1
          */
         errorCode: CommissioningError;
-    };
+    }
 
     /**
      * This enumeration is used by several response commands in this cluster to indicate particular errors.

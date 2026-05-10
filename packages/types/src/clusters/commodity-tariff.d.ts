@@ -519,7 +519,7 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14
      */
-    export declare class TariffInformation {
+    export class TariffInformation {
         constructor(values?: Partial<TariffInformation>);
 
         /**
@@ -549,7 +549,7 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14.4
          */
         blockMode: BlockMode | null;
-    };
+    }
 
     /**
      * This struct represents a day entry at a particular time of day, along with an optional duration and randomization
@@ -557,7 +557,7 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10
      */
-    export declare class DayEntry {
+    export class DayEntry {
         constructor(values?: Partial<DayEntry>);
 
         /**
@@ -664,14 +664,14 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10.5
          */
         randomizationType?: DayEntryRandomizationType;
-    };
+    }
 
     /**
      * This represents a series of day entries over the course of a day for a given set of days of the week.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.12
      */
-    export declare class DayPattern {
+    export class DayPattern {
         constructor(values?: Partial<DayPattern>);
 
         /**
@@ -703,7 +703,7 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.12.3
          */
         dayEntryIDs: number[];
-    };
+    }
 
     /**
      * This represents a sub period of a calendar, commencing on its StartDate.
@@ -716,7 +716,7 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.9
      */
-    export declare class CalendarPeriod {
+    export class CalendarPeriod {
         constructor(values?: Partial<CalendarPeriod>);
 
         /**
@@ -751,14 +751,14 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.9.2
          */
         dayPatternIDs: number[];
-    };
+    }
 
     /**
      * This represents a series of day entries over the course of a day for a specific date.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.11
      */
-    export declare class Day {
+    export class Day {
         constructor(values?: Partial<Day>);
 
         /**
@@ -803,7 +803,7 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.11.3
          */
         dayEntryIDs: number[];
-    };
+    }
 
     /**
      * This represents components of a tariff.
@@ -814,7 +814,7 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16
      */
-    export declare class TariffComponent {
+    export class TariffComponent {
         constructor(values?: Partial<TariffComponent>);
 
         /**
@@ -908,14 +908,14 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.9
          */
         predicted?: boolean;
-    };
+    }
 
     /**
      * This represents the tariff components in effect for a set of calendar day entry IDs.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.17
      */
-    export declare class TariffPeriod {
+    export class TariffPeriod {
         constructor(values?: Partial<TariffPeriod>);
 
         /**
@@ -943,7 +943,7 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.17.3
          */
         tariffComponentIDs: number[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.5
@@ -981,7 +981,7 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.1
      */
-    export declare class GetTariffComponentRequest {
+    export class GetTariffComponentRequest {
         constructor(values?: Partial<GetTariffComponentRequest>);
 
         /**
@@ -990,14 +990,14 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.1.1
          */
         tariffComponentId: number;
-    };
+    }
 
     /**
      * The GetTariffComponentResponse command is sent in response to a GetTariffComponent command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.2
      */
-    export declare class GetTariffComponentResponse {
+    export class GetTariffComponentResponse {
         constructor(values?: Partial<GetTariffComponentResponse>);
 
         /**
@@ -1022,7 +1022,7 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.2.3
          */
         tariffComponent: TariffComponent;
-    };
+    }
 
     /**
      * The GetDayEntry command allows a client to request information for a calendar day entry identifier that may no
@@ -1030,7 +1030,7 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.3
      */
-    export declare class GetDayEntryRequest {
+    export class GetDayEntryRequest {
         constructor(values?: Partial<GetDayEntryRequest>);
 
         /**
@@ -1039,22 +1039,22 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.3.1
          */
         dayEntryId: number;
-    };
+    }
 
     /**
      * The GetDayEntryResponse command is sent in response to a GetDayEntry command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.4
      */
-    export declare class GetDayEntryResponse {
+    export class GetDayEntryResponse {
         constructor(values?: Partial<GetDayEntryResponse>);
         dayEntry: DayEntry;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.1
      */
-    export declare class DayPatternDayOfWeek {
+    export class DayPatternDayOfWeek {
         constructor(values?: Partial<DayPatternDayOfWeek> | number);
 
         /**
@@ -1091,7 +1091,7 @@ export declare namespace CommodityTariff {
          * Saturday
          */
         saturday?: boolean;
-    };
+    }
 
     /**
      * This enumeration shall indicated the required state of an auxiliary switch.
@@ -1205,26 +1205,26 @@ export declare namespace CommodityTariff {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.7
      */
-    export declare class AuxiliaryLoadSwitchSettings {
+    export class AuxiliaryLoadSwitchSettings {
         constructor(values?: Partial<AuxiliaryLoadSwitchSettings>);
         number: number;
         requiredState: AuxiliaryLoadSetting;
-    };
+    }
 
     /**
      * This represents the set of auxiliary load settings in a tariff component.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.8
      */
-    export declare class AuxiliaryLoadSwitchesSettings {
+    export class AuxiliaryLoadSwitchesSettings {
         constructor(values?: Partial<AuxiliaryLoadSwitchesSettings>);
         switchStates: AuxiliaryLoadSwitchSettings[];
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.13
      */
-    export declare class PeakPeriod {
+    export class PeakPeriod {
         constructor(values?: Partial<PeakPeriod>);
 
         /**
@@ -1240,14 +1240,14 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.13.2
          */
         peakPeriod: number;
-    };
+    }
 
     /**
      * This indicates a price or price level for a given tariff component, as well as what type of pricing it represents
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.15
      */
-    export declare class TariffPrice {
+    export class TariffPrice {
         constructor(values?: Partial<TariffPrice>);
 
         /**
@@ -1270,7 +1270,7 @@ export declare namespace CommodityTariff {
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.15.3
          */
         priceLevel?: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -164,7 +164,7 @@ export declare namespace MediaInput {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2
      */
-    export declare class InputInfo {
+    export class InputInfo {
         constructor(values?: Partial<InputInfo>);
 
         /**
@@ -196,7 +196,7 @@ export declare namespace MediaInput {
          * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2.4
          */
         description: string;
-    };
+    }
 
     /**
      * Upon receipt, this command shall change the media input on the device to the input at a specific index in the
@@ -204,7 +204,7 @@ export declare namespace MediaInput {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.1
      */
-    export declare class SelectInputRequest {
+    export class SelectInputRequest {
         constructor(values?: Partial<SelectInputRequest>);
 
         /**
@@ -214,7 +214,7 @@ export declare namespace MediaInput {
          * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.1.1
          */
         index: number;
-    };
+    }
 
     /**
      * Upon receipt, this command shall rename the input at a specific index in the Input List.
@@ -223,11 +223,11 @@ export declare namespace MediaInput {
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.4
      */
-    export declare class RenameInputRequest {
+    export class RenameInputRequest {
         constructor(values?: Partial<RenameInputRequest>);
         index: number;
         name: string;
-    };
+    }
 
     /**
      * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.1
