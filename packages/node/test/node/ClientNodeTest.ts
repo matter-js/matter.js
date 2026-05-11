@@ -45,6 +45,7 @@ import { Specification } from "@matter/model";
 import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
@@ -474,6 +475,54 @@ describe("ClientNode", () => {
         const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
         expect(ep1Server.state.onOff.onTime).equals(20);
         expect(ep1Server.state.identify.identifyTime).equals(5);
+    });
+
+    it("writes nullable attribute: null, 0 and 2", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1Client = peer1.parts.get("ep1")!;
+        const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.startUpOnOff = null;
+            }),
+        );
+        expect(ep1Server.state.onOff.startUpOnOff).equals(null);
+
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.startUpOnOff = OnOff.StartUpOnOff.Off;
+            }),
+        );
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Off);
+
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.startUpOnOff = OnOff.StartUpOnOff.Toggle;
+            }),
+        );
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
+    });
+
+    it("writes nullable attribute via setStateOf: null, 0 and 2", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1Client = peer1.parts.get("ep1")!;
+        const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+        await MockTime.resolve(ep1Client.setStateOf("onOff", { startUpOnOff: null }));
+        expect(ep1Server.state.onOff.startUpOnOff).equals(null);
+
+        await MockTime.resolve(ep1Client.setStateOf("onOff", { startUpOnOff: OnOff.StartUpOnOff.Off }));
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Off);
+
+        await MockTime.resolve(ep1Client.setStateOf("onOff", { startUpOnOff: OnOff.StartUpOnOff.Toggle }));
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
     });
 
     describe("writes attribute whose constraint references a sibling attribute", () => {

@@ -25,12 +25,6 @@ import {
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
     SecureChannelStatusCode,
-    TlvBoolean,
-    TlvByteString,
-    TlvInt32,
-    TlvNullable,
-    TlvString,
-    TlvUInt64,
     VendorId,
 } from "@matter/main/types";
 import { AttributeModel, CommandModel, Matter } from "@matter/model";
@@ -442,32 +436,6 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
         logger.info("Writing attribute", attributeId, "with value", value);
 
-        let tlvValue: any;
-
-        if (value === null) {
-            tlvValue = TlvNullable(TlvBoolean).encodeTlv(value); // Boolean is just a placeholder here
-        } else if (Bytes.isBytes(value)) {
-            tlvValue = TlvByteString.encodeTlv(value);
-        } else {
-            switch (typeof value) {
-                case "boolean":
-                    tlvValue = TlvBoolean.encodeTlv(value);
-                    break;
-                case "number":
-                    tlvValue = TlvInt32.encodeTlv(value);
-                    break;
-                case "bigint":
-                    tlvValue = TlvUInt64.encodeTlv(value);
-                    break;
-                case "string":
-                    tlvValue = TlvString.encodeTlv(value);
-                    break;
-                default:
-                    throw new Error("Unsupported value type for Any encoding");
-            }
-        }
-
-        // Try to look up the real model for proper encoding
         const realAttr = Matter.clusters(clusterId)?.attributes(attributeId);
         const attrModel =
             realAttr ?? new AttributeModel({ id: attributeId, name: `attr_${attributeId}`, access: "RW" });
@@ -477,7 +445,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 endpointId,
                 clusterId,
                 attribute: { id: attributeId, name: attrModel.name, schema: attrModel },
-                value: tlvValue,
+                value,
             },
         });
     }
