@@ -235,7 +235,12 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     }
 
     #handleError(error: Error): void {
-        logger.error("TCP connection error:", error.message);
+        const code = (error as { code?: string }).code;
+        if (code === "ECONNRESET" || code === "EPIPE" || code === "ECONNABORTED") {
+            logger.info("TCP connection closed by peer:", error.message);
+        } else {
+            logger.warn("TCP connection error:", error.message);
+        }
         this.#workers.add(this.close());
     }
 
