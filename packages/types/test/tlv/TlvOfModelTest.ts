@@ -51,6 +51,44 @@ describe("TlvOfModel", () => {
         });
     });
 
+    describe("nullable quality on extended models", () => {
+        // Simulates the PeerBehavior.generateDiscoveredType() path where attrSupportOverrides
+        // creates extended attribute models via attr.extend({ operationalIsSupported: true }).
+        // The extended model has no local quality, so nullable must be resolved via effectiveQuality.
+        describe("scalar (enum) attribute", () => {
+            const onOff = Matter.clusters("OnOff")!;
+            const startUpOnOff = onOff.attributes("StartUpOnOff")!;
+            const extended = startUpOnOff.extend({ operationalIsSupported: true });
+
+            it("round-trips null", () => {
+                expect(roundTrip(extended, null)).equal(null);
+            });
+
+            it("round-trips non-null values", () => {
+                expect(roundTrip(extended, 0)).equal(0);
+                expect(roundTrip(extended, 2)).equal(2);
+            });
+        });
+
+        describe("struct attribute", () => {
+            const eem = Matter.clusters("ElectricalEnergyMeasurement")!;
+            const cumulativeEnergyReset = eem.attributes("CumulativeEnergyReset")!;
+            const extended = cumulativeEnergyReset.extend({ operationalIsSupported: true });
+
+            it("round-trips null", () => {
+                expect(roundTrip(extended, null)).equal(null);
+            });
+
+            it("round-trips non-null value", () => {
+                const value = {
+                    importedResetTimestamp: MATTER_EPOCH_OFFSET_S + 1000,
+                    exportedResetTimestamp: MATTER_EPOCH_OFFSET_S + 2000,
+                };
+                expect(roundTrip(extended, value)).deep.equal(value);
+            });
+        });
+    });
+
     describe("unknown attribute", () => {
         it("returns TlvAny for attribute typed as any", () => {
             const model = new AttributeModel({ id: 1, name: "unknown_1", type: "any", access: "RW" });
