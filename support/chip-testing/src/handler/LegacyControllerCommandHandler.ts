@@ -634,7 +634,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
 function inferAttrModel(id: number, value: unknown): AttributeModel {
     let type: string;
-    if (value instanceof Uint8Array) type = "octstr";
+    if (Bytes.isBytes(value)) type = "octstr";
     else if (typeof value === "bigint") type = "uint64";
     else if (typeof value === "string") type = "string";
     else if (typeof value === "boolean") type = "bool";
