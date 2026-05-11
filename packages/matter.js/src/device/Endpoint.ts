@@ -22,6 +22,7 @@ import {
     type GlobalAttributeState,
 } from "@matter/node";
 import { ClusterClientObj, Val } from "@matter/protocol";
+import { ClusterModel, Matter } from "@matter/model";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
@@ -443,7 +444,22 @@ export class Endpoint {
             if (features[featureName] === true) supportedFeatures.push(featureName);
         }
         if (supportedFeatures.length) {
-            elementDiagnostic.push([Diagnostic.strong("features"), supportedFeatures]);
+            const clusterModel = Matter.get(ClusterModel, client.id);
+            let displayFeatures: string[];
+            if (clusterModel) {
+                const titleMap = new Map<string, string>();
+                for (const f of clusterModel.features) {
+                    const title = f.title ?? f.name;
+                    titleMap.set(f.name, title);
+                    if (f.title) {
+                        titleMap.set(f.title.charAt(0).toLowerCase() + f.title.slice(1), title);
+                    }
+                }
+                displayFeatures = supportedFeatures.map(name => titleMap.get(name) ?? name);
+            } else {
+                displayFeatures = supportedFeatures;
+            }
+            elementDiagnostic.push([Diagnostic.strong("features"), displayFeatures]);
         }
 
         if (Object.keys(client.attributes).length) {
