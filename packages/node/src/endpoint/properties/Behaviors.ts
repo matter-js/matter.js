@@ -28,7 +28,7 @@ import {
     MaybePromise,
     Transaction,
 } from "@matter/general";
-import { ClusterModel, FeatureSet } from "@matter/model";
+import { ClusterModel } from "@matter/model";
 import { ClusterTypeProtocol, Val } from "@matter/protocol";
 import type { ClusterType } from "@matter/types";
 import type { Agent } from "../Agent.js";
@@ -123,9 +123,15 @@ export class Behaviors {
             const elements = this.elementsOf(type);
             const elementDiagnostic = Array<unknown>();
 
-            const features = schema instanceof ClusterModel ? schema.supportedFeatures : new FeatureSet();
-            if (features.size) {
-                elementDiagnostic.push([Diagnostic.strong("features"), features]);
+            if (schema instanceof ClusterModel) {
+                const features = schema.supportedFeatures;
+                if (features.size) {
+                    const titleMap = new Map(schema.features.map(f => [f.name, f.title ?? f.name]));
+                    elementDiagnostic.push([
+                        Diagnostic.strong("features"),
+                        [...features].map(name => titleMap.get(name) ?? name),
+                    ]);
+                }
             }
 
             if (elements.attributes.size) {
