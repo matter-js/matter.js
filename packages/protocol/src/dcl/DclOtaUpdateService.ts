@@ -68,6 +68,7 @@ export class DclOtaUpdateService {
     #blobDriver?: BlobStorageDriver;
     #closeBlobStorage?: () => Promise<void>;
     #storage?: ScopedStorage;
+    #closed = false;
 
     get construction() {
         return this.#construction;
@@ -101,6 +102,7 @@ export class DclOtaUpdateService {
     }
 
     async close() {
+        this.#closed = true;
         await this.#construction.close(async () => {
             await this.#closeBlobStorage?.();
         });
@@ -218,6 +220,9 @@ export class DclOtaUpdateService {
 
             // Check each version starting from highest, find the first applicable one
             for (const version of newerVersions) {
+                if (this.#closed) {
+                    return;
+                }
                 try {
                     const updateInfo = await this.#checkSpecificVersion(
                         dclClient,
@@ -277,7 +282,7 @@ export class DclOtaUpdateService {
         const foundUpdates = new Array<DeviceSoftwareVersionModelDclSchemaWithSource>();
 
         // Only stored test-mode files are gated on the test DCL being enabled; prod and local entries always
-        // pass through so a test-only caller still sees them as valid upgrade targets.
+        // pass through, so a test-only caller still sees them as valid upgrade targets.
         if (includeStoredUpdates) {
             const localUpdates = await this.find({
                 vendorId,
@@ -314,7 +319,7 @@ export class DclOtaUpdateService {
         }
 
         // Check for Prod DCL updates
-        if (isProduction !== false) {
+        if (isProduction !== false && !this.#closed) {
             const prodUpdate = await this.#queryDclForUpdate({ ...options, isProduction: true });
             if (prodUpdate !== undefined) {
                 const updateEntry: DeviceSoftwareVersionModelDclSchemaWithSource = {
@@ -329,7 +334,7 @@ export class DclOtaUpdateService {
         }
 
         // Check for Test DCL updates
-        if (isProduction !== true) {
+        if (isProduction !== true && !this.#closed) {
             const testUpdate = await this.#queryDclForUpdate({ ...options, isProduction: false });
             if (testUpdate !== undefined) {
                 const updateEntry: DeviceSoftwareVersionModelDclSchemaWithSource = {
