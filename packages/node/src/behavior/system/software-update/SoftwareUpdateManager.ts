@@ -465,7 +465,7 @@ export class SoftwareUpdateManager extends Behavior {
         const updateDetails = new Map<string, CollectedNodesUpdateInfo>();
         for (const peer of rootNode.peers) {
             if (this.internal.closed) {
-                return;
+                return [];
             }
             if (peerToCheck !== undefined && peerToCheck !== peer) {
                 continue;
@@ -496,7 +496,7 @@ export class SoftwareUpdateManager extends Behavior {
         const peersWithUpdates = new Array<{ peerAddress: PeerAddress; info: SoftwareUpdateInfo }>();
         for (const infos of updateDetails.values()) {
             if (this.internal.closed) {
-                return;
+                return [];
             }
             try {
                 const peers = await this.#checkProductForUpdates(infos, includeStoredUpdates);
