@@ -14,6 +14,7 @@ import {
     NotImplementedError,
     Observable,
 } from "@matter/general";
+import { ClusterModel, Matter } from "@matter/model";
 import {
     Behavior,
     Endpoint as ClientEndpoint,
@@ -22,7 +23,6 @@ import {
     type GlobalAttributeState,
 } from "@matter/node";
 import { ClusterClientObj, Val } from "@matter/protocol";
-import { ClusterModel, Matter } from "@matter/model";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
