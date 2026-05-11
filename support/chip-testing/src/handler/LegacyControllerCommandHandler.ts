@@ -437,8 +437,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         logger.info("Writing attribute", attributeId, "with value", value);
 
         const realAttr = Matter.clusters(clusterId)?.attributes(attributeId);
-        const attrModel =
-            realAttr ?? new AttributeModel({ id: attributeId, name: `attr_${attributeId}`, access: "RW" });
+        const attrModel = realAttr ?? inferAttrModel(attributeId, value);
 
         await client.setAttribute({
             attributeData: {
@@ -631,4 +630,20 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             };
         });
     }
+}
+
+function inferAttrModel(id: number, value: unknown): AttributeModel {
+    let type: string;
+    if (value instanceof Uint8Array) type = "octstr";
+    else if (typeof value === "bigint") type = "uint64";
+    else if (typeof value === "string") type = "string";
+    else if (typeof value === "boolean") type = "bool";
+    else type = "uint32";
+    return new AttributeModel({
+        id,
+        name: `attr_${id}`,
+        type,
+        quality: value === null ? "X" : undefined,
+        access: "RW",
+    });
 }
