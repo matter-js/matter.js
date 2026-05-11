@@ -97,7 +97,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Probes discovered addresses and potentially updates session addresses when they change even when we have a valid working session
     - Enhancement: Optimizes operational connection logic during commissioning when multiple IPs are discovered
     - Enhancement: Uses a minimum of 60 seconds for thread/wifi network scan or connect timeouts even if devices announce lower values
-    - Enhancement: WiFi/Thread network scan failures are no longer fatal during commissioning; sc and just logged as warning
+    - Enhancement: WiFi/Thread network scan failures are no longer fatal during commissioning; scan failures are logged as warnings
     - Enhancement: Buffers storage of client state changes for up to 20 minutes to reduce I/O pressure
     - Adjustment: No longer ignores overly long incoming Matter messages, but still logs a warning
     - Adjustment: Tolerate operational certificates with 21-octet serial numbers (spec limit is 20, but seen in the wild with some LG TVs) and log a warning; longer serial numbers are still rejected
