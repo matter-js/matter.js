@@ -52,9 +52,13 @@ describe("TlvOfModel", () => {
     });
 
     describe("nullable quality on extended models", () => {
-        // Simulates the PeerBehavior.generateDiscoveredType() path where attrSupportOverrides
-        // creates extended attribute models via attr.extend({ operationalIsSupported: true }).
-        // The extended model has no local quality, so nullable must be resolved via effectiveQuality.
+        // PeerBehavior.generateDiscoveredType() calls maybeOverrideSupport() for every attribute.
+        // That function adds an attribute to attrSupportOverrides whenever the attribute is supported
+        // AND its conformance applicability is not Mandatory (i.e. all conditional/optional attributes).
+        // It then calls attr.extend({ operationalIsSupported: true }) for each override.
+        // The extended model carries no local quality, so nullable must be resolved via effectiveQuality.
+        // This affects ALL nullable conditional/optional attributes on peer devices — not just ones
+        // where the relevant feature appears absent.
         describe("scalar (enum) attribute", () => {
             const onOff = Matter.clusters("OnOff")!;
             const startUpOnOff = onOff.attributes("StartUpOnOff")!;
@@ -85,6 +89,22 @@ describe("TlvOfModel", () => {
                     exportedResetTimestamp: MATTER_EPOCH_OFFSET_S + 2000,
                 };
                 expect(roundTrip(extended, value)).deep.equal(value);
+            });
+        });
+
+        describe("non-nullable conditional attribute", () => {
+            // GlobalSceneControl has conformance "LT" (conditional) but no nullable quality.
+            // Extending it must NOT add TlvNullable — the fix must be precise.
+            const onOff = Matter.clusters("OnOff")!;
+            const globalSceneControl = onOff.attributes("GlobalSceneControl")!;
+            const extended = globalSceneControl.extend({ operationalIsSupported: true });
+
+            it("round-trips false", () => {
+                expect(roundTrip(extended, false)).equal(false);
+            });
+
+            it("round-trips true", () => {
+                expect(roundTrip(extended, true)).equal(true);
             });
         });
     });

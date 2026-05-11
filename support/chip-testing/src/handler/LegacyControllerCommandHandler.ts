@@ -638,7 +638,7 @@ function inferAttrModel(id: number, value: unknown): AttributeModel {
     else if (typeof value === "bigint") type = "uint64";
     else if (typeof value === "string") type = "string";
     else if (typeof value === "boolean") type = "bool";
-    else type = "uint32";
+    else type = "int32";
     return new AttributeModel({
         id,
         name: `attr_${id}`,
