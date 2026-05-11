@@ -174,7 +174,7 @@ function generateTlv(model: ClusterModel | ValueModel): TlvSchema<unknown> {
 
         let tlv: TlvSchema<unknown> = generateStruct(model);
 
-        if (model.quality.nullable) {
+        if (model.nullable) {
             tlv = TlvNullable(tlv);
         }
 
@@ -238,7 +238,7 @@ function generateTlv(model: ClusterModel | ValueModel): TlvSchema<unknown> {
             throw new InternalError(`No TLV mapping for model ${model.name}`);
     }
 
-    if (model.quality.nullable) {
+    if (model.nullable) {
         tlv = TlvNullable(tlv);
     }
 
