@@ -1523,6 +1523,7 @@ export class ControllerCommissioningFlow {
         const connectMaxTimeSeconds = Math.max(rawConnectMaxTimeSeconds ?? 0, MIN_NETWORK_CONNECT_TIMEOUT_SECONDS);
 
         // Only Scan when the device supports concurrent connections
+        let wifiScanFailureHint: string | undefined;
         if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
             await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
 
@@ -1542,13 +1543,14 @@ export class ControllerCommissioningFlow {
             );
 
             if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-                throw new WifiNetworkSetupFailedError(
-                    `Commissionee failed to scan for WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${debugText ? `: ${debugText}` : ""}`,
+                wifiScanFailureHint = `scan failed: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}`;
+                logger.warn(
+                    `WiFi network scan for "${this.commissioningOptions.wifiNetwork.wifiSsid}" returned status ${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `: ${debugText}` : ""} - attempting connection anyway`,
                 );
-            }
-            if (wiFiScanResults === undefined || wiFiScanResults.length === 0) {
-                throw new WifiNetworkSetupFailedError(
-                    `Commissionee did not return any WiFi networks for the requested SSID ${this.commissioningOptions.wifiNetwork.wifiSsid}`,
+            } else if (wiFiScanResults === undefined || wiFiScanResults.length === 0) {
+                wifiScanFailureHint = `network not found in scan results`;
+                logger.warn(
+                    `WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}" not found in scan results - attempting connection anyway`,
                 );
             }
         }
@@ -1575,7 +1577,7 @@ export class ControllerCommissioningFlow {
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new WifiNetworkSetupFailedError(
-                `Commissionee failed to add WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${addDebugText ? `: ${addDebugText}` : ""}`,
+                `Commissionee failed to add WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${addDebugText ? `: ${addDebugText}` : ""}${wifiScanFailureHint !== undefined ? ` (${wifiScanFailureHint} - verify network name and availability)` : ""}`,
             );
         }
         if (networkIndex === undefined) {
@@ -1621,7 +1623,7 @@ export class ControllerCommissioningFlow {
 
         if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new WifiNetworkSetupFailedError(
-                `Commissionee failed to connect to WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${connectResult.debugText ? `: ${connectResult.debugText}` : ""}`,
+                `Commissionee failed to connect to WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}"${connectResult.debugText ? `: ${connectResult.debugText}` : ""}${wifiScanFailureHint !== undefined ? ` (${wifiScanFailureHint} - verify network name and availability)` : ""}`,
             );
         }
         this.collectedCommissioningData.successfullyConnectedToNetwork = true;
@@ -1698,6 +1700,7 @@ export class ControllerCommissioningFlow {
         const scanMaxTimeSeconds = Math.max(rawScanMaxTimeSeconds ?? 0, MIN_NETWORK_SCAN_TIMEOUT_SECONDS);
         const connectMaxTimeSeconds = Math.max(rawConnectMaxTimeSeconds ?? 0, MIN_NETWORK_CONNECT_TIMEOUT_SECONDS);
 
+        let threadScanFailureHint: string | undefined;
         if (!this.commissioningOptions.threadNetwork?.networkName) {
             logger.info("Thread network name is not configured. Skip scanning for it.");
         } else if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
@@ -1717,30 +1720,32 @@ export class ControllerCommissioningFlow {
             )) as NetworkCommissioning.ScanNetworksResponse;
 
             if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-                throw new ThreadNetworkSetupFailedError(
-                    `Commissionee failed to scan for Thread networks${debugText ? `: ${debugText}` : ""}`,
+                threadScanFailureHint = `scan failed: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}`;
+                logger.warn(
+                    `Thread network scan returned status ${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `: ${debugText}` : ""} - attempting connection anyway`,
                 );
-            }
-            if (threadScanResults === undefined || threadScanResults.length === 0) {
-                throw new ThreadNetworkSetupFailedError(
-                    `Commissionee did not return any Thread networks for the requested Network ${this.commissioningOptions.threadNetwork.networkName}`,
+            } else if (threadScanResults === undefined || threadScanResults.length === 0) {
+                threadScanFailureHint = `no Thread networks found in scan results`;
+                logger.warn(
+                    `Thread network scan returned no results for "${this.commissioningOptions.threadNetwork.networkName}" - attempting connection anyway`,
                 );
-            }
-            const wantedNetworkFound = threadScanResults.find(
-                ({ networkName }) => networkName === this.commissioningOptions.threadNetwork?.networkName,
-            );
-            if (wantedNetworkFound === undefined) {
-                throw new ThreadNetworkSetupFailedError(
-                    `Commissionee did not return the requested Network ${
-                        this.commissioningOptions.threadNetwork.networkName
-                    }: ${Diagnostic.json(threadScanResults)}`,
+            } else {
+                const wantedNetworkFound = threadScanResults.find(
+                    ({ networkName }) => networkName === this.commissioningOptions.threadNetwork?.networkName,
                 );
+                if (wantedNetworkFound === undefined) {
+                    threadScanFailureHint = `network "${this.commissioningOptions.threadNetwork.networkName}" not found in scan results`;
+                    logger.warn(
+                        `Thread network "${this.commissioningOptions.threadNetwork.networkName}" not found in scan results: ${Diagnostic.json(threadScanResults)} - attempting connection anyway`,
+                    );
+                } else {
+                    logger.debug(
+                        `Commissionee found wanted Thread network ${
+                            this.commissioningOptions.threadNetwork.networkName
+                        }: ${Diagnostic.json(wantedNetworkFound)}`,
+                    );
+                }
             }
-            logger.debug(
-                `Commissionee found wanted Thread network ${
-                    this.commissioningOptions.threadNetwork.networkName
-                }: ${Diagnostic.json(wantedNetworkFound)}`,
-            );
         }
 
         const {
@@ -1764,7 +1769,7 @@ export class ControllerCommissioningFlow {
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
-                `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? `, ${addDebugText}` : ""}`,
+                `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? `, ${addDebugText}` : ""}${threadScanFailureHint !== undefined ? ` (${threadScanFailureHint} - verify network name and availability)` : ""}`,
             );
         }
         if (networkIndex === undefined) {
@@ -1811,7 +1816,7 @@ export class ControllerCommissioningFlow {
         const { networkingStatus, debugText } = connectResult;
         if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
-                `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}`,
+                `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}${threadScanFailureHint !== undefined ? ` (${threadScanFailureHint} - verify network name and availability)` : ""}`,
             );
         }
         logger.debug(
