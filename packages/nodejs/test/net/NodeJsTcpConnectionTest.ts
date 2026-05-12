@@ -146,4 +146,43 @@ describe("NodeJsTcpConnection", () => {
         // Should not hang
         await clientSocket.close();
     });
+
+    it("concurrent close calls share one teardown promise", async () => {
+        const { clientSocket, rawServer } = await connectClient();
+        try {
+            let endCount = 0;
+            rawServer.on("end", () => {
+                endCount++;
+            });
+
+            const [a, b, c] = await Promise.all([clientSocket.close(), clientSocket.close(), clientSocket.close()]);
+
+            assert.equal(a, undefined);
+            assert.equal(b, undefined);
+            assert.equal(c, undefined);
+            // The single underlying socket end should produce at most one "end" event on the peer.
+            // (Some platforms may not deliver it before the server destroys; assertion is upper-bound.)
+            assert.ok(endCount <= 1, `expected ≤1 server-side "end" event, got ${endCount}`);
+        } finally {
+            rawServer.destroy();
+        }
+    });
+
+    it("close after peer-initiated close completes without hanging", async () => {
+        const { clientSocket, rawServer } = await connectClient();
+
+        // Trigger close from peer side and wait for it to propagate to the client wrapper.
+        const peerClosed = new Promise<void>(resolve => {
+            clientSocket.onClose(() => resolve());
+        });
+        rawServer.end();
+        rawServer.destroy();
+        await peerClosed;
+
+        // Awaiting close() must resolve promptly even though the underlying socket already emitted "close".
+        await Promise.race([
+            clientSocket.close(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("close() hung")), 1000)),
+        ]);
+    });
 });
