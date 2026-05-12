@@ -153,9 +153,10 @@ export class TcpTransport implements ConnectionOrientedTransport {
 
         const key = `${address.ip}:${address.port}`;
 
-        // Return existing channel or in-flight connection for this address. Shared connects ignore
-        // per-caller abort; aborting one caller must not tear down a connect another caller still
-        // needs. Callers that want a fresh, abortable connect must use a distinct address tuple.
+        // The first caller's abort signal governs an in-flight connect; subsequent callers awaiting
+        // the same promise will see it reject if the first aborts. PeerConnection dedupes attempts
+        // per (peer, address) at a higher level, so concurrent sharing for the same ip:port is rare
+        // and the simpler shared-promise contract is acceptable.
         const existing = this.#channels.get(key) ?? this.#connecting.get(key);
         if (existing) {
             return existing;
@@ -170,6 +171,12 @@ export class TcpTransport implements ConnectionOrientedTransport {
     async #connect(address: ServerAddressIp, abort?: AbortSignal): Promise<Channel<Bytes>> {
         const socket = await this.#network.connectTcp(address.ip, address.port, { abort });
         const channel = new TcpChannel(socket, this.#maxMessageSize);
+        // Abort can fire in the microtask window between connectTcp resolving and us getting here.
+        // Close the channel without registering so it never enters #channels as an orphan.
+        if (abort?.aborted) {
+            await channel.close();
+            throw new NetworkError("TCP connect aborted after socket established");
+        }
         this.#registerChannel(channel);
         return channel;
     }

@@ -202,11 +202,12 @@ export class NodeJsNetwork extends Network {
         }
         return new Promise((resolve, reject) => {
             let settled = false;
+            let onAbort: (() => void) | undefined;
 
             const settle = (fn: () => void) => {
                 if (!settled) {
                     settled = true;
-                    options?.abort?.removeEventListener("abort", onAbort);
+                    if (onAbort) options?.abort?.removeEventListener("abort", onAbort);
                     fn();
                 }
             };
@@ -223,7 +224,7 @@ export class NodeJsNetwork extends Network {
                     reject(error);
                 });
 
-            const onAbort = () => rejectOnce(new NetworkError("TCP connect aborted"));
+            onAbort = () => rejectOnce(new NetworkError("TCP connect aborted"));
 
             socket.setTimeout(options?.timeout ?? TCP_CONNECTION_TIMEOUT_MS);
             socket.once("timeout", () => {

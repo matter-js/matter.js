@@ -626,7 +626,7 @@ export namespace PeerConnection {
         /**
          * Open byte channel to a specific address.
          */
-        openSocket(address: ServerAddressIp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
+        openSocket(address: ServerAddressIp, abort: AbortSignal): Promise<Channel<Bytes> | undefined>;
 
         timing: PeerTimingParameters;
 

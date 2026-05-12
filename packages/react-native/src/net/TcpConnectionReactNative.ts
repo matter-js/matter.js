@@ -123,7 +123,7 @@ export class TcpConnectionReactNative implements TcpConnection {
     }
 
     async #doClose(): Promise<void> {
-        const alreadyClosed = this.#ended;
+        const alreadyClosed = this.#ended || this.#socket.destroyed;
         this.#ended = true;
         this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
         this.#waiter = undefined;
@@ -164,6 +164,7 @@ export function connectReactNativeTcp(
     host: string,
     port: number,
     abort?: AbortSignal,
+    timeoutMs?: number,
 ): Promise<TcpConnectionReactNative> {
     if (abort?.aborted) {
         return Promise.reject(new NetworkError("TCP connect aborted"));
@@ -197,7 +198,8 @@ export function connectReactNativeTcp(
         abort?.addEventListener("abort", onAbort, { once: true });
     });
 
-    return withTimeout(TCP_CONNECT_TIMEOUT, connected, () => {
+    const timeout = timeoutMs !== undefined ? Seconds(timeoutMs / 1000) : TCP_CONNECT_TIMEOUT;
+    return withTimeout(timeout, connected, () => {
         socket?.destroy();
         throw new NetworkError("TCP connection timeout");
     }).finally(() => {

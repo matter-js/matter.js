@@ -197,6 +197,6 @@ export class NetworkReactNative extends Network {
         port: number,
         options?: { timeout?: number; abort?: AbortSignal },
     ): Promise<TcpConnection> {
-        return connectReactNativeTcp(host, port, options?.abort);
+        return connectReactNativeTcp(host, port, options?.abort, options?.timeout);
     }
 }
