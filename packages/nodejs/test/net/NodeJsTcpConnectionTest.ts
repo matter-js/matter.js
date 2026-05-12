@@ -7,6 +7,7 @@
 import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import * as net from "node:net";
+import { NodeJsNetwork } from "../../src/net/NodeJsNetwork.js";
 import { NodeJsTcpConnection } from "../../src/net/NodeJsTcpConnection.js";
 
 describe("NodeJsTcpConnection", () => {
@@ -166,6 +167,30 @@ describe("NodeJsTcpConnection", () => {
         } finally {
             rawServer.destroy();
         }
+    });
+
+    describe("connectTcp abort handling", () => {
+        it("rejects immediately when abort signal is pre-fired", async () => {
+            const network = new NodeJsNetwork();
+            const controller = new AbortController();
+            controller.abort();
+
+            await assert.rejects(network.connectTcp("127.0.0.1", serverPort, { abort: controller.signal }), /aborted/i);
+        });
+
+        it("destroys the socket and rejects when abort fires during connect", async () => {
+            const network = new NodeJsNetwork();
+            const controller = new AbortController();
+
+            // TEST-NET-1 (RFC 5737) — guaranteed non-routable; SYN will hang until aborted.
+            const connectPromise = network.connectTcp("192.0.2.1", 5540, {
+                abort: controller.signal,
+                timeout: 10_000,
+            });
+            setImmediate(() => controller.abort());
+
+            await assert.rejects(connectPromise, /aborted/i);
+        });
     });
 
     it("close after peer-initiated close completes without hanging", async () => {
