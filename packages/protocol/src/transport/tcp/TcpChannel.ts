@@ -237,7 +237,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
 
     #handleError(error: Error): void {
         if (error instanceof TcpDisconnectError) {
-            logger.info("TCP connection closed by peer:", error.message);
+            logger.info("TCP connection lost:", error.message);
         } else {
             logger.warn("TCP connection error:", error.message);
         }

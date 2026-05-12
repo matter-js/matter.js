@@ -5,6 +5,7 @@
  */
 
 import { MatterError } from "../MatterError.js";
+import { repackErrorAs } from "../util/Error.js";
 import type { MaybePromise } from "../util/Promises.js";
 import type { TcpConnection, TcpListener, TcpListenerOptions } from "./tcp/TcpConnection.js";
 import type { UdpSocket, UdpSocketOptions } from "./udp/UdpSocket.js";
@@ -30,15 +31,15 @@ export function tcpErrorFrom(error: Error): NetworkError {
         case "EPIPE":
         case "ECONNABORTED":
         case "ETIMEDOUT":
-            return new TcpDisconnectError(error.message);
+            return repackErrorAs(error, TcpDisconnectError);
         case "EADDRINUSE":
-            return new AddressInUseError(error.message);
+            return repackErrorAs(error, AddressInUseError);
         case "EHOSTUNREACH":
-            return new AddressUnreachableError(error.message);
+            return repackErrorAs(error, AddressUnreachableError);
         case "ENETUNREACH":
-            return new NetworkUnreachableError(error.message);
+            return repackErrorAs(error, NetworkUnreachableError);
         default:
-            return new NetworkError(error.message);
+            return repackErrorAs(error, NetworkError);
     }
 }
 
