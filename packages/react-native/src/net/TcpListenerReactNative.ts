@@ -9,6 +9,7 @@ import {
     NetworkError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
+    tcpErrorFrom,
     Transport,
     withTimeout,
     type TcpConnection,
@@ -44,7 +45,7 @@ export class TcpListenerReactNative implements TcpListener {
         const listening = new Promise<TcpListenerReactNative>((resolve, reject) => {
             const handleError = (error: Error) => {
                 server.removeListener("error", handleError);
-                reject(new NetworkError(error.message));
+                reject(tcpErrorFrom(error));
             };
             server.on("error", handleError);
             server.listen({ port: options.listeningPort ?? 0, host: options.listeningAddress ?? "0.0.0.0" }, () => {

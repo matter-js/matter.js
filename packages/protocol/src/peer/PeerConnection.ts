@@ -436,89 +436,103 @@ export async function PeerConnection(
             }
         }
 
-        // When we try the fallback address, and it is not the first one, then we directly use a higher MRP interval
-        const isFallback = attemptingFallback && addrsAttempted > 1;
-
-        await using unsecuredSession = context.sessions.createUnsecuredSession({
-            channel: socket,
-            sessionParameters: peer.sessionParameters,
-            isInitiator: true,
-        });
-
-        await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network);
-
-        info(
-            Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
-            address,
-            "Connecting",
-            Diagnostic.dict({
-                "addr #": addrNo,
-                "attempt #": attemptNo,
-                "connect time": Duration.format(Timestamp.delta(lifetime.startedAt)),
-                "addr time": Duration.format(Timestamp.delta(attemptLifetime.startedAt)),
-            }),
-            Diagnostic.asFlags({
-                [network.id]: true,
-                fallback: address === attemptingFallback,
-            }),
-        );
-
-        const caseClient = new CaseClient(context.sessions);
-
-        const fabric = context.sessions.fabricFor(peer.address);
-
-        let kick: Disposable | undefined;
-
-        // localAbort wraps addressAbort; firing it aborts only this single attempt so connect() can
-        // loop back and open a fresh exchange (fresh MRP backoff) without aborting the address entirely.
-        using localAbort = new Abort({ abort: addressAbort });
+        // MessageChannel.close skips TCP — sessions own that lifecycle. If pair fails before a session
+        // takes over we must close the channel ourselves. UDP close is a no-op so this is safe for both.
+        let socketOwned = true;
 
         try {
-            using _pairing = attemptLifetime.join("pairing");
+            // When we try the fallback address, and it is not the first one, then we directly use a higher MRP interval
+            const isFallback = attemptingFallback && addrsAttempted > 1;
 
-            kick = kicker?.use((origin: KickOrigin) => {
-                if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+            await using unsecuredSession = context.sessions.createUnsecuredSession({
+                channel: socket,
+                sessionParameters: peer.sessionParameters,
+                isInitiator: true,
+            });
+
+            await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network);
+
+            info(
+                Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
+                address,
+                "Connecting",
+                Diagnostic.dict({
+                    "addr #": addrNo,
+                    "attempt #": attemptNo,
+                    "connect time": Duration.format(Timestamp.delta(lifetime.startedAt)),
+                    "addr time": Duration.format(Timestamp.delta(attemptLifetime.startedAt)),
+                }),
+                Diagnostic.asFlags({
+                    [network.id]: true,
+                    fallback: address === attemptingFallback,
+                }),
+            );
+
+            const caseClient = new CaseClient(context.sessions);
+
+            const fabric = context.sessions.fabricFor(peer.address);
+
+            let kick: Disposable | undefined;
+
+            // localAbort wraps addressAbort; firing it aborts only this single attempt so connect() can
+            // loop back and open a fresh exchange (fresh MRP backoff) without aborting the address entirely.
+            using localAbort = new Abort({ abort: addressAbort });
+
+            try {
+                using _pairing = attemptLifetime.join("pairing");
+
+                kick = kicker?.use((origin: KickOrigin) => {
+                    if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+                        return;
+                    }
+
+                    const threshold =
+                        origin === "discover"
+                            ? context.timing.kickRestartCooldown.addressChange
+                            : context.timing.kickRestartCooldown.connect;
+
+                    if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
+                        info(via, address, `Restarting exchange on "${origin}" kick`);
+                        lastRestartAt = Time.nowMs;
+                        localAbort();
+                    } else {
+                        debug(
+                            via,
+                            address,
+                            `Suppressing "${origin}" kick, last restart was ${Duration.format(Timestamp.delta(lastRestartAt))} ago`,
+                        );
+                    }
+                });
+
+                const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
+                    ...options,
+                    abort: localAbort,
+                    caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
+                    maxInitialRetransmissions: Infinity,
+                    maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
+                    initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
+                });
+
+                outputSession = session;
+                socketOwned = false;
+                overallAbort();
+            } catch (e) {
+                if (AbortedError.is(e)) {
                     return;
                 }
 
-                const threshold =
-                    origin === "discover"
-                        ? context.timing.kickRestartCooldown.addressChange
-                        : context.timing.kickRestartCooldown.connect;
-
-                if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
-                    info(via, address, `Restarting exchange on "${origin}" kick`);
-                    lastRestartAt = Time.nowMs;
-                    localAbort();
-                } else {
-                    debug(
-                        via,
-                        address,
-                        `Suppressing "${origin}" kick, last restart was ${Duration.format(Timestamp.delta(lastRestartAt))} ago`,
-                    );
-                }
-            });
-
-            const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
-                ...options,
-                abort: localAbort,
-                caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
-                maxInitialRetransmissions: Infinity,
-                maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
-                initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
-            });
-
-            // Success
-            outputSession = session;
-            overallAbort();
-        } catch (e) {
-            if (AbortedError.is(e)) {
-                return;
+                throw e;
+            } finally {
+                kick?.[Symbol.dispose]();
             }
-
-            throw e;
         } finally {
-            kick?.[Symbol.dispose]();
+            if (socketOwned) {
+                try {
+                    await socket.close();
+                } catch (e) {
+                    warn(address, "Error closing abandoned channel:", Diagnostic.errorMessage(asError(e)));
+                }
+            }
         }
     }
 
@@ -612,7 +626,7 @@ export namespace PeerConnection {
         /**
          * Open byte channel to a specific address.
          */
-        openSocket(address: ServerAddressIp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
+        openSocket(address: ServerAddressIp, abort: AbortSignal): Promise<Channel<Bytes> | undefined>;
 
         timing: PeerTimingParameters;
 

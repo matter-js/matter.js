@@ -17,6 +17,7 @@ import {
     onSameNetwork,
     TCP_CONNECTION_TIMEOUT_MS,
     TcpConnection,
+    TcpConnectOptions,
     TcpListener,
     TcpListenerOptions,
     UdpSocket,
@@ -192,15 +193,27 @@ export class NodeJsNetwork extends Network {
         return NodeJsTcpListener.create(options);
     }
 
-    override async connectTcp(host: string, port: number, options?: { timeout?: number }): Promise<TcpConnection> {
+    override async connectTcp(host: string, port: number, options?: TcpConnectOptions): Promise<TcpConnection> {
+        if (options?.abort?.aborted) {
+            throw new NetworkError("TCP connect aborted");
+        }
         return new Promise((resolve, reject) => {
             let settled = false;
+            // Captured by reference so settle() can detach the listener regardless of which path settles first.
+            let abortListener: (() => void) | undefined;
+
+            const detachAbort = () => {
+                if (abortListener !== undefined) {
+                    options?.abort?.removeEventListener("abort", abortListener);
+                    abortListener = undefined;
+                }
+            };
 
             const settle = (fn: () => void) => {
-                if (!settled) {
-                    settled = true;
-                    fn();
-                }
+                if (settled) return;
+                settled = true;
+                detachAbort();
+                fn();
             };
 
             const socket = createConnection({ host, port, noDelay: true }, () => {
@@ -215,12 +228,15 @@ export class NodeJsNetwork extends Network {
                     reject(error);
                 });
 
+            abortListener = () => rejectOnce(new NetworkError("TCP connect aborted"));
+
             socket.setTimeout(options?.timeout ?? TCP_CONNECTION_TIMEOUT_MS);
             socket.once("timeout", () => {
                 socket.destroy();
                 settle(() => reject(new NetworkError("TCP connection timeout")));
             });
             socket.on("error", rejectOnce);
+            options?.abort?.addEventListener("abort", abortListener, { once: true });
         });
     }
 }

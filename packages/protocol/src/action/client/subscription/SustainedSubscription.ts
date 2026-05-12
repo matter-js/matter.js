@@ -149,7 +149,7 @@ export class SustainedSubscription extends ClientSubscription {
                     if (!causedBy(e, AbortedError) || !this.abort.aborted) {
                         // Subscription failed not by timeout but because could not be established, so we have a new session anyway
                         sessionTrusted = true;
-                        logger.error(
+                        logger.info(
                             `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
                             Diagnostic.errorMessage(asError(e)),
                         );

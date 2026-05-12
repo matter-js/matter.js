@@ -6,15 +6,19 @@
 
 import {
     Bytes,
+    Logger,
     NetworkError,
     Seconds,
     TCP_CONNECTION_TIMEOUT_MS,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
+    tcpErrorFrom,
     Transport,
     withTimeout,
     type TcpConnection,
 } from "@matter/general";
 import { createConnection, type Socket as RnSocket } from "react-native-tcp-socket";
+
+const logger = Logger.get("TcpConnectionReactNative");
 
 /** Connection timeout as Duration for withTimeout. */
 const TCP_CONNECT_TIMEOUT = Seconds(TCP_CONNECTION_TIMEOUT_MS / 1000);
@@ -29,6 +33,7 @@ export class TcpConnectionReactNative implements TcpConnection {
     readonly localPort: number;
     readonly #socket: RnSocket;
     #ended = false;
+    #closePromise?: Promise<void>;
     #chunks = new Array<Bytes>();
     #waiter?: (value: IteratorResult<Bytes>) => void;
 
@@ -85,7 +90,7 @@ export class TcpConnectionReactNative implements TcpConnection {
         return new Promise<void>((resolve, reject) => {
             this.#socket.write(Buffer.from(Bytes.of(data)), (error?: Error) => {
                 if (error) {
-                    reject(new NetworkError(error.message));
+                    reject(tcpErrorFrom(error));
                 } else {
                     resolve();
                 }
@@ -103,7 +108,7 @@ export class TcpConnectionReactNative implements TcpConnection {
     }
 
     onError(listener: (error: Error) => void): Transport.Listener {
-        const handler = (error: Error) => listener(new NetworkError(error.message));
+        const handler = (error: Error) => listener(tcpErrorFrom(error));
         this.#socket.on("error", handler);
         return {
             close: async () => {
@@ -112,33 +117,77 @@ export class TcpConnectionReactNative implements TcpConnection {
         };
     }
 
-    async close(): Promise<void> {
-        if (this.#ended) return;
+    close(): Promise<void> {
+        // Memoize so concurrent callers share one teardown — each `await close()` waits for actual shutdown.
+        return (this.#closePromise ??= this.#doClose());
+    }
+
+    async #doClose(): Promise<void> {
+        // react-native-tcp-socket's exported Socket type does not surface `destroyed`, so we rely on
+        // #ended (set by the constructor's "close"/"error" handlers) to detect external closure.
+        const alreadyClosed = this.#ended;
         this.#ended = true;
         this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
         this.#waiter = undefined;
 
-        const closed = new Promise<void>(resolve => {
-            this.#socket.on("close", () => resolve());
-            this.#socket.end();
-        });
-        await withTimeout(Seconds(5), closed, () => {
-            this.#socket.destroy();
-        });
+        // Already closed externally; a fresh "close" listener wouldn't fire and would stall #closePromise.
+        if (alreadyClosed) {
+            return;
+        }
+
+        // react-native-tcp-socket Socket type lacks `once`; install a named handler and detach it manually.
+        let onClose: (() => void) | undefined;
+        try {
+            const closed = new Promise<void>(resolve => {
+                onClose = () => resolve();
+                this.#socket.on("close", onClose);
+                this.#socket.end();
+            });
+            await withTimeout(Seconds(5), closed, () => {
+                this.#socket.destroy();
+            });
+        } catch (error) {
+            logger.warn(`Error closing TCP connection ${this.remoteAddress}:${this.remotePort}:`, error);
+            try {
+                this.#socket.destroy();
+            } catch (destroyError) {
+                logger.debug(`Error destroying TCP socket ${this.remoteAddress}:${this.remotePort}:`, destroyError);
+            }
+        } finally {
+            if (onClose) {
+                this.#socket.off("close", onClose);
+            }
+        }
     }
 }
 
 /** Create a client TCP connection using react-native-tcp-socket. */
-export function connectReactNativeTcp(host: string, port: number): Promise<TcpConnectionReactNative> {
+export function connectReactNativeTcp(
+    host: string,
+    port: number,
+    abort?: AbortSignal,
+    timeoutMs?: number,
+): Promise<TcpConnectionReactNative> {
+    if (abort?.aborted) {
+        return Promise.reject(new NetworkError("TCP connect aborted"));
+    }
     let socket: RnSocket | undefined;
+    let abortListener: (() => void) | undefined;
+
+    const detachAbort = () => {
+        if (abortListener !== undefined) {
+            abort?.removeEventListener("abort", abortListener);
+            abortListener = undefined;
+        }
+    };
 
     const connected = new Promise<TcpConnectionReactNative>((resolve, reject) => {
         let settled = false;
         const settle = (fn: () => void) => {
-            if (!settled) {
-                settled = true;
-                fn();
-            }
+            if (settled) return;
+            settled = true;
+            detachAbort();
+            fn();
         };
 
         socket = createConnection({ host, port }, () => {
@@ -146,12 +195,20 @@ export function connectReactNativeTcp(host: string, port: number): Promise<TcpCo
         });
 
         socket.on("error", (err: Error) => {
-            settle(() => reject(new NetworkError(err.message)));
+            settle(() => reject(tcpErrorFrom(err)));
         });
+
+        abortListener = () =>
+            settle(() => {
+                socket?.destroy();
+                reject(new NetworkError("TCP connect aborted"));
+            });
+        abort?.addEventListener("abort", abortListener, { once: true });
     });
 
-    return withTimeout(TCP_CONNECT_TIMEOUT, connected, () => {
+    const timeout = timeoutMs !== undefined ? Seconds(timeoutMs / 1000) : TCP_CONNECT_TIMEOUT;
+    return withTimeout(timeout, connected, () => {
         socket?.destroy();
         throw new NetworkError("TCP connection timeout");
-    });
+    }).finally(detachAbort);
 }
