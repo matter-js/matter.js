@@ -326,13 +326,21 @@ export class CaseClient {
             this.#sessions.sessions.add(secureSession);
         }
 
-        // These are not abortable
+        // Not abortable; errors must not propagate — session is already adopted at this point.
         try {
             await messenger.close();
         } catch (e) {
             logger.error(messenger.via, "Unhandled error closing CASE messenger:", e);
         }
-        await this.#sessions.saveResumptionRecord(resumptionRecord);
+        try {
+            await this.#sessions.saveResumptionRecord(resumptionRecord);
+        } catch (e) {
+            logger.error(
+                messenger.via,
+                "Failed to save resumption record; session is usable but cannot be resumed:",
+                e,
+            );
+        }
 
         return { session: secureSession, resumed };
     }

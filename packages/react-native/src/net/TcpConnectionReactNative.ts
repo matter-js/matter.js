@@ -6,6 +6,7 @@
 
 import {
     Bytes,
+    Logger,
     NetworkError,
     Seconds,
     TCP_CONNECTION_TIMEOUT_MS,
@@ -16,6 +17,8 @@ import {
     type TcpConnection,
 } from "@matter/general";
 import { createConnection, type Socket as RnSocket } from "react-native-tcp-socket";
+
+const logger = Logger.get("TcpConnectionReactNative");
 
 /** Connection timeout as Duration for withTimeout. */
 const TCP_CONNECT_TIMEOUT = Seconds(TCP_CONNECTION_TIMEOUT_MS / 1000);
@@ -30,6 +33,7 @@ export class TcpConnectionReactNative implements TcpConnection {
     readonly localPort: number;
     readonly #socket: RnSocket;
     #ended = false;
+    #closePromise?: Promise<void>;
     #chunks = new Array<Bytes>();
     #waiter?: (value: IteratorResult<Bytes>) => void;
 
@@ -113,19 +117,44 @@ export class TcpConnectionReactNative implements TcpConnection {
         };
     }
 
-    async close(): Promise<void> {
-        if (this.#ended) return;
+    close(): Promise<void> {
+        // Memoize so concurrent callers share one teardown — each `await close()` waits for actual shutdown.
+        return (this.#closePromise ??= this.#doClose());
+    }
+
+    async #doClose(): Promise<void> {
+        const alreadyClosed = this.#ended;
         this.#ended = true;
         this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
         this.#waiter = undefined;
 
-        const closed = new Promise<void>(resolve => {
-            this.#socket.on("close", () => resolve());
-            this.#socket.end();
-        });
-        await withTimeout(Seconds(5), closed, () => {
-            this.#socket.destroy();
-        });
+        // Already closed externally; a fresh "close" listener wouldn't fire and would stall #closePromise.
+        if (alreadyClosed) {
+            return;
+        }
+
+        try {
+            // react-native-tcp-socket Socket type lacks `once`; dedupe manually.
+            const closed = new Promise<void>(resolve => {
+                let resolved = false;
+                this.#socket.on("close", () => {
+                    if (resolved) return;
+                    resolved = true;
+                    resolve();
+                });
+                this.#socket.end();
+            });
+            await withTimeout(Seconds(5), closed, () => {
+                this.#socket.destroy();
+            });
+        } catch (error) {
+            logger.warn(`Error closing TCP connection ${this.remoteAddress}:${this.remotePort}:`, error);
+            try {
+                this.#socket.destroy();
+            } catch (destroyError) {
+                logger.debug(`Error destroying TCP socket ${this.remoteAddress}:${this.remotePort}:`, destroyError);
+            }
+        }
     }
 }
 
