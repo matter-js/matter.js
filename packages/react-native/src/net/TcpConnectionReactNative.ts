@@ -123,7 +123,9 @@ export class TcpConnectionReactNative implements TcpConnection {
     }
 
     async #doClose(): Promise<void> {
-        const alreadyClosed = this.#ended || this.#socket.destroyed;
+        // react-native-tcp-socket's exported Socket type does not surface `destroyed`, so we rely on
+        // #ended (set by the constructor's "close"/"error" handlers) to detect external closure.
+        const alreadyClosed = this.#ended;
         this.#ended = true;
         this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
         this.#waiter = undefined;
