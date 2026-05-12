@@ -11,6 +11,8 @@ import type { UdpSocket, UdpSocketOptions } from "./udp/UdpSocket.js";
 
 export class NetworkError extends MatterError {}
 
+export class TcpDisconnectError extends NetworkError {}
+
 export class NoAddressAvailableError extends NetworkError {}
 
 export class BindError extends NetworkError {}
@@ -20,6 +22,25 @@ export class AddressInUseError extends BindError {}
 export class AddressUnreachableError extends NetworkError {}
 
 export class NetworkUnreachableError extends NetworkError {}
+
+export function tcpErrorFrom(error: Error): NetworkError {
+    const code = (error as { code?: string }).code;
+    switch (code) {
+        case "ECONNRESET":
+        case "EPIPE":
+        case "ECONNABORTED":
+        case "ETIMEDOUT":
+            return new TcpDisconnectError(error.message);
+        case "EADDRINUSE":
+            return new AddressInUseError(error.message);
+        case "EHOSTUNREACH":
+            return new AddressUnreachableError(error.message);
+        case "ENETUNREACH":
+            return new NetworkUnreachableError(error.message);
+        default:
+            return new NetworkError(error.message);
+    }
+}
 
 export const STANDARD_MATTER_PORT = 5540;
 

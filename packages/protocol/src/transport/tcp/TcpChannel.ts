@@ -18,6 +18,7 @@ import {
     ServerAddressIp,
     ServerAddressTcp,
     TcpConnection,
+    TcpDisconnectError,
     Transport,
 } from "@matter/general";
 
@@ -235,8 +236,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     }
 
     #handleError(error: Error): void {
-        const code = (error as { code?: string }).code;
-        if (code === "ECONNRESET" || code === "EPIPE" || code === "ECONNABORTED") {
+        if (error instanceof TcpDisconnectError) {
             logger.info("TCP connection closed by peer:", error.message);
         } else {
             logger.warn("TCP connection error:", error.message);

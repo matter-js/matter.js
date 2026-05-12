@@ -10,6 +10,7 @@ import {
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     TcpConnection,
+    tcpErrorFrom,
     TcpListener,
     TcpListenerOptions,
     Transport,
@@ -50,7 +51,7 @@ export class NodeJsTcpListener implements TcpListener {
         const listening = new Promise<void>((resolve, reject) => {
             const handleError = (error: Error) => {
                 server.removeListener("error", handleError);
-                reject(new NetworkError(error.message));
+                reject(tcpErrorFrom(error));
             };
             server.on("error", handleError);
             server.listen(listeningPort ?? 0, listeningAddress, () => {
