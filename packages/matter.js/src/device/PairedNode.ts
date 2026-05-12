@@ -729,6 +729,8 @@ export class PairedNode {
      * Handles structure update scheduling, device info updates, and connectionAlive events.
      */
     #handleSubscriptionAlive() {
+        this.#setConnectionState(NodeStates.Connected);
+
         // Schedule endpoint structure update if needed
         if (
             this.#remoteInitializationDone &&
