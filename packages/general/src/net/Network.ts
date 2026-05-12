@@ -8,7 +8,14 @@ import { MatterError } from "../MatterError.js";
 import { repackErrorAs } from "../util/Error.js";
 import type { MaybePromise } from "../util/Promises.js";
 import type { TcpConnection, TcpListener, TcpListenerOptions } from "./tcp/TcpConnection.js";
+import type { Transport } from "./Transport.js";
 import type { UdpSocket, UdpSocketOptions } from "./udp/UdpSocket.js";
+
+/** Options for {@link Network.connectTcp}. */
+export interface TcpConnectOptions extends Transport.ConnectOptions {
+    /** Per-call timeout in milliseconds. Defaults to TCP_CONNECTION_TIMEOUT_MS. */
+    timeout?: number;
+}
 
 export class NetworkError extends MatterError {}
 
@@ -99,11 +106,7 @@ export abstract class Network {
     }
 
     /** Connect to a remote TCP endpoint. Override in platform implementations that support TCP. */
-    connectTcp(
-        _host: string,
-        _port: number,
-        _options?: { timeout?: number; abort?: AbortSignal },
-    ): Promise<TcpConnection> {
+    connectTcp(_host: string, _port: number, _options?: TcpConnectOptions): Promise<TcpConnection> {
         throw new NetworkError("TCP client not supported on this platform");
     }
 

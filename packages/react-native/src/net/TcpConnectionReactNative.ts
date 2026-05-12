@@ -172,16 +172,22 @@ export function connectReactNativeTcp(
         return Promise.reject(new NetworkError("TCP connect aborted"));
     }
     let socket: RnSocket | undefined;
-    let onAbort: (() => void) | undefined;
+    let abortListener: (() => void) | undefined;
+
+    const detachAbort = () => {
+        if (abortListener !== undefined) {
+            abort?.removeEventListener("abort", abortListener);
+            abortListener = undefined;
+        }
+    };
 
     const connected = new Promise<TcpConnectionReactNative>((resolve, reject) => {
         let settled = false;
         const settle = (fn: () => void) => {
-            if (!settled) {
-                settled = true;
-                if (onAbort) abort?.removeEventListener("abort", onAbort);
-                fn();
-            }
+            if (settled) return;
+            settled = true;
+            detachAbort();
+            fn();
         };
 
         socket = createConnection({ host, port }, () => {
@@ -192,20 +198,17 @@ export function connectReactNativeTcp(
             settle(() => reject(tcpErrorFrom(err)));
         });
 
-        onAbort = () =>
+        abortListener = () =>
             settle(() => {
                 socket?.destroy();
                 reject(new NetworkError("TCP connect aborted"));
             });
-        abort?.addEventListener("abort", onAbort, { once: true });
+        abort?.addEventListener("abort", abortListener, { once: true });
     });
 
     const timeout = timeoutMs !== undefined ? Seconds(timeoutMs / 1000) : TCP_CONNECT_TIMEOUT;
     return withTimeout(timeout, connected, () => {
         socket?.destroy();
         throw new NetworkError("TCP connection timeout");
-    }).finally(() => {
-        // withTimeout's timeout path doesn't run settle; detach the abort listener defensively.
-        if (onAbort) abort?.removeEventListener("abort", onAbort);
-    });
+    }).finally(detachAbort);
 }

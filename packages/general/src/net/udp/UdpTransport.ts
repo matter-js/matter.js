@@ -33,7 +33,7 @@ export class UdpTransport implements Transport {
         return this.#server.supports(type, address);
     }
 
-    async openChannel(address: ServerAddress, _abort?: AbortSignal) {
+    async openChannel(address: ServerAddress, _options?: Transport.ConnectOptions) {
         if (!ServerAddress.isIp(address)) {
             throw new NetworkError(`Unsupported address type for UDP interface`);
         }

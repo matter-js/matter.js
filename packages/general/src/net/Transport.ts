@@ -18,12 +18,18 @@ export interface Transport {
     onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener;
     close(): Promise<void>;
     supports(type: ChannelType, address?: string): boolean;
-    openChannel(address: ServerAddress, abort?: AbortSignal): Promise<Channel<Bytes>>;
+    openChannel(address: ServerAddress, options?: Transport.ConnectOptions): Promise<Channel<Bytes>>;
 }
 
 export namespace Transport {
     export interface Listener {
         close(): Promise<void>;
+    }
+
+    /** Options accepted by transport connect operations. */
+    export interface ConnectOptions {
+        /** Aborts an in-flight connect; the transport tears down any partial state on signal. */
+        abort?: AbortSignal;
     }
 
     export interface Provider<T extends Transport = Transport> {

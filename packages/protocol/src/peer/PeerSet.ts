@@ -290,7 +290,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         // race-returns-undefined-on-abort contract that PeerConnection relies on.
         if (abort.aborted) return undefined;
         try {
-            const result = await Abort.race(abort, operationalInterface.openChannel(address, abort));
+            const result = await Abort.race(abort, operationalInterface.openChannel(address, { abort }));
             return result === undefined ? undefined : result;
         } catch (e) {
             if (abort.aborted) return undefined;

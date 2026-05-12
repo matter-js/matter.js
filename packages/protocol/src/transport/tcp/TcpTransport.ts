@@ -146,7 +146,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
         return type === ChannelType.TCP;
     }
 
-    async openChannel(address: ServerAddress, abort?: AbortSignal): Promise<Channel<Bytes>> {
+    async openChannel(address: ServerAddress, options?: Transport.ConnectOptions): Promise<Channel<Bytes>> {
         if (!ServerAddress.isIp(address)) {
             throw new NetworkError(`TcpTransport does not support non-IP addresses`);
         }
@@ -163,7 +163,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
         }
 
         // Deduplicate concurrent connect attempts for the same address
-        const promise = this.#connect(address, abort);
+        const promise = this.#connect(address, options?.abort);
         this.#connecting.set(key, promise);
         return promise.finally(() => this.#connecting.delete(key));
     }
