@@ -146,7 +146,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
         return type === ChannelType.TCP;
     }
 
-    async openChannel(address: ServerAddress, options?: Transport.ConnectOptions): Promise<Channel<Bytes>> {
+    async openChannel(address: ServerAddress, options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
         if (!ServerAddress.isIp(address)) {
             throw new NetworkError(`TcpTransport does not support non-IP addresses`);
         }

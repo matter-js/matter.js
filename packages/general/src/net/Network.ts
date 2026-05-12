@@ -12,7 +12,7 @@ import type { Transport } from "./Transport.js";
 import type { UdpSocket, UdpSocketOptions } from "./udp/UdpSocket.js";
 
 /** Options for {@link Network.connectTcp}. */
-export interface TcpConnectOptions extends Transport.ConnectOptions {
+export interface TcpConnectOptions extends Transport.OpenChannelOptions {
     /** Per-call timeout in milliseconds. Defaults to TCP_CONNECTION_TIMEOUT_MS. */
     timeout?: number;
 }

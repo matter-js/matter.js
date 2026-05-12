@@ -94,7 +94,7 @@ export class NobleBleCentralInterface implements Transport {
         this.#bleScanner = bleScanner;
     }
 
-    openChannel(address: ServerAddress, _options?: Transport.ConnectOptions): Promise<Channel<Bytes>> {
+    openChannel(address: ServerAddress, _options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
         return this.#openChannel(address, 1);
     }
 

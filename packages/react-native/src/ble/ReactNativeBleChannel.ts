@@ -37,7 +37,7 @@ export class ReactNativeBleCentralInterface implements Transport {
         this.#ble = ble;
     }
 
-    async openChannel(address: ServerAddress, _options?: Transport.ConnectOptions): Promise<Channel<Bytes>> {
+    async openChannel(address: ServerAddress, _options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
         if (!ServerAddress.isBle(address)) {
             throw new InternalError(`Unsupported address type for BLE channel.`);
         }
