@@ -105,6 +105,25 @@ describe("PeerConnection socket ownership", () => {
             await runAttemptPattern(channel, "abort");
             expect(channel.closed).true;
         });
+
+        it("does not close the channel when a later step throws after ownership transferred", async () => {
+            // Models the edge case where the secure session is adopted (socketOwned=false) and a
+            // subsequent statement throws. Cleanup must respect prior ownership transfer.
+            const channel = mockChannel(ChannelType.TCP);
+            const run = async () => {
+                let socketOwned = true;
+                try {
+                    socketOwned = false; // session adopted
+                    throw new Error("late failure after adoption");
+                } finally {
+                    if (socketOwned) {
+                        await channel.close();
+                    }
+                }
+            };
+            await expect(run()).eventually.rejectedWith("late failure after adoption");
+            expect(channel.closed).false;
+        });
     });
 
     describe("UDP", () => {
