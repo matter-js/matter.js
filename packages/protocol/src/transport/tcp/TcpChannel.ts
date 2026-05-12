@@ -18,6 +18,7 @@ import {
     ServerAddressIp,
     ServerAddressTcp,
     TcpConnection,
+    TcpDisconnectError,
     Transport,
 } from "@matter/general";
 
@@ -235,7 +236,11 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     }
 
     #handleError(error: Error): void {
-        logger.error("TCP connection error:", error.message);
+        if (error instanceof TcpDisconnectError) {
+            logger.info("TCP connection lost:", error.message);
+        } else {
+            logger.warn("TCP connection error:", error.message);
+        }
         this.#workers.add(this.close());
     }
 

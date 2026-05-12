@@ -5,11 +5,14 @@
  */
 
 import { MatterError } from "../MatterError.js";
+import { repackErrorAs } from "../util/Error.js";
 import type { MaybePromise } from "../util/Promises.js";
 import type { TcpConnection, TcpListener, TcpListenerOptions } from "./tcp/TcpConnection.js";
 import type { UdpSocket, UdpSocketOptions } from "./udp/UdpSocket.js";
 
 export class NetworkError extends MatterError {}
+
+export class TcpDisconnectError extends NetworkError {}
 
 export class NoAddressAvailableError extends NetworkError {}
 
@@ -20,6 +23,25 @@ export class AddressInUseError extends BindError {}
 export class AddressUnreachableError extends NetworkError {}
 
 export class NetworkUnreachableError extends NetworkError {}
+
+export function tcpErrorFrom(error: Error): NetworkError {
+    const code = (error as { code?: string }).code;
+    switch (code) {
+        case "ECONNRESET":
+        case "EPIPE":
+        case "ECONNABORTED":
+        case "ETIMEDOUT":
+            return repackErrorAs(error, TcpDisconnectError);
+        case "EADDRINUSE":
+            return repackErrorAs(error, AddressInUseError);
+        case "EHOSTUNREACH":
+            return repackErrorAs(error, AddressUnreachableError);
+        case "ENETUNREACH":
+            return repackErrorAs(error, NetworkUnreachableError);
+        default:
+            return repackErrorAs(error, NetworkError);
+    }
+}
 
 export const STANDARD_MATTER_PORT = 5540;
 

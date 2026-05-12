@@ -6,10 +6,10 @@
 
 import {
     Bytes,
-    NetworkError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     TcpConnection,
+    tcpErrorFrom,
     Transport,
     withTimeout,
 } from "@matter/general";
@@ -102,7 +102,7 @@ export class NodeJsTcpConnection implements TcpConnection {
         return new Promise<void>((resolve, reject) => {
             this.#socket.write(Bytes.of(data), error => {
                 if (error) {
-                    reject(new NetworkError(error.message));
+                    reject(tcpErrorFrom(error));
                 } else {
                     resolve();
                 }
@@ -121,7 +121,7 @@ export class NodeJsTcpConnection implements TcpConnection {
 
     onError(listener: (error: Error) => void): Transport.Listener {
         const handler = (error: Error) => {
-            listener(new NetworkError(error.message));
+            listener(tcpErrorFrom(error));
         };
         this.#socket.on("error", handler);
         return {

@@ -10,6 +10,7 @@ import {
     Seconds,
     TCP_CONNECTION_TIMEOUT_MS,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
+    tcpErrorFrom,
     Transport,
     withTimeout,
     type TcpConnection,
@@ -85,7 +86,7 @@ export class TcpConnectionReactNative implements TcpConnection {
         return new Promise<void>((resolve, reject) => {
             this.#socket.write(Buffer.from(Bytes.of(data)), (error?: Error) => {
                 if (error) {
-                    reject(new NetworkError(error.message));
+                    reject(tcpErrorFrom(error));
                 } else {
                     resolve();
                 }
@@ -103,7 +104,7 @@ export class TcpConnectionReactNative implements TcpConnection {
     }
 
     onError(listener: (error: Error) => void): Transport.Listener {
-        const handler = (error: Error) => listener(new NetworkError(error.message));
+        const handler = (error: Error) => listener(tcpErrorFrom(error));
         this.#socket.on("error", handler);
         return {
             close: async () => {
@@ -146,7 +147,7 @@ export function connectReactNativeTcp(host: string, port: number): Promise<TcpCo
         });
 
         socket.on("error", (err: Error) => {
-            settle(() => reject(new NetworkError(err.message)));
+            settle(() => reject(tcpErrorFrom(err)));
         });
     });
 
