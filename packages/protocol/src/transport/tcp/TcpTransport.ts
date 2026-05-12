@@ -146,28 +146,37 @@ export class TcpTransport implements ConnectionOrientedTransport {
         return type === ChannelType.TCP;
     }
 
-    async openChannel(address: ServerAddress): Promise<Channel<Bytes>> {
+    async openChannel(address: ServerAddress, options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
         if (!ServerAddress.isIp(address)) {
             throw new NetworkError(`TcpTransport does not support non-IP addresses`);
         }
 
         const key = `${address.ip}:${address.port}`;
 
-        // Return existing channel or in-flight connection for this address
+        // The first caller's abort signal governs an in-flight connect; subsequent callers awaiting
+        // the same promise will see it reject if the first aborts. PeerConnection dedupes attempts
+        // per (peer, address) at a higher level, so concurrent sharing for the same ip:port is rare
+        // and the simpler shared-promise contract is acceptable.
         const existing = this.#channels.get(key) ?? this.#connecting.get(key);
         if (existing) {
             return existing;
         }
 
         // Deduplicate concurrent connect attempts for the same address
-        const promise = this.#connect(address);
+        const promise = this.#connect(address, options?.abort);
         this.#connecting.set(key, promise);
         return promise.finally(() => this.#connecting.delete(key));
     }
 
-    async #connect(address: ServerAddressIp): Promise<Channel<Bytes>> {
-        const socket = await this.#network.connectTcp(address.ip, address.port);
+    async #connect(address: ServerAddressIp, abort?: AbortSignal): Promise<Channel<Bytes>> {
+        const socket = await this.#network.connectTcp(address.ip, address.port, { abort });
         const channel = new TcpChannel(socket, this.#maxMessageSize);
+        // Abort can fire in the microtask window between connectTcp resolving and us getting here.
+        // Close the channel without registering so it never enters #channels as an orphan.
+        if (abort?.aborted) {
+            await channel.close();
+            throw new NetworkError("TCP connect aborted after socket established");
+        }
         this.#registerChannel(channel);
         return channel;
     }

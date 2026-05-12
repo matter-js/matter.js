@@ -18,12 +18,21 @@ export interface Transport {
     onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener;
     close(): Promise<void>;
     supports(type: ChannelType, address?: string): boolean;
-    openChannel(address: ServerAddress): Promise<Channel<Bytes>>;
+    openChannel(address: ServerAddress, options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>>;
 }
 
 export namespace Transport {
     export interface Listener {
         close(): Promise<void>;
+    }
+
+    /**
+     * Options accepted by {@link Transport.openChannel}. Connectionless transports (UDP) ignore
+     * fields that only apply to connect-oriented setup.
+     */
+    export interface OpenChannelOptions {
+        /** Aborts an in-flight channel open; the transport tears down any partial state on signal. */
+        abort?: AbortSignal;
     }
 
     export interface Provider<T extends Transport = Transport> {

@@ -31,6 +31,7 @@ import {
     NetworkInterfaceDetails,
     onSameNetwork,
     TcpConnection,
+    TcpConnectOptions,
     TcpListener,
     TcpListenerOptions,
     UdpSocket,
@@ -192,7 +193,7 @@ export class NetworkReactNative extends Network {
         return TcpListenerReactNative.create(options);
     }
 
-    override async connectTcp(host: string, port: number): Promise<TcpConnection> {
-        return connectReactNativeTcp(host, port);
+    override async connectTcp(host: string, port: number, options?: TcpConnectOptions): Promise<TcpConnection> {
+        return connectReactNativeTcp(host, port, options?.abort, options?.timeout);
     }
 }

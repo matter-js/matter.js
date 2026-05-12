@@ -6,6 +6,7 @@
 
 import {
     Bytes,
+    Logger,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     TcpConnection,
@@ -14,6 +15,8 @@ import {
     withTimeout,
 } from "@matter/general";
 import type { Socket } from "node:net";
+
+const logger = Logger.get("NodeJsTcpConnection");
 
 /** Time to wait for graceful close before force-destroying the socket. */
 const TCP_CLOSE_TIMEOUT = Seconds(5);
@@ -29,6 +32,7 @@ export class NodeJsTcpConnection implements TcpConnection {
 
     readonly #socket: Socket;
     #ended = false;
+    #closePromise?: Promise<void>;
 
     /** Queued chunks waiting for the async iterator to consume. */
     #chunks = new Array<Uint8Array>();
@@ -131,22 +135,38 @@ export class NodeJsTcpConnection implements TcpConnection {
         };
     }
 
-    async close(): Promise<void> {
-        if (this.#socket.destroyed) {
-            return;
-        }
+    close(): Promise<void> {
+        // Memoize so concurrent callers share one teardown — each `await close()` waits for actual shutdown.
+        return (this.#closePromise ??= this.#doClose());
+    }
 
+    async #doClose(): Promise<void> {
+        const alreadyClosed = this.#ended || this.#socket.destroyed;
         this.#ended = true;
         this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
         this.#waiter = undefined;
 
-        const closed = new Promise<void>(resolve => {
-            this.#socket.once("close", () => resolve());
-            this.#socket.end();
-        });
+        // Already closed externally; a fresh "close" listener wouldn't fire and would stall #closePromise.
+        if (alreadyClosed) {
+            return;
+        }
 
-        await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
-            this.#socket.destroy();
-        });
+        try {
+            const closed = new Promise<void>(resolve => {
+                this.#socket.once("close", () => resolve());
+                this.#socket.end();
+            });
+
+            await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
+                this.#socket.destroy();
+            });
+        } catch (error) {
+            logger.warn(`Error closing TCP connection ${this.remoteAddress}:${this.remotePort}:`, error);
+            try {
+                this.#socket.destroy();
+            } catch (destroyError) {
+                logger.debug(`Error destroying TCP socket ${this.remoteAddress}:${this.remotePort}:`, destroyError);
+            }
+        }
     }
 }

@@ -94,7 +94,11 @@ export class NobleBleCentralInterface implements Transport {
         this.#bleScanner = bleScanner;
     }
 
-    openChannel(address: ServerAddress, tryCount = 1): Promise<Channel<Bytes>> {
+    openChannel(address: ServerAddress, _options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
+        return this.#openChannel(address, 1);
+    }
+
+    #openChannel(address: ServerAddress, tryCount: number): Promise<Channel<Bytes>> {
         if (this.#closed) {
             throw new NetworkError("Network interface is closed");
         }
@@ -233,7 +237,7 @@ export class NobleBleCentralInterface implements Transport {
                 }
 
                 // Try again and chain promises
-                this.openChannel(address, tryCount + 1)
+                this.#openChannel(address, tryCount + 1)
                     .then(resolveOnce)
                     .catch(rejectOnce);
             };

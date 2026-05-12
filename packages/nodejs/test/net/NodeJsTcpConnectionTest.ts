@@ -7,6 +7,7 @@
 import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import * as net from "node:net";
+import { NodeJsNetwork } from "../../src/net/NodeJsNetwork.js";
 import { NodeJsTcpConnection } from "../../src/net/NodeJsTcpConnection.js";
 
 describe("NodeJsTcpConnection", () => {
@@ -145,5 +146,68 @@ describe("NodeJsTcpConnection", () => {
         await new Promise(resolve => setTimeout(resolve, 50));
         // Should not hang
         await clientSocket.close();
+    });
+
+    it("concurrent close calls share one teardown promise", async () => {
+        const { clientSocket, rawServer } = await connectClient();
+        try {
+            let endCount = 0;
+            rawServer.on("end", () => {
+                endCount++;
+            });
+
+            const [a, b, c] = await Promise.all([clientSocket.close(), clientSocket.close(), clientSocket.close()]);
+
+            assert.equal(a, undefined);
+            assert.equal(b, undefined);
+            assert.equal(c, undefined);
+            // The single underlying socket end should produce at most one "end" event on the peer.
+            // (Some platforms may not deliver it before the server destroys; assertion is upper-bound.)
+            assert.ok(endCount <= 1, `expected ≤1 server-side "end" event, got ${endCount}`);
+        } finally {
+            rawServer.destroy();
+        }
+    });
+
+    describe("connectTcp abort handling", () => {
+        it("rejects immediately when abort signal is pre-fired", async () => {
+            const network = new NodeJsNetwork();
+            const controller = new AbortController();
+            controller.abort();
+
+            await assert.rejects(network.connectTcp("127.0.0.1", serverPort, { abort: controller.signal }), /aborted/i);
+        });
+
+        it("destroys the socket and rejects when abort fires during connect", async () => {
+            const network = new NodeJsNetwork();
+            const controller = new AbortController();
+
+            // TEST-NET-1 (RFC 5737) — guaranteed non-routable; SYN will hang until aborted.
+            const connectPromise = network.connectTcp("192.0.2.1", 5540, {
+                abort: controller.signal,
+                timeout: 10_000,
+            });
+            setImmediate(() => controller.abort());
+
+            await assert.rejects(connectPromise, /aborted/i);
+        });
+    });
+
+    it("close after peer-initiated close completes without hanging", async () => {
+        const { clientSocket, rawServer } = await connectClient();
+
+        // Trigger close from peer side and wait for it to propagate to the client wrapper.
+        const peerClosed = new Promise<void>(resolve => {
+            clientSocket.onClose(() => resolve());
+        });
+        rawServer.end();
+        rawServer.destroy();
+        await peerClosed;
+
+        // Awaiting close() must resolve promptly even though the underlying socket already emitted "close".
+        await Promise.race([
+            clientSocket.close(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("close() hung")), 1000)),
+        ]);
     });
 });
