@@ -99,7 +99,11 @@ export abstract class Network {
     }
 
     /** Connect to a remote TCP endpoint. Override in platform implementations that support TCP. */
-    connectTcp(_host: string, _port: number, _options?: { timeout?: number }): Promise<TcpConnection> {
+    connectTcp(
+        _host: string,
+        _port: number,
+        _options?: { timeout?: number; abort?: AbortSignal },
+    ): Promise<TcpConnection> {
         throw new NetworkError("TCP client not supported on this platform");
     }
 

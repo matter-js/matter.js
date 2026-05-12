@@ -18,7 +18,7 @@ export interface Transport {
     onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener;
     close(): Promise<void>;
     supports(type: ChannelType, address?: string): boolean;
-    openChannel(address: ServerAddress): Promise<Channel<Bytes>>;
+    openChannel(address: ServerAddress, abort?: AbortSignal): Promise<Channel<Bytes>>;
 }
 
 export namespace Transport {

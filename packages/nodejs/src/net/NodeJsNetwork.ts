@@ -192,13 +192,21 @@ export class NodeJsNetwork extends Network {
         return NodeJsTcpListener.create(options);
     }
 
-    override async connectTcp(host: string, port: number, options?: { timeout?: number }): Promise<TcpConnection> {
+    override async connectTcp(
+        host: string,
+        port: number,
+        options?: { timeout?: number; abort?: AbortSignal },
+    ): Promise<TcpConnection> {
+        if (options?.abort?.aborted) {
+            throw new NetworkError("TCP connect aborted");
+        }
         return new Promise((resolve, reject) => {
             let settled = false;
 
             const settle = (fn: () => void) => {
                 if (!settled) {
                     settled = true;
+                    options?.abort?.removeEventListener("abort", onAbort);
                     fn();
                 }
             };
@@ -215,12 +223,15 @@ export class NodeJsNetwork extends Network {
                     reject(error);
                 });
 
+            const onAbort = () => rejectOnce(new NetworkError("TCP connect aborted"));
+
             socket.setTimeout(options?.timeout ?? TCP_CONNECTION_TIMEOUT_MS);
             socket.once("timeout", () => {
                 socket.destroy();
                 settle(() => reject(new NetworkError("TCP connection timeout")));
             });
             socket.on("error", rejectOnce);
+            options?.abort?.addEventListener("abort", onAbort, { once: true });
         });
     }
 }

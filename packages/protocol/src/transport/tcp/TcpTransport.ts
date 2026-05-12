@@ -146,27 +146,29 @@ export class TcpTransport implements ConnectionOrientedTransport {
         return type === ChannelType.TCP;
     }
 
-    async openChannel(address: ServerAddress): Promise<Channel<Bytes>> {
+    async openChannel(address: ServerAddress, abort?: AbortSignal): Promise<Channel<Bytes>> {
         if (!ServerAddress.isIp(address)) {
             throw new NetworkError(`TcpTransport does not support non-IP addresses`);
         }
 
         const key = `${address.ip}:${address.port}`;
 
-        // Return existing channel or in-flight connection for this address
+        // Return existing channel or in-flight connection for this address. Shared connects ignore
+        // per-caller abort; aborting one caller must not tear down a connect another caller still
+        // needs. Callers that want a fresh, abortable connect must use a distinct address tuple.
         const existing = this.#channels.get(key) ?? this.#connecting.get(key);
         if (existing) {
             return existing;
         }
 
         // Deduplicate concurrent connect attempts for the same address
-        const promise = this.#connect(address);
+        const promise = this.#connect(address, abort);
         this.#connecting.set(key, promise);
         return promise.finally(() => this.#connecting.delete(key));
     }
 
-    async #connect(address: ServerAddressIp): Promise<Channel<Bytes>> {
-        const socket = await this.#network.connectTcp(address.ip, address.port);
+    async #connect(address: ServerAddressIp, abort?: AbortSignal): Promise<Channel<Bytes>> {
+        const socket = await this.#network.connectTcp(address.ip, address.port, { abort });
         const channel = new TcpChannel(socket, this.#maxMessageSize);
         this.#registerChannel(channel);
         return channel;

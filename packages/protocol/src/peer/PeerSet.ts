@@ -283,7 +283,9 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             );
         }
 
-        return await Abort.race(abort, operationalInterface.openChannel(address));
+        // Plumb the abort signal into openChannel so an aborted TCP connect is destroyed at the
+        // socket level — prevents an orphan TcpChannel being registered after the caller gives up.
+        return await Abort.race(abort, operationalInterface.openChannel(address, abort));
     }
 
     addKnownPeer(descriptor: PeerDescriptor) {

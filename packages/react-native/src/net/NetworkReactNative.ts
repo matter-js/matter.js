@@ -192,7 +192,11 @@ export class NetworkReactNative extends Network {
         return TcpListenerReactNative.create(options);
     }
 
-    override async connectTcp(host: string, port: number): Promise<TcpConnection> {
-        return connectReactNativeTcp(host, port);
+    override async connectTcp(
+        host: string,
+        port: number,
+        options?: { timeout?: number; abort?: AbortSignal },
+    ): Promise<TcpConnection> {
+        return connectReactNativeTcp(host, port, options?.abort);
     }
 }
