@@ -27,7 +27,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
         readonly type: T,
         readonly minLength: number = 0,
         // Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
-        readonly maxLength: number = 1024,
+        readonly maxLength: number = 65_536,
     ) {
         super();
 
