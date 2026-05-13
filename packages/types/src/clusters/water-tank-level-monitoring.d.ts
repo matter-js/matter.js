@@ -27,7 +27,7 @@ export declare namespace WaterTankLevelMonitoring {
     export const name: "WaterTankLevelMonitoring";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 1;
 

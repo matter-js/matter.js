@@ -73,7 +73,7 @@ export declare namespace DeviceEnergyManagement {
     export const name: "DeviceEnergyManagement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 4;
 

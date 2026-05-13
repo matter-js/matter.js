@@ -40,7 +40,7 @@ function generateComponents(file: ClusterFile) {
     file.interfaces.atom(`export const name: ${serialize(name)}`).document("Textual cluster identifier.");
     file.interfaces
         .atom(`export const revision: ${cluster.revision}`)
-        .document(`The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.`);
+        .document(`The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.`);
 
     file.addImport("@matter/model", "ClusterModel");
     file.interfaces.atom(`export const schema: ClusterModel`).document({

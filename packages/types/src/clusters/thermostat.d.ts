@@ -34,7 +34,7 @@ export declare namespace Thermostat {
     export const name: "Thermostat";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 10;
 
