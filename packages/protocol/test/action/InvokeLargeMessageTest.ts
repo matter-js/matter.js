@@ -250,12 +250,10 @@ describe("Invoke largeMessage flag", () => {
     });
 
     describe("ClientInteraction.invoke inference policy", () => {
-        // The auto-detect at ClientInteraction.invoke entry is a two-line gate:
-        //   if (request.largeMessage === undefined && inferLargeMessage(request)) {
-        //       request.largeMessage = true;
-        //   }
-        // This block pins the precedence so a future "simplification" cannot silently override
-        // an explicit caller decision.
+        // Mirrors the first two statements of ClientInteraction.invoke() in
+        // packages/protocol/src/action/client/ClientInteraction.ts. KEEP IN SYNC if the
+        // production gate changes. Pins the precedence: an explicit largeMessage decision must
+        // win over the inference, otherwise callers cannot opt out of TCP routing.
         function applyInferencePolicy(request: ReturnType<typeof Invoke>) {
             if (request.largeMessage === undefined && inferLargeMessage(request)) {
                 request.largeMessage = true;
@@ -287,10 +285,12 @@ describe("Invoke largeMessage flag", () => {
     });
 
     describe("ClientInteraction.invoke routing decision", () => {
-        // Mirror of the routing decision at ClientInteraction.invoke. Pins the contract that L
-        // commands skip batching (per spec) but still respect MaxPathsPerInvoke via splitting.
-        // Note: ClientInteraction.#invokeSingle does not enforce MaxPathsPerInvoke itself, so a
-        // multi-command L invoke routed directly to #invokeSingle would violate the peer limit.
+        // Mirrors the dispatch logic in ClientInteraction.invoke() at
+        // packages/protocol/src/action/client/ClientInteraction.ts (post-inference block through
+        // the splitting/single fall-through). KEEP IN SYNC. The contract pinned here is: L
+        // commands skip batching but still split on MaxPathsPerInvoke — #invokeSingle does not
+        // enforce the path limit itself, so routing a multi-command L invoke directly there
+        // would violate the peer limit.
         type Route = "batched" | "split" | "single";
         function decideRoute(request: ReturnType<typeof Invoke>, maxPathsPerInvoke: number): Route {
             if (request.largeMessage === undefined && inferLargeMessage(request)) {
