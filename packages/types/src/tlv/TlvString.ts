@@ -22,14 +22,13 @@ type LengthConstraints = {
  */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
 
-// Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
-const MATTERJS_MAX_STRING_LENGTH = 65_536;
-
 export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> extends TlvSchema<TlvToPrimitive[T]> {
     constructor(
         readonly type: T,
         readonly minLength: number = 0,
-        readonly maxLength: number = MATTERJS_MAX_STRING_LENGTH,
+
+        // Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
+        readonly maxLength: number = 1024,
     ) {
         super();
 
@@ -77,7 +76,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
         if (this.minLength > 0) {
             constraint.min = this.minLength;
         }
-        if (this.maxLength !== MATTERJS_MAX_STRING_LENGTH) {
+        if (this.maxLength !== 1024) {
             constraint.max = this.maxLength;
         }
         if (constraint.min !== undefined || constraint.max !== undefined) {
@@ -110,16 +109,18 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
 /** ByteString TLV schema. */
 export const TlvByteString = new StringSchema(TlvType.ByteString);
 
-/** String TLV schema. */
-export const TlvString = new StringSchema(TlvType.Utf8String);
+const BaseString = new StringSchema(TlvType.Utf8String);
+
+/** String TLV schema. We define Max length as 65536 to cover WebRTC cases */
+export const TlvString = BaseString.bound({ maxLength: 65_536 });
 
 /** String TLV schema. */
-export const TlvString32max = TlvString.bound({ maxLength: 32 });
+export const TlvString32max = BaseString.bound({ maxLength: 32 });
 
 /** String TLV schema. */
-export const TlvString64max = TlvString.bound({ maxLength: 64 });
+export const TlvString64max = BaseString.bound({ maxLength: 64 });
 
 /** String TLV schema. */
-export const TlvString256max = TlvString.bound({ maxLength: 256 });
+export const TlvString256max = BaseString.bound({ maxLength: 256 });
 
 export const TlvHardwareAddress = TlvByteString.bound({ minLength: 6, maxLength: 8 });
