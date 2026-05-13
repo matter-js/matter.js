@@ -562,20 +562,19 @@ export class ClientInteraction<
             request.largeMessage = true;
         }
 
-        // Large Message Quality commands must not be batched and require TCP
-        if (request.largeMessage) {
-            yield* this.#invokeSingle(request, session);
-            return;
-        }
-
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
 
-        // Single command with batching support — auto-batch
-        if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
-            const endpointId = request.invokeRequests[0].commandPath.endpointId;
-            if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
-                yield* this.#invokeWithBatching(request, session);
-                return;
+        // Large Message Quality commands must not be batched (per spec) but still respect the
+        // peer's MaxPathsPerInvoke — splitting propagates largeMessage to each sub-batch, which
+        // in turn forces TCP transport via #begin.
+        if (!request.largeMessage) {
+            // Single command with batching support — auto-batch
+            if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
+                const endpointId = request.invokeRequests[0].commandPath.endpointId;
+                if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
+                    yield* this.#invokeWithBatching(request, session);
+                    return;
+                }
             }
         }
 

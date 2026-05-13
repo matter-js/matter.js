@@ -285,4 +285,61 @@ describe("Invoke largeMessage flag", () => {
             expect(invoke.largeMessage).to.equal(false);
         });
     });
+
+    describe("ClientInteraction.invoke routing decision", () => {
+        // Mirror of the routing decision at ClientInteraction.invoke. Pins the contract that L
+        // commands skip batching (per spec) but still respect MaxPathsPerInvoke via splitting.
+        // Note: ClientInteraction.#invokeSingle does not enforce MaxPathsPerInvoke itself, so a
+        // multi-command L invoke routed directly to #invokeSingle would violate the peer limit.
+        type Route = "batched" | "split" | "single";
+        function decideRoute(request: ReturnType<typeof Invoke>, maxPathsPerInvoke: number): Route {
+            if (request.largeMessage === undefined && inferLargeMessage(request)) {
+                request.largeMessage = true;
+            }
+            if (!request.largeMessage) {
+                if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
+                    const endpointId = request.invokeRequests[0].commandPath.endpointId;
+                    if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
+                        return "batched";
+                    }
+                }
+            }
+            return request.commands.size > maxPathsPerInvoke ? "split" : "single";
+        }
+
+        const provideOffer = () =>
+            Invoke.ConcreteCommandRequest({
+                endpoint: EndpointNumber(2),
+                cluster: WebRtcTransportProvider,
+                command: "provideOffer",
+                fields: {
+                    webRtcSessionId: null,
+                    sdp: "v=0",
+                    streamUsage: 3,
+                    originatingEndpointId: 2,
+                },
+            });
+
+        it("routes a single L command to #invokeSingle", () => {
+            const invoke = Invoke({ commands: [provideOffer()] });
+            expect(decideRoute(invoke, 1)).to.equal("single");
+        });
+
+        it("splits a multi-command L invoke when count exceeds MaxPathsPerInvoke", () => {
+            const invoke = Invoke({
+                commands: [
+                    { ...provideOffer(), commandRef: 0 },
+                    { ...provideOffer(), commandRef: 1 },
+                ],
+            });
+            expect(decideRoute(invoke, 1)).to.equal("split");
+        });
+
+        it("does not batch L commands even when batchable shape allows it", () => {
+            const invoke = Invoke({ commands: [provideOffer()] });
+            // Batching kicks in for a single non-timed command at endpoint != 0 with a peer that
+            // accepts batches. Verify the L flag suppresses that path.
+            expect(decideRoute(invoke, 8)).to.equal("single");
+        });
+    });
 });
