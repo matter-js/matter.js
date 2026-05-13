@@ -22,12 +22,15 @@ type LengthConstraints = {
  */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
 
+const DEFAULT_MAX_STRING_LENGTH = 65_536;
+
 export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> extends TlvSchema<TlvToPrimitive[T]> {
     constructor(
         readonly type: T,
         readonly minLength: number = 0,
+
         // Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
-        readonly maxLength: number = 1024,
+        readonly maxLength: number = DEFAULT_MAX_STRING_LENGTH,
     ) {
         super();
 
@@ -75,7 +78,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
         if (this.minLength > 0) {
             constraint.min = this.minLength;
         }
-        if (this.maxLength !== 1024) {
+        if (this.maxLength !== DEFAULT_MAX_STRING_LENGTH) {
             constraint.max = this.maxLength;
         }
         if (constraint.min !== undefined || constraint.max !== undefined) {
@@ -110,14 +113,3 @@ export const TlvByteString = new StringSchema(TlvType.ByteString);
 
 /** String TLV schema. */
 export const TlvString = new StringSchema(TlvType.Utf8String);
-
-/** String TLV schema. */
-export const TlvString32max = TlvString.bound({ maxLength: 32 });
-
-/** String TLV schema. */
-export const TlvString64max = TlvString.bound({ maxLength: 64 });
-
-/** String TLV schema. */
-export const TlvString256max = TlvString.bound({ maxLength: 256 });
-
-export const TlvHardwareAddress = TlvByteString.bound({ minLength: 6, maxLength: 8 });

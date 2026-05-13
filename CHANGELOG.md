@@ -67,14 +67,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `cert check-revoked` command for checking certificate revocation data
     - Enhancement: Allows configuring whether test OTA images are also accepted when devices query for updates
 
-- @matter/tools
-    - Breaking: This package is no longer published and is replaced in internal usage
-
-- @matter/types
-    - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
-    - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
-    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory, and work better with IDEs
-
 - @matter/protocol
     - Breaking: Removed automatic retry-logic for interactions on node-reachability issues; a new session will be initialized automatically afterward
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
@@ -120,7 +112,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
     - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
-    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
+    - Breaking: Removed some special pre-bound TLV string/byte-string schema exports, including `TlvHardwareAddress`
+    - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
+    - Enhancement: Increases Matter TlvString/TlvByteString default maximum length to 65536 to cover WebRTC cases
 
 - @project-chip/matter.js
     - Feature: CommissioningController allows to set `tcp` (boolean) to enable TCP support for the controller
