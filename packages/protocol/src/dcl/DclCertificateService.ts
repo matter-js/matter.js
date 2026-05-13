@@ -37,6 +37,7 @@ import { Certificate } from "../certificate/kinds/Certificate.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
+import type { CertSeedEntry, SeedSource } from "./SeedTypes.js";
 
 const logger = Logger.get("DclCertificateService");
 
@@ -83,6 +84,12 @@ export class DclCertificateService {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
             await this.#loadIndex(this.#storage);
+            if (options.seed?.paaRoots) {
+                await this.#consumeCertSeed(options.seed.paaRoots, "PAA");
+            }
+            if (options.seed?.cdSigners) {
+                await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
+            }
             await this.update();
 
             if (options.updateInterval !== null) {
@@ -829,6 +836,89 @@ export class DclCertificateService {
         this.#certificateIndex.set(subjectKeyId, metadata);
     }
 
+    async #consumeCertSeed(source: SeedSource<CertSeedEntry>, certKind: DclCertificateService.CertificateKind) {
+        const inserted = new Array<string>();
+        let expiredCount = 0;
+        const parsedBuiltAt = Date.parse(source.builtAt);
+        const fetchedAt = Number.isNaN(parsedBuiltAt) ? Date.now() : parsedBuiltAt;
+        const isPaa = certKind === "PAA";
+
+        try {
+            for await (const entry of source.entries) {
+                if (this.#closed) break;
+                try {
+                    if (
+                        typeof entry.subjectKeyId !== "string" ||
+                        !entry.subjectKeyId ||
+                        typeof entry.derHex !== "string" ||
+                        !entry.derHex ||
+                        (entry.source !== "dcl" && entry.source !== "github") ||
+                        (entry.kind !== "production" && entry.kind !== "test")
+                    ) {
+                        throw new MatterDclError("invalid entry shape");
+                    }
+
+                    if (entry.kind === "test" && !this.#options.fetchTestCertificates) {
+                        continue;
+                    }
+
+                    if (entry.notAfter !== undefined && Date.parse(entry.notAfter) < Date.now()) {
+                        expiredCount++;
+                        continue;
+                    }
+
+                    const der = Bytes.fromHex(entry.derHex);
+                    const parsed = Certificate.parseAsn1Certificate(
+                        der,
+                        isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+                    );
+                    const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
+                    const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
+
+                    if (skidFromDer !== entrySkid) {
+                        logger.warn(
+                            `seed: SKID mismatch entry=${entrySkid} der-derived=${skidFromDer}, skipped`,
+                            Diagnostic.dict({ certKind }),
+                        );
+                        continue;
+                    }
+
+                    if (this.#certificateIndex.has(skidFromDer)) {
+                        continue;
+                    }
+
+                    const isProduction = entry.source === "dcl" && entry.kind === "production";
+                    const vid = (parsed.subject as { vendorId?: number }).vendorId ?? 0;
+
+                    await this.#storeCertificate(this.#storage!, skidFromDer, Bytes.of(der), {
+                        subject: (parsed.subject as { commonName?: string }).commonName,
+                        subjectKeyId: skidFromDer,
+                        serialNumber: Bytes.toHex(parsed.serialNumber),
+                        vid,
+                        isRoot: isPaa,
+                        isProduction,
+                        kind: certKind,
+                        fetchedAt,
+                    });
+                    inserted.push(skidFromDer);
+                } catch (err) {
+                    logger.error("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
+                    break;
+                }
+            }
+        } catch (err) {
+            logger.error("seed: stream failed", Diagnostic.errorMessage(asError(err)));
+        }
+
+        if (inserted.length > 0) {
+            await this.#saveIndex();
+        }
+        if (expiredCount > 0) {
+            logger.info(`seed: skipped ${expiredCount} expired ${certKind} certs from snapshot ${source.builtAt}`);
+        }
+        logger.info(`seed: consumed ${inserted.length} ${certKind} certs from snapshot ${source.builtAt}`);
+    }
+
     /**
      * Fetch and validate revocation data for a single AKID on demand.
      * Called by AsyncCache on cache miss. Queries DCL by issuer, downloads the CRL,
@@ -1226,6 +1316,12 @@ export namespace DclCertificateService {
 
         /** GitHub config for development certificates. Programmatic override only. Defaults to DclGithubConfig.defaults. */
         githubConfig?: DclGithubConfig;
+
+        /** Pre-populate storage from snapshot before the initial network update. Network update still runs after. */
+        seed?: {
+            paaRoots?: SeedSource<CertSeedEntry>;
+            cdSigners?: SeedSource<CertSeedEntry>;
+        };
     }
 
     /** Kind of certificate stored in the trust store. */
