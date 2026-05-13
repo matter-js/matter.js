@@ -120,6 +120,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
     - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
+    - Breaking: Removed some special TlvString-classes with pre-bound lengths
     - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
     - Enhancement: Increases Matter String default maximum length to 65536 to cover WebRTC cases
 

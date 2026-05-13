@@ -109,18 +109,5 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
 /** ByteString TLV schema. */
 export const TlvByteString = new StringSchema(TlvType.ByteString);
 
-const BaseString = new StringSchema(TlvType.Utf8String);
-
 /** String TLV schema. We define Max length as 65536 to cover WebRTC cases */
-export const TlvString = BaseString.bound({ maxLength: 65_536 });
-
-/** String TLV schema. */
-export const TlvString32max = BaseString.bound({ maxLength: 32 });
-
-/** String TLV schema. */
-export const TlvString64max = BaseString.bound({ maxLength: 64 });
-
-/** String TLV schema. */
-export const TlvString256max = BaseString.bound({ maxLength: 256 });
-
-export const TlvHardwareAddress = TlvByteString.bound({ minLength: 6, maxLength: 8 });
+export const TlvString = new StringSchema(TlvType.Utf8String, 0, 65_536);
