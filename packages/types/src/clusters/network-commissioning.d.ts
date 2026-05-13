@@ -42,7 +42,7 @@ export declare namespace NetworkCommissioning {
     export const name: "NetworkCommissioning";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 2;
 

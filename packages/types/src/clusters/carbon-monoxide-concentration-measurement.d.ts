@@ -26,7 +26,7 @@ export declare namespace CarbonMonoxideConcentrationMeasurement {
     export const name: "CarbonMonoxideConcentrationMeasurement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 4;
 

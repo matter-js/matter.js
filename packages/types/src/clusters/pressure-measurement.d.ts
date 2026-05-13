@@ -30,7 +30,7 @@ export declare namespace PressureMeasurement {
     export const name: "PressureMeasurement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 4;
 
