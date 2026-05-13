@@ -81,6 +81,21 @@ describe("FieldSemantics", () => {
         expect(bar!.access.writable).false;
     });
 
+    it("defaults attributes to read-only", () => {
+        class Foo {
+            @attribute(0x1, uint32)
+            bar = 4;
+        }
+
+        const schema = Schema.Required(Foo);
+        expect(schema.children.length).equals(1);
+        const bar = schema.get(AttributeModel, "bar");
+        expect(bar).not.undefined;
+        expect(bar!.access.readable).true;
+        expect(bar!.access.writable).false;
+        expect(bar!.writable).false;
+    });
+
     it("sets writable", () => {
         class Foo {
             @attribute(0x1, uint32, writable)
@@ -95,6 +110,7 @@ describe("FieldSemantics", () => {
         expect(bar!.quality.nonvolatile).not.true;
         expect(bar!.access.readable).true;
         expect(bar!.access.writable).true;
+        expect(bar!.writable).true;
     });
 
     it("merges with base class", () => {
