@@ -416,7 +416,10 @@ export class DclVendorInfoService {
                         creator: entry.creator ?? "",
                     });
                 } catch (err) {
-                    logger.error("seed: malformed vendor entry, aborting stream", Diagnostic.errorMessage(asError(err)));
+                    logger.error(
+                        "seed: malformed vendor entry, aborting stream",
+                        Diagnostic.errorMessage(asError(err)),
+                    );
                     break;
                 }
             }
