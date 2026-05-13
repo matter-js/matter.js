@@ -114,7 +114,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
     - Breaking: Removed some special TlvString-classes with pre-bound lengths
     - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
-    - Enhancement: Increases Matter String default maximum length to 65536 to cover WebRTC cases
+    - Enhancement: Increases Matter TlvString/TlvByteString default maximum length to 65536 to cover WebRTC cases
 
 - @project-chip/matter.js
     - Feature: CommissioningController allows to set `tcp` (boolean) to enable TCP support for the controller
