@@ -22,12 +22,14 @@ type LengthConstraints = {
  */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
 
+// Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
+const MATTERJS_MAX_STRING_LENGTH = 65_536;
+
 export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> extends TlvSchema<TlvToPrimitive[T]> {
     constructor(
         readonly type: T,
         readonly minLength: number = 0,
-        // Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
-        readonly maxLength: number = 65_536,
+        readonly maxLength: number = MATTERJS_MAX_STRING_LENGTH,
     ) {
         super();
 
@@ -75,7 +77,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
         if (this.minLength > 0) {
             constraint.min = this.minLength;
         }
-        if (this.maxLength !== 1024) {
+        if (this.maxLength !== MATTERJS_MAX_STRING_LENGTH) {
             constraint.max = this.maxLength;
         }
         if (constraint.min !== undefined || constraint.max !== undefined) {
