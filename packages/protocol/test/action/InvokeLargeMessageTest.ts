@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { inferLargeMessage } from "#action/client/ClientInteraction.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { CommandModel, Quality } from "@matter/model";
-import { EndpointNumber } from "@matter/types";
+import { ClusterId, CommandId, EndpointNumber, TlvNoArguments } from "@matter/types";
 import { OnOffCluster } from "@matter/types/clusters/on-off";
+import { WebRtcTransportProvider } from "@matter/types/clusters/web-rtc-transport-provider";
 
 /**
  * Tests for the largeMessage flag on Invoke requests.
@@ -96,6 +98,191 @@ describe("Invoke largeMessage flag", () => {
             const noModel = undefined as CommandModel | undefined;
             const flagNone = !!noModel?.effectiveQuality.largeMessage;
             expect(flagNone).to.equal(false);
+        });
+    });
+
+    describe("inferLargeMessage", () => {
+        it("detects L quality on a concrete command request", () => {
+            const invoke = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(2),
+                        cluster: WebRtcTransportProvider,
+                        command: "provideOffer",
+                        fields: {
+                            webRtcSessionId: null,
+                            sdp: "v=0",
+                            streamUsage: 3,
+                            originatingEndpointId: 2,
+                        },
+                    }),
+                ],
+            });
+
+            expect(inferLargeMessage(invoke)).to.equal(true);
+        });
+
+        it("returns false for a command without L quality", () => {
+            const invoke = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(1),
+                        cluster: OnOffCluster,
+                        command: "toggle",
+                    }),
+                ],
+            });
+
+            expect(inferLargeMessage(invoke)).to.equal(false);
+        });
+
+        it("flags the whole invoke when any one command carries L quality", () => {
+            const invoke = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(1),
+                        cluster: OnOffCluster,
+                        command: "toggle",
+                        commandRef: 0,
+                    }),
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(2),
+                        cluster: WebRtcTransportProvider,
+                        command: "provideOffer",
+                        fields: {
+                            webRtcSessionId: null,
+                            sdp: "v=0",
+                            streamUsage: 3,
+                            originatingEndpointId: 2,
+                        },
+                        commandRef: 1,
+                    }),
+                ],
+            });
+
+            expect(inferLargeMessage(invoke)).to.equal(true);
+        });
+
+        it("ignores legacy command requests (no model link)", () => {
+            const invoke = Invoke({
+                commands: [
+                    {
+                        endpoint: EndpointNumber(1),
+                        cluster: { id: ClusterId(0x1234), name: "Custom" },
+                        command: {
+                            requestId: CommandId(0x05),
+                            requestSchema: TlvNoArguments,
+                            responseSchema: TlvNoArguments,
+                            timed: false,
+                        },
+                    },
+                ],
+            });
+
+            expect(inferLargeMessage(invoke)).to.equal(false);
+        });
+
+        it("detects L quality on a wildcard command request", () => {
+            const invoke = Invoke({
+                commands: [
+                    Invoke.WildcardCommandRequest({
+                        cluster: WebRtcTransportProvider,
+                        command: "provideOffer",
+                        fields: {
+                            webRtcSessionId: null,
+                            sdp: "v=0",
+                            streamUsage: 3,
+                            originatingEndpointId: 2,
+                        },
+                    }),
+                ],
+            });
+
+            expect(inferLargeMessage(invoke)).to.equal(true);
+        });
+
+        it("swallows MalformedRequestError when cluster/command unresolved", () => {
+            // Build via the factory then replace with an unresolvable specifier — the factory itself
+            // rejects unresolvable specifiers up-front, so we bypass it to exercise the catch path.
+            const invoke = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(1),
+                        cluster: OnOffCluster,
+                        command: "toggle",
+                    }),
+                ],
+            });
+            invoke.commands.clear();
+            invoke.commands.set(0, {
+                endpoint: EndpointNumber(1),
+                cluster: { id: ClusterId(0x1234), name: "Unknown" },
+                command: "nonexistent",
+            } as unknown as Invoke.ConcreteCommandRequest);
+
+            expect(inferLargeMessage(invoke)).to.equal(false);
+        });
+
+        it("rethrows non-MalformedRequestError raised during model probing", () => {
+            const invoke = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(1),
+                        cluster: OnOffCluster,
+                        command: "toggle",
+                    }),
+                ],
+            });
+            invoke.commands.set(0, {
+                endpoint: EndpointNumber(1),
+                cluster: { id: ClusterId(0x1234), name: "Custom" },
+                command: {
+                    // Non-legacy (no requestId), non-string — commandOf returns this object as-is,
+                    // then the schema access throws an unrelated error which must propagate.
+                    get schema(): never {
+                        throw new TypeError("simulated bug");
+                    },
+                },
+            } as unknown as Invoke.ConcreteCommandRequest);
+
+            expect(() => inferLargeMessage(invoke)).to.throw(TypeError, "simulated bug");
+        });
+    });
+
+    describe("ClientInteraction.invoke inference policy", () => {
+        // The auto-detect at ClientInteraction.invoke entry is a two-line gate:
+        //   if (request.largeMessage === undefined && inferLargeMessage(request)) {
+        //       request.largeMessage = true;
+        //   }
+        // This block pins the precedence so a future "simplification" cannot silently override
+        // an explicit caller decision.
+        function applyInferencePolicy(request: ReturnType<typeof Invoke>) {
+            if (request.largeMessage === undefined && inferLargeMessage(request)) {
+                request.largeMessage = true;
+            }
+        }
+
+        it("preserves an explicit largeMessage:false on a command with L quality", () => {
+            const invoke = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({
+                        endpoint: EndpointNumber(2),
+                        cluster: WebRtcTransportProvider,
+                        command: "provideOffer",
+                        fields: {
+                            webRtcSessionId: null,
+                            sdp: "v=0",
+                            streamUsage: 3,
+                            originatingEndpointId: 2,
+                        },
+                    }),
+                ],
+            });
+            invoke.largeMessage = false;
+
+            applyInferencePolicy(invoke);
+
+            expect(invoke.largeMessage).to.equal(false);
         });
     });
 });

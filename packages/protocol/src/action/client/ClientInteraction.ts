@@ -8,6 +8,7 @@ import { ClientBdxRequest, ClientBdxResponse } from "#action/client/ClientBdx.js
 import { ClientRead } from "#action/client/ClientRead.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
+import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
 import { Read } from "#action/request/Read.js";
 import { resolvePathForSpecifier } from "#action/request/Specifier.js";
 import { Subscribe } from "#action/request/Subscribe.js";
@@ -65,6 +66,32 @@ const MAX_COMMAND_REF = 0xffff;
 
 /** Higher processing time to give devices a bit more time to send updates. */
 const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
+
+/**
+ * Probe commands in a {@link ClientInvoke} for the Matter "Large Message Quality" ("L") flag.
+ *
+ * Legacy command requests carry no model reference, so callers using {@link Invoke.LegacyCommandRequest}
+ * must continue to set {@link ClientInvoke.largeMessage} explicitly.
+ *
+ * @internal — exported for unit testing.
+ */
+export function inferLargeMessage(request: ClientInvoke): boolean {
+    for (const cmd of request.commands.values()) {
+        if (Invoke.isLegacy(cmd)) {
+            continue;
+        }
+        try {
+            const command = Invoke.commandOf(cmd);
+            if (command.schema?.effectiveQuality?.largeMessage) {
+                return true;
+            }
+        } catch (error) {
+            // Swallow only resolution errors — downstream encode will surface them with full context.
+            MalformedRequestError.accept(error);
+        }
+    }
+    return false;
+}
 
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
@@ -531,6 +558,10 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        if (request.largeMessage === undefined && inferLargeMessage(request)) {
+            request.largeMessage = true;
+        }
+
         // Large Message Quality commands must not be batched and require TCP
         if (request.largeMessage) {
             yield* this.#invokeSingle(request, session);
