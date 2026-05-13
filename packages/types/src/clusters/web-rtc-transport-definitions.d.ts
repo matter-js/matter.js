@@ -25,7 +25,7 @@ export declare namespace WebRtcTransportDefinitions {
     export const name: "WebRtcTransportDefinitions";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 1;
 

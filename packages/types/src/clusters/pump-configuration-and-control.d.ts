@@ -33,7 +33,7 @@ export declare namespace PumpConfigurationAndControl {
     export const name: "PumpConfigurationAndControl";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 5;
 

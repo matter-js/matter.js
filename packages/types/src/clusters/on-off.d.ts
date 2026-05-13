@@ -30,7 +30,7 @@ export declare namespace OnOff {
     export const name: "OnOff";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 6;
 

@@ -42,7 +42,7 @@ export declare namespace TimeSynchronization {
     export const name: "TimeSynchronization";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 2;
 
