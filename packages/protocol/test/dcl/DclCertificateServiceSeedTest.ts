@@ -14,12 +14,11 @@ const SKID_FFF1 = "6AFD22771F511FECBF1641976710DCDC31A1717E";
 
 const EMPTY_DCL_RESPONSE = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
 
-function makePaaEntry(der: Bytes, skid: string, source: "dcl" | "github" = "dcl"): PaaRootEntry {
+function makePaaEntry(der: Bytes, skid: string): PaaRootEntry {
     return {
         role: "paa",
         subjectKeyId: skid.toLowerCase(),
         derHex: Bytes.toHex(der),
-        source,
         kind: "production",
     };
 }
@@ -64,8 +63,8 @@ describe("DclCertificateService seed", () => {
         fetchMock.install();
 
         const seed = makeSeedSource([
-            makePaaEntry(TestCert_PAA_NoVID_Cert, SKID_NO_VID, "dcl"),
-            makePaaEntry(TestCert_PAA_FFF1_Cert, SKID_FFF1, "dcl"),
+            makePaaEntry(TestCert_PAA_NoVID_Cert, SKID_NO_VID),
+            makePaaEntry(TestCert_PAA_FFF1_Cert, SKID_FFF1),
         ]);
 
         const service = new DclCertificateService(environment, { seed: { paaRoots: seed }, updateInterval: null });
@@ -98,12 +97,12 @@ describe("DclCertificateService seed", () => {
         await service.close();
     });
 
-    it("maps source=dcl to isProduction=true", async () => {
+    it("kind=production maps to isProduction=true", async () => {
         fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", EMPTY_DCL_RESPONSE);
         fetchMock.install();
 
         const service = new DclCertificateService(environment, {
-            seed: { paaRoots: makeSeedSource([makePaaEntry(TestCert_PAA_NoVID_Cert, SKID_NO_VID, "dcl")]) },
+            seed: { paaRoots: makeSeedSource([makePaaEntry(TestCert_PAA_NoVID_Cert, SKID_NO_VID)]) },
             updateInterval: null,
         });
         await service.construction;
@@ -112,14 +111,14 @@ describe("DclCertificateService seed", () => {
         await service.close();
     });
 
-    it("maps source=github to isProduction=false", async () => {
-        // With fetchTestCertificates:true, service also fetches test DCL
+    it("kind=test maps to isProduction=false", async () => {
         fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", EMPTY_DCL_RESPONSE);
         fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", EMPTY_DCL_RESPONSE);
         fetchMock.install();
 
+        const testEntry: PaaRootEntry = { ...makePaaEntry(TestCert_PAA_NoVID_Cert, SKID_NO_VID), kind: "test" };
         const service = new DclCertificateService(environment, {
-            seed: { paaRoots: makeSeedSource([makePaaEntry(TestCert_PAA_NoVID_Cert, SKID_NO_VID, "github")]) },
+            seed: { paaRoots: makeSeedSource([testEntry]) },
             updateInterval: null,
             fetchTestCertificates: true,
             fetchGithubCertificates: false,
@@ -216,7 +215,6 @@ describe("DclCertificateService seed", () => {
             role: "cd-signer",
             subjectKeyId: SKID_NO_VID.toLowerCase(),
             derHex: Bytes.toHex(TestCert_PAA_NoVID_Cert),
-            source: "dcl",
             kind: "production",
         };
 

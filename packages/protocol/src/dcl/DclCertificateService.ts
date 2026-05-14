@@ -852,7 +852,6 @@ export class DclCertificateService {
                         !entry.subjectKeyId ||
                         typeof entry.derHex !== "string" ||
                         !entry.derHex ||
-                        (entry.source !== "dcl" && entry.source !== "github") ||
                         (entry.kind !== "production" && entry.kind !== "test")
                     ) {
                         throw new MatterDclError("invalid entry shape");
@@ -887,7 +886,7 @@ export class DclCertificateService {
                         continue;
                     }
 
-                    const isProduction = entry.source === "dcl" && entry.kind === "production";
+                    const isProduction = entry.kind === "production";
                     const vid = (parsed.subject as { vendorId?: number }).vendorId ?? 0;
 
                     await this.#storeCertificate(this.#storage!, skidFromDer, Bytes.of(der), {

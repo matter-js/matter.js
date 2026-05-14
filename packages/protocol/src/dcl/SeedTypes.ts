@@ -13,7 +13,6 @@ export type SeedSource<T> = {
 export type CertSeedEntry = {
     subjectKeyId: string;
     derHex: string;
-    source: "dcl" | "github";
     kind: "production" | "test";
     notBefore?: string;
     notAfter?: string;
