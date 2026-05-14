@@ -15,6 +15,10 @@ const logger = Logger.get("MutableEndpoint");
 
 /**
  * A MutableEndpoint is an EndpointType with factory functions that make it convenient to reconfigure the endpoint.
+ *
+ * Note: mandatory client clusters from `requirements.client.mandatory` are auto-registered into the
+ * `clientClusters` slot at runtime but do not surface in the static type — the slot type reflects only
+ * explicitly-supplied `clientClusters` or `.withClientClusters(...)` additions.
  */
 export interface MutableEndpoint extends EndpointType {
     /**
@@ -38,7 +42,7 @@ export interface MutableEndpoint extends EndpointType {
     withClientClusters(...clientClusters: SupportedClientClusters.List): MutableEndpoint;
 
     /**
-     * Alias for {@link withBehaviors}.
+     * Route server behaviors to the behaviors slot and ClientBehavior arguments to the clientClusters slot.
      */
     with(...behaviors: SupportedBehaviors.List): MutableEndpoint;
 }

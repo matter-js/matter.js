@@ -162,15 +162,18 @@ export class DescriptorServer extends DescriptorBehavior {
                 this.state.serverList = this.#serverList;
                 break;
 
-            case EndpointLifecycle.Change.ClientsChanged:
-                if (endpoint !== this.endpoint) {
-                    return;
-                }
+            /*
+             * No producer fires ClientsChanged today; endpoint.type.clientClusters is static post-construction.
 
-                await this.context.transaction.addResources(this);
-                await this.context.transaction.begin();
-                this.state.clientList = this.#clientList;
-                break;
+             case EndpointLifecycle.Change.ClientsChanged:
+                 if (endpoint !== this.endpoint) {
+                     return;
+                 }
+                 await this.context.transaction.addResources(this);
+                 await this.context.transaction.begin();
+                 this.state.clientList = this.#clientList;
+                 break;
+             */
 
             case EndpointLifecycle.Change.Destroying:
                 if (endpoint !== this.endpoint) {
