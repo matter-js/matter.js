@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { isClientBehavior, clientBrand } from "#behavior/cluster/cluster-behavior-utils.js";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "../properties/SupportedClientClusters.js";
 import { EndpointType } from "./EndpointType.js";
@@ -76,14 +77,30 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
         },
 
         with(this: MutableEndpoint, ...behaviors: Behavior.Type[]) {
+            const serverArgs: Behavior.Type[] = [];
+            const clientArgs: Behavior.Type[] = [];
+            for (const b of behaviors) {
+                if (isClientBehavior(b)) {
+                    clientArgs.push(b);
+                } else {
+                    serverArgs.push(b);
+                }
+            }
+
             return MutableEndpoint({
                 ...options,
-                behaviors: SupportedBehaviors.extend(this.behaviors, behaviors),
+                behaviors: serverArgs.length ? SupportedBehaviors.extend(this.behaviors, serverArgs) : this.behaviors,
+                clientClusters: clientArgs.length
+                    ? SupportedClientClusters.extend(this.clientClusters, clientArgs)
+                    : this.clientClusters,
             });
         },
 
         withBehaviors(this: MutableEndpoint, ...behaviors: Behavior.Type[]) {
-            return this.with(...behaviors);
+            return MutableEndpoint({
+                ...options,
+                behaviors: SupportedBehaviors.extend(this.behaviors, behaviors),
+            });
         },
 
         withClientClusters(this: MutableEndpoint, ...clientClusters: Behavior.Type[]) {
@@ -100,6 +117,24 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
 }
 
 export namespace MutableEndpoint {
+    type ClientArgs<L extends readonly Behavior.Type[]> = L extends readonly [
+        infer F extends Behavior.Type,
+        ...infer R extends readonly Behavior.Type[],
+    ]
+        ? F extends { [k in typeof clientBrand]: true }
+            ? readonly [F, ...ClientArgs<R>]
+            : ClientArgs<R>
+        : readonly [];
+
+    type ServerArgs<L extends readonly Behavior.Type[]> = L extends readonly [
+        infer F extends Behavior.Type,
+        ...infer R extends readonly Behavior.Type[],
+    ]
+        ? F extends { [k in typeof clientBrand]: true }
+            ? ServerArgs<R>
+            : readonly [F, ...ServerArgs<R>]
+        : readonly [];
+
     export type With<
         B extends EndpointType,
         SB extends SupportedBehaviors,
@@ -133,8 +168,10 @@ export namespace MutableEndpoint {
         ): With<B, SB, SupportedClientClusters.With<SC, CL>>;
 
         /**
-         * Alias for {@link withBehaviors}.
+         * Route server behaviors to the behaviors slot and ClientBehavior arguments to the clientClusters slot.
          */
-        with<const BL extends SupportedBehaviors.List>(...behaviors: BL): With<B, SupportedBehaviors.With<SB, BL>, SC>;
+        with<const Args extends SupportedBehaviors.List>(
+            ...args: Args
+        ): With<B, SupportedBehaviors.With<SB, ServerArgs<Args>>, SupportedClientClusters.With<SC, ClientArgs<Args>>>;
     };
 }
