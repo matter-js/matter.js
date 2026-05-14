@@ -16,6 +16,7 @@ import {
     StorageService,
     Time,
     Timer,
+    asError,
 } from "@matter/general";
 import {
     CommissioningFlowType,
@@ -26,9 +27,10 @@ import {
     TypeFromBitmapSchema,
 } from "@matter/types";
 import { PairingHintBitmapSchema } from "../advertisement/PairingHintBitmap.js";
-import { DclClient, MatterDclResponseError } from "./DclClient.js";
+import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig } from "./DclConfig.js";
 import { DclErrorCodes, DclVendorInfo } from "./DclRestApiTypes.js";
+import type { SeedSource, VendorEntry as VendorSeedEntry } from "./SeedTypes.js";
 
 const logger = Logger.get("DclVendorInfoService");
 
@@ -163,6 +165,9 @@ export class DclVendorInfoService {
             this.#storageManager = await environment.get(StorageService).open("vendors");
             this.#storage = this.#storageManager.createContext("info");
             await this.#loadVendors(this.#storage);
+            if (options.seed?.vendors) {
+                await this.#consumeVendorSeed(options.seed.vendors);
+            }
             await this.update();
 
             if (options.updateInterval !== null) {
@@ -381,6 +386,59 @@ export class DclVendorInfoService {
         };
     }
 
+    async #consumeVendorSeed(source: SeedSource<VendorSeedEntry>) {
+        if (this.#vendorIndex.size >= source.expectedCount) {
+            logger.info(
+                `seed: skipping vendors — storage has ${this.#vendorIndex.size} entries >= seed expectedCount ${source.expectedCount}`,
+            );
+            return;
+        }
+
+        const collected = new Array<VendorInfo>();
+        try {
+            for await (const entry of source.entries) {
+                if (this.#closed) break;
+                try {
+                    if (
+                        typeof entry.vendorId !== "number" ||
+                        typeof entry.vendorName !== "string" ||
+                        !entry.vendorName ||
+                        (entry.kind !== "production" && entry.kind !== "test")
+                    ) {
+                        throw new MatterDclError("invalid vendor entry shape");
+                    }
+                    collected.push({
+                        vendorId: entry.vendorId,
+                        vendorName: entry.vendorName,
+                        companyLegalName: entry.companyLegalName ?? "",
+                        companyPreferredName: entry.companyPreferredName ?? "",
+                        vendorLandingPageUrl: entry.vendorLandingPageURL ?? "",
+                        creator: entry.creator ?? "",
+                    });
+                } catch (err) {
+                    logger.error(
+                        "seed: malformed vendor entry, aborting stream",
+                        Diagnostic.errorMessage(asError(err)),
+                    );
+                    break;
+                }
+            }
+        } catch (err) {
+            logger.error("seed: vendor stream failed", Diagnostic.errorMessage(asError(err)));
+            return;
+        }
+
+        if (this.#closed || collected.length === 0) return;
+
+        this.#vendorIndex.clear();
+        for (const vendor of collected) {
+            this.#vendorIndex.set(vendor.vendorId, vendor);
+        }
+        await this.#storage!.set("vendors", collected);
+
+        logger.info(`seed: consumed ${collected.length} vendors from snapshot ${source.builtAt}`);
+    }
+
     /**
      * Close the service and stop periodic updates.
      */
@@ -406,5 +464,8 @@ export namespace DclVendorInfoService {
 
         /** DCL config for production endpoint. Defaults to DclConfig.production. */
         dclConfig?: DclConfig;
+
+        /** Pre-populate storage from snapshot when stored vendor count is less than seed.expectedCount. Network update still runs after. */
+        seed?: { vendors?: SeedSource<VendorSeedEntry> };
     }
 }
