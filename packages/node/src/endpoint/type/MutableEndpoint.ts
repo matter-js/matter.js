@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
+import { SupportedClientClusters } from "../properties/SupportedClientClusters.js";
 import { EndpointType } from "./EndpointType.js";
 
 /**
@@ -26,6 +27,11 @@ export interface MutableEndpoint extends EndpointType {
      * Define an endpoint like this one with additional and/or replacement server behaviors.
      */
     withBehaviors(...behaviors: SupportedBehaviors.List): MutableEndpoint;
+
+    /**
+     * Define an endpoint like this one with additional and/or replacement client cluster declarations.
+     */
+    withClientClusters(...clientClusters: SupportedClientClusters.List): MutableEndpoint;
 
     /**
      * Alias for {@link withBehaviors}.
@@ -79,18 +85,28 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
         withBehaviors(this: MutableEndpoint, ...behaviors: Behavior.Type[]) {
             return this.with(...behaviors);
         },
+
+        withClientClusters(this: MutableEndpoint, ...clientClusters: Behavior.Type[]) {
+            return MutableEndpoint({
+                ...options,
+                clientClusters: SupportedClientClusters.extend(this.clientClusters, clientClusters),
+            });
+        },
     } as unknown as MutableEndpoint.With<
         EndpointType.For<T>,
-        T["behaviors"] extends SupportedBehaviors ? T["behaviors"] : {}
+        T["behaviors"] extends SupportedBehaviors ? T["behaviors"] : {},
+        T["clientClusters"] extends SupportedClientClusters ? T["clientClusters"] : {}
     >;
 }
 
 export namespace MutableEndpoint {
-    export type With<B extends EndpointType, SB extends SupportedBehaviors> = Omit<
-        B,
-        "behaviors" | "defaults" | "set" | "with"
-    > & {
+    export type With<
+        B extends EndpointType,
+        SB extends SupportedBehaviors,
+        SC extends SupportedClientClusters = B["clientClusters"],
+    > = Omit<B, "behaviors" | "clientClusters" | "defaults" | "set" | "with"> & {
         behaviors: B["behaviors"] & SB;
+        clientClusters: SC;
 
         /**
          * Access default state values.
@@ -100,18 +116,25 @@ export namespace MutableEndpoint {
         /**
          * Define an endpoint like this one with different defaults.  Only updates values present in the input object.
          */
-        set(defaults: SupportedBehaviors.InputStateOf<SB>): With<B, SB>;
+        set(defaults: SupportedBehaviors.InputStateOf<SB>): With<B, SB, SC>;
 
         /**
          * Define an endpoint like this one with additional and/or replacement server behaviors.
          */
         withBehaviors<const BL extends SupportedBehaviors.List>(
             ...behaviors: BL
-        ): With<B, SupportedBehaviors.With<SB, BL>>;
+        ): With<B, SupportedBehaviors.With<SB, BL>, SC>;
+
+        /**
+         * Define an endpoint like this one with additional and/or replacement client cluster declarations.
+         */
+        withClientClusters<const CL extends SupportedClientClusters.List>(
+            ...clientClusters: CL
+        ): With<B, SB, SupportedClientClusters.With<SC, CL>>;
 
         /**
          * Alias for {@link withBehaviors}.
          */
-        with<const BL extends SupportedBehaviors.List>(...behaviors: BL): With<B, SupportedBehaviors.With<SB, BL>>;
+        with<const BL extends SupportedBehaviors.List>(...behaviors: BL): With<B, SupportedBehaviors.With<SB, BL>, SC>;
     };
 }
