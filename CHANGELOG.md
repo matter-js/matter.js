@@ -77,8 +77,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
     - Feature: Device attestation validation during commissioning per Matter spec 6.2.3.1 — certificate chain verification, attestation signature/nonce, Certification Declaration validation, and certificate revocation checks via CRL
     - Feature: Attestation findings model with error/warning/info levels and configurable policy callback for custom commissioning decisions
-    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL on demand, validates signer chain against trusted PAAs, verifies CRL signature and integrity
+    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL on demand, validates the signer chain against trusted PAAs, verifies CRL signature and integrity
     - Feature: `CertificationDeclaration.parse()` for CMS/PKCS#7 signed CD extraction and signature verification
+    - Feature: Enhances DclVendorInfoService and DclCertificateService with an option to seed data to support cases where no internal connection is available (@matter/dcl-data package gets published daily)
     - Enhancement: Attestation local checks (nonce, signature, VendorID, CD fields) run even without `DclCertificateService`; DCL-dependent checks (PAA trust, chain, revocation) require it
     - Enhancement: Server-side `DeviceCertification` validates DAC/PAI VendorID and ProductID against product description at startup
     - Enhancement: Enhances the strategy when multiple devices are discovered for the same commissioning target
