@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { clientBrand, isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
+import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
 import { Logger } from "@matter/general";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "../properties/SupportedClientClusters.js";
@@ -140,24 +140,6 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
 }
 
 export namespace MutableEndpoint {
-    type ClientArgs<L extends readonly Behavior.Type[]> = L extends readonly [
-        infer F extends Behavior.Type,
-        ...infer R extends readonly Behavior.Type[],
-    ]
-        ? F extends { [k in typeof clientBrand]: true }
-            ? readonly [F, ...ClientArgs<R>]
-            : ClientArgs<R>
-        : readonly [];
-
-    type ServerArgs<L extends readonly Behavior.Type[]> = L extends readonly [
-        infer F extends Behavior.Type,
-        ...infer R extends readonly Behavior.Type[],
-    ]
-        ? F extends { [k in typeof clientBrand]: true }
-            ? ServerArgs<R>
-            : readonly [F, ...ServerArgs<R>]
-        : readonly [];
-
     export type With<
         B extends EndpointType,
         SB extends SupportedBehaviors,
@@ -191,10 +173,10 @@ export namespace MutableEndpoint {
         ): With<B, SB, SupportedClientClusters.With<SC, CL>>;
 
         /**
-         * Route server behaviors to the behaviors slot and ClientBehavior arguments to the clientClusters slot.
+         * Define an endpoint like this one with additional behaviors. ClientBehavior arguments are routed to the
+         * clientClusters slot at runtime; the static type widens them like ordinary server behaviors. For typed access
+         * to the resulting clientClusters slot, use {@link withClientClusters} instead.
          */
-        with<const Args extends SupportedBehaviors.List>(
-            ...args: Args
-        ): With<B, SupportedBehaviors.With<SB, ServerArgs<Args>>, SupportedClientClusters.With<SC, ClientArgs<Args>>>;
+        with<const BL extends SupportedBehaviors.List>(...behaviors: BL): With<B, SupportedBehaviors.With<SB, BL>, SC>;
     };
 }

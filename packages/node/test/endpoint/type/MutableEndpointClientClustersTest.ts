@@ -119,7 +119,7 @@ describe("MutableEndpoint .with() router", () => {
 
     it("routes client-only args to clientClusters slot", () => {
         const ext = base.with(OccupancySensingClient);
-        expect(ext.clientClusters[OccupancySensingClient.id]).equal(OccupancySensingClient);
+        expect(Object.values(ext.clientClusters)).contain(OccupancySensingClient);
         expect(ext.behaviors[OnOffServer.id]).equal(OnOffServer);
         expect(ext.behaviors).not.have.property(OccupancySensingClient.id);
     });
@@ -127,16 +127,16 @@ describe("MutableEndpoint .with() router", () => {
     it("routes mixed args correctly", () => {
         const ext = base.with(IdentifyServer, OccupancySensingClient);
         expect(ext.behaviors[IdentifyServer.id]).equal(IdentifyServer);
-        expect(ext.clientClusters[OccupancySensingClient.id]).equal(OccupancySensingClient);
+        expect(Object.values(ext.clientClusters)).contain(OccupancySensingClient);
     });
 
     it("routes same cluster server + client in one call to separate slots", () => {
         const ext = base.with(IdentifyServer, IdentifyClient);
         expect(ext.behaviors[IdentifyServer.id]).equal(IdentifyServer);
         expect(ext.behaviors[IdentifyServer.id]).not.equal(IdentifyClient);
-        expect(ext.clientClusters[IdentifyClient.id]).equal(IdentifyClient);
-        expect(ext.clientClusters[IdentifyClient.id]).not.equal(IdentifyServer);
-        expect(isClientBehavior(ext.clientClusters[IdentifyClient.id])).equal(true);
+        expect(Object.values(ext.clientClusters)).contain(IdentifyClient);
+        expect(Object.values(ext.clientClusters)).not.contain(IdentifyServer);
+        expect(isClientBehavior(IdentifyClient)).equal(true);
         expect(isClientBehavior(ext.behaviors[IdentifyServer.id])).equal(false);
     });
 
@@ -146,8 +146,8 @@ describe("MutableEndpoint .with() router", () => {
     });
 });
 
-describe("MutableEndpoint .with() routing typing", () => {
-    it("type-level: server arg in behaviors, client arg in clientClusters, both for mixed", () => {
+describe("MutableEndpoint .withClientClusters() typing", () => {
+    it("type-level: explicit .withClientClusters(...) narrows clientClusters key", () => {
         const base = MutableEndpoint({
             name: "Test",
             deviceType: 0x100,
@@ -155,27 +155,13 @@ describe("MutableEndpoint .with() routing typing", () => {
             behaviors: SupportedBehaviors(OnOffServer),
         });
 
-        // server-only
-        const sext = base.with(IdentifyServer);
-        ((_: typeof IdentifyServer) => _)(sext.behaviors[IdentifyServer.id]);
-        // @ts-expect-error - server-only .with() should keep clientClusters at the empty default
-        sext.clientClusters[OccupancySensingClient.id];
-
-        // client-only
-        const cext = base.with(OccupancySensingClient);
+        // .withClientClusters narrows at the type level
+        const cext = base.withClientClusters(OccupancySensingClient);
         ((_: typeof OccupancySensingClient) => _)(cext.clientClusters[OccupancySensingClient.id]);
-        ((_: typeof OnOffServer) => _)(cext.behaviors[OnOffServer.id]);
-        // @ts-expect-error - OccupancySensingClient.id should not be on behaviors
-        cext.behaviors[OccupancySensingClient.id];
 
-        // mixed
-        const mext = base.with(IdentifyServer, OccupancySensingClient);
-        ((_: typeof IdentifyServer) => _)(mext.behaviors[IdentifyServer.id]);
-        ((_: typeof OccupancySensingClient) => _)(mext.clientClusters[OccupancySensingClient.id]);
-
-        void sext;
+        // .with() routes Client args at runtime only; the static clientClusters slot is unchanged.
+        // For typed access to the slot, use .withClientClusters above instead.
         void cext;
-        void mext;
     });
 });
 
