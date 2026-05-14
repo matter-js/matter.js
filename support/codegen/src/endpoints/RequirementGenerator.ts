@@ -130,8 +130,8 @@ export class RequirementGenerator {
             name = `${detail.definition.name}Server`;
             this.file.addImport(`${prefix}Server.js`, `${name} as Base${name}`);
         } else {
-            name = `${detail.definition.name}Behavior`;
-            this.file.addImport(`${prefix}Behavior.js`, `${name} as Base${name}`);
+            name = `${detail.definition.name}Client`;
+            this.file.addImport(`${prefix}Client.js`, `${name} as Base${name}`);
         }
 
         const definition = this.file.definitions.builder(`export const ${name} = Base${name}`);

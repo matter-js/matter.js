@@ -8,7 +8,7 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { SwitchServer as BaseSwitchServer } from "../behaviors/switch/SwitchServer.js";
-import { ChimeBehavior as BaseChimeBehavior } from "../behaviors/chime/ChimeBehavior.js";
+import { ChimeClient as BaseChimeClient } from "../behaviors/chime/ChimeClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -41,9 +41,9 @@ export namespace DoorbellRequirements {
     /**
      * The Chime cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ChimeBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ChimeClient} for convenience.
      */
-    export const ChimeBehavior = BaseChimeBehavior;
+    export const ChimeClient = BaseChimeClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -53,7 +53,7 @@ export namespace DoorbellRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { mandatory: { Chime: ChimeBehavior } };
+    export const client = { mandatory: { Chime: ChimeClient } };
 }
 
 export const DoorbellDeviceDefinition = MutableEndpoint({

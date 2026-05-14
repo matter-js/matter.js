@@ -20,12 +20,12 @@ import {
     CameraAvSettingsUserLevelManagementServer as BaseCameraAvSettingsUserLevelManagementServer
 } from "../behaviors/camera-av-settings-user-level-management/CameraAvSettingsUserLevelManagementServer.js";
 import {
-    WebRtcTransportProviderBehavior as BaseWebRtcTransportProviderBehavior
-} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderBehavior.js";
+    WebRtcTransportProviderClient as BaseWebRtcTransportProviderClient
+} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderClient.js";
 import {
-    WebRtcTransportRequestorBehavior as BaseWebRtcTransportRequestorBehavior
-} from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorBehavior.js";
-import { ChimeBehavior as BaseChimeBehavior } from "../behaviors/chime/ChimeBehavior.js";
+    WebRtcTransportRequestorClient as BaseWebRtcTransportRequestorClient
+} from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorClient.js";
+import { ChimeClient as BaseChimeClient } from "../behaviors/chime/ChimeClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -86,23 +86,23 @@ export namespace IntercomRequirements {
     /**
      * The WebRtcTransportProvider cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportProviderBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportProviderClient} for convenience.
      */
-    export const WebRtcTransportProviderBehavior = BaseWebRtcTransportProviderBehavior;
+    export const WebRtcTransportProviderClient = BaseWebRtcTransportProviderClient;
 
     /**
      * The WebRtcTransportRequestor cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportRequestorBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportRequestorClient} for convenience.
      */
-    export const WebRtcTransportRequestorBehavior = BaseWebRtcTransportRequestorBehavior;
+    export const WebRtcTransportRequestorClient = BaseWebRtcTransportRequestorClient;
 
     /**
      * The Chime cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ChimeBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ChimeClient} for convenience.
      */
-    export const ChimeBehavior = BaseChimeBehavior;
+    export const ChimeClient = BaseChimeClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -124,10 +124,10 @@ export namespace IntercomRequirements {
      */
     export const client = {
         mandatory: {
-            WebRtcTransportProvider: WebRtcTransportProviderBehavior,
-            WebRtcTransportRequestor: WebRtcTransportRequestorBehavior
+            WebRtcTransportProvider: WebRtcTransportProviderClient,
+            WebRtcTransportRequestor: WebRtcTransportRequestorClient
         },
-        optional: { Chime: ChimeBehavior }
+        optional: { Chime: ChimeClient }
     };
 }
 

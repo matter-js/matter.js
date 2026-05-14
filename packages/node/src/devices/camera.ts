@@ -27,11 +27,11 @@ import {
 } from "../behaviors/occupancy-sensing/OccupancySensingServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import {
-    WebRtcTransportRequestorBehavior as BaseWebRtcTransportRequestorBehavior
-} from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorBehavior.js";
+    WebRtcTransportRequestorClient as BaseWebRtcTransportRequestorClient
+} from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorClient.js";
 import {
-    WebRtcTransportProviderBehavior as BaseWebRtcTransportProviderBehavior
-} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderBehavior.js";
+    WebRtcTransportProviderClient as BaseWebRtcTransportProviderClient
+} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -108,16 +108,16 @@ export namespace CameraRequirements {
     /**
      * The WebRtcTransportRequestor cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportRequestorBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportRequestorClient} for convenience.
      */
-    export const WebRtcTransportRequestorBehavior = BaseWebRtcTransportRequestorBehavior;
+    export const WebRtcTransportRequestorClient = BaseWebRtcTransportRequestorClient;
 
     /**
      * The WebRtcTransportProvider cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportProviderBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportProviderClient} for convenience.
      */
-    export const WebRtcTransportProviderBehavior = BaseWebRtcTransportProviderBehavior;
+    export const WebRtcTransportProviderClient = BaseWebRtcTransportProviderClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -142,8 +142,8 @@ export namespace CameraRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorBehavior },
-        optional: { WebRtcTransportProvider: WebRtcTransportProviderBehavior }
+        mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorClient },
+        optional: { WebRtcTransportProvider: WebRtcTransportProviderClient }
     };
 }
 

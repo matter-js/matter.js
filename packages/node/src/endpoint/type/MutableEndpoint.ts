@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { isClientBehavior, clientBrand } from "#behavior/cluster/cluster-behavior-utils.js";
+import { clientBrand, isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "../properties/SupportedClientClusters.js";
 import { EndpointType } from "./EndpointType.js";

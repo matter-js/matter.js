@@ -24,17 +24,15 @@ import {
 } from "../behaviors/pressure-measurement/PressureMeasurementServer.js";
 import { FlowMeasurementServer as BaseFlowMeasurementServer } from "../behaviors/flow-measurement/FlowMeasurementServer.js";
 import {
-    TemperatureMeasurementBehavior as BaseTemperatureMeasurementBehavior
-} from "../behaviors/temperature-measurement/TemperatureMeasurementBehavior.js";
+    TemperatureMeasurementClient as BaseTemperatureMeasurementClient
+} from "../behaviors/temperature-measurement/TemperatureMeasurementClient.js";
 import {
-    PressureMeasurementBehavior as BasePressureMeasurementBehavior
-} from "../behaviors/pressure-measurement/PressureMeasurementBehavior.js";
+    PressureMeasurementClient as BasePressureMeasurementClient
+} from "../behaviors/pressure-measurement/PressureMeasurementClient.js";
+import { FlowMeasurementClient as BaseFlowMeasurementClient } from "../behaviors/flow-measurement/FlowMeasurementClient.js";
 import {
-    FlowMeasurementBehavior as BaseFlowMeasurementBehavior
-} from "../behaviors/flow-measurement/FlowMeasurementBehavior.js";
-import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -117,30 +115,30 @@ export namespace PumpRequirements {
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TemperatureMeasurementClient} for convenience.
      */
-    export const TemperatureMeasurementBehavior = BaseTemperatureMeasurementBehavior;
+    export const TemperatureMeasurementClient = BaseTemperatureMeasurementClient;
 
     /**
      * The PressureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link PressureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link PressureMeasurementClient} for convenience.
      */
-    export const PressureMeasurementBehavior = BasePressureMeasurementBehavior;
+    export const PressureMeasurementClient = BasePressureMeasurementClient;
 
     /**
      * The FlowMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link FlowMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link FlowMeasurementClient} for convenience.
      */
-    export const FlowMeasurementBehavior = BaseFlowMeasurementBehavior;
+    export const FlowMeasurementClient = BaseFlowMeasurementClient;
 
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -167,10 +165,10 @@ export namespace PumpRequirements {
      */
     export const client = {
         optional: {
-            TemperatureMeasurement: TemperatureMeasurementBehavior,
-            PressureMeasurement: PressureMeasurementBehavior,
-            FlowMeasurement: FlowMeasurementBehavior,
-            OccupancySensing: OccupancySensingBehavior
+            TemperatureMeasurement: TemperatureMeasurementClient,
+            PressureMeasurement: PressureMeasurementClient,
+            FlowMeasurement: FlowMeasurementClient,
+            OccupancySensing: OccupancySensingClient
         },
 
         mandatory: {}
