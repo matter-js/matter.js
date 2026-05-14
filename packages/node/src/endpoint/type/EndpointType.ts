@@ -7,6 +7,7 @@
 import { DeviceClassification } from "@matter/model";
 import { DeviceTypeId } from "@matter/types";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
+import { SupportedClientClusters } from "../properties/SupportedClientClusters.js";
 
 /**
  * An EndpointType defines functionality for an endpoint.
@@ -17,6 +18,7 @@ export interface EndpointType {
     deviceRevision: number;
     deviceClass: DeviceClassification;
     behaviors: SupportedBehaviors;
+    clientClusters: SupportedClientClusters;
     requirements: EndpointType.Requirements;
 }
 
@@ -28,6 +30,7 @@ export function EndpointType<const T extends EndpointType.Options>(options: T) {
         ...options,
         deviceClass: options.deviceClass ?? DeviceClassification.Simple,
         behaviors: options.behaviors ?? {},
+        clientClusters: options.clientClusters ?? {},
         requirements: options.requirements ?? {},
     } as unknown as EndpointType.For<T>;
 }
@@ -37,10 +40,11 @@ export namespace EndpointType {
     export const UNKNOWN_DEVICE_REVISION = -1;
 
     /**
-     * An endpoint type with no behaviors or requirements.
+     * An endpoint type with no behaviors, client clusters, or requirements.
      */
-    export interface Empty extends Omit<EndpointType, "behaviors" | "requirements"> {
+    export interface Empty extends Omit<EndpointType, "behaviors" | "clientClusters" | "requirements"> {
         behaviors: {};
+        clientClusters: {};
         requirements: {};
     }
 
@@ -53,6 +57,7 @@ export namespace EndpointType {
         deviceRevision: number;
         deviceClass: DeviceClassification;
         behaviors: T["behaviors"] extends SupportedBehaviors ? T["behaviors"] : {};
+        clientClusters: T["clientClusters"] extends SupportedClientClusters ? T["clientClusters"] : {};
         requirements: T["requirements"] extends Requirements ? T["requirements"] : {};
     };
 
@@ -65,6 +70,7 @@ export namespace EndpointType {
         deviceRevision: number;
         deviceClass?: DeviceClassification;
         behaviors?: SupportedBehaviors;
+        clientClusters?: SupportedClientClusters;
         requirements?: Requirements;
     }
 
