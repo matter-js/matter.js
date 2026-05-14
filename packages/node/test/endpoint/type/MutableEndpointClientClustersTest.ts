@@ -5,9 +5,14 @@
  */
 
 import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
+import { ChimeClient } from "#behaviors/chime";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { OccupancySensingClient } from "#behaviors/occupancy-sensing";
 import { OnOffServer } from "#behaviors/on-off";
+import { WebRtcTransportProviderClient } from "#behaviors/web-rtc-transport-provider";
+import { CameraControllerDevice } from "#devices/camera-controller";
+import { DoorbellDevice } from "#devices/doorbell";
+import { OnOffLightDevice } from "#devices/on-off-light";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "#endpoint/properties/SupportedClientClusters.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
@@ -171,5 +176,26 @@ describe("MutableEndpoint .with() routing typing", () => {
         void sext;
         void cext;
         void mext;
+    });
+});
+
+describe("MutableEndpoint auto-merge of mandatory client clusters", () => {
+    it("auto-registers requirements.client.mandatory entries (doorbell)", () => {
+        expect(Object.values(DoorbellDevice.clientClusters)).contain(ChimeClient);
+    });
+
+    it("does not auto-register optional client clusters (on-off-light)", () => {
+        expect(OnOffLightDevice.clientClusters).deep.equal({});
+    });
+
+    it("auto-registers mandatory and leaves optional un-registered (camera-controller)", () => {
+        expect(Object.values(CameraControllerDevice.clientClusters)).contain(WebRtcTransportProviderClient);
+        expect(Object.values(CameraControllerDevice.clientClusters)).not.contain(OccupancySensingClient);
+    });
+
+    it("does not double-add when .with() supplies a mandatory client", () => {
+        const ext = DoorbellDevice.with(ChimeClient);
+        expect(Object.values(ext.clientClusters)).contain(ChimeClient);
+        expect(Object.keys(ext.clientClusters).length).equal(Object.keys(DoorbellDevice.clientClusters).length);
     });
 });
