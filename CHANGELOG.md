@@ -49,6 +49,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
     - Feature: Added `Endpoint.featuresOf()` / `maybeFeaturesOf()` — typed access to a cluster behavior's active feature flags
     - Feature: Added `Endpoint.globalsOf()` / `maybeGlobalsOf()` — exposes the global cluster attribute state
+    - Feature: Allows ServerNode endpoints to declare client clusters via e.g. `OnOffLightDevice.with(OccupancySensingClient)`. Mandatory clients are auto-registered
     - Enhancement: Added string-id overloads to `commandsOf()`, `eventsOf()`, `stateOf()`/`maybeStateOf()`
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Enhancement: Added more warnings on invalid values for BasicInformation cluster
