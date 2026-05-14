@@ -35,8 +35,8 @@ export class DescriptorServer extends DescriptorBehavior {
         // Handle lifecycle changes
         this.reactTo(this.endpoint.lifecycle.changed, this.#updateDescriptor);
 
-        // Initialize ServerList
         this.state.serverList = this.#serverList;
+        this.state.clientList = this.#clientList;
 
         // Initialize DeviceTypeList
         this.#initializeDeviceTypeList();
@@ -162,6 +162,16 @@ export class DescriptorServer extends DescriptorBehavior {
                 this.state.serverList = this.#serverList;
                 break;
 
+            case EndpointLifecycle.Change.ClientsChanged:
+                if (endpoint !== this.endpoint) {
+                    return;
+                }
+
+                await this.context.transaction.addResources(this);
+                await this.context.transaction.begin();
+                this.state.clientList = this.#clientList;
+                break;
+
             case EndpointLifecycle.Change.Destroying:
                 if (endpoint !== this.endpoint) {
                     return;
@@ -236,6 +246,20 @@ export class DescriptorServer extends DescriptorBehavior {
     get #serverList() {
         const list = new Array<ClusterId>();
         for (const type of Object.values(this.endpoint.behaviors.supported)) {
+            const clusterId = (type as { cluster?: { id?: ClusterId } }).cluster?.id;
+            if (clusterId) {
+                list.push(clusterId);
+            }
+        }
+        return list;
+    }
+
+    /**
+     * Computed current client list from registered client cluster declarations.
+     */
+    get #clientList() {
+        const list = new Array<ClusterId>();
+        for (const type of Object.values(this.endpoint.type.clientClusters ?? {})) {
             const clusterId = (type as { cluster?: { id?: ClusterId } }).cluster?.id;
             if (clusterId) {
                 list.push(clusterId);
