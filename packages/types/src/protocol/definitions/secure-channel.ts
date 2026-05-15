@@ -88,4 +88,12 @@ export namespace SecureMessageType {
     export function isStandaloneAck(protocolId: number, messageType: number) {
         return protocolId === SECURE_CHANNEL_PROTOCOL_ID && messageType === SecureMessageType.StandaloneAck;
     }
+
+    /**
+     * StatusReport messages are SecureChannel messages but may flow within an exchange of any protocol per Matter spec
+     * 4.10 (Status Report Messages).
+     */
+    export function isStatusReport(protocolId: number, messageType: number) {
+        return protocolId === SECURE_CHANNEL_PROTOCOL_ID && messageType === SecureMessageType.StatusReport;
+    }
 }
