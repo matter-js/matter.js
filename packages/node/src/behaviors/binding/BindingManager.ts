@@ -262,6 +262,8 @@ export class BindingManager {
     }
 
     #establishClientKind(server: BindingServer, resolution: BindingResolution & { kind: "client" }): void {
+        this.#multiplex.add(resolution.node.start(), `start peer ${resolution.node}`);
+
         try {
             const peerAddress = resolution.node.peerAddress;
             if (peerAddress !== undefined) {
