@@ -102,7 +102,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Do not announce devices as commissionable before the factory reset when the last fabric is removed
     - Fix: Fixes expiry logic where cached records for Commissionable devices could potentially never expire
     - Fix: For BDX cases also give the device the defined timeout of 5 minutes to ack/request the next packet
-    - Fix: Accept SecureChannel StatusReport messages on any protocol exchange (e.g. BDX) per Matter spec 4.10, and stamp the SecureChannel protocol id on outgoing StatusReports
+    - Fix: Accept SecureChannel StatusReport messages on any protocol exchange (e.g. BDX)
     - Fix: Ensures the Matter port on IPv4 is the same as on IPv6
 
 - @matter/react-native
