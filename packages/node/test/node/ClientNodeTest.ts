@@ -1541,7 +1541,7 @@ describe("ClientNode", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = false;
 
             const peer2 = discovered[0];
-            const descriptor = deepCopy(peer2.state.commissioning) as RemoteDescriptor;
+            const descriptor = RemoteDescriptor.fromLongForm(peer2.state.commissioning);
 
             const factory = controller.env.get(ClientNodeFactory);
             expect(factory.find(descriptor)).equals(peer2); // sanity: alive node is reused
