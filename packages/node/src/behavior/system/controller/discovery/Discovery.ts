@@ -66,6 +66,10 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         return this.#settled;
     }
 
+    protected get owner(): ServerNode {
+        return this.#owner;
+    }
+
     protected abstract onDiscovered(node: ClientNode): void;
     protected abstract onComplete(): MaybePromise<T>;
 
@@ -205,14 +209,19 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                         }
 
                         if (node) {
-                            // Found a known uncommissioned node; update its commissioning metadata
+                            // Found a known uncommissioned node; refresh its commissioning metadata BEFORE notifying
+                            // onDiscovered.  Firing the commission attempt before the refresh lands lets the
+                            // expired-node cull observe stale `discoveredAt` and delete the node mid-commission,
+                            // which collapses the BehaviorBacking and surfaces as "Datasource not yet initialized".
                             const updatePromise = node.act(agent => {
                                 agent.commissioning.descriptor = descriptor;
                             });
+                            const reusedNode = node;
                             if (MaybePromise.is(updatePromise)) {
-                                promises.push(updatePromise);
+                                promises.push(updatePromise.then(() => this.onDiscovered(reusedNode)));
+                            } else {
+                                this.onDiscovered(reusedNode);
                             }
-                            this.onDiscovered(node);
                         } else {
                             // This node is new to us — defer onDiscovered until construction completes
                             // so that node.state.commissioning is committed and readable by listeners.
