@@ -16,14 +16,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
 
 - @matter/\*
+    - Upgraded to Matter specification version 1.5
     - 20%–50% RAM usage reductions and improvements
-
-- @matter/model
-    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
-    - Breaking: Attributes declared by decorators (`@attribute(...)`) now default to read-only (`R V`); apply the `writable` decorator to attributes that must accept writes
-    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
-    - Enhancement: The fluent API for manipulating the Matter data model is improved
-    - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
 
 - @matter/general
     - Breaking: Blob/File-related storage methods were removed from the normal Storage implementation
@@ -35,8 +29,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
     - Enhancement: `LogFormat.format` renders any Diagnostic-loggable value to a string in the specified format (defaults to plain text)
 
-- @matter/\*:
-    - Upgraded to Matter specification version 1.5
+- @matter/main
+    - Feature: Added `version` string export that exposes the published matter.js version
+
+- @matter/model
+    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
+    - Breaking: Attributes declared by decorators (`@attribute(...)`) now default to read-only (`R V`); apply the `writable` decorator to attributes that must accept writes
+    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
+    - Enhancement: The fluent API for manipulating the Matter data model is improved
+    - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
