@@ -118,7 +118,7 @@ export class BindingManager {
             }
         }
 
-        (server as unknown as { emitRemoved: (r: BindingResolution) => void }).emitRemoved(resolution);
+        server.emitRemoved(resolution);
     }
 
     async #flushQueue(): Promise<void> {
@@ -222,7 +222,7 @@ export class BindingManager {
         }
 
         this.#recordEstablished(server, resolution);
-        (server as unknown as { emitEstablished: (r: BindingResolution) => void }).emitEstablished(resolution);
+        server.emitEstablished(resolution);
     }
 
     #endpointHasClusterServer(endpoint: Endpoint, clusterId: number): boolean {
@@ -276,7 +276,7 @@ export class BindingManager {
         const handler = async (_ctx: ActionContext) => {
             this.#clearPending(server, resolution.entry);
             this.#recordEstablished(server, resolution);
-            (server as unknown as { emitEstablished: (r: BindingResolution) => void }).emitEstablished(resolution);
+            server.emitEstablished(resolution);
         };
         observable.once(handler);
 
