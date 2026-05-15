@@ -326,8 +326,9 @@ export class Peers extends EndpointContainer<ClientNode> {
      *
      * Serialization is done through the same {@link #mutex} the cull uses: the busy registration runs as a mutex task,
      * which guarantees no cull is in flight when we register and that any subsequent cull observes the busy flag.  If a
-     * cull queued ahead of us already deleted the node, registration sees `!node.lifecycle.isReady` and rejects so the
-     * commission attempt bails out cleanly instead of crashing later when the closed backing is accessed.
+     * cull queued ahead of us already destroyed (or crashed) the node, registration sees a terminal
+     * {@link Lifecycle.Status} and rejects so the commission attempt bails out cleanly instead of crashing later when
+     * the closed backing is accessed.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
         await this.#mutex.produce(async () => {

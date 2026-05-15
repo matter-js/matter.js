@@ -1425,6 +1425,60 @@ describe("ClientNode", () => {
             expect(controller.peers.get(peer2.id)).undefined; // uncommissioned peer was culled
         });
 
+        it("does not cull an uncommissioned node while runCommissioning is in flight", async () => {
+            // *** SETUP ***
+
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+            expect(peer2.state.commissioning.peerAddress).undefined;
+            expect(controller.peers.size).equals(2);
+
+            // *** RUN COMMISSIONING + EXPIRE ***
+
+            // Backdate discoveredAt so the cull sees peer2 as expired immediately.
+            await peer2.set({
+                commissioning: { discoveredAt: Timestamp(Time.nowMs - Minutes(20)) },
+            });
+
+            let resolveInner!: () => void;
+            const innerDone = new Promise<void>(resolve => {
+                resolveInner = resolve;
+            });
+            const commissioning = controller.peers.runCommissioning(peer2, () => innerDone);
+
+            // Advance past one expiration interval so the cull timer fires.  With the busy registry
+            // in place, peer2 must survive the cull pass.
+            await MockTime.advance(Minutes(2));
+            await MockTime.yield3();
+
+            expect(controller.peers.get(peer2.id)).not.undefined; // not culled while busy
+
+            // *** RELEASE + VERIFY CULL ***
+
+            resolveInner();
+            await commissioning;
+
+            // Now that the busy flag is cleared, the next cull pass must delete peer2.
+            const peer2Destroyed = new Promise<void>(resolve => peer2.lifecycle.destroyed.once(() => resolve()));
+            await MockTime.resolve(peer2Destroyed);
+
+            expect(controller.peers.get(peer2.id)).undefined;
+        });
+
         it("prunes expired addresses from commissioned nodes", async () => {
             // *** SETUP ***
 
