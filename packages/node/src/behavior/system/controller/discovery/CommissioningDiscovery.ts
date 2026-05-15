@@ -62,14 +62,17 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     protected override onDiscovered(node: ClientNode) {
         if (this.paseWon) return;
 
+        const peers = this.owner.peers;
         this.registerAttempt(
             winOnPase =>
-                node.act("commission", agent =>
-                    agent.commissioning.commission({
-                        ...this.#options,
-                        abort: this.abortSignal,
-                        continueCommissioningAfterPase: winOnPase,
-                    }),
+                peers.runCommissioning(node, () =>
+                    node.act("commission", agent =>
+                        agent.commissioning.commission({
+                            ...this.#options,
+                            abort: this.abortSignal,
+                            continueCommissioningAfterPase: winOnPase,
+                        }),
+                    ),
                 ),
             () => node,
         );
