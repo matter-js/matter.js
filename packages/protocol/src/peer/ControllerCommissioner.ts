@@ -543,8 +543,6 @@ export class ControllerCommissioner {
             }
         }
 
-        await using services = this.#context.environment.asDependent();
-
         await using commissioner = new commissioningFlowImpl(
             new ClientInteraction({
                 environment: this.#context.environment,
@@ -557,7 +555,9 @@ export class ControllerCommissioner {
                 ...commissioningOptions,
                 attestation: {
                     challengeKey: ephemeralSession.attestationChallengeKey,
-                    dclCertificateService: services.maybeGet(DclCertificateService),
+                    dclCertificateService: this.#context.environment.has(DclCertificateService)
+                        ? this.#context.environment.get(DclCertificateService)
+                        : undefined,
                     onFailure: options.onAttestationFailure,
                 },
             },

@@ -158,12 +158,11 @@ export function createWritable(client: WebSocket) {
             try {
                 await withTimeout(WS_CLOSE_TIMEOUT, closed);
             } catch (error) {
-                if (error instanceof PromiseTimeoutError) {
-                    logger.info("WebSocket close did not complete within timeout, terminating");
-                    client.terminate();
-                } else {
-                    logger.warn("WebSocket close error:", error);
+                if (!(error instanceof PromiseTimeoutError)) {
+                    throw error;
                 }
+                logger.info("WebSocket close did not complete within timeout, terminating");
+                client.terminate();
             }
         },
 

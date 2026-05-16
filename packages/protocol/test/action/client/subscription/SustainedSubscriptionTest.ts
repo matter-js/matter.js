@@ -18,7 +18,13 @@ describe("SustainedSubscription", () => {
         const lifetime = Lifetime("test sustained subscription");
         const peer = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(BigInt(1)) });
 
-        const fakePeerSub = { subscriptionId: 1, close: async () => {} } as unknown as PeerSubscription;
+        let peerSubClosed = 0;
+        const fakePeerSub = {
+            subscriptionId: 1,
+            close: async () => {
+                peerSubClosed++;
+            },
+        } as unknown as PeerSubscription;
         const entropy = { randomUint32: 0 } as Entropy;
 
         const subscription = new SustainedSubscription({
@@ -34,21 +40,35 @@ describe("SustainedSubscription", () => {
             retries: new RetrySchedule(entropy, SustainedSubscription.DefaultRetrySchedule),
         });
 
-        const becameActive = Promise.race([
-            subscription.active,
-            new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("subscription never became active")), 2000).unref?.(),
-            ),
-        ]);
-        await becameActive;
+        let activeTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            await Promise.race([
+                subscription.active,
+                new Promise<never>((_, reject) => {
+                    activeTimer = setTimeout(() => reject(new Error("subscription never became active")), 2000);
+                }),
+            ]);
+        } finally {
+            if (activeTimer) clearTimeout(activeTimer);
+        }
 
         subscription.close();
 
-        const timeout = new Promise<"timeout">(resolve => {
-            setTimeout(() => resolve("timeout"), 1000).unref?.();
-        });
-        const result = await Promise.race([subscription.done!.then(() => "ok" as const), timeout]);
+        let raceTimer: ReturnType<typeof setTimeout> | undefined;
+        let result: "ok" | "timeout";
+        try {
+            result = await Promise.race([
+                subscription.done!.then(() => "ok" as const),
+                new Promise<"timeout">(resolve => {
+                    raceTimer = setTimeout(() => resolve("timeout"), 1000);
+                }),
+            ]);
+        } finally {
+            if (raceTimer) clearTimeout(raceTimer);
+        }
 
         expect(result).equal("ok");
+        // The run loop must close the active peer subscription on abort exit so its lifetime is disposed.
+        expect(peerSubClosed).equal(1);
     });
 });

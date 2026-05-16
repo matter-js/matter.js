@@ -39,22 +39,30 @@ export const factory: WsAdapter.Factory = () => {
         },
 
         async close() {
-            const closing = new Promise<void>((resolve, reject) => {
-                server.close(err => (err ? reject(err) : resolve()));
+            // Resolve with the optional error rather than reject so the same promise can outlive a timeout
+            // fallback without producing an unhandled rejection or duplicate error log paths.
+            const closing = new Promise<Error | undefined>(resolve => {
+                server.close(err => resolve(err ?? undefined));
             });
-            // Handle late rejection (after timeout fallback already ran) so it does not surface as unhandled.
-            closing.catch(error => logger.debug("WebSocket server close error after timeout:", error));
 
             try {
-                await withTimeout(WS_SERVER_CLOSE_TIMEOUT, closing);
+                const error = await withTimeout(WS_SERVER_CLOSE_TIMEOUT, closing);
+                if (error) {
+                    logger.warn("WebSocket server close error:", error);
+                }
             } catch (error) {
                 if (error instanceof PromiseTimeoutError) {
                     logger.info("WebSocket server close did not complete within timeout, terminating clients");
                     for (const client of server.clients) {
                         client.terminate();
                     }
+                    void closing.then(closeError => {
+                        if (closeError) {
+                            logger.warn("WebSocket server close error after timeout:", closeError);
+                        }
+                    });
                 } else {
-                    logger.warn("WebSocket server close error:", error);
+                    throw error;
                 }
             }
         },
