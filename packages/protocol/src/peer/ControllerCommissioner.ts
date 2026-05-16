@@ -71,9 +71,6 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
     /** Passcode to use for commissioning. */
     passcode: number;
 
-    /** Optional DCL certificate service for attestation verification.  Caller owns lifecycle. */
-    dclCertificateService?: DclCertificateService;
-
     /**
      * Commissioning completion callback
      *
@@ -558,7 +555,9 @@ export class ControllerCommissioner {
                 ...commissioningOptions,
                 attestation: {
                     challengeKey: ephemeralSession.attestationChallengeKey,
-                    dclCertificateService: options.dclCertificateService,
+                    dclCertificateService: this.#context.environment.has(DclCertificateService)
+                        ? this.#context.environment.get(DclCertificateService)
+                        : undefined,
                     onFailure: options.onAttestationFailure,
                 },
             },
