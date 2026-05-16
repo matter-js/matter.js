@@ -119,18 +119,18 @@ export class NodeJsTcpListener implements TcpListener {
                 logger.warn("TCP listener close error:", error);
             }
         } catch (error) {
-            if (error instanceof PromiseTimeoutError) {
-                logger.info("TCP listener close did not complete within timeout, unrefing server");
-                this.#server.unref();
-                // The close callback may still fire later; surface any error it carries.
-                void closing.then(closeError => {
-                    if (closeError) {
-                        logger.warn("TCP listener close error after timeout:", closeError);
-                    }
-                });
-            } else {
+            if (!(error instanceof PromiseTimeoutError)) {
+                logger.debug("Unexpected error awaiting TCP listener close, rethrowing:", error);
                 throw error;
             }
+            logger.info("TCP listener close did not complete within timeout, unrefing server");
+            this.#server.unref();
+            // The close callback may still fire later; surface any error it carries.
+            void closing.then(closeError => {
+                if (closeError) {
+                    logger.warn("TCP listener close error after timeout:", closeError);
+                }
+            });
         }
     }
 }

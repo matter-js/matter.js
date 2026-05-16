@@ -9,12 +9,15 @@ import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import {
     Construction,
+    Logger,
     MatterAggregateError,
     MemoryStorageDriver,
     StorageContext,
     StorageManager,
 } from "@matter/general";
 import { ClientNodeStore } from "./ClientNodeStore.js";
+
+const logger = Logger.get("ClientNodeStores");
 
 /**
  * Prefix for incrementally assigned client IDs that are usually commissioned, so an increasing ID is used instead the
@@ -119,11 +122,13 @@ export class ClientNodeStores {
 
     async close() {
         // Wait for construction to settle (success or failure) before draining; if construction rejected, we
-        // still close any child stores that were created up to that point.
+        // still close any child stores that were created up to that point.  Construction failure is normally
+        // surfaced by the construction lifecycle, but await registers a rejection handler that consumes it, so
+        // we log it ourselves before continuing to drain.
         try {
             await this.construction;
-        } catch {
-            // Construction errors are surfaced by the construction lifecycle itself; ignore here so we always drain.
+        } catch (error) {
+            logger.debug("Client node stores construction did not complete cleanly:", error);
         }
         const stores = Object.values(this.#stores);
         this.#stores = {};

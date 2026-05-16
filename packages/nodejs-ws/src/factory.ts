@@ -51,19 +51,19 @@ export const factory: WsAdapter.Factory = () => {
                     logger.warn("WebSocket server close error:", error);
                 }
             } catch (error) {
-                if (error instanceof PromiseTimeoutError) {
-                    logger.info("WebSocket server close did not complete within timeout, terminating clients");
-                    for (const client of server.clients) {
-                        client.terminate();
-                    }
-                    void closing.then(closeError => {
-                        if (closeError) {
-                            logger.warn("WebSocket server close error after timeout:", closeError);
-                        }
-                    });
-                } else {
+                if (!(error instanceof PromiseTimeoutError)) {
+                    logger.debug("Unexpected error awaiting WebSocket server close, rethrowing:", error);
                     throw error;
                 }
+                logger.info("WebSocket server close did not complete within timeout, terminating clients");
+                for (const client of server.clients) {
+                    client.terminate();
+                }
+                void closing.then(closeError => {
+                    if (closeError) {
+                        logger.warn("WebSocket server close error after timeout:", closeError);
+                    }
+                });
             }
         },
     };

@@ -108,6 +108,7 @@ export class TcpListenerReactNative implements TcpListener {
             await withTimeout(TCP_CLOSE_TIMEOUT, closed);
         } catch (error) {
             if (!(error instanceof PromiseTimeoutError)) {
+                logger.debug("Unexpected error awaiting TCP listener close, rethrowing:", error);
                 throw error;
             }
             logger.info("TCP listener close did not complete within timeout");
