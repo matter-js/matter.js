@@ -24,6 +24,9 @@ const logger = Logger.get("NodeJsTcpListener");
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
 
+/** Timeout for server close to complete; on expiry we proceed regardless to keep shutdown bounded. */
+const TCP_LISTENER_CLOSE_TIMEOUT = Seconds(2);
+
 function serverPort(server: Server): number {
     const addr = server.address();
     if (addr === null || typeof addr === "string") {
@@ -103,8 +106,18 @@ export class NodeJsTcpListener implements TcpListener {
         }
         this.#activeSockets.clear();
 
-        await new Promise<void>((resolve, reject) => {
+        const closing = new Promise<void>((resolve, reject) => {
             this.#server.close(error => (error ? reject(error) : resolve()));
         });
+        // If the close callback fires an error after we've returned via timeout, log it (without it Node would
+        // raise an unhandled rejection — we still want visibility into late failures).
+        closing.catch(error => logger.info("TCP listener close error:", error));
+
+        try {
+            await withTimeout(TCP_LISTENER_CLOSE_TIMEOUT, closing);
+        } catch (error) {
+            logger.info("TCP listener close did not complete within timeout, unrefing server:", error);
+            this.#server.unref();
+        }
     }
 }

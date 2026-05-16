@@ -4,8 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, Bytes, Gate, InternalError } from "@matter/general";
+import { asError, Bytes, Gate, InternalError, Logger, Seconds, withTimeout } from "@matter/general";
 import { WebSocket } from "ws";
+
+const logger = Logger.get("WebSocketStreams");
+
+/** Bounded wait for a WebSocket peer to acknowledge close before we force-terminate. */
+const WS_CLOSE_TIMEOUT = Seconds(2);
 
 /**
  * Adapt a {@link WebSocket} to a standard readable/writable pair.
@@ -135,13 +140,18 @@ export function createWritable(client: WebSocket) {
                 return;
             }
 
-            const closed = new Promise(resolve => client.once("close", resolve));
+            const closed = new Promise<void>(resolve => client.once("close", () => resolve()));
 
             if (client.readyState !== WebSocket.CLOSING) {
                 client.close(1000);
             }
 
-            await closed;
+            try {
+                await withTimeout(WS_CLOSE_TIMEOUT, closed);
+            } catch (error) {
+                logger.info("WebSocket close did not complete within timeout, terminating:", error);
+                client.terminate();
+            }
         },
 
         async abort() {

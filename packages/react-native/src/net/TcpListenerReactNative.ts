@@ -24,8 +24,8 @@ const logger = Logger.get("TcpListenerReactNative");
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
 
-/** Timeout for server close to complete. */
-const TCP_CLOSE_TIMEOUT = Seconds(5);
+/** Timeout for server close to complete; on expiry we proceed regardless to keep shutdown bounded. */
+const TCP_CLOSE_TIMEOUT = Seconds(2);
 
 /**
  * React Native implementation of {@link TcpListener}.
@@ -103,8 +103,10 @@ export class TcpListenerReactNative implements TcpListener {
             this.#server.close(() => resolve());
         });
 
-        await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
-            logger.debug("TCP server close timeout, forcing");
-        });
+        try {
+            await withTimeout(TCP_CLOSE_TIMEOUT, closed);
+        } catch (error) {
+            logger.info("TCP listener close did not complete within timeout:", error);
+        }
     }
 }

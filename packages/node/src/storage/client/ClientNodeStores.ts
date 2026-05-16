@@ -119,6 +119,12 @@ export class ClientNodeStores {
 
     async close() {
         await this.construction;
+        const stores = Object.values(this.#stores);
+        this.#stores = {};
+        await MatterAggregateError.allSettled(
+            stores.map(store => store.construction.close()),
+            "Error while closing client stores",
+        );
     }
 
     /**

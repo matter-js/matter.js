@@ -4,10 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { HttpEndpoint } from "@matter/general";
+import { HttpEndpoint, Logger, Seconds, withTimeout } from "@matter/general";
 import { type NodeJsHttpEndpoint, WsAdapter } from "@matter/nodejs";
 import { WebSocketServer } from "ws";
 import { WebSocketStreams } from "./WebSocketStreams.js";
+
+const logger = Logger.get("WebSocketServer");
+
+/** Bounded wait for the WebSocket server to drain before we terminate remaining clients. */
+const WS_SERVER_CLOSE_TIMEOUT = Seconds(2);
 
 /**
  * This is an extension to {@link NodeJsHttpEndpoint} that adds WebSocket support to the node.js HTTP server
@@ -34,9 +39,19 @@ export const factory: WsAdapter.Factory = () => {
         },
 
         async close() {
-            return new Promise<void>((resolve, reject) => {
+            const closing = new Promise<void>((resolve, reject) => {
                 server.close(err => (err ? reject(err) : resolve()));
             });
+            closing.catch(error => logger.info("WebSocket server close error:", error));
+
+            try {
+                await withTimeout(WS_SERVER_CLOSE_TIMEOUT, closing);
+            } catch (error) {
+                logger.info("WebSocket server close did not complete within timeout, terminating clients:", error);
+                for (const client of server.clients) {
+                    client.terminate();
+                }
+            }
         },
     };
 };
