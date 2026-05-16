@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, Bytes, Gate, InternalError, Logger, Seconds, withTimeout } from "@matter/general";
+import {
+    asError,
+    Bytes,
+    Gate,
+    InternalError,
+    Logger,
+    PromiseTimeoutError,
+    Seconds,
+    withTimeout,
+} from "@matter/general";
 import { WebSocket } from "ws";
 
 const logger = Logger.get("WebSocketStreams");
@@ -149,8 +158,12 @@ export function createWritable(client: WebSocket) {
             try {
                 await withTimeout(WS_CLOSE_TIMEOUT, closed);
             } catch (error) {
-                logger.info("WebSocket close did not complete within timeout, terminating:", error);
-                client.terminate();
+                if (error instanceof PromiseTimeoutError) {
+                    logger.info("WebSocket close did not complete within timeout, terminating");
+                    client.terminate();
+                } else {
+                    logger.warn("WebSocket close error:", error);
+                }
             }
         },
 

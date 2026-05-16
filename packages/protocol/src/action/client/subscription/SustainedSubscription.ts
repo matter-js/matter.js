@@ -191,15 +191,13 @@ export class SustainedSubscription extends ClientSubscription {
         }
 
         // If we exited the loop with an active peer subscription (abort fired before peer closed it), close it
-        // so its lifetime is disposed cleanly.
+        // so its lifetime is disposed cleanly.  The user-facing `request.closed` callback is invoked by the
+        // base ClientSubscription.close() done.finally chain, so we do not invoke it again here.
         const subscription = this.#subscription;
         this.#subscription = undefined;
         if (subscription !== undefined) {
             await subscription.close();
         }
-
-        // We only arrive here when closed
-        this.#request.closed?.();
     }
 
     get interactionModelRevision() {

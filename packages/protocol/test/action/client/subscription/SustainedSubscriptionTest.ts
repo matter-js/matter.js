@@ -18,7 +18,7 @@ describe("SustainedSubscription", () => {
         const lifetime = Lifetime("test sustained subscription");
         const peer = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(BigInt(1)) });
 
-        const fakePeerSub = { subscriptionId: 1 } as PeerSubscription;
+        const fakePeerSub = { subscriptionId: 1, close: async () => {} } as unknown as PeerSubscription;
         const entropy = { randomUint32: 0 } as Entropy;
 
         const subscription = new SustainedSubscription({
@@ -47,10 +47,7 @@ describe("SustainedSubscription", () => {
         const timeout = new Promise<"timeout">(resolve => {
             setTimeout(() => resolve("timeout"), 1000).unref?.();
         });
-        const result = await Promise.race([
-            subscription.done!.then(() => "ok" as const).catch(() => "ok" as const),
-            timeout,
-        ]);
+        const result = await Promise.race([subscription.done!.then(() => "ok" as const), timeout]);
 
         expect(result).equal("ok");
     });

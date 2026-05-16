@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { HttpEndpoint, Logger, Seconds, withTimeout } from "@matter/general";
+import { HttpEndpoint, Logger, PromiseTimeoutError, Seconds, withTimeout } from "@matter/general";
 import { type NodeJsHttpEndpoint, WsAdapter } from "@matter/nodejs";
 import { WebSocketServer } from "ws";
 import { WebSocketStreams } from "./WebSocketStreams.js";
@@ -42,14 +42,19 @@ export const factory: WsAdapter.Factory = () => {
             const closing = new Promise<void>((resolve, reject) => {
                 server.close(err => (err ? reject(err) : resolve()));
             });
-            closing.catch(error => logger.info("WebSocket server close error:", error));
+            // Handle late rejection (after timeout fallback already ran) so it does not surface as unhandled.
+            closing.catch(error => logger.debug("WebSocket server close error after timeout:", error));
 
             try {
                 await withTimeout(WS_SERVER_CLOSE_TIMEOUT, closing);
             } catch (error) {
-                logger.info("WebSocket server close did not complete within timeout, terminating clients:", error);
-                for (const client of server.clients) {
-                    client.terminate();
+                if (error instanceof PromiseTimeoutError) {
+                    logger.info("WebSocket server close did not complete within timeout, terminating clients");
+                    for (const client of server.clients) {
+                        client.terminate();
+                    }
+                } else {
+                    logger.warn("WebSocket server close error:", error);
                 }
             }
         },

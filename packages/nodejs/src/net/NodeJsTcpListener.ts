@@ -7,6 +7,7 @@
 import {
     Logger,
     NetworkError,
+    PromiseTimeoutError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     TcpConnection,
@@ -109,15 +110,19 @@ export class NodeJsTcpListener implements TcpListener {
         const closing = new Promise<void>((resolve, reject) => {
             this.#server.close(error => (error ? reject(error) : resolve()));
         });
-        // If the close callback fires an error after we've returned via timeout, log it (without it Node would
-        // raise an unhandled rejection — we still want visibility into late failures).
-        closing.catch(error => logger.info("TCP listener close error:", error));
+        // Handle a late rejection of the close callback (after we've already returned via timeout) so it does
+        // not surface as an unhandled rejection.  Logged at debug since the timeout-fallback path took over.
+        closing.catch(error => logger.debug("TCP listener close error after timeout:", error));
 
         try {
             await withTimeout(TCP_LISTENER_CLOSE_TIMEOUT, closing);
         } catch (error) {
-            logger.info("TCP listener close did not complete within timeout, unrefing server:", error);
-            this.#server.unref();
+            if (error instanceof PromiseTimeoutError) {
+                logger.info("TCP listener close did not complete within timeout, unrefing server");
+                this.#server.unref();
+            } else {
+                logger.warn("TCP listener close error:", error);
+            }
         }
     }
 }

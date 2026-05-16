@@ -118,7 +118,13 @@ export class ClientNodeStores {
     }
 
     async close() {
-        await this.construction;
+        // Wait for construction to settle (success or failure) before draining; if construction rejected, we
+        // still close any child stores that were created up to that point.
+        try {
+            await this.construction;
+        } catch {
+            // Construction errors are surfaced by the construction lifecycle itself; ignore here so we always drain.
+        }
         const stores = Object.values(this.#stores);
         this.#stores = {};
         await MatterAggregateError.allSettled(
