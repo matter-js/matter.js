@@ -7,7 +7,6 @@
 import {
     Logger,
     NetworkError,
-    PromiseTimeoutError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     tcpErrorFrom,
@@ -25,7 +24,6 @@ const logger = Logger.get("TcpListenerReactNative");
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
 
-/** Timeout for server close to complete; on expiry we proceed regardless to keep shutdown bounded. */
 const TCP_CLOSE_TIMEOUT = Seconds(2);
 
 /**
@@ -107,11 +105,7 @@ export class TcpListenerReactNative implements TcpListener {
         try {
             await withTimeout(TCP_CLOSE_TIMEOUT, closed);
         } catch (error) {
-            if (!(error instanceof PromiseTimeoutError)) {
-                logger.debug("Unexpected error awaiting TCP listener close, rethrowing:", error);
-                throw error;
-            }
-            logger.info("TCP listener close did not complete within timeout");
+            logger.warn("TCP listener close timed out:", error);
         }
     }
 }

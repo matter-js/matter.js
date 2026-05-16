@@ -7,7 +7,6 @@
 import {
     Logger,
     NetworkError,
-    PromiseTimeoutError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     TcpConnection,
@@ -25,7 +24,6 @@ const logger = Logger.get("NodeJsTcpListener");
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
 
-/** Timeout for server close to complete; on expiry we proceed regardless to keep shutdown bounded. */
 const TCP_LISTENER_CLOSE_TIMEOUT = Seconds(2);
 
 function serverPort(server: Server): number {
@@ -101,14 +99,11 @@ export class NodeJsTcpListener implements TcpListener {
     }
 
     async close(): Promise<void> {
-        // Destroy active connections so server.close() can complete
         for (const socket of this.#activeSockets) {
             socket.destroy();
         }
         this.#activeSockets.clear();
 
-        // Resolve with the optional error rather than reject so the same promise can outlive a timeout fallback
-        // without producing an unhandled rejection or duplicate error log paths.
         const closing = new Promise<Error | undefined>(resolve => {
             this.#server.close(error => resolve(error ?? undefined));
         });
@@ -119,18 +114,8 @@ export class NodeJsTcpListener implements TcpListener {
                 logger.warn("TCP listener close error:", error);
             }
         } catch (error) {
-            if (!(error instanceof PromiseTimeoutError)) {
-                logger.debug("Unexpected error awaiting TCP listener close, rethrowing:", error);
-                throw error;
-            }
-            logger.info("TCP listener close did not complete within timeout, unrefing server");
+            logger.warn("TCP listener close timed out, unrefing server:", error);
             this.#server.unref();
-            // The close callback may still fire later; surface any error it carries.
-            void closing.then(closeError => {
-                if (closeError) {
-                    logger.warn("TCP listener close error after timeout:", closeError);
-                }
-            });
         }
     }
 }

@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { HttpEndpoint, Logger, PromiseTimeoutError, Seconds, withTimeout } from "@matter/general";
+import { HttpEndpoint, Logger, Seconds, withTimeout } from "@matter/general";
 import { type NodeJsHttpEndpoint, WsAdapter } from "@matter/nodejs";
 import { WebSocketServer } from "ws";
 import { WebSocketStreams } from "./WebSocketStreams.js";
 
 const logger = Logger.get("WebSocketServer");
 
-/** Bounded wait for the WebSocket server to drain before we terminate remaining clients. */
 const WS_SERVER_CLOSE_TIMEOUT = Seconds(2);
 
 /**
@@ -39,8 +38,6 @@ export const factory: WsAdapter.Factory = () => {
         },
 
         async close() {
-            // Resolve with the optional error rather than reject so the same promise can outlive a timeout
-            // fallback without producing an unhandled rejection or duplicate error log paths.
             const closing = new Promise<Error | undefined>(resolve => {
                 server.close(err => resolve(err ?? undefined));
             });
@@ -51,19 +48,11 @@ export const factory: WsAdapter.Factory = () => {
                     logger.warn("WebSocket server close error:", error);
                 }
             } catch (error) {
-                if (!(error instanceof PromiseTimeoutError)) {
-                    logger.debug("Unexpected error awaiting WebSocket server close, rethrowing:", error);
-                    throw error;
-                }
-                logger.info("WebSocket server close did not complete within timeout, terminating clients");
-                for (const client of server.clients) {
-                    client.terminate();
-                }
-                void closing.then(closeError => {
-                    if (closeError) {
-                        logger.warn("WebSocket server close error after timeout:", closeError);
-                    }
-                });
+                logger.warn("WebSocket server close timed out:", error);
+            }
+
+            for (const client of server.clients) {
+                client.terminate();
             }
         },
     };

@@ -209,10 +209,7 @@ export class CommissioningClient extends Behavior {
 
         const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
 
-        // Resolve the DCL certificate service.  Preferred path is via DclBehavior on the controller so the service
-        // is accessed as a shared dependent and DclBehavior's dispose drives refcount-based shutdown.  Fall back
-        // to a direct env lookup so callers that register the service via env.set (or legacy controller setups
-        // without DclBehavior) continue to work — they take ownership of the service lifecycle themselves.
+        // Prefer DclBehavior so the service is held as a shared dependent and closes when no consumer remains.
         let dclCertificateService: DclCertificateService | undefined;
         if (node.owner?.behaviors.has(DclBehavior)) {
             dclCertificateService = await node.owner.act(agent => agent.get(DclBehavior).certificateService);

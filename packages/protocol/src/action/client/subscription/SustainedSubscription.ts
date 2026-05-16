@@ -186,13 +186,9 @@ export class SustainedSubscription extends ClientSubscription {
                 break;
             }
 
-            // If we aren't aborted, then we are here due to timeout
             logger.info(`Replacing subscription to ${this.peer} due to timeout`);
         }
 
-        // If we exited the loop with an active peer subscription (abort fired before peer closed it), close it
-        // so its lifetime is disposed cleanly.  The user-facing `request.closed` callback is invoked by the
-        // base ClientSubscription.close() done.finally chain, so we do not invoke it again here.
         const subscription = this.#subscription;
         this.#subscription = undefined;
         if (subscription !== undefined) {

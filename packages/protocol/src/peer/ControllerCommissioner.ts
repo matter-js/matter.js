@@ -71,11 +71,7 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
     /** Passcode to use for commissioning. */
     passcode: number;
 
-    /**
-     * DCL certificate service used for device attestation verification.  Optional; when omitted, attestation
-     * proceeds without DCL lookups.  Lifecycle ownership stays with the caller (typically a node behavior that
-     * registers the service as a dependent so it is closed when no consumer remains).
-     */
+    /** Optional DCL certificate service for attestation verification.  Caller owns lifecycle. */
     dclCertificateService?: DclCertificateService;
 
     /**
