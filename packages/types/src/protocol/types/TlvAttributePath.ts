@@ -15,8 +15,13 @@ import { TlvBitmap, TlvUInt16, TlvUInt32 } from "../../tlv/TlvNumber.js";
 import { TlvOptionalField, TlvTaggedList } from "../../tlv/TlvObject.js";
 import { WildcardPathFlagsBitmap } from "./WildcardPathFlagsBitmap.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.2 */
-
+/**
+ * @see {@link MatterSpecification.v13.Core}, section 10.6.2
+ *
+ * `TlvTaggedList` emits members in schema/tag order, satisfying §10.6.1
+ * ("Tag Rules") for Interaction Model IBs; see the doc-comment on
+ * `TlvCommandPath` for the full rationale.
+ */
 export const TlvAttributePath = TlvTaggedList({
     // AttributePathIB
     enableTagCompression: TlvOptionalField(0, TlvBoolean),

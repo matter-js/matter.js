@@ -69,6 +69,13 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
         private readonly fieldDefinitions: F,
         private readonly type: TlvType.Structure | TlvType.List = TlvType.Structure,
         private readonly allowProtocolSpecificTags = false,
+        /**
+         * Emit list members in the order in which the caller populated the
+         * value object (`Object.keys(value)`) rather than in the order
+         * defined by `fieldDefinitions`. See `#encodeList` for the spec
+         * reference. Only meaningful when `type` is `TlvType.List`.
+         */
+        private readonly preserveDataOrdering = false,
     ) {
         super();
 
@@ -151,9 +158,35 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
     }
 
     /**
-     * Encode the object as List, by the order of the fields in the object.
+     * Encode the object as List.
+     *
+     * By default the encoder iterates `this.fieldDefinitions`, which
+     * produces wire bytes whose context tags appear in the order defined
+     * by the schema. Matter Core spec §10.6.1 ("Tag Rules", Matter 1.5 /
+     * 1.5.1) requires this for the §10 Interaction Model IBs (CommandPathIB,
+     * AttributePathIB, EventPathIB, ClusterPathIB) and the spec
+     * recommends it more broadly so that receivers can scan tags in
+     * ascending order ("to reduce receiver side complexity in having to
+     * deal with arbitrary order tags"). Since matter.js declares fields
+     * in spec/tag order, schema-order iteration trivially satisfies this.
+     *
+     * When `preserveDataOrdering` is set on the schema, the encoder
+     * instead follows the order in which the caller populated the value
+     * object (`Object.keys(value)`). This is required for lists whose
+     * member position carries application-defined meaning — notably the
+     * inner lists of a Matter operational certificate's subject / issuer
+     * / extensions, where the signed bytes must reproduce the caller-
+     * supplied order on re-encode (Core spec §A.5.3, "the meanings of
+     * member elements in a list are denoted by their position within the
+     * list").
      */
     #encodeList(writer: TlvWriter, value: TypeFromFields<F>, options?: TlvEncodingOptions) {
+        if (!this.preserveDataOrdering) {
+            for (const name in this.fieldDefinitions) {
+                this.#encodeEntryToTlv(writer, name, value, options);
+            }
+            return;
+        }
         const encodedFields = new Set<string>();
         // Encode object fields
         for (const name of Object.keys(value)) {
@@ -348,13 +381,39 @@ export const TlvObjectWithMaxSize = <F extends TlvFields>(fields: F, maxSize: nu
  * List TLV schema with all tagged entries.
  * List entries that can appear multiple times can be defined using TlvRepeatedField/TlvOptionalRepeatedField and are
  * represented as Arrays.
+ *
+ * On encode, list members are emitted in the order of the schema's field
+ * definitions (which match the spec's context-tag numbering), regardless
+ * of the order in which the caller populated the value object. This
+ * satisfies Matter Core spec §10.6.1 ("Tag Rules", Matter 1.5 / 1.5.1)
+ * for IBs such as CommandPathIB, AttributePathIB, EventPathIB, and
+ * ClusterPathIB.
+ *
+ * For lists whose member position is part of the application data — e.g.
+ * the subject / issuer / extensions sub-lists of a Matter operational
+ * certificate, where the signed bytes must reproduce caller order on
+ * re-encode — use {@link TlvTaggedListPreservingOrder} instead.
+ *
  * TODO: We represent Tlv Lists right now as named object properties. This formally does not match the spec, which
  *      defines a list as a sequence of TLV elements with optional tag where the order matters. That's ok for now
  *      (also with the help of "Repeated Fields") because it not makes any real difference for now for the current
  *      existing data structures. We need to change once this changes.
  */
 export const TlvTaggedList = <F extends TlvFields>(fields: F, allowProtocolSpecificTags = false) =>
-    new ObjectSchema(fields, TlvType.List, allowProtocolSpecificTags);
+    new ObjectSchema(fields, TlvType.List, allowProtocolSpecificTags, /* preserveDataOrdering */ false);
+
+/**
+ * Variant of {@link TlvTaggedList} that preserves caller-supplied member
+ * ordering on encode (rather than emitting members in schema/tag order).
+ *
+ * Use this only for lists whose member position carries application-
+ * defined meaning that must round-trip bit-identically — e.g. the inner
+ * sub-lists of a Matter operational certificate (subject, issuer,
+ * extensions), whose signed bytes depend on the original encoding order
+ * and would otherwise fail signature verification after parse + re-encode.
+ */
+export const TlvTaggedListPreservingOrder = <F extends TlvFields>(fields: F, allowProtocolSpecificTags = false) =>
+    new ObjectSchema(fields, TlvType.List, allowProtocolSpecificTags, /* preserveDataOrdering */ true);
 
 // TODO Implement a real TlvList schema that matches the spec to represent a ordered list of TLV elements with optional
 //      tag.
