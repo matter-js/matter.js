@@ -72,6 +72,13 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
     passcode: number;
 
     /**
+     * DCL certificate service used for device attestation verification.  Optional; when omitted, attestation
+     * proceeds without DCL lookups.  Lifecycle ownership stays with the caller (typically a node behavior that
+     * registers the service as a dependent so it is closed when no consumer remains).
+     */
+    dclCertificateService?: DclCertificateService;
+
+    /**
      * Commissioning completion callback
      *
      * This optional callback allows the caller to complete commissioning once PASE commissioning completes.  If it does
@@ -555,9 +562,7 @@ export class ControllerCommissioner {
                 ...commissioningOptions,
                 attestation: {
                     challengeKey: ephemeralSession.attestationChallengeKey,
-                    dclCertificateService: this.#context.environment.has(DclCertificateService)
-                        ? this.#context.environment.get(DclCertificateService)
-                        : undefined,
+                    dclCertificateService: options.dclCertificateService,
                     onFailure: options.onAttestationFailure,
                 },
             },

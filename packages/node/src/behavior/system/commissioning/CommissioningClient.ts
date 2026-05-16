@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
+import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
@@ -51,6 +52,7 @@ import {
     ControllerCommissioner,
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
+    DclCertificateService,
     DeviceAttestationValidator,
     DiscoveryData,
     Fabric,
@@ -207,6 +209,17 @@ export class CommissioningClient extends Behavior {
 
         const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
 
+        // Resolve the DCL certificate service.  Preferred path is via DclBehavior on the controller so the service
+        // is accessed as a shared dependent and DclBehavior's dispose drives refcount-based shutdown.  Fall back
+        // to a direct env lookup so callers that register the service via env.set (or legacy controller setups
+        // without DclBehavior) continue to work — they take ownership of the service lifecycle themselves.
+        let dclCertificateService: DclCertificateService | undefined;
+        if (node.owner?.behaviors.has(DclBehavior)) {
+            dclCertificateService = await node.owner.act(agent => agent.get(DclBehavior).certificateService);
+        } else if (node.env.has(DclCertificateService)) {
+            dclCertificateService = node.env.get(DclCertificateService);
+        }
+
         const commissioningOptions: LocatedNodeCommissioningOptions = {
             addresses: addresses.map(ServerAddress),
             fabric,
@@ -223,6 +236,7 @@ export class CommissioningClient extends Behavior {
             regulatoryCountryCode: options.regulatoryCountryCode,
             timeout: options.timeout,
             caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
+            dclCertificateService,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
