@@ -24,6 +24,8 @@ const logger = Logger.get("NodeJsTcpListener");
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
 
+const TCP_LISTENER_CLOSE_TIMEOUT = Seconds(2);
+
 function serverPort(server: Server): number {
     const addr = server.address();
     if (addr === null || typeof addr === "string") {
@@ -97,14 +99,23 @@ export class NodeJsTcpListener implements TcpListener {
     }
 
     async close(): Promise<void> {
-        // Destroy active connections so server.close() can complete
         for (const socket of this.#activeSockets) {
             socket.destroy();
         }
         this.#activeSockets.clear();
 
-        await new Promise<void>((resolve, reject) => {
-            this.#server.close(error => (error ? reject(error) : resolve()));
+        const closing = new Promise<Error | undefined>(resolve => {
+            this.#server.close(error => resolve(error ?? undefined));
         });
+
+        try {
+            const error = await withTimeout(TCP_LISTENER_CLOSE_TIMEOUT, closing);
+            if (error) {
+                logger.warn("TCP listener close error:", error);
+            }
+        } catch (error) {
+            logger.warn("TCP listener close timed out, unrefing server:", error);
+            this.#server.unref();
+        }
     }
 }

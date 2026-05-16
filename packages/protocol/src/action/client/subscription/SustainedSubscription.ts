@@ -107,7 +107,7 @@ export class SustainedSubscription extends ClientSubscription {
                     if (!this.abort.aborted) {
                         // Probing failed, so we get a new session anyway
                         sessionTrusted = true;
-                        logger.error(`Failed to probe reachability of peer ${this.peer}, resubscribe with new session`);
+                        logger.info(`Failed to probe reachability of peer ${this.peer}, resubscribe with new session`);
                     }
                 }
                 if (this.abort.aborted) {
@@ -175,8 +175,7 @@ export class SustainedSubscription extends ClientSubscription {
                 break;
             }
 
-            // Wait for the subscription to close
-            await closed;
+            await this.abort.race(closed);
 
             // Notify listeners of an inactive subscription
             await this.#active.emit(false);
@@ -187,12 +186,14 @@ export class SustainedSubscription extends ClientSubscription {
                 break;
             }
 
-            // If we aren't aborted, then we are here due to timeout
-            logger.error(`Replacing subscription to ${this.peer} due to timeout`);
+            logger.info(`Replacing subscription to ${this.peer} due to timeout`);
         }
 
-        // We only arrive here when closed
-        this.#request.closed?.();
+        const subscription = this.#subscription;
+        this.#subscription = undefined;
+        if (subscription !== undefined) {
+            await subscription.close();
+        }
     }
 
     get interactionModelRevision() {
