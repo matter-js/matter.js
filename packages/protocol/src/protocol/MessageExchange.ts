@@ -366,7 +366,8 @@ export class MessageExchange {
         } = message;
 
         const isStandaloneAck = SecureMessageType.isStandaloneAck(protocolId, messageType);
-        if (protocolId !== this.#protocolId && !isStandaloneAck) {
+        const isStatusReport = SecureMessageType.isStatusReport(protocolId, messageType);
+        if (protocolId !== this.#protocolId && !isStandaloneAck && !isStatusReport) {
             throw new MatterFlowError(
                 `Drop received a message for an unexpected protocol. Expected: ${this.#protocolId}, received: ${protocolId}`,
             );
@@ -485,8 +486,10 @@ export class MessageExchange {
             requiresAck = false;
         }
 
-        // Standalone acks are always sent via the SECURE_CHANNEL_PROTOCOL_ID
-        const protocolId = isStandaloneAck ? SECURE_CHANNEL_PROTOCOL_ID : this.#protocolId;
+        // StandaloneAck and StatusReport are SecureChannel messages and are always sent via SECURE_CHANNEL_PROTOCOL_ID
+        // regardless of the exchange's protocol (Matter spec 4.10).
+        const isStatusReport = messageType === SecureMessageType.StatusReport;
+        const protocolId = isStandaloneAck || isStatusReport ? SECURE_CHANNEL_PROTOCOL_ID : this.#protocolId;
         if (isStandaloneAck) {
             if (!this.session.usesMrp) {
                 return;

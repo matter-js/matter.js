@@ -10,3 +10,4 @@ export { Environment } from "@matter/general";
 export { Matter } from "@matter/model";
 export * from "@matter/node";
 export * from "@matter/types/datatype";
+export { version } from "./version.js";
