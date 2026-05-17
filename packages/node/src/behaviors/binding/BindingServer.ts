@@ -4,12 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Diagnostic, Logger, MaybePromise } from "@matter/general";
+import { AsyncObservable } from "@matter/general";
 import { Binding } from "@matter/types/clusters/binding";
 import { BindingBehavior } from "./BindingBehavior.js";
-import { BindingManager, bindingEntryKey, type BindingResolution } from "./BindingManager.js";
-
-const logger = Logger.get("BindingServer");
+import { BindingManager, type BindingResolution } from "./BindingManager.js";
 
 /**
  * Default server implementation of the Matter Binding cluster.
@@ -101,7 +99,6 @@ const logger = Logger.get("BindingServer");
  *   each interaction.
  */
 export class BindingServer extends BindingBehavior {
-    declare internal: BindingServer.Internal;
     declare readonly events: BindingServer.Events;
 
     override initialize() {
@@ -109,50 +106,24 @@ export class BindingServer extends BindingBehavior {
         for (const entry of this.state.binding) {
             manager.register(this, this.endpoint, entry);
         }
-        this.reactTo(this.events.binding$Changed, (newList: Binding.Target[], oldList: Binding.Target[]) => {
-            const oldKeys = new Map(oldList.map(e => [bindingEntryKey(e), e]));
-            const newKeys = new Map(newList.map(e => [bindingEntryKey(e), e]));
-            for (const [k, e] of newKeys) {
-                if (!oldKeys.has(k)) manager.register(this, this.endpoint, e);
-            }
-            for (const [k, e] of oldKeys) {
-                if (!newKeys.has(k)) manager.unregister(this, this.endpoint, e);
-            }
-        });
-    }
-
-    /**
-     * Called by {@link BindingManager} when a binding resolution completes.
-     *
-     * Warns when no subscriber has registered and the endpoint declares client clusters,
-     * signaling likely missing application wiring.
-     */
-    emitEstablished(r: BindingResolution): MaybePromise {
-        this.internal.cache.set(bindingEntryKey(r.entry), r);
-        // Read application subscribers via the backing endpoint, not the framework relay.
-        const hasSubscribers = this.endpoint.eventsOf(BindingServer).established.isObserved;
-        const result = this.events.established.emit(r);
-        if (!hasSubscribers && Object.keys(this.endpoint.type.clientClusters).length > 0) {
-            logger.warn(
-                "Binding established on endpoint with declared client clusters but no subscriber attached",
-                Diagnostic.dict({ endpoint: this.endpoint.number, kind: r.kind }),
-            );
-        }
-        return result;
-    }
-
-    /** Called by {@link BindingManager} when a binding is removed (attribute write or unregister). */
-    emitRemoved(r: BindingResolution): MaybePromise {
-        this.internal.cache.delete(bindingEntryKey(r.entry));
-        return this.events.removed.emit(r);
+        this.reactTo(
+            this.events.binding$Changed,
+            async (newList: Binding.Target[], oldList: Binding.Target[]) => {
+                const oldKeys = new Map(oldList.map(e => [BindingManager.entryKey(e), e]));
+                const newKeys = new Map(newList.map(e => [BindingManager.entryKey(e), e]));
+                for (const [k, e] of newKeys) {
+                    if (!oldKeys.has(k)) manager.register(this, this.endpoint, e);
+                }
+                for (const [k, e] of oldKeys) {
+                    if (!newKeys.has(k)) await manager.unregister(this, e);
+                }
+            },
+            { offline: true },
+        );
     }
 
     override async [Symbol.asyncDispose]() {
-        const snapshot = [...this.internal.cache.values()];
-        this.internal.cache.clear();
-        for (const resolution of snapshot) {
-            await this.events.removed.emit(resolution);
-        }
+        await this.env.get(BindingManager).disposeServer(this);
         await super[Symbol.asyncDispose]?.();
     }
 }
@@ -160,68 +131,28 @@ export class BindingServer extends BindingBehavior {
 export namespace BindingServer {
     export class Events extends BindingBehavior.Events {
         /**
-         * Fires when a binding entry exists on startup or gets added for a peer is resolved into a
-         * usable peer abstraction.
+         * Fires when a binding entry is resolved into a usable peer abstraction — either on
+         * startup (for pre-existing entries) or when a controller writes a new entry.
          *
          * The handler receives a {@link BindingResolution} discriminated by `kind`.  The
-         * `endpoint` field is always set and carries any declared client cluster behaviors
-         * preinstalled — call `endpoint.eventsOf(<ClientClass>)`,
-         * `endpoint.stateOf(<ClientClass>)`, or `endpoint.act(agent => agent.<cluster>.<command>())`
-         * just as you would on any other endpoint.
+         * `endpoint` field always carries any declared client cluster behaviors pre-installed —
+         * call `endpoint.eventsOf`, `endpoint.stateOf`, or `endpoint.act` just as you would on
+         * any other endpoint.
          *
-         * ### `kind: "client"` — remote unicast peer
+         * See the class-level "Typical developer pattern" example on {@link BindingServer} for the
+         * full shape.
          *
-         * `resolution.node` is the peer {@link ClientNode}; `resolution.endpoint` is the
-         * materialized target endpoint with declared client behaviors installed.  CASE is already
-         * warming when the event fires; the materialized endpoint is ready for use.
+         * **`kind: "client"`** — `resolution.node` is the peer {@link ClientNode};
+         * `resolution.endpoint` is the materialized remote endpoint.  CASE is already warming
+         * when the event fires.  Attribute changes require an explicit subscription (see class doc).
          *
-         * #### Receiving attribute changes from the peer
+         * **`kind: "group"`** — `resolution.node` is a {@link ClientGroup} keyed by
+         * `(fabricIndex, groupId)`; command invocations are sent as group multicast.  Attribute
+         * reads and subscriptions are not available for groups.
          *
-         * Binding-driven peer ClientNodes have `autoSubscribe` OFF by default — no Matter
-         * subscription is active until you set one up.  Set `defaultSubscription` +
-         * `autoSubscribe` on `resolution.node` to issue a sustained `interaction.subscribe(...,
-         * sustain: true)`; attribute reports are then routed into the `eventsOf(...)` observables.
-         * See the class-level "Typical developer pattern" example for the full shape.
-         *
-         * Before enabling a subscription, read the "Things to consider when designing your binding
-         * logic" section on {@link BindingServer} — many use cases work better with on-demand
-         * reads or no subscription at all.
-         *
-         * Invoke a command on the peer (no subscription needed):
-         *
-         * ```ts
-         * endpoint.events.binding.established.on(async resolution => {
-         *     if (resolution.kind !== "client") return;
-         *     await resolution.endpoint.act(agent => agent.get(OnOffClient).toggle());
-         * });
-         * ```
-         *
-         * ### `kind: "group"` — Matter group multicast
-         *
-         * `resolution.node` is a {@link ClientGroup} keyed by `(fabricIndex, groupId)`;
-         * `resolution.endpoint` carries the declared client behaviors and dispatches command
-         * invocations as group multicast.  Attribute reads / subscriptions are not available for
-         * groups.
-         *
-         * ```ts
-         * endpoint.events.binding.established.on(async resolution => {
-         *     if (resolution.kind !== "group") return;
-         *     await resolution.endpoint.act(agent => agent.get(OnOffClient).off());
-         * });
-         * ```
-         *
-         * ### `kind: "server"` — self-binding to another local endpoint
-         *
-         * `resolution.node` is our own {@link ServerNode}; `resolution.endpoint` IS the local
-         * target endpoint with its existing server behaviors — call it directly, the dispatch
-         * stays local.  Useful for bridges where one local endpoint should react to another.
-         *
-         * ```ts
-         * endpoint.events.binding.established.on(async resolution => {
-         *     if (resolution.kind !== "server") return;
-         *     await resolution.endpoint.act(agent => agent.get(OnOffServer).on());
-         * });
-         * ```
+         * **`kind: "server"`** — `resolution.node` is our own {@link ServerNode};
+         * `resolution.endpoint` IS the local target endpoint.  Dispatch stays local, no wire
+         * transport involved.  Useful for bridges where one endpoint should react to another.
          */
         established = AsyncObservable<[BindingResolution]>();
 
@@ -239,9 +170,5 @@ export namespace BindingServer {
          * ```
          */
         removed = AsyncObservable<[BindingResolution]>();
-    }
-
-    export class Internal {
-        readonly cache = new Map<string, BindingResolution>();
     }
 }

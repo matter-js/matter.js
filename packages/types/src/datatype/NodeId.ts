@@ -60,7 +60,7 @@ export namespace NodeId {
 
     /** A Group Node ID is a 64-bit Node ID that contains a particular Group ID in the lower half of the Node ID. */
     export const fromGroupId = (groupId: number): NodeId => {
-        return NodeId(BigInt("0xFFFFFFFFFFFF" + GroupId(groupId).toString(16).padStart(4, "0")));
+        return NodeId(BigInt("0xFFFFFFFFFFFF" + hex.fixed(GroupId(groupId), 4)));
     };
 
     /**

@@ -15,18 +15,11 @@ import { BasicMultiplex, Diagnostic, Environment, Environmental, InternalError, 
 import { FabricManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
-import type { BindingServer } from "./BindingServer.js";
+import { BindingServer } from "./BindingServer.js";
 
 const logger = Logger.get("BindingManager");
 
 type QueueItem = { server: BindingServer; endpoint: Endpoint; entry: Binding.Target };
-
-/** Stable string key for a {@link Binding.Target} — shared by BindingServer cache and BindingManager maps. */
-export function bindingEntryKey(entry: Binding.Target): string {
-    return [entry.fabricIndex, entry.node ?? "", entry.group ?? "", entry.endpoint ?? "", entry.cluster ?? ""].join(
-        "/",
-    );
-}
 
 export type BindingResolution =
     | { kind: "client"; node: ClientNode; endpoint: Endpoint; entry: Binding.Target }
@@ -37,6 +30,13 @@ type PendingEntry = { cancel: () => void };
 
 type EstablishedEntry = { resolution: BindingResolution; ref: string | undefined };
 
+/** Per-source-endpoint tracking record stored in #serverMap. */
+type ServerRecord = {
+    server: BindingServer;
+    pending: Map<string, PendingEntry>;
+    established: Map<string, EstablishedEntry>;
+};
+
 /**
  * Node-scoped service that manages the lifecycle of Matter binding connections.
  */
@@ -45,9 +45,12 @@ export class BindingManager {
     #cachedNode: ServerNode | undefined;
     #cachedFabrics: FabricManager | undefined;
     readonly #queue = new Array<QueueItem>();
-    readonly #pending = new Map<BindingServer, Map<string, PendingEntry>>();
+    /**
+     * Keyed by the source endpoint (stable object identity across behavior proxy contexts).
+     * Stores both pending and established state plus the canonical server reference for event emission.
+     */
+    readonly #serverMap = new Map<Endpoint, ServerRecord>();
     readonly #refcounts = new Map<string, number>();
-    readonly #established = new Map<BindingServer, Map<string, EstablishedEntry>>();
     readonly #multiplex = new BasicMultiplex();
     #flushed = false;
 
@@ -88,6 +91,16 @@ export class BindingManager {
         return this.#cachedFabrics;
     }
 
+    #record(server: BindingServer): ServerRecord {
+        const ep = server.endpoint;
+        let rec = this.#serverMap.get(ep);
+        if (rec === undefined) {
+            rec = { server, pending: new Map(), established: new Map() };
+            this.#serverMap.set(ep, rec);
+        }
+        return rec;
+    }
+
     register(server: BindingServer, sourceEndpoint: Endpoint, entry: Binding.Target): void {
         if (!this.#flushed) {
             this.#queue.push({ server, endpoint: sourceEndpoint, entry });
@@ -96,23 +109,23 @@ export class BindingManager {
         this.#multiplex.add(this.#resolveAndEmit({ server, endpoint: sourceEndpoint, entry }), "binding resolve");
     }
 
-    unregister(server: BindingServer, _sourceEndpoint: Endpoint, entry: Binding.Target): void {
+    async unregister(server: BindingServer, entry: Binding.Target): Promise<void> {
         if (this.#clearPending(server, entry)) {
             return;
         }
 
-        const perServer = this.#established.get(server);
-        if (perServer === undefined) {
+        const rec = this.#serverMap.get(server.endpoint);
+        if (rec === undefined) {
             return;
         }
-        const key = this.#entryKey(entry);
-        const established = perServer.get(key);
+        const key = BindingManager.entryKey(entry);
+        const established = rec.established.get(key);
         if (established === undefined) {
             return;
         }
-        perServer.delete(key);
-        if (perServer.size === 0) {
-            this.#established.delete(server);
+        rec.established.delete(key);
+        if (rec.established.size === 0 && rec.pending.size === 0) {
+            this.#serverMap.delete(server.endpoint);
         }
 
         const { resolution, ref } = established;
@@ -125,7 +138,40 @@ export class BindingManager {
             }
         }
 
-        this.#multiplex.add(server.emitRemoved(resolution), "binding removed");
+        try {
+            await rec.server.events.removed.emit(resolution);
+        } catch (err) {
+            logger.error(
+                "Binding removed handler failed",
+                Diagnostic.dict({ endpoint: rec.server.endpoint.number, kind: resolution.kind }),
+                Diagnostic.error(err),
+            );
+        }
+    }
+
+    async disposeServer(server: BindingServer): Promise<void> {
+        const rec = this.#serverMap.get(server.endpoint);
+        if (rec === undefined) return;
+        const snapshot = [...rec.established.values()];
+        this.#serverMap.delete(server.endpoint);
+        for (const { ref } of snapshot) {
+            if (ref !== undefined) {
+                const count = (this.#refcounts.get(ref) ?? 0) - 1;
+                if (count <= 0) this.#refcounts.delete(ref);
+                else this.#refcounts.set(ref, count);
+            }
+        }
+        for (const { resolution } of snapshot) {
+            try {
+                await rec.server.events.removed.emit(resolution);
+            } catch (err) {
+                logger.error(
+                    "Binding removed handler failed",
+                    Diagnostic.dict({ endpoint: rec.server.endpoint.number, kind: resolution.kind }),
+                    Diagnostic.error(err),
+                );
+            }
+        }
     }
 
     async #flushQueue(): Promise<void> {
@@ -229,7 +275,19 @@ export class BindingManager {
         }
 
         this.#recordEstablished(server, resolution);
-        await server.emitEstablished(resolution);
+        const { server: canonicalServer } = this.#record(server);
+        if (!this.#shouldEmitEstablished(canonicalServer, resolution)) {
+            return;
+        }
+        try {
+            await canonicalServer.events.established.emit(resolution);
+        } catch (err) {
+            logger.error(
+                "Binding established handler failed",
+                Diagnostic.dict({ endpoint: sourceEp.number, kind: resolution.kind }),
+                Diagnostic.error(err),
+            );
+        }
     }
 
     #endpointHasClusterServer(endpoint: Endpoint, clusterId: number): boolean {
@@ -262,10 +320,6 @@ export class BindingManager {
         }
     }
 
-    #entryKey(entry: Binding.Target): string {
-        return bindingEntryKey(entry);
-    }
-
     #establishClientKind(server: BindingServer, resolution: BindingResolution & { kind: "client" }): void {
         this.#multiplex.add(resolution.node.start(), `start peer ${resolution.node}`);
 
@@ -280,35 +334,59 @@ export class BindingManager {
         }
 
         const observable = resolution.node.lifecycle.online;
+        const rec = this.#record(server);
         const handler = async (_ctx: ActionContext) => {
             this.#clearPending(server, resolution.entry);
             this.#recordEstablished(server, resolution);
-            await server.emitEstablished(resolution);
+            if (!this.#shouldEmitEstablished(rec.server, resolution)) {
+                return;
+            }
+            try {
+                await rec.server.events.established.emit(resolution);
+            } catch (err) {
+                logger.error(
+                    "Binding established handler failed",
+                    Diagnostic.dict({ endpoint: server.endpoint.number, kind: resolution.kind }),
+                    Diagnostic.error(err),
+                );
+            }
         };
         observable.once(handler);
 
         const cancel = () => observable.off(handler);
-        const key = this.#entryKey(resolution.entry);
-        const perServer = this.#pending.get(server) ?? new Map<string, PendingEntry>();
-        perServer.get(key)?.cancel();
-        perServer.set(key, { cancel });
-        this.#pending.set(server, perServer);
+        const key = BindingManager.entryKey(resolution.entry);
+        rec.pending.get(key)?.cancel();
+        rec.pending.set(key, { cancel });
+    }
+
+    /** Returns true when emission should proceed.  Warns and returns false when no subscriber is attached. */
+    #shouldEmitEstablished(server: BindingServer, resolution: BindingResolution): boolean {
+        if (server.endpoint.eventsOf(BindingServer).established.isObserved) {
+            return true;
+        }
+        if (Object.keys(server.endpoint.type.clientClusters).length > 0) {
+            logger.warn(
+                "Binding established on endpoint with declared client clusters but no subscriber attached",
+                Diagnostic.dict({ endpoint: server.endpoint.number, kind: resolution.kind }),
+            );
+        }
+        return false;
     }
 
     #clearPending(server: BindingServer, entry: Binding.Target): boolean {
-        const perServer = this.#pending.get(server);
-        if (perServer === undefined) {
+        const rec = this.#serverMap.get(server.endpoint);
+        if (rec === undefined) {
             return false;
         }
-        const key = this.#entryKey(entry);
-        const pending = perServer.get(key);
+        const key = BindingManager.entryKey(entry);
+        const pending = rec.pending.get(key);
         if (pending === undefined) {
             return false;
         }
         pending.cancel();
-        perServer.delete(key);
-        if (perServer.size === 0) {
-            this.#pending.delete(server);
+        rec.pending.delete(key);
+        if (rec.pending.size === 0 && rec.established.size === 0) {
+            this.#serverMap.delete(server.endpoint);
         }
         return true;
     }
@@ -338,10 +416,9 @@ export class BindingManager {
 
     #recordEstablished(server: BindingServer, resolution: BindingResolution): void {
         const ref = this.#refKey(resolution);
-        const key = this.#entryKey(resolution.entry);
-        const perServer = this.#established.get(server) ?? new Map<string, EstablishedEntry>();
-        perServer.set(key, { resolution, ref });
-        this.#established.set(server, perServer);
+        const key = BindingManager.entryKey(resolution.entry);
+        const rec = this.#record(server);
+        rec.established.set(key, { resolution, ref });
 
         if (ref !== undefined) {
             this.#refcounts.set(ref, (this.#refcounts.get(ref) ?? 0) + 1);
@@ -351,14 +428,14 @@ export class BindingManager {
     async close(): Promise<void> {
         this.#flushed = true;
         this.#queue.length = 0;
-        for (const perServer of this.#pending.values()) {
-            for (const { cancel } of perServer.values()) {
+        for (const rec of this.#serverMap.values()) {
+            for (const { cancel } of rec.pending.values()) {
                 cancel();
             }
+            rec.pending.clear();
         }
-        this.#pending.clear();
         await this.#multiplex.close();
-        this.#established.clear();
+        this.#serverMap.clear();
         this.#refcounts.clear();
         this.#cachedNode = undefined;
         this.#cachedFabrics = undefined;
@@ -369,5 +446,14 @@ export class BindingManager {
         const instance = new BindingManager(env);
         env.set(BindingManager, instance);
         return instance;
+    }
+}
+
+export namespace BindingManager {
+    /** Stable string key for a {@link Binding.Target} — shared by BindingServer and BindingManager maps. */
+    export function entryKey(entry: Binding.Target): string {
+        return [entry.fabricIndex, entry.node ?? "", entry.group ?? "", entry.endpoint ?? "", entry.cluster ?? ""].join(
+            "/",
+        );
     }
 }

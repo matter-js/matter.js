@@ -28,6 +28,7 @@ import {
     PeerSet,
     SessionManager,
 } from "@matter/protocol";
+import { BindingManager } from "../../behaviors/binding/BindingManager.js";
 import { IdentityService } from "./IdentityService.js";
 
 /**
@@ -88,6 +89,7 @@ export namespace ServerEnvironment {
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
+        await env.close(BindingManager);
 
         // Flush and stop client cache buffering before closing storage
         if (env.has(ClientCacheBuffer)) {

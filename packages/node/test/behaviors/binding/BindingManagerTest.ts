@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AsyncObservable } from "@matter/general";
 import { FabricManager, TestFabric } from "@matter/protocol";
 import { ClusterId, EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
@@ -17,33 +18,43 @@ import { ClientGroup } from "../../../src/node/ClientGroup.js";
 import { ClientNode } from "../../../src/node/ClientNode.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
-interface FakeBindingServer {
-    emitted: Array<{ kind: string }>;
-    removed: Array<{ kind: string }>;
-    emitEstablished(r: { kind: string; node: unknown; endpoint: unknown; entry: Binding.Target }): void;
-    emitRemoved(r: { kind: string; node: unknown; endpoint: unknown; entry: Binding.Target }): void;
+interface FakeEvents {
+    established: AsyncObservable<[BindingResolution]> & { emitted: BindingResolution[] };
+    removed: AsyncObservable<[BindingResolution]> & { removed: BindingResolution[] };
 }
 
 function makeFakeBindingServer(): BindingServer {
-    const fake: FakeBindingServer = {
-        emitted: [],
-        removed: [],
-        emitEstablished(r) {
-            this.emitted.push(r);
-        },
-        emitRemoved(r) {
-            this.removed.push(r);
+    const establishedObs = AsyncObservable<[BindingResolution]>() as AsyncObservable<[BindingResolution]> & {
+        emitted: BindingResolution[];
+    };
+    establishedObs.emitted = new Array<BindingResolution>();
+    establishedObs.on(r => void establishedObs.emitted.push(r));
+
+    const removedObs = AsyncObservable<[BindingResolution]>() as AsyncObservable<[BindingResolution]> & {
+        removed: BindingResolution[];
+    };
+    removedObs.removed = new Array<BindingResolution>();
+    removedObs.on(r => void removedObs.removed.push(r));
+
+    const fake = {
+        events: { established: establishedObs, removed: removedObs } as unknown as FakeEvents,
+        // Provide a minimal endpoint stub so #warnNoSubscriber doesn't throw.
+        endpoint: {
+            number: 0,
+            eventsOf: (_: unknown) => ({ established: { isObserved: true } }),
+            type: { clientClusters: {} },
         },
     };
     return fake as unknown as BindingServer;
 }
 
-function fakeEmitted(server: BindingServer): Array<{ kind: string }> {
-    return (server as unknown as FakeBindingServer).emitted;
+function fakeEmitted(server: BindingServer): Array<BindingResolution> {
+    return ((server as unknown as { events: FakeEvents }).events.established as { emitted: BindingResolution[] })
+        .emitted;
 }
 
-function fakeRemoved(server: BindingServer): Array<{ kind: string }> {
-    return (server as unknown as FakeBindingServer).removed;
+function fakeRemoved(server: BindingServer): Array<BindingResolution> {
+    return ((server as unknown as { events: FakeEvents }).events.removed as { removed: BindingResolution[] }).removed;
 }
 
 function makeSelfBindingEntry(endpointNum: EndpointNumber, nodeId: NodeId): Binding.Target {
@@ -228,7 +239,7 @@ describe("BindingManager", () => {
         await Promise.resolve();
 
         // Subscription is now pending — cancel it.
-        manager.unregister(server, sourceEp, entry);
+        await manager.unregister(server, entry);
 
         // Simulate peer coming online.
         await peer.lifecycle.online.emit(LocalActorContext.ReadOnly);
@@ -342,7 +353,10 @@ describe("BindingManager", () => {
         expect(fakeEmitted(server)).has.length(1);
 
         const removedEvents = fakeRemoved(server);
-        manager.unregister(server, sourceEp, entry);
+        await manager.unregister(server, entry);
+        for (let i = 0; i < 10 && removedEvents.length === 0; i++) {
+            await Promise.resolve();
+        }
         expect(removedEvents).has.length(1);
 
         await node.close();
