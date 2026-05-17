@@ -519,6 +519,11 @@ describe("TlvObject tests", () => {
             );
         });
 
+        it("omits absent optional fields and emits remaining schema fields after caller-supplied ones", () => {
+            const expectedHex = "1724010624020118";
+            expect(Bytes.toHex(schemaPreserve.encode({ clusterId: 6, commandId: 1 }))).equal(expectedHex);
+        });
+
         it("throws ValidationDatatypeMismatchError on unknown fields", () => {
             expect(() =>
                 // @ts-expect-error test case
