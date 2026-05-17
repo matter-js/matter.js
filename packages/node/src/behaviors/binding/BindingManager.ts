@@ -138,6 +138,14 @@ export class BindingManager {
             }
         }
 
+        logger.debug(
+            "Binding removed",
+            Diagnostic.dict({
+                endpoint: rec.server.endpoint.number,
+                kind: resolution.kind,
+                entry: resolution.entry,
+            }),
+        );
         try {
             await rec.server.events.removed.emit(resolution);
         } catch (err) {
@@ -162,6 +170,14 @@ export class BindingManager {
             }
         }
         for (const { resolution } of snapshot) {
+            logger.debug(
+                "Binding removed",
+                Diagnostic.dict({
+                    endpoint: rec.server.endpoint.number,
+                    kind: resolution.kind,
+                    entry: resolution.entry,
+                }),
+            );
             try {
                 await rec.server.events.removed.emit(resolution);
             } catch (err) {
@@ -279,6 +295,14 @@ export class BindingManager {
         if (!this.#shouldEmitEstablished(canonicalServer, resolution)) {
             return;
         }
+        logger.debug(
+            "Binding established",
+            Diagnostic.dict({
+                endpoint: canonicalServer.endpoint.number,
+                kind: resolution.kind,
+                entry: resolution.entry,
+            }),
+        );
         try {
             await canonicalServer.events.established.emit(resolution);
         } catch (err) {
@@ -326,6 +350,14 @@ export class BindingManager {
         try {
             const peerAddress = resolution.node.peerAddress;
             if (peerAddress !== undefined) {
+                logger.info(
+                    "Initiating CASE session for bound peer",
+                    Diagnostic.dict({
+                        peer: this.#peerKey(peerAddress),
+                        sourceEndpoint: server.endpoint.number,
+                        entry: resolution.entry,
+                    }),
+                );
                 const peer = this.#node.env.get(PeerSet).for(peerAddress);
                 this.#multiplex.add(peer.connect(), `CASE connect for ${this.#peerKey(peerAddress)}`);
             }
@@ -341,6 +373,14 @@ export class BindingManager {
             if (!this.#shouldEmitEstablished(rec.server, resolution)) {
                 return;
             }
+            logger.debug(
+                "Binding established",
+                Diagnostic.dict({
+                    endpoint: rec.server.endpoint.number,
+                    kind: resolution.kind,
+                    entry: resolution.entry,
+                }),
+            );
             try {
                 await rec.server.events.established.emit(resolution);
             } catch (err) {
@@ -351,6 +391,14 @@ export class BindingManager {
                 );
             }
         };
+
+        // lifecycle.online is edge-triggered.  If the peer is already online (e.g. an earlier
+        // binding entry brought it online), fire the handler directly via the multiplex so this
+        // entry resolves promptly.  Otherwise wait for the next transition.
+        if (resolution.node.lifecycle.isOnline) {
+            this.#multiplex.add(handler(undefined as unknown as ActionContext), "binding established (online)");
+            return;
+        }
         observable.once(handler);
 
         const cancel = () => observable.off(handler);
