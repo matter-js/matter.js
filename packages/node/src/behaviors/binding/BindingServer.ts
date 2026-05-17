@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable } from "@matter/general";
-import { Binding } from "@matter/types/clusters/binding";
+import { AsyncObservable, MaybePromise } from "@matter/general";
 import { BindingBehavior } from "./BindingBehavior.js";
 import { BindingManager, type BindingResolution } from "./BindingManager.js";
 
@@ -103,19 +102,38 @@ export class BindingServer extends BindingBehavior {
 
     override initialize() {
         const manager = this.env.get(BindingManager);
-        for (const entry of this.state.binding) {
+        let snapshot = [...this.state.binding];
+        for (const entry of snapshot) {
             manager.register(this, this.endpoint, entry);
         }
+
         this.reactTo(
-            this.events.binding$Changed,
-            async (newList: Binding.Target[], oldList: Binding.Target[]) => {
-                const oldKeys = new Map(oldList.map(e => [BindingManager.entryKey(e), e]));
-                const newKeys = new Map(newList.map(e => [BindingManager.entryKey(e), e]));
+            this.events.interactionEnd,
+            // Must be a regular function, not an arrow, so ReactorBacking.bind() can supply a
+            // fresh `this` with a live state reference for each invocation.
+            async function (this: BindingServer) {
+                const current = this.state.binding;
+                const oldKeys = new Map(snapshot.map(e => [BindingManager.entryKey(e), e]));
+                const newKeys = new Map(current.map(e => [BindingManager.entryKey(e), e]));
+                let mutated = false;
                 for (const [k, e] of newKeys) {
-                    if (!oldKeys.has(k)) manager.register(this, this.endpoint, e);
+                    if (!oldKeys.has(k)) {
+                        manager.register(this, this.endpoint, e);
+                        mutated = true;
+                    }
                 }
+                const unregistrations = new Array<MaybePromise<void>>();
                 for (const [k, e] of oldKeys) {
-                    if (!newKeys.has(k)) await manager.unregister(this, e);
+                    if (!newKeys.has(k)) {
+                        unregistrations.push(manager.unregister(this, e));
+                        mutated = true;
+                    }
+                }
+                if (unregistrations.length) {
+                    await Promise.all(unregistrations);
+                }
+                if (mutated) {
+                    snapshot = [...current];
                 }
             },
             { offline: true },

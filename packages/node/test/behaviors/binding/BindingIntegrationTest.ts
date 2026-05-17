@@ -207,7 +207,63 @@ describe("Binding integration", () => {
         expect(resolution.endpoint.stateOf(OnOffClient).onOff).false;
         expect(onOffUpdates).deep.equals([true, false]);
 
-        // Write empty binding list → BindingManager calls unregister → removed fires.
+        // Write a two-entry list: original bindingEntry plus a second entry pointing at the light's root endpoint.
+        // This verifies that a chunked wire write (REPLACE_ALL + ADD) produces only one established event per new
+        // entry (no cascade) and that already-resolved peers (the light is online) fire immediately.
+        const secondEntry = new Binding.Target({
+            node: lightPeerAddress.nodeId,
+            endpoint: EndpointNumber(0),
+            cluster: undefined,
+            group: undefined,
+            fabricIndex: lightPeerAddress.fabricIndex,
+        });
+
+        await MockTime.resolve(
+            peerSwitch.interaction.write(
+                Write(
+                    Write.Attribute({
+                        endpoint: EndpointNumber(1),
+                        cluster: Binding,
+                        attributes: "binding",
+                        value: [bindingEntry, secondEntry],
+                    }),
+                ),
+            ),
+            { macrotasks: true },
+        );
+
+        while (established.length < 2) {
+            await MockTime.yield();
+        }
+        expect(established).has.length(2);
+
+        const resolution2 = established[1] as BindingResolution & { kind: "client" };
+        expect(resolution2.kind).equals("client");
+        expect(resolution2.entry.endpoint).equals(0);
+        expect(resolution2.endpoint.behaviors.has(OnOffClient)).true;
+
+        // Write only the original entry — drops secondEntry → removed fires once.
+        await MockTime.resolve(
+            peerSwitch.interaction.write(
+                Write(
+                    Write.Attribute({
+                        endpoint: EndpointNumber(1),
+                        cluster: Binding,
+                        attributes: "binding",
+                        value: [bindingEntry],
+                    }),
+                ),
+            ),
+            { macrotasks: true },
+        );
+
+        while (removed.length < 1) {
+            await MockTime.yield();
+        }
+        expect(removed).has.length(1);
+        expect(removed[0].entry.endpoint).equals(0);
+
+        // Write empty binding list → BindingManager calls unregister → removed fires for the remaining entry.
         await MockTime.resolve(
             peerSwitch.interaction.write(
                 Write(
@@ -222,11 +278,11 @@ describe("Binding integration", () => {
             { macrotasks: true },
         );
 
-        for (let i = 0; i < 20 && removed.length === 0; i++) {
-            await Promise.resolve();
+        while (removed.length < 2) {
+            await MockTime.yield();
         }
-        expect(removed).has.length(1);
-        expect(removed[0].kind).equals("client");
+        expect(removed).has.length(2);
+        expect(removed[1].kind).equals("client");
     });
 
     it("kind=server: self-binding resolves locally and dispatches to the bound server endpoint", async () => {
@@ -257,8 +313,8 @@ describe("Binding integration", () => {
             agent.get(BindingServer).state.binding = [entry];
         });
 
-        for (let i = 0; i < 20 && established.length === 0; i++) {
-            await Promise.resolve();
+        while (established.length === 0) {
+            await MockTime.yield();
         }
 
         expect(established).has.length(1);
@@ -274,8 +330,8 @@ describe("Binding integration", () => {
             agent.get(BindingServer).state.binding = [];
         });
 
-        for (let i = 0; i < 20 && removed.length === 0; i++) {
-            await Promise.resolve();
+        while (removed.length === 0) {
+            await MockTime.yield();
         }
         expect(removed).has.length(1);
         expect(removed[0].kind).equals("server");
@@ -324,8 +380,8 @@ describe("Binding integration", () => {
             agent.get(BindingServer).state.binding = [entry];
         });
 
-        for (let i = 0; i < 20 && established.length === 0; i++) {
-            await Promise.resolve();
+        while (established.length === 0) {
+            await MockTime.yield();
         }
 
         expect(established).has.length(1);
@@ -343,8 +399,8 @@ describe("Binding integration", () => {
             agent.get(BindingServer).state.binding = [];
         });
 
-        for (let i = 0; i < 20 && removed.length === 0; i++) {
-            await Promise.resolve();
+        while (removed.length === 0) {
+            await MockTime.yield();
         }
         expect(removed).has.length(1);
         expect(removed[0].kind).equals("group");
