@@ -12,13 +12,7 @@ import { TlvNodeId } from "../../datatype/NodeId.js";
 import { TlvBoolean } from "../../tlv/TlvBoolean.js";
 import { TlvOptionalField, TlvTaggedList } from "../../tlv/TlvObject.js";
 
-/**
- * @see {@link MatterSpecification.v13.Core}, section 10.6.8
- *
- * `TlvTaggedList` emits members in schema/tag order, satisfying §10.6.1
- * ("Tag Rules") for Interaction Model IBs; see the doc-comment on
- * `TlvCommandPath` for the full rationale.
- */
+/** @see {@link MatterSpecification.v13.Core}, section 10.6.8 */
 export const TlvEventPath = TlvTaggedList({
     // EventPathIB
     nodeId: TlvOptionalField(0, TlvNodeId),

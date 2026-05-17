@@ -342,9 +342,6 @@ describe("TlvObject tests", () => {
         });
 
         it("encodes in schema/tag order regardless of caller property order", () => {
-            // Caller built the value with `requiredField` first, but the
-            // schema places `optionalField` (id 1) before `requiredField`
-            // (id 2). Encoded wire bytes must reflect schema order.
             const data = { requiredField: "testreq", optionalField: "test" };
             const encoded = schemaListRequiredAndOptional.encode(data);
             expect(Bytes.toHex(encoded)).equal("172c0104746573742c02077465737472657118");
@@ -410,9 +407,6 @@ describe("TlvObject tests", () => {
         });
 
         it("encodes repeated fields in schema/tag order regardless of caller property order", () => {
-            // Caller order: repeatedField, requiredField. Schema order:
-            // requiredField (id 1), repeatedField (id 2). Wire must follow
-            // schema order.
             const data = {
                 repeatedField: ["test1", "test2"],
                 requiredField: "test",
@@ -483,33 +477,16 @@ describe("TlvObject tests", () => {
     });
 
     describe("Tlv Lists encode in schema/tag order by default", () => {
-        // Mirror the CommandPathIB shape: optional first by tag, mandatory
-        // after. A caller who builds the value object the way matter.js's
-        // own `Invoke.ts` does — set the required scalar fields up front
-        // then conditionally append the optional one — would emit tags in
-        // insertion order (1, 2, 0) if the encoder followed caller order,
-        // violating Matter Core spec §10.6.1 ("Tag Rules", Matter 1.5 /
-        // 1.5.1) and §A.5.3 (list members' meaning is denoted by their
-        // position). `TlvTaggedList`'s default schema-order encoding
-        // produces the spec-mandated wire order `0, 1, 2`.
+        // CommandPathIB shape: optional tag 0, mandatory tags 1 and 2. Spec §10.6.1 requires schema/tag order on wire.
         const schemaCommandPathLike = TlvTaggedList({
             endpointId: TlvOptionalField(0, TlvUInt16),
             clusterId: TlvField(1, TlvUInt32),
             commandId: TlvField(2, TlvUInt32),
         });
 
-        // Wire bytes when all three fields are present, in schema/tag order:
-        //   0x17                  List
-        //     0x24 0x00 0x01      U8 ctx-tag 0 (endpointId) = 1
-        //     0x24 0x01 0x06      U8 ctx-tag 1 (clusterId)  = 6
-        //     0x24 0x02 0x01      U8 ctx-tag 2 (commandId)  = 1
-        //   0x18                  End-of-list
         const fullHex = "1724000124010624020118";
 
         it("emits members in schema-defined tag order regardless of caller property order", () => {
-            // matter.js's Invoke.ts builds commandPath this way: clusterId
-            // and commandId are set unconditionally, then endpointId is
-            // appended if present.
             const callerOrder = { clusterId: 6, commandId: 1, endpointId: 1 };
             const schemaOrder = { endpointId: 1, clusterId: 6, commandId: 1 };
 
@@ -519,8 +496,6 @@ describe("TlvObject tests", () => {
         });
 
         it("omits absent optional fields and keeps remaining members in tag order", () => {
-            // Wildcard endpoint: omit endpointId entirely. Wire must still
-            // have tag 1 (clusterId) before tag 2 (commandId).
             const expectedHex = "1724010624020118";
             expect(Bytes.toHex(schemaCommandPathLike.encode({ clusterId: 6, commandId: 1 }))).equal(expectedHex);
             expect(schemaCommandPathLike.decode(Bytes.fromHex(expectedHex))).deep.equal({
@@ -531,9 +506,6 @@ describe("TlvObject tests", () => {
     });
 
     describe("TlvTaggedListPreservingOrder preserves caller-supplied order", () => {
-        // Used by operational certificate inner lists (subject / issuer /
-        // extensions) where the signed bytes depend on the caller-supplied
-        // member ordering and must round-trip bit-identically.
         const schemaPreserve = TlvTaggedListPreservingOrder({
             endpointId: TlvOptionalField(0, TlvUInt16),
             clusterId: TlvField(1, TlvUInt32),
@@ -541,8 +513,6 @@ describe("TlvObject tests", () => {
         });
 
         it("emits members in caller property order, not schema order", () => {
-            // Caller order: clusterId, commandId, endpointId — wire reflects
-            // it (tag 1, then 2, then 0).
             const callerOrderHex = "1724010624020124000118";
             expect(Bytes.toHex(schemaPreserve.encode({ clusterId: 6, commandId: 1, endpointId: 1 }))).equal(
                 callerOrderHex,

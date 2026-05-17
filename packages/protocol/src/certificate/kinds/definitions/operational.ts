@@ -32,9 +32,7 @@ import { ExtensionKeyUsageBitmap } from "./base.js";
  */
 export const MAX_TLV_CERTIFICATE_SIZE = 400;
 
-// Encoded extensions are part of the certificate's signed bytes, so a
-// parse + re-encode round-trip must reproduce the original on-the-wire
-// member order. Use the order-preserving variant for that reason.
+// Order-preserving: extensions are part of the certificate's signed bytes; re-encode must reproduce wire order.
 export const TlvCertificateExtension = TlvTaggedListPreservingOrder({
     basicConstraints: TlvField(
         1,
@@ -108,9 +106,7 @@ export namespace OperationalCertificate {
             dnQualifierPs: TlvOptionalField(142, TlvString),
             pseudonymPs: TlvOptionalField(143, TlvString),
         };
-        // The subject and issuer DN sub-lists are part of the certificate's
-        // signed bytes, so encoding must reproduce the caller-supplied
-        // member order on re-encode for signature verification to pass.
+        // Order-preserving: subject/issuer DN sub-lists are part of the certificate's signed bytes; re-encode must reproduce caller order.
         return TlvTaggedListPreservingOrder(fields);
     };
 
