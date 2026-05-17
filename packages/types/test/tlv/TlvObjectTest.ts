@@ -9,7 +9,7 @@ import { FabricIndex, TlvFabricIndex } from "#datatype/FabricIndex.js";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
-import { TlvUInt8 } from "#tlv/TlvNumber.js";
+import { TlvUInt16, TlvUInt32, TlvUInt8 } from "#tlv/TlvNumber.js";
 import {
     TlvField,
     TlvObject,
@@ -17,6 +17,7 @@ import {
     TlvOptionalRepeatedField,
     TlvRepeatedField,
     TlvTaggedList,
+    TlvTaggedListPreservingOrder,
 } from "#tlv/TlvObject.js";
 import { TypeFromSchema } from "#tlv/TlvSchema.js";
 import { TlvString } from "#tlv/TlvString.js";
@@ -340,10 +341,10 @@ describe("TlvObject tests", () => {
             expect(schemaListRequiredAndOptional.decode(encoded)).deep.equal(data);
         });
 
-        it("encode and decode list with optional and required fields in switched order", () => {
+        it("encodes in schema/tag order regardless of caller property order", () => {
             const data = { requiredField: "testreq", optionalField: "test" };
             const encoded = schemaListRequiredAndOptional.encode(data);
-            expect(Bytes.toHex(encoded)).equal("172c0207746573747265712c01047465737418");
+            expect(Bytes.toHex(encoded)).equal("172c0104746573742c02077465737472657118");
             expect(schemaListRequiredAndOptional.decode(encoded)).deep.equal(data);
         });
 
@@ -405,13 +406,13 @@ describe("TlvObject tests", () => {
             expect(schemaListRepeatedLimited.decode(encoded)).deep.equal(data);
         });
 
-        it("encode and decode list with switched repeated fields", () => {
+        it("encodes repeated fields in schema/tag order regardless of caller property order", () => {
             const data = {
                 repeatedField: ["test1", "test2"],
                 requiredField: "test",
             };
             const encoded = schemaListRepeatedLimited.encode(data);
-            expect(Bytes.toHex(encoded)).equal("172c020574657374312c020574657374322c01047465737418");
+            expect(Bytes.toHex(encoded)).equal("172c0104746573742c020574657374312c0205746573743218");
             expect(schemaListRepeatedLimited.decode(encoded)).deep.equal(data);
         });
 
@@ -464,14 +465,92 @@ describe("TlvObject tests", () => {
             );
         });
 
-        it("preserves the field order also when different from field definition with repeated fields", () => {
+        it("encodes single-entry repeated field in schema/tag order regardless of caller property order", () => {
             const data = {
                 repeatedField: ["test1"],
                 requiredField: "test",
             };
             const encoded = schemaListRepeatedLimited.encode(data);
-            expect(Bytes.toHex(encoded)).equal("172c020574657374312c01047465737418");
+            expect(Bytes.toHex(encoded)).equal("172c0104746573742c0205746573743118");
             expect(schemaListRepeatedLimited.decode(encoded)).deep.equal(data);
+        });
+    });
+
+    describe("Tlv Lists encode in schema/tag order by default", () => {
+        // CommandPathIB shape: optional tag 0, mandatory tags 1 and 2. Spec §10.6.1 requires schema/tag order on wire.
+        const schemaCommandPathLike = TlvTaggedList({
+            endpointId: TlvOptionalField(0, TlvUInt16),
+            clusterId: TlvField(1, TlvUInt32),
+            commandId: TlvField(2, TlvUInt32),
+        });
+
+        const fullHex = "1724000124010624020118";
+
+        it("emits members in schema-defined tag order regardless of caller property order", () => {
+            const callerOrder = { clusterId: 6, commandId: 1, endpointId: 1 };
+            const schemaOrder = { endpointId: 1, clusterId: 6, commandId: 1 };
+
+            expect(Bytes.toHex(schemaCommandPathLike.encode(callerOrder))).equal(fullHex);
+            expect(Bytes.toHex(schemaCommandPathLike.encode(schemaOrder))).equal(fullHex);
+            expect(schemaCommandPathLike.decode(Bytes.fromHex(fullHex))).deep.equal(schemaOrder);
+        });
+
+        it("omits absent optional fields and keeps remaining members in tag order", () => {
+            const expectedHex = "1724010624020118";
+            expect(Bytes.toHex(schemaCommandPathLike.encode({ clusterId: 6, commandId: 1 }))).equal(expectedHex);
+            expect(schemaCommandPathLike.decode(Bytes.fromHex(expectedHex))).deep.equal({
+                clusterId: 6,
+                commandId: 1,
+            });
+        });
+    });
+
+    describe("TlvTaggedListPreservingOrder preserves caller-supplied order", () => {
+        const schemaPreserve = TlvTaggedListPreservingOrder({
+            endpointId: TlvOptionalField(0, TlvUInt16),
+            clusterId: TlvField(1, TlvUInt32),
+            commandId: TlvField(2, TlvUInt32),
+        });
+
+        it("emits members in caller property order, not schema order", () => {
+            const callerOrderHex = "1724010624020124000118";
+            expect(Bytes.toHex(schemaPreserve.encode({ clusterId: 6, commandId: 1, endpointId: 1 }))).equal(
+                callerOrderHex,
+            );
+        });
+
+        it("omits absent optional fields and emits remaining schema fields after caller-supplied ones", () => {
+            const expectedHex = "1724010624020118";
+            expect(Bytes.toHex(schemaPreserve.encode({ clusterId: 6, commandId: 1 }))).equal(expectedHex);
+        });
+
+        it("throws ValidationDatatypeMismatchError on unknown fields", () => {
+            expect(() =>
+                // @ts-expect-error test case
+                schemaPreserve.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
+            ).throw('Unknown field "bogus" not defined in tagged list schema.');
+        });
+    });
+
+    describe("TlvTaggedList rejects unknown fields", () => {
+        const schemaList = TlvTaggedList({
+            endpointId: TlvOptionalField(0, TlvUInt16),
+            clusterId: TlvField(1, TlvUInt32),
+            commandId: TlvField(2, TlvUInt32),
+        });
+
+        it("throws ValidationDatatypeMismatchError on unknown fields in default schema-order mode", () => {
+            expect(() =>
+                // @ts-expect-error test case
+                schemaList.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
+            ).throw('Unknown field "bogus" not defined in tagged list schema.');
+        });
+
+        it("rejects prototype-chain keys (e.g. 'toString') as unknown fields", () => {
+            const bogus = Object.assign(Object.create({ toString: "bad" }), { clusterId: 6, commandId: 1 });
+            // Add own enumerable 'toString' so Object.keys returns it.
+            Object.defineProperty(bogus, "toString", { value: "bad", enumerable: true });
+            expect(() => schemaList.encode(bogus)).throw('Unknown field "toString" not defined in tagged list schema.');
         });
     });
 

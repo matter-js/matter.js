@@ -10,3 +10,4 @@ export * from "./DclConfig.js";
 export * from "./DclOtaUpdateService.js";
 export * from "./DclRestApiTypes.js";
 export * from "./DclVendorInfoService.js";
+export * from "./SeedTypes.js";

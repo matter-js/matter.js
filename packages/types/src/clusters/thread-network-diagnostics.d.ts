@@ -32,7 +32,7 @@ export declare namespace ThreadNetworkDiagnostics {
     export const name: "ThreadNetworkDiagnostics";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 3;
 

@@ -69,6 +69,9 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
         private readonly fieldDefinitions: F,
         private readonly type: TlvType.Structure | TlvType.List = TlvType.Structure,
         private readonly allowProtocolSpecificTags = false,
+
+        /** When true, list encoding follows caller property order instead of schema order. See {@link TlvTaggedListPreservingOrder}. */
+        private readonly preserveDataOrdering = false,
     ) {
         super();
 
@@ -151,18 +154,32 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
     }
 
     /**
-     * Encode the object as List, by the order of the fields in the object.
+     * Encode the object as List. Default emits in schema definition order. With {@link preserveDataOrdering},
+     * caller-supplied property order is emitted first, with any remaining schema fields appended after.
      */
     #encodeList(writer: TlvWriter, value: TypeFromFields<F>, options?: TlvEncodingOptions) {
-        const encodedFields = new Set<string>();
-        // Encode object fields
-        for (const name of Object.keys(value)) {
-            this.#encodeEntryToTlv(writer, name, value, options);
-            encodedFields.add(name);
+        const valueKeys = Object.keys(value);
+        for (const name of valueKeys) {
+            if (!Object.hasOwn(this.fieldDefinitions, name)) {
+                throw new ValidationDatatypeMismatchError(
+                    `Unknown field "${name}" not defined in tagged list schema.`,
+                    name,
+                );
+            }
         }
-        // Verify the potentially missing fields
+        if (this.preserveDataOrdering) {
+            const encodedFields = new Set<string>();
+            for (const name of valueKeys) {
+                this.#encodeEntryToTlv(writer, name, value, options);
+                encodedFields.add(name);
+            }
+            for (const name in this.fieldDefinitions) {
+                if (encodedFields.has(name)) continue;
+                this.#encodeEntryToTlv(writer, name, value, options);
+            }
+            return;
+        }
         for (const name in this.fieldDefinitions) {
-            if (encodedFields.has(name)) continue;
             this.#encodeEntryToTlv(writer, name, value, options);
         }
     }
@@ -345,9 +362,12 @@ export const TlvObjectWithMaxSize = <F extends TlvFields>(fields: F, maxSize: nu
     new ObjectSchemaWithMaxSize(fields, maxSize, TlvType.Structure);
 
 /**
- * List TLV schema with all tagged entries.
+ * List TLV schema with all tagged entries. Members are emitted in schema definition order on encode.
  * List entries that can appear multiple times can be defined using TlvRepeatedField/TlvOptionalRepeatedField and are
  * represented as Arrays.
+ *
+ * For lists whose wire order must reproduce caller-supplied order, use {@link TlvTaggedListPreservingOrder}.
+ *
  * TODO: We represent Tlv Lists right now as named object properties. This formally does not match the spec, which
  *      defines a list as a sequence of TLV elements with optional tag where the order matters. That's ok for now
  *      (also with the help of "Repeated Fields") because it not makes any real difference for now for the current
@@ -355,6 +375,14 @@ export const TlvObjectWithMaxSize = <F extends TlvFields>(fields: F, maxSize: nu
  */
 export const TlvTaggedList = <F extends TlvFields>(fields: F, allowProtocolSpecificTags = false) =>
     new ObjectSchema(fields, TlvType.List, allowProtocolSpecificTags);
+
+/**
+ * Variant of {@link TlvTaggedList} that preserves caller-supplied member order on encode. Use only when wire-position
+ * is application data that must round-trip bit-identically — e.g. operational-certificate subject/issuer/extensions
+ * sub-lists, whose signed bytes depend on original member order.
+ */
+export const TlvTaggedListPreservingOrder = <F extends TlvFields>(fields: F, allowProtocolSpecificTags = false) =>
+    new ObjectSchema(fields, TlvType.List, allowProtocolSpecificTags, /* preserveDataOrdering */ true);
 
 // TODO Implement a real TlvList schema that matches the spec to represent a ordered list of TLV elements with optional
 //      tag.

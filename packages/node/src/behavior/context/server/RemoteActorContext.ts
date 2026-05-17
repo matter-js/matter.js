@@ -6,7 +6,7 @@
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Node } from "#node/Node.js";
-import { AsyncObservable, InternalError, MaybePromise, Transaction } from "@matter/general";
+import { AsyncObservable, Diagnostic, InternalError, Logger, MaybePromise, Transaction } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import {
     AccessControl,
@@ -58,6 +58,8 @@ export interface RemoteActorContext extends ValueSupervisor.RemoteActorSession {
      */
     offline?: false;
 }
+
+const logger = Logger.get("RemoteActorContext");
 
 /**
  * Caches completion events per exchange. Uses if multiple OnlineContext instances are created for an exchange.
@@ -183,8 +185,18 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
             const notifyInteractionComplete = () => {
                 exchange.closing.off(notifyInteractionComplete);
                 exchangeCompleteEvents.delete(exchange);
+                function handleErr(err: unknown) {
+                    logger.error("interactionComplete observer failed", Diagnostic.error(err));
+                }
                 if (context.interactionComplete?.isObserved) {
-                    context.interactionComplete.emit(context);
+                    try {
+                        const result = context.interactionComplete.emit(context);
+                        if (MaybePromise.is(result)) {
+                            MaybePromise.then(result, undefined, handleErr);
+                        }
+                    } catch (e) {
+                        handleErr(e);
+                    }
                 }
             };
             exchange.closing.on(notifyInteractionComplete);

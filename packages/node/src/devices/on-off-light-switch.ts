@@ -7,12 +7,12 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
-import { IdentifyBehavior as BaseIdentifyBehavior } from "../behaviors/identify/IdentifyBehavior.js";
-import { OnOffBehavior as BaseOnOffBehavior } from "../behaviors/on-off/OnOffBehavior.js";
-import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
+import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
+import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
+import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
 import {
-    ScenesManagementBehavior as BaseScenesManagementBehavior
-} from "../behaviors/scenes-management/ScenesManagementBehavior.js";
+    ScenesManagementClient as BaseScenesManagementClient
+} from "../behaviors/scenes-management/ScenesManagementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -36,30 +36,30 @@ export namespace OnOffLightSwitchRequirements {
     /**
      * The Identify cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyBehavior} for convenience.
+     * We provide this alias to the default implementation {@link IdentifyClient} for convenience.
      */
-    export const IdentifyBehavior = BaseIdentifyBehavior;
+    export const IdentifyClient = BaseIdentifyClient;
 
     /**
      * The OnOff cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OnOffBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OnOffClient} for convenience.
      */
-    export const OnOffBehavior = BaseOnOffBehavior;
+    export const OnOffClient = BaseOnOffClient;
 
     /**
      * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupsBehavior} for convenience.
+     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
      */
-    export const GroupsBehavior = BaseGroupsBehavior;
+    export const GroupsClient = BaseGroupsClient;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ScenesManagementClient} for convenience.
      */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
+    export const ScenesManagementClient = BaseScenesManagementClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -70,8 +70,8 @@ export namespace OnOffLightSwitchRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { Identify: IdentifyBehavior, OnOff: OnOffBehavior },
-        optional: { Groups: GroupsBehavior, ScenesManagement: ScenesManagementBehavior }
+        mandatory: { Identify: IdentifyClient, OnOff: OnOffClient },
+        optional: { Groups: GroupsClient, ScenesManagement: ScenesManagementClient }
     };
 }
 

@@ -26,7 +26,7 @@ export declare namespace Pm1ConcentrationMeasurement {
     export const name: "Pm1ConcentrationMeasurement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
     export const revision: 4;
 

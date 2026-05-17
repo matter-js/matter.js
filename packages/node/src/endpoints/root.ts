@@ -66,8 +66,8 @@ import {
     TlsClientManagementServer as BaseTlsClientManagementServer
 } from "../behaviors/tls-client-management/TlsClientManagementServer.js";
 import {
-    TimeSynchronizationBehavior as BaseTimeSynchronizationBehavior
-} from "../behaviors/time-synchronization/TimeSynchronizationBehavior.js";
+    TimeSynchronizationClient as BaseTimeSynchronizationClient
+} from "../behaviors/time-synchronization/TimeSynchronizationClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -238,9 +238,9 @@ export namespace RootRequirements {
     /**
      * The TimeSynchronization cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TimeSynchronizationBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TimeSynchronizationClient} for convenience.
      */
-    export const TimeSynchronizationBehavior = BaseTimeSynchronizationBehavior;
+    export const TimeSynchronizationClient = BaseTimeSynchronizationClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -279,7 +279,7 @@ export namespace RootRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { TimeSynchronization: TimeSynchronizationBehavior }, mandatory: {} };
+    export const client = { optional: { TimeSynchronization: TimeSynchronizationClient }, mandatory: {} };
 }
 
 export const RootEndpointDefinition = MutableEndpoint({

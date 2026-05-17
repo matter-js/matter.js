@@ -21,12 +21,12 @@ import {
     PushAvStreamTransportServer as BasePushAvStreamTransportServer
 } from "../behaviors/push-av-stream-transport/PushAvStreamTransportServer.js";
 import {
-    WebRtcTransportRequestorBehavior as BaseWebRtcTransportRequestorBehavior
-} from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorBehavior.js";
-import { ChimeBehavior as BaseChimeBehavior } from "../behaviors/chime/ChimeBehavior.js";
+    WebRtcTransportRequestorClient as BaseWebRtcTransportRequestorClient
+} from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorClient.js";
+import { ChimeClient as BaseChimeClient } from "../behaviors/chime/ChimeClient.js";
 import {
-    WebRtcTransportProviderBehavior as BaseWebRtcTransportProviderBehavior
-} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderBehavior.js";
+    WebRtcTransportProviderClient as BaseWebRtcTransportProviderClient
+} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -88,23 +88,23 @@ export namespace AudioDoorbellRequirements {
     /**
      * The WebRtcTransportRequestor cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportRequestorBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportRequestorClient} for convenience.
      */
-    export const WebRtcTransportRequestorBehavior = BaseWebRtcTransportRequestorBehavior;
+    export const WebRtcTransportRequestorClient = BaseWebRtcTransportRequestorClient;
 
     /**
      * The Chime cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ChimeBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ChimeClient} for convenience.
      */
-    export const ChimeBehavior = BaseChimeBehavior;
+    export const ChimeClient = BaseChimeClient;
 
     /**
      * The WebRtcTransportProvider cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportProviderBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportProviderClient} for convenience.
      */
-    export const WebRtcTransportProviderBehavior = BaseWebRtcTransportProviderBehavior;
+    export const WebRtcTransportProviderClient = BaseWebRtcTransportProviderClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -127,8 +127,8 @@ export namespace AudioDoorbellRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorBehavior, Chime: ChimeBehavior },
-        optional: { WebRtcTransportProvider: WebRtcTransportProviderBehavior }
+        mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorClient, Chime: ChimeClient },
+        optional: { WebRtcTransportProvider: WebRtcTransportProviderClient }
     };
 }
 

@@ -123,7 +123,13 @@ export namespace ValueSupervisor {
         interactionStarted?: boolean;
     }
 
-    export interface LocalActorSession extends AccessControl.LocalActorSession, SupervisionSettings {}
+    export interface LocalActorSession extends AccessControl.LocalActorSession, SupervisionSettings {
+        /**
+         * If present the session is associated with a local act() invocation.  Emits when the act() transaction
+         * commits.
+         */
+        interactionComplete?: AsyncObservable<[session?: LocalActorSession]>;
+    }
 
     export type Session = LocalActorSession | RemoteActorSession;
 

@@ -27,8 +27,10 @@ import {
     Diagnostic,
     Duration,
     ImplementationError,
+    Lifecycle,
     Logger,
     MatterError,
+    MaybePromise,
     Minutes,
     Mutex,
     Observable,
@@ -40,6 +42,7 @@ import {
 import {
     ClientSubscriptionHandler,
     ClientSubscriptions,
+    CommissioningError,
     FabricManager,
     Peer,
     PeerAddress,
@@ -67,6 +70,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
+    #commissioning = new Set<ClientNode>();
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -319,6 +323,40 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
+     * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
+     *
+     * Serialization is done through the same {@link #mutex} the cull uses: the busy registration runs as a mutex task,
+     * which guarantees no cull is in flight when we register and that any subsequent cull observes the busy flag.
+     *
+     * Rejects with {@link CommissioningError} if the node is already mid-commission (parallel attempts on the same
+     * {@link ClientNode} would race on device-side state) or if a cull queued ahead of us already destroyed/crashed
+     * the node.  Either way the attempt fails fast instead of crashing later when the closed backing is accessed.
+     */
+    async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        await this.#mutex.produce(async () => {
+            const status = node.construction.status;
+            if (
+                status === Lifecycle.Status.Destroying ||
+                status === Lifecycle.Status.Destroyed ||
+                status === Lifecycle.Status.Crashed
+            ) {
+                throw new CommissioningError(`Cannot commission ${node.toString()} because the node is ${status}`);
+            }
+            if (this.#commissioning.has(node)) {
+                throw new CommissioningError(
+                    `Cannot commission ${node.toString()} because a commission attempt is already in progress`,
+                );
+            }
+            this.#commissioning.add(node);
+        });
+        try {
+            return await fn();
+        } finally {
+            this.#commissioning.delete(node);
+        }
+    }
+
+    /**
      * Enables or disables the expiration timer that culls expired uncommissioned nodes.
      */
     #manageExpiration() {
@@ -363,6 +401,9 @@ export class Peers extends EndpointContainer<ClientNode> {
 
             for (const node of this) {
                 if (!node.lifecycle.isReady) {
+                    continue;
+                }
+                if (this.#commissioning.has(node)) {
                     continue;
                 }
                 const state = node.maybeStateOf(CommissioningClient);
@@ -573,6 +614,18 @@ class Factory extends ClientNodeFactory {
 
     find(descriptor: RemoteDescriptor) {
         for (const node of this.#owner) {
+            // Skip nodes whose construction will not deliver a working backing.  Destroying/Destroyed close (or have
+            // closed) the BehaviorBacking, which surfaces as "Datasource not yet initialized" the next time a caller
+            // touches state.  Crashed never finished initializeDataSource.  Inactive/Initializing/Active are all
+            // legitimate reuse targets — node.act will wait on construction.ready as needed.
+            const status = node.construction.status;
+            if (
+                status === Lifecycle.Status.Destroying ||
+                status === Lifecycle.Status.Destroyed ||
+                status === Lifecycle.Status.Crashed
+            ) {
+                continue;
+            }
             if (RemoteDescriptor.is(node.state.commissioning, descriptor)) {
                 return node;
             }

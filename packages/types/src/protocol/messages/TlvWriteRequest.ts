@@ -23,7 +23,7 @@ export const TlvWriteRequest = TlvObject({
     /** A list of one or more path and data tuples. */
     writeRequests: TlvField(2, TlvArray(TlvAttributeData)),
     moreChunkedMessages: TlvOptionalField(3, TlvBoolean),
-    interactionModelRevision: TlvField(0xff, TlvUInt8),
+    interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 
 export type WriteRequest = TypeFromSchema<typeof TlvWriteRequest>;

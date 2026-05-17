@@ -22,6 +22,14 @@ export type ExtensionInterfaceOf<B extends Behavior.Type> = B extends { Extensio
 
 const isClient = Symbol("is-client");
 
+/**
+ * Type-level brand for cluster client behaviors.
+ *
+ * The brand is published as a separate exported alias so consumer `.d.ts` files can name it via
+ * `typeof clientBrand` without needing to serialize the underlying `unique symbol` declaration.
+ */
+export const clientBrand = isClient;
+
 type ClientBehaviorType = { [isClient]?: boolean };
 
 /**
@@ -34,7 +42,7 @@ export function markClientBehavior(type: Behavior.Type) {
 /**
  * Test whether a behavior is a cluster client.
  */
-export function isClientBehavior(type: Behavior.Type) {
+export function isClientBehavior(type: Behavior.Type): boolean {
     // Use hasOwn so any derivation voids the client assertion
-    return (type as ClientBehaviorType)[isClient] && Object.hasOwn(type, isClient);
+    return !!(type as ClientBehaviorType)[isClient] && Object.hasOwn(type, isClient);
 }

@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
-import { ThermostatBehavior as BaseThermostatBehavior } from "../behaviors/thermostat/ThermostatBehavior.js";
+import { ThermostatClient as BaseThermostatClient } from "../behaviors/thermostat/ThermostatClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -35,9 +35,9 @@ export namespace HeatPumpRequirements {
     /**
      * The Thermostat cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThermostatBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ThermostatClient} for convenience.
      */
-    export const ThermostatBehavior = BaseThermostatBehavior;
+    export const ThermostatClient = BaseThermostatClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -47,7 +47,7 @@ export namespace HeatPumpRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { Thermostat: ThermostatBehavior }, mandatory: {} };
+    export const client = { optional: { Thermostat: ThermostatClient }, mandatory: {} };
 }
 
 export const HeatPumpDeviceDefinition = MutableEndpoint({

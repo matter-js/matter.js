@@ -116,6 +116,10 @@ jobs:
         if: steps.automerge.outputs.mergeResult == 'merged'
         run: npm run version -- --apply
 
+      - name: Stamp runtime version constant
+        if: steps.automerge.outputs.mergeResult == 'merged'
+        run: node tools/set-version.mjs
+
       - name: Publish npm
         if: steps.automerge.outputs.mergeResult == 'merged'
         env:

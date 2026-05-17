@@ -8,7 +8,7 @@ import { TypeFromSchema } from "#tlv/TlvSchema.js";
 import { TlvArray } from "../../tlv/TlvArray.js";
 import { TlvBoolean } from "../../tlv/TlvBoolean.js";
 import { TlvUInt32, TlvUInt8 } from "../../tlv/TlvNumber.js";
-import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
+import { TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvAttributeReport } from "../types/TlvAttributeReport.js";
 import { TlvEventReport } from "../types/TlvEventReport.js";
 
@@ -27,7 +27,7 @@ export const TlvDataReport = TlvObject({
 
     /** Do not send a response to this action. */
     suppressResponse: TlvOptionalField(4, TlvBoolean),
-    interactionModelRevision: TlvField(0xff, TlvUInt8),
+    interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 
 export type DataReport = TypeFromSchema<typeof TlvDataReport>;

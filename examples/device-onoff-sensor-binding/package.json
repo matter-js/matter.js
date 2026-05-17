@@ -1,0 +1,20 @@
+{
+    "name": "@matter/examples-device-onoff-sensor-binding",
+    "version": "0.0.0-git",
+    "private": true,
+    "license": "Apache-2.0",
+    "author": "matter.js authors",
+    "scripts": {
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean"
+    },
+    "main": "src/OccupancyBindingDevice.ts",
+    "dependencies": {
+        "@matter/main": "*"
+    },
+    "engines": {
+        "node": ">=20.19.0 <22.0.0 || >=22.13.0"
+    },
+    "type": "module"
+}

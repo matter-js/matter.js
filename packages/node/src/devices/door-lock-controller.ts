@@ -6,11 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DoorLockBehavior as BaseDoorLockBehavior } from "../behaviors/door-lock/DoorLockBehavior.js";
-import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
+import { DoorLockClient as BaseDoorLockClient } from "../behaviors/door-lock/DoorLockClient.js";
+import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
 import {
-    ScenesManagementBehavior as BaseScenesManagementBehavior
-} from "../behaviors/scenes-management/ScenesManagementBehavior.js";
+    ScenesManagementClient as BaseScenesManagementClient
+} from "../behaviors/scenes-management/ScenesManagementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -26,30 +26,30 @@ export namespace DoorLockControllerRequirements {
     /**
      * The DoorLock cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link DoorLockBehavior} for convenience.
+     * We provide this alias to the default implementation {@link DoorLockClient} for convenience.
      */
-    export const DoorLockBehavior = BaseDoorLockBehavior;
+    export const DoorLockClient = BaseDoorLockClient;
 
     /**
      * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupsBehavior} for convenience.
+     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
      */
-    export const GroupsBehavior = BaseGroupsBehavior;
+    export const GroupsClient = BaseGroupsClient;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ScenesManagementClient} for convenience.
      */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
+    export const ScenesManagementClient = BaseScenesManagementClient;
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { DoorLock: DoorLockBehavior },
-        optional: { Groups: GroupsBehavior, ScenesManagement: ScenesManagementBehavior }
+        mandatory: { DoorLock: DoorLockClient },
+        optional: { Groups: GroupsClient, ScenesManagement: ScenesManagementClient }
     };
 }
 

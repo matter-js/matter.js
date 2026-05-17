@@ -13,7 +13,6 @@ import { TlvBoolean } from "../../tlv/TlvBoolean.js";
 import { TlvOptionalField, TlvTaggedList } from "../../tlv/TlvObject.js";
 
 /** @see {@link MatterSpecification.v13.Core}, section 10.6.8 */
-
 export const TlvEventPath = TlvTaggedList({
     // EventPathIB
     nodeId: TlvOptionalField(0, TlvNodeId),

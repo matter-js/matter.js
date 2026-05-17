@@ -7,6 +7,7 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
+import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { AccessControlClient } from "#behaviors/access-control";
@@ -23,6 +24,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
 import {
@@ -42,7 +44,14 @@ import {
     Timestamp,
 } from "@matter/general";
 import { Specification } from "@matter/model";
-import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
+import {
+    CommissioningError,
+    ControllerCommissioner,
+    FabricAuthority,
+    FabricManager,
+    PeerSet,
+    Val,
+} from "@matter/protocol";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { OnOff } from "@matter/types/clusters/on-off";
@@ -1423,6 +1432,124 @@ describe("ClientNode", () => {
             expect(controller.peers.size).equals(1);
             expect(controller.peers.get("peer1")).not.undefined; // commissioned peer survives
             expect(controller.peers.get(peer2.id)).undefined; // uncommissioned peer was culled
+        });
+
+        it("does not cull an uncommissioned node while runCommissioning is in flight", async () => {
+            // *** SETUP ***
+
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+            expect(peer2.state.commissioning.peerAddress).undefined;
+            expect(controller.peers.size).equals(2);
+
+            // *** RUN COMMISSIONING + EXPIRE ***
+
+            // Backdate discoveredAt so the cull sees peer2 as expired immediately.
+            await peer2.set({
+                commissioning: { discoveredAt: Timestamp(Time.nowMs - Minutes(20)) },
+            });
+
+            let resolveInner!: () => void;
+            const innerDone = new Promise<void>(resolve => {
+                resolveInner = resolve;
+            });
+            const commissioning = controller.peers.runCommissioning(peer2, () => innerDone);
+
+            // Advance past one expiration interval so the cull timer fires.  With the busy registry
+            // in place, peer2 must survive the cull pass.
+            await MockTime.advance(Minutes(2));
+            await MockTime.yield3();
+
+            expect(controller.peers.get(peer2.id)).not.undefined; // not culled while busy
+
+            // *** RELEASE + VERIFY CULL ***
+
+            resolveInner();
+            await commissioning;
+
+            // Now that the busy flag is cleared, the next cull pass must delete peer2.
+            const peer2Destroyed = new Promise<void>(resolve => peer2.lifecycle.destroyed.once(() => resolve()));
+            await MockTime.resolve(peer2Destroyed);
+
+            expect(controller.peers.get(peer2.id)).undefined;
+        });
+
+        it("rejects parallel runCommissioning on the same node", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+
+            // First attempt holds the busy slot.  Second attempt on the same node must reject before fn runs so the
+            // device side isn't hit by two concurrent commissioning flows.
+            let resolveInner!: () => void;
+            const first = controller.peers.runCommissioning(peer2, () => new Promise<void>(r => (resolveInner = r)));
+            let secondRan = false;
+            await expect(
+                controller.peers.runCommissioning(peer2, () => {
+                    secondRan = true;
+                }),
+            ).rejectedWith(CommissioningError, /already in progress/);
+            expect(secondRan).false;
+
+            // Once the first finishes the slot frees and another attempt is permitted.
+            resolveInner();
+            await first;
+            await controller.peers.runCommissioning(peer2, () => Promise.resolve());
+        });
+
+        it("skips reuse of nodes whose construction is closed", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+            const descriptor = RemoteDescriptor.fromLongForm(peer2.state.commissioning);
+
+            const factory = controller.env.get(ClientNodeFactory);
+            expect(factory.find(descriptor)).equals(peer2); // sanity: alive node is reused
+
+            // Tear the node down.  After close completes the node is fully Destroyed and removed from the Peers
+            // container, so factory.find must no longer return it.
+            await peer2.delete();
+            expect(factory.find(descriptor)).undefined;
         });
 
         it("prunes expired addresses from commissioned nodes", async () => {

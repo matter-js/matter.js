@@ -11,7 +11,6 @@ import { TlvEndpointNumber } from "../../datatype/EndpointNumber.js";
 import { TlvField, TlvOptionalField, TlvTaggedList } from "../../tlv/TlvObject.js";
 
 /** @see {@link MatterSpecification.v13.Core}, section 10.6.11 */
-
 export const TlvCommandPath = TlvTaggedList({
     // CommandPathIB
     endpointId: TlvOptionalField(0, TlvEndpointNumber),
