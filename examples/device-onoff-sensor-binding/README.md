@@ -20,7 +20,7 @@ endpoint on a remote node.  Once the remote node is online:
 1. `BindingManager` resolves the entry and fires `BindingServer.events.established` with
    `kind="client"`.
 2. The application handler subscribes to `occupancy$Changed` on the bound remote endpoint.
-3. Each occupancy change turns the local light on (occupied) or off (unoccupied).
+3. When the sensor reports occupied, the local light turns on.
 4. When the binding is removed, the subscription is torn down.
 
 Group bindings (`kind="group"`) and self-bindings (`kind="server"`) are logged and ignored in this
@@ -30,8 +30,8 @@ example.
 
 ```bash
 npm run build
-node examples/device-onoff-sensor-binding/src/OccupancyBindingDevice.ts
+npm run device-onoff-sensor-binding
 ```
 
 Commission the node with a Matter controller.  Then write a Binding entry on endpoint 1 that points
-at an occupancy sensor node/endpoint.  Watch the console for occupancy-driven on/off messages.
+at an occupancy sensor node/endpoint.  Watch the console for occupancy-driven on messages.

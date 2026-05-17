@@ -889,10 +889,108 @@ describe("Datasource", () => {
             ds.close();
         });
 
-        // Local sessions do NOT emit interactionBegin — that path is gated on hasRemoteActor.
-        it("re-registers observer when local session is reused for another interaction", async () => {
+        it("fires interactionBegin event on first write with local session", async () => {
             const interactionComplete = AsyncObservable<[session?: ValueSupervisor.LocalActorSession]>();
-            const ds = createDatasource();
+            let interactionBeginCount = 0;
+            let interactionBeginSession: ValueSupervisor.Session | undefined;
+            const events = {
+                interactionBegin: Observable<[session?: ValueSupervisor.Session]>(),
+            };
+            events.interactionBegin.on(s => {
+                interactionBeginCount++;
+                interactionBeginSession = s;
+            });
+
+            const ds = createDatasource({ events });
+
+            let capturedSession: ValueSupervisor.LocalActorSession | undefined;
+            await LocalActorContext.act("test", async context => {
+                capturedSession = createLocalSession(context, interactionComplete);
+                const state = ds.reference(capturedSession) as MyState;
+                state.foo = "changed";
+            });
+
+            expect(interactionBeginCount).equals(1);
+            expect(interactionBeginSession).equals(capturedSession);
+
+            ds.close();
+        });
+
+        it("does not re-fire interactionBegin on subsequent writes within the same local session", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.LocalActorSession]>();
+            let interactionBeginCount = 0;
+            const events = {
+                interactionBegin: Observable<[session?: ValueSupervisor.Session]>(),
+            };
+            events.interactionBegin.on(() => {
+                interactionBeginCount++;
+            });
+
+            const ds = createDatasource({ events });
+
+            await LocalActorContext.act("test", async context => {
+                const capturedSession = createLocalSession(context, interactionComplete);
+                const state = ds.reference(capturedSession) as MyState;
+                state.foo = "first";
+                // Second write in the same session — interactionBegin must not re-fire
+                state.foo = "second";
+            });
+
+            expect(interactionBeginCount).equals(1);
+
+            ds.close();
+        });
+
+        it("fires interactionBegin only once across multiple datasources in a single local act()", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.LocalActorSession]>();
+            let beginCount = 0;
+            const mkEvents = () => {
+                const events = { interactionBegin: Observable<[session?: ValueSupervisor.Session]>() };
+                events.interactionBegin.on(() => {
+                    beginCount++;
+                });
+                return events;
+            };
+
+            const ds1 = Datasource({
+                entropy: MockCrypto(),
+                location: { endpoint: EndpointNumber(1), path: new DataModelPath("DS1") },
+                type: MyState,
+                supervisor,
+                events: mkEvents(),
+            });
+            const ds2 = Datasource({
+                entropy: MockCrypto(),
+                location: { endpoint: EndpointNumber(1), path: new DataModelPath("DS2") },
+                type: MyState,
+                supervisor,
+                events: mkEvents(),
+            });
+
+            await LocalActorContext.act("test", async context => {
+                const session = createLocalSession(context, interactionComplete);
+                (ds1.reference(session) as MyState).foo = "ds1";
+                (ds2.reference(session) as MyState).foo = "ds2";
+            });
+
+            // interactionBegin should fire exactly once for the session, not once per datasource
+            expect(beginCount).equals(1);
+
+            ds1.close();
+            ds2.close();
+        });
+
+        it("re-registers observer and re-fires interactionBegin when local session is reused for another interaction", async () => {
+            const interactionComplete = AsyncObservable<[session?: ValueSupervisor.LocalActorSession]>();
+            let interactionBeginCount = 0;
+            const events = {
+                interactionBegin: Observable<[session?: ValueSupervisor.Session]>(),
+            };
+            events.interactionBegin.on(() => {
+                interactionBeginCount++;
+            });
+
+            const ds = createDatasource({ events });
 
             let capturedSession: ValueSupervisor.LocalActorSession | undefined;
             await LocalActorContext.act("test", async context => {
@@ -901,6 +999,7 @@ describe("Datasource", () => {
                 state.foo = "first";
             });
 
+            expect(interactionBeginCount).equals(1);
             expect(interactionComplete.isObserved).equals(true);
 
             // Natural completion of first interaction
@@ -908,13 +1007,14 @@ describe("Datasource", () => {
 
             expect(interactionComplete.isObserved).equals(false);
 
-            // Second interaction on the same session must re-register the observer
+            // Second interaction on the same session must re-register the observer and re-fire interactionBegin
             await LocalActorContext.act("test", async context => {
                 capturedSession!.transaction = context.transaction;
                 const state = ds.reference(capturedSession!) as MyState;
                 state.foo = "second";
             });
 
+            expect(interactionBeginCount).equals(2);
             expect(interactionComplete.isObserved).equals(true);
 
             ds.close();

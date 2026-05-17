@@ -28,6 +28,9 @@ const logger = Logger.get("Datasource");
 
 const FEATURES_KEY = "__features__";
 
+// Once-per-act() guard for local sessions (frozen — can't set interactionStarted on the session).
+const localInteractionBeginEmitted = new WeakSet<object>();
+
 const viewTx = Transaction.open("offline-view", Lifetime.process, "ro");
 
 /**
@@ -413,8 +416,9 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             this.observedInteractions?.delete(session.interactionComplete);
         }
         if (hasRemoteActor(session)) {
-            // Reset so a subsequent interaction on the same session re-emits interactionBegin and re-registers
             session.interactionStarted = false;
+        } else if (session?.interactionComplete) {
+            localInteractionBeginEmitted.delete(session.interactionComplete);
         }
 
         const location = this.location;
@@ -874,10 +878,30 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
 
         const interactionComplete = this.#session.interactionComplete;
         if (interactionComplete && !interactionComplete.isObservedBy(this.#internals.interactionObserver)) {
-            if (hasRemoteActor(this.#session) && !this.#session.interactionStarted) {
-                this.#session.interactionStarted = true;
-                if (this.#internals.events?.interactionBegin?.isObserved) {
-                    this.#internals.events?.interactionBegin?.emit(this.#session);
+            let emitBegin: boolean;
+            if (hasRemoteActor(this.#session)) {
+                emitBegin = !this.#session.interactionStarted;
+                if (emitBegin) {
+                    this.#session.interactionStarted = true;
+                }
+            } else {
+                emitBegin = !localInteractionBeginEmitted.has(interactionComplete);
+                if (emitBegin) {
+                    localInteractionBeginEmitted.add(interactionComplete);
+                }
+            }
+            if (emitBegin && this.#internals.events?.interactionBegin?.isObserved) {
+                const location = this.#internals.location;
+                function handleBeginObserverError(error: any) {
+                    logger.error(`Error in ${location.path} observer:`, error);
+                }
+                try {
+                    const result = this.#internals.events?.interactionBegin?.emit(this.#session);
+                    if (MaybePromise.is(result)) {
+                        MaybePromise.then(result, undefined, handleBeginObserverError);
+                    }
+                } catch (e) {
+                    handleBeginObserverError(e);
                 }
             }
             if (!this.#internals.observedInteractions) {

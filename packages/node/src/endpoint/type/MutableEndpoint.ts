@@ -123,12 +123,14 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
             return MutableEndpoint({
                 ...options,
                 behaviors: SupportedBehaviors.extend(this.behaviors, behaviors),
+                clientClusters: this.clientClusters,
             });
         },
 
         withClientClusters(this: MutableEndpoint, ...clientClusters: Behavior.Type[]) {
             return MutableEndpoint({
                 ...options,
+                behaviors: this.behaviors,
                 clientClusters: SupportedClientClusters.extend(this.clientClusters, clientClusters),
             });
         },

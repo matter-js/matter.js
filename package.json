@@ -56,6 +56,7 @@
         "device-onoff": "nacho-run examples/device-onoff/src/DeviceNode.ts",
         "device-onoff-advanced": "nacho-run examples/device-onoff-advanced/src/DeviceNodeFull.ts",
         "device-onoff-light": "nacho-run examples/device-onoff-light/src/LightDevice.ts",
+        "device-onoff-sensor-binding": "nacho-run examples/device-onoff-sensor-binding/src/OccupancyBindingDevice.ts",
         "device-sensor": "nacho-run examples/device-sensor/src/SensorDeviceNode.ts",
         "device-simple": "nacho-run examples/device-simple/src/main.ts",
         "device-smoke-co-alarm": "nacho-run examples/device-smoke-co-alarm/src/SmokeCOAlarmDeviceNode.ts",

@@ -51,7 +51,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `Endpoint.featuresOf()` / `maybeFeaturesOf()` — typed access to a cluster behavior's active feature flags
     - Feature: Added `Endpoint.globalsOf()` / `maybeGlobalsOf()` — exposes the global cluster attribute state
     - Feature: Allows ServerNode endpoints to declare client clusters via e.g. `OnOffLightDevice.with(OccupancySensingClient)`. Mandatory clients are auto-registered
-    - Feature: Added support for Cluster client bindings: `BindingServer` events `established` / `removed` are emited for defined bindings with Node references preinstalled on the materialized endpoint. See the new OccupancyBindingDevice example. To receive attribute changes from a bound peer set `resolution.node.set({ network: { defaultSubscription: Read(Read.Attribute({ ... })), autoSubscribe: true } })`
+    - Feature: Added support for Cluster client bindings: `BindingServer` events `established` / `removed` are emitted for defined bindings with Node references preinstalled on the materialized endpoint. See the new OccupancyBindingDevice example. To receive attribute changes from a bound peer set `resolution.node.set({ network: { defaultSubscription: Read(Read.Attribute({ ... })), autoSubscribe: true } })`
+    - Enhancement: `Behavior` events `interactionEnd` and `interactionBegin` now also fire for local `act()` writes, to be in sync with wire-driven interactions
     - Enhancement: Added string-id overloads to `commandsOf()`, `eventsOf()`, `stateOf()`/`maybeStateOf()`
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Enhancement: Added more warnings on invalid values for BasicInformation cluster
