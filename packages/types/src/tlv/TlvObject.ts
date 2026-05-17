@@ -162,7 +162,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
     #encodeList(writer: TlvWriter, value: TypeFromFields<F>, options?: TlvEncodingOptions) {
         const valueKeys = Object.keys(value);
         for (const name of valueKeys) {
-            if (!(name in this.fieldDefinitions)) {
+            if (!Object.hasOwn(this.fieldDefinitions, name)) {
                 throw new ValidationDatatypeMismatchError(
                     `Unknown field "${name}" not defined in tagged list schema.`,
                     name,

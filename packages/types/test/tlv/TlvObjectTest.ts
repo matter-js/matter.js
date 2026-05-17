@@ -540,6 +540,13 @@ describe("TlvObject tests", () => {
                 schemaList.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
             ).throw('Unknown field "bogus" not defined in tagged list schema.');
         });
+
+        it("rejects prototype-chain keys (e.g. 'toString') as unknown fields", () => {
+            const bogus = Object.assign(Object.create({ toString: "bad" }), { clusterId: 6, commandId: 1 });
+            // Add own enumerable 'toString' so Object.keys returns it.
+            Object.defineProperty(bogus, "toString", { value: "bad", enumerable: true });
+            expect(() => schemaList.encode(bogus)).throw('Unknown field "toString" not defined in tagged list schema.');
+        });
     });
 
     describe("Tlv Lists with protocol specific tags", () => {
