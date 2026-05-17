@@ -273,7 +273,10 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     persistentFields: Set<string>;
     supervisionConfig?: GlobalConfig;
 
-    observedInteractions?: Set<NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>>;
+    observedInteractions?: Set<
+        | NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>
+        | NonNullable<ValueSupervisor.LocalActorSession["interactionComplete"]>
+    >;
 
     #values: Val.Struct;
     #changedEventIndex?: Map<string, undefined | Datasource.Events[`${string}$Changed`]>;
@@ -405,11 +408,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     }
 
     interactionObserver = (session?: ValueSupervisor.Session) => {
+        if (session?.interactionComplete) {
+            session.interactionComplete.off(this.interactionObserver);
+            this.observedInteractions?.delete(session.interactionComplete);
+        }
         if (hasRemoteActor(session)) {
-            if (session.interactionComplete) {
-                session.interactionComplete.off(this.interactionObserver);
-                this.observedInteractions?.delete(session.interactionComplete);
-            }
             // Reset so a subsequent interaction on the same session re-emits interactionBegin and re-registers
             session.interactionStarted = false;
         }
@@ -869,21 +872,19 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         transaction.addParticipants(this);
         transaction.beginSync();
 
-        if (
-            hasRemoteActor(this.#session) &&
-            !this.#session.interactionStarted &&
-            this.#session.interactionComplete &&
-            !this.#session.interactionComplete.isObservedBy(this.#internals.interactionObserver)
-        ) {
-            this.#session.interactionStarted = true;
-            if (this.#internals.events?.interactionBegin?.isObserved) {
-                this.#internals.events?.interactionBegin?.emit(this.#session);
+        const interactionComplete = this.#session.interactionComplete;
+        if (interactionComplete && !interactionComplete.isObservedBy(this.#internals.interactionObserver)) {
+            if (hasRemoteActor(this.#session) && !this.#session.interactionStarted) {
+                this.#session.interactionStarted = true;
+                if (this.#internals.events?.interactionBegin?.isObserved) {
+                    this.#internals.events?.interactionBegin?.emit(this.#session);
+                }
             }
             if (!this.#internals.observedInteractions) {
                 this.#internals.observedInteractions = new Set();
             }
-            this.#internals.observedInteractions.add(this.#session.interactionComplete);
-            this.#session.interactionComplete.on(this.#internals.interactionObserver);
+            this.#internals.observedInteractions.add(interactionComplete);
+            interactionComplete.on(this.#internals.interactionObserver);
         }
     }
 
