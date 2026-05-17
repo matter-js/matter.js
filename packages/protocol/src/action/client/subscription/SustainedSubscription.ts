@@ -24,7 +24,6 @@ import {
     Seconds,
     Time,
 } from "@matter/general";
-import { Specification } from "@matter/model";
 import { SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
 import { PeerSubscription } from "./PeerSubscription.js";
@@ -197,7 +196,7 @@ export class SustainedSubscription extends ClientSubscription {
     }
 
     get interactionModelRevision() {
-        return this.#subscription?.interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION;
+        return this.#subscription?.interactionModelRevision;
     }
 
     get maxInterval() {

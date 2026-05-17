@@ -363,7 +363,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
         const dataReport: TypeFromSchema<typeof TlvDataReportForSend> = {
             subscriptionId,
             suppressResponse,
-            interactionModelRevision,
+            interactionModelRevision: interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION,
             attributeReports: undefined,
             eventReports: undefined,
         };
