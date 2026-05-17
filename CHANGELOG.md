@@ -50,6 +50,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `Endpoint.get()` and `Endpoint.getStateOf()` — async read API with optional `fabricFilter` control; on a client endpoint issues a single batched Matter Read; on a server endpoint returns a snapshot of local state
     - Feature: Added `Endpoint.featuresOf()` / `maybeFeaturesOf()` — typed access to a cluster behavior's active feature flags
     - Feature: Added `Endpoint.globalsOf()` / `maybeGlobalsOf()` — exposes the global cluster attribute state
+    - Feature: Allows ServerNode endpoints to declare client clusters via e.g. `OnOffLightDevice.with(OccupancySensingClient)`. Mandatory clients are auto-registered
+    - Feature: Added support for Cluster client bindings: `BindingServer` events `established` / `removed` are emitted for defined bindings with Node references preinstalled on the materialized endpoint. See the new OccupancyBindingDevice example. To receive attribute changes from a bound peer set `resolution.node.set({ network: { defaultSubscription: Read(Read.Attribute({ ... })), autoSubscribe: true } })`
+    - Enhancement: `Behavior` events `interactionEnd` and `interactionBegin` now also fire for local `act()` writes, to be in sync with wire-driven interactions
     - Enhancement: Added string-id overloads to `commandsOf()`, `eventsOf()`, `stateOf()`/`maybeStateOf()`
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Enhancement: Added more warnings on invalid values for BasicInformation cluster
@@ -118,6 +121,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Removed some special pre-bound TLV string/byte-string schema exports, including `TlvHardwareAddress`
     - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
     - Enhancement: Increases Matter TlvString/TlvByteString default maximum length to 65536 to cover WebRTC cases
+    - Fix: `NodeId.fromGroupId` now produces a full 16-hex Group Node ID per Matter spec
     - Fix: (@snabb) `TlvTaggedList` now ensures schema/tag ordering when encoding (Matter Core §10.6.1). Added `TlvTaggedListPreservingOrder` for cases where ordering needs to be data driven (e.g. signed certificate sub-lists).
 
 - @project-chip/matter.js

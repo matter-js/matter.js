@@ -11,9 +11,7 @@ import {
     ValveConfigurationAndControlServer as BaseValveConfigurationAndControlServer
 } from "../behaviors/valve-configuration-and-control/ValveConfigurationAndControlServer.js";
 import { FlowMeasurementServer as BaseFlowMeasurementServer } from "../behaviors/flow-measurement/FlowMeasurementServer.js";
-import {
-    FlowMeasurementBehavior as BaseFlowMeasurementBehavior
-} from "../behaviors/flow-measurement/FlowMeasurementBehavior.js";
+import { FlowMeasurementClient as BaseFlowMeasurementClient } from "../behaviors/flow-measurement/FlowMeasurementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -50,9 +48,9 @@ export namespace WaterValveRequirements {
     /**
      * The FlowMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link FlowMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link FlowMeasurementClient} for convenience.
      */
-    export const FlowMeasurementBehavior = BaseFlowMeasurementBehavior;
+    export const FlowMeasurementClient = BaseFlowMeasurementClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -65,7 +63,7 @@ export namespace WaterValveRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { FlowMeasurement: FlowMeasurementBehavior }, mandatory: {} };
+    export const client = { optional: { FlowMeasurement: FlowMeasurementClient }, mandatory: {} };
 }
 
 export const WaterValveDeviceDefinition = MutableEndpoint({

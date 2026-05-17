@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
-
 export * from "./BindingBehavior.js";
 export * from "./BindingServer.js";
 export * from "./BindingClient.js";
+export type { BindingResolution } from "./BindingManager.js";

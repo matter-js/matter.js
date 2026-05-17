@@ -10,31 +10,29 @@ import {
     WebRtcTransportRequestorServer as BaseWebRtcTransportRequestorServer
 } from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorServer.js";
 import {
-    WebRtcTransportProviderBehavior as BaseWebRtcTransportProviderBehavior
-} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderBehavior.js";
-import { IdentifyBehavior as BaseIdentifyBehavior } from "../behaviors/identify/IdentifyBehavior.js";
-import { PowerSourceBehavior as BasePowerSourceBehavior } from "../behaviors/power-source/PowerSourceBehavior.js";
+    WebRtcTransportProviderClient as BaseWebRtcTransportProviderClient
+} from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderClient.js";
+import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
+import { PowerSourceClient as BasePowerSourceClient } from "../behaviors/power-source/PowerSourceClient.js";
 import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
+import { ZoneManagementClient as BaseZoneManagementClient } from "../behaviors/zone-management/ZoneManagementClient.js";
 import {
-    ZoneManagementBehavior as BaseZoneManagementBehavior
-} from "../behaviors/zone-management/ZoneManagementBehavior.js";
+    CameraAvStreamManagementClient as BaseCameraAvStreamManagementClient
+} from "../behaviors/camera-av-stream-management/CameraAvStreamManagementClient.js";
 import {
-    CameraAvStreamManagementBehavior as BaseCameraAvStreamManagementBehavior
-} from "../behaviors/camera-av-stream-management/CameraAvStreamManagementBehavior.js";
+    CameraAvSettingsUserLevelManagementClient as BaseCameraAvSettingsUserLevelManagementClient
+} from "../behaviors/camera-av-settings-user-level-management/CameraAvSettingsUserLevelManagementClient.js";
 import {
-    CameraAvSettingsUserLevelManagementBehavior as BaseCameraAvSettingsUserLevelManagementBehavior
-} from "../behaviors/camera-av-settings-user-level-management/CameraAvSettingsUserLevelManagementBehavior.js";
+    PushAvStreamTransportClient as BasePushAvStreamTransportClient
+} from "../behaviors/push-av-stream-transport/PushAvStreamTransportClient.js";
 import {
-    PushAvStreamTransportBehavior as BasePushAvStreamTransportBehavior
-} from "../behaviors/push-av-stream-transport/PushAvStreamTransportBehavior.js";
+    TlsCertificateManagementClient as BaseTlsCertificateManagementClient
+} from "../behaviors/tls-certificate-management/TlsCertificateManagementClient.js";
 import {
-    TlsCertificateManagementBehavior as BaseTlsCertificateManagementBehavior
-} from "../behaviors/tls-certificate-management/TlsCertificateManagementBehavior.js";
-import {
-    TlsClientManagementBehavior as BaseTlsClientManagementBehavior
-} from "../behaviors/tls-client-management/TlsClientManagementBehavior.js";
+    TlsClientManagementClient as BaseTlsClientManagementClient
+} from "../behaviors/tls-client-management/TlsClientManagementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -57,73 +55,73 @@ export namespace CameraControllerRequirements {
     /**
      * The WebRtcTransportProvider cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link WebRtcTransportProviderBehavior} for convenience.
+     * We provide this alias to the default implementation {@link WebRtcTransportProviderClient} for convenience.
      */
-    export const WebRtcTransportProviderBehavior = BaseWebRtcTransportProviderBehavior;
+    export const WebRtcTransportProviderClient = BaseWebRtcTransportProviderClient;
 
     /**
      * The Identify cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyBehavior} for convenience.
+     * We provide this alias to the default implementation {@link IdentifyClient} for convenience.
      */
-    export const IdentifyBehavior = BaseIdentifyBehavior;
+    export const IdentifyClient = BaseIdentifyClient;
 
     /**
      * The PowerSource cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link PowerSourceBehavior} for convenience.
+     * We provide this alias to the default implementation {@link PowerSourceClient} for convenience.
      */
-    export const PowerSourceBehavior = BasePowerSourceBehavior;
+    export const PowerSourceClient = BasePowerSourceClient;
 
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * The ZoneManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ZoneManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ZoneManagementClient} for convenience.
      */
-    export const ZoneManagementBehavior = BaseZoneManagementBehavior;
+    export const ZoneManagementClient = BaseZoneManagementClient;
 
     /**
      * The CameraAvStreamManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link CameraAvStreamManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link CameraAvStreamManagementClient} for convenience.
      */
-    export const CameraAvStreamManagementBehavior = BaseCameraAvStreamManagementBehavior;
+    export const CameraAvStreamManagementClient = BaseCameraAvStreamManagementClient;
 
     /**
      * The CameraAvSettingsUserLevelManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link CameraAvSettingsUserLevelManagementBehavior} for
+     * We provide this alias to the default implementation {@link CameraAvSettingsUserLevelManagementClient} for
      * convenience.
      */
-    export const CameraAvSettingsUserLevelManagementBehavior = BaseCameraAvSettingsUserLevelManagementBehavior;
+    export const CameraAvSettingsUserLevelManagementClient = BaseCameraAvSettingsUserLevelManagementClient;
 
     /**
      * The PushAvStreamTransport cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link PushAvStreamTransportBehavior} for convenience.
+     * We provide this alias to the default implementation {@link PushAvStreamTransportClient} for convenience.
      */
-    export const PushAvStreamTransportBehavior = BasePushAvStreamTransportBehavior;
+    export const PushAvStreamTransportClient = BasePushAvStreamTransportClient;
 
     /**
      * The TlsCertificateManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TlsCertificateManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TlsCertificateManagementClient} for convenience.
      */
-    export const TlsCertificateManagementBehavior = BaseTlsCertificateManagementBehavior;
+    export const TlsCertificateManagementClient = BaseTlsCertificateManagementClient;
 
     /**
      * The TlsClientManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TlsClientManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TlsClientManagementClient} for convenience.
      */
-    export const TlsClientManagementBehavior = BaseTlsClientManagementBehavior;
+    export const TlsClientManagementClient = BaseTlsClientManagementClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -134,18 +132,18 @@ export namespace CameraControllerRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { WebRtcTransportProvider: WebRtcTransportProviderBehavior },
+        mandatory: { WebRtcTransportProvider: WebRtcTransportProviderClient },
 
         optional: {
-            Identify: IdentifyBehavior,
-            PowerSource: PowerSourceBehavior,
-            OccupancySensing: OccupancySensingBehavior,
-            ZoneManagement: ZoneManagementBehavior,
-            CameraAvStreamManagement: CameraAvStreamManagementBehavior,
-            CameraAvSettingsUserLevelManagement: CameraAvSettingsUserLevelManagementBehavior,
-            PushAvStreamTransport: PushAvStreamTransportBehavior,
-            TlsCertificateManagement: TlsCertificateManagementBehavior,
-            TlsClientManagement: TlsClientManagementBehavior
+            Identify: IdentifyClient,
+            PowerSource: PowerSourceClient,
+            OccupancySensing: OccupancySensingClient,
+            ZoneManagement: ZoneManagementClient,
+            CameraAvStreamManagement: CameraAvStreamManagementClient,
+            CameraAvSettingsUserLevelManagement: CameraAvSettingsUserLevelManagementClient,
+            PushAvStreamTransport: PushAvStreamTransportClient,
+            TlsCertificateManagement: TlsCertificateManagementClient,
+            TlsClientManagement: TlsClientManagementClient
         }
     };
 }

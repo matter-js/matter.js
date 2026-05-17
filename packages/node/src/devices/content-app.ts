@@ -19,8 +19,8 @@ import { MediaPlaybackServer as BaseMediaPlaybackServer } from "../behaviors/med
 import { ContentLauncherServer as BaseContentLauncherServer } from "../behaviors/content-launcher/ContentLauncherServer.js";
 import { AccountLoginServer as BaseAccountLoginServer } from "../behaviors/account-login/AccountLoginServer.js";
 import {
-    ContentAppObserverBehavior as BaseContentAppObserverBehavior
-} from "../behaviors/content-app-observer/ContentAppObserverBehavior.js";
+    ContentAppObserverClient as BaseContentAppObserverClient
+} from "../behaviors/content-app-observer/ContentAppObserverClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -95,9 +95,9 @@ export namespace ContentAppRequirements {
     /**
      * The ContentAppObserver cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ContentAppObserverBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ContentAppObserverClient} for convenience.
      */
-    export const ContentAppObserverBehavior = BaseContentAppObserverBehavior;
+    export const ContentAppObserverClient = BaseContentAppObserverClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -121,7 +121,7 @@ export namespace ContentAppRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { ContentAppObserver: ContentAppObserverBehavior }, mandatory: {} };
+    export const client = { optional: { ContentAppObserver: ContentAppObserverClient }, mandatory: {} };
 }
 
 export const ContentAppDeviceDefinition = MutableEndpoint({

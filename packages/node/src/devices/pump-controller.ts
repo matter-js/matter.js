@@ -7,25 +7,23 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
-import { OnOffBehavior as BaseOnOffBehavior } from "../behaviors/on-off/OnOffBehavior.js";
+import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import {
-    PumpConfigurationAndControlBehavior as BasePumpConfigurationAndControlBehavior
-} from "../behaviors/pump-configuration-and-control/PumpConfigurationAndControlBehavior.js";
-import { IdentifyBehavior as BaseIdentifyBehavior } from "../behaviors/identify/IdentifyBehavior.js";
-import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
-import { LevelControlBehavior as BaseLevelControlBehavior } from "../behaviors/level-control/LevelControlBehavior.js";
+    PumpConfigurationAndControlClient as BasePumpConfigurationAndControlClient
+} from "../behaviors/pump-configuration-and-control/PumpConfigurationAndControlClient.js";
+import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
+import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
+import { LevelControlClient as BaseLevelControlClient } from "../behaviors/level-control/LevelControlClient.js";
 import {
-    ScenesManagementBehavior as BaseScenesManagementBehavior
-} from "../behaviors/scenes-management/ScenesManagementBehavior.js";
+    ScenesManagementClient as BaseScenesManagementClient
+} from "../behaviors/scenes-management/ScenesManagementClient.js";
 import {
-    TemperatureMeasurementBehavior as BaseTemperatureMeasurementBehavior
-} from "../behaviors/temperature-measurement/TemperatureMeasurementBehavior.js";
+    TemperatureMeasurementClient as BaseTemperatureMeasurementClient
+} from "../behaviors/temperature-measurement/TemperatureMeasurementClient.js";
 import {
-    PressureMeasurementBehavior as BasePressureMeasurementBehavior
-} from "../behaviors/pressure-measurement/PressureMeasurementBehavior.js";
-import {
-    FlowMeasurementBehavior as BaseFlowMeasurementBehavior
-} from "../behaviors/flow-measurement/FlowMeasurementBehavior.js";
+    PressureMeasurementClient as BasePressureMeasurementClient
+} from "../behaviors/pressure-measurement/PressureMeasurementClient.js";
+import { FlowMeasurementClient as BaseFlowMeasurementClient } from "../behaviors/flow-measurement/FlowMeasurementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -48,65 +46,65 @@ export namespace PumpControllerRequirements {
     /**
      * The OnOff cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OnOffBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OnOffClient} for convenience.
      */
-    export const OnOffBehavior = BaseOnOffBehavior;
+    export const OnOffClient = BaseOnOffClient;
 
     /**
      * The PumpConfigurationAndControl cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link PumpConfigurationAndControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link PumpConfigurationAndControlClient} for convenience.
      */
-    export const PumpConfigurationAndControlBehavior = BasePumpConfigurationAndControlBehavior;
+    export const PumpConfigurationAndControlClient = BasePumpConfigurationAndControlClient;
 
     /**
      * The Identify cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyBehavior} for convenience.
+     * We provide this alias to the default implementation {@link IdentifyClient} for convenience.
      */
-    export const IdentifyBehavior = BaseIdentifyBehavior;
+    export const IdentifyClient = BaseIdentifyClient;
 
     /**
      * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupsBehavior} for convenience.
+     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
      */
-    export const GroupsBehavior = BaseGroupsBehavior;
+    export const GroupsClient = BaseGroupsClient;
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link LevelControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link LevelControlClient} for convenience.
      */
-    export const LevelControlBehavior = BaseLevelControlBehavior;
+    export const LevelControlClient = BaseLevelControlClient;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ScenesManagementClient} for convenience.
      */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
+    export const ScenesManagementClient = BaseScenesManagementClient;
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TemperatureMeasurementClient} for convenience.
      */
-    export const TemperatureMeasurementBehavior = BaseTemperatureMeasurementBehavior;
+    export const TemperatureMeasurementClient = BaseTemperatureMeasurementClient;
 
     /**
      * The PressureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link PressureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link PressureMeasurementClient} for convenience.
      */
-    export const PressureMeasurementBehavior = BasePressureMeasurementBehavior;
+    export const PressureMeasurementClient = BasePressureMeasurementClient;
 
     /**
      * The FlowMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link FlowMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link FlowMeasurementClient} for convenience.
      */
-    export const FlowMeasurementBehavior = BaseFlowMeasurementBehavior;
+    export const FlowMeasurementClient = BaseFlowMeasurementClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -117,16 +115,16 @@ export namespace PumpControllerRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { OnOff: OnOffBehavior, PumpConfigurationAndControl: PumpConfigurationAndControlBehavior },
+        mandatory: { OnOff: OnOffClient, PumpConfigurationAndControl: PumpConfigurationAndControlClient },
 
         optional: {
-            Identify: IdentifyBehavior,
-            Groups: GroupsBehavior,
-            LevelControl: LevelControlBehavior,
-            ScenesManagement: ScenesManagementBehavior,
-            TemperatureMeasurement: TemperatureMeasurementBehavior,
-            PressureMeasurement: PressureMeasurementBehavior,
-            FlowMeasurement: FlowMeasurementBehavior
+            Identify: IdentifyClient,
+            Groups: GroupsClient,
+            LevelControl: LevelControlClient,
+            ScenesManagement: ScenesManagementClient,
+            TemperatureMeasurement: TemperatureMeasurementClient,
+            PressureMeasurement: PressureMeasurementClient,
+            FlowMeasurement: FlowMeasurementClient
         }
     };
 }

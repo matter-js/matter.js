@@ -6,7 +6,7 @@
 
 import type { ClusterType } from "@matter/types";
 import { ClusterBehavior } from "./ClusterBehavior.js";
-import { markClientBehavior } from "./cluster-behavior-utils.js";
+import { clientBrand, markClientBehavior } from "./cluster-behavior-utils.js";
 
 /**
  * Client view of a {@link ClusterBehavior}.
@@ -19,7 +19,7 @@ import { markClientBehavior } from "./cluster-behavior-utils.js";
  */
 export function ClientBehavior<const NS extends ClusterType>(
     ns: NS,
-): ClusterBehavior.Complete<typeof ClusterBehavior, NS> {
+): ClusterBehavior.Complete<typeof ClusterBehavior, NS> & { [k in typeof clientBrand]: true } {
     const schema = (ns as { schema?: { name?: string } }).schema;
     const behavior = ClusterBehavior.for(ns, undefined, `${schema?.name ?? "Unknown"}Client`);
 

@@ -15,16 +15,16 @@ import {
 import {
     ThermostatUserInterfaceConfigurationServer as BaseThermostatUserInterfaceConfigurationServer
 } from "../behaviors/thermostat-user-interface-configuration/ThermostatUserInterfaceConfigurationServer.js";
-import { FanControlBehavior as BaseFanControlBehavior } from "../behaviors/fan-control/FanControlBehavior.js";
+import { FanControlClient as BaseFanControlClient } from "../behaviors/fan-control/FanControlClient.js";
 import {
-    TemperatureMeasurementBehavior as BaseTemperatureMeasurementBehavior
-} from "../behaviors/temperature-measurement/TemperatureMeasurementBehavior.js";
+    TemperatureMeasurementClient as BaseTemperatureMeasurementClient
+} from "../behaviors/temperature-measurement/TemperatureMeasurementClient.js";
 import {
-    RelativeHumidityMeasurementBehavior as BaseRelativeHumidityMeasurementBehavior
-} from "../behaviors/relative-humidity-measurement/RelativeHumidityMeasurementBehavior.js";
+    RelativeHumidityMeasurementClient as BaseRelativeHumidityMeasurementClient
+} from "../behaviors/relative-humidity-measurement/RelativeHumidityMeasurementClient.js";
 import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -82,30 +82,30 @@ export namespace ThermostatRequirements {
     /**
      * The FanControl cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link FanControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link FanControlClient} for convenience.
      */
-    export const FanControlBehavior = BaseFanControlBehavior;
+    export const FanControlClient = BaseFanControlClient;
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TemperatureMeasurementClient} for convenience.
      */
-    export const TemperatureMeasurementBehavior = BaseTemperatureMeasurementBehavior;
+    export const TemperatureMeasurementClient = BaseTemperatureMeasurementClient;
 
     /**
      * The RelativeHumidityMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link RelativeHumidityMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link RelativeHumidityMeasurementClient} for convenience.
      */
-    export const RelativeHumidityMeasurementBehavior = BaseRelativeHumidityMeasurementBehavior;
+    export const RelativeHumidityMeasurementClient = BaseRelativeHumidityMeasurementClient;
 
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -124,10 +124,10 @@ export namespace ThermostatRequirements {
      */
     export const client = {
         optional: {
-            FanControl: FanControlBehavior,
-            TemperatureMeasurement: TemperatureMeasurementBehavior,
-            RelativeHumidityMeasurement: RelativeHumidityMeasurementBehavior,
-            OccupancySensing: OccupancySensingBehavior
+            FanControl: FanControlClient,
+            TemperatureMeasurement: TemperatureMeasurementClient,
+            RelativeHumidityMeasurement: RelativeHumidityMeasurementClient,
+            OccupancySensing: OccupancySensingClient
         },
 
         mandatory: {}

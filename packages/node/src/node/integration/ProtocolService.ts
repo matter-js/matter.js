@@ -352,8 +352,9 @@ class ClusterState implements ClusterProtocol {
     }
 
     readState(session: InteractionSession): Val.ProtocolStruct {
+        const { interactionComplete: _ic, ...readOnly } = LocalActorContext.ReadOnly;
         const supervisorSession: ValueSupervisor.Session = {
-            ...LocalActorContext.ReadOnly,
+            ...readOnly,
             ...session,
         };
         return this.#datasource.reference(supervisorSession);
