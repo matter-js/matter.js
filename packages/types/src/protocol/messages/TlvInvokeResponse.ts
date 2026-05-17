@@ -20,7 +20,7 @@ export const TlvInvokeResponse = TlvObject({
     /** Command response or status. */
     invokeResponses: TlvField(1, TlvArray(TlvInvokeResponseData)),
     moreChunkedMessages: TlvOptionalField(2, TlvBoolean),
-    interactionModelRevision: TlvField(0xff, TlvUInt8),
+    interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 
 export type InvokeResponse = TypeFromSchema<typeof TlvInvokeResponse>;

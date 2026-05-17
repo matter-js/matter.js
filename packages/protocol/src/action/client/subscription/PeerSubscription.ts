@@ -13,7 +13,7 @@ import { ClientSubscription } from "./ClientSubscription.js";
  * A Matter protocol-level subscription established with a peer.
  */
 export class PeerSubscription extends ClientSubscription {
-    readonly interactionModelRevision: number;
+    readonly interactionModelRevision: number | undefined;
     readonly maxInterval: number;
     readonly #maxPeerResponseTime: Duration;
     isReading = false;

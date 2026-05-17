@@ -242,6 +242,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         };
     }
 
+    #checkSenderRevision(interactionModelRevision: number | undefined) {
+        if (interactionModelRevision === undefined) {
+            logger.debug("Sender omitted interaction model revision");
+        } else if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
+            logger.debug(
+                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}`,
+            );
+        }
+    }
+
     /**
      * Returns an iterator that yields the data reports and events data for the given read request.
      */
@@ -284,11 +294,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
         if (attributeRequests === undefined && eventRequests === undefined) {
             return {
                 dataReport: {
@@ -339,11 +345,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         }
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
 
@@ -529,11 +531,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
             throw new StatusResponseError(
@@ -834,11 +832,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
         if (exchange.hasExpiredTimedInteraction()) {
@@ -994,11 +988,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         exchange.startTimedInteraction(interval);
     }

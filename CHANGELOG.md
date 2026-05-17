@@ -16,14 +16,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
 
 - @matter/\*
+    - Upgraded to Matter specification version 1.5
     - 20%–50% RAM usage reductions and improvements
-
-- @matter/model
-    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
-    - Breaking: Attributes declared by decorators (`@attribute(...)`) now default to read-only (`R V`); apply the `writable` decorator to attributes that must accept writes
-    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
-    - Enhancement: The fluent API for manipulating the Matter data model is improved
-    - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
 
 - @matter/general
     - Breaking: Blob/File-related storage methods were removed from the normal Storage implementation
@@ -35,8 +29,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added Storage Migration logic that can generically migrate between different storage engines
     - Enhancement: `LogFormat.format` renders any Diagnostic-loggable value to a string in the specified format (defaults to plain text)
 
-- @matter/\*:
-    - Upgraded to Matter specification version 1.5
+- @matter/main
+    - Feature: Added `version` string export that exposes the published matter.js version
+
+- @matter/model
+    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
+    - Breaking: Attributes declared by decorators (`@attribute(...)`) now default to read-only (`R V`); apply the `writable` decorator to attributes that must accept writes
+    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
+    - Enhancement: The fluent API for manipulating the Matter data model is improved
+    - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
@@ -79,8 +80,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
     - Feature: Device attestation validation during commissioning per Matter spec 6.2.3.1 — certificate chain verification, attestation signature/nonce, Certification Declaration validation, and certificate revocation checks via CRL
     - Feature: Attestation findings model with error/warning/info levels and configurable policy callback for custom commissioning decisions
-    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL on demand, validates signer chain against trusted PAAs, verifies CRL signature and integrity
+    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL on demand, validates the signer chain against trusted PAAs, verifies CRL signature and integrity
     - Feature: `CertificationDeclaration.parse()` for CMS/PKCS#7 signed CD extraction and signature verification
+    - Feature: Enhances DclVendorInfoService and DclCertificateService with an option to seed data to support cases where no internal connection is available (@matter/dcl-data package gets published daily)
     - Enhancement: Attestation local checks (nonce, signature, VendorID, CD fields) run even without `DclCertificateService`; DCL-dependent checks (PAA trust, chain, revocation) require it
     - Enhancement: Server-side `DeviceCertification` validates DAC/PAI VendorID and ProductID against product description at startup
     - Enhancement: Enhances the strategy when multiple devices are discovered for the same commissioning target
@@ -103,6 +105,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Do not announce devices as commissionable before the factory reset when the last fabric is removed
     - Fix: Fixes expiry logic where cached records for Commissionable devices could potentially never expire
     - Fix: For BDX cases also give the device the defined timeout of 5 minutes to ack/request the next packet
+    - Fix: Accept SecureChannel StatusReport messages on any protocol exchange (e.g. BDX)
     - Fix: Ensures the Matter port on IPv4 is the same as on IPv6
 
 - @matter/react-native
@@ -118,6 +121,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
     - Enhancement: Increases Matter TlvString/TlvByteString default maximum length to 65536 to cover WebRTC cases
     - Fix: `NodeId.fromGroupId` now produces a full 16-hex Group Node ID per Matter spec
+    - Fix: (@snabb) `TlvTaggedList` now ensures schema/tag ordering when encoding (Matter Core §10.6.1). Added `TlvTaggedListPreservingOrder` for cases where ordering needs to be data driven (e.g. signed certificate sub-lists).
 
 - @project-chip/matter.js
     - Feature: CommissioningController allows to set `tcp` (boolean) to enable TCP support for the controller

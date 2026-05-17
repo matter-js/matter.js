@@ -17,7 +17,7 @@ import {
     TlvOptionalField,
     TlvOptionalRepeatedField,
     TlvString,
-    TlvTaggedList,
+    TlvTaggedListPreservingOrder,
     TlvUInt16,
     TlvUInt32,
     TlvUInt64,
@@ -32,7 +32,7 @@ import { ExtensionKeyUsageBitmap } from "./base.js";
  */
 export const MAX_TLV_CERTIFICATE_SIZE = 400;
 
-export const TlvCertificateExtension = TlvTaggedList({
+export const TlvCertificateExtension = TlvTaggedListPreservingOrder({
     basicConstraints: TlvField(
         1,
         TlvObject({
@@ -105,7 +105,8 @@ export namespace OperationalCertificate {
             dnQualifierPs: TlvOptionalField(142, TlvString),
             pseudonymPs: TlvOptionalField(143, TlvString),
         };
-        return TlvTaggedList(fields);
+        // Order-preserving: subject/issuer DN sub-lists are part of the certificate's signed bytes; re-encode must reproduce caller order.
+        return TlvTaggedListPreservingOrder(fields);
     };
 
     /**
