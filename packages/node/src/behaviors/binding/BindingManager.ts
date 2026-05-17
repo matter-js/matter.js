@@ -5,7 +5,6 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { ClientNode } from "#node/ClientNode.js";
@@ -367,7 +366,7 @@ export class BindingManager {
 
         const observable = resolution.node.lifecycle.online;
         const rec = this.#record(server);
-        const handler = async (_ctx: ActionContext) => {
+        const handler = async () => {
             this.#clearPending(server, resolution.entry);
             this.#recordEstablished(server, resolution);
             if (!this.#shouldEmitEstablished(rec.server, resolution)) {
@@ -396,7 +395,7 @@ export class BindingManager {
         // binding entry brought it online), fire the handler directly via the multiplex so this
         // entry resolves promptly.  Otherwise wait for the next transition.
         if (resolution.node.lifecycle.isOnline) {
-            this.#multiplex.add(handler(undefined as unknown as ActionContext), "binding established (online)");
+            this.#multiplex.add(handler(), "binding established (online)");
             return;
         }
         observable.once(handler);
