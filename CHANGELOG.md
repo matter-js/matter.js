@@ -118,6 +118,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Removed some special pre-bound TLV string/byte-string schema exports, including `TlvHardwareAddress`
     - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
     - Enhancement: Increases Matter TlvString/TlvByteString default maximum length to 65536 to cover WebRTC cases
+    - Fix: (@snabb) `TlvTaggedList` now ensures schema/tag ordering when encoding (Matter Core §10.6.1). Added `TlvTaggedListPreservingOrder` for cases where ordering needs to be data driven (e.g. signed certificate sub-lists).
 
 - @project-chip/matter.js
     - Feature: CommissioningController allows to set `tcp` (boolean) to enable TCP support for the controller
