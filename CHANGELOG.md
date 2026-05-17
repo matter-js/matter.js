@@ -116,6 +116,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
     - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
     - Breaking: Removed some special pre-bound TLV string/byte-string schema exports, including `TlvHardwareAddress`
+    - Breaking: `interactionModelRevision` on all Interaction Model message schemas is now optional (`number | undefined`); chip SDK already treats it as optional per-message and cannot disambiguate revisions when absent, so consumers must handle `undefined` rather than receive a synthetic default
     - Feature: We've rewritten the typing system for clusters to simplify types, consume less runtime memory and work better with IDEs
     - Enhancement: Increases Matter TlvString/TlvByteString default maximum length to 65536 to cover WebRTC cases
 

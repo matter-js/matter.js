@@ -40,7 +40,7 @@ export const TlvSubscribeRequest = TlvObject({
 
     /** A list of zero or more cluster instance data versions. */
     dataVersionFilters: TlvOptionalField(8, TlvArray(TlvDataVersionFilter)),
-    interactionModelRevision: TlvField(0xff, TlvUInt8),
+    interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 
 export type SubscribeRequest = TypeFromSchema<typeof TlvSubscribeRequest>;

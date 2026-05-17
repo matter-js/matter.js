@@ -31,7 +31,7 @@ export const TlvReadRequest = TlvObject({
 
     /** A list of zero or more cluster instance data versions. */
     dataVersionFilters: TlvOptionalField(4, TlvArray(TlvDataVersionFilter)),
-    interactionModelRevision: TlvField(0xff, TlvUInt8),
+    interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 
 export type ReadRequest = TypeFromSchema<typeof TlvReadRequest>;
