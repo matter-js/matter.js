@@ -518,6 +518,28 @@ describe("TlvObject tests", () => {
                 callerOrderHex,
             );
         });
+
+        it("throws ValidationDatatypeMismatchError on unknown fields", () => {
+            expect(() =>
+                // @ts-expect-error test case
+                schemaPreserve.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
+            ).throw('Unknown field "bogus" not defined in tagged list schema.');
+        });
+    });
+
+    describe("TlvTaggedList rejects unknown fields", () => {
+        const schemaList = TlvTaggedList({
+            endpointId: TlvOptionalField(0, TlvUInt16),
+            clusterId: TlvField(1, TlvUInt32),
+            commandId: TlvField(2, TlvUInt32),
+        });
+
+        it("throws ValidationDatatypeMismatchError on unknown fields in default schema-order mode", () => {
+            expect(() =>
+                // @ts-expect-error test case
+                schemaList.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
+            ).throw('Unknown field "bogus" not defined in tagged list schema.');
+        });
     });
 
     describe("Tlv Lists with protocol specific tags", () => {

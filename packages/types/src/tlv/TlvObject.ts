@@ -159,9 +159,18 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
      * whose signed bytes depend on original member order; §A.5.3), with any remaining schema fields appended after.
      */
     #encodeList(writer: TlvWriter, value: TypeFromFields<F>, options?: TlvEncodingOptions) {
+        const valueKeys = Object.keys(value);
+        for (const name of valueKeys) {
+            if (!(name in this.fieldDefinitions)) {
+                throw new ValidationDatatypeMismatchError(
+                    `Unknown field "${name}" not defined in tagged list schema.`,
+                    name,
+                );
+            }
+        }
         const encodedFields = new Set<string>();
         if (this.preserveDataOrdering) {
-            for (const name of Object.keys(value)) {
+            for (const name of valueKeys) {
                 this.#encodeEntryToTlv(writer, name, value, options);
                 encodedFields.add(name);
             }
