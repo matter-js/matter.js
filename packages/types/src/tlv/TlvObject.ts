@@ -154,7 +154,8 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
     }
 
     /**
-     * Encode the object as List. Default emits in schema/tag order (Matter Core §10.6.1). With
+     * Encode the object as List. Default emits in schema definition order (which matter.js declares in spec/tag order,
+     * satisfying Matter Core §10.6.1 for Interaction Model IBs). With
      * {@link preserveDataOrdering}, caller-supplied property order is emitted first (used for certificate sub-lists
      * whose signed bytes depend on original member order; §A.5.3), with any remaining schema fields appended after.
      */
@@ -359,7 +360,8 @@ export const TlvObjectWithMaxSize = <F extends TlvFields>(fields: F, maxSize: nu
     new ObjectSchemaWithMaxSize(fields, maxSize, TlvType.Structure);
 
 /**
- * List TLV schema with all tagged entries. Members are emitted in schema/tag order on encode, per Matter Core §10.6.1.
+ * List TLV schema with all tagged entries. Members are emitted in schema definition order on encode; matter.js
+ * declares fields in spec/tag order, which satisfies Matter Core §10.6.1 for Interaction Model IBs.
  * List entries that can appear multiple times can be defined using TlvRepeatedField/TlvOptionalRepeatedField and are
  * represented as Arrays.
  *
