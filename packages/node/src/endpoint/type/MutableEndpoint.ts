@@ -61,7 +61,7 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
         const added = Object.keys(merged).filter(k => !(k in clientClusters));
         if (added.length > 0) {
             clientClusters = merged;
-            logger.info(
+            logger.debug(
                 `Auto-registered mandatory client cluster(s) [${added.join(", ")}] for device type ${type.name}`,
             );
         }

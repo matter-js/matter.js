@@ -21,6 +21,13 @@ const logger = Logger.get("BindingManager");
 
 type QueueItem = { server: BindingServer; endpoint: Endpoint; entry: Binding.Target };
 
+/** Stable string key for a {@link Binding.Target} — shared by BindingServer cache and BindingManager maps. */
+export function bindingEntryKey(entry: Binding.Target): string {
+    return [entry.fabricIndex, entry.node ?? "", entry.group ?? "", entry.endpoint ?? "", entry.cluster ?? ""].join(
+        "/",
+    );
+}
+
 export type BindingResolution =
     | { kind: "client"; node: ClientNode; endpoint: Endpoint; entry: Binding.Target }
     | { kind: "group"; node: ClientGroup; endpoint: Endpoint; entry: Binding.Target }
@@ -118,7 +125,7 @@ export class BindingManager {
             }
         }
 
-        server.emitRemoved(resolution);
+        this.#multiplex.add(server.emitRemoved(resolution), "binding removed");
     }
 
     async #flushQueue(): Promise<void> {
@@ -222,7 +229,7 @@ export class BindingManager {
         }
 
         this.#recordEstablished(server, resolution);
-        server.emitEstablished(resolution);
+        await server.emitEstablished(resolution);
     }
 
     #endpointHasClusterServer(endpoint: Endpoint, clusterId: number): boolean {
@@ -256,9 +263,7 @@ export class BindingManager {
     }
 
     #entryKey(entry: Binding.Target): string {
-        return [entry.fabricIndex, entry.node ?? "", entry.group ?? "", entry.endpoint ?? "", entry.cluster ?? ""].join(
-            "/",
-        );
+        return bindingEntryKey(entry);
     }
 
     #establishClientKind(server: BindingServer, resolution: BindingResolution & { kind: "client" }): void {
@@ -278,7 +283,7 @@ export class BindingManager {
         const handler = async (_ctx: ActionContext) => {
             this.#clearPending(server, resolution.entry);
             this.#recordEstablished(server, resolution);
-            server.emitEstablished(resolution);
+            await server.emitEstablished(resolution);
         };
         observable.once(handler);
 

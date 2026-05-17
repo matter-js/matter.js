@@ -36,7 +36,9 @@ export class NetworkClient extends NetworkBehavior {
             this.state.defaultSubscription = undefined;
         } else {
             this.reactTo(this.events.autoSubscribe$Changed, this.#syncAutoSubscribe, { offline: true });
-            this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange);
+            this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange, {
+                offline: true,
+            });
             this.reactTo(this.events.subscriptionStatusChanged, this.#flushCacheOnSubscribed);
         }
     }

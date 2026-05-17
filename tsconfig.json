@@ -80,6 +80,9 @@
             "path": "examples/device-onoff-advanced"
         },
         {
+            "path": "examples/device-onoff-sensor-binding"
+        },
+        {
             "path": "examples/device-onoff-light"
         },
         {

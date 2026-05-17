@@ -24,7 +24,7 @@ function makeEntry(): Binding.Target {
 }
 
 describe("BindingServer", () => {
-    it("binding.established fires when emitEstablished is called, payload matches", async () => {
+    it("events.established fires when emitEstablished is called, payload matches", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const sourceEp = node.parts.get(1)!;
 
@@ -32,19 +32,18 @@ describe("BindingServer", () => {
         await sourceEp.construction;
 
         let captured: BindingResolution | undefined;
+        sourceEp.eventsOf(BindingServer).established.on(r => {
+            captured = r;
+        });
 
-        await sourceEp.act("test", agent => {
-            const server = agent.get(BindingServer);
-            server.binding.established.on((r: BindingResolution) => {
-                captured = r;
-            });
+        await sourceEp.act("emit", agent => {
             const resolution: BindingResolution = {
                 kind: "server",
                 node,
                 endpoint: sourceEp,
                 entry: makeEntry(),
             };
-            server.emitEstablished(resolution);
+            agent.get(BindingServer).emitEstablished(resolution);
         });
 
         expect(captured).not.undefined;
@@ -55,7 +54,7 @@ describe("BindingServer", () => {
         await node.close();
     });
 
-    it("binding.removed fires when emitRemoved is called", async () => {
+    it("events.removed fires when emitRemoved is called", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const sourceEp = node.parts.get(1)!;
 
@@ -63,12 +62,12 @@ describe("BindingServer", () => {
         await sourceEp.construction;
 
         let captured: BindingResolution | undefined;
+        sourceEp.eventsOf(BindingServer).removed.on(r => {
+            captured = r;
+        });
 
-        await sourceEp.act("test", agent => {
+        await sourceEp.act("emit", agent => {
             const server = agent.get(BindingServer);
-            server.binding.removed.on((r: BindingResolution) => {
-                captured = r;
-            });
             const entry = makeEntry();
             const resolution: BindingResolution = {
                 kind: "server",
@@ -94,12 +93,12 @@ describe("BindingServer", () => {
         await sourceEp.construction;
 
         const removedFired = new Array<BindingResolution>();
+        sourceEp.eventsOf(BindingServer).removed.on(r => {
+            removedFired.push(r);
+        });
 
-        await sourceEp.act("test", agent => {
+        await sourceEp.act("emit", agent => {
             const server = agent.get(BindingServer);
-            server.binding.removed.on((r: BindingResolution) => {
-                removedFired.push(r);
-            });
             const entry = makeEntry();
             const resolution: BindingResolution = {
                 kind: "server",
@@ -135,13 +134,9 @@ describe("BindingServer", () => {
         // Require BindingServer with pre-seeded binding state before the behavior initializes.
         sourceEp.behaviors.require(BindingServer, { binding: [entry] });
 
-        // Subscribe to established; accessing BindingServer triggers lazy initialization,
-        // which calls manager.register() — queued until node.start().
         const established = new Array<BindingResolution>();
-        await sourceEp.act("subscribe", agent => {
-            agent.get(BindingServer).binding.established.on(r => {
-                established.push(r);
-            });
+        sourceEp.eventsOf(BindingServer).established.on(r => {
+            established.push(r);
         });
 
         await node.start();
@@ -168,15 +163,11 @@ describe("BindingServer", () => {
 
         const established = new Array<BindingResolution>();
         const removed = new Array<BindingResolution>();
-
-        await sourceEp.act("subscribe", agent => {
-            const server = agent.get(BindingServer);
-            server.binding.established.on(r => {
-                established.push(r);
-            });
-            server.binding.removed.on(r => {
-                removed.push(r);
-            });
+        sourceEp.eventsOf(BindingServer).established.on(r => {
+            established.push(r);
+        });
+        sourceEp.eventsOf(BindingServer).removed.on(r => {
+            removed.push(r);
         });
 
         // Self-binding via fabric.nodeId resolves to kind="server" without a remote peer.
@@ -228,15 +219,11 @@ describe("BindingServer", () => {
 
         const established = new Array<BindingResolution>();
         const removed = new Array<BindingResolution>();
-
-        await sourceEp.act("subscribe", agent => {
-            const server = agent.get(BindingServer);
-            server.binding.established.on(r => {
-                established.push(r);
-            });
-            server.binding.removed.on(r => {
-                removed.push(r);
-            });
+        sourceEp.eventsOf(BindingServer).established.on(r => {
+            established.push(r);
+        });
+        sourceEp.eventsOf(BindingServer).removed.on(r => {
+            removed.push(r);
         });
 
         const entryA = new Binding.Target({

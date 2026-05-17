@@ -5,10 +5,12 @@
  */
 
 import { Crypto, MockCrypto, Seconds } from "@matter/general";
-import { Write } from "@matter/protocol";
+import { Read, Write } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { Binding } from "@matter/types/clusters/binding";
+import { OnOff } from "@matter/types/clusters/on-off";
+import { NetworkClient } from "../../../src/behavior/system/network/NetworkClient.js";
 import { AccessControlServer } from "../../../src/behaviors/access-control/AccessControlServer.js";
 import { BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
@@ -89,14 +91,11 @@ describe("Binding integration", () => {
         let resolveEstablished!: () => void;
         const establishedPromise = new Promise<void>(res => (resolveEstablished = res));
 
-        await switchEp.act("subscribe", agent => {
-            const server = agent.get(BindingServer);
-            server.binding.established.on(r => {
-                void established.push(r);
-                resolveEstablished();
-            });
-            server.binding.removed.on(r => void removed.push(r));
+        switchEp.eventsOf(BindingServer).established.on(r => {
+            void established.push(r);
+            resolveEstablished();
         });
+        switchEp.eventsOf(BindingServer).removed.on(r => void removed.push(r));
 
         // Get the controller's peer view of the switch — the first commissioned peer.
         const peerSwitch = controller.peers.get("peer1")!;
@@ -150,6 +149,64 @@ describe("Binding integration", () => {
 
         expect(lightNode.parts.get(1)!.stateOf(OnOffServer).onOff).true;
 
+        // Register the change observer before enabling the subscription so the initial
+        // attribute report from the bootstrap read is not missed.
+        const onOffUpdates = new Array<boolean>();
+        resolution.endpoint.eventsOf(OnOffClient).onOff$Changed.on(v => void onOffUpdates.push(v));
+
+        // Wire up the subscription-active signal before enabling the subscription so we don't
+        // miss the subscriptionStatusChanged(true) event that fires when the handshake completes.
+        const subscriptionActive = new Promise<void>(resolve => {
+            const handler = (isActive: boolean) => {
+                if (isActive) {
+                    resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.off(handler);
+                    resolve();
+                }
+            };
+            resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.on(handler);
+        });
+
+        // Enable a sustained subscription targeted at the onOff attribute.  The bootstrap
+        // read populates cached state; subsequent attribute reports arrive via the subscription.
+        // The async reactor (#syncAutoSubscribe) fires after set() resolves, so we drive it
+        // to completion separately via subscriptionActive.
+        switchCrypto.entropic = lightCrypto.entropic = true;
+        void resolution.node.set({
+            network: {
+                defaultSubscription: Read(
+                    Read.Attribute({
+                        endpoint: EndpointNumber(1),
+                        cluster: OnOff.Cluster,
+                        attributes: "onOff",
+                    }),
+                ),
+                autoSubscribe: true,
+            },
+        });
+
+        // Drive the bootstrap read + subscribe handshake to completion.
+        await MockTime.resolve(subscriptionActive, { macrotasks: true });
+        switchCrypto.entropic = lightCrypto.entropic = false;
+
+        // Bootstrap read populated initial state — light is on from the invoke above.
+        expect(resolution.endpoint.stateOf(OnOffClient).onOff).true;
+
+        // Wire up the wait for the off-notification before triggering the state change.
+        const offReceived = new Promise<void>(resolve =>
+            resolution.endpoint.eventsOf(OnOffClient).onOff$Changed.once(v => {
+                if (v === false) resolve();
+            }),
+        );
+
+        // Turn the light off and drive the subscription update round-trip.
+        const lightEp1 = lightNode.parts.get(1)!;
+        await lightEp1.act("off", agent => agent.get(OnOffServer).off());
+        await MockTime.resolve(offReceived, { macrotasks: true });
+
+        // Subscription delivered the updated state.
+        expect(resolution.endpoint.stateOf(OnOffClient).onOff).false;
+        expect(onOffUpdates).deep.equals([true, false]);
+
         // Write empty binding list → BindingManager calls unregister → removed fires.
         await MockTime.resolve(
             peerSwitch.interaction.write(
@@ -185,12 +242,8 @@ describe("Binding integration", () => {
 
         const established = new Array<BindingResolution>();
         const removed = new Array<BindingResolution>();
-
-        await switchEp.act("subscribe", agent => {
-            const server = agent.get(BindingServer);
-            server.binding.established.on(r => void established.push(r));
-            server.binding.removed.on(r => void removed.push(r));
-        });
+        switchEp.eventsOf(BindingServer).established.on(r => void established.push(r));
+        switchEp.eventsOf(BindingServer).removed.on(r => void removed.push(r));
 
         const entry = new Binding.Target({
             fabricIndex: fabric.fabricIndex,
@@ -247,12 +300,8 @@ describe("Binding integration", () => {
 
         const established = new Array<BindingResolution>();
         const removed = new Array<BindingResolution>();
-
-        await switchEp.act("subscribe", agent => {
-            const server = agent.get(BindingServer);
-            server.binding.established.on(r => void established.push(r));
-            server.binding.removed.on(r => void removed.push(r));
-        });
+        switchEp.eventsOf(BindingServer).established.on(r => void established.push(r));
+        switchEp.eventsOf(BindingServer).removed.on(r => void removed.push(r));
 
         // Register the switch endpoint as a member of group 5 so the manager accepts the entry.
         fabric.groups.endpoints.set(GroupId(5), [switchEp.number]);

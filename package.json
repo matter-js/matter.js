@@ -28,6 +28,7 @@
         "examples/device-multiple-onoff",
         "examples/device-onoff",
         "examples/device-onoff-advanced",
+        "examples/device-onoff-sensor-binding",
         "examples/device-onoff-light",
         "examples/device-robotic-vacuum-cleaner",
         "examples/device-sensor",
