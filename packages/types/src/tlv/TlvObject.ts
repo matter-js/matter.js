@@ -155,20 +155,16 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
 
     /**
      * Encode the object as List. Default emits in schema/tag order (Matter Core §10.6.1). With
-     * {@link preserveDataOrdering}, emits in caller property order (used for certificate sub-lists whose signed bytes
-     * depend on original member order; §A.5.3).
+     * {@link preserveDataOrdering}, caller-supplied property order is emitted first (used for certificate sub-lists
+     * whose signed bytes depend on original member order; §A.5.3), with any remaining schema fields appended after.
      */
     #encodeList(writer: TlvWriter, value: TypeFromFields<F>, options?: TlvEncodingOptions) {
-        if (!this.preserveDataOrdering) {
-            for (const name in this.fieldDefinitions) {
-                this.#encodeEntryToTlv(writer, name, value, options);
-            }
-            return;
-        }
         const encodedFields = new Set<string>();
-        for (const name of Object.keys(value)) {
-            this.#encodeEntryToTlv(writer, name, value, options);
-            encodedFields.add(name);
+        if (this.preserveDataOrdering) {
+            for (const name of Object.keys(value)) {
+                this.#encodeEntryToTlv(writer, name, value, options);
+                encodedFields.add(name);
+            }
         }
         for (const name in this.fieldDefinitions) {
             if (encodedFields.has(name)) continue;
