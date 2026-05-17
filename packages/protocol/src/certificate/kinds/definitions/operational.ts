@@ -32,7 +32,6 @@ import { ExtensionKeyUsageBitmap } from "./base.js";
  */
 export const MAX_TLV_CERTIFICATE_SIZE = 400;
 
-// Order-preserving: extensions are part of the certificate's signed bytes; re-encode must reproduce wire order.
 export const TlvCertificateExtension = TlvTaggedListPreservingOrder({
     basicConstraints: TlvField(
         1,
