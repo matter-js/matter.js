@@ -89,6 +89,10 @@ export class FabricManager {
         await this.construction;
     }
 
+    async close() {
+        await this.#construction.close();
+    }
+
     static [Environmental.create](env: Environment) {
         const instance = new FabricManager(env.get(Crypto), env.get(StorageManager).createContext("fabrics"));
         env.set(FabricManager, instance);
