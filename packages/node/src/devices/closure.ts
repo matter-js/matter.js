@@ -8,10 +8,6 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { ClosureControlServer as BaseClosureControlServer } from "../behaviors/closure-control/ClosureControlServer.js";
-import { WindowCoveringServer as BaseWindowCoveringServer } from "../behaviors/window-covering/WindowCoveringServer.js";
-import {
-    ClosureDimensionServer as BaseClosureDimensionServer
-} from "../behaviors/closure-dimension/ClosureDimensionServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -47,26 +43,9 @@ export namespace ClosureRequirements {
     export const ClosureControlServer = BaseClosureControlServer;
 
     /**
-     * The WindowCovering cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link WindowCoveringServer} for convenience.
-     */
-    export const WindowCoveringServer = BaseWindowCoveringServer;
-
-    /**
-     * The ClosureDimension cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ClosureDimensionServer} for convenience.
-     */
-    export const ClosureDimensionServer = BaseClosureDimensionServer;
-
-    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = {
-        mandatory: { Identify: IdentifyServer, ClosureControl: ClosureControlServer },
-        optional: { WindowCovering: WindowCoveringServer, ClosureDimension: ClosureDimensionServer }
-    };
+    export const server = { mandatory: { Identify: IdentifyServer, ClosureControl: ClosureControlServer } };
 }
 
 export const ClosureDeviceDefinition = MutableEndpoint({

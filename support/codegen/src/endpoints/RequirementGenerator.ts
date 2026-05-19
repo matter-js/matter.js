@@ -61,6 +61,10 @@ export class RequirementGenerator {
                 continue;
             }
 
+            if (requirement.isDisallowed) {
+                continue;
+            }
+
             if (requirement.isMandatory || requirement.name === "Descriptor") {
                 const variance = ClusterVariance(definition);
                 if (variance.requiresFeatures) {
