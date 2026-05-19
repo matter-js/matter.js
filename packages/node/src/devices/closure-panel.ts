@@ -9,8 +9,6 @@
 import {
     ClosureDimensionServer as BaseClosureDimensionServer
 } from "../behaviors/closure-dimension/ClosureDimensionServer.js";
-import { WindowCoveringServer as BaseWindowCoveringServer } from "../behaviors/window-covering/WindowCoveringServer.js";
-import { ClosureControlServer as BaseClosureControlServer } from "../behaviors/closure-control/ClosureControlServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -46,26 +44,9 @@ export namespace ClosurePanelRequirements {
     export const ClosureDimensionServer = BaseClosureDimensionServer;
 
     /**
-     * The WindowCovering cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link WindowCoveringServer} for convenience.
-     */
-    export const WindowCoveringServer = BaseWindowCoveringServer;
-
-    /**
-     * The ClosureControl cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ClosureControlServer} for convenience.
-     */
-    export const ClosureControlServer = BaseClosureControlServer;
-
-    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = {
-        mandatory: { ClosureDimension: ClosureDimensionServer },
-        optional: { WindowCovering: WindowCoveringServer, ClosureControl: ClosureControlServer }
-    };
+    export const server = { mandatory: { ClosureDimension: ClosureDimensionServer } };
 }
 
 export const ClosurePanelDeviceDefinition = MutableEndpoint({
