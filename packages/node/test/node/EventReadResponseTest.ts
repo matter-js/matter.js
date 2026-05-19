@@ -11,7 +11,7 @@ import { ServerNode } from "#index.js";
 import { Bytes, Seconds } from "@matter/general";
 import { AccessLevel, Specification } from "@matter/model";
 import { EventReadResponse, Read, ReadResult } from "@matter/protocol";
-import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "@matter/types";
+import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Messages } from "@matter/types/clusters/messages";
 import { MockServerNode } from "./mock-server-node.js";
@@ -253,7 +253,7 @@ describe("EventReadResponse", () => {
                         clusterId: 40,
                         endpointId: 1,
                     },
-                    status: StatusCode.UnsupportedEndpoint,
+                    status: Status.UnsupportedEndpoint,
                 },
             ],
         ]);
@@ -281,7 +281,7 @@ describe("EventReadResponse", () => {
                         clusterId: 40,
                         endpointId: 0,
                     },
-                    status: StatusCode.UnsupportedEvent,
+                    status: Status.UnsupportedEvent,
                 },
             ],
         ]);

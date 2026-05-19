@@ -29,7 +29,7 @@ import {
     FabricIndex,
     GroupId,
     NodeId,
-    StatusCode,
+    Status,
     StatusResponseError,
     SubjectId,
     TlvTaggedList,
@@ -159,13 +159,13 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                     "vs.",
                     delayedChangeExchange.id,
                 );
-                throw new StatusResponseError("Parallel ACL change from multiple exchanges", StatusCode.Busy);
+                throw new StatusResponseError("Parallel ACL change from multiple exchanges", Status.Busy);
             }
         }
 
         const fabricAcls = value.filter(entry => entry.fabricIndex === relevantFabricIndex);
         if (fabricAcls.length > this.state.accessControlEntriesPerFabric) {
-            throw new StatusResponseError("AccessControlEntriesPerFabric exceeded", StatusCode.ResourceExhausted);
+            throw new StatusResponseError("AccessControlEntriesPerFabric exceeded", Status.ResourceExhausted);
         }
 
         for (const entry of fabricAcls) {
@@ -178,15 +178,15 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
             }
             const { privilege, subjects, targets, authMode } = entry;
             if (subjects !== null && subjects.length > this.state.subjectsPerAccessControlEntry) {
-                throw new StatusResponseError("SubjectsPerAccessControlEntry exceeded", StatusCode.ResourceExhausted);
+                throw new StatusResponseError("SubjectsPerAccessControlEntry exceeded", Status.ResourceExhausted);
             }
 
             if (targets !== null && targets.length > this.state.targetsPerAccessControlEntry) {
-                throw new StatusResponseError("TargetsPerAccessControlEntry exceeded", StatusCode.ResourceExhausted);
+                throw new StatusResponseError("TargetsPerAccessControlEntry exceeded", Status.ResourceExhausted);
             }
 
             if (authMode === AccessControlTypes.AccessControlEntryAuthMode.Pase) {
-                throw new StatusResponseError("AuthMode for ACL must not be PASE", StatusCode.ConstraintError);
+                throw new StatusResponseError("AuthMode for ACL must not be PASE", Status.ConstraintError);
             } else if (authMode === AccessControlTypes.AccessControlEntryAuthMode.Case) {
                 if (subjects !== null) {
                     for (const subject of subjects) {
@@ -195,13 +195,13 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                             if (CaseAuthenticatedTag.getVersion(cat) === 0) {
                                 throw new StatusResponseError(
                                     "CaseAuthenticatedTag version 0 is not allowed",
-                                    StatusCode.ConstraintError,
+                                    Status.ConstraintError,
                                 );
                             }
                         } else if (!NodeId.isOperationalNodeId(subject)) {
                             throw new StatusResponseError(
                                 "Subject must be a valid OperationalNodeId or CaseAuthenticatedTag",
-                                StatusCode.ConstraintError,
+                                Status.ConstraintError,
                             );
                         }
                     }
@@ -210,7 +210,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                 if (privilege === AccessControlTypes.AccessControlEntryPrivilege.Administer) {
                     throw new StatusResponseError(
                         "Group ACLs must not have Administer privilege",
-                        StatusCode.ConstraintError,
+                        Status.ConstraintError,
                     );
                 }
 
@@ -219,7 +219,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                         if (GroupId(Number(subject)) === GroupId.NO_GROUP_ID) {
                             throw new StatusResponseError(
                                 "Subject must be a valid GroupId for Group ACLs",
-                                StatusCode.ConstraintError,
+                                Status.ConstraintError,
                             );
                         }
                     }
@@ -233,26 +233,23 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                     if (deviceType !== null && endpoint !== null) {
                         throw new StatusResponseError(
                             "DeviceType and Endpoint are mutually exclusive",
-                            StatusCode.ConstraintError,
+                            Status.ConstraintError,
                         );
                     }
                     if (cluster === null && endpoint === null && deviceType === null) {
-                        throw new StatusResponseError("At least one field must be present", StatusCode.ConstraintError);
+                        throw new StatusResponseError("At least one field must be present", Status.ConstraintError);
                     }
                     if (cluster !== null && !ClusterId.isValid(cluster)) {
-                        throw new StatusResponseError("Cluster must be a valid ClusterId", StatusCode.ConstraintError);
+                        throw new StatusResponseError("Cluster must be a valid ClusterId", Status.ConstraintError);
                     }
                     if (endpoint !== null && !EndpointNumber.isValid(endpoint)) {
                         throw new StatusResponseError(
                             "Endpoint must be a valid OperationalNodeId",
-                            StatusCode.ConstraintError,
+                            Status.ConstraintError,
                         );
                     }
                     if (deviceType !== null && !DeviceTypeId.isValid(deviceType)) {
-                        throw new StatusResponseError(
-                            "DeviceType must be a valid DeviceType",
-                            StatusCode.ConstraintError,
-                        );
+                        throw new StatusResponseError("DeviceType must be a valid DeviceType", Status.ConstraintError);
                     }
                 }
             }
@@ -345,7 +342,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
             return;
         }
         if (fabricExtensions.length > 1) {
-            throw new StatusResponseError("Extension list must contain a single entry", StatusCode.ConstraintError);
+            throw new StatusResponseError("Extension list must contain a single entry", Status.ConstraintError);
         }
 
         // we have exactly one entry
@@ -413,13 +410,13 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
             extensionBytes[extensionBytes.length - 1] !== TlvType.EndOfContainer
         ) {
             // Easier to check that way that it is an Listen without any tags in general
-            throw new StatusResponseError("Extension must be a valid TLV", StatusCode.ConstraintError);
+            throw new StatusResponseError("Extension must be a valid TLV", Status.ConstraintError);
         }
         try {
             TlvTaggedList({} /* No fields, sufficient for validation */, true).decode(data);
         } catch (error) {
             logger.debug(`Extension TLV decoding failed:`, error);
-            throw new StatusResponseError("Extension must be a valid TLV", StatusCode.ConstraintError);
+            throw new StatusResponseError("Extension must be a valid TLV", Status.ConstraintError);
         }
     }
 

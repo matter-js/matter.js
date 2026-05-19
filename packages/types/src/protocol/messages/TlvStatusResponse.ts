@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StatusCode } from "../../common/StatusCode.js";
+import { Status } from "../../globals/Status.js";
 import { TlvEnum, TlvUInt8 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 
@@ -12,6 +12,6 @@ import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 
 export const TlvStatusResponse = TlvObject({
     /** A status code (@see Status Codes {@link MatterSpecification.v13.Core} section 7.10.7) */
-    status: TlvField(0, TlvEnum<StatusCode>()),
+    status: TlvField(0, TlvEnum<Status>()),
     interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });

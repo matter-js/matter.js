@@ -23,7 +23,7 @@ import {
     EndpointNumber,
     MATTER_EPOCH_OFFSET_S,
     MATTER_EPOCH_OFFSET_US,
-    StatusCode,
+    Status,
     StatusResponseError,
 } from "@matter/main/types";
 import {
@@ -783,7 +783,7 @@ export class ChipToolWebSocketHandler {
                             attributeId: firstStatus.attributeId,
                             clusterId: firstStatus.clusterId,
                             endpointId: firstStatus.endpointId,
-                            error: decamelize(StatusCode[firstStatus.status], "_").toUpperCase(),
+                            error: decamelize(Status[firstStatus.status], "_").toUpperCase(),
                         },
                         { error: "FAILURE" },
                     ],
@@ -983,7 +983,7 @@ export class ChipToolWebSocketHandler {
                 if (firstStatus && firstStatus.status) {
                     return {
                         results: [
-                            { error: decamelize(StatusCode[firstStatus.status], "_").toUpperCase() },
+                            { error: decamelize(Status[firstStatus.status], "_").toUpperCase() },
                             { error: "FAILURE" },
                         ],
                     };
@@ -1034,7 +1034,7 @@ export class ChipToolWebSocketHandler {
                 if (firstStatus && firstStatus.status) {
                     return {
                         results: [
-                            { error: decamelize(StatusCode[firstStatus.status], "_").toUpperCase() },
+                            { error: decamelize(Status[firstStatus.status], "_").toUpperCase() },
                             { error: "FAILURE" },
                         ],
                     };
@@ -1281,7 +1281,7 @@ export class ChipToolWebSocketHandler {
         if (sre) {
             return {
                 results: [
-                    { error: decamelize(StatusCode[sre.code], "_").toUpperCase(), clusterError: sre.clusterCode },
+                    { error: decamelize(Status[sre.code], "_").toUpperCase(), clusterError: sre.clusterCode },
                     { error: "FAILURE" },
                 ],
             };

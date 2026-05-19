@@ -6,7 +6,7 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Read } from "@matter/protocol";
-import { AttributeId, ClusterId, EndpointNumber, StatusCode } from "@matter/types";
+import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
@@ -122,7 +122,7 @@ describe("AttributeReadResponse", () => {
                         clusterId: 40,
                         endpointId: 2,
                     },
-                    status: StatusCode.UnsupportedEndpoint,
+                    status: Status.UnsupportedEndpoint,
                 },
             ],
         ]);
@@ -149,7 +149,7 @@ describe("AttributeReadResponse", () => {
                         clusterId: 40,
                         endpointId: 0,
                     },
-                    status: StatusCode.UnsupportedAttribute,
+                    status: Status.UnsupportedAttribute,
                 },
             ],
         ]);

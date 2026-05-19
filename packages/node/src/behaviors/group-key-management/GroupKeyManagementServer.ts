@@ -15,7 +15,7 @@ import {
     hasRemoteActor,
     IPK_DEFAULT_EPOCH_START_TIME,
 } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, GroupId, StatusCode, StatusResponseError } from "@matter/types";
+import { EndpointNumber, FabricIndex, GroupId, Status, StatusResponseError } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
@@ -177,7 +177,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (!GroupId.isApplicationGroupId(groupId)) {
                 throw new StatusResponseError(
                     "Only operational GroupIds are allowed in GroupKeyMap",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
 
@@ -186,7 +186,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (knownGroupIds.has(id)) {
                 throw new StatusResponseError(
                     `Duplicate GroupId ${groupId} for FabricIndex ${fabricIndex}`,
-                    StatusCode.ConstraintError,
+                    Status.ConstraintError,
                 );
             }
             knownGroupIds.add(id);
@@ -196,14 +196,14 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (!knownGroupKeys.has(keyId)) {
                 throw new StatusResponseError(
                     `GroupKeySetId ${groupKeySetId} for FabricIndex ${fabricIndex} not found`,
-                    StatusCode.ConstraintError,
+                    Status.ConstraintError,
                 );
             }*/
         }
         if (groupIdsPerFabric.some(count => count > this.state.maxGroupsPerFabric)) {
             throw new StatusResponseError(
                 `Too many groups per fabric, maximum is ${this.state.maxGroupsPerFabric}`,
-                StatusCode.ResourceExhausted,
+                Status.ResourceExhausted,
             );
         }
     }
@@ -215,7 +215,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (groupId === 0) {
                 throw new StatusResponseError(
                     "GroupId 0 can not be used as operational group id",
-                    StatusCode.ConstraintError,
+                    Status.ConstraintError,
                 );
             }
 
@@ -223,7 +223,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (knownGroupIds.has(id)) {
                 throw new StatusResponseError(
                     `Duplicate GroupId ${groupId} for FabricIndex ${fabricIndex}`,
-                    StatusCode.ConstraintError,
+                    Status.ConstraintError,
                 );
             }
             knownGroupIds.add(id);
@@ -232,7 +232,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (endpointIds.size !== endpoints.length) {
                 throw new StatusResponseError(
                     `Duplicate endpoint IDs in GroupId ${groupId} for FabricIndex ${fabricIndex}`,
-                    StatusCode.ConstraintError,
+                    Status.ConstraintError,
                 );
             }
         }
@@ -309,25 +309,25 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         }
 
         if (epochKey0 === null || epochStartTime0 === null) {
-            throw new StatusResponseError("EpochKey0 and EpochStartTime0 must be set", StatusCode.InvalidCommand);
+            throw new StatusResponseError("EpochKey0 and EpochStartTime0 must be set", Status.InvalidCommand);
         }
         if (epochStartTime0 <= IPK_DEFAULT_EPOCH_START_TIME) {
             // Formally can never be < IPK_DEFAULT_EPOCH_START_TIME, but let's be sure
-            throw new StatusResponseError("EpochStartTime0 must not be 0", StatusCode.InvalidCommand);
+            throw new StatusResponseError("EpochStartTime0 must not be 0", Status.InvalidCommand);
         }
 
         if (epochKey1 !== null && (epochStartTime1 === null || epochStartTime1 <= epochStartTime0)) {
             throw new StatusResponseError(
                 "EpochStartTime1 must be set and greater than EpochStartTime0",
-                StatusCode.InvalidCommand,
+                Status.InvalidCommand,
             );
         }
         if (epochKey1 === null && epochStartTime1 !== null) {
-            throw new StatusResponseError("EpochKey1 must be set if EpochStartTime1 is set", StatusCode.InvalidCommand);
+            throw new StatusResponseError("EpochKey1 must be set if EpochStartTime1 is set", Status.InvalidCommand);
         }
 
         if (epochKey2 !== null && epochKey1 === null) {
-            throw new StatusResponseError("EpochKey1 must be set if EpochKey2 is set", StatusCode.InvalidCommand);
+            throw new StatusResponseError("EpochKey1 must be set if EpochKey2 is set", Status.InvalidCommand);
         }
         if (
             epochKey2 !== null &&
@@ -335,20 +335,20 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         ) {
             throw new StatusResponseError(
                 "EpochStartTime2 must be set and greater than EpochStartTime1",
-                StatusCode.InvalidCommand,
+                Status.InvalidCommand,
             );
         }
         if (epochKey2 === null && epochStartTime2 !== null) {
-            throw new StatusResponseError("EpochKey2 must be set if EpochStartTime2 is set", StatusCode.InvalidCommand);
+            throw new StatusResponseError("EpochKey2 must be set if EpochStartTime2 is set", Status.InvalidCommand);
         }
 
         if (groupKeySecurityPolicy !== GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst) {
-            throw new StatusResponseError("GroupKeySecurityPolicy must be TrustFirst", StatusCode.InvalidCommand);
+            throw new StatusResponseError("GroupKeySecurityPolicy must be TrustFirst", Status.InvalidCommand);
         }
 
         // GroupKeyMulticastPolicy is provisional and PerGroupId is the default, so do not allow other values for now
         if (groupKeyMulticastPolicy !== GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId) {
-            throw new StatusResponseError("GroupKeyMulticastPolicy must be PerGroupId", StatusCode.InvalidCommand);
+            throw new StatusResponseError("GroupKeyMulticastPolicy must be PerGroupId", Status.InvalidCommand);
         }
 
         const fabric = this.context.session.associatedFabric;
@@ -369,7 +369,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             if (keySetsOfFabric >= this.state.maxGroupKeysPerFabric) {
                 throw new StatusResponseError(
                     `Too many group key sets for fabric ${fabricIndex}, maximum is ${this.state.maxGroupKeysPerFabric}`,
-                    StatusCode.ResourceExhausted,
+                    Status.ResourceExhausted,
                 );
             }
             this.state.groupKeySets.push({ ...groupKeySet, fabricIndex });
@@ -389,7 +389,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         // We use the fabric group manager to retrieve the group key set because he also has the id 0 and is synced anyway
         const groupKeySet = fabric.groups.keySets.asGroupKeySet(groupKeySetId);
         if (groupKeySet === undefined) {
-            throw new StatusResponseError(`GroupKeySet ${groupKeySetId} not found`, StatusCode.NotFound);
+            throw new StatusResponseError(`GroupKeySet ${groupKeySetId} not found`, Status.NotFound);
         }
 
         return {
@@ -404,7 +404,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
 
     override async keySetRemove({ groupKeySetId }: GroupKeyManagement.KeySetRemoveRequest) {
         if (groupKeySetId === 0) {
-            throw new StatusResponseError(`GroupKeySet ${groupKeySetId} cannot be removed`, StatusCode.InvalidCommand);
+            throw new StatusResponseError(`GroupKeySet ${groupKeySetId} cannot be removed`, Status.InvalidCommand);
         }
 
         assertRemoteActor(this.context);
@@ -418,7 +418,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
                 entryIndex === fabricIndex && entryId === groupKeySetId,
         );
         if (existingIndex === -1) {
-            throw new StatusResponseError(`GroupKeySet ${groupKeySetId} not found`, StatusCode.NotFound);
+            throw new StatusResponseError(`GroupKeySet ${groupKeySetId} not found`, Status.NotFound);
         }
         this.state.groupKeySets.splice(existingIndex, 1);
 
@@ -468,7 +468,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             ) {
                 throw new StatusResponseError(
                     `Too many groups for fabric ${fabricIndex}, maximum is ${this.state.maxGroupsPerFabric}`,
-                    StatusCode.ResourceExhausted,
+                    Status.ResourceExhausted,
                 );
             }
 

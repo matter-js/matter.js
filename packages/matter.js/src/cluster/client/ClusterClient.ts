@@ -14,7 +14,7 @@ import {
     CommandId,
     EndpointNumber,
     EventId,
-    StatusCode,
+    Status,
     StatusResponseError,
     TlvEventFilter,
     TlvOfModel,
@@ -95,7 +95,7 @@ export function ClusterClient(
             try {
                 return await (attributes as any)[attributeName].get(requestFromRemote, isFabricFiltered);
             } catch (e) {
-                if (StatusResponseError.is(e, StatusCode.UnsupportedAttribute)) {
+                if (StatusResponseError.is(e, Status.UnsupportedAttribute)) {
                     return undefined;
                 }
                 throw e;
@@ -161,7 +161,7 @@ export function ClusterClient(
             try {
                 return await (events as any)[eventName].get(minimumEventNumber, isFabricFiltered);
             } catch (e) {
-                if (StatusResponseError.is(e, StatusCode.UnsupportedEvent)) {
+                if (StatusResponseError.is(e, Status.UnsupportedEvent)) {
                     return undefined;
                 }
                 throw e;

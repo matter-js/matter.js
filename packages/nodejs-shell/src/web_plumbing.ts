@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, LogLevel, NotImplementedError } from "@matter/general";
+import { LogDestination, Logger, LogLevel } from "@matter/general";
 import { Readable, Writable } from "node:stream";
 import WebSocket, { Data, WebSocketServer } from "ws";
 import { MatterNode } from "./MatterNode.js";
@@ -78,13 +78,14 @@ export function initializeWebPlumbing(
 
         createWebSocketLogger(ws)
             .then(logger => {
-                Logger.removeLogger("Shell");
-                Logger.addLogger(socketLogger, logger);
+                delete Logger.destinations["Shell"];
+                Logger.destinations[socketLogger] = LogDestination({
+                    name: socketLogger,
+                    write: (text, message) => logger(message.level, text),
+                });
             })
             .catch(err => {
-                if (!(err instanceof NotImplementedError)) {
-                    console.error("Failed to add WebSocket logger: " + err);
-                }
+                console.error("Failed to add WebSocket logger: " + err);
             });
 
         const shell = new Shell(theNode, nodeNum, "", createReadableStream(ws), createWritableStream(ws));
@@ -92,24 +93,16 @@ export function initializeWebPlumbing(
 
         ws.on("close", () => {
             process.stdout.write("Client disconnected\n");
-            try {
-                if (Logger.getLoggerForIdentifier(socketLogger) !== undefined) {
-                    Logger.removeLogger(socketLogger);
-                }
-            } catch (err) {
-                // Intentionally left empty
+            if (socketLogger in Logger.destinations) {
+                delete Logger.destinations[socketLogger];
             }
 
             client = ws;
         });
         ws.on("error", err => {
             process.stderr.write(`WebSocket error: ${err.message}\n`);
-            try {
-                if (Logger.getLoggerForIdentifier(socketLogger) !== undefined) {
-                    Logger.removeLogger(socketLogger);
-                }
-            } catch (err) {
-                // Intentionally left empty
+            if (socketLogger in Logger.destinations) {
+                delete Logger.destinations[socketLogger];
             }
         });
     });

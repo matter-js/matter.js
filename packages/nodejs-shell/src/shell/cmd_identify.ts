@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IdentifyCluster } from "@matter/types/clusters";
+import { Identify } from "@matter/types/clusters";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 
@@ -37,7 +37,7 @@ export default function commands(theNode: MatterNode) {
             await theNode.iterateNodeDevices(
                 await theNode.connectAndGetNodes(nodeId),
                 async (device, node) => {
-                    const identifyCluster = device.getClusterClient(IdentifyCluster);
+                    const identifyCluster = device.getClusterClient(Identify);
                     if (identifyCluster === undefined) {
                         return;
                     }

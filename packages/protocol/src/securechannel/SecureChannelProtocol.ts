@@ -14,7 +14,7 @@ import {
     SECURE_CHANNEL_PROTOCOL_ID,
     SecureChannelStatusCode,
     SecureMessageType,
-    StatusCode,
+    Status,
     StatusResponseError,
 } from "@matter/types";
 import { Message } from "../codec/MessageCodec.js";
@@ -45,7 +45,7 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
                 if (messageType !== SecureMessageType.StandaloneAck) {
                     throw new StatusResponseError(
                         `Unexpected initial message on secure channel protocol: ${messageType.toString(16)}`,
-                        StatusCode.InvalidAction,
+                        Status.InvalidAction,
                     );
                 }
         }

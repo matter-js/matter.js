@@ -5,7 +5,7 @@
  */
 
 import { AttributeWriteResponse, Write } from "@matter/protocol";
-import { EndpointNumber, StatusCode, TlvString, WriteRequest } from "@matter/types";
+import { EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -30,7 +30,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.Success,
+                status: Status.Success,
                 clusterStatus: undefined,
             },
         ]);
@@ -56,7 +56,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.Success,
+                status: Status.Success,
                 clusterStatus: undefined,
             },
         ]);
@@ -83,7 +83,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.UnsupportedAccess,
+                status: Status.UnsupportedAccess,
                 clusterStatus: undefined,
             },
         ]);
@@ -125,7 +125,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.UnsupportedWrite,
+                status: Status.UnsupportedWrite,
                 clusterStatus: undefined,
             },
         ]);
@@ -168,7 +168,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.DataVersionMismatch,
+                status: Status.DataVersionMismatch,
                 clusterStatus: undefined,
             },
         ]);
@@ -195,7 +195,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.Success,
+                status: Status.Success,
                 clusterStatus: undefined,
             },
         ]);
@@ -222,7 +222,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.ConstraintError,
+                status: Status.ConstraintError,
                 clusterStatus: undefined,
             },
         ]);
@@ -248,7 +248,7 @@ describe("AttributeWriteRequest", () => {
                     clusterId: 40,
                     endpointId: 0,
                 },
-                status: StatusCode.ConstraintError,
+                status: Status.ConstraintError,
                 clusterStatus: undefined,
             },
         ]);
