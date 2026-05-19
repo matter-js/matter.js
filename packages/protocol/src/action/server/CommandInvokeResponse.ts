@@ -79,7 +79,7 @@ export class CommandInvokeResponse<
             } else {
                 if (Subject.isGroup(this.session.subject)) {
                     // Group command cannot be concrete paths
-                    throw new StatusResponseError("Group commands connot be concrete paths", Status.InvalidAction);
+                    throw new StatusResponseError("Group commands cannot be concrete paths", Status.InvalidAction);
                 }
                 if (multipleInvokes && commandRef === undefined) {
                     throw new StatusResponseError(
