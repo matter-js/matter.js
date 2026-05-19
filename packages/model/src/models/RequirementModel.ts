@@ -75,6 +75,13 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         return this.conformance.isMandatory;
     }
 
+    /**
+     * Is the element disallowed?
+     */
+    get isDisallowed() {
+        return this.conformance.isDisallowed;
+    }
+
     constructor(
         definition: Model.Definition<RequirementModel>,
         ...children: Model.ChildDefinition<RequirementModel>[]
