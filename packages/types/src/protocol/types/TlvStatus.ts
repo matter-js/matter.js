@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StatusCode } from "../../common/StatusCode.js";
+import { Status } from "../../globals/Status.js";
 import { TlvEnum } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 
@@ -12,6 +12,6 @@ import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 
 export const TlvStatus = TlvObject({
     // StatusIB
-    status: TlvField(0, TlvEnum<StatusCode>()), // 8Bit
-    clusterStatus: TlvOptionalField(1, TlvEnum<StatusCode>()),
+    status: TlvField(0, TlvEnum<Status>()), // 8Bit
+    clusterStatus: TlvOptionalField(1, TlvEnum<Status>()),
 });

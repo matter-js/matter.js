@@ -17,7 +17,6 @@ import {
     EndpointNumber,
     FabricIndex,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvSchema,
     TlvStream,
@@ -73,19 +72,19 @@ export class CommandInvokeResponse<
                 if (multipleInvokes) {
                     throw new StatusResponseError(
                         "Wildcard path must not be used with multiple invokes",
-                        StatusCode.InvalidAction,
+                        Status.InvalidAction,
                     );
                 }
                 this.#processWildcard(path, commandRef, commandFields);
             } else {
                 if (Subject.isGroup(this.session.subject)) {
                     // Group command cannot be concrete paths
-                    throw new StatusResponseError("Group commands connot be concrete paths", StatusCode.InvalidAction);
+                    throw new StatusResponseError("Group commands connot be concrete paths", Status.InvalidAction);
                 }
                 if (multipleInvokes && commandRef === undefined) {
                     throw new StatusResponseError(
                         "The CommandRef field must be specified for all commands in a batch invoke",
-                        StatusCode.InvalidAction,
+                        Status.InvalidAction,
                     );
                 }
                 this.#processConcrete(path as InvokeResult.ConcreteCommandPath, commandRef, commandFields);
@@ -127,16 +126,13 @@ export class CommandInvokeResponse<
 
         const isGroupPath = Subject.isGroup(this.session.subject);
         if (isGroupPath && endpointId !== undefined) {
-            throw new StatusResponseError(
-                "Illegal command invoke with group ID and endpoint ID",
-                StatusCode.InvalidAction,
-            );
+            throw new StatusResponseError("Illegal command invoke with group ID and endpoint ID", Status.InvalidAction);
         }
 
         if (clusterId === undefined || commandId === undefined) {
             throw new StatusResponseError(
                 "Wildcard path write must specify a clusterId and commandId",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -177,7 +173,7 @@ export class CommandInvokeResponse<
         if (this.#registeredPaths.has(pathKey)) {
             throw new StatusResponseError(
                 `Duplicate concrete command path ${this.node.inspectPath(path)} on batch invoke`,
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
         this.#registeredPaths.add(pathKey);
@@ -185,7 +181,7 @@ export class CommandInvokeResponse<
             if (this.#registeredCommandRefs.has(commandRef)) {
                 throw new StatusResponseError(
                     `Duplicate commandRef ${commandRef} on batch invoke`,
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
             this.#registeredCommandRefs.add(commandRef);
@@ -390,10 +386,10 @@ export class CommandInvokeResponse<
         status: Status,
         clusterStatus?: number,
     ) {
-        if (status !== StatusCode.Success) {
+        if (status !== Status.Success) {
             logger.info(
                 () =>
-                    `Invoke error ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${status}), ClusterStatus=${clusterStatus}`,
+                    `Invoke error ${this.node.inspectPath(path)}: Status=${Status[status]}(${status}), ClusterStatus=${clusterStatus}`,
             );
         }
 
@@ -405,7 +401,7 @@ export class CommandInvokeResponse<
             commandRef,
         };
 
-        if (status !== StatusCode.Success) {
+        if (status !== Status.Success) {
             this.#statusCount++;
         }
         this.#addResponse(response);
@@ -431,7 +427,7 @@ export class CommandInvokeResponse<
             this.#successCount++;
             const encodedResponse = responseTlv.encodeTlv(response);
             if (encodedResponse.length === 0) {
-                this.#addStatus(path, commandRef, StatusCode.Success);
+                this.#addStatus(path, commandRef, Status.Success);
             } else {
                 this.#addResponse({
                     kind: "cmd-response",
@@ -458,8 +454,8 @@ export class CommandInvokeResponse<
                     logger.info(
                         `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
                     );
-                    if (errorCode === StatusCode.InvalidAction) {
-                        errorCode = StatusCode.InvalidCommand;
+                    if (errorCode === Status.InvalidAction) {
+                        errorCode = Status.InvalidCommand;
                     }
                 } else {
                     logger.info(errorLogText);

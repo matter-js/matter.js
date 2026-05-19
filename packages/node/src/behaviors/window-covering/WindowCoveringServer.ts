@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "@matter/general";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { WindowCoveringBehavior } from "./WindowCoveringBehavior.js";
 
@@ -165,13 +165,13 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
             mode.calibrationMode = false;
         }
         if (mode.maintenanceMode && !this.state.supportsMaintenanceMode) {
-            throw new StatusResponseError("Maintenance mode not supported", StatusCode.ConstraintError);
+            throw new StatusResponseError("Maintenance mode not supported", Status.ConstraintError);
         }
         this.internal.inMaintenanceMode = !!mode.maintenanceMode;
 
         if (mode.calibrationMode) {
             if (!this.internal.supportsCalibration) {
-                throw new StatusResponseError("Calibration not supported", StatusCode.ConstraintError);
+                throw new StatusResponseError("Calibration not supported", Status.ConstraintError);
             }
             if (this.internal.calibrationMode === CalibrationMode.Running) {
                 // What to do here? For now lets leave unchanged
@@ -286,14 +286,14 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
      */
     #assertMotionLockStatus() {
         if (this.internal.inMaintenanceMode) {
-            throw new StatusResponseError("Device is in maintenance mode", StatusCode.Busy);
+            throw new StatusResponseError("Device is in maintenance mode", Status.Busy);
         }
 
         switch (this.internal.calibrationMode) {
             case CalibrationMode.Enabled:
                 if (!this.internal.supportsCalibration) {
                     // Should never happy normally because mode attribute should never be set
-                    throw new StatusResponseError("Calibration not implemented", StatusCode.Failure);
+                    throw new StatusResponseError("Calibration not implemented", Status.Failure);
                 }
                 break;
             case CalibrationMode.Running:
@@ -304,7 +304,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
         }
 
         if (!this.state.configStatus.operational) {
-            throw new StatusResponseError("Device is not operational", StatusCode.Failure);
+            throw new StatusResponseError("Device is not operational", Status.Failure);
         }
     }
 

@@ -14,7 +14,7 @@ import {
     EndpointNumber,
     FabricIndex,
     NodeId,
-    StatusCode,
+    Status,
     StatusResponseError,
     SubjectId,
 } from "@matter/types";
@@ -57,7 +57,7 @@ export type IncomingSubjectDescriptor = {
 
 export class AccessDeniedError extends StatusResponseError {
     constructor(message?: string) {
-        super(message ?? "Unauthorized", StatusCode.UnsupportedAccess);
+        super(message ?? "Unauthorized", Status.UnsupportedAccess);
     }
 }
 

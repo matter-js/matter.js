@@ -19,7 +19,6 @@ import {
     EndpointNumber,
     NodeId,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvSchema,
 } from "@matter/types";
@@ -440,7 +439,7 @@ export class AttributeReadResponse<
      */
     protected addStatus(path: ReadResult.ConcreteAttributePath, status: Status) {
         logger.debug(
-            () => `Error reading attribute ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${status})`,
+            () => `Error reading attribute ${this.node.inspectPath(path)}: Status=${Status[status]}(${status})`,
         );
 
         const report: ReadResult.AttributeStatus = {

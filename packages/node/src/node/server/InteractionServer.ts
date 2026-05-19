@@ -54,7 +54,6 @@ import {
     InvokeResponseData,
     ReceivedStatusResponseError,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvAny,
     TlvAttributePath,
@@ -85,14 +84,14 @@ export interface PeerSubscription {
 
 function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
     if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", StatusCode.InvalidAction);
+        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
     }
     const { clusterId, attributeId } = path;
     if (clusterId === undefined && attributeId !== undefined) {
         if (!GLOBAL_IDS.has(attributeId)) {
             throw new StatusResponseError(
                 `Illegal read request for wildcard cluster and non global attribute ${attributeId}`,
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
     }
@@ -101,10 +100,10 @@ function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath
 function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGroupSession = false) {
     const { clusterId, eventId } = path;
     if (clusterId === undefined && eventId !== undefined) {
-        throw new StatusResponseError("Illegal read request with wildcard cluster ID", StatusCode.InvalidAction);
+        throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
     }
     if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", StatusCode.InvalidAction);
+        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
     }
 }
 
@@ -307,7 +306,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
             throw new StatusResponseError(
                 "Reads are only allowed on unicast sessions", // Means "No groups"
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -341,7 +340,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (moreChunkedMessages && suppressResponse) {
             throw new StatusResponseError(
                 "MoreChunkedMessages and SuppressResponse cannot be used together in write messages",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -352,19 +351,19 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (receivedWithinTimedInteraction && moreChunkedMessages) {
             throw new StatusResponseError(
                 "Write Request action that is part of a Timed Write Interaction SHALL NOT be chunked.",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
         if (exchange.hasExpiredTimedInteraction()) {
             exchange.clearTimedInteraction();
-            throw new StatusResponseError(`Timed request window expired. Decline write request.`, StatusCode.Timeout);
+            throw new StatusResponseError(`Timed request window expired. Decline write request.`, Status.Timeout);
         }
 
         if (timedRequest !== exchange.hasTimedInteraction()) {
             throw new StatusResponseError(
                 `timedRequest flag of write interaction (${timedRequest}) mismatch with expected timed interaction (${receivedWithinTimedInteraction}).`,
-                StatusCode.TimedRequestMismatch,
+                Status.TimedRequestMismatch,
             );
         }
 
@@ -374,7 +373,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (sessionType !== SessionType.Unicast) {
                 throw new StatusResponseError(
                     "Write requests are only allowed on unicast sessions when a timed interaction is running.",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
         }
@@ -382,7 +381,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (sessionType === SessionType.Group && !suppressResponse) {
             throw new StatusResponseError(
                 "Write requests are only allowed as group casts when suppressResponse=true.",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -496,7 +495,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (suppressResponse) {
                 throw new StatusResponseError(
                     "Multiple chunked messages and SuppressResponse cannot be used together in write messages",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
         }
@@ -534,10 +533,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         this.#checkSenderRevision(interactionModelRevision);
 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
-            throw new StatusResponseError(
-                "Subscriptions are only allowed on unicast sessions",
-                StatusCode.InvalidAction,
-            );
+            throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
         }
 
         NodeSession.assert(exchange.session, "Subscriptions are only implemented on secure sessions");
@@ -568,7 +564,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             (!Array.isArray(attributeRequests) || attributeRequests.length === 0) &&
             (!Array.isArray(eventRequests) || eventRequests.length === 0)
         ) {
-            throw new StatusResponseError("No attributes or events requested", StatusCode.InvalidAction);
+            throw new StatusResponseError("No attributes or events requested", Status.InvalidAction);
         }
 
         logger.debug(() => [
@@ -603,19 +599,19 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (minIntervalFloorSeconds < 0) {
             throw new StatusResponseError(
                 "minIntervalFloorSeconds should be greater or equal to 0",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
         if (maxIntervalCeilingSeconds < 0) {
             throw new StatusResponseError(
                 "maxIntervalCeilingSeconds should be greater or equal to 0",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
         if (maxIntervalCeilingSeconds < minIntervalFloorSeconds) {
             throw new StatusResponseError(
                 "maxIntervalCeilingSeconds should be greater or equal to minIntervalFloorSeconds",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -837,13 +833,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
         if (exchange.hasExpiredTimedInteraction()) {
             exchange.clearTimedInteraction();
-            throw new StatusResponseError(`Timed request window expired. Decline invoke request.`, StatusCode.Timeout);
+            throw new StatusResponseError(`Timed request window expired. Decline invoke request.`, Status.Timeout);
         }
 
         if (timedRequest !== exchange.hasTimedInteraction()) {
             throw new StatusResponseError(
                 `timedRequest flag of invoke interaction (${timedRequest}) mismatch with expected timed interaction (${receivedWithinTimedInteraction}).`,
-                StatusCode.TimedRequestMismatch,
+                Status.TimedRequestMismatch,
             );
         }
 
@@ -853,7 +849,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (message.packetHeader.sessionType !== SessionType.Unicast) {
                 throw new StatusResponseError(
                     "Invoke requests are only allowed on unicast sessions when a timed interaction is running.",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
         }
@@ -861,7 +857,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (invokeRequests.length > this.#maxPathsPerInvoke) {
             throw new StatusResponseError(
                 `Only ${this.#maxPathsPerInvoke} invoke requests are supported in one message. This message contains ${invokeRequests.length}`,
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
