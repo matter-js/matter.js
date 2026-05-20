@@ -35,7 +35,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Breaking: Attributes declared by decorators (`@attribute(...)`) now default to read-only (`R V`); apply the `writable` decorator to attributes that must accept writes
-    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
+    - Enhancement: Model preparations for Matter 1.5 and 1.5.1
     - Enhancement: The fluent API for manipulating the Matter data model is improved
     - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
 
