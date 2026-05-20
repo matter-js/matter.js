@@ -40,14 +40,11 @@ export class DescriptorServer extends DescriptorBehavior {
         this.state.serverList = this.#serverList;
         this.state.clientList = this.#clientList;
 
-        const mandatoryClients = this.endpoint.type.requirements.client?.mandatory;
-        if (mandatoryClients) {
-            const active = Object.keys(mandatoryClients).filter(k => k in this.endpoint.type.clientClusters);
-            if (active.length) {
-                logger.debug(
-                    `Active mandatory client cluster(s) [${active.join(", ")}] for endpoint ${this.endpoint.id} (device type ${this.endpoint.type.name})`,
-                );
-            }
+        const enabledClientClusters = Object.keys(this.endpoint.type.clientClusters ?? {});
+        if (enabledClientClusters.length) {
+            logger.debug(
+                `Enabled client cluster(s) [${enabledClientClusters.join(", ")}] for endpoint ${this.endpoint.id} (device type ${this.endpoint.type.name})`,
+            );
         }
 
         // Initialize DeviceTypeList
