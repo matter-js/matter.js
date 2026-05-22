@@ -56,8 +56,9 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
 
     // Battery power
     const powerSourceFeatures = endpoint.maybeFeaturesOf(PowerSourceClient);
-    if (powerSourceFeatures) {
-        const status = endpoint.stateOf(PowerSourceClient).status;
+    const powerSourceState = powerSourceFeatures ? endpoint.maybeStateOf(PowerSourceClient) : undefined;
+    if (powerSourceFeatures && powerSourceState) {
+        const { status } = powerSourceState;
         if (powerSourceFeatures.wired) {
             if (status === PowerSource.PowerSourceStatus.Active) {
                 // Should we only consider A/C "mains" powered?  What is a DC adapter?  What is an external battery?
@@ -82,14 +83,14 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
 
     // Sleepy thread device
     const threadNetworkDiagnostics = endpoint.behaviors.typeFor(ThreadNetworkDiagnosticsClient);
-    if (threadNetworkDiagnostics) {
-        const tnd = endpoint.stateOf(threadNetworkDiagnostics);
+    const tnd = threadNetworkDiagnostics ? endpoint.maybeStateOf(threadNetworkDiagnostics) : undefined;
+    if (tnd) {
         if (tnd.routingRole === ThreadNetworkDiagnostics.RoutingRole.SleepyEndDevice) {
             properties.isThreadSleepyEndDevice = true;
         }
         if (tnd.extendedPanId !== undefined && tnd.extendedPanId !== null) {
             properties.threadActive = true;
-            properties.threadPan = tnd.extendedPanId === undefined ? undefined : BigInt(tnd.extendedPanId);
+            properties.threadPan = BigInt(tnd.extendedPanId);
             properties.threadChannel = tnd.channel ?? undefined;
         } else {
             properties.threadActive = false;
