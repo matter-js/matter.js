@@ -10,7 +10,7 @@ import { ClassExtends } from "./Type.js";
 
 /** If the cause has a "message" field, treat as an Error */
 function considerAsError(error: unknown): error is Error {
-    return (error as Error).message !== undefined;
+    return typeof error === "object" && error !== null && (error as { message?: unknown }).message !== undefined;
 }
 
 export function asError(e: any): Error {

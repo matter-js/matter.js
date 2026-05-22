@@ -7,11 +7,13 @@
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { ImplementationError, isDeepEqual } from "@matter/general";
+import { ImplementationError, isDeepEqual, Logger } from "@matter/general";
 import { Matter } from "@matter/model";
 import { ClusterId, DeviceTypeId, EndpointNumber, Semtag } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { DescriptorBehavior } from "./DescriptorBehavior.js";
+
+const logger = Logger.get("DescriptorServer");
 
 /**
  * This is the default server implementation of DescriptorBehavior.
@@ -37,6 +39,13 @@ export class DescriptorServer extends DescriptorBehavior {
 
         this.state.serverList = this.#serverList;
         this.state.clientList = this.#clientList;
+
+        const enabledClientClusters = Object.keys(this.endpoint.type.clientClusters ?? {});
+        if (enabledClientClusters.length) {
+            logger.debug(
+                `Enabled client cluster(s) [${enabledClientClusters.join(", ")}] for endpoint ${this.endpoint.id} (device type ${this.endpoint.type.name})`,
+            );
+        }
 
         // Initialize DeviceTypeList
         this.#initializeDeviceTypeList();

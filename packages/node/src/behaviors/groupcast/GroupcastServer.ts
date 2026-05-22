@@ -17,7 +17,7 @@ import {
     GroupMessageEventInfo,
     SessionManager,
 } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, GroupId, NodeId, StatusCode, StatusResponseError } from "@matter/types";
+import { EndpointNumber, FabricIndex, GroupId, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
@@ -107,7 +107,7 @@ export class GroupcastServer extends GroupcastBehavior {
         if (session.authorityAt(AccessLevel.Administer, location) !== AccessControl.Authority.Granted) {
             throw new StatusResponseError(
                 "Admin privilege required for key or ACL operations",
-                StatusCode.UnsupportedAccess,
+                Status.UnsupportedAccess,
             );
         }
     }
@@ -119,7 +119,7 @@ export class GroupcastServer extends GroupcastBehavior {
 
         // Validate groupId range
         if (groupId < 1 || groupId > 0xfff7) {
-            throw new StatusResponseError("Invalid group ID", StatusCode.ConstraintError);
+            throw new StatusResponseError("Invalid group ID", Status.ConstraintError);
         }
 
         // Privilege escalation prevention: key and useAuxiliaryACL require Admin
@@ -130,13 +130,13 @@ export class GroupcastServer extends GroupcastBehavior {
         // Validate endpoints: ep 0 (root) and ep > 0xFFFE are invalid per spec
         for (const ep of endpoints) {
             if (ep === 0 || ep > 0xfffe) {
-                throw new StatusResponseError(`Endpoint ${ep} is invalid`, StatusCode.UnsupportedEndpoint);
+                throw new StatusResponseError(`Endpoint ${ep} is invalid`, Status.UnsupportedEndpoint);
             }
         }
 
         // If LN-only (no SD feature), an empty endpoint list is not allowed
         if (!this.features.sender && endpoints.length === 0) {
-            throw new StatusResponseError("Empty endpoint list requires Sender feature", StatusCode.ConstraintError);
+            throw new StatusResponseError("Empty endpoint list requires Sender feature", Status.ConstraintError);
         }
 
         // Validate multicast address policy: PerGroup requires PerGroupAddr feature
@@ -144,7 +144,7 @@ export class GroupcastServer extends GroupcastBehavior {
         if (policy === Groupcast.MulticastAddrPolicy.PerGroup && !this.features.perGroup) {
             throw new StatusResponseError(
                 "PerGroup multicast policy requires PerGroupAddr feature",
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
@@ -175,17 +175,17 @@ export class GroupcastServer extends GroupcastBehavior {
             const fabricMemberships = membership.filter(m => m.fabricIndex === fabricIndex);
             const perFabricLimit = Math.floor(this.state.maxMembershipCount / 2);
             if (fabricMemberships.length >= perFabricLimit) {
-                throw new StatusResponseError("Per-fabric membership limit reached", StatusCode.ResourceExhausted);
+                throw new StatusResponseError("Per-fabric membership limit reached", Status.ResourceExhausted);
             }
             if (membership.length >= this.state.maxMembershipCount) {
-                throw new StatusResponseError("Total membership limit reached", StatusCode.ResourceExhausted);
+                throw new StatusResponseError("Total membership limit reached", Status.ResourceExhausted);
             }
 
             // Check MaxMcastAddrCount for new multicast address allocation
             if (policy === Groupcast.MulticastAddrPolicy.PerGroup) {
                 const currentUsed = this.#computeUsedMcastAddrCount(membership);
                 if (currentUsed >= this.state.maxMcastAddrCount) {
-                    throw new StatusResponseError("MaxMcastAddrCount limit reached", StatusCode.ResourceExhausted);
+                    throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
                 }
             } else if (policy === Groupcast.MulticastAddrPolicy.IanaAddr) {
                 // IanaAddr pool counts as 1 address; only check if pool not yet allocated
@@ -193,7 +193,7 @@ export class GroupcastServer extends GroupcastBehavior {
                 if (!hasIanaAddr) {
                     const currentUsed = this.#computeUsedMcastAddrCount(membership);
                     if (currentUsed >= this.state.maxMcastAddrCount) {
-                        throw new StatusResponseError("MaxMcastAddrCount limit reached", StatusCode.ResourceExhausted);
+                        throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
                     }
                 }
             }
@@ -228,7 +228,7 @@ export class GroupcastServer extends GroupcastBehavior {
         if (groupId === GroupId.NO_GROUP_ID) {
             const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
             if (fabricMemberships.length === 0) {
-                throw new StatusResponseError("No groups to leave", StatusCode.NotFound);
+                throw new StatusResponseError("No groups to leave", Status.NotFound);
             }
             this.state.membership = this.state.membership.filter(m => m.fabricIndex !== fabricIndex);
             this.#updateUsedMcastAddrCount();
@@ -241,7 +241,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
 
         if (entryIdx < 0) {
-            throw new StatusResponseError(`Group ${groupId} not found`, StatusCode.NotFound);
+            throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
         }
 
         const entry = membership[entryIdx];
@@ -292,7 +292,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
 
         if (entryIdx < 0) {
-            throw new StatusResponseError(`Group ${groupId} not found`, StatusCode.NotFound);
+            throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
         }
 
         await this.#applyKeySet(fabricIndex, keySetId, key);
@@ -311,7 +311,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const entryIdx = membership.findIndex(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
 
         if (entryIdx < 0) {
-            throw new StatusResponseError(`Group ${groupId} not found`, StatusCode.NotFound);
+            throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
         }
 
         membership[entryIdx] = { ...membership[entryIdx], hasAuxiliaryAcl: useAuxiliaryAcl };
@@ -504,15 +504,15 @@ export class GroupcastServer extends GroupcastBehavior {
         const gkm = this.agent.get(GroupKeyManagementServer);
         if (key !== undefined) {
             if (key.byteLength !== 16) {
-                throw new StatusResponseError("Key must be exactly 16 bytes", StatusCode.ConstraintError);
+                throw new StatusResponseError("Key must be exactly 16 bytes", Status.ConstraintError);
             }
             if (gkm.validateKeySetId(fabricIndex, keySetId)) {
-                throw new StatusResponseError(`KeySet ${keySetId} already exists for fabric`, StatusCode.AlreadyExists);
+                throw new StatusResponseError(`KeySet ${keySetId} already exists for fabric`, Status.AlreadyExists);
             }
             await gkm.createKeySetForGroupcast(this.env.get(FabricManager).for(fabricIndex), keySetId, Bytes.of(key));
         } else {
             if (!gkm.validateKeySetId(fabricIndex, keySetId)) {
-                throw new StatusResponseError(`KeySet ${keySetId} not found for fabric`, StatusCode.NotFound);
+                throw new StatusResponseError(`KeySet ${keySetId} not found for fabric`, Status.NotFound);
             }
         }
     }

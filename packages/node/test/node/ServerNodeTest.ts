@@ -43,7 +43,7 @@ import {
     Val,
 } from "@matter/protocol";
 import { FabricIndex, VendorId } from "@matter/types";
-import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";

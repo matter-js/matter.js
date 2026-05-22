@@ -23,7 +23,7 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT, StatusCode, StatusResponseError } from "@matter/types";
+import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT, Status, StatusResponseError } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { DeviceAdvertiser } from "./DeviceAdvertiser.js";
 
@@ -148,7 +148,7 @@ export class DeviceCommissioner {
         if (this.isFailsafeArmed) return;
         throw new StatusResponseError(
             message ?? "Failsafe timer needs to be armed to execute this action.",
-            StatusCode.FailsafeRequired,
+            Status.FailsafeRequired,
         );
     }
 

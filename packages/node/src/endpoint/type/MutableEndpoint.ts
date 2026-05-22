@@ -6,12 +6,9 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
-import { Logger } from "@matter/general";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "../properties/SupportedClientClusters.js";
 import { EndpointType } from "./EndpointType.js";
-
-const logger = Logger.get("MutableEndpoint");
 
 /**
  * A MutableEndpoint is an EndpointType with factory functions that make it convenient to reconfigure the endpoint.
@@ -58,12 +55,8 @@ export function MutableEndpoint<const T extends EndpointType.Options>(options: T
     const mandatoryClients: SupportedBehaviors = options.requirements?.client?.mandatory ?? {};
     if (Object.keys(mandatoryClients).length > 0) {
         const merged = SupportedClientClusters.extend(clientClusters, Object.values(mandatoryClients));
-        const added = Object.keys(merged).filter(k => !(k in clientClusters));
-        if (added.length > 0) {
+        if (Object.keys(merged).some(k => !(k in clientClusters))) {
             clientClusters = merged;
-            logger.debug(
-                `Auto-registered mandatory client cluster(s) [${added.join(", ")}] for device type ${type.name}`,
-            );
         }
     }
 

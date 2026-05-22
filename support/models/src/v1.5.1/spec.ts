@@ -4914,7 +4914,7 @@ export const SpecMatter = Matter(
                 "sensing modalities, including configuration and provision of notifications of occupancy status."
         },
 
-        Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
+        Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
 
         Attribute(
             { name: "FeatureMap", id: 0xfffc, type: "FeatureMap", xref: "cluster§2.7.4" },

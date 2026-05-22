@@ -21,6 +21,7 @@ import {
     StorageService,
 } from "@matter/general";
 import {
+    CertificateAuthority,
     FabricAuthority,
     FabricManager,
     MdnsService,
@@ -84,7 +85,7 @@ export namespace ServerEnvironment {
     export async function close(node: ServerNode) {
         const { env } = node;
 
-        env.close(FabricManager);
+        await env.close(FabricManager);
         await env.close(PeerSet);
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
@@ -98,7 +99,8 @@ export namespace ServerEnvironment {
 
         await env.close(ServerNodeStore);
         await env.close(SharedNodeServices);
-        env.close(FabricAuthority);
+        await env.close(FabricAuthority);
+        await env.close(CertificateAuthority);
 
         // Release the env-held lock (from storage.lock) if one was acquired
         if (env.has(DatafileRoot.Lock)) {

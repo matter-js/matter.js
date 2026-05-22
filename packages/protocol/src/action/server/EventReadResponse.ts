@@ -20,7 +20,6 @@ import {
     NodeId,
     ObjectSchema,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvSchema,
 } from "@matter/types";
@@ -132,7 +131,7 @@ export class EventReadResponse<
         const { nodeId, clusterId, endpointId, eventId } = path;
 
         if (clusterId === undefined && eventId !== undefined) {
-            throw new StatusResponseError("Illegal read request with wildcard cluster ID", StatusCode.InvalidAction);
+            throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
         }
 
         if (nodeId !== undefined && nodeId !== this.nodeId) {
@@ -359,7 +358,7 @@ export class EventReadResponse<
      * Add a status value.
      */
     #asStatus(path: ReadResult.ConcreteEventPath, status: Status) {
-        logger.debug(`Error reading event ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${status})`);
+        logger.debug(`Error reading event ${this.node.inspectPath(path)}: Status=${Status[status]}(${status})`);
 
         const report: ReadResult.EventStatus = {
             kind: "event-status",

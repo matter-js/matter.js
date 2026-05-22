@@ -68,7 +68,7 @@ import {
     ManualPairingCodeCodec,
     NodeId,
     QrPairingCodeCodec,
-    StatusCode,
+    Status,
     StatusResponseError,
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
@@ -1308,7 +1308,7 @@ export class PairedNode {
         } catch (error) {
             // Accept the error if no window is already open
             if (
-                !StatusResponseError.is(error, StatusCode.Failure) ||
+                !StatusResponseError.is(error, Status.Failure) ||
                 StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
             ) {
                 throw error;
@@ -1330,7 +1330,7 @@ export class PairedNode {
         } catch (error) {
             // Accept the error if no window is already open
             if (
-                !StatusResponseError.is(error, StatusCode.Failure) ||
+                !StatusResponseError.is(error, Status.Failure) ||
                 StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
             ) {
                 throw error;

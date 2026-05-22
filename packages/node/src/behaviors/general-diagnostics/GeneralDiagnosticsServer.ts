@@ -32,7 +32,7 @@ import {
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
 import { assertRemoteActor, MdnsService, SessionManager, Val } from "@matter/protocol";
-import { CommandId, FabricIndex, StatusCode, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
+import { CommandId, FabricIndex, Status, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -99,12 +99,12 @@ export class GeneralDiagnosticsServer extends Base {
     #validateTestEnabledKey(enableKey: Bytes) {
         const keyData = Bytes.of(enableKey);
         if (keyData.every(byte => byte === 0)) {
-            throw new StatusResponseError("Invalid test enable key, all zeros", StatusCode.ConstraintError);
+            throw new StatusResponseError("Invalid test enable key, all zeros", Status.ConstraintError);
         }
         const expectedKeyData = Bytes.of(this.state.deviceTestEnableKey);
         keyData.forEach((byte, index) => {
             if (byte !== expectedKeyData[index]) {
-                throw new StatusResponseError("Invalid test enable key", StatusCode.ConstraintError);
+                throw new StatusResponseError("Invalid test enable key", Status.ConstraintError);
             }
         });
     }
@@ -116,7 +116,7 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     protected triggerTestEvent(eventTrigger: number | bigint) {
-        throw new StatusResponseError(`Unsupported test event trigger ${eventTrigger}`, StatusCode.InvalidCommand);
+        throw new StatusResponseError(`Unsupported test event trigger ${eventTrigger}`, Status.InvalidCommand);
     }
 
     override timeSnapshot(): MaybePromise<GeneralDiagnostics.TimeSnapshotResponse> {
@@ -145,7 +145,7 @@ export class GeneralDiagnosticsServer extends Base {
         this.#validateTestEnabledKey(enableKey);
 
         if (!this.state.testEventTriggersEnabled) {
-            throw new StatusResponseError("Test event triggers are disabled", StatusCode.ConstraintError);
+            throw new StatusResponseError("Test event triggers are disabled", Status.ConstraintError);
         }
 
         const payload = new Uint8Array(count).fill(value);
@@ -180,7 +180,7 @@ export class GeneralDiagnosticsServer extends Base {
         const { exchange } = this.context;
 
         if (responseSize > exchange.maxPayloadSize) {
-            throw new StatusResponseError("Response too large", StatusCode.ResourceExhausted);
+            throw new StatusResponseError("Response too large", Status.ResourceExhausted);
         }
 
         return {
@@ -469,7 +469,7 @@ export namespace GeneralDiagnosticsServer {
                         if (isOnline) {
                             throw new StatusResponseError(
                                 "DeviceLoadStatus unavailable: InteractionServer or SessionManager missing",
-                                StatusCode.Failure,
+                                Status.Failure,
                             );
                         }
                         // During initialization the interaction server is not yet registered; return zeroed struct so

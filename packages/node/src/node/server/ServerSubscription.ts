@@ -48,7 +48,7 @@ import {
     EndpointNumber,
     EventNumber,
     INTERACTION_PROTOCOL_ID,
-    StatusCode,
+    Status,
     StatusResponseError,
     SubscribeRequest,
 } from "@matter/types";
@@ -605,7 +605,7 @@ export class ServerSubscription implements Subscription {
             if (validAttributes === 0 && validEvents === 0) {
                 throw new StatusResponseError(
                     "Subscription failed because no attributes or events are matching the query",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             } else if (!hasValuesInResponse && delayedStatusReports.length) {
                 // We have no values in the response but collected status reports, so we need to send them
@@ -799,7 +799,7 @@ export class ServerSubscription implements Subscription {
                 });
             }
         } catch (error) {
-            if (StatusResponseError.is(error, StatusCode.InvalidSubscription, StatusCode.Failure)) {
+            if (StatusResponseError.is(error, Status.InvalidSubscription, Status.Failure)) {
                 logger.info(`Subscription ${this.idStr} cancelled by peer`);
                 this.#isCanceledByPeer = true;
             } else {

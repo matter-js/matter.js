@@ -15,7 +15,6 @@ import type {
     NodeId,
     Priority,
     Status,
-    StatusCode,
     TlvSchema,
 } from "@matter/types";
 
@@ -53,7 +52,7 @@ export namespace ReadResult {
     export interface AttributeStatus {
         kind: "attr-status";
         path: ConcreteAttributePath;
-        status: StatusCode;
+        status: Status;
         clusterStatus?: number;
     }
 

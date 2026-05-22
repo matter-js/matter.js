@@ -8,7 +8,7 @@ import { inferLargeMessage } from "#action/client/ClientInteraction.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { CommandModel, Quality } from "@matter/model";
 import { ClusterId, CommandId, EndpointNumber, TlvNoArguments } from "@matter/types";
-import { OnOffCluster } from "@matter/types/clusters/on-off";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { WebRtcTransportProvider } from "@matter/types/clusters/web-rtc-transport-provider";
 
 /**
@@ -54,7 +54,7 @@ describe("Invoke largeMessage flag", () => {
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(1),
-                        cluster: OnOffCluster,
+                        cluster: OnOff,
                         command: "toggle",
                     }),
                 ],
@@ -68,7 +68,7 @@ describe("Invoke largeMessage flag", () => {
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(1),
-                        cluster: OnOffCluster,
+                        cluster: OnOff,
                         command: "toggle",
                     }),
                 ],
@@ -127,7 +127,7 @@ describe("Invoke largeMessage flag", () => {
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(1),
-                        cluster: OnOffCluster,
+                        cluster: OnOff,
                         command: "toggle",
                     }),
                 ],
@@ -141,7 +141,7 @@ describe("Invoke largeMessage flag", () => {
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(1),
-                        cluster: OnOffCluster,
+                        cluster: OnOff,
                         command: "toggle",
                         commandRef: 0,
                     }),
@@ -208,7 +208,7 @@ describe("Invoke largeMessage flag", () => {
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(1),
-                        cluster: OnOffCluster,
+                        cluster: OnOff,
                         command: "toggle",
                     }),
                 ],
@@ -228,7 +228,7 @@ describe("Invoke largeMessage flag", () => {
                 commands: [
                     Invoke.ConcreteCommandRequest({
                         endpoint: EndpointNumber(1),
-                        cluster: OnOffCluster,
+                        cluster: OnOff,
                         command: "toggle",
                     }),
                 ],

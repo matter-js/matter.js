@@ -55,7 +55,7 @@ import {
     NodeId,
     resolveAttributeName,
     resolveEventName,
-    StatusCode,
+    Status,
     StatusResponseError,
     TlvEventFilter,
     TlvOfModel,
@@ -142,7 +142,7 @@ export interface AttributeStatus {
         clusterId?: ClusterId;
         attributeId?: AttributeId;
     };
-    status: StatusCode;
+    status: Status;
 }
 
 type CommandRequest<C extends ClusterType.Command> =
@@ -675,7 +675,7 @@ export class InteractionClient {
                 path: { endpointId, clusterId, attributeId },
                 status,
             } = response[0];
-            if (status !== undefined && status !== StatusCode.Success) {
+            if (status !== undefined && status !== Status.Success) {
                 throw new StatusResponseError(
                     `Error setting attribute ${endpointId}/${clusterId}/${attributeId}`,
                     status,
@@ -784,10 +784,10 @@ export class InteractionClient {
             .flatMap(({ status, clusterStatus, path: { nodeId, endpointId, clusterId, attributeId } }) => {
                 return {
                     path: { nodeId, endpointId, clusterId, attributeId },
-                    status: status ?? clusterStatus ?? StatusCode.Failure,
+                    status: status ?? clusterStatus ?? Status.Failure,
                 };
             })
-            .filter(({ status }) => status !== StatusCode.Success);
+            .filter(({ status }) => status !== Status.Success);
     }
 
     async subscribeAttribute<T>(options: {
@@ -1126,10 +1126,10 @@ export class InteractionClient {
                 }
 
                 const resultCode = chunk.status;
-                if (resultCode !== StatusCode.Success) {
+                if (resultCode !== Status.Success) {
                     throw new StatusResponseError(
                         `Received non-success result: ${resultCode}`,
-                        resultCode ?? StatusCode.Failure,
+                        resultCode ?? Status.Failure,
                         chunk.clusterStatus,
                     );
                 }

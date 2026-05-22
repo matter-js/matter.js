@@ -46,7 +46,7 @@ import {
     NodeId,
     SECURE_CHANNEL_PROTOCOL_ID,
     SecureMessageType,
-    StatusCode,
+    Status,
     StatusResponseError,
 } from "@matter/types";
 import { SessionClosedError, UnexpectedMessageError } from "./errors.js";
@@ -817,10 +817,7 @@ export class MessageExchange {
     startTimedInteraction(timeout: Duration) {
         if (this.#timedInteractionTimer !== undefined && this.#timedInteractionTimer.isRunning) {
             this.#timedInteractionTimer.stop();
-            throw new StatusResponseError(
-                "Timed interaction already running for this exchange",
-                StatusCode.InvalidAction,
-            );
+            throw new StatusResponseError("Timed interaction already running for this exchange", Status.InvalidAction);
         }
 
         logger.debug(

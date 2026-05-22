@@ -39,7 +39,7 @@ export function setLogLevel(identifier: string, level: string): void {
             logLevel = LogLevel.DEBUG;
             break;
     }
-    Logger.setDefaultLoglevelForLogger(identifier, logLevel);
+    Logger.destinations[identifier].level = logLevel;
 }
 
 /**

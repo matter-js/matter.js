@@ -795,13 +795,10 @@ export class SessionManager {
     }
 
     async close() {
-        if (this.#construction.status === Lifecycle.Status.Initializing) {
-            await this.#construction;
-        }
-
-        this.#observers.close();
-
-        await this.closeAllSessions();
+        await this.#construction.close(async () => {
+            this.#observers.close();
+            await this.closeAllSessions();
+        });
     }
 
     async clear() {

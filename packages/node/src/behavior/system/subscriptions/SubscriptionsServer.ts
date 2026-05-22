@@ -17,7 +17,7 @@ import {
 } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { GroupSession, PeerAddress, PeerAddressMap, PeerAddressSet, PeerSet, Subscription } from "@matter/protocol";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
 const logger = Logger.get("SubscriptionsBehavior");
@@ -264,7 +264,7 @@ export class SubscriptionsServer extends Behavior {
                             await interactionServer.establishFormerSubscription(subscription, session);
                         } catch (error) {
                             const sre = StatusResponseError.of(error);
-                            const isInvalidSubscription = sre?.code === StatusCode.InvalidSubscription;
+                            const isInvalidSubscription = sre?.code === Status.InvalidSubscription;
                             logger.debug(
                                 `Failed to re-establish former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
                                 sre

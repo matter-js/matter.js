@@ -34,7 +34,7 @@ import {
     EventId,
     EventNumber,
     FabricIndex,
-    StatusCode,
+    Status,
     StatusResponseError,
     TlvArray,
     TlvClusterId,
@@ -1397,12 +1397,12 @@ describe("InteractionProtocol", () => {
 
             // First chunk response - REPLACE_ALL success
             expect(responses[0].writeResponses.length).equals(1);
-            expect(responses[0].writeResponses[0].status.status).equals(StatusCode.Success);
+            expect(responses[0].writeResponses[0].status.status).equals(Status.Success);
 
             // Second chunk response - both ADD operations success
             expect(responses[1].writeResponses.length).equals(2);
-            expect(responses[1].writeResponses[0].status.status).equals(StatusCode.Success);
-            expect(responses[1].writeResponses[1].status.status).equals(StatusCode.Success);
+            expect(responses[1].writeResponses[0].status.status).equals(Status.Success);
+            expect(responses[1].writeResponses[1].status.status).equals(Status.Success);
 
             // Verify the final ACL list has both entries
             expect(node.state.accessControl.acl).deep.equals([
@@ -1786,7 +1786,7 @@ describe("InteractionProtocol", () => {
 
         it("handles StatusResponseError gracefully", async () => {
             node.eventsOf(EventedOnOffServer).onOff$Changing.on(() => {
-                throw new StatusResponseError("Sorry so swamped", StatusCode.Busy);
+                throw new StatusResponseError("Sorry so swamped", Status.Busy);
             });
 
             const exchange = await createDummyMessageExchange(node);

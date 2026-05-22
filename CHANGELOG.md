@@ -11,12 +11,17 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-- Breaking: Matter 1.5 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
+- @matter/general
+    - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
+
+## 0.17.0 (2026-05-20)
+
+- Breaking: Matter 1.5/1.5.1 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
     - Some Namespaces were renamed and now have a "Common*" prefix
     - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
 
 - @matter/\*
-    - Upgraded to Matter specification version 1.5
+    - Upgraded to Matter specification version 1.5/1.5.1
     - 20%–50% RAM usage reductions and improvements
 
 - @matter/general
@@ -35,7 +40,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Breaking: Attributes declared by decorators (`@attribute(...)`) now default to read-only (`R V`); apply the `writable` decorator to attributes that must accept writes
-    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
+    - Enhancement: Model preparations for Matter 1.5 and 1.5.1
     - Enhancement: The fluent API for manipulating the Matter data model is improved
     - Enhancement: Enhances decorator capabilities for attributes, clusters, and (matter and non-matter) commands
 

@@ -11,7 +11,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
 import { InternalError, Logger } from "@matter/general";
 import { assertRemoteActor, Fabric } from "@matter/protocol";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { Groups } from "@matter/types/clusters/groups";
 import { GroupsBehavior } from "./GroupsBehavior.js";
 
@@ -98,20 +98,20 @@ export class GroupsServer extends GroupsBase {
         const fabric = this.context.session.associatedFabric;
 
         if (groupId < 1) {
-            return { status: StatusCode.ConstraintError, groupId };
+            return { status: Status.ConstraintError, groupId };
         }
         if (groupName.length > 16) {
-            return { status: StatusCode.ConstraintError, groupId };
+            return { status: Status.ConstraintError, groupId };
         }
 
         /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
-            return { status: StatusCode.InvalidInState, groupId };
+            return { status: Status.InvalidInState, groupId };
         }
         */
 
         if (!fabric.groups.groupKeyIdMap.has(groupId)) {
-            return { status: StatusCode.UnsupportedAccess, groupId };
+            return { status: Status.UnsupportedAccess, groupId };
         }
 
         const endpointNumber = this.endpoint.number;
@@ -126,7 +126,7 @@ export class GroupsServer extends GroupsBase {
             return { status: error.code, groupId };
         }
 
-        return { status: StatusCode.Success, groupId };
+        return { status: Status.Success, groupId };
     }
 
     override viewGroup({ groupId }: Groups.ViewGroupRequest): Groups.ViewGroupResponse {
@@ -134,12 +134,12 @@ export class GroupsServer extends GroupsBase {
         const fabric = this.context.session.associatedFabric;
 
         if (groupId < 1) {
-            return { status: StatusCode.ConstraintError, groupId, groupName: "" };
+            return { status: Status.ConstraintError, groupId, groupName: "" };
         }
 
         /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
-            return { status: StatusCode.InvalidInState, groupId, groupName: "" };
+            return { status: Status.InvalidInState, groupId, groupName: "" };
         }
         */
 
@@ -149,9 +149,9 @@ export class GroupsServer extends GroupsBase {
         const { groupTable } = this.#rootEndpoint.stateOf(GroupKeyManagementServer);
         const groupEntry = groupTable.find(entry => entry.groupId === groupId && entry.fabricIndex === fabricIndex);
         if (groupEntry === undefined || !groupEntry.endpoints.includes(endpointNumber)) {
-            return { status: StatusCode.NotFound, groupId, groupName: "" };
+            return { status: Status.NotFound, groupId, groupName: "" };
         }
-        return { status: StatusCode.Success, groupId, groupName: groupEntry.groupName ?? "" };
+        return { status: Status.Success, groupId, groupName: groupEntry.groupName ?? "" };
     }
 
     override async getGroupMembership({
@@ -162,7 +162,7 @@ export class GroupsServer extends GroupsBase {
 
         /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
-            throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", StatusCode.InvalidInState);
+            throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", Status.InvalidInState);
         }
         */
 
@@ -185,7 +185,7 @@ export class GroupsServer extends GroupsBase {
 
     override async removeGroup({ groupId }: Groups.RemoveGroupRequest): Promise<Groups.RemoveGroupResponse> {
         if (groupId < 1) {
-            return { status: StatusCode.ConstraintError, groupId };
+            return { status: Status.ConstraintError, groupId };
         }
 
         try {
@@ -200,9 +200,9 @@ export class GroupsServer extends GroupsBase {
                         .get(ScenesManagementServer)
                         .removeScenesForGroupOnFabric(this.context.session.associatedFabric.fabricIndex, groupId);
                 }
-                return { status: StatusCode.Success, groupId };
+                return { status: Status.Success, groupId };
             }
-            return { status: StatusCode.NotFound, groupId };
+            return { status: Status.NotFound, groupId };
         } catch (error) {
             StatusResponseError.accept(error);
             return { status: error.code, groupId };
@@ -228,13 +228,13 @@ export class GroupsServer extends GroupsBase {
         assertRemoteActor(this.context);
         /* Provisional in Matter 1.6.0:
         if (this.#isGroupcastAdopted(this.context.session.associatedFabric.fabricIndex)) {
-            throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", StatusCode.InvalidInState);
+            throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", Status.InvalidInState);
         }
         */
         if (this.endpoint.stateOf(IdentifyBehavior).identifyTime > 0) {
             // We identify ourselves currently
             const { status } = await this.addGroup({ groupId, groupName });
-            if (status !== StatusCode.Success) {
+            if (status !== Status.Success) {
                 throw new StatusResponseError(`Failed to add group ${groupId}`, status);
             }
         }

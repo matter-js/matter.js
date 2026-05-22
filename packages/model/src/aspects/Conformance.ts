@@ -100,6 +100,13 @@ export class Conformance extends Aspect<Conformance.Definition> {
     }
 
     /**
+     * Is the associated element disallowed?
+     */
+    get isDisallowed() {
+        return this.ast.type === Conformance.Flag.Disallowed;
+    }
+
+    /**
      * Perform limited conformance evaluation to determine whether this conformance is applicable given a feature
      * combination.
      *

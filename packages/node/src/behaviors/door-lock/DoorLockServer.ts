@@ -17,7 +17,7 @@ import {
     Timer,
 } from "@matter/general";
 import { field, listOf, nonvolatile, octstr } from "@matter/model";
-import { FabricIndex, NodeId, StatusCode, StatusResponseError } from "@matter/types";
+import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { DoorLockBehavior } from "./DoorLockBehavior.js";
 import { LockAuth } from "./LockAuth.js";
@@ -172,7 +172,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const fabricIndex = this.#fabricIndex;
 
         if (userIndex < 1 || userIndex > maxUsers) {
-            throw new StatusResponseError("Invalid user index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid user index", Status.InvalidCommand);
         }
 
         const auth = this.auth;
@@ -198,19 +198,16 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Add, userIndex, fabricIndex, null);
         } else if (operationType === DataOperationType.Modify) {
             if (!existing) {
-                throw new StatusResponseError("User slot is available", StatusCode.InvalidCommand);
+                throw new StatusResponseError("User slot is available", Status.InvalidCommand);
             }
 
             if (request.userName !== null && fabricIndex !== existing.creatorFabricIndex) {
-                throw new StatusResponseError(
-                    "Cannot modify userName from different fabric",
-                    StatusCode.InvalidCommand,
-                );
+                throw new StatusResponseError("Cannot modify userName from different fabric", Status.InvalidCommand);
             }
             if (request.userUniqueId !== null && fabricIndex !== existing.creatorFabricIndex) {
                 throw new StatusResponseError(
                     "Cannot modify userUniqueId from different fabric",
-                    StatusCode.InvalidCommand,
+                    Status.InvalidCommand,
                 );
             }
 
@@ -226,7 +223,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
             this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Modify, userIndex, fabricIndex, null);
         } else {
-            throw new StatusResponseError("Invalid operation type", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid operation type", Status.InvalidCommand);
         }
     }
 
@@ -234,7 +231,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const maxUsers = this.state.numberOfTotalUsersSupported;
 
         if (request.userIndex < 1 || request.userIndex > maxUsers) {
-            throw new StatusResponseError("Invalid user index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid user index", Status.InvalidCommand);
         }
 
         const auth = this.auth;
@@ -288,7 +285,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         if (userIndex < 1 || userIndex > maxUsers) {
-            throw new StatusResponseError("Invalid user index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid user index", Status.InvalidCommand);
         }
 
         const user = auth.findUser(userIndex);
@@ -313,15 +310,15 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const auth = this.auth;
 
         if (credential.credentialIndex < 0 || credential.credentialIndex > maxCredentials) {
-            return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex: null };
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
         }
 
         if (!this.#validateCredentialDataLength(credential.credentialType, credentialData)) {
-            return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex: null };
+            return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
         }
 
         if (auth.isDuplicateCredential(credential.credentialType, credentialData, credential.credentialIndex)) {
-            return { status: StatusCode.Failure, userIndex: null, nextCredentialIndex: null };
+            return { status: Status.Failure, userIndex: null, nextCredentialIndex: null };
         }
 
         const nextCredentialIndex = auth.findNextAvailableCredentialIndex(
@@ -333,7 +330,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         if (operationType === DataOperationType.Add) {
             const existingCred = auth.findCredential(credential.credentialType, credential.credentialIndex);
             if (existingCred) {
-                return { status: StatusCode.Failure, userIndex: null, nextCredentialIndex };
+                return { status: Status.Failure, userIndex: null, nextCredentialIndex };
             }
 
             auth.addCredential(credential.credentialType, credential.credentialIndex, credentialData, fabricIndex);
@@ -344,7 +341,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 const newUserIndex = auth.findAvailableUserIndex(this.state.numberOfTotalUsersSupported);
                 if (newUserIndex === null) {
                     auth.removeCredential(credential.credentialType, credential.credentialIndex);
-                    return { status: StatusCode.ResourceExhausted, userIndex: null, nextCredentialIndex };
+                    return { status: Status.ResourceExhausted, userIndex: null, nextCredentialIndex };
                 }
 
                 auth.addUser({
@@ -373,17 +370,17 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 const user = auth.findUser(userIndex);
                 if (!user) {
                     auth.removeCredential(credential.credentialType, credential.credentialIndex);
-                    return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                    return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
                 }
 
                 if (fabricIndex !== user.creatorFabricIndex) {
                     auth.removeCredential(credential.credentialType, credential.credentialIndex);
-                    return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                    return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
                 }
 
                 if (user.credentials.length >= this.state.numberOfCredentialsSupportedPerUser) {
                     auth.removeCredential(credential.credentialType, credential.credentialIndex);
-                    return { status: StatusCode.ResourceExhausted, userIndex: null, nextCredentialIndex };
+                    return { status: Status.ResourceExhausted, userIndex: null, nextCredentialIndex };
                 }
 
                 auth.replaceUser(userIndex, {
@@ -404,24 +401,24 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 credential.credentialIndex,
             );
 
-            return { status: StatusCode.Success, userIndex: createdUserIndex, nextCredentialIndex };
+            return { status: Status.Success, userIndex: createdUserIndex, nextCredentialIndex };
         } else if (operationType === DataOperationType.Modify) {
             const existingCred = auth.findCredential(credential.credentialType, credential.credentialIndex);
             if (!existingCred) {
-                return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
             }
 
             if (fabricIndex !== existingCred.creatorFabricIndex) {
-                return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
             }
 
             if (userIndex !== null) {
                 const user = auth.findUser(userIndex);
                 if (!user) {
-                    return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                    return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
                 }
                 if (fabricIndex !== user.creatorFabricIndex) {
-                    return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                    return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
                 }
                 const hasCredential = user.credentials.some(
                     c =>
@@ -429,7 +426,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                         c.credentialIndex === credential.credentialIndex,
                 );
                 if (!hasCredential) {
-                    return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex };
+                    return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex };
                 }
             }
 
@@ -448,10 +445,10 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 credential.credentialIndex,
             );
 
-            return { status: StatusCode.Success, userIndex: null, nextCredentialIndex };
+            return { status: Status.Success, userIndex: null, nextCredentialIndex };
         }
 
-        return { status: StatusCode.InvalidCommand, userIndex: null, nextCredentialIndex: null };
+        return { status: Status.InvalidCommand, userIndex: null, nextCredentialIndex: null };
     }
 
     override getCredentialStatus(request: DoorLock.GetCredentialStatusRequest): DoorLock.GetCredentialStatusResponse {
@@ -505,7 +502,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         if (credential.credentialType === CredentialType.ProgrammingPin) {
-            throw new StatusResponseError("Cannot clear ProgrammingPIN", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Cannot clear ProgrammingPIN", Status.InvalidCommand);
         }
 
         if (credential.credentialIndex === 0xfffe) {
@@ -515,7 +512,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
         const cred = auth.findCredential(credential.credentialType, credential.credentialIndex);
         if (!cred) {
-            throw new StatusResponseError("Credential not found", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Credential not found", Status.InvalidCommand);
         }
 
         this.#removeCredentialFromUsers(auth, credential.credentialType, credential.credentialIndex);
@@ -537,16 +534,16 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const { weekDayIndex, userIndex } = request;
 
         if (weekDayIndex < 1 || weekDayIndex > maxSchedules) {
-            throw new StatusResponseError("Invalid schedule index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid schedule index", Status.InvalidCommand);
         }
 
         this.#requireValidUser(userIndex);
 
         if (request.endHour < request.startHour) {
-            throw new StatusResponseError("End hour must be >= start hour", StatusCode.InvalidCommand);
+            throw new StatusResponseError("End hour must be >= start hour", Status.InvalidCommand);
         }
         if (request.endHour === request.startHour && request.endMinute <= request.startMinute) {
-            throw new StatusResponseError("End time must be after start time", StatusCode.InvalidCommand);
+            throw new StatusResponseError("End time must be after start time", Status.InvalidCommand);
         }
 
         const schedules = this.state.weekDaySchedules.filter(
@@ -576,14 +573,14 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             userIndex < 1 ||
             userIndex > this.state.numberOfTotalUsersSupported
         ) {
-            const response = { weekDayIndex, userIndex, status: StatusCode.InvalidCommand };
+            const response = { weekDayIndex, userIndex, status: Status.InvalidCommand };
             Supervision(response, "weekDayIndex").constraint = false;
             Supervision(response, "userIndex").constraint = false;
             return response;
         }
 
         if (!this.auth.findUser(userIndex)) {
-            return { weekDayIndex, userIndex, status: StatusCode.NotFound };
+            return { weekDayIndex, userIndex, status: Status.NotFound };
         }
 
         const schedule = this.state.weekDaySchedules.find(
@@ -591,13 +588,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         );
 
         if (!schedule) {
-            return { weekDayIndex, userIndex, status: StatusCode.NotFound };
+            return { weekDayIndex, userIndex, status: Status.NotFound };
         }
 
         return {
             weekDayIndex,
             userIndex,
-            status: StatusCode.Success,
+            status: Status.Success,
             daysMask: schedule.daysMask,
             startHour: schedule.startHour,
             startMinute: schedule.startMinute,
@@ -616,7 +613,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         } else {
             const maxSchedules = this.state.numberOfWeekDaySchedulesSupportedPerUser;
             if (weekDayIndex < 1 || weekDayIndex > maxSchedules) {
-                throw new StatusResponseError("Invalid schedule index", StatusCode.InvalidCommand);
+                throw new StatusResponseError("Invalid schedule index", Status.InvalidCommand);
             }
             this.state.weekDaySchedules = this.state.weekDaySchedules.filter(
                 s => !(s.weekDayIndex === weekDayIndex && s.userIndex === userIndex),
@@ -629,13 +626,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const { yearDayIndex, userIndex } = request;
 
         if (yearDayIndex < 1 || yearDayIndex > maxSchedules) {
-            throw new StatusResponseError("Invalid schedule index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid schedule index", Status.InvalidCommand);
         }
 
         this.#requireValidUser(userIndex);
 
         if (request.localEndTime <= request.localStartTime) {
-            throw new StatusResponseError("End time must be after start time", StatusCode.InvalidCommand);
+            throw new StatusResponseError("End time must be after start time", Status.InvalidCommand);
         }
 
         const schedules = this.state.yearDaySchedules.filter(
@@ -662,14 +659,14 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             userIndex < 1 ||
             userIndex > this.state.numberOfTotalUsersSupported
         ) {
-            const response = { yearDayIndex, userIndex, status: StatusCode.InvalidCommand };
+            const response = { yearDayIndex, userIndex, status: Status.InvalidCommand };
             Supervision(response, "yearDayIndex").constraint = false;
             Supervision(response, "userIndex").constraint = false;
             return response;
         }
 
         if (!this.auth.findUser(userIndex)) {
-            return { yearDayIndex, userIndex, status: StatusCode.NotFound };
+            return { yearDayIndex, userIndex, status: Status.NotFound };
         }
 
         const schedule = this.state.yearDaySchedules.find(
@@ -677,13 +674,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         );
 
         if (!schedule) {
-            return { yearDayIndex, userIndex, status: StatusCode.NotFound };
+            return { yearDayIndex, userIndex, status: Status.NotFound };
         }
 
         return {
             yearDayIndex,
             userIndex,
-            status: StatusCode.Success,
+            status: Status.Success,
             localStartTime: schedule.localStartTime,
             localEndTime: schedule.localEndTime,
         };
@@ -699,7 +696,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         } else {
             const maxSchedules = this.state.numberOfYearDaySchedulesSupportedPerUser;
             if (yearDayIndex < 1 || yearDayIndex > maxSchedules) {
-                throw new StatusResponseError("Invalid schedule index", StatusCode.InvalidCommand);
+                throw new StatusResponseError("Invalid schedule index", Status.InvalidCommand);
             }
             this.state.yearDaySchedules = this.state.yearDaySchedules.filter(
                 s => !(s.yearDayIndex === yearDayIndex && s.userIndex === userIndex),
@@ -712,11 +709,11 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const { holidayIndex } = request;
 
         if (holidayIndex < 1 || holidayIndex > maxSchedules) {
-            throw new StatusResponseError("Invalid schedule index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid schedule index", Status.InvalidCommand);
         }
 
         if (request.localEndTime <= request.localStartTime) {
-            throw new StatusResponseError("End time must be after start time", StatusCode.InvalidCommand);
+            throw new StatusResponseError("End time must be after start time", Status.InvalidCommand);
         }
 
         if (
@@ -726,7 +723,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             request.operatingMode !== DoorLock.OperatingMode.NoRemoteLockUnlock &&
             request.operatingMode !== DoorLock.OperatingMode.Passage
         ) {
-            throw new StatusResponseError("Invalid operating mode", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid operating mode", Status.InvalidCommand);
         }
 
         const schedules = this.state.holidaySchedules.filter(s => s.holidayIndex !== holidayIndex);
@@ -746,7 +743,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const { holidayIndex } = request;
 
         if (holidayIndex < 1 || holidayIndex > maxSchedules) {
-            const response = { holidayIndex, status: StatusCode.InvalidCommand };
+            const response = { holidayIndex, status: Status.InvalidCommand };
             Supervision(response, "holidayIndex").constraint = false;
             return response;
         }
@@ -754,12 +751,12 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         const schedule = this.state.holidaySchedules.find(s => s.holidayIndex === holidayIndex);
 
         if (!schedule) {
-            return { holidayIndex, status: StatusCode.NotFound };
+            return { holidayIndex, status: Status.NotFound };
         }
 
         return {
             holidayIndex,
-            status: StatusCode.Success,
+            status: Status.Success,
             localStartTime: schedule.localStartTime,
             localEndTime: schedule.localEndTime,
             operatingMode: schedule.operatingMode,
@@ -774,7 +771,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         } else {
             const maxSchedules = this.state.numberOfHolidaySchedulesSupported;
             if (holidayIndex < 1 || holidayIndex > maxSchedules) {
-                throw new StatusResponseError("Invalid schedule index", StatusCode.InvalidCommand);
+                throw new StatusResponseError("Invalid schedule index", Status.InvalidCommand);
             }
             this.state.holidaySchedules = this.state.holidaySchedules.filter(s => s.holidayIndex !== holidayIndex);
         }
@@ -785,7 +782,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     get #fabricIndex(): FabricIndex {
         const fabric = this.context.fabric;
         if (fabric === undefined) {
-            throw new StatusResponseError("Fabric required", StatusCode.UnsupportedAccess);
+            throw new StatusResponseError("Fabric required", Status.UnsupportedAccess);
         }
         return fabric;
     }
@@ -848,7 +845,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
         if (requirePin) {
             this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
-            throw new StatusResponseError("PIN required for remote operation", StatusCode.Failure);
+            throw new StatusResponseError("PIN required for remote operation", Status.Failure);
         }
     }
 
@@ -857,7 +854,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         if (this.state.wrongCodeEntryLimit !== undefined && this.state.userCodeTemporaryDisableTime !== undefined) {
             if (this.internal.wrongCodeCount >= this.state.wrongCodeEntryLimit) {
                 this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
-                throw new StatusResponseError("User code temporarily disabled", StatusCode.Failure);
+                throw new StatusResponseError("User code temporarily disabled", Status.Failure);
             }
         }
 
@@ -875,7 +872,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                     const user = auth.findUser(userIndex);
                     if (user && user.userStatus === UserStatus.OccupiedDisabled) {
                         this.#emitLockOperationError(operationType, OperationError.DisabledUserDenied);
-                        throw new StatusResponseError("User is disabled", StatusCode.Failure);
+                        throw new StatusResponseError("User is disabled", Status.Failure);
                     }
                 }
 
@@ -906,7 +903,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
-        throw new StatusResponseError("Invalid PIN code", StatusCode.Failure);
+        throw new StatusResponseError("Invalid PIN code", Status.Failure);
     }
 
     // ── Event Emission ─────────────────────────────────────────────────────────
@@ -1002,10 +999,10 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     #requireValidUser(userIndex: number) {
         const maxUsers = this.state.numberOfTotalUsersSupported;
         if (userIndex < 1 || userIndex > maxUsers) {
-            throw new StatusResponseError("Invalid user index", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid user index", Status.InvalidCommand);
         }
         if (!this.auth.findUser(userIndex)) {
-            throw new StatusResponseError("User not found", StatusCode.Failure);
+            throw new StatusResponseError("User not found", Status.Failure);
         }
     }
 
@@ -1087,7 +1084,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 //
 // Pattern 1: commands that throw on bad input — remap validation errors to INVALID_COMMAND
 const throwInvalidCommand = () => {
-    throw new StatusResponseError("Invalid field value", StatusCode.InvalidCommand);
+    throw new StatusResponseError("Invalid field value", Status.InvalidCommand);
 };
 
 for (const method of [

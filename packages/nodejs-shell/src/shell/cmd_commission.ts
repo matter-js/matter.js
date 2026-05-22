@@ -6,7 +6,7 @@
 
 import { Diagnostic, Logger, MatterError } from "@matter/general";
 import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, QrPairingCodeCodec } from "@matter/types";
-import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning } from "@matter/types/clusters";
+import { BasicInformation, Descriptor, GeneralCommissioning } from "@matter/types/clusters";
 import { NodeCommissioningOptions } from "@project-chip/matter.js";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
@@ -195,7 +195,7 @@ export default function commands(theNode: MatterNode) {
                                     // It is provided to proof the concept
 
                                     // Example to initialize a ClusterClient and access concrete fields as API methods
-                                    const descriptor = node.getRootClusterClient(DescriptorCluster);
+                                    const descriptor = node.getRootClusterClient(Descriptor);
                                     if (descriptor !== undefined) {
                                         console.log(await descriptor.attributes.deviceTypeList.get()); // you can call that way
                                         console.log(await descriptor.getServerListAttribute()); // or more convenient that way
@@ -204,7 +204,7 @@ export default function commands(theNode: MatterNode) {
                                     }
 
                                     // Example to subscribe to a field and get the value
-                                    const info = node.getRootClusterClient(BasicInformationCluster);
+                                    const info = node.getRootClusterClient(BasicInformation);
                                     if (info !== undefined) {
                                         console.log(await info.getProductNameAttribute()); // This call is executed remotely
                                         //console.log(await info.subscribeProductNameAttribute(value => console.log("productName", value), 5, 30));
