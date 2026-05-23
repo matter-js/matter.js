@@ -62,7 +62,7 @@ describe("EventDataDecoder", () => {
             ]);
         });
 
-        it("normalize data with all paths given for multiple events", () => {
+        it("preserves wire (EventNumber) order across interleaved event types", () => {
             const data: TypeFromSchema<typeof TlvEventData>[] = [
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), eventId: EventId(0) },
@@ -89,33 +89,7 @@ describe("EventDataDecoder", () => {
 
             const normalized = normalizeEventData(data);
 
-            expect(normalized).deep.equal([
-                [
-                    {
-                        path: data[0].path,
-                        eventNumber: data[0].eventNumber,
-                        priority: data[0].priority,
-                        epochTimestamp: data[0].epochTimestamp,
-                        data: data[0].data,
-                    },
-                    {
-                        path: data[0].path,
-                        eventNumber: data[2].eventNumber,
-                        priority: data[2].priority,
-                        epochTimestamp: data[2].epochTimestamp,
-                        data: data[2].data,
-                    },
-                ],
-                [
-                    {
-                        path: data[1].path,
-                        eventNumber: data[1].eventNumber,
-                        priority: data[1].priority,
-                        epochTimestamp: data[1].epochTimestamp,
-                        data: data[1].data,
-                    },
-                ],
-            ]);
+            expect(normalized).deep.equal([[data[0]], [data[1]], [data[2]]]);
         });
     });
 
@@ -192,7 +166,7 @@ describe("EventDataDecoder", () => {
             ]);
         });
 
-        it("normalize and decode data with all paths given for multiple events", () => {
+        it("preserves wire (EventNumber) order across interleaved event types", () => {
             const data: TypeFromSchema<typeof TlvEventData>[] = [
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), eventId: EventId(0) },
@@ -228,58 +202,40 @@ describe("EventDataDecoder", () => {
 
             const normalized = normalizeAndDecodeEventData(data);
 
+            const startUpPath = {
+                endpointId: EndpointNumber(0),
+                clusterId: ClusterId(0x28),
+                eventId: EventId(0),
+                nodeId: undefined,
+                eventName: "startUp",
+            };
+            const shutDownPath = {
+                endpointId: EndpointNumber(0),
+                clusterId: ClusterId(0x28),
+                eventId: EventId(1),
+                nodeId: undefined,
+                eventName: "shutDown",
+            };
+            const baseOccurrence = {
+                priority: 1,
+                epochTimestamp: 0,
+                systemTimestamp: undefined,
+                deltaEpochTimestamp: undefined,
+                deltaSystemTimestamp: undefined,
+                path: undefined,
+            };
             expect(normalized).deep.equal([
                 {
-                    path: {
-                        endpointId: EndpointNumber(0),
-                        clusterId: ClusterId(0x28),
-                        eventId: EventId(0),
-                        nodeId: undefined,
-                        eventName: "startUp",
-                    },
-                    events: [
-                        {
-                            eventNumber: EventNumber(1),
-                            priority: 1,
-                            epochTimestamp: 0,
-                            systemTimestamp: undefined,
-                            deltaEpochTimestamp: undefined,
-                            deltaSystemTimestamp: undefined,
-                            data: { softwareVersion: 1 },
-                            path: undefined,
-                        },
-                        {
-                            eventNumber: EventNumber(3),
-                            priority: 1,
-                            epochTimestamp: 0,
-                            systemTimestamp: undefined,
-                            deltaEpochTimestamp: undefined,
-                            deltaSystemTimestamp: undefined,
-                            data: { softwareVersion: 3 },
-                            path: undefined,
-                        },
-                    ],
+                    path: startUpPath,
+                    events: [{ ...baseOccurrence, eventNumber: EventNumber(1), data: { softwareVersion: 1 } }],
                 },
                 {
-                    path: {
-                        endpointId: EndpointNumber(0),
-                        clusterId: ClusterId(0x28),
-                        eventId: EventId(1),
-                        nodeId: undefined,
-                        eventName: "shutDown",
-                    },
-                    events: [
-                        {
-                            eventNumber: EventNumber(2),
-                            priority: 1,
-                            epochTimestamp: 0,
-                            systemTimestamp: undefined,
-                            deltaEpochTimestamp: undefined,
-                            deltaSystemTimestamp: undefined,
-                            data: undefined,
-                            path: undefined,
-                        },
-                    ],
+                    path: shutDownPath,
+                    events: [{ ...baseOccurrence, eventNumber: EventNumber(2), data: undefined }],
+                },
+                {
+                    path: startUpPath,
+                    events: [{ ...baseOccurrence, eventNumber: EventNumber(3), data: { softwareVersion: 3 } }],
                 },
             ]);
         });

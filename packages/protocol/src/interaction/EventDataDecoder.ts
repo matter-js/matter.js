@@ -74,20 +74,15 @@ export function normalizeAndDecodeReadEventReport(data: TypeFromSchema<typeof Tl
 export function normalizeEventData(
     data: TypeFromSchema<typeof TlvEventData>[],
 ): TypeFromSchema<typeof TlvEventData>[][] {
-    // Put all returned values into a map to group by path
-    const responseList = new Map<string, TypeFromSchema<typeof TlvEventData>[]>(); // TODO CHECK
-    data.forEach(value => {
-        if (!value) return;
-        const {
-            path: { nodeId, endpointId, clusterId, eventId },
-        } = value;
-        const mapId = `${nodeId}-${endpointId}-${clusterId}-${eventId}`;
-        const list = responseList.get(mapId) || [];
-        list.push(value);
-        responseList.set(mapId, list);
-    });
-
-    return Array.from(responseList.values());
+    // One occurrence per outer entry, preserving wire (EventNumber) order
+    // per Matter Core §10.7.3.1. Earlier code regrouped by path tuple,
+    // which broke ordered event cycles such as Generic Switch multi-press.
+    const result: TypeFromSchema<typeof TlvEventData>[][] = [];
+    for (const value of data) {
+        if (!value) continue;
+        result.push([value]);
+    }
+    return result;
 }
 
 export function normalizeAndDecodeEventData(
