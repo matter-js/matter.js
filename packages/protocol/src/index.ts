@@ -12,7 +12,6 @@ export * from "./advertisement/index.js";
 export * from "./bdx/index.js";
 export * from "./ble/index.js";
 export * from "./certificate/index.js";
-export * from "./cluster/index.js";
 export * from "./codec/index.js";
 export * from "./common/index.js";
 export * from "./dcl/index.js";

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClusterClientObj } from "#cluster/client/ClusterClientTypes.js";
 import { AtLeastOne, HandlerFunction, NamedHandler, NotImplementedError } from "@matter/general";
 import { RootNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
-import { ClusterClientObj } from "@matter/protocol";
 import { ClusterType, EndpointNumber } from "@matter/types";
 import { DeviceClasses, DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
