@@ -95,7 +95,7 @@ describe("ClientChunkedList", () => {
         await MockTime.resolve(
             (async () => {
                 for await (const chunk of peer1.interaction.read(readRequest)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         reports.push(report);
                     }
                 }

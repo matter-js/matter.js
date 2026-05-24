@@ -26,7 +26,7 @@ function buildReport(input: Partial<DataReport>): DataReport {
 }
 
 describe("decodeDataReport", () => {
-    it("decodes a single attribute into the legacy 4-array shape with resolved name", () => {
+    it("decodes a single attribute into the legacy 4-array shape with resolved name", async () => {
         const report = buildReport({
             attributeReports: [
                 {
@@ -43,7 +43,7 @@ describe("decodeDataReport", () => {
             ],
         });
 
-        const decoded = decodeDataReport(report);
+        const decoded = await decodeDataReport(report);
 
         expect(decoded.attributeReports).has.length(1);
         expect(decoded.attributeReports[0].path.attributeName).equal("dataModelRevision");
@@ -52,7 +52,7 @@ describe("decodeDataReport", () => {
         expect(decoded.attributeStatus).equal(undefined);
     });
 
-    it("preserves wire (EventNumber) order across interleaved event types (#3785 regression)", () => {
+    it("preserves wire (EventNumber) order across interleaved event types (#3785 regression)", async () => {
         const startUp = EventId(BasicInformation.events.startUp.id);
         const shutDown = EventId(BasicInformation.events.shutDown.id);
         const clusterId = ClusterId(BasicInformation.id);
@@ -88,7 +88,7 @@ describe("decodeDataReport", () => {
             ],
         });
 
-        const decoded = decodeDataReport(report);
+        const decoded = await decodeDataReport(report);
 
         expect(decoded.eventReports).has.length(3);
         expect(decoded.eventReports.map(r => r.events[0].eventNumber)).deep.equal([
@@ -100,7 +100,7 @@ describe("decodeDataReport", () => {
         expect(decoded.eventReports.map(r => r.path.eventName)).deep.equal(["startUp", "shutDown", "startUp"]);
     });
 
-    it("populates attributeStatus for failed attribute reads", () => {
+    it("populates attributeStatus for failed attribute reads", async () => {
         const report = buildReport({
             attributeReports: [
                 {
@@ -116,7 +116,7 @@ describe("decodeDataReport", () => {
             ],
         });
 
-        const decoded = decodeDataReport(report);
+        const decoded = await decodeDataReport(report);
 
         expect(decoded.attributeReports).has.length(0);
         expect(decoded.attributeStatus).has.length(1);

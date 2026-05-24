@@ -98,16 +98,16 @@ export interface DecodedDataReport extends DataReport {
  *
  * For new code prefer consuming the chunk stream directly.
  */
-export function decodeDataReport(
+export async function decodeDataReport(
     report: DataReport,
     leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
-): DecodedDataReport {
+): Promise<DecodedDataReport> {
     const attributeReports = new Array<DecodedAttributeReportValue<any>>();
     const attributeStatus = new Array<DecodedAttributeReportStatus>();
     const eventReports = new Array<DecodedEventReportValue<any>>();
     const eventStatus = new Array<DecodedEventReportStatus>();
 
-    for (const chunk of InputChunk(report, leftoverAttributeReports)) {
+    for await (const chunk of InputChunk(report, leftoverAttributeReports)) {
         switch (chunk.kind) {
             case "attr-value":
                 attributeReports.push(toDecodedAttributeReportValue(chunk));

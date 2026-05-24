@@ -30,7 +30,12 @@ import type {
 export interface ReadResult<Chunk = ReadResult.Chunk> extends AsyncIterable<Chunk> {}
 
 export namespace ReadResult {
-    export type Chunk = Iterable<Report>;
+    /**
+     * One block of reports yielded by a {@link ReadResult}. Async-iterable producers (e.g. wire-decode pipelines)
+     * can interleave work between reports; sync producers (e.g. small in-memory yields) keep their literal array
+     * shape. Consumers iterate with `for await … of chunk` either way.
+     */
+    export type Chunk = AsyncIterable<Report> | Iterable<Report>;
 
     export type Report = AttributeValue | AttributeStatus | EventValue | EventStatus;
 

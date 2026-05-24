@@ -433,7 +433,7 @@ export class ControllerCommissioningFlow {
             attributeMap.set(`${endpointId}-${clusterId}-${attributeId}`, undefined);
         }
         for await (const data of this.interaction.read(request)) {
-            for (const entry of data) {
+            for await (const entry of data) {
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -743,7 +743,7 @@ export class ControllerCommissioningFlow {
         const otaRequestors = new Array<EndpointNumber>();
 
         for await (const data of networkData) {
-            for (const entry of data) {
+            for await (const entry of data) {
                 if (entry.kind !== "attr-value") {
                     continue;
                 }

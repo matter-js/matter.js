@@ -219,7 +219,7 @@ export class ClientStructure {
         const scope = ReadScope(request);
         for await (const chunk of changes) {
             const chunkData = new Array<ReadResult.Report>();
-            for (const change of chunk) {
+            for await (const change of chunk) {
                 chunkData.push(change);
                 switch (change.kind) {
                     case "attr-value":

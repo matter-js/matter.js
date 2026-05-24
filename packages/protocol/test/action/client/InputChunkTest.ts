@@ -5,6 +5,7 @@
  */
 
 import { InputChunk } from "#action/client/InputChunk.js";
+import { ReadResult } from "#action/response/ReadResult.js";
 import {
     AttributeId,
     ClusterId,
@@ -33,13 +34,15 @@ function buildReport(input: Partial<DataReport>): DataReport {
     };
 }
 
-function collect(report: DataReport, leftover?: TypeFromSchema<typeof TlvAttributeReport>[]) {
-    return Array.from(InputChunk(report, leftover));
+async function collect(report: DataReport, leftover?: TypeFromSchema<typeof TlvAttributeReport>[]) {
+    const out = new Array<ReadResult.Report>();
+    for await (const chunk of InputChunk(report, leftover)) out.push(chunk);
+    return out;
 }
 
 describe("InputChunk", () => {
     describe("attributes", () => {
-        it("yields one attr-value per fully-qualified path entry", () => {
+        it("yields one attr-value per fully-qualified path entry", async () => {
             const report = buildReport({
                 attributeReports: [
                     {
@@ -56,7 +59,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
 
             expect(chunks).deep.equal([
                 {
@@ -74,7 +77,7 @@ describe("InputChunk", () => {
             ]);
         });
 
-        it("preserves cross-path order (A.1, B.1, A.2, B.2 → same order out)", () => {
+        it("preserves cross-path order (A.1, B.1, A.2, B.2 → same order out)", async () => {
             const vendorId = ClusterId(BasicInformation.id);
             const otherId = ClusterId(OnOff.id);
             const report = buildReport({
@@ -115,7 +118,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             const summary = chunks.map(c =>
                 c.kind === "attr-value"
                     ? {
@@ -149,7 +152,7 @@ describe("InputChunk", () => {
             ]);
         });
 
-        it("restores tag-compressed paths from the previous fully-qualified entry", () => {
+        it("restores tag-compressed paths from the previous fully-qualified entry", async () => {
             const clusterId = ClusterId(BasicInformation.id);
             const report = buildReport({
                 attributeReports: [
@@ -177,7 +180,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks).has.length(2);
             const second = chunks[1];
             expect(second.kind).equal("attr-value");
@@ -189,7 +192,7 @@ describe("InputChunk", () => {
             expect(second.version).equal(200);
         });
 
-        it("emits attr-value then attr-status when a different-path status follows data", () => {
+        it("emits attr-value then attr-status when a different-path status follows data", async () => {
             // Different paths → path change → flush data group, then status emits as its own chunk.
             const clusterId = ClusterId(BasicInformation.id);
             const attrId = AttributeId(BasicInformation.attributes.dataModelRevision.id);
@@ -212,12 +215,12 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks.map(c => c.kind)).deep.equal(["attr-value", "attr-status"]);
             expect(chunks[1].kind === "attr-status" && chunks[1].status).equal(Status.UnsupportedAttribute);
         });
 
-        it("keeps adjacent same-cluster different-attribute entries from being lumped", () => {
+        it("keeps adjacent same-cluster different-attribute entries from being lumped", async () => {
             // Three attrs of the same cluster, interleaved data and status. Each entry has its own attribute path
             // → each flushes on path change, emitted in wire order. A status entry must not cause the next-path
             // data entry to be skipped or reordered.
@@ -250,7 +253,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks.map(c => c.kind)).deep.equal(["attr-value", "attr-status", "attr-value"]);
             const ids = chunks.map(c =>
                 c.kind === "attr-value" || c.kind === "attr-status" ? c.path.attributeId : undefined,
@@ -258,7 +261,7 @@ describe("InputChunk", () => {
             expect(ids).deep.equal([a1, a2, a3]);
         });
 
-        it("emits data and status for the same path in wire order", () => {
+        it("emits data and status for the same path in wire order", async () => {
             // Spec-pathological (data + status for the same attribute), but the streamer flushes on kind change
             // within a path so the output preserves wire order: value first, status second.
             const clusterId = ClusterId(BasicInformation.id);
@@ -281,11 +284,11 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks.map(c => c.kind)).deep.equal(["attr-value", "attr-status"]);
         });
 
-        it("stashes a chunked-array tail (listIndex entries) when moreChunkedMessages is set", () => {
+        it("stashes a chunked-array tail (listIndex entries) when moreChunkedMessages is set", async () => {
             // Initial value entry + listIndex=null append entry, same path. The append-action listIndex marks the
             // tail as chunked, so the whole group is stashed for the next report.
             const clusterId = ClusterId(BasicInformation.id);
@@ -312,13 +315,13 @@ describe("InputChunk", () => {
             });
 
             const leftover = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-            const chunksN = collect(reportN, leftover);
+            const chunksN = await collect(reportN, leftover);
 
             expect(chunksN).has.length(0);
             expect(leftover).has.length(2);
         });
 
-        it("stashes a chunked-array tail (single array-typed initial value) when moreChunkedMessages is set", () => {
+        it("stashes a chunked-array tail (single array-typed initial value) when moreChunkedMessages is set", async () => {
             // Exercises the second branch of isChunkedArrayTail: single entry, no listIndex, but the TLV stream
             // starts with an Array container and carries >1 inner element. Matches the publisher pattern where the
             // first chunk of a multi-report list comes as the bare array.
@@ -340,13 +343,13 @@ describe("InputChunk", () => {
             });
 
             const leftover = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-            const chunksN = collect(reportN, leftover);
+            const chunksN = await collect(reportN, leftover);
 
             expect(chunksN).has.length(0);
             expect(leftover).has.length(1);
         });
 
-        it("prepends leftover into the next call and clears the leftover buffer", () => {
+        it("prepends leftover into the next call and clears the leftover buffer", async () => {
             // The leftover-merge step does not decode by itself, but we can verify the buffer flow: the next call
             // sees the prepended entries and drains the buffer regardless of what it then chooses to do with them.
             const clusterId = ClusterId(BasicInformation.id);
@@ -363,12 +366,12 @@ describe("InputChunk", () => {
                 moreChunkedMessages: false,
                 attributeReports: [],
             });
-            collect(reportFinal, leftover);
+            await collect(reportFinal, leftover);
 
             expect(leftover).has.length(0);
         });
 
-        it("flushes (not stashes) when moreChunkedMessages is false", () => {
+        it("flushes (not stashes) when moreChunkedMessages is false", async () => {
             const clusterId = ClusterId(BasicInformation.id);
             const attrId = AttributeId(BasicInformation.attributes.dataModelRevision.id);
             const report = buildReport({
@@ -385,14 +388,14 @@ describe("InputChunk", () => {
             });
 
             const leftover = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-            const chunks = collect(report, leftover);
+            const chunks = await collect(report, leftover);
             expect(chunks).has.length(1);
             expect(leftover).has.length(0);
         });
     });
 
     describe("events", () => {
-        it("preserves wire (EventNumber) order across interleaved event types (#3785)", () => {
+        it("preserves wire (EventNumber) order across interleaved event types (#3785)", async () => {
             // Mimic Generic-Switch-style alternating sequence on a single path:
             //   startUp(en=1), shutDown(en=2), startUp(en=3) → must come out in that exact order.
             const startUp = EventId(BasicInformation.events.startUp.id);
@@ -426,7 +429,7 @@ describe("InputChunk", () => {
                 eventReports: data.map(eventData => ({ eventData })),
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks).has.length(3);
             expect(chunks.map(c => (c.kind === "event-value" ? c.number : undefined))).deep.equal([
                 EventNumber(1),
@@ -440,7 +443,7 @@ describe("InputChunk", () => {
             ]);
         });
 
-        it("propagates the wire timestamp variant fields onto the chunk", () => {
+        it("propagates the wire timestamp variant fields onto the chunk", async () => {
             // Publisher chose the systemTimestamp variant; only that field carries the value, the others stay
             // undefined. `timestamp` reflects the collapsed convenience.
             const eventId = EventId(BasicInformation.events.startUp.id);
@@ -459,7 +462,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks).has.length(1);
             const ev = chunks[0];
             expect(ev.kind).equal("event-value");
@@ -471,7 +474,7 @@ describe("InputChunk", () => {
             expect(ev.timestamp).equal(1234);
         });
 
-        it("emits a single event-status chunk when both status and clusterStatus are set (B2 regression)", () => {
+        it("emits a single event-status chunk when both status and clusterStatus are set (B2 regression)", async () => {
             // clusterStatus is wire-typed as uint8 but the TLV schema uses the Status enum; cluster-specific codes
             // are not Status enum members, so cast to satisfy the (overly narrow) type.
             const clusterStatus = 42 as Status;
@@ -490,7 +493,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks).has.length(1);
             const only = chunks[0];
             expect(only.kind).equal("event-status");
@@ -501,7 +504,7 @@ describe("InputChunk", () => {
     });
 
     describe("ordering across attributes and events", () => {
-        it("yields attributes first, then events (matches wire layout)", () => {
+        it("yields attributes first, then events (matches wire layout)", async () => {
             const clusterId = ClusterId(BasicInformation.id);
             const attrId = AttributeId(BasicInformation.attributes.dataModelRevision.id);
             const eventId = EventId(BasicInformation.events.startUp.id);
@@ -528,7 +531,7 @@ describe("InputChunk", () => {
                 ],
             });
 
-            const chunks = collect(report);
+            const chunks = await collect(report);
             expect(chunks.map(c => c.kind)).deep.equal(["attr-value", "event-value"]);
         });
     });

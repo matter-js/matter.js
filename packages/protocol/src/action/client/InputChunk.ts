@@ -51,10 +51,10 @@ interface AttributeDataGroup {
  * and `moreChunkedMessages` is set, the trailing entries are stashed in `leftoverAttributeReports` for the next
  * report. See #3785 for event-order semantics.
  */
-export function* InputChunk(
+export async function* InputChunk(
     input: DataReport,
     leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
-): ReadResult.Chunk {
+): AsyncGenerator<ReadResult.Report> {
     yield* emitAttributes(input, leftoverAttributeReports);
     yield* emitEvents(input);
 }

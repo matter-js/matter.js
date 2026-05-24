@@ -492,7 +492,7 @@ export class InteractionClient {
         const eventStatus = new Array<DecodedEventReportStatus>();
 
         for await (const chunks of report) {
-            for (const entry of chunks) {
+            for await (const entry of chunks) {
                 switch (entry.kind) {
                     case "attr-value": {
                         const reportValue = toDecodedAttributeReportValue(entry);

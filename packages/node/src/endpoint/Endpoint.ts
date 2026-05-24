@@ -1198,7 +1198,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
                 : baseRequest;
             const readValues = new Map<string, Map<string, unknown>>();
             for await (const chunk of node.interaction.read(request, undefined)) {
-                for (const report of chunk) {
+                for await (const report of chunk) {
                     if (report.kind === "attr-value") {
                         const info = clusterLookup.get(report.path.clusterId);
                         if (info !== undefined) {
@@ -1234,7 +1234,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
         const collectFailures = async (stream: ReturnType<typeof node.interaction.read>) => {
             for await (const chunk of stream) {
-                for (const report of chunk) {
+                for await (const report of chunk) {
                     if (report.kind === "attr-status" && report.status !== Status.Success) {
                         failed.push({ path: report.path, status: report.status, clusterStatus: report.clusterStatus });
                     }
