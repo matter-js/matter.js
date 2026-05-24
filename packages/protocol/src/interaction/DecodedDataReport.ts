@@ -16,6 +16,9 @@ import {
     normalizeAndDecodeReadEventReport,
 } from "./EventDataDecoder.js";
 
+/**
+ * @deprecated removed in 0.18. Import `DecodedDataReport` from `@project-chip/matter.js/cluster` instead.
+ */
 export interface DecodedDataReport extends DataReport {
     isNormalized: true;
     attributeReports: DecodedAttributeReportValue<any>[];
@@ -25,6 +28,10 @@ export interface DecodedDataReport extends DataReport {
     subscriptionId?: number;
 }
 
+/**
+ * @deprecated removed in 0.18. Use `decodeDataReport` from `@project-chip/matter.js/cluster`, or consume the
+ *   streaming `InputChunk` API directly.
+ */
 export function DecodedDataReport(
     report: DataReport,
     leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],

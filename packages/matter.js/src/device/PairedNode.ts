@@ -5,6 +5,7 @@
  */
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
+import { DecodedAttributeReportValue, DecodedEventReportValue } from "#cluster/client/DecodedDataReport.js";
 import { InteractionClient, UnknownNodeError } from "#cluster/client/InteractionClient.js";
 import {
     AsyncObservable,
@@ -45,17 +46,7 @@ import {
     type GlobalAttributeState,
 } from "@matter/node";
 import { DescriptorClient } from "@matter/node/behaviors/descriptor";
-import {
-    ClusterClientObj,
-    DecodedAttributeReportValue,
-    DecodedEventReportValue,
-    PaseClient,
-    Peer,
-    PeerAddress,
-    Read,
-    SustainedSubscription,
-    Val,
-} from "@matter/protocol";
+import { ClusterClientObj, PaseClient, Peer, PeerAddress, Read, SustainedSubscription, Val } from "@matter/protocol";
 import {
     AttributeId,
     CaseAuthenticatedTag,

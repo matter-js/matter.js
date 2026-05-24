@@ -6,5 +6,6 @@
 
 export * from "./AttributeClient.js";
 export * from "./ClusterClient.js";
+export * from "./DecodedDataReport.js";
 export * from "./EventClient.js";
 export * from "./InteractionClient.js";

@@ -22,12 +22,6 @@ import type { ServerNode } from "@matter/node";
 import { ClientNodeInteraction } from "@matter/node";
 import {
     ClientInteraction,
-    DecodedAttributeReportStatus,
-    DecodedAttributeReportValue,
-    DecodedDataReport,
-    DecodedEventData,
-    DecodedEventReportStatus,
-    DecodedEventReportValue,
     DedicatedChannelExchangeProvider,
     DiscoveryData,
     ExchangeManager,
@@ -62,6 +56,14 @@ import {
     TypeFromSchema,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import {
+    DecodedAttributeReportStatus,
+    DecodedAttributeReportValue,
+    DecodedDataReport,
+    DecodedEventData,
+    DecodedEventReportStatus,
+    DecodedEventReportValue,
+} from "./DecodedDataReport.js";
 
 const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
