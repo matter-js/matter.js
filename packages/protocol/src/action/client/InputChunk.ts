@@ -110,8 +110,7 @@ function* emitAttributes(
                 yield* flushDataGroup(group);
                 group = undefined;
             }
-            const status = buildAttrStatus(resolved, statusSrc);
-            if (status !== undefined) yield status;
+            yield buildAttrStatus(resolved, statusSrc);
         }
     }
 
@@ -205,8 +204,10 @@ function decodeAttributeGroup(
             path: { nodeId, endpointId, clusterId, attributeId },
             tlv: TlvAny,
             value,
-            // Type declares version required; wire-decoded dataVersion may be absent — preserve historical behavior.
-            version: dataVersion as number,
+            // Wire `dataVersion` is optional per TlvAttributeReportData; substitute 0 when the publisher omits
+            // it so the chunk honors its `version: number` contract. In practice spec-compliant publishers
+            // always include dataVersion for AttributeData reports.
+            version: dataVersion ?? 0,
         };
     } catch (error) {
         // Swallow wire-decode failures (malformed TLV, schema mismatch); unrelated errors bubble.
@@ -221,7 +222,7 @@ function decodeAttributeGroup(
 function buildAttrStatus(
     path: ResolvedAttributePath,
     src: TypeFromSchema<typeof TlvAttributeStatus>,
-): ReadResult.AttributeStatus | undefined {
+): ReadResult.AttributeStatus {
     const { nodeId, endpointId, clusterId, attributeId } = path;
     return {
         kind: "attr-status",
