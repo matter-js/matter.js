@@ -62,7 +62,6 @@ import {
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
@@ -270,7 +269,6 @@ export class ControllerCommissioningFlow {
     protected readonly commissioningOptions: ControllerCommissioningFlowOptions;
     protected readonly commissioningSteps = new Array<CommissioningStep>();
     protected readonly commissioningStepResults = new Map<string, CommissioningStepResult>();
-    readonly #clusterClients = new Map<ClusterId, ClusterClientObj>();
     #commissioningStartedTime: Timestamp | undefined;
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
@@ -435,7 +433,7 @@ export class ControllerCommissioningFlow {
             attributeMap.set(`${endpointId}-${clusterId}-${attributeId}`, undefined);
         }
         for await (const data of this.interaction.read(request)) {
-            for (const entry of data) {
+            for await (const entry of data) {
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -745,7 +743,7 @@ export class ControllerCommissioningFlow {
         const otaRequestors = new Array<EndpointNumber>();
 
         for await (const data of networkData) {
-            for (const entry of data) {
+            for await (const entry of data) {
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -1884,8 +1882,6 @@ export class ControllerCommissioningFlow {
 
         await this.interaction.close();
         this.interaction = transitionResult;
-
-        this.#clusterClients.clear();
 
         logger.debug("Successfully reconnected with device ...");
 

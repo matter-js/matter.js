@@ -373,7 +373,7 @@ describe("ProtocolServiceTest", () => {
 
         let encoded = 0;
         for (const chunk of data) {
-            for (const report of chunk) {
+            for await (const report of chunk) {
                 if (report.kind !== "attr-value") {
                     continue;
                 }

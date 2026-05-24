@@ -16,7 +16,7 @@ import {
     TlvEventFilter,
     TypeFromSchema,
 } from "@matter/types";
-import { DecodedEventData } from "../../interaction/EventDataDecoder.js";
+import { DecodedEventData } from "./DecodedDataReport.js";
 
 export interface AttributeClientObj<T = any> {
     readonly id: AttributeId;

@@ -164,7 +164,7 @@ describe("AttributeReadResponse", () => {
             }),
         );
 
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: {
                 40: 21,
             },
@@ -177,7 +177,7 @@ describe("AttributeReadResponse", () => {
             await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined }),
             Read.Attribute(),
         );
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
     });
@@ -188,7 +188,7 @@ describe("AttributeReadResponse", () => {
         const endpoint = await node.add(OnOffLightDevice);
 
         const responseWithLight = await readAttr(node, Read.Attribute());
-        expect(countAttrs(responseWithLight.data)).deep.equals({
+        expect(await countAttrs(responseWithLight.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
             1: {
                 3: 7,
@@ -206,7 +206,7 @@ describe("AttributeReadResponse", () => {
         await endpoint.close();
 
         const responseAfterRemove = await readAttr(node, Read.Attribute());
-        expect(countAttrs(responseAfterRemove.data)).deep.equals({
+        expect(await countAttrs(responseAfterRemove.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
         expect(responseAfterRemove.counts).deep.equals({
@@ -223,7 +223,7 @@ describe("AttributeReadResponse", () => {
                 attributes: "attributeList",
             }),
         );
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: {
                 29: 1,
                 31: 1,

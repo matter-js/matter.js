@@ -6,7 +6,6 @@
 
 import { capitalize, Diagnostic, Duration, ImplementationError, Logger } from "@matter/general";
 import { AttributeModel } from "@matter/model";
-import { ClusterClientObj, DecodedEventData } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -22,6 +21,8 @@ import {
 } from "@matter/types";
 import { TlvVoid } from "@matter/types/tlv";
 import { createAttributeClient } from "./AttributeClient.js";
+import { ClusterClientObj } from "./ClusterClientTypes.js";
+import { DecodedEventData } from "./DecodedDataReport.js";
 import { createEventClient } from "./EventClient.js";
 import { InteractionClient } from "./InteractionClient.js";
 

@@ -53,10 +53,10 @@ export async function readAllAttrs(node: MockServerNode) {
     });
 }
 
-export function countAttrs(chunks: ReadResult.Chunk[]) {
+export async function countAttrs(chunks: ReadResult.Chunk[]) {
     const counts = {} as Record<EndpointNumber, Record<ClusterId, number>>;
     for (const chunk of chunks) {
-        for (const report of chunk) {
+        for await (const report of chunk) {
             if (report.kind !== "attr-value") {
                 throw new Error("Only attribute values expected");
             }

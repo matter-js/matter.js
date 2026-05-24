@@ -25,6 +25,7 @@ import {
 
 const logger = Logger.get("AttributeDataDecoder");
 
+/** @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
 export type DecodedAttributeReportEntry = {
     path: {
         nodeId?: NodeId;
@@ -35,30 +36,37 @@ export type DecodedAttributeReportEntry = {
     };
 };
 
-/** Represents a fully qualified and decoded attribute value from a received DataReport */
+/**
+ * Represents a fully qualified and decoded attribute value from a received DataReport.
+ *
+ * @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
+ */
 export type DecodedAttributeReportValue<T> = DecodedAttributeReportEntry & {
     version: number;
     value: T;
 };
 
-/** Represents a fully qualified and decoded attribute status from a received DataReport */
+/**
+ * Represents a fully qualified and decoded attribute status from a received DataReport.
+ *
+ * @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
+ */
 export type DecodedAttributeReportStatus = DecodedAttributeReportEntry & {
     status?: Status;
     clusterStatus?: number;
 };
 
-/** Represents a decoded attribute value from a received DataReport where data version could be optional. */
-export type DecodedAttributeValue<T> = Omit<DecodedAttributeReportValue<T>, "version"> & {
+/** Internal — like {@link DecodedAttributeReportValue} but with optional version. */
+type DecodedAttributeValue<T> = Omit<DecodedAttributeReportValue<T>, "version"> & {
     version?: number;
 };
-
-/** Structured representation of read attribute data as endpointId/clusterId/attributeName objects */
-export type StructuredReadAttributeData = { [key: number]: { [key: number]: { [key: string]: any } } };
 
 /**
  * Parses, normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from
  * a received DataReport.
- * TODO: Convert into a Generator function once we migrate Reading Data for controller to also be streaming
+ *
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from
+ *   `@project-chip/matter.js/cluster`.
  */
 export function normalizeAndDecodeReadAttributeReport(
     data: TypeFromSchema<typeof TlvAttributeReport>[],
@@ -147,6 +155,8 @@ export function expandPathsInAttributeData(
 /**
  * Normalizes (e.g. prepare data for array un-chunking and resolve Tag compression if used) the attribute details from
  * a received DataReport.
+ *
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAttributeData(
     data: TypeFromSchema<typeof TlvAttributeData>[],
@@ -172,6 +182,8 @@ export function normalizeAttributeData(
 /**
  * Normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from a received
  * DataReport.
+ *
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAttributeStatus(
     data: TypeFromSchema<typeof TlvAttributeStatus>[],
@@ -215,6 +227,8 @@ export function normalizeAttributeStatus(
 /**
  * Normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from a received
  * DataReport.
+ *
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAndDecodeAttributeData(
     data: TypeFromSchema<typeof TlvAttributeData>[],
@@ -344,28 +358,4 @@ export function decodeUnknownAttributeValue(values: TypeFromSchema<typeof TlvAtt
         );
         return tlvEncoded.map(element => schema.decodeAnyTlvStream(element));
     }
-}
-
-/** Structure the data of a received DataReport into an endpointId/clusterId/attributeName object structure. */
-export function structureReadAttributeDataToClusterObject(data: DecodedAttributeReportValue<any>[]) {
-    const structure: StructuredReadAttributeData = {};
-    for (const {
-        path: { endpointId, clusterId, attributeName },
-        value,
-    } of data) {
-        if (structure[endpointId] === undefined) {
-            if ((endpointId as any) === "__proto__") {
-                continue;
-            }
-            structure[endpointId] = {};
-        }
-        if (structure[endpointId][clusterId] === undefined) {
-            if ((clusterId as any) === "__proto__") {
-                continue;
-            }
-            structure[endpointId][clusterId] = {};
-        }
-        structure[endpointId][clusterId][attributeName] = value;
-    }
-    return structure;
 }

@@ -541,7 +541,7 @@ export class ServerSubscription implements Subscription {
             if (Read.containsAttribute(request)) {
                 const attributeReader = new AttributeReadResponse(this.#context.node.protocol, session);
                 for (const chunk of attributeReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         if (report.kind === "attr-status") {
                             if (suppressStatusReports) {
                                 continue;
@@ -575,7 +575,7 @@ export class ServerSubscription implements Subscription {
             if (Read.containsEvent(request)) {
                 const eventReader = new EventReadResponse(this.#context.node.protocol, session);
                 for await (const chunk of eventReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         if (report.kind === "event-status") {
                             if (suppressStatusReports) {
                                 continue;
@@ -728,7 +728,7 @@ export class ServerSubscription implements Subscription {
                     attributeFilter,
                 );
                 for (const chunk of attributeReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         // No need to filter out status responses because AttributeSubscriptionResponse does that already
                         yield InteractionServerMessenger.convertServerInteractionReport(report);
                     }
@@ -741,7 +741,7 @@ export class ServerSubscription implements Subscription {
 
                 const eventReader = new EventReadResponse(this.#context.node.protocol, session);
                 for await (const chunk of eventReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         if (report.kind === "event-status") {
                             continue;
                         }

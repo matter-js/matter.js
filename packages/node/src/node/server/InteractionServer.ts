@@ -258,7 +258,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const readContext = this.#prepareOnlineContext(exchange, message, readRequest.isFabricFiltered);
 
         for await (const chunk of this.#serverInteraction.read(readRequest, readContext)) {
-            for (const report of chunk) {
+            for await (const report of chunk) {
                 yield InteractionServerMessenger.convertServerInteractionReport(report);
             }
         }

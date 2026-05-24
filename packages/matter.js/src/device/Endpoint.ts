@@ -5,6 +5,7 @@
  */
 
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
+import { ClusterClientObj } from "#cluster/client/ClusterClientTypes.js";
 import {
     AtLeastOne,
     Diagnostic,
@@ -22,7 +23,7 @@ import {
     Commands,
     type GlobalAttributeState,
 } from "@matter/node";
-import { ClusterClientObj, Val } from "@matter/protocol";
+import { Val } from "@matter/protocol";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
