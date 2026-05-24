@@ -67,7 +67,25 @@ export namespace ReadResult {
         kind: "event-value";
         path: ConcreteEventPath;
         number: EventNumber;
+
+        /**
+         * Collapsed numeric form of whichever wire timestamp variant the publisher sent. Convenience for callers
+         * that don't care about the distinction; the specific variant is in the four fields below.
+         */
         timestamp: number;
+
+        /** Absolute Posix epoch timestamp (milliseconds). Per Matter Core §10.7 exactly one of the four is set. */
+        epochTimestamp?: number | bigint;
+
+        /** Absolute system-time timestamp (milliseconds). */
+        systemTimestamp?: number | bigint;
+
+        /** Relative epoch-time delta from the previous event (milliseconds). */
+        deltaEpochTimestamp?: number | bigint;
+
+        /** Relative system-time delta from the previous event (milliseconds). */
+        deltaSystemTimestamp?: number | bigint;
+
         priority: Priority;
         value: unknown;
         tlv: TlvSchema<unknown>;

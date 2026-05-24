@@ -440,6 +440,37 @@ describe("InputChunk", () => {
             ]);
         });
 
+        it("propagates the wire timestamp variant fields onto the chunk", () => {
+            // Publisher chose the systemTimestamp variant; only that field carries the value, the others stay
+            // undefined. `timestamp` reflects the collapsed convenience.
+            const eventId = EventId(BasicInformation.events.startUp.id);
+            const clusterId = ClusterId(BasicInformation.id);
+            const report = buildReport({
+                eventReports: [
+                    {
+                        eventData: {
+                            path: { endpointId: EndpointNumber(0), clusterId, eventId },
+                            eventNumber: EventNumber(1),
+                            priority: 1,
+                            systemTimestamp: 1234,
+                            data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                        },
+                    },
+                ],
+            });
+
+            const chunks = collect(report);
+            expect(chunks).has.length(1);
+            const ev = chunks[0];
+            expect(ev.kind).equal("event-value");
+            if (ev.kind !== "event-value") return;
+            expect(ev.systemTimestamp).equal(1234);
+            expect(ev.epochTimestamp).equal(undefined);
+            expect(ev.deltaEpochTimestamp).equal(undefined);
+            expect(ev.deltaSystemTimestamp).equal(undefined);
+            expect(ev.timestamp).equal(1234);
+        });
+
         it("emits a single event-status chunk when both status and clusterStatus are set (B2 regression)", () => {
             // clusterStatus is wire-typed as uint8 but the TLV schema uses the Status enum; cluster-specific codes
             // are not Status enum members, so cast to satisfy the (overly narrow) type.

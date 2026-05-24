@@ -41,7 +41,7 @@ export type DecodedAttributeReportValue<T> = DecodedAttributeReportEntry & {
 
 /** Represents a fully qualified and decoded attribute status from a received DataReport. */
 export type DecodedAttributeReportStatus = DecodedAttributeReportEntry & {
-    status?: Status;
+    status: Status;
     clusterStatus?: number;
 };
 
@@ -72,7 +72,7 @@ export type DecodedEventReportValue<T> = DecodedEventReportEntry & {
 
 /** Represents a fully qualified and decoded event status from a received DataReport. */
 export type DecodedEventReportStatus = DecodedEventReportEntry & {
-    status?: Status;
+    status: Status;
     clusterStatus?: number;
 };
 

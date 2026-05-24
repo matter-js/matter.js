@@ -280,8 +280,7 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
             value = data === undefined ? undefined : schema.decodeTlv(data);
         }
 
-        // TODO - timestamp collapses four distinct wire variants (absolute/delta × epoch/system).
-        //   Add discriminated/explicit fields in a follow-up so callers can recover the original semantics.
+        // `timestamp` is a lossy convenience: callers needing the specific wire variant read the explicit field below.
         const timestamp = Number(epochTimestamp ?? systemTimestamp ?? deltaEpochTimestamp ?? deltaSystemTimestamp ?? 0);
 
         return {
@@ -291,6 +290,10 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
             number: eventNumber,
             priority,
             timestamp,
+            epochTimestamp,
+            systemTimestamp,
+            deltaEpochTimestamp,
+            deltaSystemTimestamp,
             tlv: TlvAny,
         };
     } catch (error: any) {
