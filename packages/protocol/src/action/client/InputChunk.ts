@@ -44,17 +44,12 @@ interface AttributeDataGroup {
 }
 
 /**
- * Converts a {@link DataReport} into a {@link ReadResult.Chunk}.
+ * Streaming decode of a {@link DataReport} into a {@link ReadResult.Chunk}.
  *
- * Wire order is preserved end-to-end. Adjacent `attributeData` entries sharing a full path accumulate so chunked
- * arrays reassemble into a single decoded value; an `attributeStatus` or a path change flushes the pending group.
- * Each `attributeStatus` emits one chunk directly. Each event emits one chunk per occurrence (#3785).
- * Tag-compressed paths inherit from the last fully-qualified entry per Matter Core §10.7.5.
- *
- * When `report.moreChunkedMessages` is set and the trailing data group looks like the head of an open chunked
- * array (last entry has a list-action `listIndex`, or is a bare array TLV that could still be growing), its raw
- * entries are stashed in `leftoverAttributeReports` for the next report. Spec basis: Matter Core §8.5.6.3
- * requires array chunks for the same path to be contiguous.
+ * Adjacent same-path `attributeData` entries accumulate for chunked-array reassembly per Matter Core §8.5.6.3.
+ * Tag compression resolves against the last fully-qualified path per §10.7.5. When the report ends mid-chunked-array
+ * and `moreChunkedMessages` is set, the trailing entries are stashed in `leftoverAttributeReports` for the next
+ * report. See #3785 for event-order semantics.
  */
 export function* InputChunk(
     input: DataReport,
@@ -124,7 +119,7 @@ function* emitAttributes(
         group !== undefined &&
         input.moreChunkedMessages &&
         leftover !== undefined &&
-        looksLikeChunkedArrayHead(group.entries[group.entries.length - 1])
+        mayContinueInNextReport(group.entries[group.entries.length - 1])
     ) {
         for (const d of group.entries) leftover.push({ attributeData: d });
         return;
@@ -171,8 +166,8 @@ function samePath(a: ResolvedAttributePath, b: ResolvedAttributePath): boolean {
     );
 }
 
-function looksLikeChunkedArrayHead(data: TypeFromSchema<typeof TlvAttributeData>): boolean {
-    // True if this entry could be the head of a chunked array whose tail continues in the next message.
+function mayContinueInNextReport(data: TypeFromSchema<typeof TlvAttributeData>): boolean {
+    // Two signals: a list-action `listIndex` (definitely chunked) or a bare array-typed value (could still grow).
     if (data.path.listIndex !== undefined) return true;
     const tlvData = data.data;
     return Array.isArray(tlvData) && tlvData.length > 1 && tlvData[0].typeLength.type === TlvType.Array;
@@ -213,7 +208,9 @@ function decodeAttributeGroup(
             // Type declares version required; wire-decoded dataVersion may be absent — preserve historical behavior.
             version: dataVersion as number,
         };
-    } catch (error: any) {
+    } catch (error) {
+        // Swallow wire-decode failures (malformed TLV, schema mismatch); unrelated errors bubble.
+        UnexpectedDataError.accept(error);
         logger.warn(
             `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${error.message}`,
         );
@@ -296,7 +293,9 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
             deltaSystemTimestamp,
             tlv: TlvAny,
         };
-    } catch (error: any) {
+    } catch (error) {
+        // Swallow wire-decode failures; unrelated errors bubble.
+        UnexpectedDataError.accept(error);
         logger.error(
             `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}: ${error.message}`,
         );

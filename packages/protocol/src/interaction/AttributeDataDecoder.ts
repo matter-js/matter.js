@@ -25,7 +25,7 @@ import {
 
 const logger = Logger.get("AttributeDataDecoder");
 
-/** @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
+/** @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
 export type DecodedAttributeReportEntry = {
     path: {
         nodeId?: NodeId;
@@ -39,7 +39,7 @@ export type DecodedAttributeReportEntry = {
 /**
  * Represents a fully qualified and decoded attribute value from a received DataReport.
  *
- * @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
+ * @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
  */
 export type DecodedAttributeReportValue<T> = DecodedAttributeReportEntry & {
     version: number;
@@ -49,7 +49,7 @@ export type DecodedAttributeReportValue<T> = DecodedAttributeReportEntry & {
 /**
  * Represents a fully qualified and decoded attribute status from a received DataReport.
  *
- * @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
+ * @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
  */
 export type DecodedAttributeReportStatus = DecodedAttributeReportEntry & {
     status?: Status;
@@ -65,7 +65,7 @@ type DecodedAttributeValue<T> = Omit<DecodedAttributeReportValue<T>, "version"> 
  * Parses, normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from
  * a received DataReport.
  *
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from
  *   `@project-chip/matter.js/cluster`.
  */
 export function normalizeAndDecodeReadAttributeReport(
@@ -156,7 +156,7 @@ export function expandPathsInAttributeData(
  * Normalizes (e.g. prepare data for array un-chunking and resolve Tag compression if used) the attribute details from
  * a received DataReport.
  *
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAttributeData(
     data: TypeFromSchema<typeof TlvAttributeData>[],
@@ -183,7 +183,7 @@ export function normalizeAttributeData(
  * Normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from a received
  * DataReport.
  *
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAttributeStatus(
     data: TypeFromSchema<typeof TlvAttributeStatus>[],
@@ -228,7 +228,7 @@ export function normalizeAttributeStatus(
  * Normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from a received
  * DataReport.
  *
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAndDecodeAttributeData(
     data: TypeFromSchema<typeof TlvAttributeData>[],

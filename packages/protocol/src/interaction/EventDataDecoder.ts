@@ -25,7 +25,7 @@ import {
 
 const logger = Logger.get("EventDataDecoder");
 
-/** @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
+/** @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
 export type DecodedEventData<T> = {
     eventNumber: EventNumber;
     priority: Priority;
@@ -36,7 +36,7 @@ export type DecodedEventData<T> = {
     data?: T;
 };
 
-/** @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
+/** @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead. */
 export type DecodedEventReportEntry = {
     path: {
         nodeId?: NodeId;
@@ -50,7 +50,7 @@ export type DecodedEventReportEntry = {
 /**
  * Represents a fully qualified and decoded event value from a received DataReport.
  *
- * @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
+ * @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
  */
 export type DecodedEventReportValue<T> = DecodedEventReportEntry & {
     events: DecodedEventData<T>[];
@@ -59,7 +59,7 @@ export type DecodedEventReportValue<T> = DecodedEventReportEntry & {
 /**
  * Represents a fully qualified and decoded event status from a received DataReport.
  *
- * @deprecated removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
+ * @deprecated since 0.17 — will be removed in 0.18. Import from `@project-chip/matter.js/cluster` instead.
  */
 export type DecodedEventReportStatus = DecodedEventReportEntry & {
     status?: Status;
@@ -67,7 +67,7 @@ export type DecodedEventReportStatus = DecodedEventReportEntry & {
 };
 
 /**
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAndDecodeReadEventReport(data: TypeFromSchema<typeof TlvEventReport>[]): {
     eventData: DecodedEventReportValue<any>[];
@@ -84,7 +84,7 @@ export function normalizeAndDecodeReadEventReport(data: TypeFromSchema<typeof Tl
 }
 
 /**
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API instead.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API instead.
  */
 export function normalizeEventData(
     data: TypeFromSchema<typeof TlvEventData>[],
@@ -106,7 +106,7 @@ export function normalizeEventData(
 }
 
 /**
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeAndDecodeEventData(
     data: TypeFromSchema<typeof TlvEventData>[],
@@ -158,7 +158,7 @@ export function normalizeAndDecodeEventData(
 }
 
 /**
- * @deprecated removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
+ * @deprecated since 0.17 — will be removed in 0.18. Use the streaming `InputChunk` API or `decodeDataReport` from `@project-chip/matter.js/cluster`.
  */
 export function normalizeEventStatus(data: TypeFromSchema<typeof TlvEventStatus>[]): DecodedEventReportStatus[] {
     const result = new Array<DecodedEventReportStatus>();

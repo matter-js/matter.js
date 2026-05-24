@@ -110,38 +110,16 @@ export function decodeDataReport(
     for (const chunk of InputChunk(report, leftoverAttributeReports)) {
         switch (chunk.kind) {
             case "attr-value":
-                attributeReports.push({
-                    path: resolveAttributePath(chunk.path),
-                    version: chunk.version,
-                    value: chunk.value,
-                });
+                attributeReports.push(toDecodedAttributeReportValue(chunk));
                 break;
             case "attr-status":
-                attributeStatus.push({
-                    path: resolveAttributePath(chunk.path),
-                    status: chunk.status,
-                    clusterStatus: chunk.clusterStatus,
-                });
+                attributeStatus.push(toDecodedAttributeReportStatus(chunk));
                 break;
             case "event-value":
-                eventReports.push({
-                    path: resolveEventPath(chunk.path),
-                    events: [
-                        {
-                            eventNumber: chunk.number,
-                            priority: chunk.priority,
-                            epochTimestamp: chunk.timestamp,
-                            data: chunk.value,
-                        },
-                    ],
-                });
+                eventReports.push(toDecodedEventReportValue(chunk));
                 break;
             case "event-status":
-                eventStatus.push({
-                    path: resolveEventPath(chunk.path),
-                    status: chunk.status,
-                    clusterStatus: chunk.clusterStatus,
-                });
+                eventStatus.push(toDecodedEventReportStatus(chunk));
                 break;
         }
     }
@@ -152,6 +130,51 @@ export function decodeDataReport(
         attributeStatus: attributeStatus.length > 0 ? attributeStatus : undefined,
         eventReports,
         eventStatus: eventStatus.length > 0 ? eventStatus : undefined,
+    };
+}
+
+/** Build a legacy {@link DecodedAttributeReportValue} from a streaming chunk. */
+export function toDecodedAttributeReportValue(chunk: ReadResult.AttributeValue): DecodedAttributeReportValue<any> {
+    return {
+        path: resolveAttributePath(chunk.path),
+        version: chunk.version,
+        value: chunk.value,
+    };
+}
+
+/** Build a legacy {@link DecodedAttributeReportStatus} from a streaming chunk. */
+export function toDecodedAttributeReportStatus(chunk: ReadResult.AttributeStatus): DecodedAttributeReportStatus {
+    return {
+        path: resolveAttributePath(chunk.path),
+        status: chunk.status,
+        clusterStatus: chunk.clusterStatus,
+    };
+}
+
+/** Build a legacy {@link DecodedEventReportValue} from a streaming chunk; forwards all four wire timestamp variants. */
+export function toDecodedEventReportValue(chunk: ReadResult.EventValue): DecodedEventReportValue<any> {
+    return {
+        path: resolveEventPath(chunk.path),
+        events: [
+            {
+                eventNumber: chunk.number,
+                priority: chunk.priority,
+                epochTimestamp: chunk.epochTimestamp,
+                systemTimestamp: chunk.systemTimestamp,
+                deltaEpochTimestamp: chunk.deltaEpochTimestamp,
+                deltaSystemTimestamp: chunk.deltaSystemTimestamp,
+                data: chunk.value,
+            },
+        ],
+    };
+}
+
+/** Build a legacy {@link DecodedEventReportStatus} from a streaming chunk. */
+export function toDecodedEventReportStatus(chunk: ReadResult.EventStatus): DecodedEventReportStatus {
+    return {
+        path: resolveEventPath(chunk.path),
+        status: chunk.status,
+        clusterStatus: chunk.clusterStatus,
     };
 }
 
