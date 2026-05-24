@@ -62,7 +62,6 @@ import {
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
@@ -270,7 +269,6 @@ export class ControllerCommissioningFlow {
     protected readonly commissioningOptions: ControllerCommissioningFlowOptions;
     protected readonly commissioningSteps = new Array<CommissioningStep>();
     protected readonly commissioningStepResults = new Map<string, CommissioningStepResult>();
-    readonly #clusterClients = new Map<ClusterId, ClusterClientObj>();
     #commissioningStartedTime: Timestamp | undefined;
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
@@ -1884,8 +1882,6 @@ export class ControllerCommissioningFlow {
 
         await this.interaction.close();
         this.interaction = transitionResult;
-
-        this.#clusterClients.clear();
 
         logger.debug("Successfully reconnected with device ...");
 
