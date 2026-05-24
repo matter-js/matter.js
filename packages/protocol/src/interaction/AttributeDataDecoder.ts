@@ -47,13 +47,10 @@ export type DecodedAttributeReportStatus = DecodedAttributeReportEntry & {
     clusterStatus?: number;
 };
 
-/** Represents a decoded attribute value from a received DataReport where data version could be optional. */
-export type DecodedAttributeValue<T> = Omit<DecodedAttributeReportValue<T>, "version"> & {
+/** Internal — like {@link DecodedAttributeReportValue} but with optional version. */
+type DecodedAttributeValue<T> = Omit<DecodedAttributeReportValue<T>, "version"> & {
     version?: number;
 };
-
-/** Structured representation of read attribute data as endpointId/clusterId/attributeName objects */
-export type StructuredReadAttributeData = { [key: number]: { [key: number]: { [key: string]: any } } };
 
 /**
  * Parses, normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from
@@ -344,28 +341,4 @@ export function decodeUnknownAttributeValue(values: TypeFromSchema<typeof TlvAtt
         );
         return tlvEncoded.map(element => schema.decodeAnyTlvStream(element));
     }
-}
-
-/** Structure the data of a received DataReport into an endpointId/clusterId/attributeName object structure. */
-export function structureReadAttributeDataToClusterObject(data: DecodedAttributeReportValue<any>[]) {
-    const structure: StructuredReadAttributeData = {};
-    for (const {
-        path: { endpointId, clusterId, attributeName },
-        value,
-    } of data) {
-        if (structure[endpointId] === undefined) {
-            if ((endpointId as any) === "__proto__") {
-                continue;
-            }
-            structure[endpointId] = {};
-        }
-        if (structure[endpointId][clusterId] === undefined) {
-            if ((clusterId as any) === "__proto__") {
-                continue;
-            }
-            structure[endpointId][clusterId] = {};
-        }
-        structure[endpointId][clusterId][attributeName] = value;
-    }
-    return structure;
 }

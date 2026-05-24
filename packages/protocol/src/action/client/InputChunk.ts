@@ -5,78 +5,317 @@
  */
 
 import { ReadResult } from "#action/response/ReadResult.js";
-import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
-import { DataReport, Status, TlvAny, TlvAttributeReport, TypeFromSchema } from "@matter/types";
+import { decodeAttributeValueWithSchema, decodeUnknownAttributeValue } from "#interaction/AttributeDataDecoder.js";
+import { decodeUnknownEventValue } from "#interaction/EventDataDecoder.js";
+import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
+import { Matter } from "@matter/model";
+import {
+    AttributeId,
+    ClusterId,
+    DataReport,
+    EndpointNumber,
+    NodeId,
+    Status,
+    TlvAny,
+    TlvAttributeData,
+    TlvAttributeReport,
+    TlvAttributeStatus,
+    TlvEventData,
+    TlvEventStatus,
+    TlvOfModel,
+    TlvType,
+    TypeFromSchema,
+} from "@matter/types";
+
+const logger = Logger.get("InputChunk");
+
+interface ResolvedAttributePath {
+    nodeId?: NodeId;
+    endpointId: EndpointNumber;
+    clusterId: ClusterId;
+    attributeId: AttributeId;
+    dataVersion?: number;
+}
+
+interface AttributeDataGroup {
+    path: ResolvedAttributePath;
+    dataVersion?: number;
+    entries: TypeFromSchema<typeof TlvAttributeData>[];
+}
 
 /**
  * Converts a {@link DataReport} into a {@link ReadResult.Chunk}.
+ *
+ * Wire order is preserved end-to-end. Adjacent `attributeData` entries sharing a full path accumulate so chunked
+ * arrays reassemble into a single decoded value; an `attributeStatus` or a path change flushes the pending group.
+ * Each `attributeStatus` emits one chunk directly. Each event emits one chunk per occurrence (#3785).
+ * Tag-compressed paths inherit from the last fully-qualified entry per Matter Core §10.7.5.
+ *
+ * When `report.moreChunkedMessages` is set and the trailing data group looks like the head of an open chunked
+ * array (last entry has a list-action `listIndex`, or is a bare array TLV that could still be growing), its raw
+ * entries are stashed in `leftoverAttributeReports` for the next report. Spec basis: Matter Core §8.5.6.3
+ * requires array chunks for the same path to be contiguous.
  */
 export function* InputChunk(
     input: DataReport,
     leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
 ): ReadResult.Chunk {
-    const report = DecodedDataReport(input, leftoverAttributeReports);
+    yield* emitAttributes(input, leftoverAttributeReports);
+    yield* emitEvents(input);
+}
 
-    for (const attr of report.attributeReports) {
-        yield {
+function* emitAttributes(
+    input: DataReport,
+    leftover: TypeFromSchema<typeof TlvAttributeReport>[] | undefined,
+): Generator<ReadResult.AttributeValue | ReadResult.AttributeStatus> {
+    let attrs = input.attributeReports;
+    if (leftover?.length) {
+        attrs = attrs === undefined ? [...leftover] : [...leftover, ...attrs];
+        leftover.length = 0;
+    }
+    if (attrs === undefined || attrs.length === 0) {
+        return;
+    }
+
+    let lastPath: ResolvedAttributePath | undefined;
+    let group: AttributeDataGroup | undefined;
+
+    for (const entry of attrs) {
+        if (entry.attributeData !== undefined) {
+            const data = entry.attributeData;
+            const resolved = resolvePath(data.path, lastPath);
+            if (
+                data.path.enableTagCompression &&
+                data.dataVersion === undefined &&
+                lastPath?.dataVersion !== undefined
+            ) {
+                data.dataVersion = lastPath.dataVersion;
+            }
+            if (!data.path.enableTagCompression) {
+                lastPath = { ...resolved, dataVersion: data.dataVersion };
+            }
+            if (group !== undefined && !samePath(group.path, resolved)) {
+                yield* flushDataGroup(group);
+                group = undefined;
+            }
+            if (group === undefined) {
+                group = { path: resolved, dataVersion: data.dataVersion, entries: [data] };
+            } else {
+                group.entries.push(data);
+                if (group.dataVersion === undefined) group.dataVersion = data.dataVersion;
+            }
+        } else if (entry.attributeStatus !== undefined) {
+            const statusSrc = entry.attributeStatus;
+            const resolved = resolvePath(statusSrc.path, lastPath);
+            // Status entry has no dataVersion of its own; preserve whatever the previous data entry installed.
+            if (!statusSrc.path.enableTagCompression) {
+                lastPath = { ...resolved, dataVersion: lastPath?.dataVersion };
+            }
+            if (group !== undefined) {
+                yield* flushDataGroup(group);
+                group = undefined;
+            }
+            const status = buildAttrStatus(resolved, statusSrc);
+            if (status !== undefined) yield status;
+        }
+    }
+
+    if (
+        group !== undefined &&
+        input.moreChunkedMessages &&
+        leftover !== undefined &&
+        looksLikeChunkedArrayHead(group.entries[group.entries.length - 1])
+    ) {
+        for (const d of group.entries) leftover.push({ attributeData: d });
+        return;
+    }
+    if (group !== undefined) {
+        yield* flushDataGroup(group);
+    }
+}
+
+function* flushDataGroup(group: AttributeDataGroup): Generator<ReadResult.AttributeValue> {
+    const value = decodeAttributeGroup(group.path, group.dataVersion, group.entries);
+    if (value !== undefined) yield value;
+}
+
+function resolvePath(
+    path: TypeFromSchema<typeof TlvAttributeData>["path"],
+    lastPath: ResolvedAttributePath | undefined,
+): ResolvedAttributePath {
+    if (path.enableTagCompression) {
+        if (lastPath === undefined) {
+            throw new UnexpectedDataError("Tag compression enabled, but no previous path");
+        }
+        if (path.nodeId === undefined && lastPath.nodeId !== undefined) path.nodeId = lastPath.nodeId;
+        if (path.endpointId === undefined) path.endpointId = lastPath.endpointId;
+        if (path.clusterId === undefined) path.clusterId = lastPath.clusterId;
+        if (path.attributeId === undefined) path.attributeId = lastPath.attributeId;
+    } else if (path.endpointId === undefined || path.clusterId === undefined || path.attributeId === undefined) {
+        throw new UnexpectedDataError("Tag compression disabled, but path is incomplete: " + Diagnostic.json(path));
+    }
+    return {
+        nodeId: path.nodeId,
+        endpointId: path.endpointId!,
+        clusterId: path.clusterId!,
+        attributeId: path.attributeId!,
+    };
+}
+
+function samePath(a: ResolvedAttributePath, b: ResolvedAttributePath): boolean {
+    return (
+        a.nodeId === b.nodeId &&
+        a.endpointId === b.endpointId &&
+        a.clusterId === b.clusterId &&
+        a.attributeId === b.attributeId
+    );
+}
+
+function looksLikeChunkedArrayHead(data: TypeFromSchema<typeof TlvAttributeData>): boolean {
+    // True if this entry could be the head of a chunked array whose tail continues in the next message.
+    if (data.path.listIndex !== undefined) return true;
+    const tlvData = data.data;
+    return Array.isArray(tlvData) && tlvData.length > 1 && tlvData[0].typeLength.type === TlvType.Array;
+}
+
+function decodeAttributeGroup(
+    path: ResolvedAttributePath,
+    dataVersion: number | undefined,
+    entries: TypeFromSchema<typeof TlvAttributeData>[],
+): ReadResult.AttributeValue | undefined {
+    const { nodeId, endpointId, clusterId, attributeId } = path;
+
+    try {
+        const clusterModel = Matter.clusters(clusterId);
+        const attributeModel = clusterModel?.attributes(attributeId) ?? Matter.attributes(attributeId);
+
+        let value: unknown;
+        if (attributeModel === undefined) {
+            value = decodeUnknownAttributeValue(entries);
+        } else {
+            let schema;
+            try {
+                schema = TlvOfModel(attributeModel);
+            } catch {
+                // Attribute is known but has no schema (e.g. deprecated global attributes) — decode as unknown
+                schema = undefined;
+            }
+            value =
+                schema === undefined
+                    ? decodeUnknownAttributeValue(entries)
+                    : decodeAttributeValueWithSchema(schema, entries);
+        }
+        return {
             kind: "attr-value",
+            path: { nodeId, endpointId, clusterId, attributeId },
             tlv: TlvAny,
-            ...attr,
+            value,
+            // Type declares version required; wire-decoded dataVersion may be absent — preserve historical behavior.
+            version: dataVersion as number,
         };
+    } catch (error: any) {
+        logger.warn(
+            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${error.message}`,
+        );
+        return undefined;
     }
+}
 
-    if (report.attributeStatus) {
-        for (const attr of report.attributeStatus) {
-            yield {
-                kind: "attr-status",
-                path: attr.path,
-                status: attr.status ?? Status.Failure, // TODO - attr.status shouldn't be optional?
-                clusterStatus: attr.clusterStatus,
-            };
+function buildAttrStatus(
+    path: ResolvedAttributePath,
+    src: TypeFromSchema<typeof TlvAttributeStatus>,
+): ReadResult.AttributeStatus | undefined {
+    const { nodeId, endpointId, clusterId, attributeId } = path;
+    return {
+        kind: "attr-status",
+        path: { nodeId, endpointId, clusterId, attributeId },
+        status: src.status.status ?? Status.Failure,
+        clusterStatus: src.status.clusterStatus,
+    };
+}
+
+function* emitEvents(input: DataReport): Generator<ReadResult.EventValue | ReadResult.EventStatus> {
+    const events = input.eventReports;
+    if (events === undefined || events.length === 0) return;
+
+    for (const entry of events) {
+        if (entry.eventData !== undefined) {
+            const value = decodeEventValue(entry.eventData);
+            if (value !== undefined) yield value;
+        } else if (entry.eventStatus !== undefined) {
+            const status = buildEventStatus(entry.eventStatus);
+            if (status !== undefined) yield status;
         }
     }
+}
 
-    for (const event of report.eventReports) {
-        for (const occurrence of event.events) {
-            yield {
-                kind: "event-value",
-                path: event.path,
-                value: occurrence.data,
-                number: occurrence.eventNumber,
-                priority: occurrence.priority,
-                timestamp: Number(
-                    // TODO - this may not be useful, need to determine correct form
-                    occurrence.epochTimestamp ??
-                        occurrence.systemTimestamp ??
-                        occurrence.deltaEpochTimestamp ??
-                        occurrence.deltaSystemTimestamp ??
-                        0,
-                ),
+function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadResult.EventValue | undefined {
+    const {
+        path: { nodeId, endpointId, clusterId, eventId },
+        eventNumber,
+        priority,
+        epochTimestamp,
+        systemTimestamp,
+        deltaEpochTimestamp,
+        deltaSystemTimestamp,
+        data,
+    } = eventData;
 
-                // TODO - temporary, field will be removed
-                tlv: TlvAny,
-            };
-        }
+    if (endpointId === undefined || clusterId === undefined || eventId === undefined) {
+        throw new UnexpectedDataError(`Invalid event path ${endpointId}/${clusterId}/${eventId}`);
     }
 
-    if (report.eventStatus) {
-        for (const event of report.eventStatus) {
-            if (event.status !== undefined) {
-                yield {
-                    kind: "event-status",
-                    path: event.path,
-                    status: event.status,
-                    clusterStatus: event.clusterStatus,
-                };
-            }
-            if (event.clusterStatus !== undefined) {
-                yield {
-                    kind: "event-status",
-                    path: event.path,
-                    status: event.status ?? Status.Failure,
-                    clusterStatus: event.clusterStatus,
-                };
-            }
+    try {
+        const clusterModel = Matter.clusters(clusterId);
+        const eventModel = clusterModel?.events(eventId);
+
+        let value: unknown;
+        if (eventModel === undefined) {
+            logger.debug(
+                `Decode unknown event ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)} via the AnySchema.`,
+            );
+            value = data === undefined ? undefined : decodeUnknownEventValue(data);
+        } else {
+            const schema = TlvOfModel(eventModel);
+            value = data === undefined ? undefined : schema.decodeTlv(data);
         }
+
+        // TODO - timestamp collapses four distinct wire variants (absolute/delta × epoch/system).
+        //   Add discriminated/explicit fields in a follow-up so callers can recover the original semantics.
+        const timestamp = Number(epochTimestamp ?? systemTimestamp ?? deltaEpochTimestamp ?? deltaSystemTimestamp ?? 0);
+
+        return {
+            kind: "event-value",
+            path: { nodeId, endpointId, clusterId, eventId },
+            value,
+            number: eventNumber,
+            priority,
+            timestamp,
+            tlv: TlvAny,
+        };
+    } catch (error: any) {
+        logger.error(
+            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}: ${error.message}`,
+        );
+        return undefined;
     }
+}
+
+function buildEventStatus(src: TypeFromSchema<typeof TlvEventStatus>): ReadResult.EventStatus | undefined {
+    const {
+        path: { nodeId, endpointId, clusterId, eventId },
+        status,
+    } = src;
+    if (endpointId === undefined || clusterId === undefined || eventId === undefined) {
+        throw new UnexpectedDataError(`Invalid event path ${endpointId}/${clusterId}/${eventId}`);
+    }
+    if (status.status === undefined && status.clusterStatus === undefined) {
+        return undefined;
+    }
+    return {
+        kind: "event-status",
+        path: { nodeId, endpointId, clusterId, eventId },
+        status: status.status ?? Status.Failure,
+        clusterStatus: status.clusterStatus,
+    };
 }
