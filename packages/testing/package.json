@@ -52,7 +52,7 @@
         "dockerode": "^5.0.0",
         "esbuild": "^0.28.0",
         "express": "^5.2.1",
-        "mocha": "^11.7.5",
+        "mocha": "^11.7.6",
         "playwright": "^1.60.0",
         "trace-unhandled": "^2.0.1",
         "wtfnode": "^0.10.1",
