@@ -35,7 +35,7 @@
     "devDependencies": {
         "@matter/testing": "*",
         "@types/ws": "^8.18.1",
-        "ws": "^8.20.1"
+        "ws": "^8.21.0"
     },
     "nacho": {
         "test": false
