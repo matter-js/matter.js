@@ -87,7 +87,7 @@
         "oxlint-tsgolint": "^0.23.0",
         "prettier": "^3.8.3",
         "prettier-plugin-organize-imports": "^4.3.0",
-        "semver": "^7.8.0",
+        "semver": "^7.8.1",
         "typescript": "~6.0.3"
     },
     "overrides": {
