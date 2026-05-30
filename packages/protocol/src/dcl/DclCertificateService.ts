@@ -119,14 +119,15 @@ export class DclCertificateService {
 
     /**
      * Whether a stored entry is relevant under the current trust policy. Production certificates
-     * are always relevant. Test PAAs are only relevant when `fetchTestCertificates` is enabled,
-     * so cached test PAAs left in storage from a previous run are ignored once the option is
-     * turned off without requiring a storage purge. CD signer certificates are managed
-     * separately and are always relevant.
+     * are always relevant. Test PAAs are only relevant when the test-certificate policy allows
+     * them. CD signer certificates are managed separately and are always relevant.
      */
-    #isRelevant(metadata: DclCertificateService.CertificateMetadata) {
+    #isRelevant(
+        metadata: DclCertificateService.CertificateMetadata,
+        considerTestCertificates = this.allowsTestCertificates,
+    ) {
         const kind = metadata.kind ?? "PAA";
-        return kind !== "PAA" || metadata.isProduction || !!this.#options.fetchTestCertificates;
+        return kind !== "PAA" || metadata.isProduction || considerTestCertificates;
     }
 
     /**
@@ -149,6 +150,11 @@ export class DclCertificateService {
     get certificates() {
         this.construction.assert();
         return Array.from(this.#certificateIndex.values());
+    }
+
+    /** Whether the service is configured to fetch and trust test (non-production) certificates. */
+    get allowsTestCertificates(): boolean {
+        return this.#options.fetchTestCertificates ?? false;
     }
 
     /**
@@ -1291,6 +1297,15 @@ export class DclCertificateService {
 }
 
 export namespace DclCertificateService {
+    /** Per-call options for certificate retrieval. */
+    export interface GetCertificateOptions {
+        /**
+         * Whether the lookup should also return test (non-production) certificates.
+         * Defaults to the service-wide `fetchTestCertificates` flag passed at construction.
+         */
+        considerTestCertificates?: boolean;
+    }
+
     export interface Options {
         /** Whether to fetch test certificates in addition to production ones. Default is false. */
         fetchTestCertificates?: boolean;
