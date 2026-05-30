@@ -182,18 +182,18 @@ export class DclCertificateService {
 
     /**
      * Get certificate as DER bytes.
-     * @throws {MatterDclError} if certificate not found
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
      */
-    async getCertificateAsDer(subjectKeyId: Bytes | string) {
+    async getCertificateAsDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
-        return this.#getCertificateDer(subjectKeyId);
+        return this.#getCertificateDer(subjectKeyId, options);
     }
 
     /** Internal DER retrieval without construction assert (safe during init). */
-    async #getCertificateDer(subjectKeyId: Bytes | string) {
+    async #getCertificateDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata)) {
+        if (!metadata || !this.#isRelevant(metadata, options)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
