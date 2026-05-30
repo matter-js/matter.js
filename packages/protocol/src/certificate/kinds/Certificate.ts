@@ -12,6 +12,7 @@ import {
     DerBitString,
     DerCodec,
     DerNode,
+    DerTag,
     DerType,
     EcdsaSignature,
     Key,
@@ -603,8 +604,8 @@ export namespace Certificate {
             throw new CertificateError(`Unsupported CSR version ${requestVersionBytes[0]}`);
         }
 
-        // Verify the subject, according to spec can be "any value", so just check that it exists
-        if (!subjectNode._elements?.length) {
+        // Subject must be a SEQUENCE (RDNSequence) but per Matter spec § 6.4.7 MAY be any value, including empty.
+        if (subjectNode._tag !== DerTag.Sequence) {
             throw new CertificateError("Missing subject in CSR data");
         }
 
