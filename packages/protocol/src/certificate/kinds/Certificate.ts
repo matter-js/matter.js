@@ -603,8 +603,8 @@ export namespace Certificate {
             throw new CertificateError(`Unsupported CSR version ${requestVersionBytes[0]}`);
         }
 
-        // Subject must be a SEQUENCE (RDNSequence) but per Matter spec § 6.4.7 MAY be any value, including empty.
-        if (subjectNode._elements === undefined) {
+        // Subject must be a SEQUENCE (RDNSequence, tag 0x30) but per Matter spec § 6.4.7 MAY be any value, including empty.
+        if (subjectNode._tag !== 0x30) {
             throw new CertificateError("Missing subject in CSR data");
         }
 
