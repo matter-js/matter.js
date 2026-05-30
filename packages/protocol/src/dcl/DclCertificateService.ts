@@ -13,6 +13,7 @@ import {
     DerCodec,
     DerNode,
     DerTag,
+    DerType,
     Diagnostic,
     Duration,
     EcdsaSignature,
@@ -1170,7 +1171,7 @@ export class DclCertificateService {
         // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
         let idx = 0;
         // version is optional: if present it's an INTEGER
-        if (tbsElements[idx]?._tag === 0x02) {
+        if (tbsElements[idx]?._tag === DerType.Integer) {
             idx++;
         }
         // signature algorithm: SEQUENCE
@@ -1185,20 +1186,20 @@ export class DclCertificateService {
             idx++;
         }
 
-        // thisUpdate: UTCTime (0x17) or GeneralizedTime (0x18) — skip
-        if (tbsElements[idx]?._tag === 0x17 || tbsElements[idx]?._tag === 0x18) {
+        // thisUpdate: UTCTime or GeneralizedTime — skip
+        if (tbsElements[idx]?._tag === DerType.UtcDate || tbsElements[idx]?._tag === DerType.GeneralizedTime) {
             idx++;
         }
 
-        // nextUpdate: UTCTime (0x17) or GeneralizedTime (0x18) — parse if present
+        // nextUpdate: UTCTime or GeneralizedTime — parse if present
         let nextUpdateMs: number | undefined;
-        if (tbsElements[idx]?._tag === 0x17 || tbsElements[idx]?._tag === 0x18) {
+        if (tbsElements[idx]?._tag === DerType.UtcDate || tbsElements[idx]?._tag === DerType.GeneralizedTime) {
             try {
                 const dateStr = Bytes.toString(tbsElements[idx]._bytes);
                 // UTCTime: YYMMDDHHMMSSZ, GeneralizedTime: YYYYMMDDHHMMSSZ
                 let year: number;
                 let rest: string;
-                if (tbsElements[idx]._tag === 0x17) {
+                if (tbsElements[idx]._tag === DerType.UtcDate) {
                     const yy = parseInt(dateStr.slice(0, 2));
                     year = yy >= 50 ? 1900 + yy : 2000 + yy;
                     rest = dateStr.slice(2);
@@ -1262,7 +1263,7 @@ export class DclCertificateService {
                     firstChild &&
                     firstChild._tag === DerTag.Sequence &&
                     firstChild._elements &&
-                    firstChild._elements[0]?._tag === 0x02
+                    firstChild._elements[0]?._tag === DerType.Integer
                 ) {
                     revokedCertsNode = element;
                     break;
@@ -1277,7 +1278,7 @@ export class DclCertificateService {
         for (const entry of revokedCertsNode._elements) {
             if (entry._tag !== DerTag.Sequence || !entry._elements || entry._elements.length < 1) continue;
             const serialNode = entry._elements[0];
-            if (serialNode._tag !== 0x02) continue;
+            if (serialNode._tag !== DerType.Integer) continue;
             const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
             serials.add(serialHex);
         }
