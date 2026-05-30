@@ -159,6 +159,7 @@ export function translateFields<T extends AnyElement.Type<FieldRecord>>(
     type: T,
     fields?: SpecReference,
     withAccessNotes = true,
+    addImplicitFabricIndex = true,
 ): ReturnType<T>[] | undefined {
     let records = translateTable(type.Tag, fields, FieldSchema);
 
@@ -171,7 +172,7 @@ export function translateFields<T extends AnyElement.Type<FieldRecord>>(
     });
 
     if (withAccessNotes) {
-        applyAccessModifier(fields, records);
+        applyAccessModifier(fields, records, addImplicitFabricIndex);
     }
 
     return translateRecordsToMatter(type.Tag, records, type) as ReturnType<T>[] | undefined;
@@ -287,7 +288,9 @@ export function translateValueChildren(
         }
 
         case Metatype.object:
-            return translateFields(FieldElement, definition, parent?.type !== "event");
+            // Commands are not fabric-scoped data (Core § 7.5.3), so their request/response structs must not carry the
+            // implicit global FabricIndex field (Core § 7.13.6); the accessing fabric is derived from the invocation.
+            return translateFields(FieldElement, definition, parent?.type !== "event", tag !== "command");
     }
 }
 
@@ -326,10 +329,11 @@ export function accessModifierOf(details?: SpecReference) {
 // For some reason, "default" fabric access appears in an informational row instead of the access column in many of the
 // core definitions.  Fix this.
 //
-// We also use the presence of this record to add the implicit FabrixIndex field
+// When addImplicitFabricIndex is set we also use the presence of this record to add the implicit FabricIndex field.
 function applyAccessModifier(
     fields?: SpecReference,
     records?: { id: number; name?: string; type?: string; access?: string; conformance?: string }[],
+    addImplicitFabricIndex = true,
 ) {
     if (!records) {
         return;
@@ -355,7 +359,7 @@ function applyAccessModifier(
     }
 
     // Add the FabricIndex field if not already present
-    if (!haveFabricIndex) {
+    if (addImplicitFabricIndex && !haveFabricIndex) {
         records.push({
             id: FabricIndex.id as number,
             name: FabricIndex.name,

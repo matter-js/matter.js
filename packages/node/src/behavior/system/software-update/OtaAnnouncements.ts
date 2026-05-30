@@ -273,7 +273,6 @@ export class OtaAnnouncements {
             await endpoint.commandsOf(OtaSoftwareUpdateRequestorClient).announceOtaProvider({
                 providerNodeId: this.#ownNodeId,
                 vendorId: this.#ownVendorId,
-                fabricIndex: this.#ownFabricIndex,
                 announcementReason,
                 endpoint: this.#otaProviderEndpoint,
             });

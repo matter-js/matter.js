@@ -410,8 +410,6 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v151.Core} § 11.20.7.6.1.5
          */
         endpoint: EndpointNumber;
-
-        fabricIndex: FabricIndex;
     }
 
     /**

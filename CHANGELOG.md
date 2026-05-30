@@ -15,6 +15,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
     - Enhancement: Added `DerTag` with the decoded tag bytes for constructed DER types (`Sequence`, `Set`) for testing a decoded `DerNode._tag`
 
+- @matter/model
+    - Fix: Remove invalid FabricIndex field from four commands
+
 - @matter/node
   - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
 
@@ -24,6 +27,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
     - Fix: Event reports are now decoded in wire (EventNumber) order
     - Fix: Allows CSRs with an empty subject as per Matter spec
+
+- @matter/types
+    - Fix: Remove invalid FabricIndex field from four commands
 
 ## 0.17.0 (2026-05-20)
 

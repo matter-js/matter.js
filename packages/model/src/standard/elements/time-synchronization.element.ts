@@ -106,8 +106,7 @@ export const TimeSynchronization = Cluster(
         Field({
             name: "TrustedTimeSource", id: 0x0, type: "FabricScopedTrustedTimeSourceStruct", access: "F",
             conformance: "M", quality: "X"
-        }),
-        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+        })
     ),
 
     Command(
