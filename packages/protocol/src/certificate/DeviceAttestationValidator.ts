@@ -31,11 +31,12 @@ export enum DeviceAttestationCheck {
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
+    TrustedAsTestCertificate = "TrustedAsTestCertificate",
 }
 
 /** A single finding from the attestation validation process. */
 export interface AttestationFinding {
-    /** Severity: "error" stops validation immediately, "warning"/"info" are collected. */
+    /** Severity. "error" aborts validation unless the check is recoverable (collected instead). */
     level: "error" | "warning" | "info";
 
     /** The specific check that produced this finding. */
@@ -159,14 +160,24 @@ export namespace DeviceAttestationValidator {
                     "Register DclCertificateService in the environment for full attestation.",
             });
         } else {
-            // Step 2: PAA Trust Store lookup
+            // Step 2: PAA Trust Store lookup — probe both production and test scope
             const paiAkid = pai.cert.extensions.authorityKeyIdentifier;
-            const paaMetadata = dclCertificateService.getCertificate(paiAkid);
+            const paaMetadata = dclCertificateService.getCertificate(paiAkid, { considerTestCertificates: true });
             if (paaMetadata === undefined) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.PaaNotTrusted,
                     `PAA not found in trust store for authority key identifier ${Bytes.toHex(paiAkid)}`,
                 );
+            }
+
+            if (!paaMetadata.isProduction && !dclCertificateService.allowsTestCertificates) {
+                findings.push({
+                    level: "error",
+                    type: DeviceAttestationCheck.TrustedAsTestCertificate,
+                    message:
+                        `PAA ${Bytes.toHex(paiAkid)} is a test/development certificate; ` +
+                        `device presented a valid test attestation but production trust policy is in effect`,
+                });
             }
 
             // Step 2b: Time-based trust store check (SHOULD per spec 6.2.3.1)
@@ -185,7 +196,7 @@ export namespace DeviceAttestationValidator {
             }
 
             // Step 3: Certificate chain signature verification
-            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid);
+            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid, { considerTestCertificates: true });
             paa = Paa.fromAsn1(paaDer);
 
             try {
