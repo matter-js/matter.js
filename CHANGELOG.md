@@ -15,6 +15,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
     - Enhancement: Added `DerTag` with the decoded tag bytes for constructed DER types (`Sequence`, `Set`) for testing a decoded `DerNode._tag`
 
+- @matter/node
+  - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
+
 - @matter/protocol
     - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
