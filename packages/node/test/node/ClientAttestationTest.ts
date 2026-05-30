@@ -8,8 +8,10 @@ import { Bytes, Crypto, DerCodec, DerType, MockCrypto, MockFetch, ObjectId, Pem,
 import {
     AttestationFinding,
     CertificationDeclaration,
+    CommissioningError,
     DclCertificateService,
     DeviceAttestationCheck,
+    DeviceAttestationError,
     DeviceAttestationValidator,
     Paa,
     TestCert_PAA_FFF1_Cert,
@@ -132,11 +134,20 @@ interface AttestationTestOptions {
     /** PAA cert to register in DCL trust store. undefined = no DclCertificateService. */
     dclPaaCert?: Bytes;
 
+    /**
+     * When true, inject `dclPaaCert` directly as a test-only PAA (isProduction: false) and
+     * skip the production DCL fetch mock. Used to exercise the `TrustedAsTestCertificate` finding.
+     */
+    paaAsTestOnly?: boolean;
+
     /** The onAttestationFailure commissioning option. */
     onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
 
-    /** If set, commissioning is expected to be rejected with this pattern. */
-    expectRejection?: RegExp;
+    /**
+     * If set, commissioning is expected to be rejected. `RegExp` matches the thrown error's message;
+     * a function receives the thrown error for arbitrary inspection (instance type, `cause` chain, etc.).
+     */
+    expectRejection?: RegExp | ((err: unknown) => void | Promise<void>);
 
     /** Assertions to run on the findings captured by the callback (if callback was used). */
     assertFindings?: (findings: AttestationFinding[]) => void;
@@ -161,7 +172,13 @@ async function runAttestationTest(options: AttestationTestOptions) {
 
     try {
         if (options.dclPaaCert !== undefined && options.setupBeforeCommission === undefined) {
-            setupDclFetchMock(fetchMock, options.dclPaaCert);
+            if (options.paaAsTestOnly) {
+                fetchMock.addResponse("/dcl/pki/root-certificates", {
+                    approvedRootCertificates: { schemaVersion: 0, certs: [] },
+                });
+            } else {
+                setupDclFetchMock(fetchMock, options.dclPaaCert);
+            }
             fetchMock.install();
         }
 
@@ -176,6 +193,9 @@ async function runAttestationTest(options: AttestationTestOptions) {
         if (options.dclPaaCert !== undefined) {
             dclService = new DclCertificateService(controller.env, { updateInterval: null });
             await dclService.construction;
+            if (options.paaAsTestOnly) {
+                await dclService.addCertificate(options.dclPaaCert, "PAA", { isProduction: false });
+            }
             // Inject the Matter test CD signer so CD signature verification works for test CDs
             await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
         }
@@ -212,7 +232,18 @@ async function runAttestationTest(options: AttestationTestOptions) {
         );
 
         if (options.expectRejection !== undefined) {
-            await expect(commissionPromise).to.be.rejectedWith(options.expectRejection);
+            if (options.expectRejection instanceof RegExp) {
+                await expect(commissionPromise).to.be.rejectedWith(options.expectRejection);
+            } else {
+                let thrown: unknown;
+                try {
+                    await commissionPromise;
+                } catch (err) {
+                    thrown = err;
+                }
+                expect(thrown, "commissioning was expected to reject but resolved").to.not.be.undefined;
+                await options.expectRejection(thrown);
+            }
         } else {
             await commissionPromise;
         }
@@ -330,6 +361,36 @@ describe("device attestation during commissioning", () => {
             }));
     });
 
+    describe("with DCL trust store (test-only PAA)", () => {
+        it("emits TrustedAsTestCertificate finding, callback rejects", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                paaAsTestOnly: true,
+                onAttestationFailure: () => false,
+                expectRejection: /finding\(s\) and was rejected by policy/,
+                assertFindings: findings => {
+                    const trusted = findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+                    expect(trusted).to.not.be.undefined;
+                    expect(trusted!.level).equals("error");
+                },
+            }));
+
+        it("emits TrustedAsTestCertificate finding, callback accepts → commissioning proceeds", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                paaAsTestOnly: true,
+                onAttestationFailure: () => true,
+                assertFindings: findings => {
+                    const types = findings.map(f => f.type);
+                    expect(types).to.include(DeviceAttestationCheck.TrustedAsTestCertificate);
+                },
+                assertResult: (device, peers) => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                    expect(peers).equals(1);
+                },
+            }));
+    });
+
     describe("with DCL trust store (wrong PAA)", () => {
         it("PaaNotTrusted error finding, callback rejects", () =>
             runAttestationTest({
@@ -439,6 +500,93 @@ describe("device attestation during commissioning", () => {
                         0,
                         "Expected on-demand DCL revocation lookup during commissioning",
                     );
+                },
+            });
+        });
+    });
+
+    describe("onAttestationFailure callback contract", () => {
+        it("string return on success-path findings wraps the synthesized error as cause", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                onAttestationFailure: () => "operator declined: test attestation",
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(CommissioningError);
+                    expect((err as CommissioningError).message).to.equal("operator declined: test attestation");
+                    const cause = (err as Error).cause;
+                    expect(cause).to.be.instanceOf(CommissioningError);
+                    expect((cause as CommissioningError).message).to.match(/finding\(s\) and was rejected by policy/);
+                },
+            }));
+
+        it("string return on hard-error finding wraps the original DeviceAttestationError as cause", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_FFF1_Cert,
+                onAttestationFailure: () => "operator declined: untrusted PAA",
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(CommissioningError);
+                    expect((err as CommissioningError).message).to.equal("operator declined: untrusted PAA");
+                    const cause = (err as Error).cause;
+                    expect(cause).to.be.instanceOf(DeviceAttestationError);
+                    expect((cause as DeviceAttestationError).failure).to.equal(DeviceAttestationCheck.PaaNotTrusted);
+                },
+            }));
+
+        it("callback throw propagates verbatim (no wrapping)", () => {
+            class CustomRejection extends Error {}
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_FFF1_Cert,
+                onAttestationFailure: () => {
+                    throw new CustomRejection("custom rejection");
+                },
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(CustomRejection);
+                    expect((err as Error).message).to.equal("custom rejection");
+                    expect((err as Error).cause).to.be.undefined;
+                },
+            });
+        });
+
+        it("callback throwing DeviceAttestationError on success-path findings propagates without re-invocation", () => {
+            let invocations = 0;
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                onAttestationFailure: () => {
+                    invocations++;
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                        "from callback",
+                    );
+                },
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(DeviceAttestationError);
+                    expect((err as DeviceAttestationError).failure).to.equal(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                    );
+                    expect((err as Error).message).to.equal("from callback");
+                    expect(invocations).to.equal(1);
+                },
+            });
+        });
+
+        it("callback throwing DeviceAttestationError on hard-error finding propagates without re-invocation", () => {
+            let invocations = 0;
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_FFF1_Cert,
+                onAttestationFailure: () => {
+                    invocations++;
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                        "from callback",
+                    );
+                },
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(DeviceAttestationError);
+                    expect((err as DeviceAttestationError).failure).to.equal(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                    );
+                    expect((err as Error).message).to.equal("from callback");
+                    expect(invocations).to.equal(1);
                 },
             });
         });

@@ -121,24 +121,26 @@ export class DclCertificateService {
 
     /**
      * Whether a stored entry is relevant under the current trust policy. Production certificates
-     * are always relevant. Test PAAs are only relevant when `fetchTestCertificates` is enabled,
-     * so cached test PAAs left in storage from a previous run are ignored once the option is
-     * turned off without requiring a storage purge. CD signer certificates are managed
-     * separately and are always relevant.
+     * are always relevant. Test PAAs are only relevant when the test-certificate policy allows
+     * them. CD signer certificates are managed separately and are always relevant.
      */
-    #isRelevant(metadata: DclCertificateService.CertificateMetadata) {
+    #isRelevant(
+        metadata: DclCertificateService.CertificateMetadata,
+        options?: DclCertificateService.GetCertificateOptions,
+    ) {
         const kind = metadata.kind ?? "PAA";
-        return kind !== "PAA" || metadata.isProduction || !!this.#options.fetchTestCertificates;
+        const considerTestCertificates = options?.considerTestCertificates ?? this.allowsTestCertificates;
+        return kind !== "PAA" || metadata.isProduction || considerTestCertificates;
     }
 
     /**
      * Get certificate metadata by subject key identifier. Returns undefined if not found or if the
-     * entry is a test certificate while `fetchTestCertificates` is disabled.
+     * entry is filtered by the effective trust policy.
      */
-    getCertificate(subjectKeyId: Bytes | string) {
+    getCertificate(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
         const metadata = this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
-        if (metadata === undefined || !this.#isRelevant(metadata)) {
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
             return undefined;
         }
         return metadata;
@@ -153,20 +155,24 @@ export class DclCertificateService {
         return Array.from(this.#certificateIndex.values());
     }
 
+    /** Whether the service is configured to fetch and trust test (non-production) certificates. */
+    get allowsTestCertificates(): boolean {
+        return this.#options.fetchTestCertificates ?? false;
+    }
+
     /**
      * Get certificate as PEM string.
-     * @throws {MatterDclError} if certificate not found
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
      */
-    async getCertificateAsPem(subjectKeyId: Bytes | string) {
+    async getCertificateAsPem(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata)) {
+        if (!metadata || !this.#isRelevant(metadata, options)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
-        // Retrieve DER certificate from storage
         const derBytes = await this.#storage!.get<Bytes>(normalizedId);
         if (!derBytes || derBytes.byteLength === 0) {
             throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
@@ -177,18 +183,18 @@ export class DclCertificateService {
 
     /**
      * Get certificate as DER bytes.
-     * @throws {MatterDclError} if certificate not found
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
      */
-    async getCertificateAsDer(subjectKeyId: Bytes | string) {
+    async getCertificateAsDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
-        return this.#getCertificateDer(subjectKeyId);
+        return this.#getCertificateDer(subjectKeyId, options);
     }
 
     /** Internal DER retrieval without construction assert (safe during init). */
-    async #getCertificateDer(subjectKeyId: Bytes | string) {
+    async #getCertificateDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata)) {
+        if (!metadata || !this.#isRelevant(metadata, options)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
@@ -249,39 +255,36 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
-     * undefined if not found.
+     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage.
+     * Returns undefined if not found or if the entry is filtered by the effective trust policy.
      */
     async getOrFetchCertificate(
         subjectKeyId: Bytes | string,
-        options?: DclClient.Options & { isProduction?: boolean },
+        options?: DclClient.Options & { isProduction?: boolean } & DclCertificateService.GetCertificateOptions,
     ) {
         this.construction.assert();
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
 
-        // First check if certificate is in the index
         const existing = this.#certificateIndex.get(normalizedId);
-        if (existing) {
+        if (existing && this.#isRelevant(existing, options)) {
             return existing;
         }
 
         if (this.#fetchPromise !== undefined) {
-            // Wait for ongoing fetch process to complete, return whatever is in the index afterward
             await this.#fetchPromise;
-            return this.#certificateIndex.get(normalizedId);
+            const afterFetch = this.#certificateIndex.get(normalizedId);
+            return afterFetch && this.#isRelevant(afterFetch, options) ? afterFetch : undefined;
         }
 
         try {
             const isProduction = options?.isProduction ?? true;
-            // Fetch the root certificate list to find the certificate reference
             const config = isProduction
                 ? (this.#options.dclConfig ?? DclConfig.production)
                 : (this.#options.testDclConfig ?? DclConfig.test);
             const dclClient = new DclClient(config);
             const certRefs = await dclClient.fetchRootCertificateList(options);
 
-            // Find the certificate reference with matching subject key ID (with colons for comparison)
             const subjectKeyIdWithColons = normalizedId
                 .match(/.{1,2}/g)
                 ?.join(":")
@@ -296,7 +299,6 @@ export class DclCertificateService {
                 return;
             }
 
-            // Use existing method to fetch and store the certificate
             await this.#fetchAndStoreCertificate(
                 this.#storage!,
                 dclClient,
@@ -306,7 +308,6 @@ export class DclCertificateService {
                 options ?? this.#options,
             );
 
-            // After fetching, retrieve from index (it should be there now if fetch was successful)
             const fetched = this.#certificateIndex.get(normalizedId);
             if (fetched) {
                 await this.#saveIndex();
@@ -315,7 +316,7 @@ export class DclCertificateService {
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
                 );
             }
-            return fetched;
+            return fetched && this.#isRelevant(fetched, options) ? fetched : undefined;
         } catch (error) {
             MatterDclError.accept(error);
             logger.debug(`Failed to fetch certificate ${normalizedId} from DCL: ${error.message}`);
@@ -1100,6 +1101,8 @@ export class DclCertificateService {
         if (signerAkid !== undefined) {
             const signerAkidNorm = this.#normalizeSubjectKeyId(signerAkid);
 
+            // CRL signer trust anchor honors test PAAs that the validator already accepted upstream.
+            const trustAllPaas: DclCertificateService.GetCertificateOptions = { considerTestCertificates: true };
             let issuerPublicKey: Bytes | undefined;
             if (delegatorCert !== undefined) {
                 // Delegated signer: verify delegator is signed by a trusted PAA
@@ -1110,7 +1113,7 @@ export class DclCertificateService {
                 ) {
                     throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
                 }
-                const paaDer = await this.#getCertificateDer(delegatorAkid);
+                const paaDer = await this.#getCertificateDer(delegatorAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
                 await this.#crypto.verifyEcdsa(
                     PublicKey(paa.cert.ellipticCurvePublicKey),
@@ -1119,7 +1122,7 @@ export class DclCertificateService {
                 );
                 issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
             } else if (this.#certificateIndex.has(signerAkidNorm)) {
-                const paaDer = await this.#getCertificateDer(signerAkid);
+                const paaDer = await this.#getCertificateDer(signerAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
                 issuerPublicKey = paa.cert.ellipticCurvePublicKey;
             }
@@ -1293,6 +1296,15 @@ export class DclCertificateService {
 }
 
 export namespace DclCertificateService {
+    /** Per-call options for certificate retrieval. */
+    export interface GetCertificateOptions {
+        /**
+         * Whether the lookup should also return test (non-production) certificates.
+         * Defaults to the service-wide `fetchTestCertificates` flag passed at construction.
+         */
+        considerTestCertificates?: boolean;
+    }
+
     export interface Options {
         /** Whether to fetch test certificates in addition to production ones. Default is false. */
         fetchTestCertificates?: boolean;

@@ -24,7 +24,6 @@ import {
     ImplementationError,
     Instant,
     Logger,
-    MaybePromise,
     Millis,
     Minutes,
     NoResponseTimeoutError,
@@ -128,7 +127,12 @@ export type ControllerCommissioningFlowOptions = {
          * Controls behavior when attestation produces findings.
          * - `false`: reject on any finding
          * - `true`: always accept with info logging
-         * - callback: receives `AttestationFinding[]`, return `true` to proceed, `false` to reject
+         * - callback: receives `AttestationFinding[]` and decides the outcome; may
+         *   - return `true` to proceed
+         *   - return `false` to reject with the underlying error
+         *   - return a `string` to reject with a new {@link CommissioningError} whose message is
+         *     that string and whose `cause` is the underlying error
+         *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
          * The callback receives either:
@@ -136,14 +140,16 @@ export type ControllerCommissioningFlowOptions = {
          *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
          *   whether to proceed despite the failure.
          * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data). These are
-         *   informational and the commissioner can inspect them for detailed decisions.
+         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
+         *   These are informational and the commissioner can inspect them for detailed decisions.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
         onFailure?: DeviceAttestationValidator.OnAttestationFailure;
     };
 };
+
+type AttestationDecision = { proceed: true } | { proceed: false; reason?: string };
 
 /** Types representation of a general commissioning response. */
 type CommissioningSuccessFailureResponse = {
@@ -1172,6 +1178,8 @@ export class ControllerCommissioningFlow {
 
         const { attestation } = this.commissioningOptions;
 
+        let findings: AttestationFinding[];
+        let baseError: Error | undefined;
         try {
             const result = await DeviceAttestationValidator.validate(
                 {
@@ -1189,34 +1197,27 @@ export class ControllerCommissioningFlow {
                     productId: this.collectedCommissioningData.productId!,
                 },
             );
-
-            if (result.findings.length > 0) {
-                const proceed = await this.#resolveAttestationFindings(result.findings);
-                if (!proceed) {
-                    throw new CommissioningError(
-                        `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
-                    );
-                }
-                logger.info(
-                    `Device attestation successfully verified with ${result.findings.length} accepted finding(s)`,
-                );
-            } else {
-                logger.info("Device attestation successfully verified");
-            }
+            findings = result.findings;
         } catch (error) {
-            if (error instanceof DeviceAttestationError) {
-                const errorFinding: AttestationFinding = {
-                    level: "error",
-                    type: error.failure,
-                    message: error.message,
-                };
-                const proceed = await this.#resolveAttestationFindings([errorFinding]);
-                if (!proceed) {
-                    throw error;
+            DeviceAttestationError.accept(error);
+            findings = [{ level: "error", type: error.failure, message: error.message }];
+            baseError = error;
+        }
+
+        if (findings.length > 0) {
+            const decision = await this.#resolveAttestationFindings(findings);
+            if (!decision.proceed) {
+                baseError ??= new CommissioningError(
+                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                );
+                if (decision.reason !== undefined) {
+                    throw new CommissioningError(decision.reason, { cause: baseError });
                 }
-            } else {
-                throw error;
+                throw baseError;
             }
+            logger.info(`Device attestation successfully verified with ${findings.length} accepted finding(s)`);
+        } else {
+            logger.info("Device attestation successfully verified");
         }
 
         // Extract DAC public key for CSR signature verification in #certificates()
@@ -1229,11 +1230,15 @@ export class ControllerCommissioningFlow {
     }
 
     /** Resolve attestation findings according to the configured policy. */
-    #resolveAttestationFindings(findings: AttestationFinding[]): MaybePromise<boolean> {
+    async #resolveAttestationFindings(findings: AttestationFinding[]): Promise<AttestationDecision> {
         const policy = this.commissioningOptions.attestation.onFailure;
 
         if (typeof policy === "function") {
-            return policy(findings);
+            // Throws from the callback propagate to the caller unchanged.
+            const result = await policy(findings);
+            if (result === true) return { proceed: true };
+            if (typeof result === "string") return { proceed: false, reason: result };
+            return { proceed: false };
         }
 
         for (const f of findings) {
@@ -1251,7 +1256,7 @@ export class ControllerCommissioningFlow {
             }
         }
 
-        return policy !== false;
+        return { proceed: policy !== false };
     }
 
     // TODO consider Distributed Compliance Ledger Info about Commissioning Flow

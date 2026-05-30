@@ -31,11 +31,12 @@ export enum DeviceAttestationCheck {
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
+    TrustedAsTestCertificate = "TrustedAsTestCertificate",
 }
 
 /** A single finding from the attestation validation process. */
 export interface AttestationFinding {
-    /** Severity: "error" stops validation immediately, "warning"/"info" are collected. */
+    /** Severity. "error" aborts validation unless the check is recoverable (collected instead). */
     level: "error" | "warning" | "info";
 
     /** The specific check that produced this finding. */
@@ -87,12 +88,19 @@ export namespace DeviceAttestationValidator {
 
     /**
      * Controls behavior when attestation findings occur.
-     * - `true`: always proceed (warnings/info are logged)
-     * - `false`: reject on any finding (error, warning, or info)
+     * - `true`: always proceed (warnings/info logged)
+     * - `false`: reject on any finding
      * - `undefined`: backward-compatible accept with logging
-     * - function: receives all findings, returns whether to proceed
+     * - function: receives all findings; may
+     *     - return `true` to proceed
+     *     - return `false` to reject with the underlying error (the original
+     *       {@link DeviceAttestationError} on hard-failure findings, or a fresh
+     *       {@link CommissioningError} on collected-finding rejection)
+     *     - return a `string` to reject with a new {@link CommissioningError} whose message is
+     *       that string and whose `cause` is the underlying error
+     *     - throw any error to reject by rethrowing that error verbatim (no wrapping)
      */
-    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean>);
+    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean | string>);
 
     /**
      * Validates device attestation per Matter spec Section 6.2.3.1.
@@ -101,8 +109,10 @@ export namespace DeviceAttestationValidator {
      * (PAA trust store, chain verification, revocation) only run when dclCertificateService
      * is provided.
      *
-     * Errors (hard failures) throw immediately via {@link DeviceAttestationError}.
-     * Warnings and info findings are collected and returned for the caller to evaluate.
+     * Most error-level failures throw immediately via {@link DeviceAttestationError}. A small
+     * set of recoverable error cases (currently {@link DeviceAttestationCheck.TrustedAsTestCertificate})
+     * are collected in `findings` so the caller can decide via `onFailure` whether to proceed.
+     * Warning and info findings are always collected.
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
         const { crypto, dclCertificateService } = context;
@@ -159,14 +169,24 @@ export namespace DeviceAttestationValidator {
                     "Register DclCertificateService in the environment for full attestation.",
             });
         } else {
-            // Step 2: PAA Trust Store lookup
+            // Step 2: PAA Trust Store lookup — probe both production and test scope
             const paiAkid = pai.cert.extensions.authorityKeyIdentifier;
-            const paaMetadata = dclCertificateService.getCertificate(paiAkid);
+            const paaMetadata = dclCertificateService.getCertificate(paiAkid, { considerTestCertificates: true });
             if (paaMetadata === undefined) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.PaaNotTrusted,
                     `PAA not found in trust store for authority key identifier ${Bytes.toHex(paiAkid)}`,
                 );
+            }
+
+            if (!paaMetadata.isProduction && !dclCertificateService.allowsTestCertificates) {
+                findings.push({
+                    level: "error",
+                    type: DeviceAttestationCheck.TrustedAsTestCertificate,
+                    message:
+                        `PAA ${Bytes.toHex(paiAkid)} is a test/development certificate; ` +
+                        `device presented a valid test attestation but production trust policy is in effect`,
+                });
             }
 
             // Step 2b: Time-based trust store check (SHOULD per spec 6.2.3.1)
@@ -185,7 +205,7 @@ export namespace DeviceAttestationValidator {
             }
 
             // Step 3: Certificate chain signature verification
-            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid);
+            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid, { considerTestCertificates: true });
             paa = Paa.fromAsn1(paaDer);
 
             try {

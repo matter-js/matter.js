@@ -17,7 +17,7 @@ import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import { Bytes, Crypto, Environment, MockFetch, MockStorageService, PrivateKey, StandardCrypto } from "@matter/general";
 import { VendorId } from "@matter/types";
-import { pemEncode, setupDclFetchMock } from "./TestHelpers.js";
+import { buildTestCrl, pemEncode, setupDclFetchMock } from "./TestHelpers.js";
 
 describe("DeviceAttestationValidator", () => {
     const crypto = new StandardCrypto();
@@ -622,6 +622,112 @@ describe("DeviceAttestationValidator", () => {
 
             const finding = result.findings.find(f => f.type === DeviceAttestationCheck.PaaTrustStoreTimeMismatch);
             expect(finding).to.be.undefined;
+        });
+    });
+
+    describe("test-certificate PAA detection", () => {
+        it("emits TrustedAsTestCertificate when PAA is test-only and service disallows test certs", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            service = new DclCertificateService(environment, { updateInterval: null });
+            await service.construction;
+
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: false });
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            const result = await DeviceAttestationValidator.validate(buildContext(service), buildData());
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+            expect(finding).to.not.be.undefined;
+            expect(finding!.level).to.equal("error");
+        });
+
+        it("does NOT emit TrustedAsTestCertificate when service allowsTestCertificates is true", async () => {
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            service = new DclCertificateService(environment, {
+                updateInterval: null,
+                fetchTestCertificates: true,
+            });
+            await service.construction;
+
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: false });
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            const result = await DeviceAttestationValidator.validate(buildContext(service), buildData());
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+            expect(finding).to.be.undefined;
+        });
+
+        it("does NOT emit TrustedAsTestCertificate when the PAA is a production cert", async () => {
+            const dclService = await setupDclService();
+
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+            expect(finding).to.be.undefined;
+        });
+
+        it("runs revocation against a test-only PAA: a revoked DAC still throws CertificateRevoked", async () => {
+            const dac = Dac.fromAsn1(dacDer);
+            const dacSerial = Bytes.toHex(dac.cert.serialNumber).toUpperCase();
+            const dacAkid = Bytes.toHex(dac.cert.extensions.authorityKeyIdentifier).toUpperCase();
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse(`/dcl/pki/revocation-points/${dacAkid}`, {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    issuerSubjectKeyID: dacAkid,
+                    points: [
+                        {
+                            vid: 0xfff1,
+                            pid: 0,
+                            isPAA: false,
+                            label: "test-revocation",
+                            crlSignerDelegator: "",
+                            crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
+                            issuerSubjectKeyID: dacAkid,
+                            dataURL: "https://example.com/test.crl",
+                            dataFileSize: "",
+                            dataDigest: "",
+                            dataDigestType: 0,
+                            revocationType: 1,
+                            schemaVersion: 0,
+                        },
+                    ],
+                    schemaVersion: 0,
+                },
+            });
+            fetchMock.addResponse("https://example.com/test.crl", buildTestCrl([dacSerial], dac.cert.issuerDer), {
+                binary: true,
+            });
+            fetchMock.install();
+
+            service = new DclCertificateService(environment, { updateInterval: null });
+            await service.construction;
+
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: false });
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            await expect(DeviceAttestationValidator.validate(buildContext(service), buildData())).to.be.rejectedWith(
+                DeviceAttestationError,
+                /Device Attestation Certificate has been revoked/,
+            );
         });
     });
 });
