@@ -134,6 +134,12 @@ interface AttestationTestOptions {
     /** PAA cert to register in DCL trust store. undefined = no DclCertificateService. */
     dclPaaCert?: Bytes;
 
+    /**
+     * When true, inject `dclPaaCert` directly as a test-only PAA (isProduction: false) and
+     * skip the production DCL fetch mock. Used to exercise the `TrustedAsTestCertificate` finding.
+     */
+    paaAsTestOnly?: boolean;
+
     /** The onAttestationFailure commissioning option. */
     onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
 
@@ -166,7 +172,13 @@ async function runAttestationTest(options: AttestationTestOptions) {
 
     try {
         if (options.dclPaaCert !== undefined && options.setupBeforeCommission === undefined) {
-            setupDclFetchMock(fetchMock, options.dclPaaCert);
+            if (options.paaAsTestOnly) {
+                fetchMock.addResponse("/dcl/pki/root-certificates", {
+                    approvedRootCertificates: { schemaVersion: 0, certs: [] },
+                });
+            } else {
+                setupDclFetchMock(fetchMock, options.dclPaaCert);
+            }
             fetchMock.install();
         }
 
@@ -181,6 +193,9 @@ async function runAttestationTest(options: AttestationTestOptions) {
         if (options.dclPaaCert !== undefined) {
             dclService = new DclCertificateService(controller.env, { updateInterval: null });
             await dclService.construction;
+            if (options.paaAsTestOnly) {
+                await dclService.addCertificate(options.dclPaaCert, "PAA", { isProduction: false });
+            }
             // Inject the Matter test CD signer so CD signature verification works for test CDs
             await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
         }
@@ -343,6 +358,36 @@ describe("device attestation during commissioning", () => {
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 onAttestationFailure: false,
                 expectRejection: /finding\(s\) and was rejected by policy/,
+            }));
+    });
+
+    describe("with DCL trust store (test-only PAA)", () => {
+        it("emits TrustedAsTestCertificate finding, callback rejects", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                paaAsTestOnly: true,
+                onAttestationFailure: () => false,
+                expectRejection: /finding\(s\) and was rejected by policy/,
+                assertFindings: findings => {
+                    const trusted = findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+                    expect(trusted).to.not.be.undefined;
+                    expect(trusted!.level).equals("error");
+                },
+            }));
+
+        it("emits TrustedAsTestCertificate finding, callback accepts → commissioning proceeds", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                paaAsTestOnly: true,
+                onAttestationFailure: () => true,
+                assertFindings: findings => {
+                    const types = findings.map(f => f.type);
+                    expect(types).to.include(DeviceAttestationCheck.TrustedAsTestCertificate);
+                },
+                assertResult: (device, peers) => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                    expect(peers).equals(1);
+                },
             }));
     });
 

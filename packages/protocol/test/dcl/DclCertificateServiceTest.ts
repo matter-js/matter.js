@@ -1836,6 +1836,33 @@ describe("DclCertificateService", () => {
                     await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true }),
                 ).to.deep.include({ isProduction: false });
             });
+
+            it("getOrFetchCertificate filters a post-fetch test cert per the considerTestCertificates override", async () => {
+                fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+                fetchMock.addResponse(TEST_ROOT_LIST_URL, mockDclRootCertificateList);
+                fetchMock.addResponse(
+                    "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                    mockDclCertificateNoVID,
+                );
+                fetchMock.install();
+
+                service = new DclCertificateService(environment, {
+                    fetchTestCertificates: false,
+                    updateInterval: null,
+                });
+                await service.construction;
+
+                expect(service.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })).to.be.undefined;
+
+                expect(await service.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { isProduction: false })).to.be
+                    .undefined;
+                expect(
+                    await service.getOrFetchCertificate(TEST_PAA_NOVID_SKID, {
+                        isProduction: false,
+                        considerTestCertificates: true,
+                    }),
+                ).to.deep.include({ isProduction: false });
+            });
         });
     });
 });

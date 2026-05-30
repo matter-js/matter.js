@@ -1173,7 +1173,7 @@ export class ControllerCommissioningFlow {
 
         const { attestation } = this.commissioningOptions;
 
-        let findings: AttestationFinding[] = [];
+        let findings: AttestationFinding[];
         let baseError: Error | undefined;
         try {
             const result = await DeviceAttestationValidator.validate(
