@@ -1817,6 +1817,15 @@ describe("DclCertificateService", () => {
                     svc.getCertificateAsDer(TEST_PAA_NOVID_SKID, { considerTestCertificates: false }),
                 ).to.be.rejectedWith(/Certificate not found/);
             });
+
+            it("getCertificateAsPem returns PEM when override is true", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                await expect(svc.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+                const pem = await svc.getCertificateAsPem(TEST_PAA_NOVID_SKID, { considerTestCertificates: true });
+                expect(pem).to.include("-----BEGIN CERTIFICATE-----");
+            });
         });
     });
 });

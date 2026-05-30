@@ -160,18 +160,17 @@ export class DclCertificateService {
 
     /**
      * Get certificate as PEM string.
-     * @throws {MatterDclError} if certificate not found
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
      */
-    async getCertificateAsPem(subjectKeyId: Bytes | string) {
+    async getCertificateAsPem(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata)) {
+        if (!metadata || !this.#isRelevant(metadata, options)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
-        // Retrieve DER certificate from storage
         const derBytes = await this.#storage!.get<Bytes>(normalizedId);
         if (!derBytes || derBytes.byteLength === 0) {
             throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
