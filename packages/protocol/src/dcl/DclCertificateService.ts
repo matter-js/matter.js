@@ -253,39 +253,36 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
-     * undefined if not found.
+     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage.
+     * Returns undefined if not found or if the entry is filtered by the effective trust policy.
      */
     async getOrFetchCertificate(
         subjectKeyId: Bytes | string,
-        options?: DclClient.Options & { isProduction?: boolean },
+        options?: DclClient.Options & { isProduction?: boolean } & DclCertificateService.GetCertificateOptions,
     ) {
         this.construction.assert();
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
 
-        // First check if certificate is in the index
         const existing = this.#certificateIndex.get(normalizedId);
-        if (existing) {
+        if (existing && this.#isRelevant(existing, options)) {
             return existing;
         }
 
         if (this.#fetchPromise !== undefined) {
-            // Wait for ongoing fetch process to complete, return whatever is in the index afterward
             await this.#fetchPromise;
-            return this.#certificateIndex.get(normalizedId);
+            const afterFetch = this.#certificateIndex.get(normalizedId);
+            return afterFetch && this.#isRelevant(afterFetch, options) ? afterFetch : undefined;
         }
 
         try {
             const isProduction = options?.isProduction ?? true;
-            // Fetch the root certificate list to find the certificate reference
             const config = isProduction
                 ? (this.#options.dclConfig ?? DclConfig.production)
                 : (this.#options.testDclConfig ?? DclConfig.test);
             const dclClient = new DclClient(config);
             const certRefs = await dclClient.fetchRootCertificateList(options);
 
-            // Find the certificate reference with matching subject key ID (with colons for comparison)
             const subjectKeyIdWithColons = normalizedId
                 .match(/.{1,2}/g)
                 ?.join(":")
@@ -300,7 +297,6 @@ export class DclCertificateService {
                 return;
             }
 
-            // Use existing method to fetch and store the certificate
             await this.#fetchAndStoreCertificate(
                 this.#storage!,
                 dclClient,
@@ -310,7 +306,6 @@ export class DclCertificateService {
                 options ?? this.#options,
             );
 
-            // After fetching, retrieve from index (it should be there now if fetch was successful)
             const fetched = this.#certificateIndex.get(normalizedId);
             if (fetched) {
                 await this.#saveIndex();
@@ -319,7 +314,7 @@ export class DclCertificateService {
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
                 );
             }
-            return fetched;
+            return fetched && this.#isRelevant(fetched, options) ? fetched : undefined;
         } catch (error) {
             MatterDclError.accept(error);
             logger.debug(`Failed to fetch certificate ${normalizedId} from DCL: ${error.message}`);

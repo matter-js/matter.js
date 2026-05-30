@@ -1826,6 +1826,16 @@ describe("DclCertificateService", () => {
                 const pem = await svc.getCertificateAsPem(TEST_PAA_NOVID_SKID, { considerTestCertificates: true });
                 expect(pem).to.include("-----BEGIN CERTIFICATE-----");
             });
+
+            it("getOrFetchCertificate respects the considerTestCertificates override on local hits", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                expect(await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(
+                    await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true }),
+                ).to.deep.include({ isProduction: false });
+            });
         });
     });
 });
