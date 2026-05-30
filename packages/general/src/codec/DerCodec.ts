@@ -30,6 +30,16 @@ export enum DerType {
 
 const CONSTRUCTED = 0x20;
 
+/**
+ * Decoded DER tag bytes for constructed types: the universal {@link DerType} ORed with the constructed bit. A decoded
+ * {@link DerNode} for a SEQUENCE/SET carries these values in `_tag`, not the bare {@link DerType} (e.g. `0x30`, not
+ * `0x10`), so use these when testing a decoded node's tag.
+ */
+export const DerTag = {
+    Sequence: DerType.Sequence | CONSTRUCTED,
+    Set: DerType.Set | CONSTRUCTED,
+};
+
 const enum DerClass {
     Universal = 0x00,
     Application = 0x40,
@@ -329,7 +339,7 @@ export class DerCodec {
     }
 
     static #encodeArray(array: Array<any>) {
-        return this.#encodeAsn1(DerType.Set | CONSTRUCTED, Bytes.concat(...array.map(element => this.encode(element))));
+        return this.#encodeAsn1(DerTag.Set, Bytes.concat(...array.map(element => this.encode(element))));
     }
 
     static #encodeOctetString(value: Bytes) {
@@ -341,7 +351,7 @@ export class DerCodec {
         for (const key in object) {
             attributes.push(this.encode(object[key]));
         }
-        return this.#encodeAsn1(DerType.Sequence | CONSTRUCTED, Bytes.concat(...attributes));
+        return this.#encodeAsn1(DerTag.Sequence, Bytes.concat(...attributes));
     }
 
     static #encodeString(value: string) {

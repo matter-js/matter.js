@@ -926,7 +926,6 @@ export class CommissioningController {
             try {
                 await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
                     label,
-                    fabricIndex: fabric.fabricIndex,
                 });
             } catch (error) {
                 const sre = StatusResponseError.of(error);

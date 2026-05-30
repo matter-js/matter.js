@@ -1384,7 +1384,6 @@ export class ControllerCommissioningFlow {
                     command: "updateFabricLabel",
                     fields: {
                         label: this.fabric.label,
-                        fabricIndex,
                     },
                 }),
             );

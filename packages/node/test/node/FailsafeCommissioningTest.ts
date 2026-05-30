@@ -19,6 +19,8 @@
  *    - No factory reset (state.commissioned was never true; handleFabricChange sees false→false, no state change).
  */
 
+import { AccessControlServer } from "#behaviors/access-control";
+import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, Lifecycle, MockCrypto, Seconds } from "@matter/general";
 import {
@@ -29,6 +31,7 @@ import {
     FabricManager,
     ServiceDescription,
 } from "@matter/protocol";
+import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 
 describe("Failsafe commissioning re-announcement", () => {
@@ -81,6 +84,12 @@ describe("Failsafe commissioning re-announcement", () => {
                 this.count++;
             }
             return undefined;
+        }
+    }
+
+    class FailingAccessControlServer extends AccessControlServer {
+        override addDefaultCaseAcl(): never {
+            throw new Error("Simulated ACL transaction failure (test)");
         }
     }
 
@@ -275,6 +284,41 @@ describe("Failsafe commissioning re-announcement", () => {
             // reaching the isPase guard.  Had the CASE close also triggered #startCommissioningAdvertisement,
             // the count would be 2 instead of 1.
             expect(adSpy.count).to.equal(1);
+        } finally {
+            await site.close();
+        }
+    });
+
+    it("recovers cleanly when initial ACL creation fails during addNOC", async () => {
+        const site = new MockSite();
+        try {
+            const controller = await site.addController();
+            const device = await site.addNode(MockServerNode.RootEndpoint.with(FailingAccessControlServer), {
+                device: OnOffLightDevice,
+            });
+
+            const disableEntropy = enableEntropy(controller, device);
+
+            const { passcode, discriminator } = device.state.commissioning;
+
+            const adSpy = new CommissioningAdSpy();
+            device.env.get(DeviceAdvertiser).addAdvertiser(adSpy);
+
+            let caughtError: unknown;
+            await MockTime.resolve(
+                controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }).catch(err => {
+                    caughtError = err;
+                }),
+                { macrotasks: true },
+            );
+
+            disableEntropy();
+
+            expect(caughtError).to.not.equal(undefined);
+            expect(device.env.get(FabricManager).fabrics.length).to.equal(0);
+            expect(adSpy.count).to.be.greaterThan(0);
+            expect(device.lifecycle.isOnline).to.equal(true);
+            expect(device.state.commissioning.commissioned).to.equal(false);
         } finally {
             await site.close();
         }

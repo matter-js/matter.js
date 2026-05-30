@@ -1055,8 +1055,6 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.2.1
          */
         trustedTimeSource: FabricScopedTrustedTimeSource | null;
-
-        fabricIndex: FabricIndex;
     }
 
     /**
