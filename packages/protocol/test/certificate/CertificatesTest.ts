@@ -21,7 +21,7 @@ import {
     DerBitString,
     DerCodec,
     DerNode,
-    DerType,
+    DerTag,
     EcdsaSignature,
     PrivateKey,
     PublicKey,
@@ -564,8 +564,8 @@ describe("Certificates", () => {
             const key = PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY });
             const request = {
                 version: 0,
-                // Constructed SET (0x31) instead of a SEQUENCE (0x30) — has _elements but is not a valid RDNSequence
-                subject: { _tag: DerType.Set | 0x20, _bytes: new Uint8Array(0) },
+                // Constructed SET instead of a SEQUENCE — has _elements but is not a valid RDNSequence
+                subject: { _tag: DerTag.Set, _bytes: new Uint8Array(0) },
                 publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
                 endSignedBytes: ContextTagged(0),
             };

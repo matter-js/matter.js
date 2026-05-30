@@ -12,6 +12,7 @@ import {
     Days,
     DerCodec,
     DerNode,
+    DerTag,
     Diagnostic,
     Duration,
     EcdsaSignature,
@@ -1173,12 +1174,12 @@ export class DclCertificateService {
             idx++;
         }
         // signature algorithm: SEQUENCE
-        if (tbsElements[idx]?._tag === 0x30) {
+        if (tbsElements[idx]?._tag === DerTag.Sequence) {
             idx++;
         }
         // issuer Name: SEQUENCE — hash its raw DER bytes for use as composite revocation key
         let issuerDnDerHex: string | undefined;
-        if (tbsElements[idx]?._tag === 0x30) {
+        if (tbsElements[idx]?._tag === DerTag.Sequence) {
             const issuerNode = tbsElements[idx];
             issuerDnDerHex = Bytes.toHex(DerCodec.encode(issuerNode)).toUpperCase();
             idx++;
@@ -1255,11 +1256,11 @@ export class DclCertificateService {
         // Find the revokedCertificates sequence
         let revokedCertsNode: DerNode | undefined;
         for (const element of tbsElements) {
-            if (element._tag === 0x30 && element._elements) {
+            if (element._tag === DerTag.Sequence && element._elements) {
                 const firstChild = element._elements[0];
                 if (
                     firstChild &&
-                    firstChild._tag === 0x30 &&
+                    firstChild._tag === DerTag.Sequence &&
                     firstChild._elements &&
                     firstChild._elements[0]?._tag === 0x02
                 ) {
@@ -1274,7 +1275,7 @@ export class DclCertificateService {
         }
 
         for (const entry of revokedCertsNode._elements) {
-            if (entry._tag !== 0x30 || !entry._elements || entry._elements.length < 1) continue;
+            if (entry._tag !== DerTag.Sequence || !entry._elements || entry._elements.length < 1) continue;
             const serialNode = entry._elements[0];
             if (serialNode._tag !== 0x02) continue;
             const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
