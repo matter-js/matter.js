@@ -124,20 +124,21 @@ export class DclCertificateService {
      */
     #isRelevant(
         metadata: DclCertificateService.CertificateMetadata,
-        considerTestCertificates = this.allowsTestCertificates,
+        options?: DclCertificateService.GetCertificateOptions,
     ) {
         const kind = metadata.kind ?? "PAA";
+        const considerTestCertificates = options?.considerTestCertificates ?? this.allowsTestCertificates;
         return kind !== "PAA" || metadata.isProduction || considerTestCertificates;
     }
 
     /**
      * Get certificate metadata by subject key identifier. Returns undefined if not found or if the
-     * entry is a test certificate while `fetchTestCertificates` is disabled.
+     * entry is filtered by the effective trust policy.
      */
-    getCertificate(subjectKeyId: Bytes | string) {
+    getCertificate(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
         const metadata = this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
-        if (metadata === undefined || !this.#isRelevant(metadata)) {
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
             return undefined;
         }
         return metadata;
