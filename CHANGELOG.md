@@ -17,6 +17,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Fix: Remove invalid FabricIndex field from four commands
 
+- @matter/node
+  - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
+
 - @matter/protocol
     - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`

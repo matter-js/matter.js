@@ -250,6 +250,7 @@ export class FabricManager {
             await this.persistFabrics();
         }
         await fabric.storage?.clearAll();
+        await this.#events.deleted.emit(fabric);
     }
 
     [Symbol.iterator]() {
