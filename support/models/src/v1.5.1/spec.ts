@@ -38658,8 +38658,7 @@ export const SpecMatter = Matter(
                 name: "TrustedTimeSource", id: 0x0, type: "FabricScopedTrustedTimeSourceStruct", access: "F",
                 conformance: "M", quality: "X", xref: "core§11.17.9.2.1",
                 details: "This field contains the Node ID and endpoint of a trusted time source on the accessing fabric."
-            }),
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            })
         ),
 
         Command(
@@ -39283,8 +39282,7 @@ export const SpecMatter = Matter(
             },
 
             Field({ name: "NocValue", id: 0x0, type: "octstr", access: "F", conformance: "M", constraint: "max 400" }),
-            Field({ name: "IcacValue", id: 0x1, type: "octstr", access: "F", conformance: "O", constraint: "max 400" }),
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            Field({ name: "IcacValue", id: 0x1, type: "octstr", access: "F", conformance: "O", constraint: "max 400" })
         ),
 
         Command(
@@ -39352,8 +39350,7 @@ export const SpecMatter = Matter(
                 name: "Label", id: 0x0, type: "string", access: "F", conformance: "M", constraint: "max 32",
                 xref: "core§11.18.6.11.1",
                 details: "This field shall contain the label to set for the fabric associated with the current secure session."
-            }),
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            })
         ),
 
         Command(
@@ -40626,9 +40623,7 @@ export const SpecMatter = Matter(
                     "Update Provider cluster server on the ProviderNodeID. This is provided to avoid having to do " +
                     "discovery of the location of that endpoint by walking over all endpoints and checking their " +
                     "Descriptor Cluster."
-            }),
-
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            })
         ),
 
         Datatype(

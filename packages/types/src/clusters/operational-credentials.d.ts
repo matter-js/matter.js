@@ -825,7 +825,6 @@ export declare namespace OperationalCredentials {
         constructor(values?: Partial<UpdateNocRequest>);
         nocValue: Bytes;
         icacValue?: Bytes;
-        fabricIndex: FabricIndex;
     }
 
     /**
@@ -854,8 +853,6 @@ export declare namespace OperationalCredentials {
          * @see {@link MatterSpecification.v151.Core} § 11.18.6.11.1
          */
         label: string;
-
-        fabricIndex: FabricIndex;
     }
 
     /**
