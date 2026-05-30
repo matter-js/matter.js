@@ -103,8 +103,7 @@ export const OperationalCredentials = Cluster(
     Command(
         { name: "UpdateNoc", id: 0x7, access: "F A", conformance: "M", direction: "request", response: "NocResponse" },
         Field({ name: "NocValue", id: 0x0, type: "octstr", access: "F", conformance: "M", constraint: "max 400" }),
-        Field({ name: "IcacValue", id: 0x1, type: "octstr", access: "F", conformance: "O", constraint: "max 400" }),
-        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+        Field({ name: "IcacValue", id: 0x1, type: "octstr", access: "F", conformance: "O", constraint: "max 400" })
     ),
 
     Command(
@@ -122,8 +121,7 @@ export const OperationalCredentials = Cluster(
             name: "UpdateFabricLabel", id: 0x9, access: "F A", conformance: "M", direction: "request",
             response: "NocResponse"
         },
-        Field({ name: "Label", id: 0x0, type: "string", access: "F", conformance: "M", constraint: "max 32" }),
-        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+        Field({ name: "Label", id: 0x0, type: "string", access: "F", conformance: "M", constraint: "max 32" })
     ),
 
     Command(

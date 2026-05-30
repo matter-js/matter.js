@@ -69,8 +69,7 @@ export const OtaSoftwareUpdateRequestor = Cluster(
         Field({ name: "VendorId", id: 0x1, type: "vendor-id", access: "F", conformance: "M" }),
         Field({ name: "AnnouncementReason", id: 0x2, type: "AnnouncementReasonEnum", access: "F", conformance: "M" }),
         Field({ name: "MetadataForNode", id: 0x3, type: "octstr", access: "F", conformance: "O", constraint: "max 512" }),
-        Field({ name: "Endpoint", id: 0x4, type: "endpoint-no", access: "F", conformance: "M" }),
-        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+        Field({ name: "Endpoint", id: 0x4, type: "endpoint-no", access: "F", conformance: "M" })
     ),
 
     Datatype(

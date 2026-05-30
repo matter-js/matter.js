@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
 
+- @matter/model
+    - Fix: Remove invalid FabricIndex field from four commands
+
 - @matter/node
   - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
 
@@ -22,6 +25,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
     - Fix: Event reports are now decoded in wire (EventNumber) order
+
+- @matter/types
+    - Fix: Remove invalid FabricIndex field from four commands
 
 ## 0.17.0 (2026-05-20)
 
