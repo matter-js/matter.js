@@ -88,12 +88,19 @@ export namespace DeviceAttestationValidator {
 
     /**
      * Controls behavior when attestation findings occur.
-     * - `true`: always proceed (warnings/info are logged)
-     * - `false`: reject on any finding (error, warning, or info)
+     * - `true`: always proceed (warnings/info logged)
+     * - `false`: reject on any finding
      * - `undefined`: backward-compatible accept with logging
-     * - function: receives all findings, returns whether to proceed
+     * - function: receives all findings; may
+     *     - return `true` to proceed
+     *     - return `false` to reject with the underlying error (the original
+     *       {@link DeviceAttestationError} on hard-failure findings, or a fresh
+     *       {@link CommissioningError} on collected-finding rejection)
+     *     - return a `string` to reject with a new {@link CommissioningError} whose message is
+     *       that string and whose `cause` is the underlying error
+     *     - throw any error to reject by rethrowing that error verbatim (no wrapping)
      */
-    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean>);
+    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean | string>);
 
     /**
      * Validates device attestation per Matter spec Section 6.2.3.1.

@@ -24,7 +24,6 @@ import {
     ImplementationError,
     Instant,
     Logger,
-    MaybePromise,
     Millis,
     Minutes,
     NoResponseTimeoutError,
@@ -144,6 +143,8 @@ export type ControllerCommissioningFlowOptions = {
         onFailure?: DeviceAttestationValidator.OnAttestationFailure;
     };
 };
+
+type AttestationDecision = { proceed: true } | { proceed: false; reason?: string };
 
 /** Types representation of a general commissioning response. */
 type CommissioningSuccessFailureResponse = {
@@ -1191,11 +1192,15 @@ export class ControllerCommissioningFlow {
             );
 
             if (result.findings.length > 0) {
-                const proceed = await this.#resolveAttestationFindings(result.findings);
-                if (!proceed) {
-                    throw new CommissioningError(
+                const decision = await this.#resolveAttestationFindings(result.findings);
+                if (!decision.proceed) {
+                    const baseError = new CommissioningError(
                         `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
                     );
+                    if (decision.reason !== undefined) {
+                        throw new CommissioningError(decision.reason, { cause: baseError });
+                    }
+                    throw baseError;
                 }
                 logger.info(
                     `Device attestation successfully verified with ${result.findings.length} accepted finding(s)`,
@@ -1210,8 +1215,11 @@ export class ControllerCommissioningFlow {
                     type: error.failure,
                     message: error.message,
                 };
-                const proceed = await this.#resolveAttestationFindings([errorFinding]);
-                if (!proceed) {
+                const decision = await this.#resolveAttestationFindings([errorFinding]);
+                if (!decision.proceed) {
+                    if (decision.reason !== undefined) {
+                        throw new CommissioningError(decision.reason, { cause: error });
+                    }
                     throw error;
                 }
             } else {
@@ -1229,11 +1237,15 @@ export class ControllerCommissioningFlow {
     }
 
     /** Resolve attestation findings according to the configured policy. */
-    #resolveAttestationFindings(findings: AttestationFinding[]): MaybePromise<boolean> {
+    async #resolveAttestationFindings(findings: AttestationFinding[]): Promise<AttestationDecision> {
         const policy = this.commissioningOptions.attestation.onFailure;
 
         if (typeof policy === "function") {
-            return policy(findings);
+            // Throws from the callback propagate to the caller unchanged.
+            const result = await policy(findings);
+            if (result === true) return { proceed: true };
+            if (typeof result === "string") return { proceed: false, reason: result };
+            return { proceed: false };
         }
 
         for (const f of findings) {
@@ -1251,7 +1263,7 @@ export class ControllerCommissioningFlow {
             }
         }
 
-        return policy !== false;
+        return { proceed: policy !== false };
     }
 
     // TODO consider Distributed Compliance Ledger Info about Commissioning Flow
