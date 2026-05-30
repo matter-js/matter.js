@@ -162,7 +162,7 @@ class Tx implements Transaction, Transaction.Finalization {
             MaybePromise.then(actor, undefined, err => {
                 logger.warn(`Finalize actor on transaction ${this.via} failed:`, err);
             });
-        });
+        }, true);
     }
 
     onClose(listener: () => void) {
