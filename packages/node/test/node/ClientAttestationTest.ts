@@ -501,5 +501,49 @@ describe("device attestation during commissioning", () => {
                 },
             });
         });
+
+        it("callback throwing DeviceAttestationError on success-path findings propagates without re-invocation", () => {
+            let invocations = 0;
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                onAttestationFailure: () => {
+                    invocations++;
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                        "from callback",
+                    );
+                },
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(DeviceAttestationError);
+                    expect((err as DeviceAttestationError).failure).to.equal(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                    );
+                    expect((err as Error).message).to.equal("from callback");
+                    expect(invocations).to.equal(1);
+                },
+            });
+        });
+
+        it("callback throwing DeviceAttestationError on hard-error finding propagates without re-invocation", () => {
+            let invocations = 0;
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_FFF1_Cert,
+                onAttestationFailure: () => {
+                    invocations++;
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                        "from callback",
+                    );
+                },
+                expectRejection: err => {
+                    expect(err).to.be.instanceOf(DeviceAttestationError);
+                    expect((err as DeviceAttestationError).failure).to.equal(
+                        DeviceAttestationCheck.AttestationSignatureInvalid,
+                    );
+                    expect((err as Error).message).to.equal("from callback");
+                    expect(invocations).to.equal(1);
+                },
+            });
+        });
     });
 });

@@ -1173,6 +1173,8 @@ export class ControllerCommissioningFlow {
 
         const { attestation } = this.commissioningOptions;
 
+        let findings: AttestationFinding[] = [];
+        let baseError: Error | undefined;
         try {
             const result = await DeviceAttestationValidator.validate(
                 {
@@ -1190,41 +1192,27 @@ export class ControllerCommissioningFlow {
                     productId: this.collectedCommissioningData.productId!,
                 },
             );
-
-            if (result.findings.length > 0) {
-                const decision = await this.#resolveAttestationFindings(result.findings);
-                if (!decision.proceed) {
-                    const baseError = new CommissioningError(
-                        `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
-                    );
-                    if (decision.reason !== undefined) {
-                        throw new CommissioningError(decision.reason, { cause: baseError });
-                    }
-                    throw baseError;
-                }
-                logger.info(
-                    `Device attestation successfully verified with ${result.findings.length} accepted finding(s)`,
-                );
-            } else {
-                logger.info("Device attestation successfully verified");
-            }
+            findings = result.findings;
         } catch (error) {
-            if (error instanceof DeviceAttestationError) {
-                const errorFinding: AttestationFinding = {
-                    level: "error",
-                    type: error.failure,
-                    message: error.message,
-                };
-                const decision = await this.#resolveAttestationFindings([errorFinding]);
-                if (!decision.proceed) {
-                    if (decision.reason !== undefined) {
-                        throw new CommissioningError(decision.reason, { cause: error });
-                    }
-                    throw error;
+            DeviceAttestationError.accept(error);
+            findings = [{ level: "error", type: error.failure, message: error.message }];
+            baseError = error;
+        }
+
+        if (findings.length > 0) {
+            const decision = await this.#resolveAttestationFindings(findings);
+            if (!decision.proceed) {
+                baseError ??= new CommissioningError(
+                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                );
+                if (decision.reason !== undefined) {
+                    throw new CommissioningError(decision.reason, { cause: baseError });
                 }
-            } else {
-                throw error;
+                throw baseError;
             }
+            logger.info(`Device attestation successfully verified with ${findings.length} accepted finding(s)`);
+        } else {
+            logger.info("Device attestation successfully verified");
         }
 
         // Extract DAC public key for CSR signature verification in #certificates()
