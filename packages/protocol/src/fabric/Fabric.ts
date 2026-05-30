@@ -85,6 +85,7 @@ export class Fabric {
     #persistCallback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined;
     #storage?: StorageContext;
     #isDeleting?: boolean;
+    #deletePromise?: Promise<void>;
 
     /**
      * Create a fabric synchronously.
@@ -276,7 +277,7 @@ export class Fabric {
     }
 
     get isDeleting() {
-        return this.#isDeleting;
+        return !!this.#isDeleting;
     }
 
     get leaving() {
@@ -404,16 +405,30 @@ export class Fabric {
      *
      * Does not emit the leave event.
      */
-    async delete(currentExchange?: MessageExchange) {
+    async delete(currentExchange?: MessageExchange): Promise<void> {
+        if (this.#deletePromise !== undefined) {
+            // Lifecycle fires once; still honor this caller's currentExchange for session close.
+            await this.#closeSessions(currentExchange);
+            await this.#deletePromise;
+            return;
+        }
+
         this.#isDeleting = true;
 
-        await this.#deleting.emit();
+        this.#deletePromise = this.#delete(currentExchange);
+        await this.#deletePromise;
+    }
 
+    async #delete(currentExchange?: MessageExchange) {
+        await this.#deleting.emit();
+        await this.#closeSessions(currentExchange);
+        await this.#deleted.emit();
+    }
+
+    async #closeSessions(currentExchange?: MessageExchange) {
         for (const session of [...this.#sessions]) {
             await session.initiateForceClose({ cause: new FabricRemovedError(), currentExchange });
         }
-
-        await this.#deleted.emit();
     }
 
     persist(isUpdate = true) {

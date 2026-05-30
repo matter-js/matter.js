@@ -277,22 +277,19 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                     `FabricIndex ${fabric.fabricIndex} already exists in state. This should not happen`,
                 );
             }
+
+            // Spec: The receiver SHALL create and add a new Access Control Entry using the CaseAdminSubject field to grant
+            // subsequent Administer access to an Administrator member of the new Fabric.
+            // Order matters: ACL change event must be attributed to the new fabric, not PASE-default.
+            await this.endpoint.act(agent =>
+                agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]),
+            );
         } catch (e) {
-            // Fabric insertion into FabricManager is not currently transactional so we need to remove manually
-            await fabric.delete(this.context.exchange);
+            // Deferred: fabric.delete inline would deadlock against this transaction's lock:true reactors.
+            const exchange = this.context.exchange;
+            this.context.transaction.onFinalize(() => fabric.delete(exchange));
             throw e;
         }
-
-        // The receiver SHALL create and add a new Access Control Entry using the CaseAdminSubject field to grant
-        // subsequent Administer access to an Administrator member of the new Fabric.
-        await this.endpoint.act(agent => agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]));
-
-        // TODO The incoming IPKValue SHALL be stored in the Fabric-scoped slot within the Group Key Management cluster
-        //  (see KeySetWrite), for subsequent use during CASE.
-
-        // TODO If the current secure session was established with PASE, the receiver SHALL: a. Augment the secure
-        //  session context with the FabricIndex generated above, such that subsequent interactions have the proper
-        //  accessing fabric.
 
         logger.info(
             `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${SubjectId.strOf(caseAdminSubject)}`,
@@ -350,11 +347,14 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         }
 
         // Build a new Fabric with the updated NOC and ICAC
+        const oldFabric = timedOp.associatedFabric;
+        let replaced = false;
         try {
             const updatedFabric = await timedOp.buildUpdatedFabric(nocValue, icacValue);
 
             // update FabricManager and Resumption records but leave the current session intact
             await timedOp.replaceFabric(updatedFabric);
+            replaced = true;
 
             // close all sessions found to the old fabric and just leave the one with this exchange open to deliver response
             await timedOp.associatedFabric.replaced(this.context.exchange);
@@ -364,6 +364,11 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                 fabricIndex: updatedFabric.fabricIndex,
             };
         } catch (error) {
+            if (replaced && oldFabric !== undefined) {
+                // FabricManager swapped to new fabric, but a later step threw; restore old, so manager
+                // and current session stay in sync.  Deferred for the same reason as addNoc's catch.
+                this.context.transaction.onFinalize(() => timedOp.restoreFabric(oldFabric));
+            }
             logger.info("Building fabric for updateNoc failed", error);
             return this.#mapNocErrors(error);
         }
