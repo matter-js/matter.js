@@ -17,8 +17,11 @@ import { Rcac } from "#certificate/kinds/Rcac.js";
 import {
     Bytes,
     CertificateError,
+    ContextTagged,
+    DerBitString,
     DerCodec,
     DerNode,
+    DerType,
     EcdsaSignature,
     PrivateKey,
     PublicKey,
@@ -536,6 +539,45 @@ describe("Certificates", () => {
             const result = await Certificate.getPublicKeyFromCsr(crypto, csr);
 
             expect(result).deep.equal(TEST_PUBLIC_KEY);
+        });
+
+        it("get the public key from a CSR with an empty subject", async () => {
+            const key = PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY });
+            const request = {
+                version: 0,
+                subject: {},
+                publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
+                endSignedBytes: ContextTagged(0),
+            };
+            const csr = DerCodec.encode({
+                request,
+                signAlgorithm: X962.EcdsaWithSHA256,
+                signature: DerBitString((await crypto.signEcdsa(key, DerCodec.encode(request))).der),
+            });
+
+            const result = await Certificate.getPublicKeyFromCsr(crypto, csr);
+
+            expect(result).deep.equal(TEST_PUBLIC_KEY);
+        });
+
+        it("declines a CSR with a non-SEQUENCE subject", async () => {
+            const key = PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY });
+            const request = {
+                version: 0,
+                subject: { _tag: DerType.Null, _bytes: new Uint8Array(0) },
+                publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
+                endSignedBytes: ContextTagged(0),
+            };
+            const csr = DerCodec.encode({
+                request,
+                signAlgorithm: X962.EcdsaWithSHA256,
+                signature: DerBitString((await crypto.signEcdsa(key, DerCodec.encode(request))).der),
+            });
+
+            await expect(Certificate.getPublicKeyFromCsr(crypto, csr)).to.be.rejectedWith(
+                CertificateError,
+                "Missing subject in CSR data",
+            );
         });
     });
 });
