@@ -1099,6 +1099,8 @@ export class DclCertificateService {
         if (signerAkid !== undefined) {
             const signerAkidNorm = this.#normalizeSubjectKeyId(signerAkid);
 
+            // CRL signer trust anchor honors test PAAs that the validator already accepted upstream.
+            const trustAllPaas: DclCertificateService.GetCertificateOptions = { considerTestCertificates: true };
             let issuerPublicKey: Bytes | undefined;
             if (delegatorCert !== undefined) {
                 // Delegated signer: verify delegator is signed by a trusted PAA
@@ -1109,7 +1111,7 @@ export class DclCertificateService {
                 ) {
                     throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
                 }
-                const paaDer = await this.#getCertificateDer(delegatorAkid);
+                const paaDer = await this.#getCertificateDer(delegatorAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
                 await this.#crypto.verifyEcdsa(
                     PublicKey(paa.cert.ellipticCurvePublicKey),
@@ -1118,7 +1120,7 @@ export class DclCertificateService {
                 );
                 issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
             } else if (this.#certificateIndex.has(signerAkidNorm)) {
-                const paaDer = await this.#getCertificateDer(signerAkid);
+                const paaDer = await this.#getCertificateDer(signerAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
                 issuerPublicKey = paa.cert.ellipticCurvePublicKey;
             }

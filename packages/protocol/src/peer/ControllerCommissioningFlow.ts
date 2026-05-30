@@ -127,7 +127,12 @@ export type ControllerCommissioningFlowOptions = {
          * Controls behavior when attestation produces findings.
          * - `false`: reject on any finding
          * - `true`: always accept with info logging
-         * - callback: receives `AttestationFinding[]`, return `true` to proceed, `false` to reject
+         * - callback: receives `AttestationFinding[]` and decides the outcome; may
+         *   - return `true` to proceed
+         *   - return `false` to reject with the underlying error
+         *   - return a `string` to reject with a new {@link CommissioningError} whose message is
+         *     that string and whose `cause` is the underlying error
+         *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
          * The callback receives either:
@@ -135,8 +140,8 @@ export type ControllerCommissioningFlowOptions = {
          *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
          *   whether to proceed despite the failure.
          * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data). These are
-         *   informational and the commissioner can inspect them for detailed decisions.
+         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
+         *   These are informational and the commissioner can inspect them for detailed decisions.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */

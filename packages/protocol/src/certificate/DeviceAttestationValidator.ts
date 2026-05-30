@@ -109,8 +109,10 @@ export namespace DeviceAttestationValidator {
      * (PAA trust store, chain verification, revocation) only run when dclCertificateService
      * is provided.
      *
-     * Errors (hard failures) throw immediately via {@link DeviceAttestationError}.
-     * Warnings and info findings are collected and returned for the caller to evaluate.
+     * Most error-level failures throw immediately via {@link DeviceAttestationError}. A small
+     * set of recoverable error cases (currently {@link DeviceAttestationCheck.TrustedAsTestCertificate})
+     * are collected in `findings` so the caller can decide via `onFailure` whether to proceed.
+     * Warning and info findings are always collected.
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
         const { crypto, dclCertificateService } = context;
