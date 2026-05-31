@@ -109,6 +109,8 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
                 if (!address.isWildcardHost) {
                     opts.host = address.hostname;
                 }
+                // A concrete port is required.  A wildcard ("0") port is deliberately not bound: an OS-assigned
+                // ephemeral port is undiscoverable to peers, so node's listen() is left to reject the attempt.
                 if (!address.isWildcardPort) {
                     opts.port = address.portNum;
                 }
