@@ -46,4 +46,34 @@ describe("Introspection", () => {
             expect(descriptors).property("derived");
         });
     });
+
+    describe("propertyDescriptorToAccessibility", () => {
+        it("treats a writable data property as readable and writable", () => {
+            expect(Introspection.propertyDescriptorToAccessibility({ value: 1, writable: true })).deep.equal({
+                readable: true,
+                writable: true,
+            });
+        });
+
+        it("treats a read-only data property as readable but not writable", () => {
+            expect(Introspection.propertyDescriptorToAccessibility({ value: 1, writable: false })).deep.equal({
+                readable: true,
+                writable: false,
+            });
+        });
+
+        it("treats a getter as readable", () => {
+            expect(Introspection.propertyDescriptorToAccessibility({ get: () => 1 })).deep.equal({
+                readable: true,
+                writable: false,
+            });
+        });
+
+        it("treats a setter-only accessor as writable but not readable", () => {
+            expect(Introspection.propertyDescriptorToAccessibility({ set: () => {} })).deep.equal({
+                readable: false,
+                writable: true,
+            });
+        });
+    });
 });

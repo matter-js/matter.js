@@ -13,7 +13,7 @@ export function serialize(value: unknown) {
     const visited = new Set();
 
     function asValidKey(key: string) {
-        if (key.match(/[a-z_$][\w$]*/i)) {
+        if (key.match(/^[a-z_$][\w$]*$/i)) {
             return key;
         }
         return JSON.stringify(key);

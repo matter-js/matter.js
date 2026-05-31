@@ -44,6 +44,11 @@ describe("serialize", () => {
         it("omits undefined properties", () => {
             expect(serialize({ a: 1, b: undefined })).equal("{ a: 1 }");
         });
+
+        it("quotes keys that are not valid identifiers", () => {
+            expect(serialize({ "has space": 1 })).equal('{ "has space": 1 }');
+            expect(serialize({ "1leading": 1 })).equal('{ "1leading": 1 }');
+        });
     });
 
     describe("namespace helpers", () => {

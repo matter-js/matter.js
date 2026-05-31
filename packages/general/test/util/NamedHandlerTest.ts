@@ -43,4 +43,29 @@ describe("NamedHandler", () => {
 
         expect(handlers.hasHandler("greet")).equal(false);
     });
+
+    it("removes only the matching (action, handler) pair", () => {
+        const handlers = new NamedHandler<Handlers>();
+        const greetA = (name: string) => `a ${name}`;
+        const greetB = (name: string) => `b ${name}`;
+        handlers.addHandler("greet", greetA);
+        handlers.addHandler("greet", greetB);
+
+        handlers.removeHandler("greet", greetA);
+
+        // The other handler for the same action survives
+        expect(handlers.hasHandler("greet")).equal(true);
+    });
+
+    it("does not remove a different action sharing the same handler reference", () => {
+        const shared = () => "x";
+        const handlers = new NamedHandler<{ a(): string; b(): string }>();
+        handlers.addHandler("a", shared);
+        handlers.addHandler("b", shared);
+
+        handlers.removeHandler("a", shared);
+
+        expect(handlers.hasHandler("a")).equal(false);
+        expect(handlers.hasHandler("b")).equal(true);
+    });
 });
