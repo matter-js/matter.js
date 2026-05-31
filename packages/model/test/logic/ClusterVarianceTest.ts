@@ -121,6 +121,42 @@ describe("ClusterVariance", () => {
                 condition: { allOf: ["FOO"] },
             });
         });
+
+        it("parses comma otherwise-list FOO, BAR, BAZ", () => {
+            expectComponents(attrs(["FOO", "BAR", "BAZ"], { name: "attr", conformance: "FOO, BAR, BAZ" }), {
+                mandatory: ["attr"],
+                condition: { anyOf: ["FOO", "BAR", "BAZ"] },
+            });
+        });
+
+        it("parses provisional comma otherwise-list P, FOO, BAR, BAZ", () => {
+            expectComponents(attrs(["FOO", "BAR", "BAZ"], { name: "attr", conformance: "P, FOO, BAR, BAZ" }), {
+                mandatory: ["attr"],
+                condition: { anyOf: ["FOO", "BAR", "BAZ"] },
+            });
+        });
+
+        it("parses comma otherwise-list with a conjunction term FOO, BAR, BAZ & QUX", () => {
+            expectComponents(
+                attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "FOO, BAR, BAZ & QUX" }),
+                { mandatory: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { mandatory: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+            );
+        });
+
+        it("parses [FOO & !fieldRef].x+ ignoring the field reference", () => {
+            expectComponents(attrs(["FOO"], { name: "attr", conformance: "[FOO & !FieldRef].b+" }), {
+                optional: ["attr"],
+                condition: { allOf: ["FOO"] },
+            });
+        });
+
+        it("strips Rev from [Rev >= vN & FOO & !fieldRef].x+", () => {
+            expectComponents(attrs(["FOO"], { name: "attr", conformance: "[Rev >= v2 & FOO & !FieldRef].b+" }), {
+                optional: ["attr"],
+                condition: { allOf: ["FOO"] },
+            });
+        });
     });
 });
 
