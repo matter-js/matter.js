@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
+    - Fix: IpService now also emits changed event when the TXT reconrd changes to ensure updates of the descriptor
 
 - @matter/model
     - Fix: Remove invalid FabricIndex field from four commands
