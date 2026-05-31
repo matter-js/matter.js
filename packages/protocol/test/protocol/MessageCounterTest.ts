@@ -94,6 +94,18 @@ describe("MessageCounter", () => {
             );
         });
 
+        it("emits 0xFFFFFFFF before rolling over to 0", async () => {
+            await testStorageContext.set("counter", 0xfffffffe);
+            const messageCounter = await PersistedMessageCounter.create(
+                crypto,
+                testStorageContext,
+                "counter",
+                async () => {},
+            );
+            expect(await messageCounter.getIncrementedCounter()).equals(0xffffffff);
+            expect(await messageCounter.getIncrementedCounter()).equals(0);
+        });
+
         it("Message counter rolls over if allowed", async () => {
             await testStorageContext.set("counter", MAX_COUNTER_VALUE_32BIT);
             const messageCounter = await PersistedMessageCounter.create(
