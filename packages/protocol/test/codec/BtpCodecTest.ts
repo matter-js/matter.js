@@ -206,9 +206,18 @@ describe("BtpCodec", () => {
         });
 
         it("decodes a valid request handshake message with multiple versions", () => {
-            const result = BtpCodec.decodeBtpHandshakeRequest(Bytes.fromHex("656c04560000b90006"));
+            // BTP wire packs even version index in the low nibble, odd index in the high nibble:
+            // [4,5,6] => bytes 54 06 00 00.
+            const result = BtpCodec.decodeBtpHandshakeRequest(Bytes.fromHex("656c54060000b90006"));
 
             expect(result).deep.equal(DECODED_HANDSHAKE_REQUEST_WITH_MULTIPLE_VERSIONS);
+        });
+
+        it("round-trips multiple versions preserving index order", () => {
+            const encoded = BtpCodec.encodeBtpHandshakeRequest(DECODED_HANDSHAKE_REQUEST_WITH_MULTIPLE_VERSIONS);
+            const decoded = BtpCodec.decodeBtpHandshakeRequest(encoded);
+
+            expect(decoded.versions).deep.equal(DECODED_HANDSHAKE_REQUEST_WITH_MULTIPLE_VERSIONS.versions);
         });
 
         it("decodes a valid btp packet", () => {
