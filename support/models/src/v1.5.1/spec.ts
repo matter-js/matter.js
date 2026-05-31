@@ -1090,7 +1090,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "OFFONLY", conformance: "[!LT | DF]", constraint: "2", title: "OffOnly",
+                name: "OFFONLY", conformance: "[!(LT | DF)]", constraint: "2", title: "OffOnly",
                 xref: "cluster§1.5.4.3",
 
                 details: "When this feature is supported, the Off command shall be supported and the On and Toggle commands " +
