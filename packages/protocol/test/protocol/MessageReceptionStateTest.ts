@@ -289,6 +289,11 @@ describe("MessageReceptionState", () => {
                 expect(() => state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT - 33)).throws(DuplicateMessageError);
                 state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT - 32);
             });
+
+            it("accepts a peer counter of 0xFFFFFFFF (maximum valid value)", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover();
+                expect(() => state.updateMessageCounter(0xffffffff)).not.throw();
+            });
         });
     });
 
@@ -469,7 +474,7 @@ describe("MessageReceptionState", () => {
                     state,
                     103 + MAX_COUNTER_INCREASE_2POW31, // same as (max_message_counter - 2^31) % 2^32
                     true,
-                    -MAX_COUNTER_INCREASE_2POW31 + 1, // +1 because of 0 on rollover
+                    -MAX_COUNTER_INCREASE_2POW31,
                 );
             });
 
@@ -687,7 +692,7 @@ describe("MessageReceptionState", () => {
                 const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
                 state.updateMessageCounter(1);
                 state.updateMessageCounter(103);
-                assertMessageWindowUpdate(prototype, state, 70, 0b0, false, MAX_COUNTER_VALUE_32BIT - 33); // outside window is always new and moves the window
+                assertMessageWindowUpdate(prototype, state, 70, 0b0, false, MAX_COUNTER_VALUE_32BIT - 32); // outside window is always new and moves the window
 
                 assertMessageWindowUpdate(prototype, state, 71, 0b1, false, 1);
                 assertMessageWindowUpdate(prototype, state, 105, 0b0, false, 34);
@@ -724,6 +729,24 @@ describe("MessageReceptionState", () => {
                     false,
                     MAX_COUNTER_VALUE_32BIT - 32,
                 ); // window moved
+            });
+
+            it("treats the exact counter rollover (MAX -> 0) as new and detects replays", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
+                state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT - 1);
+                state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT); // max = MAX
+
+                // The counter rolls over to 0, which is one step ahead of MAX: new, and advances max.
+                assertMessageWindowDifference(prototype, state, 0, false, 1);
+
+                // 0 is now the maximum, so a replay of 0 is a duplicate.
+                expect(() => state.updateMessageCounter(0)).throws(DuplicateMessageError);
+                // MAX is one behind max=0 (within the window) and was already seen: duplicate.
+                expect(() => state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT)).throws(DuplicateMessageError);
+
+                // Counting continues forward past the rollover.
+                assertMessageWindowDifference(prototype, state, 1, false, 1);
             });
         });
     });

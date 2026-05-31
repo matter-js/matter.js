@@ -198,7 +198,7 @@ export class MessageReceptionStateUnencryptedWithRollover extends MessageRecepti
         } else if (diff < 0) {
             // negative value means the new message counter is smaller than the current maximum
             if (diff < -MSG_COUNTER_WINDOW_SIZE) {
-                return MAX_COUNTER_VALUE_32BIT + diff;
+                return MAX_COUNTER_VALUE_32BIT + 1 + diff;
             }
             return diff;
         }
