@@ -796,7 +796,7 @@ export class SessionManager {
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
-            logger.error(error),
+            logger.warn("Error closing sessions:", error),
         );
     }
 

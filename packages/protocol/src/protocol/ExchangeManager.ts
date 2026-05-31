@@ -418,7 +418,7 @@ export class ExchangeManager implements Transport.Provider {
             return;
         }
 
-        logger.error(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
+        logger.warn(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
     }
 
     deleteExchange(exchangeIndex: number) {
@@ -637,7 +637,7 @@ export class ExchangeManager implements Transport.Provider {
             await messenger.sendCloseSession();
             await messenger.close();
         } catch (error) {
-            logger.error(exchange.via, "Error closing session:", error);
+            logger.warn(exchange.via, "Error closing session:", error);
         }
     }
 }

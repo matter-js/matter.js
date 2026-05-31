@@ -52,7 +52,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
                 server.handleC1WriteRequest(data, offset, withoutResponse);
                 callback(this.RESULT_SUCCESS);
             } catch (e) {
-                logger.error(`C1 write request failed: ${e}`);
+                logger.warn("C1 write request failed", e);
                 callback(this.RESULT_UNLIKELY_ERROR);
             }
         }
@@ -392,7 +392,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
 
     async btpHandshakeTimeoutTriggered() {
         await this.disconnect();
-        logger.error("Timeout for handshake subscribe request on C2 reached, disconnecting.");
+        logger.warn("Timeout for handshake subscribe request on C2 reached, disconnecting.");
     }
 
     onClose(listener: () => void): Transport.Listener {

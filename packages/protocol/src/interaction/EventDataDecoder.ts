@@ -151,7 +151,7 @@ export function normalizeAndDecodeEventData(
                 events,
             });
         } catch (error: any) {
-            logger.error(`Error decoding event ${endpointId}/${clusterId}/${eventId}: ${error.message}`);
+            logger.warn(`Error decoding event ${endpointId}/${clusterId}/${eventId}: ${error.message}`);
         }
     });
     return result;
@@ -188,7 +188,7 @@ export function normalizeEventStatus(data: TypeFromSchema<typeof TlvEventStatus>
                 clusterStatus: status.clusterStatus,
             });
         } catch (error: any) {
-            logger.error(`Error decoding event ${endpointId}/${clusterId}/${eventId}: ${error.message}`);
+            logger.warn(`Error decoding event ${endpointId}/${clusterId}/${eventId}: ${error.message}`);
         }
     });
     return result;

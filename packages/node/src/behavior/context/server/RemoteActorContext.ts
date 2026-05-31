@@ -186,7 +186,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
                 exchange.closing.off(notifyInteractionComplete);
                 exchangeCompleteEvents.delete(exchange);
                 function handleErr(err: unknown) {
-                    logger.error("interactionComplete observer failed", Diagnostic.error(err));
+                    logger.warn("interactionComplete observer failed", Diagnostic.error(err));
                 }
                 if (context.interactionComplete?.isObserved) {
                     try {

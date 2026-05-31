@@ -148,7 +148,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 
                 // We intentionally do not track this promise because it is likely to hang
                 runtime.close().catch(e => {
-                    logger.info("Error closing network runtime", asError(e));
+                    logger.warn("Error closing network runtime", asError(e));
                 });
             }
             this.env.runtime.delete(this);

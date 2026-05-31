@@ -200,7 +200,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
 
         this.#httpListener = (req, res) => {
             this.#handleHttp(req, res).catch(error => {
-                logger.error("Unhandled error in HTTP endpoint handler", error);
+                logger.warn("Unhandled error in HTTP endpoint handler", error);
                 respondError(res, 500);
             });
         };
@@ -232,7 +232,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
 
         this.#wsListener = (req, socket, head) => {
             this.#handleUpgrade(adapter, req, socket, head).catch(error => {
-                logger.error("Unhandled error WebSocket endpoint", error);
+                logger.warn("Unhandled error WebSocket endpoint", error);
             });
         };
 
@@ -267,7 +267,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
         const nodeBodyStream = ReadStream.fromWeb(response.body as NodeReadableStream);
 
         nodeBodyStream.on("error", error => {
-            logger.error("Error transmitting HTTP body", error);
+            logger.warn("Error transmitting HTTP body", error);
             respondError(res, 500);
         });
 

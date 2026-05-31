@@ -131,7 +131,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                     logger.debug("Failed parallel commissioning attempt:", Diagnostic.errorMessage(error));
                 } else {
                     this.#attemptErrors.push(error);
-                    logger.info("Unexpected error from parallel commissioning attempt:", error);
+                    logger.warn("Unexpected error from parallel commissioning attempt:", error);
                 }
                 return undefined;
             })
@@ -162,7 +162,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
             // Await loser cleanup (canceled PASE sessions, etc.).  All losers resolve to undefined
             // so rejections here would indicate an unexpected bug — log but don't mask the winner error.
             await MatterAggregateError.allSettled([...this.#pending], this.cleanupLabel).catch(error => {
-                logger.error("Unexpected error during parallel attempt cleanup:", error);
+                logger.warn("Unexpected error during parallel attempt cleanup:", error);
             });
         }
 

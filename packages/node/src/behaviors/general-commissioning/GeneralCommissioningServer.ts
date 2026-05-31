@@ -254,7 +254,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         // 5. The Breadcrumb attribute SHALL be reset to zero.
         this.state.breadcrumb = BigInt(0);
 
-        logger.info(
+        logger.notice(
             "Commissioned",
             Diagnostic.dict({
                 fabric: `${hex.fixed(fabric.globalId, 16)} (#${fabric.fabricIndex})`,

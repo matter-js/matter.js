@@ -704,12 +704,11 @@ function invokeCommand(
                                 outerResolve,
                             );
                         } catch (e) {
-                            logger.error(
-                                "Response validation error for",
-                                command.name,
-                                Diagnostic.errorMessage(asError(e)),
+                            const error = new StatusResponse.FailureError(
+                                `Response validation failed for ${command.name}: ${asError(e).message}`,
                             );
-                            throw new StatusResponse.FailureError(`Response validation failed for ${command.name}`);
+                            error.cause = e;
+                            throw error;
                         }
                     }
                     if (isObject(result)) {
@@ -735,8 +734,11 @@ function invokeCommand(
                         outerResolve,
                     );
                 } catch (e) {
-                    logger.error("Response validation error for", command.name, Diagnostic.errorMessage(asError(e)));
-                    throw new StatusResponse.FailureError(`Response validation failed for ${command.name}`);
+                    const error = new StatusResponse.FailureError(
+                        `Response validation failed for ${command.name}: ${asError(e).message}`,
+                    );
+                    error.cause = e;
+                    throw error;
                 }
             }
             if (isObject(result)) {

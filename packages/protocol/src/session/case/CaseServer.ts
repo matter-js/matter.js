@@ -74,9 +74,9 @@ export class CaseServer implements ProtocolHandler {
                     ShutdownError,
                 )
             ) {
-                logger.error(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
+                logger.info(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
             } else {
-                logger.error(messenger.via, "Error establishing CASE session:", error);
+                logger.warn(messenger.via, "Error establishing CASE session:", error);
             }
 
             if (exchange.considerClosed) {

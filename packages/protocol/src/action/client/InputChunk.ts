@@ -204,13 +204,11 @@ function decodeAttributeGroup(
             path: { nodeId, endpointId, clusterId, attributeId },
             tlv: TlvAny,
             value,
-            // Wire `dataVersion` is optional per TlvAttributeReportData; substitute 0 when the publisher omits
-            // it so the chunk honors its `version: number` contract. In practice spec-compliant publishers
-            // always include dataVersion for AttributeData reports.
+            // dataVersion is optional on the wire; default to 0 to satisfy the version: number contract
             version: dataVersion ?? 0,
         };
     } catch (error) {
-        // Swallow wire-decode failures (malformed TLV, schema mismatch); unrelated errors bubble.
+        // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
             `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${error.message}`,
@@ -295,9 +293,9 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
             tlv: TlvAny,
         };
     } catch (error) {
-        // Swallow wire-decode failures; unrelated errors bubble.
+        // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
-        logger.error(
+        logger.warn(
             `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}: ${error.message}`,
         );
         return undefined;

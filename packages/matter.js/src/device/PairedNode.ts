@@ -382,7 +382,7 @@ export class PairedNode {
                 if (this.#options.autoSubscribe === false) {
                     // No subscription desired -- do a one-time wildcard read to populate state
                     this.#initializeWithRead().catch(error => {
-                        logger.info(this.#peerAddress, `Error during read-only initialization`, error);
+                        logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
                     });
                 } else {
                     // Activate the sustained subscription on NetworkClient
@@ -496,7 +496,7 @@ export class PairedNode {
         try {
             await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
         } catch (error) {
-            logger.info(this.#peerAddress, `Error updating fabric label`, error);
+            logger.warn(this.#peerAddress, `Error updating fabric label`, error);
         }
     }
 
@@ -515,7 +515,7 @@ export class PairedNode {
         }
         if (this.#options.autoSubscribe === false) {
             this.#initializeWithRead().catch(error => {
-                logger.info(this.#peerAddress, `Error during read-only initialization`, error);
+                logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
             });
         } else {
             this.#activateSubscription();
@@ -768,7 +768,7 @@ export class PairedNode {
                 try {
                     await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
                 } catch (error) {
-                    logger.info(this.#peerAddress, `Error updating fabric label`, error);
+                    logger.warn(this.#peerAddress, `Error updating fabric label`, error);
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
@@ -904,13 +904,13 @@ export class PairedNode {
             return;
         }
         if (!this.#clientNode.endpoints.has(endpointId)) {
-            logger.info(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
+            logger.debug(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
             return;
         }
         const endpoint = this.#clientNode.endpoints.for(endpointId);
         const descriptorData = endpoint.maybeStateOf(DescriptorClient);
         if (descriptorData === undefined) {
-            logger.info(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
+            logger.debug(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
             return;
         }
         collectedData.set(endpointId, endpoint);
@@ -1170,7 +1170,7 @@ export class PairedNode {
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.info(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
+            logger.debug(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
             throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
         }
 

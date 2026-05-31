@@ -630,7 +630,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 message,
             );
         } catch (error) {
-            logger.error(
+            logger.warn(
                 `Subscription ${Subscription.idStrOf(subscriptionId)} for session ${session.via}: Error while sending initial data reports:`,
                 error instanceof MatterError ? error.message : error,
             );
@@ -715,7 +715,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw error;
         }
 
-        logger.info(
+        logger.notice(
             "Subscribe successful",
             Mark.OUTBOUND,
             exchange.via,
@@ -789,7 +789,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
             subscription.activate();
 
-            logger.info(
+            logger.notice(
                 `Subscription successfully reestablished`,
                 Mark.OUTBOUND,
                 exchange.via,

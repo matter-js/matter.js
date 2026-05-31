@@ -10,7 +10,17 @@ import type { ClusterState } from "#behavior/cluster/ClusterState.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "@matter/general";
+import {
+    asError,
+    BasicSet,
+    Diagnostic,
+    Environment,
+    Environmental,
+    InternalError,
+    Logger,
+    ObserverGroup,
+    serialize,
+} from "@matter/general";
 import { DataModelPath } from "@matter/model";
 import {
     AccessControl,
@@ -265,7 +275,10 @@ export class AtomicWriteHandler {
                 await context.transaction?.commit();
             } catch (error) {
                 await context.transaction?.rollback();
-                logger.info(`Failed to write attribute ${attr} during atomic write commit: ${error}`);
+                logger.info(
+                    `Failed to write attribute ${attr} during atomic write commit:`,
+                    Diagnostic.errorMessage(asError(error)),
+                );
                 statusCode = StatusResponseError.of(error)?.code ?? Status.Failure;
                 // If one fails with ConstraintError, the whole command should return ConstraintError, otherwise Failure
                 commandStatusCode =

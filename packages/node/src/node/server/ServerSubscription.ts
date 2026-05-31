@@ -800,7 +800,7 @@ export class ServerSubscription implements Subscription {
             }
         } catch (error) {
             if (StatusResponseError.is(error, Status.InvalidSubscription, Status.Failure)) {
-                logger.info(`Subscription ${this.idStr} cancelled by peer`);
+                logger.notice(`Subscription ${this.idStr} cancelled by peer`);
                 this.#isCanceledByPeer = true;
             } else {
                 StatusResponseError.accept(error);
