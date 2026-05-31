@@ -1722,7 +1722,10 @@ describe("DclCertificateService", () => {
         // Open the service after seeding. Mocks empty DCL endpoints so the construction-time
         // update completes without populating the store. The caller-supplied `fetchTestCertificates`
         // flag determines which endpoints are reached and therefore which mocks are required.
-        async function openServiceAfterSeed(fetchTestCertificates: boolean) {
+        async function openServiceAfterSeed(
+            fetchTestCertificates: boolean,
+            extraOptions?: Partial<DclCertificateService.Options>,
+        ) {
             fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
             if (fetchTestCertificates) {
                 fetchMock.addResponse(TEST_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
@@ -1730,7 +1733,7 @@ describe("DclCertificateService", () => {
             }
             fetchMock.install();
 
-            service = new DclCertificateService(environment, { fetchTestCertificates });
+            service = new DclCertificateService(environment, { fetchTestCertificates, ...extraOptions });
             await service.construction;
             return service;
         }
@@ -1862,6 +1865,39 @@ describe("DclCertificateService", () => {
                         considerTestCertificates: true,
                     }),
                 ).to.deep.include({ isProduction: false });
+            });
+        });
+
+        describe("acceptTestCertificates trust policy", () => {
+            it("defaults acceptsTestCertificates to false when neither flag is set", async () => {
+                const svc = await openServiceAfterSeed(false);
+                expect(svc.acceptsTestCertificates).to.be.false;
+            });
+
+            it("defaults acceptsTestCertificates to fetchTestCertificates when only fetch is set", async () => {
+                const svc = await openServiceAfterSeed(true);
+                expect(svc.acceptsTestCertificates).to.be.true;
+            });
+
+            it("accepts (and makes visible) test certificates without fetching them", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false, { acceptTestCertificates: true });
+
+                expect(svc.acceptsTestCertificates).to.be.true;
+                // Trust policy alone makes cached test PAAs visible to the default lookup.
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+                expect(svc.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+            });
+
+            it("fetches but does not accept test certificates when acceptTestCertificates is false", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true, { acceptTestCertificates: false });
+
+                expect(svc.acceptsTestCertificates).to.be.false;
+                // Fetched and cached, yet hidden from the default trust lookup.
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })?.isProduction).to.be
+                    .false;
             });
         });
     });
