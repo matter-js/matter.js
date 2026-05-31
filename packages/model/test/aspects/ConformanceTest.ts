@@ -28,6 +28,10 @@ const TEST_DEFINITIONS = [
     "AX, WBL",
     "[WIRED]",
     "!AB",
+    "!(LT | DF)",
+    "[!(LT | DF)]",
+    "!(LT & DF)",
+    "!(A | B | C)",
     "AB.a",
     "AB.a+",
     "AB.a2",
@@ -65,6 +69,8 @@ const TEST_DEFINITIONS = [
 
 const TEST_DEFINITIONS2 = {
     "(AX | WBL)": "AX | WBL",
+    "[!(LT)]": "[!LT]",
+    "!((LT | DF))": "!(LT | DF)",
     "RequiresEncodedPixels == True": "RequiresEncodedPixels == true",
     "Enabled == False": "Enabled == false",
 };

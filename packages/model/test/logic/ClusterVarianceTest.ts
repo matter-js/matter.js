@@ -5,6 +5,7 @@
  */
 
 import { ClusterElement, ClusterModel, ClusterVariance, Conformance, FeatureMap, MatterModel } from "#index.js";
+import { IllegalFeatureCombinations } from "#logic/cluster-variance/IllegalFeatureCombinations.js";
 import { InferredComponent } from "#logic/cluster-variance/InferredComponents.js";
 import { VarianceCondition } from "#logic/cluster-variance/VarianceCondition.js";
 
@@ -122,7 +123,41 @@ describe("ClusterVariance", () => {
             });
         });
     });
+
+    describe("illegal feature combinations", () => {
+        // OnOff: OFFONLY conformance "[!(LT | DF)]" is disallowed whenever LT or DF is enabled
+        it("supports negated disjunction over features", () => {
+            expect(
+                illegalCombinations(
+                    { name: "LT", conformance: "[!OFFONLY]" },
+                    { name: "DF", conformance: "[!OFFONLY]" },
+                    { name: "OFFONLY", conformance: "[!(LT | DF)]" },
+                ),
+            ).deep.equal([
+                { LT: true, OFFONLY: true },
+                { DF: true, OFFONLY: true },
+            ]);
+        });
+    });
 });
+
+function illegalCombinations(...features: { name: string; conformance: string }[]) {
+    const cluster = new ClusterModel({
+        id: 1,
+        name: "Cluster",
+        children: [
+            {
+                tag: "attribute",
+                id: FeatureMap.id,
+                name: "FeatureMap",
+                type: "FeatureMap",
+                children: features.map(f => ({ tag: "field", ...f })),
+            },
+        ],
+    });
+    new MatterModel({ name: "Matter", children: [cluster] });
+    return IllegalFeatureCombinations(cluster).illegal;
+}
 
 type AttributeDefinition = { name: string; conformance: Conformance.Definition } | string[];
 
