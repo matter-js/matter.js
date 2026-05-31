@@ -424,7 +424,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         const location = this.location;
 
         function handleObserverError(error: any) {
-            logger.error(`Error in ${location.path} observer:`, error);
+            logger.warn(`Error in ${location.path} observer:`, error);
         }
 
         if (this.events?.interactionEnd?.isObserved) {
@@ -602,7 +602,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 try {
                     this.rollback();
                 } catch (e) {
-                    logger.error(
+                    logger.warn(
                         `Error resetting reference to ${this.#internals.location.path} after reset of transaction ${transaction.via}:`,
                         e,
                     );
@@ -654,7 +654,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 this.#expired = true;
                 this.#refreshSubrefs();
             } catch (e) {
-                logger.error(
+                logger.warn(
                     `Error detaching reference to ${this.#internals.location.path} from closed transaction ${transaction.via}:`,
                     e,
                 );
@@ -893,7 +893,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             if (emitBegin && this.#internals.events?.interactionBegin?.isObserved) {
                 const location = this.#internals.location;
                 function handleBeginObserverError(error: any) {
-                    logger.error(`Error in ${location.path} observer:`, error);
+                    logger.warn(`Error in ${location.path} observer:`, error);
                 }
                 try {
                     const result = this.#internals.events?.interactionBegin?.emit(this.#session);

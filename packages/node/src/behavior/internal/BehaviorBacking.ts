@@ -329,7 +329,7 @@ export abstract class BehaviorBacking {
                 MaybePromise.then(
                     () => behavior?.[Symbol.asyncDispose](),
                     undefined,
-                    e => logger.error(`Destroying ${this}:`, e),
+                    e => logger.warn(`Destroying ${this}:`, e),
                 ),
             () => this.#events?.[Symbol.dispose](),
         );

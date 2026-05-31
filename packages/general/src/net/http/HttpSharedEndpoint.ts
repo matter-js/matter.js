@@ -44,7 +44,7 @@ export class HttpSharedEndpoint {
                     try {
                         await (await this.#target)?.close();
                     } catch (e) {
-                        logger.error("Error closing HTTP endpoint", e);
+                        logger.warn("Error closing HTTP endpoint", e);
                     } finally {
                         this.#target = undefined;
                     }

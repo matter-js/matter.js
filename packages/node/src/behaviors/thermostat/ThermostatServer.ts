@@ -1289,7 +1289,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const newPresetHandles = new Set<string>();
         for (const preset of newPresets) {
             if (preset.presetHandle === null) {
-                logger.error("Preset is missing presetHandle, generating a new one");
+                logger.debug("Preset is missing presetHandle, generating a new one");
                 preset.presetHandle = entropy.randomBytes(16);
                 changed = true;
             }
@@ -1356,7 +1356,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         if (changed) {
-            logger.error("PresetHandles or BuiltIn flags were updated, updating persistedPresets");
+            logger.debug("PresetHandles or BuiltIn flags were updated, updating persistedPresets");
             this.state.persistedPresets = newPresets;
         }
     }

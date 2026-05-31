@@ -467,7 +467,7 @@ export class DclCertificateService {
                 this.#certificateIndex.set(metadata.subjectKeyId, metadata);
                 validCount++;
             } else {
-                logger.info(
+                logger.warn(
                     `Certificate referenced in index but not found in storage`,
                     Diagnostic.dict({ skid: metadata.subjectKeyId }),
                 );
@@ -904,12 +904,12 @@ export class DclCertificateService {
                     });
                     inserted.push(skidFromDer);
                 } catch (err) {
-                    logger.error("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
+                    logger.warn("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
                     break;
                 }
             }
         } catch (err) {
-            logger.error("seed: stream failed", Diagnostic.errorMessage(asError(err)));
+            logger.warn("seed: stream failed", Diagnostic.errorMessage(asError(err)));
         }
 
         if (inserted.length > 0) {

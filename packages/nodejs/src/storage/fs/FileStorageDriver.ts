@@ -195,7 +195,7 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
         try {
             return fromJson(value) as T;
         } catch (error) {
-            logger.error(`Failed to parse storage value for key ${key} in context ${contexts.join(".")}`);
+            logger.warn(`Failed to parse storage value for key ${key} in context ${contexts.join(".")}`, error);
         }
     }
 

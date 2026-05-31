@@ -208,7 +208,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         }
 
         const closed = this.#interactable.close(reason).catch(e => {
-            logger.error(`Unhandled error closing client interaction`, e);
+            logger.warn(`Unhandled error closing client interaction`, e);
         });
 
         this.#interactable = undefined;

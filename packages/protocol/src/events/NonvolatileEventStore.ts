@@ -73,7 +73,7 @@ export class NonvolatileEventStore extends BaseEventStore {
                     conversion,
                     () => summary,
                     error => {
-                        console.warn("Error clearing volatile event number reservation", error);
+                        logger.warn("Error clearing volatile event number reservation", error);
                         return summary;
                     },
                 );
@@ -102,7 +102,7 @@ export class NonvolatileEventStore extends BaseEventStore {
         if (this.#iops.size) {
             return MatterAggregateError.allSettled(this.#iops, "Error closing event store")
                 .then(() => {})
-                .catch(error => logger.error(error));
+                .catch(error => logger.warn("Error settling event store on close:", error));
         }
     }
 

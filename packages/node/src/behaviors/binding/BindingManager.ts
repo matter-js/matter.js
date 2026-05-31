@@ -148,7 +148,7 @@ export class BindingManager {
         try {
             await rec.server.events.removed.emit(resolution);
         } catch (err) {
-            logger.error(
+            logger.warn(
                 "Binding removed handler failed",
                 Diagnostic.dict({ endpoint: rec.server.endpoint.number, kind: resolution.kind }),
                 Diagnostic.error(err),
@@ -305,7 +305,7 @@ export class BindingManager {
         try {
             await canonicalServer.events.established.emit(resolution);
         } catch (err) {
-            logger.error(
+            logger.warn(
                 "Binding established handler failed",
                 Diagnostic.dict({ endpoint: sourceEp.number, kind: resolution.kind }),
                 Diagnostic.error(err),
