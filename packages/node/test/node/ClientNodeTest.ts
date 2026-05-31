@@ -1113,6 +1113,36 @@ describe("ClientNode", () => {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("forAddress returns the same node for concurrent calls", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peerAddress = controller.peers.get("peer1")!.peerAddress!;
+        expect(peerAddress).not.undefined;
+
+        await MockTime.resolve(controller.peers.get("peer1")!.delete());
+        expect(controller.peers.size).equals(0);
+
+        const [a, b] = await MockTime.resolve(
+            Promise.all([controller.peers.forAddress(peerAddress), controller.peers.forAddress(peerAddress)]),
+            { macrotasks: true },
+        );
+
+        expect(a).equals(b);
+        expect(controller.peers.size).equals(1);
+    });
+
+    it("refuses to allocate a peer address whose NodeId is already in use", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const { fabricIndex, nodeId } = controller.peers.get("peer1")!.peerAddress!;
+
+        await expect(
+            controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabricIndex, nodeId)),
+        ).rejectedWith(/already in use/i);
+    });
+
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
