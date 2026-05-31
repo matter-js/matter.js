@@ -20,7 +20,7 @@ import type { NodeId } from "../datatype/NodeId.js";
  * this cluster to help make the user account on the Content App match the user account on the Client.
  *
  * Often a fabric administrator will facilitate commissioning of a Client (such as a Casting Video Client), and invoke
- * commands on the AccountLogin cluster on the Content App associated with that client. Specifically:
+ * commands on the Account Login cluster on the Content App associated with that client. Specifically:
  *
  *   1. GetSetupPIN in order to attempt to obtain the Passcode for commissioning.
  *
@@ -273,7 +273,7 @@ export declare namespace AccountLogin {
          *
          * > [!NOTE]
          *
-         * > NOTE: Newer cluster clients should be aware that AccountLogin cluster version 1 specified an 11 digit
+         * > NOTE: Newer cluster clients should be aware that Account Login cluster version 1 specified an 11 digit
          *   minimum length.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.2.1
@@ -336,7 +336,7 @@ export declare namespace AccountLogin {
          *
          * > [!NOTE]
          *
-         * > NOTE: Newer cluster clients should be aware that AccountLogin cluster revision 1 specified an 11 digit
+         * > NOTE: Newer cluster clients should be aware that Account Login cluster revision 1 specified an 11 digit
          *   minimum length.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.2

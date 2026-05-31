@@ -120,7 +120,8 @@ export declare namespace IcdManagement {
         registeredClients: MonitoringRegistration[];
 
         /**
-         * This attribute returns the value of the ICD Counter.
+         * Indicates the value of the ICD Counter. The ICD Counter is used as the Check-In Counter to encrypt the
+         * check-in message for this client.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.16.6.5
          */
@@ -255,7 +256,8 @@ export declare namespace IcdManagement {
         registeredClients: MonitoringRegistration[];
 
         /**
-         * This attribute returns the value of the ICD Counter.
+         * Indicates the value of the ICD Counter. The ICD Counter is used as the Check-In Counter to encrypt the
+         * check-in message for this client.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.16.6.5
          */

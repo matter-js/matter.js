@@ -197,9 +197,12 @@ export declare namespace NetworkCommissioning {
          * Indicates all of the Thread features supported by the Thread interface configured by the cluster instance.
          *
          * This attribute is primarily used to determine the most important general capabilities of the Thread interface
-         * associated with the cluster instance, as opposed to the current runtime dynamic configuration. Note that most
-         * run-time details of the actual Thread interface are found in the Thread Network Diagnostics cluster, if
-         * supported.
+         * associated with the cluster instance, as opposed to the current runtime dynamic configuration.
+         *
+         * > [!NOTE]
+         *
+         * > NOTE: Most run-time details of the actual Thread interface are found in the Thread Network Diagnostics
+         *   cluster, if supported.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.6.10
          */
@@ -347,9 +350,12 @@ export declare namespace NetworkCommissioning {
          * Indicates all of the Thread features supported by the Thread interface configured by the cluster instance.
          *
          * This attribute is primarily used to determine the most important general capabilities of the Thread interface
-         * associated with the cluster instance, as opposed to the current runtime dynamic configuration. Note that most
-         * run-time details of the actual Thread interface are found in the Thread Network Diagnostics cluster, if
-         * supported.
+         * associated with the cluster instance, as opposed to the current runtime dynamic configuration.
+         *
+         * > [!NOTE]
+         *
+         * > NOTE: Most run-time details of the actual Thread interface are found in the Thread Network Diagnostics
+         *   cluster, if supported.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.6.10
          */
@@ -545,10 +551,10 @@ export declare namespace NetworkCommissioning {
          * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The Credentials associated with the network are not readable after execution of this command, as they do not
-         * appear in the Section 11.9.6.2, "Networks" attribute, for security reasons.
+         * appear in the Networks attribute, for security reasons.
          *
-         * If this command contains a ClientIdentifier, and the Section 11.9.6.2, "Networks" list does not contain an
-         * entry with a matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
+         * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
+         * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
          *
          * See Section 11.9.7.5, "Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork" for behavior
          * of addition/update.
@@ -1008,7 +1014,7 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<RemoveNetworkRequest>);
 
         /**
-         * This field shall contain the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for Thread.
+         * This field shall indicate the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for Thread.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.6.1
          */
@@ -1042,8 +1048,8 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<NetworkConfigResponse>);
 
         /**
-         * The NetworkingStatus field shall indicate the status of the last operation attempting to modify the Networks
-         * attribute configuration, taking one of these values:
+         * This field shall indicate the status of the last operation attempting to modify the Networks attribute
+         * configuration, taking one of these values:
          *
          *   - Success: Operation succeeded.
          *
@@ -1068,7 +1074,7 @@ export declare namespace NetworkCommissioning {
         debugText?: string;
 
         /**
-         * This field shall contain the 0-based index of the entry in the Networks attribute that was last added,
+         * This field shall indicate the 0-based index of the entry in the Networks attribute that was last added,
          * updated or removed successfully by the associated request command.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.7.3
@@ -1159,8 +1165,8 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<ConnectNetworkRequest>);
 
         /**
-         * This field shall contain the NetworkID for the entry used to configure the connection: the SSID for Wi-Fi and
-         * XPAN ID for Thread.
+         * This field shall indicate the NetworkID for the entry used to configure the connection: the SSID for Wi-Fi
+         * and XPAN ID for Thread.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.8.1
          */
@@ -1193,8 +1199,7 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<ConnectNetworkResponse>);
 
         /**
-         * The NetworkingStatus field shall indicate the status of the last connection attempt, taking one of these
-         * values:
+         * This field shall indicate the status of the last connection attempt, taking one of these values:
          *
          *   - Success: Connection succeeded.
          *
@@ -1225,6 +1230,8 @@ export declare namespace NetworkCommissioning {
         debugText?: string;
 
         /**
+         * This field shall indicate the status of the associated request command.
+         *
          *   - ErrorValue interpretation for Wi-Fi association errors:
          *
          *   - On any association failure during enabling of a network, the ErrorValue field shall be set to the Status
@@ -1261,14 +1268,14 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<ReorderNetworkRequest>);
 
         /**
-         * This field shall contain the NetworkID for the entry to reorder: the SSID for Wi-Fi and XPAN ID for Thread.
+         * This field shall indicate the NetworkID for the entry to reorder: the SSID for Wi-Fi and XPAN ID for Thread.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.10.1
          */
         networkId: Bytes;
 
         /**
-         * This field shall contain the 0-based index of the new desired position of the entry in the Networks
+         * This field shall indicate the 0-based index of the new desired position of the entry in the Networks
          * attribute.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.10.2
@@ -1292,10 +1299,10 @@ export declare namespace NetworkCommissioning {
      * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * The Credentials associated with the network are not readable after execution of this command, as they do not
-     * appear in the Section 11.9.6.2, "Networks" attribute, for security reasons.
+     * appear in the Networks attribute, for security reasons.
      *
-     * If this command contains a ClientIdentifier, and the Section 11.9.6.2, "Networks" list does not contain an entry
-     * with a matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
+     * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
+     * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
      *
      * See Section 11.9.7.5, "Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork" for behavior of
      * addition/update.
@@ -1306,7 +1313,7 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<AddOrUpdateWiFiNetworkRequest>);
 
         /**
-         * This field shall contain the SSID to which to attempt connection. Specific BSSID selection is not supported
+         * This field shall indicate the SSID to which to attempt connection. Specific BSSID selection is not supported
          * by this cluster.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.3.1
@@ -1342,9 +1349,11 @@ export declare namespace NetworkCommissioning {
          * When the length of Credentials and available set of BSSID admits more than one option, such as the presence
          * of both WPA2 and WPA security type within the result set, WPA2 shall be considered more secure.
          *
-         * Note that it may occur that a station cannot connect to a particular access point with higher security and
-         * selects a lower security connectivity type if the link quality is deemed to be too low to achieve successful
-         * operation, or if all retry attempts fail.
+         * > [!NOTE]
+         *
+         * > NOTE: It might occur that a station cannot connect to a particular access point with higher security and
+         *   selects a lower security connectivity type if the link quality is deemed to be too low to achieve
+         *   successful operation, or if all retry attempts fail.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.7.3.2
          */
@@ -1381,8 +1390,7 @@ export declare namespace NetworkCommissioning {
         constructor(values?: Partial<AddOrUpdateThreadNetworkRequest>);
 
         /**
-         * The OperationalDataset field shall contain the Thread Network Parameters, including channel, PAN ID, and
-         * Extended PAN ID.
+         * This field shall indicate the Thread Network Parameters, including channel, PAN ID, and Extended PAN ID.
          *
          * The encoding for the OperationalDataset field is defined in the Thread specification.
          *
@@ -1442,10 +1450,10 @@ export declare namespace NetworkCommissioning {
      */
     export class WiFiInterfaceScanResult {
         constructor(values?: Partial<WiFiInterfaceScanResult>);
-        security?: WiFiSecurity;
-        ssid?: Bytes;
-        bssid?: Bytes;
-        channel?: number;
+        security: WiFiSecurity;
+        ssid: Bytes;
+        bssid: Bytes;
+        channel: number;
 
         /**
          * This field, if present, may be used to differentiate overlapping channel number values across different Wi-Fi
@@ -1470,21 +1478,21 @@ export declare namespace NetworkCommissioning {
      */
     export class ThreadInterfaceScanResult {
         constructor(values?: Partial<ThreadInterfaceScanResult>);
-        panId?: number;
-        extendedPanId?: number | bigint;
-        networkName?: string;
-        channel?: number;
-        version?: number;
+        panId: number;
+        extendedPanId: number | bigint;
+        networkName: string;
+        channel: number;
+        version: number;
 
         /**
          * ExtendedAddress stands for an IEEE 802.15.4 Extended Address.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.9.5.7.1
          */
-        extendedAddress?: Bytes;
+        extendedAddress: Bytes;
 
-        rssi?: number;
-        lqi?: number;
+        rssi: number;
+        lqi: number;
     }
 
     /**

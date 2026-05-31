@@ -16,6 +16,14 @@ import type { Status } from "../globals/Status.js";
 /**
  * Definitions for the Groups cluster.
  *
+ * > [!NOTE]
+ *
+ * > NOTE: Starting with the release of Matter when the Groupcast Cluster becomes certifiable, that cluster supersedes
+ *   this Groups Cluster. Groups created on devices prior to that Matter release remain operational via the PerGroup
+ *   feature in the Groupcast Cluster. All new group management operations SHOULD be performed through the Groupcast
+ *   Cluster. Device types with existing mandatory conformance to the Groups Cluster shall retain Groups server cluster
+ *   support for backward compatibility.
+ *
  * The Groups cluster manages, per endpoint, the content of the node-wide Group Table that is part of the underlying
  * interaction layer.
  *

@@ -80,9 +80,12 @@ export declare namespace OnOff {
 
         /**
          * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
-         * automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute can be
-         * written at any time, but writing a value only has effect when in the Timed On state. See OnWithTimedOff for
-         * more details.
+         * automatically transitioning to the Off state when using the OnWithTimedOff command.
+         *
+         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         *
+         * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
+         * OnWithTimedOff for more details.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.4
          */
@@ -92,9 +95,13 @@ export declare namespace OnOff {
          * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
          * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
          * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
-         * back on). This attribute can be written at any time, but writing a value only has an effect when in the Timed
-         * On state followed by a transition to the Delayed Off state, or in the Delayed Off state. See OnWithTimedOff
-         * for more details.
+         * back on).
+         *
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state
+         * followed by a transition to the Delayed Off state, or in the Delayed Off state.
+         *
+         * While in the Off state after a Timed On state, this attribute shall be decremented every 1/10^th second until
+         * it reaches 0. See OnWithTimedOff for more details.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.5
          */
@@ -150,9 +157,12 @@ export declare namespace OnOff {
 
         /**
          * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
-         * automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute can be
-         * written at any time, but writing a value only has effect when in the Timed On state. See OnWithTimedOff for
-         * more details.
+         * automatically transitioning to the Off state when using the OnWithTimedOff command.
+         *
+         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         *
+         * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
+         * OnWithTimedOff for more details.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.4
          */
@@ -162,9 +172,13 @@ export declare namespace OnOff {
          * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
          * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
          * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
-         * back on). This attribute can be written at any time, but writing a value only has an effect when in the Timed
-         * On state followed by a transition to the Delayed Off state, or in the Delayed Off state. See OnWithTimedOff
-         * for more details.
+         * back on).
+         *
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state
+         * followed by a transition to the Delayed Off state, or in the Delayed Off state.
+         *
+         * While in the Off state after a Timed On state, this attribute shall be decremented every 1/10^th second until
+         * it reaches 0. See OnWithTimedOff for more details.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.5
          */

@@ -32,7 +32,7 @@ export declare namespace SmokeCoAlarm {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the SmokeCoAlarm cluster.
@@ -67,6 +67,8 @@ export declare namespace SmokeCoAlarm {
          * set to Normal. The battery state shall also be reflected in the Power Source cluster representing the
          * device's battery using the appropriate supported attributes and events.
          *
+         * If the sensor cannot operate in the set state, the ExpressedState attribute shall be set to Inoperative.
+         *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.4
          */
         batteryAlert: AlarmState;
@@ -82,6 +84,9 @@ export declare namespace SmokeCoAlarm {
         /**
          * Indicates whether the hardware fault detection mechanism is currently triggered. If the detection mechanism
          * is triggered, this attribute shall be set to True, otherwise it shall be set to False.
+         *
+         * When this attribute is set to True, and the sensor cannot operate in this state, the ExpressedState attribute
+         * shall be set to Inoperative.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.7
          */
@@ -130,6 +135,11 @@ export declare namespace SmokeCoAlarm {
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.13
          */
         expiryDate?: number;
+
+        /**
+         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6
+         */
+        unmounted?: boolean;
     }
 
     /**
@@ -199,6 +209,8 @@ export declare namespace SmokeCoAlarm {
          * set to Normal. The battery state shall also be reflected in the Power Source cluster representing the
          * device's battery using the appropriate supported attributes and events.
          *
+         * If the sensor cannot operate in the set state, the ExpressedState attribute shall be set to Inoperative.
+         *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.4
          */
         batteryAlert: AlarmState;
@@ -214,6 +226,9 @@ export declare namespace SmokeCoAlarm {
         /**
          * Indicates whether the hardware fault detection mechanism is currently triggered. If the detection mechanism
          * is triggered, this attribute shall be set to True, otherwise it shall be set to False.
+         *
+         * When this attribute is set to True, and the sensor cannot operate in this state, the ExpressedState attribute
+         * shall be set to Inoperative.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.7
          */
@@ -262,6 +277,11 @@ export declare namespace SmokeCoAlarm {
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.13
          */
         expiryDate: number;
+
+        /**
+         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6
+         */
+        unmounted: boolean;
 
         /**
          * Indicates whether the device's smoke sensor is currently triggering a smoke alarm.
@@ -626,7 +646,23 @@ export declare namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.9
          */
-        InterconnectCo = 8
+        InterconnectCo = 8,
+
+        /**
+         * Hardware is not able to detect Smoke or CO
+         *
+         * This value shall indicate that the hardware is currently unable to detect any Smoke or Carbon Monoxide (CO).
+         * The value shall only be set when the inoperability is caused either by
+         *
+         *   - the battery is too low (BatteryAlert has the value "critical"),
+         *
+         *   - hardware is defective (HardwareFaultAlert is true) or
+         *
+         *   - the device being unmounted or physically disabled (Unmounted is true).
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.10
+         */
+        Inoperative = 9
     }
 
     /**

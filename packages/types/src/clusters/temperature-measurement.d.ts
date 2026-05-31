@@ -32,7 +32,7 @@ export declare namespace TemperatureMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 5;
+    export const revision: 6;
 
     /**
      * Canonical metadata for the TemperatureMeasurement cluster.

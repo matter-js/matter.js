@@ -845,24 +845,6 @@ export declare namespace PushAvStreamTransport {
         trackName?: string;
 
         /**
-         * This field, if present, shall indicate the CENC key to be used to encrypt the CMAF data. When absent, the
-         * CMAF data shall be sent without CENC encryption added. See CMAF Background for further details on CMAF CENC
-         * encryption.
-         *
-         * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.10.6
-         */
-        cencKey?: Bytes;
-
-        /**
-         * This field, if present, shall indicate the opaque CENC Key ID (KID) that represents the key in the
-         * Controllers ecosystem. This fields maps to the KID value as specified in ISO 23001-7:2023 or later. See CMAF
-         * Background for further details on CMAF CENC encryption.
-         *
-         * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.10.7
-         */
-        cencKeyId?: Bytes;
-
-        /**
          * This field, if present and true, indicates that AVMetadataStruct based Metadata tracks and boxes may be
          * included in the CMAF segments. If this field is not present or is false, metadata tracks and boxes shall NOT
          * be included.
@@ -882,7 +864,7 @@ export declare namespace PushAvStreamTransport {
          *
          *   - Use a single Box for non-time synced data points.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.10.8
+         * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.10.6
          */
         metadataEnabled?: boolean;
     }
@@ -941,7 +923,7 @@ export declare namespace PushAvStreamTransport {
 
     /**
      * This struct encodes the conditions and options that configures the trigger for the push transport. The transport
-     * shall only start transmitting AV Streams when it's associated trigger is activated.
+     * shall only start transmitting AV Streams when its associated trigger is activated.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.13
      */
@@ -957,8 +939,8 @@ export declare namespace PushAvStreamTransport {
 
         /**
          * This field shall be a list of TransportZoneOptionsStruct containing the Motion Zones to trigger on. If this
-         * list is null, empty, or the Zone Management Cluster is not supported on this endpoint, then motion anywhere
-         * shall cause the trigger to activate. The maximum size of this list is MaxZones.
+         * list is null, empty, or if the Zone Management Cluster is not supported on this endpoint, then motion
+         * anywhere shall cause the trigger to activate. The maximum size of this list is MaxZones
          *
          * @see {@link MatterSpecification.v151.Cluster} § 11.7.7.13.2
          */

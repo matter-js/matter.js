@@ -15,10 +15,6 @@ import type { ClusterModel } from "@matter/model";
  *
  * This cluster provides an interface to specify preferences for how devices should consume energy.
  *
- * > [!NOTE]
- *
- * > NOTE: Support for Energy Preference cluster is provisional.
- *
  * @see {@link MatterSpecification.v151.Cluster} § 9.7
  */
 export declare namespace EnergyPreference {

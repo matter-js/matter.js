@@ -35,7 +35,7 @@ export declare namespace GeneralDiagnostics {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 2;
+    export const revision: 3;
 
     /**
      * Canonical metadata for the GeneralDiagnostics cluster.
@@ -88,6 +88,13 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.6.9
          */
         testEventTriggersEnabled: boolean;
+
+        /**
+         * Indicates the status of various resources used.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.6.10
+         */
+        deviceLoadStatus: DeviceLoad;
 
         /**
          * The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of time, in
@@ -193,6 +200,13 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.6.9
          */
         testEventTriggersEnabled: boolean;
+
+        /**
+         * Indicates the status of various resources used.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.6.10
+         */
+        deviceLoadStatus: DeviceLoad;
 
         /**
          * The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of time, in
@@ -479,6 +493,63 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v151.Core} § 11.12.5.6.8
          */
         type: InterfaceType;
+    }
+
+    /**
+     * This structure describes some important resource utilization metrics for the Node, as provided in the
+     * DeviceLoadStatus attribute.
+     *
+     * > [!NOTE]
+     *
+     * > NOTE: For all the fields, the value shall remain at the maximum representable (clamp to max) if the maximum
+     *   value is reached.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 11.12.5.7
+     */
+    export class DeviceLoad {
+        constructor(values?: Partial<DeviceLoad>);
+
+        /**
+         * This field shall indicate the number of currently-active Interaction Model subscriptions across all fabrics
+         * on the node.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.5.7.1
+         */
+        currentSubscriptions: number;
+
+        /**
+         * This field shall indicate the number of currently-active Interaction Model subscriptions for the accessing
+         * fabric only. If no accessing fabric is available, this field shall be set to zero.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.5.7.2
+         */
+        currentSubscriptionsForFabric: number;
+
+        /**
+         * This field shall indicate the total number of Interaction Model subscriptions successfully established across
+         * all fabrics on the node since start-up.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.5.7.3
+         */
+        totalSubscriptionsEstablished: number;
+
+        /**
+         * This field shall indicate the number of outgoing Interaction Model protocol messages sent since start-up.
+         * These are messages that have the Protocol ID set to PROTOCOL_ID_INTERACTION_MODEL, excluding any retries of
+         * such messages.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.5.7.4
+         */
+        totalInteractionModelMessagesSent: number;
+
+        /**
+         * This field shall indicate the number of incoming Interaction Model protocol messages received since start-up.
+         * These are messages that have the Protocol ID set to PROTOCOL_ID_INTERACTION_MODEL, excluding any retries of
+         * such messages.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.12.5.7.5
+         */
+        totalInteractionModelMessagesReceived: number;
     }
 
     /**

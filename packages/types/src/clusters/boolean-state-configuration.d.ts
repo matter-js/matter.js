@@ -33,7 +33,7 @@ export declare namespace BooleanStateConfiguration {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the BooleanStateConfiguration cluster.
@@ -329,6 +329,18 @@ export declare namespace BooleanStateConfiguration {
     }
 
     /**
+     * {@link BooleanStateConfiguration} supports these elements if it supports feature "FaultEvents".
+     */
+    export interface FaultEventsEvents {
+        /**
+         * This event shall be generated when the device registers or clears a fault.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2
+         */
+        sensorFault: SensorFaultEvent;
+    }
+
+    /**
      * Events that may appear in {@link BooleanStateConfiguration}.
      *
      * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
@@ -374,10 +386,11 @@ export declare namespace BooleanStateConfiguration {
             events: VisualOrAudibleEvents
         },
 
-        { flags: { alarmSuppress: true }, attributes: AlarmSuppressAttributes, commands: AlarmSuppressCommands }
+        { flags: { alarmSuppress: true }, attributes: AlarmSuppressAttributes, commands: AlarmSuppressCommands },
+        { flags: { faultEvents: true }, events: FaultEventsEvents }
     ];
 
-    export type Features = "Visual" | "Audible" | "AlarmSuppress" | "SensitivityLevel";
+    export type Features = "Visual" | "Audible" | "AlarmSuppress" | "SensitivityLevel" | "FaultEvents";
 
     /**
      * These are optional features supported by BooleanStateConfigurationCluster.
@@ -428,7 +441,17 @@ export declare namespace BooleanStateConfiguration {
          *
          * Supports ability to set sensor sensitivity
          */
-        SensitivityLevel = "SensitivityLevel"
+        SensitivityLevel = "SensitivityLevel",
+
+        /**
+         * FaultEvents (FAULTEV)
+         *
+         * This feature shall indicate that the device supports reporting sensor faults. When this feature is supported,
+         * there shall be at least one cause of internal failure that will generate the SensorFault.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 1.8.4.2
+         */
+        FaultEvents = "FaultEvents"
     }
 
     /**

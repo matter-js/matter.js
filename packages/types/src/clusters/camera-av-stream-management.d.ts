@@ -42,7 +42,7 @@ export declare namespace CameraAvStreamManagement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the CameraAvStreamManagement cluster.
@@ -431,6 +431,10 @@ export declare namespace CameraAvStreamManagement {
         /**
          * This attribute indicates the amount of clockwise rotation in degrees that the image has been subjected to.
          *
+         * This attribute may be present if the underlying hardware allows for arbitrary angle rotation within the full
+         * 360 degree range. If this attribute is not present, then discrete angle rotation may be supported via the
+         * ImageRotationDiscreteAngles. A value of 0 means no rotation has been applied.
+         *
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.7.35
          */
         imageRotation?: number;
@@ -450,6 +454,17 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.7.37
          */
         imageFlipVertical?: boolean;
+
+        /**
+         * This attribute indicates the amount of clockwise rotation in specific angles of 0, 90, 180, and 270 degrees.
+         * This attribute is used by cameras that do not have the capability of full arbitrary rotation angles that can
+         * be set via the ImageRotation attribute. Note that the ImageFlipHorizontal and the ImageFlipVertical
+         * attributes only allow for a lateral inversion or mirror reflection of the image along the horizontal and/or
+         * vertical axes. A value of 0 means no rotation has been applied.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 11.2.7.42
+         */
+        imageRotationDiscreteAngles?: number;
     }
 
     /**
@@ -816,6 +831,10 @@ export declare namespace CameraAvStreamManagement {
         /**
          * This attribute indicates the amount of clockwise rotation in degrees that the image has been subjected to.
          *
+         * This attribute may be present if the underlying hardware allows for arbitrary angle rotation within the full
+         * 360 degree range. If this attribute is not present, then discrete angle rotation may be supported via the
+         * ImageRotationDiscreteAngles. A value of 0 means no rotation has been applied.
+         *
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.7.35
          */
         imageRotation: number;
@@ -835,6 +854,17 @@ export declare namespace CameraAvStreamManagement {
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.7.37
          */
         imageFlipVertical: boolean;
+
+        /**
+         * This attribute indicates the amount of clockwise rotation in specific angles of 0, 90, 180, and 270 degrees.
+         * This attribute is used by cameras that do not have the capability of full arbitrary rotation angles that can
+         * be set via the ImageRotation attribute. Note that the ImageFlipHorizontal and the ImageFlipVertical
+         * attributes only allow for a lateral inversion or mirror reflection of the image along the horizontal and/or
+         * vertical axes. A value of 0 means no rotation has been applied.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 11.2.7.42
+         */
+        imageRotationDiscreteAngles: number;
 
         /**
          * This attribute indicates whether local storage based video recording is enabled. A value of TRUE indicates

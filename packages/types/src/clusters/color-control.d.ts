@@ -1085,49 +1085,49 @@ export declare namespace ColorControl {
      */
     export interface HueSaturationCommands {
         /**
-         * This command will move the device to the requested hue value using a transition.
+         * This command will move the device to the requested hue using a transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.4
          */
         moveToHue(request: MoveToHueRequest): MaybePromise;
 
         /**
-         * This command will move the device to the requested hue value using a step rate.
+         * This command will change the hue of the device with a requested rate.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.5
          */
         moveHue(request: MoveHueRequest): MaybePromise;
 
         /**
-         * This command will change the device to the requested hue value using a step and transition.
+         * This command will change the hue of the device using a step and transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.6
          */
         stepHue(request: StepHueRequest): MaybePromise;
 
         /**
-         * This command will move the device to the requested saturation value using a transition.
+         * This command will move the device to the requested saturation using a transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.7
          */
         moveToSaturation(request: MoveToSaturationRequest): MaybePromise;
 
         /**
-         * This command will move the device to the requested saturation value using a rate.
+         * This command will change the saturation of the device with a requested rate.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.8
          */
         moveSaturation(request: MoveSaturationRequest): MaybePromise;
 
         /**
-         * This command will change the device to the requested saturation value using a step transition.
+         * This command will change the saturation of the device using a step and transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.9
          */
         stepSaturation(request: StepSaturationRequest): MaybePromise;
 
         /**
-         * This command will move the device to the requested hue and saturation value using a transition.
+         * This command will move the device to the requested hue and saturation using a transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.10
          */
@@ -1139,21 +1139,21 @@ export declare namespace ColorControl {
      */
     export interface XyCommands {
         /**
-         * This command will move the device to the requested color value using a transition.
+         * This command will move the device to the requested color using a transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.11
          */
         moveToColor(request: MoveToColorRequest): MaybePromise;
 
         /**
-         * This command will move the device to the requested color using a step rate.
+         * This command will change the color of the device with a requested rate.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.12
          */
         moveColor(request: MoveColorRequest): MaybePromise;
 
         /**
-         * This command will move the device to the requested color using a step transition.
+         * This command will change the color of the device using a step and transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.13
          */
@@ -1165,7 +1165,7 @@ export declare namespace ColorControl {
      */
     export interface ColorTemperatureCommands {
         /**
-         * This command will move the device to the requested color temperate using a transition.
+         * This command will move the device to the requested color temperature using a transition.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.14
          */
@@ -1206,8 +1206,7 @@ export declare namespace ColorControl {
         enhancedMoveHue(request: EnhancedMoveHueRequest): MaybePromise;
 
         /**
-         * This command allows the light to be moved in a stepped transition from their current hue, resulting in a
-         * linear transition through XY space.
+         * This command allows the device to be moved in a stepped transition from their current hue.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.17
          */
@@ -1476,7 +1475,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested hue value using a transition.
+     * This command will move the device to the requested hue using a transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.4
      */
@@ -1509,7 +1508,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested hue value using a step rate.
+     * This command will change the hue of the device with a requested rate.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.5
      */
@@ -1536,7 +1535,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will change the device to the requested hue value using a step and transition.
+     * This command will change the hue of the device using a step and transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.6
      */
@@ -1576,7 +1575,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested saturation value using a transition.
+     * This command will move the device to the requested saturation using a transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.7
      */
@@ -1589,7 +1588,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested saturation value using a rate.
+     * This command will change the saturation of the device with a requested rate.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.8
      */
@@ -1616,7 +1615,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will change the device to the requested saturation value using a step transition.
+     * This command will change the saturation of the device using a step and transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.9
      */
@@ -1656,7 +1655,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested hue and saturation value using a transition.
+     * This command will move the device to the requested hue and saturation using a transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.10
      */
@@ -1670,7 +1669,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested color value using a transition.
+     * This command will move the device to the requested color using a transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.11
      */
@@ -1684,7 +1683,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested color using a step rate.
+     * This command will change the color of the device with a requested rate.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.12
      */
@@ -1712,7 +1711,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested color using a step transition.
+     * This command will change the color of the device using a step and transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.13
      */
@@ -1733,7 +1732,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command will move the device to the requested color temperate using a transition.
+     * This command will move the device to the requested color temperature using a transition.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.14
      */
@@ -1925,8 +1924,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * This command allows the light to be moved in a stepped transition from their current hue, resulting in a linear
-     * transition through XY space.
+     * This command allows the device to be moved in a stepped transition from their current hue.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.17
      */

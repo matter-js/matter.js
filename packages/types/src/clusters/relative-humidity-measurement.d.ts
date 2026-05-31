@@ -33,7 +33,7 @@ export declare namespace RelativeHumidityMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 4;
+    export const revision: 5;
 
     /**
      * Canonical metadata for the RelativeHumidityMeasurement cluster.

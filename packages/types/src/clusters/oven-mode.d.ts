@@ -145,7 +145,7 @@ export declare namespace OvenMode {
         mode: number;
 
         /**
-         * This field shall contain a list of tags that are associated with the mode option. This may be used by clients
+         * This field shall contain a list of tags that are associated with the mode option. This can be used by clients
          * to determine the full or the partial semantics of a certain mode, depending on which tags they understand,
          * using standard definitions and/or manufacturer specific namespace definitions.
          *
@@ -272,10 +272,12 @@ export declare namespace OvenMode {
          * > [!NOTE]
          *
          * > NOTE: Depending on regulatory or other requirements, the following restrictions could apply to the use of
-         *   this mode: - It may NOT be possible to start this mode from a client. It may need to be started at the
-         *   device due to the temperatures used during this mode. - The setting of the oven temperature or other
-         *   features may be limited or not available while this mode is running. - Oven temperature measurement may NOT
-         *   be available while this mode is running.
+         *   this mode:
+         *
+         *   - It may NOT be possible to start this mode from a client. It may need to be started at the device due to
+         *     the temperatures used during this mode. - The setting of the oven temperature or other features may be
+         *     limited or not available while this mode is running. - Oven temperature measurement may NOT be available
+         *     while this mode is running.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.5
          */

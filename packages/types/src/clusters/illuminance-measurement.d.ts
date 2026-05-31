@@ -32,7 +32,7 @@ export declare namespace IlluminanceMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
      */
-    export const revision: 4;
+    export const revision: 5;
 
     /**
      * Canonical metadata for the IlluminanceMeasurement cluster.
