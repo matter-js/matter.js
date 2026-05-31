@@ -47,6 +47,7 @@ export abstract class FailsafeContext {
     #forUpdateNoc?: boolean;
     #fabricBuilder?: FabricBuilder;
     #rootCertSet = false;
+    #detachClosedByPeer?: () => void;
 
     #commissioned = AsyncObservable<[], void>();
 
@@ -75,12 +76,15 @@ export abstract class FailsafeContext {
             logger.debug(`Arm failSafe timer for ${Duration.format(expiryLength)}`);
 
             // When the PASE session used to arm the Fail-Safe timer is terminated by peer, the Fail-Safe timer SHALL
-            // be considered expired and do the relevant cleanup actions.
-            session.closedByPeer.on(() => {
+            // be considered expired and do the relevant cleanup actions. closedByPeer is reusable, so detach on close
+            // to avoid leaking this context across commission retries.
+            const closedByPeer = () => {
                 if (!this.#failsafe?.completed) {
                     return this.#failSafeExpired();
                 }
-            });
+            };
+            session.closedByPeer.on(closedByPeer);
+            this.#detachClosedByPeer = () => session.closedByPeer.off(closedByPeer);
         });
     }
 
@@ -190,6 +194,8 @@ export abstract class FailsafeContext {
 
     async close(currentExchange?: MessageExchange) {
         await this.#construction.close(async () => {
+            this.#detachClosedByPeer?.();
+            this.#detachClosedByPeer = undefined;
             if (this.#failsafe) {
                 await this.#failsafe.close();
                 this.#failsafe = undefined;
