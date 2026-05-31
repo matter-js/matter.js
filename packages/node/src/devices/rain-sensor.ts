@@ -56,7 +56,7 @@ export namespace RainSensorRequirements {
 export const RainSensorDeviceDefinition = MutableEndpoint({
     name: "RainSensor",
     deviceType: 0x44,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: RainSensorRequirements,
     behaviors: SupportedBehaviors(
         RainSensorRequirements.server.mandatory.Identify,

@@ -8,7 +8,6 @@
 
 import { ClosureControlClient as BaseClosureControlClient } from "../behaviors/closure-control/ClosureControlClient.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
-import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
 import {
     ClosureDimensionClient as BaseClosureDimensionClient
 } from "../behaviors/closure-dimension/ClosureDimensionClient.js";
@@ -39,13 +38,6 @@ export namespace ClosureControllerRequirements {
     export const IdentifyClient = BaseIdentifyClient;
 
     /**
-     * The Groups cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
-     */
-    export const GroupsClient = BaseGroupsClient;
-
-    /**
      * The ClosureDimension cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link ClosureDimensionClient} for convenience.
@@ -57,7 +49,7 @@ export namespace ClosureControllerRequirements {
      */
     export const client = {
         mandatory: { ClosureControl: ClosureControlClient },
-        optional: { Identify: IdentifyClient, Groups: GroupsClient, ClosureDimension: ClosureDimensionClient }
+        optional: { Identify: IdentifyClient, ClosureDimension: ClosureDimensionClient }
     };
 }
 

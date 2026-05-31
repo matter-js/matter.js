@@ -25,6 +25,9 @@ import {
 import {
     OccupancySensingClient as BaseOccupancySensingClient
 } from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
+import {
+    AmbientContextSensingClient as BaseAmbientContextSensingClient
+} from "../behaviors/ambient-context-sensing/AmbientContextSensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -108,6 +111,13 @@ export namespace ThermostatRequirements {
     export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
+     * The AmbientContextSensing cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link AmbientContextSensingClient} for convenience.
+     */
+    export const AmbientContextSensingClient = BaseAmbientContextSensingClient;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
@@ -127,7 +137,8 @@ export namespace ThermostatRequirements {
             FanControl: FanControlClient,
             TemperatureMeasurement: TemperatureMeasurementClient,
             RelativeHumidityMeasurement: RelativeHumidityMeasurementClient,
-            OccupancySensing: OccupancySensingClient
+            OccupancySensing: OccupancySensingClient,
+            AmbientContextSensing: AmbientContextSensingClient
         },
 
         mandatory: {}
@@ -137,7 +148,7 @@ export namespace ThermostatRequirements {
 export const ThermostatDeviceDefinition = MutableEndpoint({
     name: "Thermostat",
     deviceType: 0x301,
-    deviceRevision: 5,
+    deviceRevision: 6,
     requirements: ThermostatRequirements,
     behaviors: SupportedBehaviors(ThermostatRequirements.server.mandatory.Identify)
 });

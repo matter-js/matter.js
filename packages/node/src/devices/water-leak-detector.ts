@@ -56,7 +56,7 @@ export namespace WaterLeakDetectorRequirements {
 export const WaterLeakDetectorDeviceDefinition = MutableEndpoint({
     name: "WaterLeakDetector",
     deviceType: 0x43,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: WaterLeakDetectorRequirements,
     behaviors: SupportedBehaviors(
         WaterLeakDetectorRequirements.server.mandatory.Identify,

@@ -35,7 +35,7 @@ import { Identity } from "@matter/general";
  *
  * A Network Infrastructure Manager device may be managed by a service associated with the device vendor, for example,
  * an Internet Service Provider. Sometimes this managing service will have policies that require the use of the Managed
- * Device feature of the Access Control Cluster (see Section 15.3.5.1, "ManagedAclAllowed Condition"). Consequently,
+ * Device feature of the Access Control Cluster (see Section 15.3.4.1, "ManagedAclAllowed Condition"). Consequently,
  * Commissioners of this device type should be aware of this feature and its use.
  *
  * @see {@link MatterSpecification.v151.Device} § 15.3

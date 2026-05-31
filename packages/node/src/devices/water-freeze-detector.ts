@@ -56,7 +56,7 @@ export namespace WaterFreezeDetectorRequirements {
 export const WaterFreezeDetectorDeviceDefinition = MutableEndpoint({
     name: "WaterFreezeDetector",
     deviceType: 0x41,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: WaterFreezeDetectorRequirements,
     behaviors: SupportedBehaviors(
         WaterFreezeDetectorRequirements.server.mandatory.Identify,
