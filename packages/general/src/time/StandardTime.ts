@@ -121,6 +121,9 @@ export class StandardTimer implements Timer {
             }
             this.callback(lifetime);
         }, this.interval);
+        if (this.#utility) {
+            (this.#timerId as { unref?: () => void }).unref?.();
+        }
         return this;
     }
 
