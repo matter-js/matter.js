@@ -645,7 +645,7 @@ describe("DeviceAttestationValidator", () => {
             expect(finding!.level).to.equal("error");
         });
 
-        it("does NOT emit TrustedAsTestCertificate when service allowsTestCertificates is true", async () => {
+        it("does NOT emit TrustedAsTestCertificate when service acceptsTestCertificates is true", async () => {
             fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
                 approvedRootCertificates: { schemaVersion: 0, certs: [] },
             });

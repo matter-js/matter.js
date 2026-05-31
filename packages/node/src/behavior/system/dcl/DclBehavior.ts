@@ -75,6 +75,7 @@ export class DclBehavior extends Behavior {
             if (!this.env.root.has(DclCertificateService)) {
                 new DclCertificateService(this.env, {
                     fetchTestCertificates: this.state.fetchTestCertificates,
+                    acceptTestCertificates: this.state.acceptTestCertificates,
                     fetchGithubCertificates: this.state.fetchGithubCertificates,
                     dclConfig: this.productionConfig,
                     testDclConfig: this.state.fetchTestCertificates ? this.testConfig : undefined,
@@ -141,6 +142,13 @@ export namespace DclBehavior {
 
         /** Whether to fetch test certificates in addition to production ones. */
         fetchTestCertificates = false;
+
+        /**
+         * Whether to trust test (non-production) certificates as valid trust anchors during device
+         * attestation. Independent of {@link fetchTestCertificates}. When unset, defaults to the value of
+         * `fetchTestCertificates`.
+         */
+        acceptTestCertificates?: boolean = undefined;
 
         /** Whether to fetch development certificates from GitHub (only when fetchTestCertificates is true). */
         fetchGithubCertificates = true;
