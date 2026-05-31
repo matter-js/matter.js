@@ -31,6 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
+    - Fix: Fixes message counter rollover logic
     - Fix: Event reports are now decoded in wire (EventNumber) order
     - Fix: Allows CSRs with an empty subject as per Matter spec
     - Fix: Corrects BTP handshake decoding of version field
