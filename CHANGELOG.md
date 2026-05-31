@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: Remove invalid FabricIndex field from four commands
+    - Fix: Correct the Device type revision of Room Air Conditioner
 
 - @matter/node
   - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
@@ -32,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Fix: Remove invalid FabricIndex field from four commands
+    - Fix: Correct the Device type revision of Room Air Conditioner
 
 ## 0.17.0 (2026-05-20)
 
