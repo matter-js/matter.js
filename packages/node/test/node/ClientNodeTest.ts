@@ -1113,6 +1113,17 @@ describe("ClientNode", () => {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("refuses to allocate a peer address whose NodeId is already in use", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const { fabricIndex, nodeId } = controller.peers.get("peer1")!.peerAddress!;
+
+        await expect(
+            controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabricIndex, nodeId)),
+        ).rejectedWith(/already in use/i);
+    });
+
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 

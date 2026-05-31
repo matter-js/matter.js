@@ -7,7 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { Node } from "#node/Node.js";
-import { IdentityService } from "#node/server/IdentityService.js";
+import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import {
     Crypto,
     DnsRecordType,
@@ -130,6 +130,13 @@ export class ControllerBehavior extends Behavior {
                 // Lock early to act as semaphor for address assignment
                 await agent.context.transaction.addResources(controller);
                 await agent.context.transaction.begin();
+
+                // A caller-supplied NodeId bypasses the allocation loop below, so check it for collisions here.
+                if (nodeId !== undefined && identity.peerAddressInUse({ fabricIndex, nodeId })) {
+                    throw new IdentityConflictError(
+                        `Cannot assign NodeId ${nodeId} on fabric ${fabricIndex}: the peer address is already in use`,
+                    );
+                }
 
                 const useSequentialIds = controller.state.nodeIdAssignment !== "random";
                 let nextNodeId: NodeId = controller.state.nextNodeId ?? NodeId(1);
