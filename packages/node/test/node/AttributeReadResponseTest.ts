@@ -14,9 +14,9 @@ import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     29: 9,
     31: 10,
-    40: 21,
+    40: 22,
     48: 10,
-    51: 10,
+    51: 11,
     60: 8,
     62: 11,
     63: 9,
@@ -166,10 +166,10 @@ describe("AttributeReadResponse", () => {
 
         expect(await countAttrs(response.data)).deep.equals({
             0: {
-                40: 21,
+                40: 22,
             },
         });
-        expect(response.counts).deep.equals({ status: 0, success: 21, existent: 21 });
+        expect(response.counts).deep.equals({ status: 0, success: 22, existent: 22 });
     });
 
     it("reads full wildcard", async () => {
