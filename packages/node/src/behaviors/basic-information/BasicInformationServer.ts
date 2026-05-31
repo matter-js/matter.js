@@ -59,6 +59,23 @@ export class BasicInformationServer extends Base {
         setDefault("softwareVersionString", state.softwareVersion.toString());
         setDefault("specificationVersion", Specification.SPECIFICATION_VERSION);
         setDefault("maxPathsPerInvoke", DEFAULT_MAX_PATHS_PER_INVOKE);
+
+        // ConfigurationVersion became mandatory at BasicInformation rev 6 (Matter 1.6).  Seed a valid starting value;
+        // monotonic-increment-on-configuration-change semantics are tracked as a follow-up.
+        setDefault("configurationVersion", 1);
+
+        // CapabilityMinima gained four mandatory fields in Matter 1.6 (cluster rev 6).  The spec defines no fixed
+        // defaults for them (they reflect actual node capability), so seed conservative valid minimums while leaving
+        // any caller-provided values intact.
+        const capabilityMinima = this.state.capabilityMinima;
+        this.state.capabilityMinima = {
+            ...capabilityMinima,
+            simultaneousInvocationsSupported: capabilityMinima.simultaneousInvocationsSupported ?? 6,
+            simultaneousWritesSupported: capabilityMinima.simultaneousWritesSupported ?? 4,
+            readPathsSupported: capabilityMinima.readPathsSupported ?? 9,
+            subscribePathsSupported: capabilityMinima.subscribePathsSupported ?? 3,
+        };
+
         if (this.state.uniqueId === undefined) {
             this.state.uniqueId = BasicInformationServer.createUniqueId();
         }

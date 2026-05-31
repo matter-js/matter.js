@@ -82,6 +82,13 @@ export interface PeerSubscription {
     sendInterval: Duration;
 }
 
+/** Cumulative counters tracked by the interaction server since startup. */
+export interface InteractionCounters {
+    totalSubscriptionsEstablished: number;
+    totalInteractionModelMessagesSent: number;
+    totalInteractionModelMessagesReceived: number;
+}
+
 function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
     if (isGroupSession) {
         throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
@@ -138,6 +145,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     #newActivityBlocked = false;
     #aclServer?: AccessControlServer;
     #serverInteraction: OnlineServerInteraction;
+    #counters: InteractionCounters = {
+        totalSubscriptionsEstablished: 0,
+        totalInteractionModelMessagesSent: 0,
+        totalInteractionModelMessagesReceived: 0,
+    };
 
     constructor(node: ServerNode, sessions: SessionManager) {
         this.#lifetime = node.construction.join("interaction server");
@@ -181,6 +193,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         return this.#subscriptionEstablishmentStarted;
     }
 
+    get counters(): InteractionCounters {
+        return this.#counters;
+    }
+
     async onNewExchange(exchange: MessageExchange, message: Message) {
         // When closing, ignore anything newly incoming
         if (this.#newActivityBlocked || this.isClosing) {
@@ -193,6 +209,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return await this.clientHandler.onNewExchange(exchange, message);
         }
 
+        // Count the initiating message (received before the exchange notifier could be attached) then track all
+        // further sends/receipts on this exchange (chunked DataReports, StatusResponse acks, etc.)
+        this.#counters.totalInteractionModelMessagesReceived++;
+        this.#countExchangeMessages(exchange);
+
         // Activity tracking.  This provides diagnostic information and prevents the server from shutting down whilst
         // the exchange is active
         using activity = this.#activity.begin(`session#${exchange.session.id.toString(16)}`);
@@ -204,6 +225,23 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         } finally {
             delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
         }
+    }
+
+    /**
+     * Attach per-message counters to an exchange so DeviceLoadStatus reflects every IM message sent and received.
+     * Excludes MRP retransmissions (only the initial transmission of each message counts) and duplicate receipts.
+     */
+    #countExchangeMessages(exchange: MessageExchange) {
+        exchange.onSend = (_, retransmission) => {
+            if (retransmission === 0) {
+                this.#counters.totalInteractionModelMessagesSent++;
+            }
+        };
+        exchange.onReceive = (_, duplicate) => {
+            if (!duplicate) {
+                this.#counters.totalInteractionModelMessagesReceived++;
+            }
+        };
     }
 
     get aclServer() {
@@ -675,13 +713,19 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         // When an error occurs while sending the response, the subscription is not yet active and will be cleaned up by GC
         subscription.activate();
+        this.#counters.totalSubscriptionsEstablished++;
     }
 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
-        if (addressOrSession instanceof Session) {
-            return this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId);
-        }
-        return this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+        const exchange =
+            addressOrSession instanceof Session
+                ? this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId)
+                : this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+
+        // Count subscription report messages we push and the acks we receive in response
+        this.#countExchangeMessages(exchange);
+
+        return exchange;
     }
 
     async #establishSubscription(
@@ -788,6 +832,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 true, // Do not send status responses because we simulate that the subscription is still established
             );
             subscription.activate();
+            this.#counters.totalSubscriptionsEstablished++;
 
             logger.info(
                 `Subscription successfully reestablished`,
