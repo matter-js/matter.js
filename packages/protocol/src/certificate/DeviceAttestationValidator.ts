@@ -179,7 +179,7 @@ export namespace DeviceAttestationValidator {
                 );
             }
 
-            if (!paaMetadata.isProduction && !dclCertificateService.allowsTestCertificates) {
+            if (!paaMetadata.isProduction && !dclCertificateService.acceptsTestCertificates) {
                 findings.push({
                     level: "error",
                     type: DeviceAttestationCheck.TrustedAsTestCertificate,
