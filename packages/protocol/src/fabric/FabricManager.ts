@@ -182,14 +182,10 @@ export class FabricManager {
 
         this.#construction.assert();
 
-        const storeResult = this.#storage.set(
-            "fabrics",
-            this.fabrics.map(fabric => fabric.config),
-        );
-        if (MaybePromise.is(storeResult)) {
-            return storeResult.then(() => this.#storage!.set("nextFabricIndex", this.#nextFabricIndex));
-        }
-        return this.#storage.set("nextFabricIndex", this.#nextFabricIndex);
+        return this.#storage.set({
+            fabrics: this.fabrics.map(fabric => fabric.config),
+            nextFabricIndex: this.#nextFabricIndex,
+        });
     }
 
     addFabric(fabric: Fabric) {
