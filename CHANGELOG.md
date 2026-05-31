@@ -33,7 +33,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Fix: Remove invalid FabricIndex field from four commands
-    - Fix: Correct the Device type revision of Room Air Conditioner
 
 ## 0.17.0 (2026-05-20)
 
