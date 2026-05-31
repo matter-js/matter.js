@@ -103,7 +103,7 @@ export class GroupsServer extends GroupsBase {
                 gkm.addEndpointForGroup(fabric, groupId, endpointNumber, groupName),
             );
         } catch (error) {
-            logger.error(error);
+            logger.debug("Could not add group", error);
             StatusResponseError.accept(error);
             return { status: error.code, groupId };
         }

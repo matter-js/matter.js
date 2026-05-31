@@ -359,7 +359,7 @@ export class BleScanner implements Scanner {
                 this.#finishWaiter(queryKey, true);
             },
             cause => {
-                logger.error("Unexpected error canceling commissioning", cause);
+                logger.warn("Unexpected error canceling commissioning", cause);
             },
         );
 

@@ -100,7 +100,7 @@ export class MdnsService {
                     "Error disposing MDNS services",
                 );
             } catch (e) {
-                logger.error(e);
+                logger.warn("Error disposing MDNS services", e);
             }
 
             if (this.#socket) {

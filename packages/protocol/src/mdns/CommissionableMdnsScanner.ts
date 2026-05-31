@@ -321,7 +321,7 @@ export class CommissionableMdnsScanner implements Scanner {
                                 this.#speculativeTargets.delete(targetKey);
                                 target.off(this.#speculativeObserver);
                                 if (!(error instanceof AbortedError)) {
-                                    logger.error(`Speculative discovery for ${target.qname} failed:`, error);
+                                    logger.warn(`Speculative discovery for ${target.qname} failed:`, error);
                                 }
                             });
                     }

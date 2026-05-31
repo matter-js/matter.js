@@ -144,7 +144,7 @@ export class OtaAnnouncements {
             this.#currentAnnouncementPromise = this.#announceOtaProvider(peerAddress);
             await this.#currentAnnouncementPromise;
         } catch (error) {
-            logger.error(`Error announcing OTA provider to ${peerAddress}`, error);
+            logger.warn(`Error announcing OTA provider to ${peerAddress}`, error);
         } finally {
             this.#currentAnnouncementPromise = undefined;
         }
@@ -207,7 +207,7 @@ export class OtaAnnouncements {
                 // the device when there is any update. So let's not do this here automatically.
             } catch (error) {
                 // Just log, if anything failed, we try again in 24h
-                logger.info("Could not set default OTA provider", error);
+                logger.notice("Could not set default OTA provider", error);
             }
         }
     }

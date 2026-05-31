@@ -231,7 +231,7 @@ export class Fabric {
                 this.#vvsc = vvsc;
             }
         }
-        logger.info(
+        logger.notice(
             "Updated Vendor Verification Data for Fabric",
             this.#rootVendorId,
             this.#vidVerificationStatement,

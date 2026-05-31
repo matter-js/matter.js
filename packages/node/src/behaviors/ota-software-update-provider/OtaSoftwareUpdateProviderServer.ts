@@ -109,7 +109,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         const ownFabric = fabricAuthority.fabrics[0];
         if (!ownFabric) {
             // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
-            logger.error(`No owning fabric, delay initialization`);
+            logger.info(`No owning fabric, delay initialization`);
             fabricAuthority.fabricAdded.once(() => this.#nodeOnline());
             return;
         }

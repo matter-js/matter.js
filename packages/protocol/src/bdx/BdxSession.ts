@@ -142,8 +142,6 @@ export class BdxSession {
                     logger.info(`Failed to send BDX error status to peer:`, Diagnostic.errorMessage(sendError));
                 });
 
-                logger.warn(`BDX session failed with error:`, error);
-
                 error.bytesTransferred = this.#transferFlow?.transferredBytes ?? 0;
                 error.totalBytesLength = this.#transferFlow?.dataLength;
             }

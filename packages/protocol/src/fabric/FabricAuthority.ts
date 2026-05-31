@@ -191,7 +191,7 @@ export class FabricAuthority {
             fabric.intermediateCACert,
         );
         const newFabric = await builder.build(fabric.fabricIndex);
-        logger.info(`Rotated NOC for fabric ${fabric.fabricIndex}`);
+        logger.notice(`Rotated NOC for fabric ${fabric.fabricIndex}`);
 
         await this.#fabrics.replaceFabric(newFabric);
 

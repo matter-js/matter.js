@@ -597,13 +597,13 @@ export async function PeerConnection(
                 );
                 break;
             case "peer":
-                error(address, `Peer error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                warn(address, `Peer error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
                 break;
             case "network":
-                error(address, `Connection error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                warn(address, `Connection error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
                 break;
             case "general":
-                error(address, `General connection error (retry in ${Duration.format(delay!)}):`, e);
+                warn(address, `General connection error (retry in ${Duration.format(delay!)}):`, e);
                 break;
         }
 

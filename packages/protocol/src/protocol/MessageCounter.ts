@@ -6,8 +6,8 @@
 
 import { Construction, Crypto, InternalError, StorageContext, asyncNew } from "@matter/general";
 
-/** Maximum 32 bit counter value. */
-export const MAX_COUNTER_VALUE_32BIT = 0xfffffffe;
+/** Maximum 32 bit counter value. Per Matter spec the counter wraps from 0xFFFFFFFF to 0. */
+export const MAX_COUNTER_VALUE_32BIT = 0xffffffff;
 
 /** Default number of messages before a rollover callback is called. */
 const ROLLOVER_INFO_DIFFERENCE = 1000;
