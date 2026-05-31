@@ -147,7 +147,7 @@ export namespace RoomAirConditionerRequirements {
 export const RoomAirConditionerDeviceDefinition = MutableEndpoint({
     name: "RoomAirConditioner",
     deviceType: 0x72,
-    deviceRevision: 4,
+    deviceRevision: 3,
     requirements: RoomAirConditionerRequirements,
     behaviors: SupportedBehaviors(
         RoomAirConditionerRequirements.server.mandatory.Identify,
