@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/\*
+    - Enhancement: Standardized log levels across all packages against a new logging guideline (see `docs/LOGGING.md`)
+
 - @matter/general
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
 

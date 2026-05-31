@@ -199,7 +199,7 @@ export class MessageExchange {
             this.#receivedMessageToAck = undefined;
             // TODO await
             this.sendStandaloneAckForMessage(messageToAck).catch(error =>
-                logger.error("An error happened when sending a standalone ack", error),
+                logger.warn("An error happened when sending a standalone ack", error),
             );
         }
     });
@@ -742,7 +742,7 @@ export class MessageExchange {
             if (this.#closeTimer !== undefined) {
                 // All resubmissions done and in closing, no need to wait further
                 // TODO await
-                this.#close().catch(error => logger.error("Error closing exchange", error));
+                this.#close().catch(error => logger.warn("Error closing exchange", error));
             }
             return;
         }
@@ -767,9 +767,9 @@ export class MessageExchange {
             })
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
-                logger.error(`Error retransmitting ${Message.via(this, message)}:`, error);
+                logger.warn(`Error retransmitting ${Message.via(this, message)}:`, error);
                 if (error instanceof SessionClosedError) {
-                    this.#close().catch(error => logger.error("An error happened when closing the exchange", error));
+                    this.#close().catch(error => logger.warn("An error happened when closing the exchange", error));
                 } else {
                     this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime);
                 }
@@ -798,7 +798,7 @@ export class MessageExchange {
             try {
                 await this.sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
-                logger.error("An error happened when closing the exchange", error);
+                logger.warn("An error happened when closing the exchange", error);
             }
         }
         await this.#close();
@@ -896,7 +896,7 @@ export class MessageExchange {
                 using _acking = closing.join("acking");
                 await this.sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
-                logger.error(this.via, `Unhandled error closing exchange`, error);
+                logger.warn(this.via, `Unhandled error closing exchange`, error);
             }
             if (cause || this.#sentMessageToAck === undefined) {
                 // We have sent the Ack and there's nothing left waiting for a peer ack, close directly

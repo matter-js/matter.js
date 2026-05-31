@@ -24,7 +24,7 @@ export namespace FileHandleTracker {
     const openHandles = new Set<WeakRef<File.Handle>>();
 
     const registry = new FinalizationRegistry<HandleInfo>(info => {
-        logger.error(`File handle GC'd without close: "${info.purpose}" for ${info.path}`);
+        logger.warn(`File handle GC'd without close: "${info.purpose}" for ${info.path}`);
     });
 
     /**

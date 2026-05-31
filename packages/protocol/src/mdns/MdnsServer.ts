@@ -223,7 +223,7 @@ export class MdnsServer {
                 }
             }),
             "Error announcing MDNS messages",
-        ).catch(error => logger.error(error));
+        ).catch(error => logger.error("Error announcing MDNS messages", error));
     }
 
     async expireAnnouncements(...services: string[]) {
@@ -250,7 +250,7 @@ export class MdnsServer {
                 }
             }),
             "Error happened when expiring MDNS announcements",
-        ).catch(error => logger.error(error));
+        ).catch(error => logger.warn("Error happened when expiring MDNS announcements", error));
         await this.#resetServices();
     }
 

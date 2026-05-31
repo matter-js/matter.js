@@ -177,7 +177,7 @@ process.on("message", function (message) {
 
     switch (message) {
         case "exit":
-            exit().catch(error => logger.error(error));
+            exit().catch(error => logger.error("Error during exit", error));
     }
 });
 

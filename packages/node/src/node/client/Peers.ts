@@ -387,7 +387,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.#mutex.run(() =>
             this.#cullExpiredNodesAndAddresses()
                 .catch(error => {
-                    logger.error("Error culling expired nodes", error);
+                    logger.warn("Error culling expired nodes", error);
                 })
                 .finally(() => {
                     this.#manageExpiration();

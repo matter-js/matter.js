@@ -544,7 +544,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             try {
                 otaHeader = await this.validateUpdateFile();
             } catch (error) {
-                logger.error(`OTA update file is invalid:`, error);
+                logger.notice(`OTA update file is invalid:`, error);
 
                 await downloadLocation.delete();
                 otaHeader = undefined; // Should be the case anyway, but let's make sure
@@ -756,7 +756,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
             return await this.#validateApplyUpdate(applyRequest, ep, fileDesignator);
         } else if (action !== OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed) {
-            logger.error(`Invalid OTA Provider applyUpdateRequest response: unknown Action ${action}`);
+            logger.notice(`Invalid OTA Provider applyUpdateRequest response: unknown Action ${action}`);
             this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);
             return false;
         }
@@ -861,7 +861,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             fileDesignator = await this.#handleDownload(ep, imageUri, newSoftwareVersion);
         } catch (error) {
             MatterError.accept(error);
-            logger.info(`OTA download failed:`, error);
+            logger.notice(`OTA download failed:`, error);
             if (error instanceof OtaDownloadError) {
                 this.#emitDownloadErrorEvent(newSoftwareVersion, error.bytesTransferred, error.code);
             }

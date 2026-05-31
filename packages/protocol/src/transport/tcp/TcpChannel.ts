@@ -209,7 +209,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
 
         // Receive buffer cap — prevent memory exhaustion from slow/malicious peers
         if (this.#receiveLength > this.#maxReceiveBufferSize) {
-            logger.error(
+            logger.warn(
                 `Receive buffer exceeded ${this.#maxReceiveBufferSize} bytes without completing a message, closing`,
             );
             this.#workers.add(this.close());
@@ -260,7 +260,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
             }
 
             if (messageLength > this.maxMessageSize) {
-                logger.error(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
+                logger.warn(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
                 // TODO: Send MESSAGE_TOO_LARGE status report before closing (spec §4.15.2.3)
                 this.#workers.add(this.close());
                 return;

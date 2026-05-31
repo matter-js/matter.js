@@ -172,7 +172,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 );
             } catch (error) {
                 NoAddressAvailableError.accept(error);
-                logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required by Matter.`);
+                logger.warn(`IPv6 UDP interface not created because IPv6 is not available, but required by Matter.`);
                 throw error;
             }
 

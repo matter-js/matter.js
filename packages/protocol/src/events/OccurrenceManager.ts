@@ -395,7 +395,7 @@ export class OccurrenceManager {
         if (asyncDrops.length) {
             return MatterAggregateError.allSettled(asyncDrops, "Error dropping occurrences")
                 .then(() => {})
-                .catch(error => logger.error(error));
+                .catch(error => logger.warn("Error dropping occurrences:", error));
         }
     }
 }

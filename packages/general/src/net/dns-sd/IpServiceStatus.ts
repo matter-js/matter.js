@@ -138,7 +138,7 @@ export class IpServiceStatus {
                 if (!this.#connecting.size) {
                     this.#connectionInitiatedAt = undefined;
                 }
-                logger.error(this.#service.via, "Connection error:", asError(error));
+                logger.warn(this.#service.via, "Connection error:", asError(error));
                 this.isReachable = false;
             },
         );
