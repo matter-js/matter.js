@@ -46,7 +46,9 @@ describe("ReadScope", () => {
             }),
         );
 
-        // A concrete-attribute path is registered for neither relevance nor wildcard scope
+        // Intentional: a concrete-attribute read is out of scope so the client neither injects a cluster-level
+        // data-version filter (which could suppress the explicitly requested attribute) nor treats the cluster as
+        // fully read for version-tracking purposes.
         expect(scope.isRelevant(EndpointNumber(1), ClusterId(6))).equal(false);
         expect(scope.isWildcard(EndpointNumber(1), ClusterId(6))).equal(false);
     });

@@ -37,6 +37,35 @@ describe("FormattedText", () => {
         });
     });
 
+    describe("lists and quotes", () => {
+        it("indents bullet list items", () => {
+            expect(FormattedText("- one\n- two", 80)).deep.equal(["  - one", "", "  - two"]);
+        });
+
+        it("indents nested bullets deeper than their parent", () => {
+            expect(FormattedText("- a\n  - b\n- c", 80)).deep.equal(["  - a", "", "    - b", "", "  - c"]);
+        });
+
+        it("hangs wrapped list item continuations under the text", () => {
+            expect(FormattedText("intro\n- item one is quite long enough to wrap nicely here\n- two", 30)).deep.equal([
+                "intro",
+                "",
+                "  - item one is quite long ",
+                "    enough to wrap nicely here",
+                "",
+                "  - two",
+            ]);
+        });
+
+        it("preserves quote markers without extra indent", () => {
+            expect(FormattedText("> quoted line\n> second", 80)).deep.equal(["> quoted line", "", "> second"]);
+        });
+
+        it("indents numbered list items", () => {
+            expect(FormattedText("1. first\n2. second", 80)).deep.equal(["  1. first", "", "  2. second"]);
+        });
+    });
+
     describe("looksLikeListItem", () => {
         it("detects bullet and enumerated items", () => {
             expect(looksLikeListItem("- item")).equal(true);
