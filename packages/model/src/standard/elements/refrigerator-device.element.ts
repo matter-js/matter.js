@@ -13,7 +13,7 @@ export const RefrigeratorDt = DeviceType(
     { name: "Refrigerator", id: 0x70, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 112, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 112, revision: 3 } ], element: "attribute" })
     ),
     Requirement({ name: "Cooler", type: "TemperatureControlledCabinet.Cooler", conformance: "M", element: "condition" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
@@ -28,6 +28,7 @@ export const RefrigeratorDt = DeviceType(
     ),
 
     Requirement({ name: "RefrigeratorAlarm", id: 0x57, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "[Rev > v2]", element: "serverCluster" }),
     Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType" })
 );
 

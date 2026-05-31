@@ -23,13 +23,18 @@ export const SoftwareDiagnostics = Cluster(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "WTRMRK", constraint: "0", title: "Watermarks" })
     ),
+
     Attribute(
-        { name: "ThreadMetrics", id: 0x0, type: "list", access: "R V", conformance: "O", constraint: "max 64" },
+        {
+            name: "ThreadMetrics", id: 0x0, type: "list", access: "R V", conformance: "O", constraint: "max 64",
+            quality: "C"
+        },
         Field({ name: "entry", type: "ThreadMetricsStruct" })
     ),
-    Attribute({ name: "CurrentHeapFree", id: 0x1, type: "uint64", access: "R V", conformance: "O" }),
-    Attribute({ name: "CurrentHeapUsed", id: 0x2, type: "uint64", access: "R V", conformance: "O" }),
-    Attribute({ name: "CurrentHeapHighWatermark", id: 0x3, type: "uint64", access: "R V", conformance: "WTRMRK" }),
+
+    Attribute({ name: "CurrentHeapFree", id: 0x1, type: "uint64", access: "R V", conformance: "O", quality: "C" }),
+    Attribute({ name: "CurrentHeapUsed", id: 0x2, type: "uint64", access: "R V", conformance: "O", quality: "C" }),
+    Attribute({ name: "CurrentHeapHighWatermark", id: 0x3, type: "uint64", access: "R V", conformance: "WTRMRK", quality: "C" }),
 
     Event(
         { name: "SoftwareFault", id: 0x0, access: "V", conformance: "O", priority: "info" },

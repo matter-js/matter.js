@@ -18,7 +18,7 @@ import {
 
 export const SmokeCoAlarm = Cluster(
     { name: "SmokeCoAlarm", id: 0x5c, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "SMOKE", conformance: "O.a+", constraint: "0", title: "SmokeAlarm" }),
@@ -43,6 +43,7 @@ export const SmokeCoAlarm = Cluster(
     ),
     Attribute({ name: "SmokeSensitivityLevel", id: 0xb, type: "SensitivityEnum", access: "RW VM", conformance: "[SMOKE]" }),
     Attribute({ name: "ExpiryDate", id: 0xc, type: "epoch-s", access: "R V", conformance: "O", quality: "F" }),
+    Attribute({ name: "Unmounted", id: 0xd, type: "bool", access: "R V", conformance: "[Rev >= v2]", default: false }),
     Event(
         { name: "SmokeAlarm", id: 0x0, access: "V", conformance: "SMOKE", priority: "critical" },
         Field({ name: "AlarmSeverityLevel", id: 0x0, type: "AlarmStateEnum", conformance: "M" })
@@ -95,7 +96,8 @@ export const SmokeCoAlarm = Cluster(
         Field({ name: "HardwareFault", id: 0x5, conformance: "M" }),
         Field({ name: "EndOfService", id: 0x6, conformance: "M" }),
         Field({ name: "InterconnectSmoke", id: 0x7, conformance: "O" }),
-        Field({ name: "InterconnectCo", id: 0x8, conformance: "O" })
+        Field({ name: "InterconnectCo", id: 0x8, conformance: "O" }),
+        Field({ name: "Inoperative", id: 0x9, conformance: "[Rev >= v2]" })
     ),
 
     Datatype(

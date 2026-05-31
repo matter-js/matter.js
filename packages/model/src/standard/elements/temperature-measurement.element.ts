@@ -11,20 +11,23 @@ import { ClusterElement as Cluster, AttributeElement as Attribute } from "../../
 
 export const TemperatureMeasurement = Cluster(
     { name: "TemperatureMeasurement", id: 0x402, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "temperature", access: "R V", conformance: "M",
         constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "MinMeasuredValue", id: 0x1, type: "temperature", access: "R V", conformance: "M",
-        constraint: "-27315 to maxMeasuredValue - 1", default: -27315, quality: "X"
+        constraint: "-27315 to maxMeasuredValue - 1", default: -27315, quality: "X F"
     }),
     Attribute({
         name: "MaxMeasuredValue", id: 0x2, type: "temperature", access: "R V", conformance: "M",
-        constraint: "minMeasuredValue + 1 to 32767", default: 32767, quality: "X"
+        constraint: "minMeasuredValue + 1 to 32767", default: 32767, quality: "X F"
     }),
-    Attribute({ name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048", default: 0 })
+    Attribute({
+        name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
+        default: 0, quality: "F"
+    })
 );
 
 MatterDefinition.children.push(TemperatureMeasurement);

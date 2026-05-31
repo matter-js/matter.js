@@ -17,7 +17,7 @@ import {
 
 export const CameraAvStreamManagement = Cluster(
     { name: "CameraAvStreamManagement", id: 0x551, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -166,6 +166,11 @@ export const CameraAvStreamManagement = Cluster(
         name: "StatusLightBrightness", id: 0x28, type: "ThreeLevelAutoEnum", access: "RW M",
         conformance: "O", quality: "N"
     }),
+    Attribute({
+        name: "ImageRotationDiscreteAngles", id: 0x29, type: "uint16", access: "RW M",
+        conformance: "P, [Rev >= v2 & ICTL & !ImageRotation].b+", constraint: "0, 90, 180, 270", default: 0,
+        quality: "N"
+    }),
 
     Command(
         {
@@ -265,8 +270,8 @@ export const CameraAvStreamManagement = Cluster(
             direction: "request", response: "status"
         },
         Field({ name: "SnapshotStreamId", id: 0x0, type: "SnapshotStreamID", conformance: "M" }),
-        Field({ name: "WatermarkEnabled", id: 0x1, type: "bool", conformance: "[WMARK].d+" }),
-        Field({ name: "OsdEnabled", id: 0x2, type: "bool", conformance: "[OSD].d+" })
+        Field({ name: "WatermarkEnabled", id: 0x1, type: "bool", conformance: "[WMARK].c+" }),
+        Field({ name: "OsdEnabled", id: 0x2, type: "bool", conformance: "[OSD].c+" })
     ),
 
     Command(

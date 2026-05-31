@@ -26,39 +26,35 @@ Resource.add({
                     "metadata is supported on a per session basis." +
                     "\n" +
                     "This feature is designed to be JSEP compliant with the RTCDataChannel object interface and consists " +
-                    "of AVMetadataStruct content." +
-                    "\n" +
-                    "If SFrame End-to-End Encryption is active in a session, all metadata transmissions shall be sent " +
-                    "using the protocol name urn:csa:matter:sframe:av-metadata instead with each transmission being " +
-                    "wrapped in SFrames."
+                    "of AVMetadataStruct content."
             }]
         },
 
         {
-            tag: "attribute", name: "CurrentSessions", xref: "cluster§11.5.6.1",
+            tag: "attribute", name: "CurrentSessions", xref: "cluster§11.5.5.1",
             details: "This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC " +
                 "Sessions."
         },
 
         {
-            tag: "command", name: "SolicitOffer", xref: "cluster§11.5.7.1",
+            tag: "command", name: "SolicitOffer", xref: "cluster§11.5.6.1",
             details: "Requests that the Provider initiates a new session with the Offer / Answer flow in a way that allows " +
                 "for options to be passed and work with devices needing the standby flow.",
 
             children: [
                 {
-                    tag: "field", name: "StreamUsage", xref: "cluster§11.5.7.1.1",
+                    tag: "field", name: "StreamUsage", xref: "cluster§11.5.6.1.1",
                     details: "This field shall contain the StreamUsageEnum that indicates the stream usage for this session and is " +
                         "used per Resource Management and Stream Priorities."
                 },
                 {
-                    tag: "field", name: "OriginatingEndpointId", xref: "cluster§11.5.7.1.2",
+                    tag: "field", name: "OriginatingEndpointId", xref: "cluster§11.5.6.1.2",
                     details: "This field shall indicate the endpoint that originates this command. This endpoint shall be used " +
                         "when acting as a client to invoke the commands on the Requestor cluster."
                 },
 
                 {
-                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.1.4",
+                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.6.1.4",
 
                     details: "This field is deprecated and the VideoStreams field used instead." +
                         "\n" +
@@ -74,7 +70,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.1.3",
+                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.6.1.3",
 
                     details: "This field is deprecated and the AudioStreams field used instead." +
                         "\n" +
@@ -90,13 +86,13 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "IceServers", xref: "cluster§11.5.7.1.5",
+                    tag: "field", name: "IceServers", xref: "cluster§11.5.6.1.5",
                     details: "This field shall be a list of ICEServerStruct which contains the ICE servers and their credentials " +
                         "to use for this session. See ICEServerStruct for further details."
                 },
 
                 {
-                    tag: "field", name: "IceTransportPolicy", xref: "cluster§11.5.7.1.6",
+                    tag: "field", name: "IceTransportPolicy", xref: "cluster§11.5.6.1.6",
 
                     details: "This field shall contain a string which dictates the gathering and usage of ICE candidates. " +
                         "Specifically whether all candidates are used or if restrictions are applied to only use TURN server " +
@@ -107,21 +103,16 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "MetadataEnabled", xref: "cluster§11.5.7.1.7",
+                    tag: "field", name: "MetadataEnabled", xref: "cluster§11.5.6.1.7",
                     details: "This field indicates if metadata transmission shall be active in this session."
                 },
                 {
-                    tag: "field", name: "SFrameConfig", xref: "cluster§11.5.7.1.8",
-                    details: "This field if present indicates that SFrame End-to-End Encryption shall be active in this session " +
-                        "using the configuration provided."
-                },
-                {
-                    tag: "field", name: "VideoStreams", xref: "cluster§11.5.7.1.9",
+                    tag: "field", name: "VideoStreams", xref: "cluster§11.5.6.1.8",
                     details: "This field shall be the list of requested VideoStreamID for this session. Valid values are found in " +
                         "the AllocatedVideoStreams attribute."
                 },
                 {
-                    tag: "field", name: "AudioStreams", xref: "cluster§11.5.7.1.10",
+                    tag: "field", name: "AudioStreams", xref: "cluster§11.5.6.1.9",
                     details: "This field shall be a list of requested AudioStreamID for this session. Valid values are found in " +
                         "the AllocatedAudioStreams attribute."
                 }
@@ -129,7 +120,7 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "SolicitOfferResponse", xref: "cluster§11.5.7.2",
+            tag: "command", name: "SolicitOfferResponse", xref: "cluster§11.5.6.2",
 
             details: "This command shall be generated in response to a SolicitOffer command." +
                 "\n" +
@@ -146,12 +137,12 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.2.1",
+                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.6.2.1",
                     details: "This field shall contain the ID of the established WebRTC session."
                 },
 
                 {
-                    tag: "field", name: "DeferredOffer", xref: "cluster§11.5.7.2.2",
+                    tag: "field", name: "DeferredOffer", xref: "cluster§11.5.6.2.2",
 
                     details: "This field shall indicates the delayed processing hint of the provider." +
                         "\n" +
@@ -166,14 +157,14 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.2.3",
+                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.6.2.3",
                     details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
                         "the VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the " +
                         "session if known or null if unknown at this time."
                 },
 
                 {
-                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.2.4",
+                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.6.2.4",
                     details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
                         "the AudioStreamID field in the request. When included, it shall contain a AudioStreamID used for the " +
                         "session if known or null if unknown at this time."
@@ -182,34 +173,34 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "ProvideOffer", xref: "cluster§11.5.7.3",
+            tag: "command", name: "ProvideOffer", xref: "cluster§11.5.6.3",
             details: "This command allows an SDP Offer to be set and start a new session. This command can also be used in " +
                 "the re-offer flow of an existing session to change the details of the SDP (e.g. to enable/disable " +
                 "two-way talk).",
 
             children: [
                 {
-                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.3.1",
+                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.6.3.1",
                     details: "This field shall be a WebRTCSessionID and contain the ID of an established WebRTC session or null if " +
                         "requesting a new session."
                 },
                 {
-                    tag: "field", name: "Sdp", xref: "cluster§11.5.7.3.2",
+                    tag: "field", name: "Sdp", xref: "cluster§11.5.6.3.2",
                     details: "This field shall contain the string based SDP Offer. See WebRTC Transport for further details on SDP " +
                         "and Offer/Answer semantics."
                 },
                 {
-                    tag: "field", name: "StreamUsage", xref: "cluster§11.5.7.3.3",
+                    tag: "field", name: "StreamUsage", xref: "cluster§11.5.6.3.3",
                     details: "This field shall contain the StreamUsageEnum that indicates the stream usage for this session."
                 },
                 {
-                    tag: "field", name: "OriginatingEndpointId", xref: "cluster§11.5.7.3.4",
+                    tag: "field", name: "OriginatingEndpointId", xref: "cluster§11.5.6.3.4",
                     details: "This field shall indicate the endpoint that originates this command. This endpoint shall be used " +
                         "when acting as a client to invoke the commands on the Requestor cluster."
                 },
 
                 {
-                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.3.5",
+                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.6.3.5",
 
                     details: "This field is deprecated and the VideoStreams field used instead." +
                         "\n" +
@@ -225,7 +216,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.3.6",
+                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.6.3.6",
 
                     details: "This field is deprecated and the AudioStreams field used instead." +
                         "\n" +
@@ -241,31 +232,26 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "IceServers", xref: "cluster§11.5.7.3.7",
+                    tag: "field", name: "IceServers", xref: "cluster§11.5.6.3.7",
                     details: "This field shall be a list of ICEServerStruct which contains the ICE servers and their credentials " +
                         "to use for this session. See ICEServerStruct for further details."
                 },
                 {
-                    tag: "field", name: "IceTransportPolicy", xref: "cluster§11.5.7.3.8",
+                    tag: "field", name: "IceTransportPolicy", xref: "cluster§11.5.6.3.8",
                     details: "This field controls the gathering and usage of ICE candidates and shall have one of the values found " +
                         "in ICETransportPolicy."
                 },
                 {
-                    tag: "field", name: "MetadataEnabled", xref: "cluster§11.5.7.3.9",
+                    tag: "field", name: "MetadataEnabled", xref: "cluster§11.5.6.3.9",
                     details: "This field indicates if metadata transmission shall be active in this session."
                 },
                 {
-                    tag: "field", name: "SFrameConfig", xref: "cluster§11.5.7.3.10",
-                    details: "This field if present indicates that SFrame End-to-End Encryption shall be active in this session " +
-                        "using the configuration provided."
-                },
-                {
-                    tag: "field", name: "VideoStreams", xref: "cluster§11.5.7.3.11",
+                    tag: "field", name: "VideoStreams", xref: "cluster§11.5.6.3.10",
                     details: "This field shall be the list of requested VideoStreamID for this session. Valid values are found in " +
                         "the AllocatedVideoStreams attribute."
                 },
                 {
-                    tag: "field", name: "AudioStreams", xref: "cluster§11.5.7.3.12",
+                    tag: "field", name: "AudioStreams", xref: "cluster§11.5.6.3.11",
                     details: "This field shall be a list of requested AudioStreamID for this session. Valid values are found in " +
                         "the AllocatedAudioStreams attribute."
                 }
@@ -273,7 +259,7 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "ProvideOfferResponse", xref: "cluster§11.5.7.4",
+            tag: "command", name: "ProvideOfferResponse", xref: "cluster§11.5.6.4",
 
             details: "This command contains information about the session and streams created as a response to the " +
                 "requestor's offer." +
@@ -285,19 +271,19 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.4.1",
+                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.6.4.1",
                     details: "This field shall contain the WebRTCSessionID of the established WebRTC session."
                 },
 
                 {
-                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.4.2",
+                    tag: "field", name: "VideoStreamId", xref: "cluster§11.5.6.4.2",
                     details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
                         "the VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the " +
                         "session if known or null if unknown at this time."
                 },
 
                 {
-                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.4.3",
+                    tag: "field", name: "AudioStreamId", xref: "cluster§11.5.6.4.3",
                     details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
                         "the AudioStreamID field in the request. When included, shall contain a AudioStreamID used for the " +
                         "session if known or null if unknown at this time."
@@ -306,7 +292,7 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "ProvideAnswer", xref: "cluster§11.5.7.5",
+            tag: "command", name: "ProvideAnswer", xref: "cluster§11.5.6.5",
 
             details: "This command shall be initiated from a Node in response to an Offer that was previously received " +
                 "from a remote peer. It shall have the following data fields:" +
@@ -318,11 +304,11 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.5.1",
+                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.6.5.1",
                     details: "This field shall contain the WebRTCSessionID of the established WebRTC session."
                 },
                 {
-                    tag: "field", name: "Sdp", xref: "cluster§11.5.7.5.2",
+                    tag: "field", name: "Sdp", xref: "cluster§11.5.6.5.2",
                     details: "This field shall contain the string based SDP Answer. See WebRTC Transport for further details on " +
                         "SDP and Offer/Answer semantics."
                 }
@@ -330,7 +316,7 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "ProvideIceCandidates", xref: "cluster§11.5.7.6",
+            tag: "command", name: "ProvideIceCandidates", xref: "cluster§11.5.6.6",
 
             details: "This command allows for string based ICE candidates generated after the initial Offer / Answer " +
                 "exchange, via a JSEP onicecandidate event, a DOM rtcpeerconnectioniceevent event, or other WebRTC " +
@@ -344,52 +330,28 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.6.1",
+                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.6.6.1",
                     details: "This field shall contain the WebRTCSessionID of the established WebRTC session."
                 },
                 {
-                    tag: "field", name: "IceCandidates", xref: "cluster§11.5.7.6.2",
+                    tag: "field", name: "IceCandidates", xref: "cluster§11.5.6.6.2",
                     details: "This field shall contain a list of JSEP compliant ICE Candidate Format objects."
                 }
             ]
         },
 
         {
-            tag: "command", name: "EndSession", xref: "cluster§11.5.7.7",
+            tag: "command", name: "EndSession", xref: "cluster§11.5.6.7",
             details: "This command instructs the stream provider to end the WebRTC session.",
 
             children: [
                 {
-                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.7.1",
+                    tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.6.7.1",
                     details: "This field shall contain the WebRTCSessionID of the established WebRTC session."
                 },
                 {
-                    tag: "field", name: "Reason", xref: "cluster§11.5.7.7.2",
+                    tag: "field", name: "Reason", xref: "cluster§11.5.6.7.2",
                     details: "This field shall be one of the values in WebRTCEndReasonEnum."
-                }
-            ]
-        },
-
-        {
-            tag: "datatype", name: "SFrameStruct", xref: "cluster§11.5.5.1",
-            details: "This type shall specify the RFC 9605 data needed to use SFrames as an end-to-end encryption " +
-                "mechanism with WebRTC.",
-
-            children: [
-                {
-                    tag: "field", name: "CipherSuite", xref: "cluster§11.5.5.1.1",
-                    details: "This field shall specify the SFrame cipher suite value as defined in RFC 9605 Section 8.1 Cipher " +
-                        "Suites table, and maintained in the IANA SFrame Registry."
-                },
-                {
-                    tag: "field", name: "BaseKey", xref: "cluster§11.5.5.1.2",
-                    details: "This field shall specify the SFrame base_key value to use for a session. The length of this key " +
-                        "depends on the selected cipher suite's Nk value as defined in Section 4.5 Cipher Suites."
-                },
-                {
-                    tag: "field", name: "Kid", xref: "cluster§11.5.5.1.3",
-                    details: "This field shall specify the initial SFrame KID (Key Id) value to be used. The bottom 8 bits of this " +
-                        "value will be overwritten and used for ratchet step tracking."
                 }
             ]
         }

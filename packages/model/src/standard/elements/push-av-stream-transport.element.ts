@@ -192,11 +192,9 @@ export const PushAvStreamTransport = Cluster(
         { name: "CMAFContainerOptionsStruct", type: "struct" },
         Field({ name: "CmafInterface", id: 0x0, type: "CMAFInterfaceEnum", conformance: "M" }),
         Field({ name: "SegmentDuration", id: 0x1, type: "uint16", conformance: "M", constraint: "500 to 65500" }),
-        Field({ name: "ChunkDuration", id: 0x2, type: "uint16", conformance: "M", constraint: "0 to segmentDuration / 2" }),
+        Field({ name: "ChunkDuration", id: 0x2, type: "uint16", conformance: "M", constraint: "max segmentDuration / 2" }),
         Field({ name: "SessionGroup", id: 0x3, type: "uint8", conformance: "O, D" }),
         Field({ name: "TrackName", id: 0x4, type: "string", conformance: "O, D", constraint: "1 to 16" }),
-        Field({ name: "CencKey", id: 0x5, type: "octstr", conformance: "P, O", constraint: "16" }),
-        Field({ name: "CencKeyId", id: 0x6, type: "octstr", conformance: "P, CENCKey", constraint: "16" }),
         Field({ name: "MetadataEnabled", id: 0x7, type: "bool", conformance: "[METADATA]" })
     ),
 

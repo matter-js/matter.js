@@ -9,18 +9,13 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "JointFabricAdministrator", pics: "JFPKI", xref: "core§11.25",
-
+    tag: "cluster", name: "JointFabricAdministrator", pics: "JFADMIN", xref: "core§11.25",
     details: "An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator " +
-        "nodes fulfilling the role of Anchor CA." +
-        "\n" +
-        "> [!NOTE]" +
-        "\n" +
-        "> NOTE: Support for Joint Fabric Administrator Cluster is provisional.",
+        "nodes fulfilling the role of Anchor CA.",
 
     children: [
         {
-            tag: "attribute", name: "AdministratorFabricIndex", xref: "core§11.25.6.1",
+            tag: "attribute", name: "AdministratorFabricIndex", xref: "core§11.25.5.1",
             details: "The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0's " +
                 "Operational Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the " +
                 "JointFabric. This field shall have the value of null if there is no fabric associated with the " +
@@ -28,25 +23,25 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "IcaccsrRequest", xref: "core§11.25.7.1",
+            tag: "command", name: "IcaccsrRequest", xref: "core§11.25.6.1",
             details: "This command shall be generated during Joint Commissioning Method and subsequently be responded in " +
                 "the form of an ICACCSRResponse command."
         },
 
         {
-            tag: "command", name: "IcaccsrResponse", xref: "core§11.25.7.2",
+            tag: "command", name: "IcaccsrResponse", xref: "core§11.25.6.2",
             details: "This command shall be generated in response to a ICACCSRRequest command." +
                 "\n" +
                 "Check ICAC Cross Signing for details about the generation of the ICACCSR.",
             children: [{
-                tag: "field", name: "Icaccsr", xref: "core§11.25.7.2.1",
+                tag: "field", name: "Icaccsr", xref: "core§11.25.6.2.1",
                 details: "This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing " +
                     "Request (CSR)."
             }]
         },
 
         {
-            tag: "command", name: "AddIcac", xref: "core§11.25.7.3",
+            tag: "command", name: "AddIcac", xref: "core§11.25.6.3",
 
             details: "This command shall be generated and executed during Joint Commissioning Method and subsequently be " +
                 "responded in the form of an ICACResponse command." +
@@ -61,23 +56,23 @@ Resource.add({
                 "Check ICA Cross Signing for details about the generation of ICACValue.",
 
             children: [{
-                tag: "field", name: "IcacValue", xref: "core§11.25.7.3.1",
+                tag: "field", name: "IcacValue", xref: "core§11.25.6.3.1",
                 details: "This field shall contain an ICAC encoded using Matter Certificate Encoding."
             }]
         },
 
         {
-            tag: "command", name: "IcacResponse", xref: "core§11.25.7.4",
+            tag: "command", name: "IcacResponse", xref: "core§11.25.6.4",
             details: "This command shall be generated in response to the AddICAC command.",
             children: [{
-                tag: "field", name: "StatusCode", xref: "core§11.25.7.4.1",
+                tag: "field", name: "StatusCode", xref: "core§11.25.6.4.1",
                 details: "This field shall contain an ICACResponseStatusEnum value representing the status of the AddICAC " +
                     "operation."
             }]
         },
 
         {
-            tag: "command", name: "OpenJointCommissioningWindow", xref: "core§11.25.7.5",
+            tag: "command", name: "OpenJointCommissioningWindow", xref: "core§11.25.6.5",
 
             details: "> [!NOTE]" +
                 "\n" +
@@ -92,22 +87,22 @@ Resource.add({
         },
 
         {
-            tag: "command", name: "TransferAnchorRequest", xref: "core§11.25.7.6",
+            tag: "command", name: "TransferAnchorRequest", xref: "core§11.25.6.6",
             details: "This command shall be sent by a candidate Joint Fabric Anchor Administrator to the current Joint " +
                 "Fabric Anchor Administrator to request transfer of the Anchor Fabric."
         },
         {
-            tag: "command", name: "TransferAnchorResponse", xref: "core§11.25.7.7",
+            tag: "command", name: "TransferAnchorResponse", xref: "core§11.25.6.7",
             details: "This command shall be generated in response to the Transfer Anchor Request command."
         },
         {
-            tag: "command", name: "TransferAnchorComplete", xref: "core§11.25.7.8",
+            tag: "command", name: "TransferAnchorComplete", xref: "core§11.25.6.8",
             details: "This command shall indicate the completion of the transfer of the Anchor Fabric to another Joint " +
                 "Fabric Ecosystem Administrator."
         },
 
         {
-            tag: "command", name: "AnnounceJointFabricAdministrator", xref: "core§11.25.7.9",
+            tag: "command", name: "AnnounceJointFabricAdministrator", xref: "core§11.25.6.9",
             details: "This command shall be used for communicating to client the endpoint that holds the Joint Fabric " +
                 "Administrator Cluster." +
                 "\n" +
@@ -148,9 +143,10 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "StatusCodeEnum", xref: "core§11.25.5.1",
+            tag: "datatype", name: "ICACCSRResponseStatusCodeEnum", xref: "core§11.25.4.3",
 
             children: [
+                { tag: "field", name: "Ok", description: "No error" },
                 {
                     tag: "field", name: "Busy",
                     description: "Could not be completed because another commissioning is in progress"
@@ -159,7 +155,10 @@ Resource.add({
                     tag: "field", name: "PakeParameterError",
                     description: "Provided PAKE parameters were incorrectly formatted or otherwise invalid"
                 },
-                { tag: "field", name: "WindowNotOpen", description: "No commissioning window was currently open" },
+                {
+                    tag: "field", name: "WindowNotOpen",
+                    description: "The Joint Commissioning Method commissioning window is not currently open"
+                },
                 {
                     tag: "field", name: "VidNotVerified",
                     description: "ICACCSRRequest command has been invoked by a peer against which Fabric Table VID Verification hasn't been executed"

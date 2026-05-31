@@ -17,7 +17,7 @@ import {
 
 export const BridgedDeviceBasicInformation = Cluster(
     { name: "BridgedDeviceBasicInformation", id: 0x39, type: "BasicInformation", classification: "endpoint" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "BIS", conformance: "[Rev >= v4]", constraint: "20", title: "BridgedIcdSupport" })

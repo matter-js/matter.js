@@ -49,10 +49,14 @@ Resource.add({
 
         {
             tag: "attribute", name: "BatteryAlert", xref: "cluster§2.11.6.4",
+
             details: "Indicates whether the power resource fault detection mechanism is currently triggered at the device. " +
                 "If the detection mechanism is triggered, this attribute shall be set to Warning or Critical, " +
                 "otherwise it shall be set to Normal. The battery state shall also be reflected in the Power Source " +
-                "cluster representing the device's battery using the appropriate supported attributes and events."
+                "cluster representing the device's battery using the appropriate supported attributes and events." +
+                "\n" +
+                "If the sensor cannot operate in the set state, the ExpressedState attribute shall be set to " +
+                "Inoperative."
         },
 
         {
@@ -65,11 +69,16 @@ Resource.add({
             details: "Indicates whether the device self-test is currently activated. If the device self-test is activated, " +
                 "this attribute shall be set to True, otherwise it shall be set to False."
         },
+
         {
             tag: "attribute", name: "HardwareFaultAlert", xref: "cluster§2.11.6.7",
             details: "Indicates whether the hardware fault detection mechanism is currently triggered. If the detection " +
-                "mechanism is triggered, this attribute shall be set to True, otherwise it shall be set to False."
+                "mechanism is triggered, this attribute shall be set to True, otherwise it shall be set to False." +
+                "\n" +
+                "When this attribute is set to True, and the sensor cannot operate in this state, the ExpressedState " +
+                "attribute shall be set to Inoperative."
         },
+
         {
             tag: "attribute", name: "EndOfServiceAlert", xref: "cluster§2.11.6.8",
             details: "Indicates whether the end-of-service has been triggered at the device. This attribute shall be set " +
@@ -107,6 +116,8 @@ Resource.add({
                 "ExpiryDate. Similarly, clients may delay any actions based on the ExpiryDate by up to 24 hours to " +
                 "best align with the local time zone."
         },
+
+        { tag: "attribute", name: "Unmounted", xref: "cluster§2.11.6" },
 
         {
             tag: "event", name: "SmokeAlarm", xref: "cluster§2.11.8.1",
@@ -299,6 +310,20 @@ Resource.add({
                         "caused by Interconnect. This value shall indicate that the alarm is currently expressing audible " +
                         "indication of CO Alarm caused by Interconnect unless the DeviceMuted attribute is supported and set " +
                         "to Muted."
+                },
+
+                {
+                    tag: "field", name: "Inoperative", description: "Hardware is not able to detect Smoke or CO",
+                    xref: "cluster§2.11.5.3.10",
+
+                    details: "This value shall indicate that the hardware is currently unable to detect any Smoke or Carbon " +
+                        "Monoxide (CO). The value shall only be set when the inoperability is caused either by" +
+                        "\n" +
+                        "  - the battery is too low (BatteryAlert has the value \"critical\")," +
+                        "\n" +
+                        "  - hardware is defective (HardwareFaultAlert is true) or" +
+                        "\n" +
+                        "  - the device being unmounted or physically disabled (Unmounted is true)."
                 }
             ]
         },

@@ -25,6 +25,7 @@ Resource.add({
         { tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§9.1.4" },
         { tag: "requirement", name: "TemperatureMeasurement", xref: "device§9.1.4" },
         { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§9.1.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§9.1.4" }
+        { tag: "requirement", name: "OccupancySensing", xref: "device§9.1.4" },
+        { tag: "requirement", name: "AmbientContextSensing", xref: "device§9.1.4" }
     ]
 });
