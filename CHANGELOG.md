@@ -33,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
     - Fix: Event reports are now decoded in wire (EventNumber) order
     - Fix: Allows CSRs with an empty subject as per Matter spec
+    - Fix: Corrects BTP handshake decoding of version field
 
 - @matter/types
     - Fix: Remove invalid FabricIndex field from four commands
