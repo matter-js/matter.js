@@ -93,8 +93,8 @@
     "overrides": {
         "brorand": "npm:@matter.js/brorand@1.1.0",
         "mocha": {
-            "diff": "^8.0.3",
-            "serialize-javascript": "^7.0.4"
+            "diff": "^9.0.0",
+            "serialize-javascript": "^7.0.5"
         }
     },
     "dependencies": {
