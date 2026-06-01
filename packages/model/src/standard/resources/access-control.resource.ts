@@ -79,6 +79,14 @@ Resource.add(
                             "\n" +
                             "See Section 6.6.2, \"Access Control Model\" for a description of how access control is impacted by the " +
                             "ARL attribute."
+                    },
+
+                    {
+                        tag: "field", name: "AUX",
+                        details: "This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate " +
+                            "synthesized ACL entries. For example, when this feature is supported, the configuration of groups " +
+                            "via the Groupcast cluster may lead, under some circumstances, to some access being granted " +
+                            "automatically to some subjects by virtue of group membership."
                     }
                 ]
             },
@@ -355,6 +363,17 @@ Resource.add(
                             "sending the event so that the user can make an informed decision about whether to trust the URL."
                     }
                 ]
+            },
+
+            {
+                tag: "event", name: "AuxiliaryAccessUpdated",
+
+                children: [{
+                    tag: "field", name: "AdminNodeId",
+                    details: "The AdminNodeID field SHALL contain the NodeID of the Administrator that caused the action which led " +
+                        "to changes to the AuxiliaryACL. If no information is available, such as when a change is internally " +
+                        "initiated, this field SHALL be null."
+                }]
             },
 
             {
@@ -664,6 +683,21 @@ Resource.add(
                             "scoped to the associated fabric of the list containing the entry." +
                             "\n" +
                             "This list shall NOT be empty."
+                    }
+                ]
+            },
+
+            {
+                tag: "datatype", name: "AccessControlAuxiliaryTypeEnum",
+
+                children: [
+                    {
+                        tag: "field", name: "System",
+                        details: "This ACL entry exists because of some system reason and is likely non-revocable."
+                    },
+                    {
+                        tag: "field", name: "Groupcast",
+                        details: "Synthesized via Groupcast Cluster administrator-configured group membership."
                     }
                 ]
             }

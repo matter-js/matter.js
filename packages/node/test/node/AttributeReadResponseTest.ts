@@ -13,10 +13,10 @@ import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     29: 9,
-    31: 10,
+    31: 11,
     40: 21,
     48: 10,
-    51: 10,
+    51: 11,
     60: 8,
     62: 11,
     63: 9,

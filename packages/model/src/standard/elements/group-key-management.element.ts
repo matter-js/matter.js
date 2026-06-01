@@ -17,10 +17,11 @@ import {
 
 export const GroupKeyManagement = Cluster(
     { name: "GroupKeyManagement", id: 0x3f, classification: "node" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "CS", conformance: "P", constraint: "0", title: "CacheAndSync" })
+        Field({ name: "CS", conformance: "P", constraint: "0", title: "CacheAndSync" }),
+        Field({ name: "GCAST", conformance: "M", constraint: "1", title: "Groupcast" })
     ),
 
     Attribute(

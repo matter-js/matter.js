@@ -144,6 +144,7 @@ export * from "./joint-fabric-administrator-cluster.element.js";
 export * from "./commissioner-control.element.js";
 export * from "./tls-certificate-management.element.js";
 export * from "./tls-client-management.element.js";
+export * from "./groupcast.element.js";
 export * from "./measurement-type-enum.element.js";
 export * from "./measurement-accuracy-range-struct.element.js";
 export * from "./measurement-accuracy-struct.element.js";

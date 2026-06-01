@@ -152,6 +152,7 @@ export const JointFabricAdministrator = new ClusterModel(definitions.JointFabric
 export const CommissionerControl = new ClusterModel(definitions.CommissionerControl);
 export const TlsCertificateManagement = new ClusterModel(definitions.TlsCertificateManagement);
 export const TlsClientManagement = new ClusterModel(definitions.TlsClientManagement);
+export const Groupcast = new ClusterModel(definitions.Groupcast);
 export const MeasurementTypeEnum = new DatatypeModel(definitions.MeasurementTypeEnum);
 export const MeasurementAccuracyRangeStruct = new DatatypeModel(definitions.MeasurementAccuracyRangeStruct);
 export const MeasurementAccuracyStruct = new DatatypeModel(definitions.MeasurementAccuracyStruct);

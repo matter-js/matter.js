@@ -145,6 +145,7 @@ import "./joint-fabric-administrator-cluster.resource.js";
 import "./commissioner-control.resource.js";
 import "./tls-certificate-management.resource.js";
 import "./tls-client-management.resource.js";
+import "./groupcast.resource.js";
 import "./measurement-type-enum.resource.js";
 import "./measurement-accuracy-range-struct.resource.js";
 import "./measurement-accuracy-struct.resource.js";
