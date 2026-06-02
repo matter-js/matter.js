@@ -40,6 +40,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Fix: Remove invalid FabricIndex field from four commands
 
+- @matter/nodejs-shell
+    - Feature: Added `--fabric-filtered` flag (default `true`) to the attribute read commands to control fabric filtering
+
 ## 0.17.0 (2026-05-20)
 
 - Breaking: Matter 1.5/1.5.1 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
