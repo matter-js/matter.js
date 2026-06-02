@@ -25,6 +25,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
   - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
 
+- @matter/nodejs-shell
+    - Feature: Added `--fabric-filtered` flag (default `true`) to the attribute read commands to control fabric filtering
+
 - @matter/protocol
     - Feature: New `TrustedAsTestCertificate` attestation finding lets `onAttestationFailure` decide whether to accept devices whose PAA is only in the trust store as a test certificate; previously these failed with `PaaNotTrusted`. Adds per-call `considerTestCertificates` and a separate `acceptTestCertificates` trust policy on `DclCertificateService`
     - Feature: `OnAttestationFailure` callback may return a `string` (wraps the underlying error as `cause` of a new `CommissioningError`) or throw to propagate verbatim
@@ -39,9 +42,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Fix: Remove invalid FabricIndex field from four commands
-
-- @matter/nodejs-shell
-    - Feature: Added `--fabric-filtered` flag (default `true`) to the attribute read commands to control fabric filtering
 
 ## 0.17.0 (2026-05-20)
 
