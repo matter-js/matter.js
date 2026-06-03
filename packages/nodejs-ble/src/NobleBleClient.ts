@@ -146,9 +146,10 @@ export class NobleBleClient {
             return;
         }
         this.#closing = true;
-        logger.debug("Stopping Noble");
 
         if (this.nobleState === "poweredOn") {
+            logger.debug("Stopping Noble");
+
             // noble.stop() hangs when BLE isn't powered on (https://github.com/stoprocent/noble/issues/30).
             // Only attempt the full stop sequence when BLE is actually available.
             try {
@@ -170,7 +171,7 @@ export class NobleBleClient {
             // Defer listener removal so noble.stop() can finish its internal event roundtrip
             Time.getTimer("noble-cleanup", Instant, () => noble.removeAllListeners()).start();
         } else {
-            logger.debug(`Skipping noble.stop() because state is "${this.nobleState}"`);
+            logger.debug(`Skip stopping noble because state is "${this.nobleState}"`);
 
             // No stop needed — remove listeners immediately to release the event loop
             noble.removeAllListeners();
