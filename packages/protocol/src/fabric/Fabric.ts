@@ -9,6 +9,7 @@ import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
+import { FabricIcd } from "#icd/FabricIcd.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { FabricChangedError, FabricRemovedError } from "#peer/PeerCommunicationError.js";
@@ -73,6 +74,7 @@ export class Fabric {
     readonly #keyPair: Key;
     readonly #sessions = new Set<SecureSession>();
     readonly #groups: FabricGroups;
+    #icd?: FabricIcd;
     readonly #accessControl: FabricAccessControl;
 
     readonly #leaving = AsyncObservable<[]>();
@@ -266,6 +268,18 @@ export class Fabric {
 
     get groups() {
         return this.#groups;
+    }
+
+    get icd() {
+        if (this.#icd === undefined) {
+            this.#icd = new FabricIcd(this.#crypto);
+        }
+        return this.#icd;
+    }
+
+    /** True once ICD state was initialized; lets message processing skip fabrics without ICD use. */
+    get icdActive() {
+        return this.#icd !== undefined;
     }
 
     get accessControl() {

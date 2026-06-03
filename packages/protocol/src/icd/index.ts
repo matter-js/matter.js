@@ -5,3 +5,4 @@
  */
 
 export * from "./CheckInMessage.js";
+export * from "./FabricIcd.js";
