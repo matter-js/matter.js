@@ -44,8 +44,8 @@ export function SessionIntervals(intervals?: Partial<SessionIntervals>): Session
     if (activeInterval > Hours.one) {
         throw new ImplementationError("Session Active Interval must be less than 1 hour");
     }
-    if (activeThreshold > Seconds(65535)) {
-        throw new ImplementationError("Session Active Threshold must be less than 65535 seconds");
+    if (activeThreshold > Millis(65535)) {
+        throw new ImplementationError("Session Active Threshold must not exceed 65535 milliseconds");
     }
 
     return { idleInterval, activeInterval, activeThreshold };

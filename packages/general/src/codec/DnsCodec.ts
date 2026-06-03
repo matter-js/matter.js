@@ -447,6 +447,11 @@ export class DnsCodec {
      */
     static encodeTxtRecord(entries: (Bytes | string)[]) {
         const writer = new DataWriter();
+        if (entries.length === 0) {
+            // RFC 6763 §6.1: a TXT record without information MUST contain a single zero byte rather than zero strings
+            writer.writeUInt8(0);
+            return writer.toByteArray();
+        }
         entries.forEach(entry => {
             let bytes = typeof entry === "string" ? Bytes.fromString(entry) : Bytes.of(entry);
             if (bytes.byteLength > 0xff) {
