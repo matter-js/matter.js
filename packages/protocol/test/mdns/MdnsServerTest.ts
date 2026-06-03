@@ -873,7 +873,7 @@ describe("MdnsServer", () => {
     });
 
     describe("Server splits response into multiple packets when answer gets too big", () => {
-        it("include as many answers as possible and potentially leave additionalRecords out", async () => {
+        it("include as many answers as possible and spill remaining additionalRecords into a follow-up packet", async () => {
             const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
             onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
                 responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
@@ -916,7 +916,9 @@ describe("MdnsServer", () => {
                 INTERFACE_NAME,
             );
 
-            await MockTime.yield3();
+            while (responses.length !== 2) {
+                await MockTime.yield();
+            }
 
             expect(responses).deep.equal([
                 {
@@ -925,6 +927,18 @@ describe("MdnsServer", () => {
                         messageType: DnsMessageType.Response,
                         answers: recordsAnswers,
                         additionalRecords: recordsAdditional.slice(0, 5),
+                        authorities: [],
+                        queries: [],
+                    },
+                    netInterface: INTERFACE_NAME,
+                    uniCastTarget: undefined,
+                },
+                {
+                    message: {
+                        transactionId: 0,
+                        messageType: DnsMessageType.Response,
+                        answers: [],
+                        additionalRecords: recordsAdditional.slice(5),
                         authorities: [],
                         queries: [],
                     },
