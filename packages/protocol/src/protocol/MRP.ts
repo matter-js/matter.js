@@ -128,9 +128,10 @@ export namespace MRP {
     ) {
         const { activeInterval, idleInterval } = sessionParameters;
 
-        // For the first message of a new exchange ... SHALL be set according to the idle state of the peer node.
-        // For all subsequent messages of the exchange, ... SHOULD be set according to the active state of the peer node
-        const peerActive = transmissionNumber > 0 && (!calculateMaximum || isPeerActive);
+        // The first message of an exchange SHALL use the idle interval; subsequent ones SHOULD use the active
+        // interval "unless the sender has other means to determine whether the device is active or idle" —
+        // isPeerActive is that means, so honor it per retransmission like CHIP does (ICD correctness)
+        const peerActive = transmissionNumber > 0 && isPeerActive;
         let baseInterval = peerActive ? activeInterval : idleInterval;
         if (!calculateMaximum) {
             baseInterval += ADDITIONAL_MRP_DELAY;
@@ -152,7 +153,6 @@ export namespace MRP {
 function maxResponseTimeOf(sessionParameters: SessionParameters, isPeerActive: boolean) {
     let finalWaitTime = 0;
 
-    // and then add the time the other side needs for a full resubmission cycle under the assumption we are active
     for (let i = 0; i < MRP.MAX_TRANSMISSIONS; i++) {
         if (isPeerActive && finalWaitTime > sessionParameters.activeThreshold) {
             // If we considered the device active initially but the wait time goes beyond the active threshold,
