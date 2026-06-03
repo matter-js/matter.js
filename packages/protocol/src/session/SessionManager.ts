@@ -368,7 +368,7 @@ export class SessionManager {
 
         let oldestSession: NodeSession | undefined = undefined;
         for (const session of this.#sessions) {
-            if (!oldestSession || session.activeTimestamp < oldestSession.activeTimestamp) {
+            if (!oldestSession || session.timestamp < oldestSession.timestamp) {
                 oldestSession = session;
             }
         }
