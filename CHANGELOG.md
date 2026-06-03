@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.1 (2026-06-03)
 
 - @matter/\*
     - Enhancement: Standardized log levels across all packages against a new logging guideline (see `docs/LOGGING.md`)
