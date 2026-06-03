@@ -177,12 +177,22 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     }
 
     get #txtValues() {
-        const values: Record<string, unknown> = {
-            SII: this.description.idleInterval /* Session Idle Interval */,
-            SAI: this.description.activeInterval /* Session Active Interval */,
-            SAT: this.description.activeThreshold /* Session Active Threshold */,
-            ...this.txtValues,
-        };
+        const { idleInterval, activeInterval, activeThreshold } = this.description;
+
+        const values: Record<string, unknown> = {};
+
+        // Spec §4.3.4: SII/SAI/SAT are optional overrides of the MRP defaults, so omit them when at default
+        if (idleInterval !== SessionIntervals.defaults.idleInterval) {
+            values.SII = idleInterval; /* Session Idle Interval */
+        }
+        if (activeInterval !== SessionIntervals.defaults.activeInterval) {
+            values.SAI = activeInterval; /* Session Active Interval */
+        }
+        if (activeThreshold !== SessionIntervals.defaults.activeThreshold) {
+            values.SAT = activeThreshold; /* Session Active Threshold */
+        }
+
+        Object.assign(values, this.txtValues);
 
         if (this.description.tcp !== undefined) {
             values.T = SupportedTransportsSchema.encode(this.description.tcp); /* TCP support */
