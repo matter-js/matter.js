@@ -15,9 +15,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
 
 - @matter/protocol
+    - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
-    - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
+    - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
 
 ## 0.17.1 (2026-06-03)
 

@@ -108,6 +108,17 @@ describe("MessageCodec", () => {
             });
         });
 
+        it("rejects message extension length exceeding remaining bytes", () => {
+            // Same as ENCODED_WITH_PRIVACY_EXTENSION but extension length field set to 0xffff
+            const malformed = Bytes.of(ENCODED_WITH_PRIVACY_EXTENSION).slice();
+            malformed[16] = 0xff;
+            malformed[17] = 0xff;
+
+            expect(() => MessageCodec.decodePacket(malformed)).throws(
+                /Message extension length \d+ exceeds remaining message size \d+\./,
+            );
+        });
+
         it("decodes message with secured extension", () => {
             const result = MessageCodec.decodePayload(MessageCodec.decodePacket(ENCODED_WITH_SECURED_EXTENSION));
 
@@ -121,6 +132,17 @@ describe("MessageCodec", () => {
             };
 
             expect(result).deep.equal(DECODED_WITH_SECURED_EXTENSION);
+        });
+
+        it("rejects secured extension length exceeding remaining bytes", () => {
+            // Same as ENCODED_WITH_SECURED_EXTENSION but extension length field set to 0xffff
+            const malformed = Bytes.of(ENCODED_WITH_SECURED_EXTENSION).slice();
+            malformed[22] = 0xff;
+            malformed[23] = 0xff;
+
+            expect(() => MessageCodec.decodePayload(MessageCodec.decodePacket(malformed))).throws(
+                /Secured extension length \d+ exceeds remaining message size \d+\./,
+            );
         });
     });
 
