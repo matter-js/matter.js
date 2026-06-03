@@ -5,4 +5,5 @@
  */
 
 export * from "./FabricGroups.js";
+export * from "./Groups.js";
 export * from "./KeySets.js";
