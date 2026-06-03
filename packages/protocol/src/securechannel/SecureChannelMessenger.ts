@@ -148,7 +148,7 @@ export class SecureChannelMessenger {
             GeneralStatusCode.Busy,
             SecureChannelStatusCode.Busy,
             abort,
-            undefined,
+            false,
             writer.toByteArray(),
         );
     }
