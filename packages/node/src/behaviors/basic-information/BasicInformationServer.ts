@@ -67,6 +67,8 @@ export class BasicInformationServer extends Base {
         // CapabilityMinima gained four mandatory fields in Matter 1.6 (cluster rev 6).  The spec defines no fixed
         // defaults for them (they reflect actual node capability), so seed conservative valid minimums while leaving
         // any caller-provided values intact.
+        // TODO add reasonable defaults for us
+        // TODO use these limits in all relevant places also as limits
         const capabilityMinima = this.state.capabilityMinima;
         this.state.capabilityMinima = {
             ...capabilityMinima,
