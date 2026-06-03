@@ -916,7 +916,8 @@ describe("MdnsServer", () => {
                 INTERFACE_NAME,
             );
 
-            while (responses.length !== 2) {
+            // Bounded so a regression fails at the assertion instead of starving the macrotask queue
+            for (let i = 0; responses.length !== 2 && i < 100; i++) {
                 await MockTime.yield();
             }
 
@@ -991,7 +992,8 @@ describe("MdnsServer", () => {
                 INTERFACE_NAME,
             );
 
-            while (responses.length !== 2) {
+            // Bounded so a regression fails at the assertion instead of starving the macrotask queue
+            for (let i = 0; responses.length !== 2 && i < 100; i++) {
                 await MockTime.yield();
             }
 
