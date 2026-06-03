@@ -163,11 +163,13 @@ export namespace ServerAddress {
     /**
      * Network address desirability from a Matter communication perspective.
      *
-     * Lower values indicate higher preference.  This is not a standard "happy eyeballs" ranking but works similarly.
+     * Lower values indicate higher preference.  This is not a standard "happy eyeballs" ranking: link-local is most
+     * likely reachable (same link, immune to prefix changes), and ULA ranks above global because Matter ULAs are
+     * typically Thread mesh addresses routed via the border router while globals may rotate.
      */
     export enum SelectionPreference {
-        IPV6_ULA,
         IPV6_LINK_LOCAL,
+        IPV6_ULA,
         IPV6,
         IPV4,
         NOT_IP = 3,
@@ -184,8 +186,13 @@ export namespace ServerAddress {
             return SelectionPreference.NOT_IP;
         }
 
-        const ip = address.ip;
-        if (ip.startsWith("fd")) {
+        return selectionPreferenceOfIp(address.ip);
+    }
+
+    /** Assumes lowercase `ip` like {@link isIpv6LinkLocal}. */
+    export function selectionPreferenceOfIp(ip: string) {
+        // RFC 4193 ULA is fc00::/7
+        if (ip.startsWith("fd") || ip.startsWith("fc")) {
             return SelectionPreference.IPV6_ULA;
         }
 

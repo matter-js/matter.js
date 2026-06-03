@@ -904,10 +904,10 @@ describe("MDNS announcement overflow", () => {
 
     it("splits oversized announcements into multiple packets with all records in the answer section", async () => {
         // Enough AAAA records to push the announcement past MAX_MDNS_MESSAGE_SIZE
-        const GLOBAL_IPv6 = Array.from({ length: 16 }, (_, i) => `fd54:23a1:c6de:1::${i + 1}`);
+        const ULA_IPv6 = Array.from({ length: 16 }, (_, i) => `fd54:23a1:c6de:1::${i + 1}`);
 
         const simulator = new NetworkSimulator();
-        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [...GLOBAL_IPv6, SERVER_IPv4, SERVER_IPv6]);
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [...ULA_IPv6, SERVER_IPv4, SERVER_IPv6]);
         const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
 
         const serverSocket = await MdnsSocket.create(serverNetwork, { netInterface: "fake0" });
@@ -935,7 +935,7 @@ describe("MDNS announcement overflow", () => {
             const answers = messages.flatMap(m => m.answers);
             if (
                 answers.some(({ recordType }) => recordType === DnsRecordType.A) &&
-                answers.filter(({ recordType }) => recordType === DnsRecordType.AAAA).length === GLOBAL_IPv6.length + 1
+                answers.filter(({ recordType }) => recordType === DnsRecordType.AAAA).length === ULA_IPv6.length + 1
             ) {
                 resolver();
             }
@@ -961,15 +961,11 @@ describe("MDNS announcement overflow", () => {
                 expect(size).lessThanOrEqual(MAX_MDNS_MESSAGE_SIZE);
             }
 
-            // The A record and all AAAA records made it through
-            const aRecords = answers.filter(({ recordType }) => recordType === DnsRecordType.A);
-            expect(aRecords.length).equals(1);
-            expect(aRecords[0].value).equals(SERVER_IPv4);
-
-            const aaaaValues = answers
-                .filter(({ recordType }) => recordType === DnsRecordType.AAAA)
+            // All address records made it through, in SelectionPreference order: link-local, ULA, IPv4
+            const addressValues = answers
+                .filter(({ recordType }) => recordType === DnsRecordType.AAAA || recordType === DnsRecordType.A)
                 .map(({ value }) => value);
-            expect(aaaaValues.sort()).deep.equals([...GLOBAL_IPv6, SERVER_IPv6].sort());
+            expect(addressValues).deep.equals([SERVER_IPv6, ...ULA_IPv6, SERVER_IPv4]);
         } finally {
             await dataListener.close();
             await MockTime.advance(1000);

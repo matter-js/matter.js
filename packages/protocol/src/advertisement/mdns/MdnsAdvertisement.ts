@@ -17,6 +17,7 @@ import {
     Duration,
     Logger,
     NetworkInterfaceDetails,
+    ServerAddress,
     SrvRecord,
     Time,
     Timestamp,
@@ -163,14 +164,17 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
             ),
         ];
 
-        for (const addr of addrs.ipV6) {
-            records.push(AAAARecord(hostname, addr));
+        const ips = [...addrs.ipV6];
+        if (this.advertiser.server.supportsIpv4) {
+            ips.push(...addrs.ipV4);
         }
 
-        if (this.advertiser.server.supportsIpv4) {
-            for (const addr of addrs.ipV4) {
-                records.push(ARecord(hostname, addr));
-            }
+        // Emit address records in SelectionPreference order so peers that truncate or pick naively favor the most
+        // reachable addresses
+        ips.sort((a, b) => ServerAddress.selectionPreferenceOfIp(a) - ServerAddress.selectionPreferenceOfIp(b));
+
+        for (const ip of ips) {
+            records.push(ip.includes(":") ? AAAARecord(hostname, ip) : ARecord(hostname, ip));
         }
 
         return records;
