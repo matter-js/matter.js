@@ -192,14 +192,11 @@ export class MdnsServer {
     }
 
     async #announceRecordsForInterface(netInterface: string, records: DnsRecord<any>[]) {
-        const answers = records.filter(({ recordType }) => recordType === DnsRecordType.PTR);
-        const additionalRecords = records.filter(({ recordType }) => recordType !== DnsRecordType.PTR);
-
+        // RFC 6762 §8.3: announcements carry all records in the answer section
         await this.#socket.send(
             {
                 messageType: DnsMessageType.Response,
-                answers,
-                additionalRecords,
+                answers: records,
             },
             netInterface,
         );

@@ -62,6 +62,28 @@ describe("ServerAddress", () => {
             );
         });
 
+        it("prefers link-local over ULA over global over IPv4", () => {
+            const { SelectionPreference } = ServerAddress;
+            expect(SelectionPreference.IPV6_LINK_LOCAL).lessThan(SelectionPreference.IPV6_ULA);
+            expect(SelectionPreference.IPV6_ULA).lessThan(SelectionPreference.IPV6);
+            expect(SelectionPreference.IPV6).lessThan(SelectionPreference.IPV4);
+        });
+
+        it("classifies the fc00::/8 half of ULA space", () => {
+            expect(ServerAddress.selectionPreferenceOf(udp("fc29::1"))).to.equal(
+                ServerAddress.SelectionPreference.IPV6_ULA,
+            );
+        });
+
+        it("classifies uppercase addresses", () => {
+            expect(ServerAddress.selectionPreferenceOf(udp("FE80::1"))).to.equal(
+                ServerAddress.SelectionPreference.IPV6_LINK_LOCAL,
+            );
+            expect(ServerAddress.selectionPreferenceOf(udp("FD29::1"))).to.equal(
+                ServerAddress.SelectionPreference.IPV6_ULA,
+            );
+        });
+
         it("does not mistake fec0 (deprecated site-local) for link-local", () => {
             expect(ServerAddress.selectionPreferenceOf(udp("fec0::1"))).to.equal(
                 ServerAddress.SelectionPreference.IPV6,

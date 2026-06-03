@@ -8,12 +8,14 @@ import { Fabric } from "#fabric/Fabric.js";
 import { Advertisement, CommissioningMode, MdnsAdvertiser, MdnsServer, ServiceDescription } from "#index.js";
 import {
     Bytes,
+    createPromise,
     DnsCodec,
     DnsMessage,
     DnsRecordType,
     Duration,
     Instant,
     InternalError,
+    MAX_MDNS_MESSAGE_SIZE,
     MdnsSocket,
     Millis,
     MockCrypto,
@@ -317,9 +319,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             ttl: Seconds(120),
                             value: "0000000000000018-0000000000000001._matter._tcp.local",
                         },
-                    ],
-                    authorities: [],
-                    additionalRecords: [
                         {
                             flushCache: false,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
@@ -338,6 +337,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                         },
                         ...IPDnsRecords,
                     ],
+                    authorities: [],
+                    additionalRecords: [],
                 });
 
                 const expiration = waitForMessage();
@@ -385,9 +386,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             ttl: Instant,
                             value: "0000000000000018-0000000000000001._matter._tcp.local",
                         },
-                    ],
-                    authorities: [],
-                    additionalRecords: [
                         {
                             flushCache: false,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
@@ -406,6 +404,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                         },
                         ...IPDnsRecords.map(record => ({ ...record, ttl: Instant })),
                     ],
+                    authorities: [],
+                    additionalRecords: [],
                 });
             });
 
@@ -415,7 +415,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 advertise(COMMISSIONABLE_SERVICE);
 
                 expectMessage(await announcement, {
-                    additionalRecords: [
+                    additionalRecords: [],
+                    answers: [
                         {
                             flushCache: false,
                             name: "8080808080808080._matterc._udp.local",
@@ -433,8 +434,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: ["VP=1+32768", "DT=1", "DN=Test Device", "D=1234", "CM=1", "PH=33"],
                         },
                         ...IPDnsRecords,
-                    ],
-                    answers: [
                         {
                             flushCache: false,
                             name: "_services._dns-sd._udp.local",
@@ -555,7 +554,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 );
 
                 expectMessage(await announcement, {
-                    additionalRecords: [
+                    additionalRecords: [],
+                    answers: [
                         {
                             flushCache: false,
                             name: "8080808080808080._matterd._udp.local",
@@ -573,8 +573,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: ["VP=1+32768", "DT=1", "DN=Test Commissioner"],
                         },
                         ...IPDnsRecords,
-                    ],
-                    answers: [
                         {
                             flushCache: false,
                             name: "_services._dns-sd._udp.local",
@@ -680,9 +678,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             ttl: Seconds(120),
                             value: "0000000000000018-0000000000000001._matter._tcp.local",
                         },
-                    ],
-                    authorities: [],
-                    additionalRecords: [
                         {
                             flushCache: false,
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
@@ -702,10 +697,13 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                         },
                         ...IPDnsRecords,
                     ],
+                    authorities: [],
+                    additionalRecords: [],
                 });
 
                 expectMessage(message2, {
-                    additionalRecords: [
+                    additionalRecords: [],
+                    answers: [
                         {
                             flushCache: false,
                             name: "8080808080808080._matterc._udp.local",
@@ -723,8 +721,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: ["VP=1+32768", "DT=1", "DN=Test Device", "D=1234", "CM=1", "PH=33"],
                         },
                         ...IPDnsRecords,
-                    ],
-                    answers: [
                         {
                             flushCache: false,
                             name: "_services._dns-sd._udp.local",
@@ -829,7 +825,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 });
 
                 expectMessage(message3, {
-                    additionalRecords: [
+                    additionalRecords: [],
+                    answers: [
                         {
                             flushCache: false,
                             name: "8080808080808080._matterd._udp.local",
@@ -847,8 +844,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             value: ["VP=1+32768", "DT=1", "DN=Test Commissioner"],
                         },
                         ...IPDnsRecords,
-                    ],
-                    answers: [
                         {
                             flushCache: false,
                             name: "_services._dns-sd._udp.local",
@@ -903,6 +898,85 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
     });
 });
 
+describe("MDNS announcement overflow", () => {
+    const crypto = MockCrypto();
+    before(MockTime.enable);
+
+    it("splits oversized announcements into multiple packets with all records in the answer section", async () => {
+        // Enough AAAA records to push the announcement past MAX_MDNS_MESSAGE_SIZE
+        const ULA_IPv6 = Array.from({ length: 16 }, (_, i) => `fd54:23a1:c6de:1::${i + 1}`);
+
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [...ULA_IPv6, SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork, { netInterface: "fake0" });
+        const server = new MdnsServer(serverSocket);
+        const advertiser = new MdnsAdvertiser(crypto, server, { port: PORT });
+
+        const listener = new MockUdpSocket(clientNetwork, {
+            listeningPort: 5353,
+            listeningAddress: CLIENT_IPv4,
+            type: "udp4",
+        });
+        listener.addMembership("224.0.0.251");
+
+        const messages = new Array<DnsMessage>();
+        const packetSizes = new Array<number>();
+        const { promise: received, resolver } = createPromise<void>();
+        const dataListener = listener.onData((_intf, _peer, _port, data) => {
+            const message = DnsCodec.decode(data);
+            if (message === undefined) {
+                throw new InternalError("DNS message decode failure");
+            }
+            messages.push(message);
+            packetSizes.push(data.byteLength);
+
+            const answers = messages.flatMap(m => m.answers);
+            if (
+                answers.some(({ recordType }) => recordType === DnsRecordType.A) &&
+                answers.filter(({ recordType }) => recordType === DnsRecordType.AAAA).length === ULA_IPv6.length + 1
+            ) {
+                resolver();
+            }
+        });
+
+        try {
+            advertiser.advertise({ ...COMMISSIONABLE_SERVICE, port: PORT }, "startup");
+            await MockTime.resolve(received);
+
+            // The full record set exceeds one packet
+            expect(messages.length).greaterThan(1);
+
+            // Everything is delivered in the answer section (RFC 6762 §8.3)
+            for (const message of messages) {
+                expect(message.additionalRecords).deep.equals([]);
+                expect(message.answers.length).greaterThan(0);
+            }
+
+            const answers = messages.flatMap(m => m.answers);
+
+            // No packet exceeds the size limit
+            for (const size of packetSizes) {
+                expect(size).lessThanOrEqual(MAX_MDNS_MESSAGE_SIZE);
+            }
+
+            // All address records made it through, in SelectionPreference order: link-local, ULA, IPv4
+            const addressValues = answers
+                .filter(({ recordType }) => recordType === DnsRecordType.AAAA || recordType === DnsRecordType.A)
+                .map(({ value }) => value);
+            expect(addressValues).deep.equals([SERVER_IPv6, ...ULA_IPv6, SERVER_IPv4]);
+        } finally {
+            await dataListener.close();
+            await MockTime.advance(1000);
+            await MockTime.resolve(advertiser.close());
+            await server.close();
+            await serverSocket.close();
+            await listener.close();
+        }
+    });
+});
+
 function expectMessage(actual: DnsMessage | undefined, expected: DnsMessage) {
     for (const message of [actual, expected]) {
         if (!message) {
@@ -915,7 +989,7 @@ function expectMessage(actual: DnsMessage | undefined, expected: DnsMessage) {
             (a, b) => a.name.localeCompare(b.name) || sortKey(a.value).localeCompare(sortKey(b.value)),
         );
 
-        message.additionalRecords.forEach(r => {
+        [...message.answers, ...message.additionalRecords].forEach(r => {
             if (r.recordType === DnsRecordType.TXT && Array.isArray(r.value)) {
                 // Fixtures may declare value as string[]; normalize to Bytes[] then sort by hex (lossless on binary).
                 r.value = (r.value as (Uint8Array | string)[])
