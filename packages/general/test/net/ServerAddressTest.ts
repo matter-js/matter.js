@@ -75,6 +75,15 @@ describe("ServerAddress", () => {
             );
         });
 
+        it("classifies uppercase addresses", () => {
+            expect(ServerAddress.selectionPreferenceOf(udp("FE80::1"))).to.equal(
+                ServerAddress.SelectionPreference.IPV6_LINK_LOCAL,
+            );
+            expect(ServerAddress.selectionPreferenceOf(udp("FD29::1"))).to.equal(
+                ServerAddress.SelectionPreference.IPV6_ULA,
+            );
+        });
+
         it("does not mistake fec0 (deprecated site-local) for link-local", () => {
             expect(ServerAddress.selectionPreferenceOf(udp("fec0::1"))).to.equal(
                 ServerAddress.SelectionPreference.IPV6,

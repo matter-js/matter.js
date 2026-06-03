@@ -175,8 +175,8 @@ export namespace ServerAddress {
         NOT_IP = 3,
     }
 
-    /** True when `ip` is an IPv6 link-local address (fe80::/10).  Assumes lowercase — DNS codec output is. */
-    const IPV6_LINK_LOCAL_PATTERN = /^fe[89ab]/;
+    /** True when `ip` is an IPv6 link-local address (fe80::/10). */
+    const IPV6_LINK_LOCAL_PATTERN = /^fe[89ab]/i;
     export function isIpv6LinkLocal(ip: string): boolean {
         return IPV6_LINK_LOCAL_PATTERN.test(ip);
     }
@@ -189,10 +189,11 @@ export namespace ServerAddress {
         return selectionPreferenceOfIp(address.ip);
     }
 
-    /** Assumes lowercase `ip` like {@link isIpv6LinkLocal}. */
+    /** RFC 4193 ULA is fc00::/7.  Case-insensitive — OS-provided addresses are not guaranteed lowercase. */
+    const IPV6_ULA_PATTERN = /^f[cd]/i;
+
     export function selectionPreferenceOfIp(ip: string) {
-        // RFC 4193 ULA is fc00::/7
-        if (ip.startsWith("fd") || ip.startsWith("fc")) {
+        if (IPV6_ULA_PATTERN.test(ip)) {
             return SelectionPreference.IPV6_ULA;
         }
 
