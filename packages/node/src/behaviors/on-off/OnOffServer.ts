@@ -73,7 +73,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
         this.state.onOff = true;
         if (this.features.lighting) {
             this.state.globalSceneControl = true;
-            if (!this.timedOnTimer.isRunning) {
+            // Leaving the timed-off state clears OffWaitTime, but only when not in a timed-on phase
+            // (OnTime === 0); OnTime === 0xFFFF holds on indefinitely and must retain OffWaitTime
+            if ((this.state.onTime ?? 0) === 0) {
                 if (this.delayedOffTimer.isRunning) {
                     this.delayedOffTimer.stop();
                 }
@@ -95,7 +97,7 @@ export class OnOffBaseServer extends OnOffLogicBase {
         if (this.features.lighting) {
             if (this.timedOnTimer.isRunning) {
                 this.timedOnTimer.stop();
-                if ((this.state.offWaitTime ?? 0) > 0) {
+                if ((this.state.offWaitTime ?? 0) > 0 && this.state.offWaitTime !== 0xffff) {
                     this.delayedOffTimer.start();
                 }
             }
@@ -165,16 +167,19 @@ export class OnOffBaseServer extends OnOffLogicBase {
             return;
         }
 
-        if (this.delayedOffTimer.isRunning && !this.state.onOff) {
-            // We are already in "delayed off state".  This means offWaitTime > 0 and the device is off now
+        if ((this.state.offWaitTime ?? 0) > 0 && !this.state.onOff) {
+            // Delayed-off state: device is off with OffWaitTime running; only lower OffWaitTime, stay off
             this.state.offWaitTime = Math.min(offWaitTime ?? 0, this.state.offWaitTime ?? 0);
+            if (!this.delayedOffTimer.isRunning && this.state.offWaitTime !== 0xffff) {
+                this.delayedOffTimer.start();
+            }
             return;
         }
 
         this.state.onTime = Math.max(onTime ?? 0, this.state.onTime ?? 0);
         this.state.offWaitTime = offWaitTime;
-        if (this.state.onTime !== 0 && this.state.offWaitTime !== 0) {
-            // Specs talk about 0xffff aka "uint16 overflow", we set to 0 if negative
+        // 0xFFFF means "hold indefinitely" per spec §1.5.8, so OnTime is not decremented and no timer is needed
+        if (this.state.onTime !== 0 && this.state.onTime !== 0xffff) {
             this.timedOnTimer.start();
         }
         return this.on();
@@ -193,6 +198,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
     }
 
     async #timedOnTick() {
+        if (this.state.onTime === 0xffff) {
+            return; // 0xFFFF holds indefinitely (spec §1.5.8) — do not decrement
+        }
         let time = (this.state.onTime ?? 0) - 1;
         if (time <= 0) {
             time = 0;
@@ -261,6 +269,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
     }
 
     #delayedOffTick() {
+        if (this.state.offWaitTime === 0xffff) {
+            return; // 0xFFFF holds indefinitely (spec §1.5.8) — do not decrement
+        }
         let time = (this.state.offWaitTime ?? 0) - 1;
         if (time <= 0) {
             time = 0;
