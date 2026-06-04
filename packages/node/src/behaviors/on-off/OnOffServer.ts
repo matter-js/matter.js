@@ -97,11 +97,17 @@ export class OnOffBaseServer extends OnOffLogicBase {
         if (this.features.lighting) {
             if (this.timedOnTimer.isRunning) {
                 this.timedOnTimer.stop();
-                if ((this.state.offWaitTime ?? 0) > 0 && this.state.offWaitTime !== 0xffff) {
-                    this.delayedOffTimer.start();
-                }
             }
             this.state.onTime = 0;
+            // Turning off with OffWaitTime > 0 enters the delayed-off guard period (spec §1.5.7.6.4),
+            // independent of any prior timed-on phase; 0xFFFF holds indefinitely
+            if (
+                (this.state.offWaitTime ?? 0) > 0 &&
+                this.state.offWaitTime !== 0xffff &&
+                !this.delayedOffTimer.isRunning
+            ) {
+                this.delayedOffTimer.start();
+            }
         }
     }
 
@@ -178,9 +184,12 @@ export class OnOffBaseServer extends OnOffLogicBase {
 
         this.state.onTime = Math.max(onTime ?? 0, this.state.onTime ?? 0);
         this.state.offWaitTime = offWaitTime;
-        // 0xFFFF means "hold indefinitely" per spec §1.5.8, so OnTime is not decremented and no timer is needed
+        // 0xFFFF means "hold indefinitely" per spec §1.5.8, so OnTime is not decremented and no timer is needed;
+        // stop any prior countdown so raising OnTime to the hold value does not leave the timer spinning
         if (this.state.onTime !== 0 && this.state.onTime !== 0xffff) {
             this.timedOnTimer.start();
+        } else if (this.timedOnTimer.isRunning) {
+            this.timedOnTimer.stop();
         }
         return this.on();
     }

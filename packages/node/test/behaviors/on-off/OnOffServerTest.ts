@@ -84,7 +84,7 @@ describe("OnOffServer", () => {
             MockTime.reset();
             const { node, endpoint } = await setupLight();
 
-            // Enter TIMED_ON with OffWaitTime held, then turn off to enter the delayed-off phase
+            // Enter TIMED_ON with OffWaitTime held, then turn off
             await endpoint.act(agent =>
                 agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: 5, offWaitTime: HOLD }),
             );
@@ -100,6 +100,58 @@ describe("OnOffServer", () => {
             // OffWaitTime must not be decremented and the device must stay off
             expect(endpoint.state.onOff.offWaitTime).equals(HOLD);
             expect(endpoint.state.onOff.onOff).equals(false);
+
+            await node.close();
+        });
+
+        it("runs the delayed-off countdown after a held device is turned off", async () => {
+            MockTime.reset();
+            const { node, endpoint } = await setupLight();
+
+            // Hold on indefinitely with a finite OffWaitTime guard
+            await endpoint.act(agent =>
+                agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: HOLD, offWaitTime: 50 }),
+            );
+            expect(endpoint.state.onOff.onOff).equals(true);
+            expect(endpoint.state.onOff.offWaitTime).equals(50);
+
+            const expired = new Promise<void>(resolve =>
+                endpoint.events.onOff.offWaitTime$Changed.on(value => {
+                    if (value === 0) {
+                        resolve();
+                    }
+                }),
+            );
+
+            // Explicit off must enter the delayed-off guard period and count OffWaitTime down
+            await endpoint.act(agent => agent.get(LightingOnOff).off());
+            expect(endpoint.state.onOff.onOff).equals(false);
+
+            await MockTime.resolve(expired, { stepMs: 10 });
+            expect(endpoint.state.onOff.offWaitTime).equals(0);
+            expect(endpoint.state.onOff.onOff).equals(false);
+
+            await node.close();
+        });
+
+        it("stops a running timed-on timer when raised to 0xFFFF (no leaked wakeup)", async () => {
+            MockTime.reset();
+            const { node, endpoint } = await setupLight();
+
+            // Start a finite timed-on countdown so the periodic timer is running
+            await endpoint.act(agent =>
+                agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: 5, offWaitTime: 10 }),
+            );
+            expect(MockTime.timerCountFor("Timed on")).equals(1);
+
+            // Raising OnTime to the hold value must stop the timer rather than leave it spinning
+            await endpoint.act(agent =>
+                agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: HOLD, offWaitTime: 10 }),
+            );
+
+            expect(endpoint.state.onOff.onTime).equals(HOLD);
+            expect(endpoint.state.onOff.onOff).equals(true);
+            expect(MockTime.timerCountFor("Timed on")).equals(0);
 
             await node.close();
         });
