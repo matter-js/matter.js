@@ -255,6 +255,55 @@ describe("OnOffServer", () => {
 
             await node.close();
         });
+
+        it("starts the delayed-off countdown when OffWaitTime is written while off", async () => {
+            MockTime.reset();
+            const { node, endpoint } = await setupLight({ onOff: false });
+
+            const expired = new Promise<void>(resolve =>
+                endpoint.events.onOff.offWaitTime$Changed.on(value => {
+                    if (value === 0) {
+                        resolve();
+                    }
+                }),
+            );
+
+            // A direct write of OffWaitTime must re-evaluate timers (CHIP UpdateTimer-on-write)
+            await endpoint.act(agent => {
+                agent.get(LightingOnOff).state.offWaitTime = 30;
+            });
+            expect(MockTime.timerCountFor("Delayed off")).equals(1);
+
+            await MockTime.resolve(expired, { stepMs: 10 });
+            expect(endpoint.state.onOff.offWaitTime).equals(0);
+            expect(endpoint.state.onOff.onOff).equals(false);
+
+            await node.close();
+        });
+
+        it("stays on and stops the timer when OnTime is written to 0 during a countdown", async () => {
+            MockTime.reset();
+            const { node, endpoint } = await setupLight();
+
+            await endpoint.act(agent =>
+                agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: 5, offWaitTime: 0 }),
+            );
+            expect(MockTime.timerCountFor("Timed on")).equals(1);
+
+            // Writing OnTime to 0 ends the timed-on phase but leaves the device on (CHIP UpdateTimer-on-write)
+            await endpoint.act(agent => {
+                agent.get(LightingOnOff).state.onTime = 0;
+            });
+            expect(MockTime.timerCountFor("Timed on")).equals(0);
+
+            for (let i = 0; i < 3; i++) {
+                await MockTime.advance(100);
+            }
+            expect(endpoint.state.onOff.onOff).equals(true);
+            expect(endpoint.state.onOff.onTime).equals(0);
+
+            await node.close();
+        });
     });
 
     describe("OffOnly", () => {

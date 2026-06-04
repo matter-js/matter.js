@@ -49,9 +49,41 @@ export class OnOffBaseServer extends OnOffLogicBase {
             }
         }
 
+        if (this.features.lighting) {
+            // Direct writes of OnTime/OffWaitTime must re-evaluate the timers (spec §1.5.7.6.4 / §1.5.8,
+            // matching CHIP's UpdateTimer-on-write); command handlers manage the timers themselves, so this
+            // reactor is idempotent for them and only catches attribute writes.
+            this.reactTo(this.events.onTime$Changed, this.#updateTimers);
+            this.reactTo(this.events.offWaitTime$Changed, this.#updateTimers);
+        }
+
         if (this.agent.has(ScenesManagementServer)) {
             this.agent.get(ScenesManagementServer).implementScenes(this, this.#applySceneValues);
             this.reactTo(this.events.onOff$Changed, this.#clearDelayedSceneApplyData);
+        }
+    }
+
+    /**
+     * Re-evaluate which countdown timer should run from the committed OnTime/OffWaitTime/OnOff state. A countdown
+     * runs while its attribute is in the open interval (0, 0xFFFF): 0 means inactive and 0xFFFF means hold.
+     */
+    #updateTimers() {
+        if (this.state.onOff) {
+            if ((this.state.onTime ?? 0) !== 0 && this.state.onTime !== 0xffff) {
+                if (!this.timedOnTimer.isRunning) {
+                    this.timedOnTimer.start();
+                }
+            } else if (this.timedOnTimer.isRunning) {
+                this.timedOnTimer.stop();
+            }
+        } else {
+            if ((this.state.offWaitTime ?? 0) !== 0 && this.state.offWaitTime !== 0xffff) {
+                if (!this.delayedOffTimer.isRunning) {
+                    this.delayedOffTimer.start();
+                }
+            } else if (this.delayedOffTimer.isRunning) {
+                this.delayedOffTimer.stop();
+            }
         }
     }
 
