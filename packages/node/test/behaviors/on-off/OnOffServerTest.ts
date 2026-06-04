@@ -156,6 +156,52 @@ describe("OnOffServer", () => {
             await node.close();
         });
 
+        it("stops the timed-on timer if OnTime is written to 0xFFFF while it runs", async () => {
+            MockTime.reset();
+            const { node, endpoint } = await setupLight();
+
+            await endpoint.act(agent =>
+                agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: 5, offWaitTime: 10 }),
+            );
+            expect(MockTime.timerCountFor("Timed on")).equals(1);
+
+            // OnTime is a writable attribute; raising it to the hold value must not leave the timer spinning
+            await endpoint.act(agent => {
+                agent.get(LightingOnOff).state.onTime = HOLD;
+            });
+            await MockTime.advance(100);
+            await MockTime.yield3();
+
+            expect(MockTime.timerCountFor("Timed on")).equals(0);
+            expect(endpoint.state.onOff.onTime).equals(HOLD);
+            expect(endpoint.state.onOff.onOff).equals(true);
+
+            await node.close();
+        });
+
+        it("stops the delayed-off timer if OffWaitTime is written to 0xFFFF while it runs", async () => {
+            MockTime.reset();
+            const { node, endpoint } = await setupLight();
+
+            await endpoint.act(agent =>
+                agent.get(LightingOnOff).onWithTimedOff({ onOffControl: {}, onTime: 5, offWaitTime: 20 }),
+            );
+            await endpoint.act(agent => agent.get(LightingOnOff).off());
+            expect(MockTime.timerCountFor("Delayed off")).equals(1);
+
+            await endpoint.act(agent => {
+                agent.get(LightingOnOff).state.offWaitTime = HOLD;
+            });
+            await MockTime.advance(100);
+            await MockTime.yield3();
+
+            expect(MockTime.timerCountFor("Delayed off")).equals(0);
+            expect(endpoint.state.onOff.offWaitTime).equals(HOLD);
+            expect(endpoint.state.onOff.onOff).equals(false);
+
+            await node.close();
+        });
+
         it("decrements OnTime to auto-off when not 0xFFFF", async () => {
             MockTime.reset();
             const { node, endpoint } = await setupLight();

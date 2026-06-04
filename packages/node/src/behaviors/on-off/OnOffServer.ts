@@ -73,8 +73,7 @@ export class OnOffBaseServer extends OnOffLogicBase {
         this.state.onOff = true;
         if (this.features.lighting) {
             this.state.globalSceneControl = true;
-            // Leaving the timed-off state clears OffWaitTime, but only when not in a timed-on phase
-            // (OnTime === 0); OnTime === 0xFFFF holds on indefinitely and must retain OffWaitTime
+            // Retain OffWaitTime during any timed-on phase (incl. the 0xFFFF hold); clear only when OnTime is 0
             if ((this.state.onTime ?? 0) === 0) {
                 if (this.delayedOffTimer.isRunning) {
                     this.delayedOffTimer.stop();
@@ -99,8 +98,8 @@ export class OnOffBaseServer extends OnOffLogicBase {
                 this.timedOnTimer.stop();
             }
             this.state.onTime = 0;
-            // Turning off with OffWaitTime > 0 enters the delayed-off guard period (spec §1.5.7.6.4),
-            // independent of any prior timed-on phase; 0xFFFF holds indefinitely
+            // Off with OffWaitTime > 0 enters the delayed-off guard period (spec §1.5.7.6.4), regardless of
+            // any prior timed-on phase
             if (
                 (this.state.offWaitTime ?? 0) > 0 &&
                 this.state.offWaitTime !== 0xffff &&
@@ -184,8 +183,7 @@ export class OnOffBaseServer extends OnOffLogicBase {
 
         this.state.onTime = Math.max(onTime ?? 0, this.state.onTime ?? 0);
         this.state.offWaitTime = offWaitTime;
-        // 0xFFFF means "hold indefinitely" per spec §1.5.8, so OnTime is not decremented and no timer is needed;
-        // stop any prior countdown so raising OnTime to the hold value does not leave the timer spinning
+        // 0xFFFF holds indefinitely (spec §1.5.8): no countdown, so stop any timer instead of arming one
         if (this.state.onTime !== 0 && this.state.onTime !== 0xffff) {
             this.timedOnTimer.start();
         } else if (this.timedOnTimer.isRunning) {
@@ -208,7 +206,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
 
     async #timedOnTick() {
         if (this.state.onTime === 0xffff) {
-            return; // 0xFFFF holds indefinitely (spec §1.5.8) — do not decrement
+            // 0xFFFF holds indefinitely (spec §1.5.8); stop in case OnTime was written to the hold value
+            this.internal.timedOnTimer?.stop();
+            return;
         }
         let time = (this.state.onTime ?? 0) - 1;
         if (time <= 0) {
@@ -279,7 +279,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
 
     #delayedOffTick() {
         if (this.state.offWaitTime === 0xffff) {
-            return; // 0xFFFF holds indefinitely (spec §1.5.8) — do not decrement
+            // 0xFFFF holds indefinitely (spec §1.5.8); stop in case OffWaitTime was written to the hold value
+            this.internal.delayedOffTimer?.stop();
+            return;
         }
         let time = (this.state.offWaitTime ?? 0) - 1;
         if (time <= 0) {
