@@ -5,6 +5,7 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { ClientNode } from "#node/ClientNode.js";
@@ -314,11 +315,9 @@ export class BindingManager {
     }
 
     #endpointHasClusterServer(endpoint: Endpoint, clusterId: number): boolean {
-        const behaviors = endpoint.type.behaviors;
-        if (behaviors === undefined) {
-            return false;
-        }
-        return Object.values(behaviors).some(b => ClusterBehavior.is(b) && b.cluster.id === clusterId);
+        return Object.values(endpoint.behaviors.supported).some(
+            b => ClusterBehavior.is(b) && !isClientBehavior(b) && b.cluster.id === clusterId,
+        );
     }
 
     #selectClientClusters(sourceEp: Endpoint, filterCluster: number | undefined): ClusterBehavior.Type[] | undefined {
