@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
 
+- @matter/node
+    - Fix: Self-bindings now detect cluster servers added to an endpoint at runtime via `behaviors.require`, and no longer treat a client cluster as satisfying the server check
+
 - @matter/protocol
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
