@@ -7,7 +7,7 @@
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { Bytes, ImplementationError } from "@matter/general";
 import { AccessLevel, DataModelPath, fabricIdx, field, listOf, nodeId, nonvolatile, octstr } from "@matter/model";
-import { AccessControl, assertRemoteActor, hasRemoteActor, IcdCounter } from "@matter/protocol";
+import { AccessControl, assertRemoteActor, Fabric, FabricManager, hasRemoteActor, IcdCounter } from "@matter/protocol";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
@@ -55,11 +55,59 @@ export class IcdManagementServer extends Base {
         this.state.icdCounter = counter.value;
         this.reactTo(counter.changed, this.#persistCounter);
 
+        // Rebuild the key map, dropping keys for fabrics removed while the node was down (the fabric-removal
+        // reactor cannot fire across a restart, so prune here as GroupKeyManagementServer does).
+        const fabrics = this.env.get(FabricManager);
         const keyMap = new Map<string, IcdManagementServer.IcdKeyEntry>();
+        let prunedKeys = false;
         for (const entry of this.state.icdKeys) {
+            if (fabrics.maybeFor(entry.fabricIndex) === undefined) {
+                prunedKeys = true;
+                continue;
+            }
             keyMap.set(this.#keyFor(entry.fabricIndex, entry.checkInNodeId), entry);
         }
         this.internal.icdKeys = keyMap;
+        if (prunedKeys) {
+            this.#persistKeys();
+        }
+
+        // Replay persisted registrations into fabric.icd so the operational check-in path has up-to-date keys.
+        // @see {@link MatterSpecification.v151.Core} § 9.16.6.4
+        for (const client of this.state.registeredClients) {
+            const key = keyMap.get(this.#keyFor(client.fabricIndex, client.checkInNodeId))?.key;
+            if (key === undefined) {
+                continue;
+            }
+            const fabric = fabrics.maybeFor(client.fabricIndex);
+            if (fabric === undefined) {
+                continue;
+            }
+            fabric.icd.setRegistration({
+                checkInNodeId: client.checkInNodeId,
+                monitoredSubject: client.monitoredSubject,
+                key,
+                clientType: client.clientType,
+            });
+        }
+
+        this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
+    }
+
+    async #onFabricDeleted(fabric: Fabric) {
+        const fabricIndex = fabric.fabricIndex;
+
+        // registeredClients is fabric-scoped and auto-pruned by the framework during the deleting phase; we only
+        // need to clean the non-scoped internal key store here.
+        for (const key of [...this.internal.icdKeys.keys()]) {
+            if (key.startsWith(`${fabricIndex}:`)) {
+                this.internal.icdKeys.delete(key);
+            }
+        }
+        this.#persistKeys();
+
+        // The fabric object still exists at this point; clear its operational registrations.
+        fabric.icd.clearRegistrations();
     }
 
     #persistCounter(value: number) {
