@@ -222,4 +222,47 @@ describe("IcdManagementServer", () => {
             expect(Bytes.areEqual(registrations[0].key, secondKey)).true;
         });
     });
+
+    describe("UnregisterClient command", () => {
+        it("unregisters a client", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const cmds = peer1.commandsOf(IcdManagementClient);
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+
+            await cmds.registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            await cmds.unregisterClient({ checkInNodeId });
+
+            expect(device.stateOf(IcdManagementServer).registeredClients).deep.equals([]);
+            expect(device.env.get(FabricManager).fabrics[0].icd.registrations).deep.equals([]);
+            // The persisted ICDToken must also be dropped, else a later Manage re-registration would wrongly reject.
+            await device.act(agent => {
+                expect(agent.get(IcdManagementServer).internal.icdKeys.size).equals(0);
+            });
+        });
+
+        it("returns NOT_FOUND for unknown client", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const cmds = peer1.commandsOf(IcdManagementClient);
+
+            await expect(
+                cmds.unregisterClient({ checkInNodeId: NodeId(peer1.peerAddress!.nodeId + 99n) }),
+            ).rejectedWith(/not found/i);
+        });
+    });
 });

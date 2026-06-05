@@ -138,10 +138,46 @@ export class IcdManagementServer extends Base {
     }
 
     /**
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
+     */
+    override async unregisterClient(request: IcdManagement.UnregisterClientRequest): Promise<void> {
+        assertRemoteActor(this.context);
+        const fabric = this.context.session.associatedFabric;
+        const fabricIndex = fabric.fabricIndex;
+
+        const existing = this.state.registeredClients.find(
+            c => c.fabricIndex === fabricIndex && c.checkInNodeId === request.checkInNodeId,
+        );
+        if (existing === undefined) {
+            throw new StatusResponseError("No such ICD client registration", Status.NotFound);
+        }
+
+        if (!this.#isAdministrator()) {
+            // @see {@link MatterSpecification.v151.Core} § 9.16.7.3 step 2
+            const stored = this.internal.icdKeys.get(this.#keyFor(fabricIndex, request.checkInNodeId));
+            if (
+                request.verificationKey === undefined ||
+                stored === undefined ||
+                !Bytes.areEqual(request.verificationKey, stored.key)
+            ) {
+                throw new StatusResponseError("VerificationKey mismatch", Status.Failure);
+            }
+        }
+
+        this.state.registeredClients = this.state.registeredClients.filter(
+            c => !(c.fabricIndex === fabricIndex && c.checkInNodeId === request.checkInNodeId),
+        );
+        this.internal.icdKeys.delete(this.#keyFor(fabricIndex, request.checkInNodeId));
+        this.#persistKeys();
+        fabric.icd.deleteRegistration(request.checkInNodeId);
+    }
+
+    /**
      * Returns true when the invoking session has Administer privilege on this cluster.
      *
-     * Spec requires Administer to skip verificationKey on update/remove; Manage must provide it.
+     * Administer skips the verificationKey check on register update and unregister; Manage must provide it.
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.1 step 2
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.3 step 2
      */
     #isAdministrator(): boolean {
         const context = this.context;
@@ -156,12 +192,10 @@ export class IcdManagementServer extends Base {
         return context.authorityAt(AccessLevel.Administer, location) === AccessControl.Authority.Granted;
     }
 
-    /** Stable map key for the runtime icdKeys map. */
     #keyFor(fabricIndex: FabricIndex, checkInNodeId: NodeId): string {
         return `${fabricIndex}:${checkInNodeId}`;
     }
 
-    /** Write the runtime icdKeys map back to the persisted @nonvolatile state array. */
     #persistKeys() {
         this.state.icdKeys = [...this.internal.icdKeys.values()];
     }
