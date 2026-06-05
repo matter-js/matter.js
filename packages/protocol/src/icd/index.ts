@@ -6,3 +6,4 @@
 
 export * from "./CheckInMessage.js";
 export * from "./FabricIcd.js";
+export * from "./IcdCounter.js";
