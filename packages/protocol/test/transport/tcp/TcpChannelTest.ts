@@ -278,6 +278,44 @@ describe("TcpChannel", () => {
         });
     });
 
+    describe("zero-length frame handling", () => {
+        it("rejects and closes on a zero-length frame", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            let closed = false;
+            conn.onClose(() => {
+                closed = true;
+            });
+
+            const messages: Bytes[] = [];
+            conn.onMessage(data => messages.push(data));
+
+            await client.send(lengthHeader(0));
+
+            expect(messages).length(0);
+            expect(closed).true;
+        });
+
+        it("closes without processing a valid message that follows a zero-length frame", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            let closed = false;
+            conn.onClose(() => {
+                closed = true;
+            });
+
+            const messages: Bytes[] = [];
+            conn.onMessage(data => messages.push(data));
+
+            await client.send(concat(lengthHeader(0), frame(new Uint8Array([1, 2, 3]))));
+
+            expect(messages).length(0);
+            expect(closed).true;
+        });
+    });
+
     describe("send-side size check", () => {
         it("rejects messages above the size limit", async () => {
             const { server } = createPair();
