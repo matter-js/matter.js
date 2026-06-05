@@ -32,8 +32,12 @@ describe("SessionIntervals", () => {
         expect(() => SessionIntervals({ activeInterval: Hours(2) })).throws(ImplementationError, "Active Interval");
     });
 
-    it("rejects an active threshold over 65535 seconds", () => {
-        expect(() => SessionIntervals({ activeThreshold: Seconds(65536) })).throws(
+    it("accepts an active threshold of exactly 65535 milliseconds", () => {
+        expect(SessionIntervals({ activeThreshold: Millis(65535) }).activeThreshold).equal(Millis(65535));
+    });
+
+    it("rejects an active threshold over 65535 milliseconds", () => {
+        expect(() => SessionIntervals({ activeThreshold: Millis(65536) })).throws(
             ImplementationError,
             "Active Threshold",
         );

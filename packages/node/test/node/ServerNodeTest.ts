@@ -187,16 +187,16 @@ describe("ServerNode", () => {
 
         function answer(name: string) {
             for (const answer of (advertisement as DnsMessage).answers) {
-                if (answer.value.startsWith(name)) {
+                if (typeof answer.value === "string" && answer.value.startsWith(name)) {
                     return answer.value.split(".")[0].substring(name.length);
                 }
             }
         }
 
-        function additional(recordType: DnsRecordType) {
-            for (const additional of (advertisement as DnsMessage).additionalRecords) {
-                if (additional.recordType === recordType) {
-                    return additional.value;
+        function record(recordType: DnsRecordType) {
+            for (const record of (advertisement as DnsMessage).answers) {
+                if (record.recordType === recordType) {
+                    return record.value;
                 }
             }
         }
@@ -207,9 +207,9 @@ describe("ServerNode", () => {
         expect(answer("_T")).equals("256");
         expect(answer("_CM")).equals("");
 
-        expect(additional(DnsRecordType.AAAA)).equals("abcd::80");
-        expect(additional(DnsRecordType.A)).equals("10.10.10.128");
-        expect(additional(DnsRecordType.SRV)?.port).equals(operationalPort);
+        expect(record(DnsRecordType.AAAA)).equals("abcd::80");
+        expect(record(DnsRecordType.A)).equals("10.10.10.128");
+        expect(record(DnsRecordType.SRV)?.port).equals(operationalPort);
 
         const expirationReceived = new Promise<Bytes>(resolve =>
             scannerChannel.onData((_netInterface, _peerAddress, _peerPort, data) => resolve(data)),

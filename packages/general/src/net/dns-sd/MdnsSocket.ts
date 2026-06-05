@@ -153,14 +153,23 @@ export class MdnsSocket {
             chunk.answers.push(answerEncoded);
         }
 
-        // Add "additional records"...  We include these but only if they fit
-        const additionalRecords = message.additionalRecords ?? [];
-        for (const additionalRecord of additionalRecords) {
+        // Add "additional records", also splitting as necessary.  RFC 6762 §6 would allow omitting them on
+        // overflow, but Matter peers rely on the A/AAAA records carried here, so spill into follow-up packets
+        // instead
+        for (const additionalRecord of message.additionalRecords ?? []) {
             const additionalRecordEncoded = DnsCodec.encodeRecord(additionalRecord);
-            chunkSize += additionalRecordEncoded.byteLength;
-            if (chunkSize > MAX_MDNS_MESSAGE_SIZE) {
-                break;
+
+            if (chunkSize + additionalRecordEncoded.byteLength > MAX_MDNS_MESSAGE_SIZE) {
+                await this.#send(chunk, intf, unicastDest);
+
+                chunk.queries.length = 0;
+                chunk.answers.length = 0;
+                chunk.additionalRecords.length = 0;
+                chunkSize = DnsCodec.encode(chunk).byteLength + additionalRecordEncoded.byteLength;
+            } else {
+                chunkSize += additionalRecordEncoded.byteLength;
             }
+
             chunk.additionalRecords.push(additionalRecordEncoded);
         }
 

@@ -294,6 +294,25 @@ describe("MessageReceptionState", () => {
                 const state = new MessageReceptionStateEncryptedWithoutRollover();
                 expect(() => state.updateMessageCounter(0xffffffff)).not.throw();
             });
+
+            it("rejects out-of-range counter values", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover();
+                expect(() => state.updateMessageCounter(-1)).throws("Invalid message counter value");
+                expect(() => state.updateMessageCounter(0x100000000)).throws("Invalid message counter value");
+            });
+
+            it("forward jump of exactly the window size clears stale bitmap bits", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover();
+                const prototype = MessageReceptionStateEncryptedWithoutRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                // Seed a low in-window bit (counter 94 = max - 6).
+                assertMessageWindowUpdate(prototype, state, 94, 0b100000, false, -6);
+                // Jump forward by exactly the window size: only the old max bit (offset 32 -> bit 31) survives.
+                assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
+                // Counter 126 (= new max - 6) was never received; its stale bit must have been cleared.
+                assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
+            });
         });
     });
 
@@ -532,6 +551,16 @@ describe("MessageReceptionState", () => {
                     MAX_COUNTER_VALUE_32BIT - highBase + (highBase - MAX_COUNTER_INCREASE_2POW31 - 1) + 1,
                 );
             });
+
+            it("forward jump of exactly the window size clears stale bitmap bits", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover();
+                const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 94, 0b100000, false, -6);
+                assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
+                assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
+            });
         });
     });
     describe("MessageReceptionStateUnencryptedWithRollover", () => {
@@ -747,6 +776,16 @@ describe("MessageReceptionState", () => {
 
                 // Counting continues forward past the rollover.
                 assertMessageWindowDifference(prototype, state, 1, false, 1);
+            });
+
+            it("forward jump of exactly the window size clears stale bitmap bits", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 94, 0b100000, false, -6);
+                assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
+                assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
             });
         });
     });

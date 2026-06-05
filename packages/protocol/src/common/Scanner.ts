@@ -92,10 +92,20 @@ export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
             case "SII":
             case "SAI":
             case "SAT": {
-                const num = Number(kvs.get(key));
-                if (isFinite(num)) {
-                    dd[key] = Millis(num);
+                // Spec §4.3.4: if the value is invalid or out of range the key SHALL be treated as absent so that
+                // MRP defaults apply; encoding omits leading zeros, so treat them as invalid like CHIP does
+                const value = kvs.get(key);
+                if (value === undefined || !/^(0|[1-9]\d*)$/.test(value)) {
+                    break;
                 }
+                const num = Number(value);
+                if (key === "SAT" && (num === 0 || num > 65535)) {
+                    break;
+                }
+                if (key !== "SAT" && num > 3_600_000) {
+                    break;
+                }
+                dd[key] = Millis(num);
                 break;
             }
         }

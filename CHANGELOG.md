@@ -9,6 +9,24 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/general
+    - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
+
+- @matter/node
+    - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
+    - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
+
+- @matter/protocol
+    - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
+    - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
+    - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
+    - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
+    - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
+    - Fix: TcpChannel now closes the connection on a zero-length stream frame instead of silently skipping it, preventing a peer from holding a connection slot open indefinitely
+    - Fix: A forward message-counter jump of exactly the window size no longer retains stale replay-bitmap bits, which could wrongly reject a later legitimate message as duplicate
+
 ## 0.17.1 (2026-06-03)
 
 - @matter/\*
