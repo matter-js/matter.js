@@ -132,7 +132,7 @@ export class NetworkProfiles {
             throw new UnknownNetworkProfileError(`Network profile ${id} is not configured`);
         }
 
-        return this.configure(id, NetworkProfiles.defaults[id as keyof NetworkProfiles.Templates]);
+        return this.configure(id, this.#defaults[id as keyof NetworkProfiles.Templates]);
     }
 
     configure(id: string, limits: NetworkProfiles.Limits, parentDelay?: Duration) {
