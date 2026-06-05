@@ -448,12 +448,12 @@ export class ExchangeManager implements Transport.Provider {
             return;
         }
         // TODO: Adjust this logic into a Exchange creation queue instead of hard closing
-        const exchangeToClose = sessionExchanges.reduce((oldest, exchange) =>
-            exchange.lastActive < oldest.lastActive ? exchange : oldest,
+        const exchangeToClose = sessionExchanges.reduce((leastRecentlyActive, exchange) =>
+            exchange.lastActive < leastRecentlyActive.lastActive ? exchange : leastRecentlyActive,
         );
         logger.info(
             exchangeToClose.via,
-            `Closing least-recently-active exchange for session because of too many concurrent outgoing exchanges. Ensure to not send that many parallel messages to one peer.`,
+            `Closing least-recently-active exchange for session because of too many concurrent exchanges. Ensure to not send that many parallel messages to one peer.`,
         );
         logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
         this.#workers.add(exchangeToClose.close());
