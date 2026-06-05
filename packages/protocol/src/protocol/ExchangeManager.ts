@@ -195,6 +195,13 @@ export class ExchangeManager implements Transport.Provider {
         const bytes = Bytes.of(messageBytes);
         const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
 
+        // Privacy enhancements are only defined for group messages; a unicast message with the privacy flag is invalid
+        // and dropped, matching the CHIP SDK.
+        if (packet.header.hasPrivacyEnhancements && packet.header.sessionType !== SessionType.Group) {
+            logger.info("Dropping unicast message with privacy flag set");
+            return;
+        }
+
         let isDuplicate: boolean;
         let session: Session | undefined;
         let message: DecodedMessage | undefined;
