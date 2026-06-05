@@ -130,7 +130,7 @@ export class NetworkProfiles {
             return network;
         }
 
-        if (!(id in this.#defaults)) {
+        if (!Object.hasOwn(this.#defaults, id)) {
             throw new UnknownNetworkProfileError(`Network profile ${id} is not configured`);
         }
 

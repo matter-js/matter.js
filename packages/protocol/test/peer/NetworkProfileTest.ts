@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NetworkProfiles } from "#peer/NetworkProfile.js";
+import { NetworkProfiles, UnknownNetworkProfileError } from "#peer/NetworkProfile.js";
 import { Millis, Seconds } from "@matter/general";
 
 describe("NetworkProfiles", () => {
@@ -55,6 +55,15 @@ describe("NetworkProfiles", () => {
             const profiles = new NetworkProfiles();
             const profile = profiles.configure("custom3", { exchanges: 4 });
             expect(profile.additionalMrpDelay).equals(Millis(0));
+        });
+    });
+
+    describe("get", () => {
+        it("rejects unknown ids, including Object prototype keys", () => {
+            const profiles = new NetworkProfiles();
+            expect(() => profiles.get("nope")).throws(UnknownNetworkProfileError);
+            expect(() => profiles.get("toString")).throws(UnknownNetworkProfileError);
+            expect(() => profiles.get("constructor")).throws(UnknownNetworkProfileError);
         });
     });
 });

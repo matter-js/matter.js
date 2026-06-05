@@ -118,7 +118,7 @@ export namespace MRP {
      * side of the exchange.
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
-     * Otherwise, we add a network overhead to the timings.
+     * Otherwise, the caller-supplied `additionalDelay` (default 0) is added to the base interval.
      *
      * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
      */
