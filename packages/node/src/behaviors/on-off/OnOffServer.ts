@@ -50,11 +50,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
 
         if (this.features.lighting) {
-            // Direct writes of OnTime/OffWaitTime must re-evaluate the timers (spec §1.5.7.6.4 / §1.5.8,
-            // matching CHIP's UpdateTimer-on-write); command handlers manage the timers themselves, so this
-            // reactor is idempotent for them and only catches attribute writes.
-            this.reactTo(this.events.onTime$Changed, this.#updateTimers);
-            this.reactTo(this.events.offWaitTime$Changed, this.#updateTimers);
+            // Per spec §1.5.6.4 / §1.5.6.5, writing OnTime/OffWaitTime only affects an already-active countdown;
+            // a write never initiates one from an idle state (that is the job of OnWithTimedOff). So this reactor
+            // only stops a running countdown when its attribute is written to the hold/terminate values.
+            this.reactTo(this.events.onTime$Changed, this.#stopHeldTimer);
+            this.reactTo(this.events.offWaitTime$Changed, this.#stopHeldTimer);
         }
 
         if (this.agent.has(ScenesManagementServer)) {
@@ -64,26 +64,20 @@ export class OnOffBaseServer extends OnOffLogicBase {
     }
 
     /**
-     * Re-evaluate which countdown timer should run from the committed OnTime/OffWaitTime/OnOff state. A countdown
-     * runs while its attribute is in the open interval (0, 0xFFFF): 0 means inactive and 0xFFFF means hold.
+     * Stop the active countdown timer when a write parks its attribute at a value that ends the countdown: 0 (the
+     * decrement loop only runs while the value is > 0) or 0xFFFF (hold indefinitely). A running countdown picks up
+     * any other written value on its next tick. Writes never start a countdown — only OnWithTimedOff does.
      */
-    #updateTimers() {
+    #stopHeldTimer() {
         if (this.state.onOff) {
-            if ((this.state.onTime ?? 0) !== 0 && this.state.onTime !== 0xffff) {
-                if (!this.timedOnTimer.isRunning) {
-                    this.timedOnTimer.start();
-                }
-            } else if (this.timedOnTimer.isRunning) {
+            if (this.timedOnTimer.isRunning && (this.state.onTime === 0 || this.state.onTime === 0xffff)) {
                 this.timedOnTimer.stop();
             }
-        } else {
-            if ((this.state.offWaitTime ?? 0) !== 0 && this.state.offWaitTime !== 0xffff) {
-                if (!this.delayedOffTimer.isRunning) {
-                    this.delayedOffTimer.start();
-                }
-            } else if (this.delayedOffTimer.isRunning) {
-                this.delayedOffTimer.stop();
-            }
+        } else if (
+            this.delayedOffTimer.isRunning &&
+            (this.state.offWaitTime === 0 || this.state.offWaitTime === 0xffff)
+        ) {
+            this.delayedOffTimer.stop();
         }
     }
 
@@ -207,7 +201,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
         if ((this.state.offWaitTime ?? 0) > 0 && !this.state.onOff) {
             // Delayed-off state: device is off with OffWaitTime running; only lower OffWaitTime, stay off
             this.state.offWaitTime = Math.min(offWaitTime ?? 0, this.state.offWaitTime ?? 0);
-            if (!this.delayedOffTimer.isRunning && this.state.offWaitTime !== 0xffff) {
+            if (
+                !this.delayedOffTimer.isRunning &&
+                (this.state.offWaitTime ?? 0) > 0 &&
+                this.state.offWaitTime !== 0xffff
+            ) {
                 this.delayedOffTimer.start();
             }
             return;

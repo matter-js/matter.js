@@ -256,26 +256,21 @@ describe("OnOffServer", () => {
             await node.close();
         });
 
-        it("starts the delayed-off countdown when OffWaitTime is written while off", async () => {
+        it("does not start a countdown when OffWaitTime is written while plain off", async () => {
             MockTime.reset();
             const { node, endpoint } = await setupLight({ onOff: false });
 
-            const expired = new Promise<void>(resolve =>
-                endpoint.events.onOff.offWaitTime$Changed.on(value => {
-                    if (value === 0) {
-                        resolve();
-                    }
-                }),
-            );
-
-            // A direct write of OffWaitTime must re-evaluate timers (CHIP UpdateTimer-on-write)
+            // Spec §1.5.6.5: writing OffWaitTime only has effect in the Delayed Off state; a write from a plain
+            // off state must not initiate a countdown
             await endpoint.act(agent => {
                 agent.get(LightingOnOff).state.offWaitTime = 30;
             });
-            expect(MockTime.timerCountFor("Delayed off")).equals(1);
+            expect(MockTime.timerCountFor("Delayed off")).equals(0);
 
-            await MockTime.resolve(expired, { stepMs: 10 });
-            expect(endpoint.state.onOff.offWaitTime).equals(0);
+            for (let i = 0; i < 3; i++) {
+                await MockTime.advance(100);
+            }
+            expect(endpoint.state.onOff.offWaitTime).equals(30);
             expect(endpoint.state.onOff.onOff).equals(false);
 
             await node.close();
