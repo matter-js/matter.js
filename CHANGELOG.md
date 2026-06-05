@@ -13,12 +13,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
+    - Fix: AES-CCM encryption now honors the `byteOffset` of subarray inputs for plaintext and AAD
 
 - @matter/node
     - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
 
 - @matter/protocol
+    - Enhancement: Implemented Matter message privacy (header obfuscation) for unicast and group sessions; receiving is always supported, sending is opt-in per session and off by default
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
