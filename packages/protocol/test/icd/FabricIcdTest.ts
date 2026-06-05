@@ -8,6 +8,7 @@ import { CheckInMessage } from "#icd/CheckInMessage.js";
 import { FabricIcd } from "#icd/FabricIcd.js";
 import { Bytes, StandardCrypto } from "@matter/general";
 import { NodeId } from "@matter/types";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 
 const crypto = new StandardCrypto();
 const KEY_A = Bytes.fromHex("d90e13180d00baadd20cf5ed4913d3ff");
@@ -21,7 +22,12 @@ describe("FabricIcd", () => {
     describe("device role — registrations", () => {
         it("stores, lists and removes registrations", () => {
             const icd = fabricIcd();
-            icd.setRegistration({ checkInNodeId: NodeId(1), monitoredSubject: NodeId(1), key: KEY_A, clientType: 0 });
+            icd.setRegistration({
+                checkInNodeId: NodeId(1),
+                monitoredSubject: NodeId(1),
+                key: KEY_A,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
             expect(icd.registrations.length).equal(1);
             icd.deleteRegistration(NodeId(1));
             expect(icd.registrations.length).equal(0);
@@ -29,8 +35,18 @@ describe("FabricIcd", () => {
 
         it("replaces registration for the same checkInNodeId", () => {
             const icd = fabricIcd();
-            icd.setRegistration({ checkInNodeId: NodeId(1), monitoredSubject: NodeId(1), key: KEY_A, clientType: 0 });
-            icd.setRegistration({ checkInNodeId: NodeId(1), monitoredSubject: NodeId(7), key: KEY_B, clientType: 1 });
+            icd.setRegistration({
+                checkInNodeId: NodeId(1),
+                monitoredSubject: NodeId(1),
+                key: KEY_A,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+            icd.setRegistration({
+                checkInNodeId: NodeId(1),
+                monitoredSubject: NodeId(7),
+                key: KEY_B,
+                clientType: IcdManagement.ClientType.Ephemeral,
+            });
             expect(icd.registrations.length).equal(1);
             expect(icd.registrations[0].monitoredSubject).equal(NodeId(7));
         });
