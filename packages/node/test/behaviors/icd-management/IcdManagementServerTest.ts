@@ -7,9 +7,9 @@
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
-import { Bytes } from "@matter/general";
+import { Bytes, Millis } from "@matter/general";
 import { AccessLevel } from "@matter/model";
-import { FabricManager } from "@matter/protocol";
+import { Advertiser, DeviceAdvertiser, FabricManager, ServiceDescription } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockExchange } from "../../node/mock-exchange.js";
@@ -597,6 +597,185 @@ describe("IcdManagementServer", () => {
             );
 
             expect(node.stateOf(IcdManagementServer).icdKeys).deep.equals([]);
+        });
+    });
+
+    describe("ICD advertisement", () => {
+        // CIP + LITS variant used throughout these tests.
+        const litServer = IcdManagementServer.with(
+            IcdManagement.Feature.CheckInProtocolSupport,
+            IcdManagement.Feature.LongIdleTimeSupport,
+        );
+        const RootWithLit = ServerNode.RootEndpoint.with(litServer);
+
+        const LIT_CONFIG = {
+            operatingMode: IcdManagement.OperatingMode.Sit,
+            activeModeThreshold: 5000,
+            idleModeDuration: 3600,
+            activeModeDuration: 1000,
+            maximumCheckInBackoff: 3600,
+        } as const;
+
+        /**
+         * Minimal mock advertiser that records ServiceDescriptions passed to advertise().
+         * Extends Advertiser so it can be added to DeviceAdvertiser.
+         */
+        class RecordingAdvertiser extends Advertiser {
+            readonly calls: Array<{ description: ServiceDescription; event: Advertiser.BroadcastEvent }> = [];
+
+            protected getAdvertisement(_description: ServiceDescription) {
+                return undefined;
+            }
+
+            override advertise(description: ServiceDescription, event: Advertiser.BroadcastEvent) {
+                this.calls.push({ description, event });
+                return undefined;
+            }
+        }
+
+        it("LITS device with no registrations starts in SIT mode", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithLit, icdManagement: LIT_CONFIG },
+            });
+
+            expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
+        });
+
+        it("LITS device provider yields SIT advertisement with idleInterval when no registrations", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithLit, icdManagement: LIT_CONFIG },
+            });
+
+            // Add a recording advertiser and trigger a re-advertisement to observe the ServiceDescription.
+            const recorder = new RecordingAdvertiser();
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            deviceAdvertiser.addAdvertiser(recorder);
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
+
+            const opAds = recorder.calls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.icd).equals(IcdManagement.OperatingMode.Sit);
+            expect(desc.idleInterval).not.undefined;
+            expect(desc.activeInterval).not.undefined;
+            expect(desc.activeThreshold).equals(Millis(LIT_CONFIG.activeModeThreshold));
+        });
+
+        it("operatingMode transitions to LIT after registerClient and provider omits idleInterval", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithLit, icdManagement: LIT_CONFIG },
+            });
+
+            // Spy on refreshOperationalAdvertisement to confirm it is called after registration.
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            let refreshCount = 0;
+            const origRefresh = deviceAdvertiser.refreshOperationalAdvertisement.bind(deviceAdvertiser);
+            deviceAdvertiser.refreshOperationalAdvertisement = async fabric => {
+                refreshCount++;
+                return origRefresh(fabric);
+            };
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+            await MockTime.resolve(Promise.resolve());
+
+            expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
+            expect(refreshCount).greaterThan(0);
+
+            // Verify the provider now yields LIT with no idleInterval.
+            const recorder = new RecordingAdvertiser();
+            deviceAdvertiser.addAdvertiser(recorder);
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
+            const opAds = recorder.calls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.icd).equals(IcdManagement.OperatingMode.Lit);
+            expect(desc.idleInterval).to.be.undefined;
+            expect(desc.activeThreshold).equals(Millis(LIT_CONFIG.activeModeThreshold));
+        });
+
+        it("operatingMode falls back to SIT after unregisterClient removes the last registration", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithLit, icdManagement: LIT_CONFIG },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            const cmds = peer1.commandsOf(IcdManagementClient);
+
+            await cmds.registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+            await MockTime.resolve(Promise.resolve());
+            expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
+
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            let refreshAfterUnregister = 0;
+            const origRefresh = deviceAdvertiser.refreshOperationalAdvertisement.bind(deviceAdvertiser);
+            deviceAdvertiser.refreshOperationalAdvertisement = async fabric => {
+                refreshAfterUnregister++;
+                return origRefresh(fabric);
+            };
+
+            await cmds.unregisterClient({ checkInNodeId });
+            await MockTime.resolve(Promise.resolve());
+
+            expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
+            expect(refreshAfterUnregister).greaterThan(0);
+        });
+
+        it("non-LITS default IcdManagementServer provider yields SIT and mode never changes with registrations", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const recorder = new RecordingAdvertiser();
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            deviceAdvertiser.addAdvertiser(recorder);
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
+
+            const opAdsBefore = recorder.calls.filter(c => c.description.kind === "operational");
+            expect(opAdsBefore.length).greaterThan(0);
+            const descBefore = opAdsBefore[0].description as ServiceDescription.Operational;
+            // CIP-only server is always SIT and must include SII.
+            expect(descBefore.icd).equals(IcdManagement.OperatingMode.Sit);
+            expect(descBefore.idleInterval).not.undefined;
+
+            recorder.calls.length = 0;
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+            await MockTime.resolve(Promise.resolve());
+
+            // Still SIT after registration — non-LITS server never flips to LIT.
+            await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
+            const opAdsAfter = recorder.calls.filter(c => c.description.kind === "operational");
+            expect(opAdsAfter.length).greaterThan(0);
+            const descAfter = opAdsAfter[0].description as ServiceDescription.Operational;
+            expect(descAfter.icd).equals(IcdManagement.OperatingMode.Sit);
         });
     });
 });
