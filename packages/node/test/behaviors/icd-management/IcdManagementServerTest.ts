@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IcdManagementServer } from "#behaviors/icd-management";
+import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { ServerNode } from "#node/index.js";
+import { Bytes } from "@matter/general";
+import { FabricManager } from "@matter/protocol";
+import { NodeId } from "@matter/types";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 
@@ -45,9 +49,7 @@ describe("IcdManagementServer", () => {
         it("accepts spec default attribute values without config override", async () => {
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({
-                device: {
-                    type: RootWithIcd,
-                },
+                device: { type: RootWithIcd },
             });
 
             const state = device.stateOf(IcdManagementServer);
@@ -114,6 +116,110 @@ describe("IcdManagementServer", () => {
 
             const after = device.stateOf(IcdManagementServer).icdCounter;
             expect(after).equals(before + 1);
+        });
+    });
+
+    describe("RegisterClient command", () => {
+        it("registers a client and returns the ICD counter", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1).not.undefined;
+
+            const key = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
+            const response = await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId: peer1.peerAddress!.nodeId,
+                monitoredSubject: peer1.peerAddress!.nodeId,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            // Response must carry the current ICD counter value.
+            expect(response.icdCounter).greaterThanOrEqual(0);
+
+            // Device-side: the attribute has one entry (no key field — struct doesn't have one).
+            const registeredClients = device.stateOf(IcdManagementServer).registeredClients;
+            expect(registeredClients).length(1);
+            const entry = registeredClients[0];
+            expect(entry.checkInNodeId).equals(peer1.peerAddress!.nodeId);
+            expect(entry.clientType).equals(IcdManagement.ClientType.Permanent);
+
+            // Device-side: fabric.icd has the entry WITH the key (the attribute struct carries no usable key).
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            const registrations = fabric.icd.registrations;
+            expect(registrations).length(1);
+            expect(Bytes.areEqual(registrations[0].key, key)).true;
+        });
+
+        it("rejects a second checkInNodeId when fabric slots are exhausted", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: {
+                    type: RootWithIcd,
+                    icdManagement: { clientsSupportedPerFabric: 1 },
+                },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const cmds = peer1.commandsOf(IcdManagementClient);
+
+            await cmds.registerClient({
+                checkInNodeId: peer1.peerAddress!.nodeId,
+                monitoredSubject: peer1.peerAddress!.nodeId,
+                key: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            // A different checkInNodeId exceeds the per-fabric slot limit.
+            await expect(
+                cmds.registerClient({
+                    checkInNodeId: NodeId(peer1.peerAddress!.nodeId + 1n),
+                    monitoredSubject: peer1.peerAddress!.nodeId,
+                    key: Bytes.fromHex("e0e1e2e3e4e5e6e7e8e9eaebecedeeef"),
+                    clientType: IcdManagement.ClientType.Permanent,
+                }),
+            ).rejectedWith(/resource exhausted/i);
+        });
+
+        it("updates an existing entry as Administrator without requiring verificationKey", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const cmds = peer1.commandsOf(IcdManagementClient);
+
+            const firstKey = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
+            await cmds.registerClient({
+                checkInNodeId: peer1.peerAddress!.nodeId,
+                monitoredSubject: peer1.peerAddress!.nodeId,
+                key: firstKey,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            // Update with a new key and clientType, no verificationKey required (Administrator).
+            const secondKey = Bytes.fromHex("a0a1a2a3a4a5a6a7a8a9aaabacadaeaf");
+            await cmds.registerClient({
+                checkInNodeId: peer1.peerAddress!.nodeId,
+                monitoredSubject: peer1.peerAddress!.nodeId,
+                key: secondKey,
+                clientType: IcdManagement.ClientType.Ephemeral,
+            });
+
+            // Still only one entry in the registered clients list.
+            const registeredClients = device.stateOf(IcdManagementServer).registeredClients;
+            expect(registeredClients).length(1);
+            expect(registeredClients[0].clientType).equals(IcdManagement.ClientType.Ephemeral);
+
+            // fabric.icd carries the updated key.
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            const registrations = fabric.icd.registrations;
+            expect(registrations).length(1);
+            expect(Bytes.areEqual(registrations[0].key, secondKey)).true;
         });
     });
 });
