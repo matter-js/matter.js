@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
     - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
     - Fix: TcpChannel now closes the connection on a zero-length stream frame instead of silently skipping it, preventing a peer from holding a connection slot open indefinitely
+    - Fix: A forward message-counter jump of exactly the window size no longer retains stale replay-bitmap bits, which could wrongly reject a later legitimate message as duplicate
 
 ## 0.17.1 (2026-06-03)
 
