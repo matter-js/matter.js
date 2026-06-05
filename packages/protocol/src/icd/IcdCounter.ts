@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, ObservableValue } from "@matter/general";
+import { Observable } from "@matter/general";
 
 /**
  * Counter advance applied on every boot.
@@ -19,9 +19,9 @@ const BOOT_BUMP = 100;
 /**
  * Runtime ICD check-in counter (ICDCounter attribute, quality C N).
  *
- * The owner seeds this counter from the persisted attribute value at node init, persists {@link counter}.value, and
- * persists every subsequent emission. On each boot the counter advances by {@link BOOT_BUMP} so that a crash between
- * an increment and its persist can never cause a counter value to be reused.
+ * The owner constructs this from the persisted attribute value, persists {@link value} once, then persists every
+ * {@link changed} emission. The persisted value is advanced by {@link BOOT_BUMP} on construction so a crash between an
+ * increment and its persist can never cause a counter value to be reused.
  *
  * uint32 wrap-around is harmless: clients apply mod-2³² offset arithmetic and refresh their keys before the offset
  * reaches 2³¹.
@@ -30,47 +30,28 @@ const BOOT_BUMP = 100;
  * @see {@link MatterSpecification.v151.Core} § 4.6.3 (Check-In Counter — boot-bump persistence strategy)
  */
 export class IcdCounter {
-    #counter?: ObservableValue<[value: number]>;
+    #value: number;
 
-    /**
-     * The observable counter value. Read `.value` for the current count, observe for changes.
-     *
-     * @throws {ImplementationError} if accessed before {@link seed}.
-     */
-    get counter(): ObservableValue<[value: number]> {
-        if (this.#counter === undefined) {
-            throw new ImplementationError("IcdCounter used before seeding");
-        }
-        return this.#counter;
+    /** Emits the new counter value after every {@link increment}. */
+    readonly changed = Observable<[value: number]>();
+
+    constructor(persistedValue: number) {
+        this.#value = (persistedValue + BOOT_BUMP) >>> 0;
     }
 
-    /** True once {@link seed} has been called. */
-    get isSeeded(): boolean {
-        return this.#counter !== undefined;
+    /** Current counter value. */
+    get value(): number {
+        return this.#value;
     }
 
     /**
-     * Seeds the counter from the persisted attribute value and applies the boot bump.
-     *
-     * @throws {ImplementationError} if called more than once.
-     */
-    seed(persistedValue: number): void {
-        if (this.#counter !== undefined) {
-            throw new ImplementationError("IcdCounter already seeded");
-        }
-        this.#counter = ObservableValue<[value: number]>((persistedValue + BOOT_BUMP) >>> 0);
-    }
-
-    /**
-     * Advances the counter by one (uint32 wrap-around) and emits {@link counter}.
+     * Advances the counter by one (uint32 wrap-around) and emits {@link changed}.
      *
      * @returns the new counter value.
-     * @throws {ImplementationError} if called before {@link seed}.
      */
     increment(): number {
-        const counter = this.counter;
-        const next = (counter.value! + 1) >>> 0;
-        counter.emit(next);
-        return next;
+        this.#value = (this.#value + 1) >>> 0;
+        this.changed.emit(this.#value);
+        return this.#value;
     }
 }
