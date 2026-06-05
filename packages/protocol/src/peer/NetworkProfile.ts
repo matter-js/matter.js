@@ -81,6 +81,8 @@ export class NetworkProfiles {
     }
 
     set defaults(options: NetworkProfiles.PartialOptions) {
+        // Drop cached profiles so subsequent lookups reconfigure from the new defaults.
+        this.#networks.clear();
         const base = { ...NetworkProfiles.defaults };
         for (const key of Object.keys(options) as (keyof NetworkProfiles.Templates)[]) {
             const override = options[key];
@@ -128,7 +130,7 @@ export class NetworkProfiles {
             return network;
         }
 
-        if (!(id in NetworkProfiles.defaults)) {
+        if (!(id in this.#defaults)) {
             throw new UnknownNetworkProfileError(`Network profile ${id} is not configured`);
         }
 
