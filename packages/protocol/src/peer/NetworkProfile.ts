@@ -36,6 +36,14 @@ export interface ConcreteNetworkProfile {
      * A {@link Semaphore} that limits communications for this particular profile.
      */
     semaphore: Semaphore;
+
+    /**
+     * Additive margin applied to MRP retransmission backoff for exchanges on this profile.
+     *
+     * Compensates for network latency not reflected in the peer's advertised SAI/SII.  Combined
+     * with the local "own" profile margin via max at send time.
+     */
+    additionalMrpDelay: Duration;
 }
 
 /**
@@ -127,24 +135,26 @@ export class NetworkProfiles {
         return this.configure(id, NetworkProfiles.defaults[id as keyof NetworkProfiles.Templates]);
     }
 
-    configure(id: string, limits: NetworkProfiles.Limits) {
+    configure(id: string, limits: NetworkProfiles.Limits, parentDelay?: Duration) {
+        const additionalMrpDelay = limits.additionalMrpDelay ?? parentDelay ?? Millis(0);
         const network: NetworkProfile = {
             id,
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
+            additionalMrpDelay,
         };
         if (limits.connect) {
-            network.connect = this.configure(`${id}:connect`, {
-                ...limits.connect,
-                connect: undefined,
-                probeAddress: undefined,
-            });
+            network.connect = this.configure(
+                `${id}:connect`,
+                { ...limits.connect, connect: undefined, probeAddress: undefined },
+                additionalMrpDelay,
+            );
         }
         if (limits.probeAddress) {
-            network.probeAddress = this.configure(`${id}:probe`, {
-                ...limits.probeAddress,
-                connect: undefined,
-                probeAddress: undefined,
-            });
+            network.probeAddress = this.configure(
+                `${id}:probe`,
+                { ...limits.probeAddress, connect: undefined, probeAddress: undefined },
+                additionalMrpDelay,
+            );
         }
         logger.info(
             "Configure profile",
@@ -217,6 +227,11 @@ export namespace NetworkProfiles {
          * Maximum timeout for one exchange before trying the next in any case.
          */
         timeout?: Duration;
+
+        /**
+         * Additive MRP retransmission margin for this medium.  Defaults to 0 unless the template sets one.
+         */
+        additionalMrpDelay?: Duration;
     }
 
     /**
@@ -285,6 +300,7 @@ export namespace NetworkProfiles {
     export const conservative: Limits = {
         exchanges: 4,
         delay: Millis(100),
+        additionalMrpDelay: Seconds(1.5),
 
         connect: {
             exchanges: 4,
@@ -298,8 +314,8 @@ export namespace NetworkProfiles {
     };
 
     export const defaults: Templates = {
-        unlimited: { exchanges: Infinity },
-        fast: { exchanges: 200 },
+        unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
+        fast: { exchanges: 200, additionalMrpDelay: Millis(0) },
         thread: conservative,
         conservative,
         unknown: conservative,
