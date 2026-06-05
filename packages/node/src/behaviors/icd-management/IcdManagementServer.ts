@@ -15,6 +15,20 @@ import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 const IcdManagementLogicBase = IcdManagementBehavior.with(IcdManagement.Feature.CheckInProtocolSupport);
 
 /**
+ * Minimum ActiveModeThreshold a LIT ICD must use.
+ *
+ * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2
+ */
+const MIN_LIT_ACTIVE_MODE_THRESHOLD = Seconds(5);
+
+/**
+ * The promised StayActiveRequest duration is at least `min(this, requested)` — i.e. this caps the guaranteed minimum.
+ *
+ * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
+ */
+const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
+
+/**
  * Default device-side ICD Management server implementation. Enables the Check-In Protocol Support (CIP) feature and
  * validates spec constraints on the timing attributes at startup. Use {@link IcdManagementServer.with} to specialize
  * for additional features, or extend this class to override its behavior.
@@ -24,6 +38,12 @@ const IcdManagementLogicBase = IcdManagementBehavior.with(IcdManagement.Feature.
  * Override {@link stayActive} to react to StayActiveRequest: extend the device's active period for the requested time
  * and return the duration actually promised. The default implementation only honors the spec minimum and does not
  * track active time, so a device that wants to genuinely stay awake should override it.
+ *
+ * ## Long Idle Time (LITS)
+ *
+ * When enabled via `IcdManagementServer.with(IcdManagement.Feature.LongIdleTimeSupport)`, the mandatory
+ * `operatingMode` attribute has no spec-defined default and must be configured by the application (initialization
+ * throws otherwise). Configure it to {@link IcdManagement.OperatingMode.Sit} unless the device starts in LIT.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.16
  */
@@ -46,6 +66,13 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         if (maximumCheckInBackoff < idleModeDuration) {
             throw new ImplementationError(
                 `maximumCheckInBackoff (${Duration.format(maximumCheckInBackoff)}) must be >= idleModeDuration (${Duration.format(idleModeDuration)})`,
+            );
+        }
+
+        // @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2
+        if (this.features.longIdleTimeSupport && this.state.activeModeThreshold < MIN_LIT_ACTIVE_MODE_THRESHOLD) {
+            throw new ImplementationError(
+                `LIT ICD requires activeModeThreshold (${Duration.format(Millis(this.state.activeModeThreshold))}) >= ${Duration.format(MIN_LIT_ACTIVE_MODE_THRESHOLD)}`,
             );
         }
 
@@ -190,7 +217,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
      */
     protected stayActive(requestedDuration: Duration): Duration {
-        return Duration.min(Seconds(30), requestedDuration);
+        return Duration.min(STAY_ACTIVE_PROMISE_FLOOR, requestedDuration);
     }
 
     /**
