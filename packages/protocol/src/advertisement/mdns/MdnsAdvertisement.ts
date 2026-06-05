@@ -198,7 +198,8 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
 
         Object.assign(values, this.txtValues);
 
-        if (this.description.tcp !== undefined) {
+        // The T (transport modes) key is only used during operational discovery, not by commissionable/commissioner nodes
+        if (this.description.tcp !== undefined && this.isOperational()) {
             values.T = SupportedTransportsSchema.encode(this.description.tcp); /* TCP support */
         }
 
