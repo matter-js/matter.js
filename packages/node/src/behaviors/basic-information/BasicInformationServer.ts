@@ -22,6 +22,13 @@ const Base = BasicInformationBehavior.enable({
     events: { startUp: true, shutDown: true, leave: true },
 }).set({ maxPathsPerInvoke: 0 });
 
+// Advertised CapabilityMinima: the guaranteed minimums we promise clients (core §11.1).  These are a floor, not a cap;
+// the server accepts up to a higher hard ceiling and only blocks beyond it (see InteractionServer).
+const DEFAULT_SIMULTANEOUS_INVOCATIONS_SUPPORTED = 20;
+const DEFAULT_SIMULTANEOUS_WRITES_SUPPORTED = 20;
+const DEFAULT_READ_PATHS_SUPPORTED = 20;
+const DEFAULT_SUBSCRIBE_PATHS_SUPPORTED = 20;
+
 /**
  * This is the default server implementation of BasicInformationBehavior.
  */
@@ -63,18 +70,15 @@ export class BasicInformationServer extends Base {
         setDefault("configurationVersion", 1);
         this.reactTo(this.events.configurationVersion$Changing, this.#preventConfigurationVersionRegression);
 
-        // CapabilityMinima gained four mandatory fields in Matter 1.6 (cluster rev 6).  The spec defines no fixed
-        // defaults for them (they reflect actual node capability), so seed conservative valid minimums while leaving
-        // any caller-provided values intact.
-        // TODO add reasonable defaults for us
-        // TODO use these limits in all relevant places also as limits
         const capabilityMinima = this.state.capabilityMinima;
         this.state.capabilityMinima = {
             ...capabilityMinima,
-            simultaneousInvocationsSupported: capabilityMinima.simultaneousInvocationsSupported ?? 6,
-            simultaneousWritesSupported: capabilityMinima.simultaneousWritesSupported ?? 4,
-            readPathsSupported: capabilityMinima.readPathsSupported ?? 9,
-            subscribePathsSupported: capabilityMinima.subscribePathsSupported ?? 3,
+            simultaneousInvocationsSupported:
+                capabilityMinima.simultaneousInvocationsSupported ?? DEFAULT_SIMULTANEOUS_INVOCATIONS_SUPPORTED,
+            simultaneousWritesSupported:
+                capabilityMinima.simultaneousWritesSupported ?? DEFAULT_SIMULTANEOUS_WRITES_SUPPORTED,
+            readPathsSupported: capabilityMinima.readPathsSupported ?? DEFAULT_READ_PATHS_SUPPORTED,
+            subscribePathsSupported: capabilityMinima.subscribePathsSupported ?? DEFAULT_SUBSCRIBE_PATHS_SUPPORTED,
         };
 
         if (this.state.uniqueId === undefined) {
