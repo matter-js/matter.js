@@ -134,6 +134,9 @@ export interface MessageExchangeContext {
     session: Session;
     localSessionParameters: SessionParameters;
 
+    /** Additive MRP retransmission margin for our own (sender-side) network. */
+    localAdditionalMrpDelay: Duration;
+
     peerLost(exchange: MessageExchange, cause: Error): Promise<void>;
 
     /** @deprecated */
@@ -192,6 +195,7 @@ export class MessageExchange {
     readonly #onSend?: MessageExchange.SendNotifier;
     readonly #onReceive?: MessageExchange.ReceiveNotifier;
     readonly #addressOverride?: ServerAddressUdp;
+    readonly #network?: NetworkProfile;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -229,6 +233,7 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
+    #lastActive = Time.nowMs;
 
     constructor(config: MessageExchange.Config) {
         const {
@@ -255,6 +260,7 @@ export class MessageExchange {
         this.#onSend = onSend;
         this.#onReceive = onReceive;
         this.#addressOverride = addressOverride;
+        this.#network = network;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -302,6 +308,16 @@ export class MessageExchange {
 
     get considerClosed() {
         return this.#closed.value || (this.#isInitiator && this.#closing.value);
+    }
+
+    /** Timestamp of the last send or receive on this exchange, used to evict the least-recently-active exchange. */
+    get lastActive() {
+        return this.#lastActive;
+    }
+
+    #notifyActivity(messageReceived: boolean) {
+        this.#lastActive = Time.nowMs;
+        this.session.notifyActivity(messageReceived);
     }
 
     /**
@@ -373,7 +389,7 @@ export class MessageExchange {
             );
         }
 
-        this.session.notifyActivity(true);
+        this.#notifyActivity(true);
         this.#onReceive?.(message, duplicate);
 
         if (duplicate) {
@@ -506,7 +522,7 @@ export class MessageExchange {
 
         this.#used = true;
         this.#messageSendCounter++;
-        this.session.notifyActivity(false);
+        this.#notifyActivity(false);
 
         let ackedMessageId = standaloneAckMessageId;
         if (ackedMessageId === undefined && this.session.usesMrp) {
@@ -748,7 +764,7 @@ export class MessageExchange {
         }
 
         this.#messageSendCounter++;
-        this.session.notifyActivity(false);
+        this.#notifyActivity(false);
 
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.#mrpResubmissionBackOffTime;
@@ -971,7 +987,16 @@ export class MessageExchange {
     }
 
     get #mrpResubmissionBackOffTime() {
-        let backOff = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
+        const additionalDelay = Duration.max(
+            this.#context.localAdditionalMrpDelay,
+            this.#network?.additionalMrpDelay ?? Millis(0),
+        );
+        let backOff = this.channel.getMrpResubmissionBackOffTime(
+            this.#retransmissionCounter,
+            undefined,
+            false,
+            additionalDelay,
+        );
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {
             backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
         }

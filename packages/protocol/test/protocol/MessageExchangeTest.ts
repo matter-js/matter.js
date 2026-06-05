@@ -34,6 +34,7 @@ function createExchange(session: ProtocolMocks.NodeSession, protocolId: number =
         {
             session,
             localSessionParameters: SessionParameters(SessionParameters.defaults),
+            localAdditionalMrpDelay: Millis(0),
             async peerLost() {
                 peerLostCalled.value = true;
             },
@@ -114,6 +115,32 @@ describe("MessageExchange", () => {
 
                 expect(peerLostCalled.value).to.be.false;
             });
+        });
+    });
+
+    describe("activity tracking", () => {
+        before(() => MockTime.enable());
+
+        it("updates lastActive on receive", async () => {
+            const { exchange } = createExchange(new ProtocolMocks.NodeSession());
+            const before = exchange.lastActive;
+
+            await MockTime.advance(1000);
+            await exchange.onMessageReceived(fakeInboundMessage());
+
+            expect(exchange.lastActive).to.equal(before + 1000);
+        });
+
+        it("updates lastActive on send", async () => {
+            const session = new ProtocolMocks.NodeSession();
+            (session.channel as any).send = async (): Promise<void> => {};
+            const { exchange } = createExchange(session);
+            const before = exchange.lastActive;
+
+            await MockTime.advance(2000);
+            await exchange.send(0, Bytes.empty, { requiresAck: false, disableMrpLogic: true });
+
+            expect(exchange.lastActive).to.equal(before + 2000);
         });
     });
 

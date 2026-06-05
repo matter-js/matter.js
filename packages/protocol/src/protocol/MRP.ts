@@ -37,12 +37,6 @@ export namespace MRP {
     export const DEFAULT_EXPECTED_PROCESSING_TIME = Seconds(2);
 
     /**
-     * To better handle network congestion, we add a delay to the MRP base timings.
-     * TODO Make this value dynamic depending on network type and maybe network behavior
-     */
-    export const ADDITIONAL_MRP_DELAY = Seconds(1.5);
-
-    /**
      * The buffer time in milliseconds to add to the peer response time to also consider network delays and other factors.
      * TODO: This is a pure guess and should be adjusted in the future.
      */
@@ -101,6 +95,12 @@ export namespace MRP {
         transmissionNumber: number;
         sessionParameters: SessionParameters;
         isPeerActive: boolean;
+
+        /**
+         * Additive margin applied to the base interval on real (non-maximum) sends.  Supplied by the
+         * caller from the combined peer/own network-profile policy; 0 means the bare spec interval.
+         */
+        additionalDelay?: Duration;
     }
 
     /**
@@ -118,12 +118,12 @@ export namespace MRP {
      * side of the exchange.
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
-     * Otherwise, we add a network overhead to the timings.
+     * Otherwise, the caller-supplied `additionalDelay` (default 0) is added to the base interval.
      *
      * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
      */
     export function retransmissionIntervalOf(
-        { transmissionNumber, sessionParameters, isPeerActive }: RetryDelayInputs,
+        { transmissionNumber, sessionParameters, isPeerActive, additionalDelay = Millis(0) }: RetryDelayInputs,
         calculateMaximum = false,
     ) {
         const { activeInterval, idleInterval } = sessionParameters;
@@ -134,7 +134,7 @@ export namespace MRP {
         const peerActive = transmissionNumber > 0 && isPeerActive;
         let baseInterval = peerActive ? activeInterval : idleInterval;
         if (!calculateMaximum) {
-            baseInterval += ADDITIONAL_MRP_DELAY;
+            baseInterval += additionalDelay;
         }
         return Millis.floor(
             Millis(

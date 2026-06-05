@@ -224,12 +224,14 @@ export class MessageChannel implements Channel<Message> {
         retransmissionCount: number,
         sessionParameters?: SessionParameters,
         calculateMaximum = false,
+        additionalDelay?: Duration,
     ) {
         return MRP.retransmissionIntervalOf(
             {
                 transmissionNumber: retransmissionCount,
                 sessionParameters: sessionParameters ?? this.session.parameters,
                 isPeerActive: this.session.isPeerActive,
+                additionalDelay,
             },
             calculateMaximum,
         );
