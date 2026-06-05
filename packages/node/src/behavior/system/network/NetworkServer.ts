@@ -110,11 +110,17 @@ export namespace NetworkServer {
 
         @field(duration)
         timeout?: Duration;
+
+        @field(duration)
+        additionalMrpDelay?: Duration;
     }
 
     export class LimitsConfig extends ConcreteLimitsConfig {
         @field(ConcreteLimitsConfig)
         connect?: ConcreteLimitsConfig;
+
+        @field(ConcreteLimitsConfig)
+        probeAddress?: ConcreteLimitsConfig;
     }
 
     export class ProfilesConfig implements NetworkProfiles.PartialOptions {
@@ -155,6 +161,13 @@ export namespace NetworkServer {
          * Preferred transport for outgoing connections. Defaults to UDP when not set.
          */
         transportPreference?: "tcp" | "udp";
+
+        /**
+         * Network profile id describing our own (local) network, used as the sender-side MRP
+         * additive-delay axis.  Defaults to "fast" (low-latency local network → no extra margin).
+         * Set to "thread" when running as a Thread device to mirror CHIP's sender boost.
+         */
+        ownNetworkProfile: string = "fast";
 
         @field(TimingConfig)
         timing?: TimingConfig;
