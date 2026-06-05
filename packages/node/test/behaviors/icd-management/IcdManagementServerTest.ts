@@ -507,5 +507,20 @@ describe("IcdManagementServer", () => {
                 expect(agent.get(IcdManagementServer).internal.icdKeys.size).equals(0);
             });
         });
+
+        it("prunes persisted keys for fabrics that no longer exist on online", async () => {
+            // A key persisted for a fabric that is gone must be dropped on online so a stale ICDToken is never
+            // replayed (defense in depth — normal removal cleans up via #onFabricDeleted while online).
+            await using node = await MockServerNode.createOnline(
+                MockServerNode.RootEndpoint.with(IcdManagementServer),
+                {
+                    icdManagement: {
+                        icdKeys: [{ fabricIndex: FabricIndex(7), checkInNodeId: NodeId(0x1234n), key }],
+                    },
+                },
+            );
+
+            expect(node.stateOf(IcdManagementServer).icdKeys).deep.equals([]);
+        });
     });
 });

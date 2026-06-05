@@ -5,60 +5,71 @@
  */
 
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, ImplementationError } from "@matter/general";
+import { Bytes, Duration, ImplementationError, Millis, Seconds } from "@matter/general";
 import { AccessLevel, DataModelPath, fabricIdx, field, listOf, nodeId, nonvolatile, octstr } from "@matter/model";
 import { AccessControl, assertRemoteActor, Fabric, FabricManager, hasRemoteActor, IcdCounter } from "@matter/protocol";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 
-const Base = IcdManagementBehavior.with(IcdManagement.Feature.CheckInProtocolSupport);
+const IcdManagementLogicBase = IcdManagementBehavior.with(IcdManagement.Feature.CheckInProtocolSupport);
 
 /**
- * Default device-side ICD Management behavior. Enables the Check-In Protocol Support (CIP) feature and validates
- * spec constraints on the timing attributes at startup.
+ * Default device-side ICD Management server implementation. Enables the Check-In Protocol Support (CIP) feature and
+ * validates spec constraints on the timing attributes at startup. Use {@link IcdManagementServer.with} to specialize
+ * for additional features, or extend this class to override its behavior.
+ *
+ * ## Extension points
+ *
+ * Override {@link stayActive} to react to StayActiveRequest: extend the device's active period for the requested time
+ * and return the duration actually promised. The default implementation only honors the spec minimum and does not
+ * track active time, so a device that wants to genuinely stay awake should override it.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.16
  */
-export class IcdManagementServer extends Base {
-    declare internal: IcdManagementServer.Internal;
-    declare readonly state: IcdManagementServer.State;
+export class IcdManagementBaseServer extends IcdManagementLogicBase {
+    declare internal: IcdManagementBaseServer.Internal;
+    declare readonly state: IcdManagementBaseServer.State;
 
     override initialize() {
-        // IdleModeDuration is in seconds; ActiveModeDuration is in milliseconds — unit conversion required.
+        const idleModeDuration = Seconds(this.state.idleModeDuration);
+        const activeModeDuration = Millis(this.state.activeModeDuration);
+        const maximumCheckInBackoff = Seconds(this.state.maximumCheckInBackoff);
+
         // @see {@link MatterSpecification.v151.Core} § 9.16.6.1
-        if (this.state.idleModeDuration * 1000 < this.state.activeModeDuration) {
+        if (idleModeDuration < activeModeDuration) {
             throw new ImplementationError(
-                `idleModeDuration (${this.state.idleModeDuration}s) * 1000 must be >= activeModeDuration (${this.state.activeModeDuration}ms)`,
+                `idleModeDuration (${Duration.format(idleModeDuration)}) must be >= activeModeDuration (${Duration.format(activeModeDuration)})`,
             );
         }
         // @see {@link MatterSpecification.v151.Core} § 9.16.6.10
-        if (this.state.maximumCheckInBackoff < this.state.idleModeDuration) {
+        if (maximumCheckInBackoff < idleModeDuration) {
             throw new ImplementationError(
-                `maximumCheckInBackoff (${this.state.maximumCheckInBackoff}s) must be >= idleModeDuration (${this.state.idleModeDuration}s)`,
+                `maximumCheckInBackoff (${Duration.format(maximumCheckInBackoff)}) must be >= idleModeDuration (${Duration.format(idleModeDuration)})`,
             );
         }
 
         this.reactTo((this.endpoint.lifecycle as NodeLifecycle).online, this.#online);
     }
 
-    async #online() {
-        const prev = this.internal.icdCounter;
-        if (prev !== undefined) {
-            // Node restarted — drop the old counter's reactor so it doesn't accumulate dead backings.
-            await this.stopReacting({ observable: prev.changed });
-        }
-        const counter = new IcdCounter(this.state.icdCounter);
-        this.internal.icdCounter = counter;
-        // Persist the boot-bump immediately; later increments go through the reactor so state writes stay transactional.
-        // @see {@link MatterSpecification.v151.Core} § 4.6.3
-        this.state.icdCounter = counter.value;
-        this.reactTo(counter.changed, this.#persistCounter);
-
-        // Rebuild the key map, dropping keys for fabrics removed while the node was down (the fabric-removal
-        // reactor cannot fire across a restart, so prune here as GroupKeyManagementServer does).
+    #online() {
         const fabrics = this.env.get(FabricManager);
-        const keyMap = new Map<string, IcdManagementServer.IcdKeyEntry>();
+
+        // One-time setup. online may re-fire across stop/start on the same instance; the counter and its persistence
+        // reactor must be created once (and are torn down with the behavior on dispose).
+        if (this.internal.icdCounter === undefined) {
+            const counter = new IcdCounter(this.state.icdCounter);
+            this.internal.icdCounter = counter;
+            // Persist the boot-bump now; later increments persist via the reactor so writes stay transactional.
+            // @see {@link MatterSpecification.v151.Core} § 4.6.3
+            this.state.icdCounter = counter.value;
+            this.reactTo(counter.changed, this.#persistCounter);
+            this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
+        }
+
+        // Rebuild the operational view on every online: fabric.icd is runtime-only and starts empty after a full
+        // restart. Drop keys for fabrics that no longer exist so a stale key can never be replayed.
+        const keyMap = new Map<string, IcdManagementBaseServer.IcdKeyEntry>();
         let prunedKeys = false;
         for (const entry of this.state.icdKeys) {
             if (fabrics.maybeFor(entry.fabricIndex) === undefined) {
@@ -72,15 +83,11 @@ export class IcdManagementServer extends Base {
             this.#persistKeys();
         }
 
-        // Replay persisted registrations into fabric.icd so the operational check-in path has up-to-date keys.
         // @see {@link MatterSpecification.v151.Core} § 9.16.6.4
         for (const client of this.state.registeredClients) {
             const key = keyMap.get(this.#keyFor(client.fabricIndex, client.checkInNodeId))?.key;
-            if (key === undefined) {
-                continue;
-            }
             const fabric = fabrics.maybeFor(client.fabricIndex);
-            if (fabric === undefined) {
+            if (key === undefined || fabric === undefined) {
                 continue;
             }
             fabric.icd.setRegistration({
@@ -90,8 +97,6 @@ export class IcdManagementServer extends Base {
                 clientType: client.clientType,
             });
         }
-
-        this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
     }
 
     async #onFabricDeleted(fabric: Fabric) {
@@ -125,34 +130,17 @@ export class IcdManagementServer extends Base {
         const fabricIndex = fabric.fabricIndex;
 
         const clients = this.state.registeredClients;
-        let existingIndex = -1;
-        let fabricCount = 0;
-        for (let i = 0; i < clients.length; i++) {
-            const c = clients[i];
-            if (c.fabricIndex !== fabricIndex) {
-                continue;
-            }
-            fabricCount++;
-            if (c.checkInNodeId === request.checkInNodeId) {
-                existingIndex = i;
-            }
-        }
+        const fabricClients = clients.filter(c => c.fabricIndex === fabricIndex);
+        const existing = fabricClients.find(c => c.checkInNodeId === request.checkInNodeId);
 
-        if (existingIndex === -1) {
+        if (existing === undefined) {
             // @see {@link MatterSpecification.v151.Core} § 9.16.7.1 step 1
-            if (fabricCount >= this.state.clientsSupportedPerFabric) {
+            if (fabricClients.length >= this.state.clientsSupportedPerFabric) {
                 throw new StatusResponseError("ICD client slots exhausted for fabric", Status.ResourceExhausted);
             }
-        } else if (!this.#isAdministrator()) {
+        } else {
             // @see {@link MatterSpecification.v151.Core} § 9.16.7.1 steps 2-3
-            const stored = this.internal.icdKeys.get(this.#keyFor(fabricIndex, request.checkInNodeId));
-            if (
-                request.verificationKey === undefined ||
-                stored === undefined ||
-                !Bytes.areEqual(request.verificationKey, stored.key)
-            ) {
-                throw new StatusResponseError("VerificationKey mismatch", Status.Failure);
-            }
+            this.#assertMayModify(fabricIndex, request.checkInNodeId, request.verificationKey);
         }
 
         const entry: IcdManagement.MonitoringRegistration = {
@@ -162,10 +150,10 @@ export class IcdManagementServer extends Base {
             fabricIndex,
         };
 
-        if (existingIndex === -1) {
+        if (existing === undefined) {
             clients.push(entry);
         } else {
-            clients[existingIndex] = entry;
+            clients[clients.indexOf(existing)] = entry;
         }
 
         this.internal.icdKeys.set(this.#keyFor(fabricIndex, request.checkInNodeId), {
@@ -189,20 +177,20 @@ export class IcdManagementServer extends Base {
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
      */
     override stayActiveRequest(request: IcdManagement.StayActiveRequest): IcdManagement.StayActiveResponse {
-        return { promisedActiveDuration: this.stayActive(request.stayActiveDuration) };
+        return { promisedActiveDuration: this.stayActive(Millis(request.stayActiveDuration)) };
     }
 
     /**
-     * Extension point: return the promised active duration (ms) for a StayActiveRequest.
+     * Extension point: return the duration for which the device promises to stay active.
      *
-     * The default honors the spec floor only (promised >= min(30000, requested)); with no active-mode machine yet it
-     * neither tracks nor extends real active time. Phase 2b overrides this to fold in remaining active time and
-     * actually extend active mode; apps may override for custom power policy.
+     * The default honors the spec floor only (the promise is at least the smaller of 30s and the request); with no
+     * active-mode machine yet it neither tracks nor extends real active time. Phase 2b overrides this to fold in
+     * remaining active time and actually extend active mode; apps may override for custom power policy.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
      */
-    protected stayActive(requestedDurationMs: number): number {
-        return Math.min(30000, requestedDurationMs);
+    protected stayActive(requestedDuration: Duration): Duration {
+        return Duration.min(Seconds(30), requestedDuration);
     }
 
     /**
@@ -220,17 +208,8 @@ export class IcdManagementServer extends Base {
             throw new StatusResponseError("No such ICD client registration", Status.NotFound);
         }
 
-        if (!this.#isAdministrator()) {
-            // @see {@link MatterSpecification.v151.Core} § 9.16.7.3 step 2
-            const stored = this.internal.icdKeys.get(this.#keyFor(fabricIndex, request.checkInNodeId));
-            if (
-                request.verificationKey === undefined ||
-                stored === undefined ||
-                !Bytes.areEqual(request.verificationKey, stored.key)
-            ) {
-                throw new StatusResponseError("VerificationKey mismatch", Status.Failure);
-            }
-        }
+        // @see {@link MatterSpecification.v151.Core} § 9.16.7.3 step 2
+        this.#assertMayModify(fabricIndex, request.checkInNodeId, request.verificationKey);
 
         this.state.registeredClients = this.state.registeredClients.filter(
             c => !(c.fabricIndex === fabricIndex && c.checkInNodeId === request.checkInNodeId),
@@ -260,6 +239,20 @@ export class IcdManagementServer extends Base {
         return context.authorityAt(AccessLevel.Administer, location) === AccessControl.Authority.Granted;
     }
 
+    /**
+     * Enforces the verificationKey rule shared by register-update and unregister: an Administrator may modify any
+     * entry, while a Manage-privileged caller must supply a verificationKey matching the stored ICDToken.
+     */
+    #assertMayModify(fabricIndex: FabricIndex, checkInNodeId: NodeId, verificationKey?: Bytes) {
+        if (this.#isAdministrator()) {
+            return;
+        }
+        const stored = this.internal.icdKeys.get(this.#keyFor(fabricIndex, checkInNodeId));
+        if (verificationKey === undefined || stored === undefined || !Bytes.areEqual(verificationKey, stored.key)) {
+            throw new StatusResponseError("VerificationKey mismatch", Status.Failure);
+        }
+    }
+
     #keyFor(fabricIndex: FabricIndex, checkInNodeId: NodeId): string {
         return `${fabricIndex}:${checkInNodeId}`;
     }
@@ -269,7 +262,7 @@ export class IcdManagementServer extends Base {
     }
 }
 
-export namespace IcdManagementServer {
+export namespace IcdManagementBaseServer {
     /** Persisted key entry. */
     export class IcdKeyEntry {
         @field(fabricIdx)
@@ -282,7 +275,7 @@ export namespace IcdManagementServer {
         key!: Bytes;
     }
 
-    export class State extends Base.State {
+    export class State extends IcdManagementLogicBase.State {
         /** Persisted ICDToken keys, mirroring the per-registration key not stored in the RegisteredClients attribute. */
         @field(listOf(IcdKeyEntry), nonvolatile)
         icdKeys: IcdKeyEntry[] = [];
@@ -292,4 +285,13 @@ export namespace IcdManagementServer {
         icdCounter?: IcdCounter;
         icdKeys: Map<string, IcdKeyEntry> = new Map();
     }
+
+    export declare const ExtensionInterface: {
+        stayActive(requestedDuration: Duration): Duration;
+    };
 }
+
+/**
+ * The default {@link IcdManagementBehavior} server implementation, with the Check-In Protocol Support feature.
+ */
+export class IcdManagementServer extends IcdManagementBaseServer {}
