@@ -23,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
     - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
     - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
+    - Fix: TcpChannel now closes the connection on a zero-length stream frame instead of silently skipping it, preventing a peer from holding a connection slot open indefinitely
 
 ## 0.17.1 (2026-06-03)
 
