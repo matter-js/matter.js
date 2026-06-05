@@ -134,6 +134,9 @@ export interface MessageExchangeContext {
     session: Session;
     localSessionParameters: SessionParameters;
 
+    /** Additive MRP retransmission margin for our own (sender-side) network. */
+    localAdditionalMrpDelay: Duration;
+
     peerLost(exchange: MessageExchange, cause: Error): Promise<void>;
 
     /** @deprecated */

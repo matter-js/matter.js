@@ -34,6 +34,7 @@ function createExchange(session: ProtocolMocks.NodeSession, protocolId: number =
         {
             session,
             localSessionParameters: SessionParameters(SessionParameters.defaults),
+            localAdditionalMrpDelay: Millis(0),
             async peerLost() {
                 peerLostCalled.value = true;
             },

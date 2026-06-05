@@ -28,6 +28,7 @@ import {
     Logger,
     MatterAggregateError,
     MatterFlowError,
+    Millis,
     Mutex,
     Observable,
     ObserverGroup,
@@ -142,6 +143,12 @@ export class SessionManager {
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
     #sessionParameters: SessionParameters;
+
+    /**
+     * Additive MRP retransmission margin for our own (sender-side) network.  Derived from the
+     * configured "own" network profile; defaults to 0 (treated as a low-latency local network).
+     */
+    localAdditionalMrpDelay: Duration = Millis(0);
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
