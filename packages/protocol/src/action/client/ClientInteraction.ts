@@ -230,9 +230,9 @@ export class ClientInteraction<
      */
     async *read(request: ClientRead, session?: SessionT, extraAbort?: AbortSignal): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
-        if (readPathsCount > 9) {
+        if (readPathsCount > this.#exchangeProvider.readPathsSupported) {
             logger.info(
-                "Read interactions with more than 9 paths might be not allowed by the device. Consider splitting them into several read requests.",
+                `Read interactions with more than ${this.#exchangeProvider.readPathsSupported} paths might be not allowed by the device. Consider splitting them into several read requests.`,
             );
         }
 
@@ -852,8 +852,10 @@ export class ClientInteraction<
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
-        if (subscriptionPathsCount > 3) {
-            logger.info("Subscribe interactions with more than 3 paths might be not allowed by the device.");
+        if (subscriptionPathsCount > this.#exchangeProvider.subscribePathsSupported) {
+            logger.info(
+                `Subscribe interactions with more than ${this.#exchangeProvider.subscribePathsSupported} paths might be not allowed by the device.`,
+            );
         }
 
         const peer = this.#exchangeProvider.peerAddress;
