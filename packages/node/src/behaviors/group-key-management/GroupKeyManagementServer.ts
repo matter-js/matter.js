@@ -61,9 +61,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         }
 
         // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
-        if (this.state.groupcastAdoption !== undefined) {
+        if (this.features.groupcast) {
             throw new ImplementationError(
-                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not set the GroupcastAdoption attribute.",
+                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
             );
         }
 
