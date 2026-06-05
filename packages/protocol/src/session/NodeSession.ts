@@ -6,6 +6,7 @@
 
 import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
+import { MessagePrivacy } from "#codec/MessagePrivacy.js";
 import { Mark } from "#common/Mark.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { Subscription } from "#interaction/Subscription.js";
@@ -23,6 +24,7 @@ import {
     Bytes,
     ChannelType,
     Crypto,
+    CRYPTO_AEAD_MIC_LENGTH_BYTES,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
     Diagnostic,
     Duration,
@@ -51,6 +53,8 @@ export class NodeSession extends SecureSession {
     readonly #decryptKey: Bytes;
     readonly #encryptKey: Bytes;
     readonly #attestationKey: Bytes;
+    readonly #decryptPrivacyKey?: Bytes;
+    readonly #encryptPrivacyKey?: Bytes;
     #caseAuthenticatedTags: readonly CaseAuthenticatedTag[];
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
@@ -79,11 +83,16 @@ export class NodeSession extends SecureSession {
         const encryptKey = isInitiator ? keys.slice(0, 16) : keys.slice(16, 32);
         const attestationKey = keys.slice(32, 48);
 
+        const decryptPrivacyKey = Bytes.of(await MessagePrivacy.deriveKey(config.crypto, decryptKey));
+        const encryptPrivacyKey = Bytes.of(await MessagePrivacy.deriveKey(config.crypto, encryptKey));
+
         return new this({
             ...config,
             decryptKey,
             encryptKey,
             attestationKey,
+            decryptPrivacyKey,
+            encryptPrivacyKey,
             sessionParameters: peerSessionParameters,
         });
     }
@@ -99,6 +108,8 @@ export class NodeSession extends SecureSession {
             decryptKey,
             encryptKey,
             attestationKey,
+            decryptPrivacyKey,
+            encryptPrivacyKey,
             caseAuthenticatedTags,
             isInitiator,
             delayManagerRegistration,
@@ -126,6 +137,8 @@ export class NodeSession extends SecureSession {
         this.#decryptKey = decryptKey;
         this.#encryptKey = encryptKey;
         this.#attestationKey = attestationKey;
+        this.#decryptPrivacyKey = decryptPrivacyKey;
+        this.#encryptPrivacyKey = encryptPrivacyKey;
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
         this.#isInitiator = isInitiator;
 
@@ -180,16 +193,36 @@ export class NodeSession extends SecureSession {
         });
     }
 
-    decode({ header, applicationPayload, messageExtension }: DecodedPacket, aad: Bytes): DecodedMessage {
+    decode({ header, applicationPayload, messageExtension, privacyHeader }: DecodedPacket, aad: Bytes): DecodedMessage {
         if (header.hasMessageExtensions) {
             logger.info(
                 `Message extensions are not supported. Ignoring ${messageExtension ? Bytes.toHex(messageExtension) : undefined}`,
             );
         }
-        const nonce = Session.generateNonce(header.securityFlags, header.messageId, this.#peerNodeId);
+
+        let packetHeader = header;
+        let decryptAad = aad;
+        if (header.hasPrivacyEnhancements && privacyHeader !== undefined) {
+            if (this.#decryptPrivacyKey === undefined) {
+                throw new InternalError("Privacy key not derived for this session.");
+            }
+            const mic = Bytes.of(applicationPayload).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
+            const privacyNonce = MessagePrivacy.buildNonce(header.sessionId, mic);
+            const deobfuscated = MessagePrivacy.transform(
+                this.#crypto,
+                this.#decryptPrivacyKey,
+                Bytes.of(privacyHeader).slice(),
+                privacyNonce,
+            );
+            const messageFlags = Bytes.of(aad)[0];
+            packetHeader = { ...header, ...MessageCodec.decodeObfuscatedHeaderFields(messageFlags, deobfuscated) };
+            decryptAad = Bytes.concat(Bytes.of(aad).slice(0, 4), deobfuscated);
+        }
+
+        const nonce = Session.generateNonce(packetHeader.securityFlags, packetHeader.messageId, this.#peerNodeId);
         const message = MessageCodec.decodePayload({
-            header,
-            applicationPayload: this.#crypto.decrypt(this.#decryptKey, applicationPayload, nonce, aad),
+            header: packetHeader,
+            applicationPayload: this.#crypto.decrypt(this.#decryptKey, applicationPayload, nonce, decryptAad),
         });
 
         if (message.payloadHeader.hasSecuredExtension) {
@@ -210,10 +243,21 @@ export class NodeSession extends SecureSession {
             ? NodeId.UNSPECIFIED_NODE_ID
             : (this.#fabric?.nodeId ?? NodeId.UNSPECIFIED_NODE_ID);
         const nonce = Session.generateNonce(securityFlags, header.messageId, sessionNodeId);
-        return {
-            header,
-            applicationPayload: this.#crypto.encrypt(this.#encryptKey, applicationPayload, nonce, headerBytes),
-        };
+        const ciphertext = this.#crypto.encrypt(this.#encryptKey, applicationPayload, nonce, headerBytes);
+
+        if (!message.packetHeader.hasPrivacyEnhancements) {
+            return { header, applicationPayload: ciphertext };
+        }
+
+        if (this.#encryptPrivacyKey === undefined) {
+            throw new InternalError("Privacy key not derived for this session.");
+        }
+        const mic = Bytes.of(ciphertext).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
+        const privacyNonce = MessagePrivacy.buildNonce(header.sessionId, mic);
+        const region = Bytes.of(headerBytes).slice(4);
+        const obfuscated = MessagePrivacy.transform(this.#crypto, this.#encryptPrivacyKey, region, privacyNonce);
+        const obfuscatedHeader = Bytes.concat(Bytes.of(headerBytes).slice(0, 4), obfuscated);
+        return { header, applicationPayload: ciphertext, headerBytes: obfuscatedHeader };
     }
 
     get attestationChallengeKey(): Bytes {
@@ -422,6 +466,8 @@ export namespace NodeSession {
         decryptKey: Bytes;
         encryptKey: Bytes;
         attestationKey: Bytes;
+        decryptPrivacyKey?: Bytes;
+        encryptPrivacyKey?: Bytes;
         sessionParameters?: SessionParameters.Config;
         isInitiator: boolean;
     }

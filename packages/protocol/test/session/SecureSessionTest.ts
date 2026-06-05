@@ -73,4 +73,77 @@ describe("SecureSession", () => {
             expect(Bytes.toHex(result.applicationPayload)).to.deep.equal(Bytes.toHex(ENCRYPTED_BYTES));
         });
     });
+
+    describe("privacy", () => {
+        async function privacyPair() {
+            const sharedSecret = b$`000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f`;
+            const salt = b$`0011223344556677`;
+            const sender = await NodeSession.create({
+                crypto,
+                id: 1,
+                fabric: undefined,
+                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                peerSessionId: 0x0001,
+                sharedSecret,
+                salt,
+                isInitiator: true,
+                isResumption: false,
+            });
+            const receiver = await NodeSession.create({
+                crypto,
+                id: 2,
+                fabric: undefined,
+                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                peerSessionId: 0x0001,
+                sharedSecret,
+                salt,
+                isInitiator: false,
+                isResumption: false,
+            });
+            return { sender, receiver };
+        }
+
+        function privacyMessage(): Message {
+            return {
+                packetHeader: {
+                    sessionId: 0x0001,
+                    sessionType: SessionType.Unicast,
+                    messageId: 7,
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                payloadHeader: {
+                    isInitiatorMessage: true,
+                    requiresAck: true,
+                    messageType: 0x05,
+                    exchangeId: 0x1234,
+                    protocolId: 0x0001,
+                    ackedMessageId: undefined,
+                    hasSecuredExtension: false,
+                },
+                payload: b$`00112233`,
+            };
+        }
+
+        it("round-trips a unicast message with privacy enabled", async () => {
+            const { sender, receiver } = await privacyPair();
+
+            const packet = sender.encode(privacyMessage());
+            const wire = MessageCodec.encodePacket(packet);
+
+            // Privacy bit set, and the header region after the security-flags byte is obfuscated
+            // (i.e. the message counter bytes are not the cleartext 0x07,0,0,0).
+            expect(Bytes.of(wire)[3] & 0x80).equals(0x80);
+            expect(Bytes.of(wire)[4]).not.equals(7);
+
+            const decodedPacket = MessageCodec.decodePacket(wire);
+            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+            const decoded = receiver.decode(decodedPacket, aad);
+
+            expect(Bytes.toHex(decoded.payload)).equals("00112233");
+            expect(decoded.packetHeader.messageId).equals(7);
+            expect(decoded.packetHeader.hasPrivacyEnhancements).equals(true);
+        });
+    });
 });
