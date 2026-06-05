@@ -69,15 +69,17 @@ export class OnOffBaseServer extends OnOffLogicBase {
      * any other written value on its next tick. Writes never start a countdown — only OnWithTimedOff does.
      */
     #stopHeldTimer() {
+        // Read the internal timers directly; the getters lazily allocate, and the stop-path must never
+        // instantiate a timer for an idle device that is merely receiving an attribute write.
         if (this.state.onOff) {
-            if (this.timedOnTimer.isRunning && (this.state.onTime === 0 || this.state.onTime === 0xffff)) {
-                this.timedOnTimer.stop();
+            if (this.internal.timedOnTimer?.isRunning && (this.state.onTime === 0 || this.state.onTime === 0xffff)) {
+                this.internal.timedOnTimer.stop();
             }
         } else if (
-            this.delayedOffTimer.isRunning &&
+            this.internal.delayedOffTimer?.isRunning &&
             (this.state.offWaitTime === 0 || this.state.offWaitTime === 0xffff)
         ) {
-            this.delayedOffTimer.stop();
+            this.internal.delayedOffTimer.stop();
         }
     }
 
