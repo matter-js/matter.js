@@ -9,6 +9,7 @@ import {
     Crypto,
     CRYPTO_AEAD_MIC_LENGTH_BYTES,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
+    CryptoInputError,
     MaybePromise,
 } from "@matter/general";
 
@@ -30,6 +31,9 @@ export namespace MessagePrivacy {
     /** Build the 13-byte privacy nonce: sessionId (2 bytes, big-endian) then the last 11 bytes of the message MIC. */
     export function buildNonce(sessionId: number, mic: Bytes): Bytes {
         const micBytes = Bytes.of(mic);
+        if (micBytes.length !== CRYPTO_AEAD_MIC_LENGTH_BYTES) {
+            throw new CryptoInputError(`Privacy nonce requires a ${CRYPTO_AEAD_MIC_LENGTH_BYTES}-byte MIC`);
+        }
         return Bytes.concat(
             Uint8Array.of((sessionId >> 8) & 0xff, sessionId & 0xff),
             micBytes.slice(NONCE_MIC_OFFSET, NONCE_MIC_OFFSET + NONCE_MIC_LENGTH),

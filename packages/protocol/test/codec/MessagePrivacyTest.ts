@@ -16,6 +16,12 @@ describe("MessagePrivacy", () => {
             const nonce = MessagePrivacy.buildNonce(0x002a, mic);
             expect(Bytes.toHex(nonce)).equals("002ad2518191400dd68c5c163b");
         });
+
+        it("rejects a MIC that is not 16 bytes", () => {
+            expect(() => MessagePrivacy.buildNonce(0x002a, Bytes.fromHex("c5a0063ad5d2518191400d"))).throws(
+                /requires a 16-byte MIC/,
+            );
+        });
     });
 
     describe("deriveKey", () => {
