@@ -58,6 +58,16 @@ describe("NetworkProfiles", () => {
         });
     });
 
+    describe("defaults", () => {
+        it("layers successive assignments instead of resetting to static templates", () => {
+            const profiles = new NetworkProfiles();
+            profiles.defaults = { fast: { additionalMrpDelay: Seconds(2) } };
+            profiles.defaults = { thread: { additionalMrpDelay: Seconds(3) } };
+            expect(profiles.get("fast").additionalMrpDelay).equals(Seconds(2));
+            expect(profiles.get("thread").additionalMrpDelay).equals(Seconds(3));
+        });
+    });
+
     describe("get", () => {
         it("rejects unknown ids, including Object prototype keys", () => {
             const profiles = new NetworkProfiles();
