@@ -195,8 +195,6 @@ export class ExchangeManager implements Transport.Provider {
         const bytes = Bytes.of(messageBytes);
         const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
 
-        const messageId = packet.header.messageId;
-
         let isDuplicate: boolean;
         let session: Session | undefined;
         let message: DecodedMessage | undefined;
@@ -243,7 +241,7 @@ export class ExchangeManager implements Transport.Provider {
             message = session.decode(packet, aad);
 
             try {
-                session.updateMessageCounter(messageId);
+                session.updateMessageCounter(message.packetHeader.messageId);
                 isDuplicate = false;
             } catch (e) {
                 DuplicateMessageError.accept(e);
@@ -251,15 +249,17 @@ export class ExchangeManager implements Transport.Provider {
             }
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;
-            if (packet.header.sourceNodeId === undefined) {
-                throw new UnexpectedDataError("Group session message must include a source NodeId");
-            }
 
             let key: Bytes;
             ({ session, message, key } = this.#sessions.groupSessionFromPacket(packet, aad));
 
+            const sourceNodeId = message.packetHeader.sourceNodeId;
+            if (sourceNodeId === undefined) {
+                throw new UnexpectedDataError("Group session message must include a source NodeId");
+            }
+
             try {
-                session.updateMessageCounter(messageId, packet.header.sourceNodeId, key);
+                session.updateMessageCounter(message.packetHeader.messageId, sourceNodeId, key);
                 isDuplicate = false;
             } catch (e) {
                 DuplicateMessageError.accept(e);
@@ -268,6 +268,8 @@ export class ExchangeManager implements Transport.Provider {
         } else {
             throw new MatterFlowError(`Unsupported session type: ${packet.header.sessionType}`);
         }
+
+        const messageId = message.packetHeader.messageId;
 
         const exchangeIndex = message.payloadHeader.isInitiatorMessage
             ? message.payloadHeader.exchangeId
