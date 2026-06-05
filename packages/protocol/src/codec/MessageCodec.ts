@@ -215,8 +215,7 @@ export class MessageCodec {
             if (hasMessageExtensions) {
                 throw new NotImplementedError(`Privacy enhancements with message extensions not supported.`);
             }
-            const privacyHeaderLength =
-                4 + (hasSourceNodeId ? 8 : 0) + (hasDestNodeId ? 8 : hasDestGroupId ? 2 : 0);
+            const privacyHeaderLength = 4 + (hasSourceNodeId ? 8 : 0) + (hasDestNodeId ? 8 : hasDestGroupId ? 2 : 0);
             if (reader.remainingBytesCount < privacyHeaderLength) {
                 throw new UnexpectedDataError(
                     `Privacy header length ${privacyHeaderLength} exceeds remaining message size ${reader.remainingBytesCount}.`,
