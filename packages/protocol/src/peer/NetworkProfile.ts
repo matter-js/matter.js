@@ -81,7 +81,7 @@ export class NetworkProfiles {
     }
 
     set defaults(options: NetworkProfiles.PartialOptions) {
-        // Drop cached profiles so subsequent lookups reconfigure from the new defaults.
+        // Cached profiles derive from the previous defaults.
         this.#networks.clear();
         const base = { ...NetworkProfiles.defaults };
         for (const key of Object.keys(options) as (keyof NetworkProfiles.Templates)[]) {

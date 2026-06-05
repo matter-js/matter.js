@@ -385,8 +385,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
 
-        // Resolve the local "own" network profile into the sender-side MRP additive margin.
-        const ownProfileId = this.owner.state.network.ownNetworkProfile;
+        const ownProfileId = this.owner.state.network.ownNetworkProfileId;
         env.get(SessionManager).localAdditionalMrpDelay = env.get(NetworkProfiles).get(ownProfileId).additionalMrpDelay;
 
         env.get(PeerSet).exchanges = exchanges;

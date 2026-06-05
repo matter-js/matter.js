@@ -91,11 +91,11 @@ describe("ClientTuningTest", () => {
         expect(conservative.additionalMrpDelay).equals(Seconds(1.5));
     });
 
-    it("ownNetworkProfile sets the sender-side MRP margin", async () => {
+    it("ownNetworkProfileId sets the sender-side MRP margin", async () => {
         await using site = new MockSite();
 
         const controller = await site.addController({
-            network: { ownNetworkProfile: "thread" },
+            network: { ownNetworkProfileId: "thread" },
         });
         const device = await site.addDevice();
         await commission(controller, device);
@@ -104,7 +104,7 @@ describe("ClientTuningTest", () => {
         expect(sessions.localAdditionalMrpDelay).equals(Seconds(1.5));
     });
 
-    it("ownNetworkProfile defaults to fast (no sender-side margin)", async () => {
+    it("ownNetworkProfileId defaults to fast (no sender-side margin)", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 

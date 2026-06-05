@@ -163,11 +163,10 @@ export namespace NetworkServer {
         transportPreference?: "tcp" | "udp";
 
         /**
-         * Network profile id describing our own (local) network, used as the sender-side MRP
-         * additive-delay axis.  Defaults to "fast" (low-latency local network → no extra margin).
-         * Set to "thread" when running as a Thread device to mirror CHIP's sender boost.
+         * Network profile describing our own (local) network — the sender-side MRP additive-delay
+         * axis.  Defaults to "fast"; set to "thread" on a Thread device.
          */
-        ownNetworkProfile: string = "fast";
+        ownNetworkProfileId: keyof NetworkProfiles.Templates = "fast";
 
         @field(TimingConfig)
         timing?: TimingConfig;
