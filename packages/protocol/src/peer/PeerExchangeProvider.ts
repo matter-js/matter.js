@@ -31,6 +31,14 @@ export class PeerExchangeProvider extends ExchangeProvider {
         return this.#peer.sessionParameters.maxPathsPerInvoke;
     }
 
+    override get readPathsSupported() {
+        return this.#peer.limits.readPathsSupported ?? super.readPathsSupported;
+    }
+
+    override get subscribePathsSupported() {
+        return this.#peer.limits.subscribePathsSupported ?? super.subscribePathsSupported;
+    }
+
     get peerAddress() {
         return this.#peer.address;
     }
