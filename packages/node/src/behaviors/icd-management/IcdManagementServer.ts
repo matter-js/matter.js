@@ -186,6 +186,26 @@ export class IcdManagementServer extends Base {
     }
 
     /**
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
+     */
+    override stayActiveRequest(request: IcdManagement.StayActiveRequest): IcdManagement.StayActiveResponse {
+        return { promisedActiveDuration: this.stayActive(request.stayActiveDuration) };
+    }
+
+    /**
+     * Extension point: return the promised active duration (ms) for a StayActiveRequest.
+     *
+     * The default honors the spec floor only (promised >= min(30000, requested)); with no active-mode machine yet it
+     * neither tracks nor extends real active time. Phase 2b overrides this to fold in remaining active time and
+     * actually extend active mode; apps may override for custom power policy.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
+     */
+    protected stayActive(requestedDurationMs: number): number {
+        return Math.min(30000, requestedDurationMs);
+    }
+
+    /**
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
      */
     override async unregisterClient(request: IcdManagement.UnregisterClientRequest): Promise<void> {
