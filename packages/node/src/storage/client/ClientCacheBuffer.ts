@@ -162,7 +162,7 @@ export class ClientCacheBuffer {
                 // Run the actual flush through the mutex so it serializes with explicit flush calls
                 await this.#mutex.produce(() => this.#doFlush());
             } catch (e) {
-                logger.error("Periodic cache flush failed:", e);
+                logger.warn("Periodic cache flush failed:", e);
             }
         }
     }

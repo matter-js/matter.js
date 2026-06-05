@@ -286,14 +286,14 @@ function adaptError(e: unknown) {
 }
 
 function logSuccess(request: Request, response: Response) {
-    logger.notice(diagnosticHeaderFor(request, response));
+    logger.info(diagnosticHeaderFor(request, response));
 }
 
 function logError(request: Request, response: Response, error: unknown) {
     if (response.status >= 500 && response.status < 600) {
-        logger.error(diagnosticHeaderFor(request, response), error);
+        logger.warn(diagnosticHeaderFor(request, response), error);
     } else if (error instanceof MatterError) {
-        logger.error(diagnosticHeaderFor(request, response), Diagnostic.errorMessage(error), error.message);
+        logger.warn(diagnosticHeaderFor(request, response), Diagnostic.errorMessage(error));
     } else {
         logger.warn(diagnosticHeaderFor(request, response), asError(error).message);
     }

@@ -845,7 +845,7 @@ export class ClientStructure {
         try {
             await endpoint.delete();
         } catch (e) {
-            logger.error(`Error erasing peer endpoint ${endpoint}:`, e);
+            logger.warn(`Error erasing peer endpoint ${endpoint}:`, e);
         }
     }
 
@@ -876,7 +876,7 @@ export class ClientStructure {
                         ).erase?.(),
                     );
                 } catch (e) {
-                    logger.error("Error clearing cluster storage:", e);
+                    logger.warn("Error clearing cluster storage:", e);
                 }
 
                 this.#pendingStructureEvents.push({

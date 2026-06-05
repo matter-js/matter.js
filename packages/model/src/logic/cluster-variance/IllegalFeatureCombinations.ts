@@ -182,7 +182,11 @@ function addFeatureNode(
                 }
 
                 case Conformance.Operator.NOT: {
-                    add({ [feature.name]: true, [extractName(node.param.param)]: true });
+                    // [!X] disallows the feature whenever X holds; for [!(A | B)] each disjunct is independently illegal
+                    const disjuncts = extractDisjunctFeatures(node.param.param);
+                    for (const name in disjuncts) {
+                        add({ [feature.name]: true, [name]: disjuncts[name] });
+                    }
                     break;
                 }
 

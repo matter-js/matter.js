@@ -260,7 +260,7 @@ export class QueryMulticaster implements DnssdSolicitor {
                     }),
                 );
             } catch (e) {
-                logger.error("Unhandled error soliciting DNS-SD names:", e);
+                logger.warn("Unhandled error soliciting DNS-SD names:", e);
             }
         }
     }

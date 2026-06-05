@@ -173,7 +173,7 @@ export class AccessControlServer extends AccessControlBase {
             if (delayedChangeExchange !== undefined && delayedChangeExchange !== context.exchange) {
                 // We are in a delayed ACL update with another exchange, so we do not process this one with Busy error
                 // This is formally not in specification, but chip also does this that way
-                logger.warn(
+                logger.debug(
                     "Decline parallel ACL changes from multiple exchanges",
                     context.exchange.id,
                     "vs.",

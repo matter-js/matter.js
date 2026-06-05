@@ -418,7 +418,8 @@ export namespace Conformance {
                 return `${lhs} ${ast.type} ${rhs}`;
 
             case Operator.NOT:
-                return `!${serializeAtomic(ast.param)}`;
+                // NOT binds tighter than every binary operator, so a binary operand must be grouped
+                return isBinaryOperator(ast.param.type) ? `!(${serialize(ast.param)})` : `!${serialize(ast.param)}`;
 
             case Special.Empty:
                 return "";

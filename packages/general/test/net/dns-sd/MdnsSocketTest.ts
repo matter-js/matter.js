@@ -440,7 +440,7 @@ describe("MdnsSocket", () => {
             expect(collector.messages[0].answers.length).to.be.greaterThan(0);
         });
 
-        it("omits additional records that do not fit", async () => {
+        it("spills additional records that do not fit into follow-up messages", async () => {
             const collector = collectSentMessages(env);
 
             // Create a response that fills up most of the message size with answers
@@ -453,11 +453,16 @@ describe("MdnsSocket", () => {
 
             await collector.stop();
 
-            // Calculate total additional records included
+            // All additional records are delivered across multiple messages
             const totalAdditional = collector.messages.reduce((sum, msg) => sum + msg.additionalRecords.length, 0);
+            expect(totalAdditional).to.equal(5);
 
-            // Should have fewer additional records than requested due to size constraints
-            expect(totalAdditional).to.be.lessThan(5);
+            expect(collector.messages.length).to.be.greaterThan(1);
+
+            // Each message stays within the size limit
+            for (const msg of collector.messages) {
+                expect(DnsCodec.encode(msg).byteLength).to.be.at.most(MAX_MDNS_MESSAGE_SIZE);
+            }
         });
     });
 

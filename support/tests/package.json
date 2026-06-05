@@ -31,8 +31,8 @@
     },
     "devDependencies": {
         "@matter/testing": "*",
-        "@memlab/api": "^2.0.2",
-        "@memlab/heap-analysis": "^2.0.0"
+        "@memlab/api": "^2.0.3",
+        "@memlab/heap-analysis": "^2.0.3"
     },
     "nacho": {
         "test": false

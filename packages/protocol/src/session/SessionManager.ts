@@ -397,7 +397,7 @@ export class SessionManager {
 
         let oldestSession: NodeSession | undefined = undefined;
         for (const session of this.#sessions) {
-            if (!oldestSession || session.activeTimestamp < oldestSession.activeTimestamp) {
+            if (!oldestSession || session.timestamp < oldestSession.timestamp) {
                 oldestSession = session;
             }
         }
@@ -841,7 +841,7 @@ export class SessionManager {
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
-            logger.error(error),
+            logger.warn("Error closing sessions:", error),
         );
     }
 

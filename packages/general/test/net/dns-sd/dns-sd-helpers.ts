@@ -118,7 +118,13 @@ export class MockHost {
     /**
      * Send MDNS message now.
      */
-    async broadcast(nameOrIndex: number | string = 1, ttl = Hours(1), ips?: string[]) {
+    async broadcast(
+        nameOrIndex: number | string = 1,
+        ttl = Hours(1),
+        ips?: string[],
+        txt = ["foo=bar", "flag"],
+        txtTtl = ttl,
+    ) {
         const qname = qnameOf(nameOrIndex);
 
         const answers: DnsRecord[] = [
@@ -138,9 +144,9 @@ export class MockHost {
             {
                 name: qname,
                 recordType: DnsRecordType.TXT,
-                ttl,
+                ttl: txtTtl,
                 recordClass: DnsRecordClass.IN,
-                value: ["foo=bar", "flag"],
+                value: txt,
             },
         ];
 

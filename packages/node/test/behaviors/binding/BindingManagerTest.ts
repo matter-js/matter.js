@@ -486,6 +486,64 @@ describe("BindingManager", () => {
         await node.close();
     });
 
+    it("kind=server accepts a cluster server added to the endpoint at runtime via behaviors.require", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+
+        // OnOffServer is not part of OnOffLightSwitchDevice's type — install it dynamically. This lands in
+        // endpoint.behaviors.supported but never in endpoint.type.behaviors, so the resolver must consult the former.
+        sourceEp.behaviors.require(OnOffServer);
+
+        const entry = new Binding.Target({
+            node: fabric.nodeId,
+            endpoint: sourceEp.number,
+            cluster: ClusterId(OnOffServer.cluster.id),
+            group: undefined,
+            fabricIndex: fabric.fabricIndex,
+        });
+
+        manager.register(server, sourceEp, entry);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const emitted = fakeEmitted(server) as Array<BindingResolution>;
+        expect(emitted).has.length(1);
+        expect(emitted[0].kind).equals("server");
+        expect((emitted[0] as BindingResolution & { kind: "server" }).endpoint).equals(sourceEp);
+
+        await node.close();
+    });
+
+    it("kind=server rejects when the endpoint only has the cluster as a client, not a server", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+
+        // A client behavior shares the cluster id of its server counterpart, but a self-binding target must serve the
+        // cluster. behaviors.supported holds both client and server behaviors, so the server check must exclude clients.
+        sourceEp.behaviors.require(OnOffClient);
+
+        const entry = new Binding.Target({
+            node: fabric.nodeId,
+            endpoint: sourceEp.number,
+            cluster: ClusterId(OnOffServer.cluster.id),
+            group: undefined,
+            fabricIndex: fabric.fabricIndex,
+        });
+
+        manager.register(server, sourceEp, entry);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(fakeEmitted(server)).deep.equals([]);
+
+        await node.close();
+    });
+
     it("kind=group rejects when source endpoint is not a group member", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const fabric = await node.addFabric();

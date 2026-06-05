@@ -173,6 +173,11 @@ export class MessageCodec {
         let messageExtension: Bytes | undefined = undefined;
         if (header.hasMessageExtensions) {
             const extensionLength = reader.readUInt16();
+            if (extensionLength > reader.remainingBytesCount) {
+                throw new UnexpectedDataError(
+                    `Message extension length ${extensionLength} exceeds remaining message size ${reader.remainingBytesCount}.`,
+                );
+            }
             messageExtension = reader.readByteArray(extensionLength);
         }
 
@@ -190,6 +195,11 @@ export class MessageCodec {
         let securityExtension: Bytes | undefined = undefined;
         if (payloadHeader.hasSecuredExtension) {
             const extensionLength = reader.readUInt16();
+            if (extensionLength > reader.remainingBytesCount) {
+                throw new UnexpectedDataError(
+                    `Secured extension length ${extensionLength} exceeds remaining message size ${reader.remainingBytesCount}.`,
+                );
+            }
             securityExtension = reader.readByteArray(extensionLength);
         }
 
@@ -324,7 +334,9 @@ export class MessageCodec {
             sessionType === SessionType.Group &&
             (destGroupId === undefined || sourceNodeId === undefined || destNodeId !== undefined)
         ) {
-            throw new InternalError(`Group session must have destination group id or source node id.`);
+            throw new InternalError(
+                `Group session must have a destination group id and a source node id and no destination node id.`,
+            );
         }
         const writer = new DataWriter(Endian.Little);
         const flags =

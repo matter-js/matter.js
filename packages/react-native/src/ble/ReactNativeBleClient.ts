@@ -84,14 +84,14 @@ export class ReactNativeBleClient {
                 (error, peripheral) => {
                     if (error !== null || peripheral === null) {
                         this.isScanning = false;
-                        logger.error("Error while scanning for BLE devices", error);
+                        logger.warn("Error while scanning for BLE devices", error);
                         if (this.shouldScan) {
                             this.startScanning().catch(error =>
-                                logger.error("Error while restarting scanning after error", error),
+                                logger.warn("Error while restarting scanning after error", error),
                             );
                         } else {
                             this.stopScanning().catch(error =>
-                                logger.error("Error while stopping scanning after error", error),
+                                logger.warn("Error while stopping scanning after error", error),
                             );
                         }
                         return;

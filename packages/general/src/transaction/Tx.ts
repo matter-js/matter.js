@@ -96,7 +96,7 @@ class Tx implements Transaction, Transaction.Finalization {
                 break;
 
             default:
-                logger.error(this.via, "Disposed", this.via, "while", this.status);
+                logger.warn(this.via, "Disposed", this.via, "while", this.status);
                 break;
         }
 
@@ -348,7 +348,7 @@ class Tx implements Transaction, Transaction.Finalization {
             throw cause;
         }
 
-        logger.error("Rolling back", this.via, "due to error:", Diagnostic.weak(asError(cause).message));
+        logger.warn("Rolling back", this.via, "due to error:", Diagnostic.weak(asError(cause).message));
 
         try {
             const result = this.rollback();
@@ -530,7 +530,7 @@ class Tx implements Transaction, Transaction.Finalization {
         let cycles = 1;
 
         const errorRollback = (error?: any) => {
-            logger.error(
+            logger.warn(
                 "Rolling back",
                 this.via,
                 "due to pre-commit error:",
@@ -655,7 +655,7 @@ class Tx implements Transaction, Transaction.Finalization {
         let asyncCommits: undefined | Promise<void>[];
         for (const participant of this.participants) {
             const handleParticipantError = (error: any) => {
-                logger.error(`Error committing ${participant} (phase one):`, error);
+                logger.warn(`Error committing ${participant} (phase one):`, error);
                 needRollback = true;
             };
 

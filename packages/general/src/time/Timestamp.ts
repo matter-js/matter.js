@@ -33,6 +33,7 @@ export function Timestamp<T extends undefined | Timestamp.Definition>(
         if (!Number.isFinite(date.valueOf())) {
             throw new TimestampFormatError("Invalid timestamp format");
         }
+        source = date as T;
     } else if (typeof source === "object" && source !== null && source instanceof Date) {
         if (!Number.isFinite(source.valueOf())) {
             throw new TimestampFormatError("Cannot convert date to timestamp because it is invalid");

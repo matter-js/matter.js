@@ -605,7 +605,7 @@ export class StorageService {
                 const skipNote =
                     result.otherTypeKeysSkipped > 0 ? `, ${result.otherTypeKeysSkipped} non-matching keys skipped` : "";
                 if (result.success) {
-                    logger.info(
+                    logger.notice(
                         `${label} migration complete: ${result.migratedCount} migrated, ${result.skippedCount} skipped${skipNote}`,
                     );
                 } else {

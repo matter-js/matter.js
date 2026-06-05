@@ -11,6 +11,7 @@ import { ServerAddressSet } from "#net/ServerAddressSet.js";
 import { Duration } from "#time/Duration.js";
 import { Time } from "#time/Time.js";
 import { Abort } from "#util/Abort.js";
+import { Bytes } from "#util/Bytes.js";
 import { AsyncObservable, AsyncObservableValue, ObserverGroup } from "#util/Observable.js";
 import { DnssdName } from "./DnssdName.js";
 import { DnssdNames } from "./DnssdNames.js";
@@ -30,6 +31,7 @@ export class IpService {
     readonly #addresses = ServerAddressSet<ServerAddressIp>();
     #status = new IpServiceStatus(this);
     #notified?: Promise<void>;
+    #parameterSignature: string;
 
     constructor(name: string, via: string, names: DnssdNames) {
         this.#name = names.get(name);
@@ -45,6 +47,8 @@ export class IpService {
 
             this.#updateService(record.ttl, service);
         }
+
+        this.#parameterSignature = parameterSignatureOf(this.parameters);
     }
 
     /**
@@ -184,21 +188,35 @@ export class IpService {
     }
 
     #onServiceChanged = async ({ updated, deleted }: DnssdName.Changes) => {
+        // The address-change path never observes TXT records, so detect parameter changes here.
+        let txtUpdated = false;
+
         if (updated) {
             for (const record of updated) {
                 const service = serviceOf(record);
                 if (service) {
                     this.#updateService(record.ttl, service);
+                } else if (record.recordType === DnsRecordType.TXT) {
+                    txtUpdated = true;
                 }
             }
         }
 
+        // Deleted/expired TXT is intentionally ignored: keep the last known parameters as the best assumption.
         if (deleted) {
             for (const record of deleted) {
                 const service = serviceOf(record);
                 if (service) {
                     this.#deleteService(service);
                 }
+            }
+        }
+
+        if (txtUpdated) {
+            const signature = parameterSignatureOf(this.parameters);
+            if (signature !== this.#parameterSignature) {
+                this.#parameterSignature = signature;
+                this.#notify();
             }
         }
     };
@@ -333,6 +351,13 @@ function serviceOf(record: DnssdName.Record) {
     }
 
     return record.value;
+}
+
+function parameterSignatureOf(parameters: DnssdParameters): string {
+    return [...parameters.keys()]
+        .sort()
+        .map(key => `${key}=${Bytes.toHex(parameters.raw(key)!)}`)
+        .join("\0");
 }
 
 function hostKeyOf(name: string, port: number) {

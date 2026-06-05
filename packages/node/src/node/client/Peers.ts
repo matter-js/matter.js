@@ -255,8 +255,20 @@ export class Peers extends EndpointContainer<ClientNode> {
             throw new ImplementationError("Cannot register a peer address for a fabric we do not belong to");
         }
 
-        let node = this.get(peerAddress);
-        if (!node) {
+        const existing = this.get(peerAddress);
+        if (existing) {
+            return existing;
+        }
+
+        // Serialize creation through the same mutex the cull/leave paths use. Two concurrent callers for the same
+        // address would otherwise both pass the check and both create a ClientNode (the awaits below yield between
+        // the check and the add).
+        return this.#mutex.produce(async () => {
+            let node = this.get(peerAddress);
+            if (node) {
+                return node;
+            }
+
             if (options.id !== undefined) {
                 // We want to initialize a node with a provided id. This could be an injected node, so ensure the
                 // ClientNodeStore is constructed. Without id the storage is empty anyway because id is newly assigned
@@ -276,9 +288,9 @@ export class Peers extends EndpointContainer<ClientNode> {
             await node.set({
                 commissioning: { peerAddress: PeerAddress(peerAddress) },
             });
-        }
 
-        return node;
+            return node;
+        });
     }
 
     override async close() {
@@ -387,7 +399,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.#mutex.run(() =>
             this.#cullExpiredNodesAndAddresses()
                 .catch(error => {
-                    logger.error("Error culling expired nodes", error);
+                    logger.warn("Error culling expired nodes", error);
                 })
                 .finally(() => {
                     this.#manageExpiration();

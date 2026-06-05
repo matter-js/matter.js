@@ -17,6 +17,7 @@ import {
     Duration,
     Logger,
     NetworkInterfaceDetails,
+    ServerAddress,
     SrvRecord,
     Time,
     Timestamp,
@@ -163,26 +164,39 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
             ),
         ];
 
-        for (const addr of addrs.ipV6) {
-            records.push(AAAARecord(hostname, addr));
+        const ips = [...addrs.ipV6];
+        if (this.advertiser.server.supportsIpv4) {
+            ips.push(...addrs.ipV4);
         }
 
-        if (this.advertiser.server.supportsIpv4) {
-            for (const addr of addrs.ipV4) {
-                records.push(ARecord(hostname, addr));
-            }
+        // Emit address records in SelectionPreference order so peers that truncate or pick naively favor the most
+        // reachable addresses
+        ips.sort((a, b) => ServerAddress.selectionPreferenceOfIp(a) - ServerAddress.selectionPreferenceOfIp(b));
+
+        for (const ip of ips) {
+            records.push(ip.includes(":") ? AAAARecord(hostname, ip) : ARecord(hostname, ip));
         }
 
         return records;
     }
 
     get #txtValues() {
-        const values: Record<string, unknown> = {
-            SII: this.description.idleInterval /* Session Idle Interval */,
-            SAI: this.description.activeInterval /* Session Active Interval */,
-            SAT: this.description.activeThreshold /* Session Active Threshold */,
-            ...this.txtValues,
-        };
+        const { idleInterval, activeInterval, activeThreshold } = this.description;
+
+        const values: Record<string, unknown> = {};
+
+        // Spec §4.3.4: SII/SAI/SAT are optional overrides of the MRP defaults, so omit them when at default
+        if (idleInterval !== SessionIntervals.defaults.idleInterval) {
+            values.SII = idleInterval; /* Session Idle Interval */
+        }
+        if (activeInterval !== SessionIntervals.defaults.activeInterval) {
+            values.SAI = activeInterval; /* Session Active Interval */
+        }
+        if (activeThreshold !== SessionIntervals.defaults.activeThreshold) {
+            values.SAT = activeThreshold; /* Session Active Threshold */
+        }
+
+        Object.assign(values, this.txtValues);
 
         if (this.description.tcp !== undefined) {
             values.T = SupportedTransportsSchema.encode(this.description.tcp); /* TCP support */

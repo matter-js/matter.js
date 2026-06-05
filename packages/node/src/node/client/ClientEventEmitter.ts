@@ -128,7 +128,7 @@ function getNames(matter: MatterModel, { path: { clusterId, eventId } }: ReadRes
     const cluster = matter.clusters(clusterId);
     if (cluster === undefined) {
         if (!warnedForUnknown.has(clusterId)) {
-            logger.warn(`Ignoring events for unknown cluster #${clusterId}`);
+            logger.notice(`Ignoring events for unknown cluster #${clusterId}`);
             warnedForUnknown.add(clusterId);
             matterCache[key] = undefined;
         }
@@ -138,7 +138,7 @@ function getNames(matter: MatterModel, { path: { clusterId, eventId } }: ReadRes
     const event = cluster.events(eventId);
     if (event === undefined) {
         if (!warnedForUnknown.has(key)) {
-            logger.warn(`Ignoring unknown event #${eventId} for ${cluster.name} cluster`);
+            logger.notice(`Ignoring unknown event #${eventId} for ${cluster.name} cluster`);
             warnedForUnknown.add(key);
             matterCache[key] = undefined;
         }

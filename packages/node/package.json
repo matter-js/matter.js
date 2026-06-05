@@ -42,7 +42,7 @@
         "@matter/protocol": "*"
     },
     "devDependencies": {
-        "@nacho-iot/js-tools": "^0.1.5",
+        "@nacho-iot/js-tools": "^0.1.7",
         "@matter/testing": "*"
     },
     "files": [

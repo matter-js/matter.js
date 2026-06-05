@@ -1090,7 +1090,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "OFFONLY", conformance: "[!LT | DF]", constraint: "2", title: "OffOnly",
+                name: "OFFONLY", conformance: "[!(LT | DF)]", constraint: "2", title: "OffOnly",
                 xref: "cluster§1.5.4.3",
 
                 details: "When this feature is supported, the Off command shall be supported and the On and Toggle commands " +
@@ -45227,7 +45227,7 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 3 } ], element: "attribute" })
         ),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§13.3.6" }),
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }),

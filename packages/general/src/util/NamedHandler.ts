@@ -27,7 +27,7 @@ export class NamedHandler<H extends Record<keyof H, HandlerFunction>> {
 
     removeHandler<K extends keyof H>(action: K, handler: H[K]) {
         this.handler = this.handler.filter(({ action: a, handler: h }) => {
-            return a !== action && h !== handler;
+            return a !== action || h !== handler;
         });
     }
 }

@@ -41,9 +41,16 @@ function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode
                     describe: "endpoint id to read",
                     type: "number",
                     demandOption: true,
+                })
+                .options({
+                    "fabric-filtered": {
+                        describe: "request fabric-filtered data (only data visible to the accessing fabric)",
+                        default: true,
+                        type: "boolean",
+                    },
                 }),
         async argv => {
-            const { nodeId, endpointId, clusterId, attributeId: rawAttributeId } = argv;
+            const { nodeId, endpointId, clusterId, attributeId: rawAttributeId, fabricFiltered } = argv;
             const attributeId = rawAttributeId === "*" ? undefined : parseInt(rawAttributeId);
             const node = (await theNode.connectAndGetNodes(nodeId))[0];
 
@@ -57,6 +64,7 @@ function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode
                             attributeId: attributeId !== undefined ? AttributeId(attributeId) : undefined,
                         },
                     ],
+                    isFabricFiltered: fabricFiltered,
                 });
                 console.log(
                     `Attribute values for cluster ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attributeId}:`,
@@ -115,11 +123,17 @@ function generateClusterAttributeHandlers(yargs: Argv, cluster: ClusterModel, th
                                         default: false,
                                         type: "boolean",
                                     },
+                                    "fabric-filtered": {
+                                        describe:
+                                            "request fabric-filtered data (only data visible to the accessing fabric)",
+                                        default: true,
+                                        type: "boolean",
+                                    },
                                 });
                         },
                         async argv => {
                             const clusterId = cluster.id;
-                            const { nodeId, endpointId, remote } = argv;
+                            const { nodeId, endpointId, remote, fabricFiltered } = argv;
                             const requestRemote = remote ? true : undefined;
                             const node = (await theNode.connectAndGetNodes(nodeId))[0];
 
@@ -138,11 +152,14 @@ function generateClusterAttributeHandlers(yargs: Argv, cluster: ClusterModel, th
                             for (const attribute of cluster.attributes) {
                                 const attributeName = attribute.propertyName;
                                 const attributeClient = clusterClient.attributes[attributeName];
-                                if (!remote && !(attributeClient instanceof SupportedAttributeClient)) {
+                                if (
+                                    attributeClient === undefined ||
+                                    (!remote && !(attributeClient instanceof SupportedAttributeClient))
+                                ) {
                                     continue;
                                 }
                                 console.log(
-                                    `    ${attributeName} (${attribute.id}): ${Diagnostic.json(await attributeClient.get(requestRemote))}`,
+                                    `    ${attributeName} (${attribute.id}): ${Diagnostic.json(await attributeClient.get(requestRemote, fabricFiltered))}`,
                                 );
                             }
                         },
@@ -217,9 +234,14 @@ function generateAttributeReadHandler(
                         default: false,
                         type: "boolean",
                     },
+                    "fabric-filtered": {
+                        describe: "request fabric-filtered data (only data visible to the accessing fabric)",
+                        default: true,
+                        type: "boolean",
+                    },
                 }),
         async argv => {
-            const { nodeId, endpointId, remote } = argv;
+            const { nodeId, endpointId, remote, fabricFiltered } = argv;
             const requestRemote = remote ? true : undefined;
             const node = (await theNode.connectAndGetNodes(nodeId))[0];
 
@@ -229,7 +251,7 @@ function generateAttributeReadHandler(
                 return;
             }
             const attributeClient = clusterClient.attributes[attributeName];
-            if (!remote && !(attributeClient instanceof SupportedAttributeClient)) {
+            if (attributeClient === undefined || (!remote && !(attributeClient instanceof SupportedAttributeClient))) {
                 console.log(
                     `ERROR: Attribute ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
                 );
@@ -237,7 +259,7 @@ function generateAttributeReadHandler(
             }
             try {
                 console.log(
-                    `Attribute value for ${attributeName} ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id}: ${Diagnostic.json(await attributeClient.get(requestRemote))}`,
+                    `Attribute value for ${attributeName} ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id}: ${Diagnostic.json(await attributeClient.get(requestRemote, fabricFiltered))}`,
                 );
             } catch (error) {
                 console.log(`ERROR: Could not get attribute ${attribute.name}: ${error}`);

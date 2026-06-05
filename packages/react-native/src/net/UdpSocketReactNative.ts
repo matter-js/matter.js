@@ -100,7 +100,7 @@ function createDgramSocket(host: string | undefined, port: number | undefined, o
                 }),
             );
             socket.removeListener("error", handleBindError);
-            socket.on("error", (error: Error) => logger.error(error));
+            socket.on("error", (error: Error) => logger.error("UDP socket error", error));
             resolve(socket);
         });
     });

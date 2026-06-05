@@ -281,7 +281,7 @@ export class RuntimeService {
 
     #crash(cause?: Error) {
         if (cause) {
-            logger.error(cause);
+            logger.fatal(cause);
         }
         this.crashed.emit(cause);
         this.cancel();

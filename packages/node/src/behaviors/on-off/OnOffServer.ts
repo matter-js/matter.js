@@ -49,9 +49,37 @@ export class OnOffBaseServer extends OnOffLogicBase {
             }
         }
 
+        if (this.features.lighting) {
+            // Per spec §1.5.6.4 / §1.5.6.5, writing OnTime/OffWaitTime only affects an already-active countdown;
+            // a write never initiates one from an idle state (that is the job of OnWithTimedOff). So this reactor
+            // only stops a running countdown when its attribute is written to the hold/terminate values.
+            this.reactTo(this.events.onTime$Changed, this.#stopHeldTimer);
+            this.reactTo(this.events.offWaitTime$Changed, this.#stopHeldTimer);
+        }
+
         if (this.agent.has(ScenesManagementServer)) {
             this.agent.get(ScenesManagementServer).implementScenes(this, this.#applySceneValues);
             this.reactTo(this.events.onOff$Changed, this.#clearDelayedSceneApplyData);
+        }
+    }
+
+    /**
+     * Stop the active countdown timer when a write parks its attribute at a value that ends the countdown: 0 (the
+     * decrement loop only runs while the value is > 0) or 0xFFFF (hold indefinitely). A running countdown picks up
+     * any other written value on its next tick. Writes never start a countdown — only OnWithTimedOff does.
+     */
+    #stopHeldTimer() {
+        // Read the internal timers directly; the getters lazily allocate, and the stop-path must never
+        // instantiate a timer for an idle device that is merely receiving an attribute write.
+        if (this.state.onOff) {
+            if (this.internal.timedOnTimer?.isRunning && (this.state.onTime === 0 || this.state.onTime === 0xffff)) {
+                this.internal.timedOnTimer.stop();
+            }
+        } else if (
+            this.internal.delayedOffTimer?.isRunning &&
+            (this.state.offWaitTime === 0 || this.state.offWaitTime === 0xffff)
+        ) {
+            this.internal.delayedOffTimer.stop();
         }
     }
 
@@ -73,7 +101,8 @@ export class OnOffBaseServer extends OnOffLogicBase {
         this.state.onOff = true;
         if (this.features.lighting) {
             this.state.globalSceneControl = true;
-            if (!this.timedOnTimer.isRunning) {
+            // Retain OffWaitTime during any timed-on phase (incl. the 0xFFFF hold); clear only when OnTime is 0
+            if ((this.state.onTime ?? 0) === 0) {
                 if (this.delayedOffTimer.isRunning) {
                     this.delayedOffTimer.stop();
                 }
@@ -95,11 +124,17 @@ export class OnOffBaseServer extends OnOffLogicBase {
         if (this.features.lighting) {
             if (this.timedOnTimer.isRunning) {
                 this.timedOnTimer.stop();
-                if ((this.state.offWaitTime ?? 0) > 0) {
-                    this.delayedOffTimer.start();
-                }
             }
             this.state.onTime = 0;
+            // Off with OffWaitTime > 0 enters the delayed-off guard period (spec §1.5.7.6.4), regardless of
+            // any prior timed-on phase
+            if (
+                (this.state.offWaitTime ?? 0) > 0 &&
+                this.state.offWaitTime !== 0xffff &&
+                !this.delayedOffTimer.isRunning
+            ) {
+                this.delayedOffTimer.start();
+            }
         }
     }
 
@@ -165,17 +200,26 @@ export class OnOffBaseServer extends OnOffLogicBase {
             return;
         }
 
-        if (this.delayedOffTimer.isRunning && !this.state.onOff) {
-            // We are already in "delayed off state".  This means offWaitTime > 0 and the device is off now
+        if ((this.state.offWaitTime ?? 0) > 0 && !this.state.onOff) {
+            // Delayed-off state: device is off with OffWaitTime running; only lower OffWaitTime, stay off
             this.state.offWaitTime = Math.min(offWaitTime ?? 0, this.state.offWaitTime ?? 0);
+            if (
+                !this.delayedOffTimer.isRunning &&
+                (this.state.offWaitTime ?? 0) > 0 &&
+                this.state.offWaitTime !== 0xffff
+            ) {
+                this.delayedOffTimer.start();
+            }
             return;
         }
 
         this.state.onTime = Math.max(onTime ?? 0, this.state.onTime ?? 0);
         this.state.offWaitTime = offWaitTime;
-        if (this.state.onTime !== 0 && this.state.offWaitTime !== 0) {
-            // Specs talk about 0xffff aka "uint16 overflow", we set to 0 if negative
+        // 0xFFFF holds indefinitely (spec §1.5.8): no countdown, so stop any timer instead of arming one
+        if (this.state.onTime !== 0 && this.state.onTime !== 0xffff) {
             this.timedOnTimer.start();
+        } else if (this.timedOnTimer.isRunning) {
+            this.timedOnTimer.stop();
         }
         return this.on();
     }
@@ -193,6 +237,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
     }
 
     async #timedOnTick() {
+        if (this.state.onTime === 0xffff) {
+            // 0xFFFF holds indefinitely (spec §1.5.8); stop in case OnTime was written to the hold value
+            this.internal.timedOnTimer?.stop();
+            return;
+        }
         let time = (this.state.onTime ?? 0) - 1;
         if (time <= 0) {
             time = 0;
@@ -261,6 +310,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
     }
 
     #delayedOffTick() {
+        if (this.state.offWaitTime === 0xffff) {
+            // 0xFFFF holds indefinitely (spec §1.5.8); stop in case OffWaitTime was written to the hold value
+            this.internal.delayedOffTimer?.stop();
+            return;
+        }
         let time = (this.state.offWaitTime ?? 0) - 1;
         if (time <= 0) {
             time = 0;

@@ -537,7 +537,7 @@ export class ControllerCommissioner {
                             // Already-closed races with our force-close — the session shut down
                             // via another path, no action needed.  Anything else is a real bug.
                             if (error instanceof SessionClosedError) return;
-                            logger.error("Error while force-closing PASE session on BLE close", error);
+                            logger.warn("Error while force-closing PASE session on BLE close", error);
                         });
                 });
             }

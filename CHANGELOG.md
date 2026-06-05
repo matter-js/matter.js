@@ -12,23 +12,48 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
+    - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
+
+- @matter/node
+    - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
+
+- @matter/protocol
+    - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
+    - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
+    - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
+    - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
+    - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
+
+## 0.17.1 (2026-06-03)
+
+- @matter/\*
+    - Enhancement: Standardized log levels across all packages against a new logging guideline (see `docs/LOGGING.md`)
+
+- @matter/general
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
+    - Fix: IpService now also emits changed event when the TXT reconrd changes to ensure updates of the descriptor
 
 - @matter/model
     - Fix: Remove invalid FabricIndex field from four commands
+    - Fix: Correct the Device type revision of Room Air Conditioner
 
 - @matter/node
   - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
 
+- @matter/nodejs-shell
+    - Feature: Added `--fabric-filtered` flag (default `true`) to the attribute read commands to control fabric filtering
+
 - @matter/protocol
-    - Feature: New `TrustedAsTestCertificate` attestation finding lets `onAttestationFailure` decide whether to accept devices whose PAA is only in the trust store as a test certificate; previously these failed with `PaaNotTrusted`. Adds per-call `considerTestCertificates` and `allowsTestCertificates` on `DclCertificateService`
+    - Feature: New `TrustedAsTestCertificate` attestation finding lets `onAttestationFailure` decide whether to accept devices whose PAA is only in the trust store as a test certificate; previously these failed with `PaaNotTrusted`. Adds per-call `considerTestCertificates` and a separate `acceptTestCertificates` trust policy on `DclCertificateService`
     - Feature: `OnAttestationFailure` callback may return a `string` (wraps the underlying error as `cause` of a new `CommissioningError`) or throw to propagate verbatim
     - Adjustment: Default-accept policies (`onAttestationFailure === true`/`undefined`) now commission test-PAA-only devices that previously failed; upgrade the policy to keep rejecting
     - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
     - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
     - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
+    - Fix: Fixes message counter rollover logic
     - Fix: Event reports are now decoded in wire (EventNumber) order
     - Fix: Allows CSRs with an empty subject as per Matter spec
+    - Fix: Corrects BTP handshake decoding of version field
 
 - @matter/types
     - Fix: Remove invalid FabricIndex field from four commands

@@ -290,7 +290,7 @@ export class BtpSessionHandler {
                 await this.handleMatterMessagePayload(payloadToProcess);
             }
         } catch (error) {
-            logger.error(`Error while handling incoming BTP data: ${error}`);
+            logger.warn(`Error while handling incoming BTP data:`, error);
             await this.close();
 
             // If no BTP protocol error, rethrow
