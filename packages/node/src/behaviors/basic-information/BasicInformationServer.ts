@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Diagnostic, ImplementationError, Logger } from "@matter/general";
+import { Diagnostic, ImplementationError, Logger, MaybePromise } from "@matter/general";
 import { AttributeModel, EventModel, Schema, Specification } from "@matter/model";
 import { Fabric, FabricManager } from "@matter/protocol";
 import { DEFAULT_MAX_PATHS_PER_INVOKE, VendorId } from "@matter/types";
@@ -60,9 +60,8 @@ export class BasicInformationServer extends Base {
         setDefault("specificationVersion", Specification.SPECIFICATION_VERSION);
         setDefault("maxPathsPerInvoke", DEFAULT_MAX_PATHS_PER_INVOKE);
 
-        // ConfigurationVersion became mandatory at BasicInformation rev 6 (Matter 1.6).  Seed a valid starting value;
-        // monotonic-increment-on-configuration-change semantics are tracked as a follow-up.
         setDefault("configurationVersion", 1);
+        this.reactTo(this.events.configurationVersion$Changing, this.#preventConfigurationVersionRegression);
 
         // CapabilityMinima gained four mandatory fields in Matter 1.6 (cluster rev 6).  The spec defines no fixed
         // defaults for them (they reflect actual node capability), so seed conservative valid minimums while leaving
@@ -108,6 +107,40 @@ export class BasicInformationServer extends Base {
         }
 
         validateBasicInfoAttributes(this.state, logger);
+    }
+
+    /**
+     * Run a configuration change and increase {@link BasicInformation.State.configurationVersion} afterwards.
+     *
+     * Use via the agent, e.g. `agent.get(BasicInformationServer).increaseConfigurationVersion(() => { ...changes... })`.
+     * The callback runs first and receives the acting {@link ActionContext}; the version is increased once it completes
+     * so a single logical change yields a single increment.
+     *
+     * To group changes across multiple bridged nodes into one transaction with a single bridge increment, perform the
+     * bridged-node changes inside this callback via the provided context and pass that context to
+     * {@link BridgedDeviceBasicInformationServer.increaseConfigurationVersion}.
+     */
+    async increaseConfigurationVersion<T = void>(change?: (context: ActionContext) => MaybePromise<T>): Promise<T> {
+        const result = await change?.(this.context);
+        this.state.configurationVersion = BasicInformationServer.nextConfigurationVersion(
+            this.state.configurationVersion,
+        );
+        return result as T;
+    }
+
+    /**
+     * Compute the next configuration version, wrapping at the uint32 maximum back to the minimum value of 1.  The
+     * overflow behavior is not defined by the specification; see the spec-clarification follow-up.
+     */
+    static nextConfigurationVersion(current = 0) {
+        return current >= 0xffffffff ? 1 : current + 1;
+    }
+
+    #preventConfigurationVersionRegression(value: number, oldValue: number) {
+        // ConfigurationVersion must only ever increase; the sole exception is the wrap from the uint32 maximum
+        if (value < oldValue && oldValue !== 0xffffffff) {
+            throw new ImplementationError(`ConfigurationVersion must not decrease (${oldValue} -> ${value})`);
+        }
     }
 
     static override readonly schema = this.enableUniqueIdPersistence(Base.schema);

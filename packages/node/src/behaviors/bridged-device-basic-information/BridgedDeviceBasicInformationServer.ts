@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ActionContext } from "#behavior/context/ActionContext.js";
 import { BasicInformationServer, validateBasicInfoAttributes } from "#behaviors/basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { ImplementationError, Logger } from "@matter/general";
+import { RootEndpoint } from "#endpoints/root";
+import { ImplementationError, Logger, MaybePromise } from "@matter/general";
 import { BridgedDeviceBasicInformationBehavior } from "./BridgedDeviceBasicInformationBehavior.js";
 
 const logger = Logger.get("BridgedDeviceBasicInformationServer");
@@ -34,6 +36,43 @@ export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInfor
         }
 
         validateBasicInfoAttributes(this.state, logger);
+    }
+
+    /**
+     * Run a configuration change for this bridged node and increase its ConfigurationVersion afterwards.
+     *
+     * A bridged-node configuration change is also a configuration change of the bridge itself.  When called standalone
+     * the bridge's {@link BasicInformationServer} ConfigurationVersion is increased as well.
+     *
+     * To group changes across multiple bridged nodes into a single bridge increment, drive them from
+     * {@link BasicInformationServer.increaseConfigurationVersion} and pass its callback's `context` here: the change is
+     * applied in that shared transaction and the bridge increment is left to the enclosing call.
+     */
+    async increaseConfigurationVersion<T = void>(
+        change?: (context: ActionContext) => MaybePromise<T>,
+        context?: ActionContext,
+    ): Promise<T> {
+        const result = await change?.(context ?? this.context);
+
+        if (this.state.configurationVersion !== undefined) {
+            this.state.configurationVersion = BasicInformationServer.nextConfigurationVersion(
+                this.state.configurationVersion,
+            );
+        }
+
+        // A shared context means the bridge increment is owned by the enclosing change; only bump it standalone.
+        if (context === undefined) {
+            const root = this.endpoint.ownerOfType(RootEndpoint);
+            if (root !== undefined) {
+                const agent = root.agentFor(this.context);
+                const basicInformation = agent.get(BasicInformationServer);
+                await agent.context.transaction.addResources(basicInformation);
+                await agent.context.transaction.begin();
+                await basicInformation.increaseConfigurationVersion();
+            }
+        }
+
+        return result as T;
     }
 
     static override readonly schema = BasicInformationServer.enableUniqueIdPersistence(
