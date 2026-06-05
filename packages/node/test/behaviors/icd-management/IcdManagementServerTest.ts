@@ -80,4 +80,40 @@ describe("IcdManagementServer", () => {
             ).rejectedWith("Behaviors have errors");
         });
     });
+
+    describe("ICD counter", () => {
+        // MockSite has no restart primitive, so boot-bump and increment linkage is tested against a live device node.
+
+        it("applies boot bump to icdCounter attribute on node online", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            // Fresh node seeds from the default 0; the constructor boot bump advances it past 0.
+            expect(device.stateOf(IcdManagementServer).icdCounter).greaterThan(0);
+        });
+
+        it("persists icdCounter attribute when the internal counter is incremented", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const before = device.stateOf(IcdManagementServer).icdCounter;
+
+            // Increment via device.act so the call runs inside the node's actor context.  The reactTo subscriber
+            // (#persistCounter) fires in an independent LocalActorContext; we wait for all pending microtasks and
+            // macrotasks to drain before reading the attribute back.
+            await device.act(agent => {
+                const { icdCounter } = agent.get(IcdManagementServer).internal;
+                if (icdCounter === undefined) throw new Error("icdCounter not initialized");
+                icdCounter.increment();
+            });
+            await MockTime.resolve(Promise.resolve());
+
+            const after = device.stateOf(IcdManagementServer).icdCounter;
+            expect(after).equals(before + 1);
+        });
+    });
 });
