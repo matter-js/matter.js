@@ -26,19 +26,19 @@ describe("MessagePrivacy", () => {
         });
     });
 
-    describe("transform", () => {
+    describe("obfuscate", () => {
         const privacyKey = Bytes.fromHex("bfe9da016a765365f2dd97a9f939e425");
         const privacyNonce = Bytes.fromHex("db7d408217b3c0c921a2fca4e1");
         const cleartextRegion = Bytes.fromHex("7956341201000000000000000200");
         const obfuscatedRegion = Bytes.fromHex("d926afce24c8a0981bdd44f4e730");
 
         it("obfuscates the header region", () => {
-            const result = MessagePrivacy.transform(crypto, privacyKey, cleartextRegion, privacyNonce);
+            const result = MessagePrivacy.obfuscate(crypto, privacyKey, cleartextRegion, privacyNonce);
             expect(Bytes.toHex(result)).equals(Bytes.toHex(obfuscatedRegion));
         });
 
         it("is symmetric (deobfuscates)", () => {
-            const result = MessagePrivacy.transform(crypto, privacyKey, obfuscatedRegion, privacyNonce);
+            const result = MessagePrivacy.obfuscate(crypto, privacyKey, obfuscatedRegion, privacyNonce);
             expect(Bytes.toHex(result)).equals(Bytes.toHex(cleartextRegion));
         });
     });

@@ -194,7 +194,7 @@ export class GroupSession extends SecureSession {
         const mic = Bytes.of(ciphertext).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
         const privacyNonce = MessagePrivacy.buildNonce(header.sessionId, mic);
         const region = Bytes.of(headerBytes).slice(4);
-        const obfuscated = MessagePrivacy.transform(
+        const obfuscated = MessagePrivacy.obfuscate(
             this.#fabric.crypto,
             this.#operationalPrivacyKey,
             region,
@@ -257,10 +257,11 @@ export class GroupSession extends SecureSession {
                 let decryptAad = aad;
                 if (header.hasPrivacyEnhancements) {
                     if (privacyHeader === undefined || candidate.privacyKey === undefined) {
+                        logger.debug(`No privacy key for group session candidate ${candidate.keySetId}, skipping`);
                         continue;
                     }
                     const privacyNonce = MessagePrivacy.buildNonce(sessionId, mic);
-                    const deobfuscated = MessagePrivacy.transform(
+                    const deobfuscated = MessagePrivacy.obfuscate(
                         candidate.fabric.crypto,
                         candidate.privacyKey,
                         privacyHeader,
@@ -329,7 +330,7 @@ export namespace GroupSession {
         keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
         peerNodeId: NodeId; //The Target Group Node Id
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
-        operationalPrivacyKey?: Bytes; // Privacy key derived from the operational group key (optional; required only to send/receive privacy).
+        operationalPrivacyKey?: Bytes;
     }
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {
