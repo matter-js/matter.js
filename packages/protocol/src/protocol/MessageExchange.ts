@@ -547,7 +547,7 @@ export class MessageExchange {
                 messageId,
                 destNodeId: this.#peerNodeId,
                 sourceNodeId: this.#nodeId,
-                hasPrivacyEnhancements: this.session.usePrivacy,
+                hasPrivacyEnhancements: false, // Privacy is only defined for group messages
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };

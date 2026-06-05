@@ -20,7 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
 
 - @matter/protocol
-    - Enhancement: Implemented Matter message privacy (header obfuscation) for unicast and group sessions; receiving is always supported, sending is opt-in per session and off by default
+    - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
