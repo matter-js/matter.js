@@ -40,7 +40,7 @@ export namespace MessagePrivacy {
      * Obfuscate or deobfuscate a header region using AES-CTR (as AES-CCM with empty AAD, ciphertext-only).
      * CTR keystream XOR is symmetric, so the same call serves both directions.
      */
-    export function transform(crypto: Crypto, privacyKey: Bytes, data: Bytes, nonce: Bytes): Bytes {
+    export function obfuscate(crypto: Crypto, privacyKey: Bytes, data: Bytes, nonce: Bytes): Bytes {
         const dataBytes = Bytes.of(data);
         return Bytes.of(crypto.encrypt(privacyKey, dataBytes, nonce)).slice(0, dataBytes.length);
     }

@@ -308,12 +308,7 @@ export abstract class Session {
         return this.#channel !== undefined && !!this.#channel?.supportsLargeMessages;
     }
 
-    /**
-     * Whether outgoing messages on this session should set the privacy ("P") flag and obfuscate the header.
-     *
-     * Decode always honors privacy regardless of this flag; this gates the encode path only. Defaults to false for
-     * all session types (matching CHIP, which does not enable privacy by default).
-     */
+    /** Whether outgoing messages set the privacy ("P") flag and obfuscate the header. Gates encode only; off by default. */
     get usePrivacy(): boolean {
         return false;
     }
