@@ -547,7 +547,7 @@ export class MessageExchange {
                 messageId,
                 destNodeId: this.#peerNodeId,
                 sourceNodeId: this.#nodeId,
-                hasPrivacyEnhancements: false,
+                hasPrivacyEnhancements: this.session.usePrivacy,
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
@@ -570,7 +570,7 @@ export class MessageExchange {
                 messageId,
                 destGroupId,
                 sourceNodeId: this.#nodeId, // We are the source node, so use our NodeId
-                hasPrivacyEnhancements: false,
+                hasPrivacyEnhancements: this.session.usePrivacy,
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
