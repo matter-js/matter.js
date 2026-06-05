@@ -144,6 +144,37 @@ describe("MessageCodec", () => {
                 /Secured extension length \d+ exceeds remaining message size \d+\./,
             );
         });
+
+        it("decodes the cleartext prefix of a privacy-enhanced group packet (CHIP vector)", () => {
+            // "private group message" vector from CHIP TestSessionManagerDispatch.cpp
+            const wire = Bytes.fromHex(
+                "067ddb81d926afce24c8a0981bdd44f4e7302b2f915a66c9596290ebe4408217b3c0c921a2fca4e1",
+            );
+            const packet = MessageCodec.decodePacket(wire);
+
+            expect(packet.header.hasPrivacyEnhancements).equals(true);
+            expect(packet.header.sessionId).equals(0xdb7d);
+            expect(packet.header.securityFlags).equals(0x81);
+            expect(packet.header.sessionType).equals(1); // group
+            // Obfuscated fields are not yet decoded:
+            expect(packet.header.messageId).equals(0);
+            expect(packet.header.sourceNodeId).equals(undefined);
+            expect(packet.header.destGroupId).equals(undefined);
+            // The obfuscated region is exposed for the session to deobfuscate (4 + 8 + 2 = 14 bytes):
+            expect(Bytes.toHex(packet.privacyHeader!)).equals("d926afce24c8a0981bdd44f4e730");
+            // Application payload = ciphertext + MIC (6 + 16 = 22 bytes):
+            expect(packet.applicationPayload.byteLength).equals(22);
+        });
+
+        it("decodes obfuscated header fields once deobfuscated", () => {
+            const messageFlags = 0x06; // version 0, source node id + dest group id present
+            const region = Bytes.fromHex("7956341201000000000000000200");
+            const fields = MessageCodec.decodeObfuscatedHeaderFields(messageFlags, region);
+            expect(fields.messageId).equals(0x12345679);
+            expect(fields.sourceNodeId).equals(NodeId(1n));
+            expect(fields.destNodeId).equals(undefined);
+            expect(fields.destGroupId).equals(2);
+        });
     });
 
     describe("encode", () => {
