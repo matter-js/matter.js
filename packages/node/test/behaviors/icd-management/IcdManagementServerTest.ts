@@ -429,6 +429,82 @@ describe("IcdManagementServer", () => {
         });
     });
 
+    describe("LongIdleTime feature", () => {
+        // CIP is mandatory when LITS is enabled (spec conformance "LITS, O" on CIP); both must be passed to .with().
+        const litServer = IcdManagementServer.with(
+            IcdManagement.Feature.CheckInProtocolSupport,
+            IcdManagement.Feature.LongIdleTimeSupport,
+        );
+        const RootWithLit = ServerNode.RootEndpoint.with(litServer);
+
+        it("exposes the configured operatingMode", async () => {
+            // operatingMode is mandatory under LITS with no spec default — the app must configure it.
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: {
+                    type: RootWithLit,
+                    icdManagement: {
+                        operatingMode: IcdManagement.OperatingMode.Sit,
+                        activeModeThreshold: 5000,
+                        idleModeDuration: 3600,
+                        activeModeDuration: 1000,
+                        maximumCheckInBackoff: 3600,
+                    },
+                },
+            });
+
+            expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
+        });
+
+        it("rejects a LIT device that omits the mandatory operatingMode", async () => {
+            await expect(
+                MockServerNode.create(RootWithLit, {
+                    icdManagement: { activeModeThreshold: 5000 },
+                }),
+            ).rejectedWith("Behaviors have errors");
+        });
+
+        it("rejects a LIT device with activeModeThreshold < 5000 ms", async () => {
+            // operatingMode supplied so the LIT activeModeThreshold floor is the only violated constraint.
+            await expect(
+                MockServerNode.create(RootWithLit, {
+                    icdManagement: { operatingMode: IcdManagement.OperatingMode.Sit, activeModeThreshold: 1000 },
+                }),
+            ).rejectedWith("Behaviors have errors");
+        });
+
+        it("accepts a LIT device with activeModeThreshold exactly 5000 ms", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: {
+                    type: RootWithLit,
+                    icdManagement: {
+                        operatingMode: IcdManagement.OperatingMode.Sit,
+                        activeModeThreshold: 5000,
+                        idleModeDuration: 3600,
+                        activeModeDuration: 1000,
+                        maximumCheckInBackoff: 3600,
+                    },
+                },
+            });
+
+            expect(device.stateOf(litServer).activeModeThreshold).equals(5000);
+        });
+
+        it("does not apply the LIT activeModeThreshold constraint to a plain (non-LITS) server", async () => {
+            // The 5s floor is a LIT-only constraint; non-LITS devices may use any activeModeThreshold.
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: {
+                    type: RootWithIcd,
+                    icdManagement: { activeModeThreshold: 1000 },
+                },
+            });
+
+            expect(device.stateOf(IcdManagementServer).activeModeThreshold).equals(1000);
+        });
+    });
+
     describe("fabric lifecycle", () => {
         const key = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
 
