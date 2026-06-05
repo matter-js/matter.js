@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
+    - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
 
 - @matter/protocol
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
