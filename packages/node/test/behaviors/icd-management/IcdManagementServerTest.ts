@@ -907,6 +907,14 @@ describe("IcdManagementServer", () => {
             expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
         });
 
+        it("rejects a LITS-only server (CIP dropped by single-feature .with)", async () => {
+            // `.with(LongIdleTimeSupport)` replaces the feature set, dropping the baked-in CIP; init must fail loudly.
+            const litOnly = IcdManagementServer.with(IcdManagement.Feature.LongIdleTimeSupport);
+            await expect(
+                MockServerNode.create(ServerNode.RootEndpoint.with(litOnly), { icdManagement: DSLS_CONFIG }),
+            ).rejectedWith("Behaviors have errors");
+        });
+
         it("CIP-only IcdManagementServer setOperatingMode throws for missing LITS feature", async () => {
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({

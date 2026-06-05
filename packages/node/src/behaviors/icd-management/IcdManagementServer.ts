@@ -58,9 +58,12 @@ const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
  *
  * ## Long Idle Time (LITS)
  *
- * When enabled via `IcdManagementServer.with(IcdManagement.Feature.LongIdleTimeSupport)`, the mandatory
- * `operatingMode` attribute has no spec-defined default and must be configured by the application (initialization
- * throws otherwise). Configure it to {@link IcdManagement.OperatingMode.Sit} unless the device starts in LIT.
+ * Enable LITS with `IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport,
+ * IcdManagement.Feature.LongIdleTimeSupport)` — CIP is mandatory under LITS and `.with` replaces (does not augment)
+ * the feature set, so both must be listed. The mandatory `operatingMode` attribute has no spec-defined default and
+ * must be configured by the application (initialization throws otherwise); set it to
+ * {@link IcdManagement.OperatingMode.Sit} unless the device starts in LIT. DSLS devices may additionally call
+ * {@link setOperatingMode} to switch SIT↔LIT at runtime.
  *
  * ### Dynamic SIT/LIT (DSLS)
  *
@@ -92,6 +95,11 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             );
         }
 
+        // CIP is mandatory under LITS; `.with(LongIdleTimeSupport)` alone silently drops it, so fail loudly.
+        if (this.features.longIdleTimeSupport && !this.features.checkInProtocolSupport) {
+            throw new ImplementationError("LongIdleTimeSupport requires the CheckInProtocolSupport feature");
+        }
+
         // @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2
         if (this.features.longIdleTimeSupport && this.state.activeModeThreshold < MIN_LIT_ACTIVE_MODE_THRESHOLD) {
             throw new ImplementationError(
@@ -118,9 +126,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
             if (this.features.longIdleTimeSupport) {
                 this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged);
-                // Reconcile the persisted operatingMode with the effective mode: a DSLS force is runtime-only and gone
-                // after a restart, so the attribute must fall back to the registration-driven mode (and refresh the
-                // advertisement cache to match).
+                // A DSLS force is runtime-only, so after a restart reconcile operatingMode to the registration-driven
+                // mode and prime the advertisement cache.
                 this.#updateOperatingMode();
             } else {
                 this.#refreshIcdAdvertisementCache();
@@ -467,6 +474,7 @@ export namespace IcdManagementBaseServer {
  *
  * The active feature set is reset to CIP-only here even though the logic base includes LITS. This matches the
  * OnOff/SmokeCoAlarm pattern: the base composes all features for type safety, the exported class narrows to the
- * deployed set. To also enable LITS use `IcdManagementServer.with(IcdManagement.Feature.LongIdleTimeSupport)`.
+ * deployed set. To also enable LITS use
+ * `IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport, IcdManagement.Feature.LongIdleTimeSupport)`.
  */
 export class IcdManagementServer extends IcdManagementBaseServer.with(IcdManagement.Feature.CheckInProtocolSupport) {}
