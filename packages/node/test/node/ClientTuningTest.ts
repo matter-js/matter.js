@@ -10,8 +10,8 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
 import { ServerNode } from "#index.js";
-import { causedBy, Crypto, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
-import { NetworkProfiles, PeerSet, PeerTimingParameters, PeerUnreachableError } from "@matter/protocol";
+import { causedBy, Crypto, Millis, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
+import { NetworkProfiles, PeerSet, PeerTimingParameters, PeerUnreachableError, SessionManager } from "@matter/protocol";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
@@ -85,6 +85,31 @@ describe("ClientTuningTest", () => {
         expect(fast.id).equals("fast");
         expect(fast.connect).not.undefined;
         expect(fast.connect!.id).equals("fast:connect");
+
+        // additionalMrpDelay: default templates keep their margins
+        expect(fast.additionalMrpDelay).equals(Millis(0));
+        expect(conservative.additionalMrpDelay).equals(Seconds(1.5));
+    });
+
+    it("ownNetworkProfile sets the sender-side MRP margin", async () => {
+        await using site = new MockSite();
+
+        const controller = await site.addController({
+            network: { ownNetworkProfile: "thread" },
+        });
+        const device = await site.addDevice();
+        await commission(controller, device);
+
+        const sessions = controller.env.get(SessionManager);
+        expect(sessions.localAdditionalMrpDelay).equals(Seconds(1.5));
+    });
+
+    it("ownNetworkProfile defaults to fast (no sender-side margin)", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const sessions = controller.env.get(SessionManager);
+        expect(sessions.localAdditionalMrpDelay).equals(Millis(0));
     });
 
     it("connection timeout limits retransmission packets", async () => {
