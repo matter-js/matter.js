@@ -16,9 +16,11 @@ describe("MRP", () => {
             activeInterval: Millis(500),
         });
 
-        function runtimeRangeFor(baseInterval: number, transmissionNumber: number) {
+        const ADDITIONAL = Seconds(1.5);
+
+        function runtimeRangeFor(baseInterval: number, transmissionNumber: number, additional = 0) {
             const deterministic =
-                (baseInterval + MRP.ADDITIONAL_MRP_DELAY) *
+                (baseInterval + additional) *
                 MRP.BACKOFF_MARGIN *
                 Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD));
             return { min: Math.floor(deterministic), max: Math.floor(deterministic * (1 + MRP.BACKOFF_JITTER)) };
@@ -34,9 +36,10 @@ describe("MRP", () => {
                 transmissionNumber: 0,
                 sessionParameters,
                 isPeerActive: true,
+                additionalDelay: ADDITIONAL,
             });
 
-            expectWithin(interval, runtimeRangeFor(Seconds(10), 0));
+            expectWithin(interval, runtimeRangeFor(Seconds(10), 0, ADDITIONAL));
         });
 
         it("uses the active interval for retransmissions while the peer is active", () => {
@@ -44,9 +47,10 @@ describe("MRP", () => {
                 transmissionNumber: 1,
                 sessionParameters,
                 isPeerActive: true,
+                additionalDelay: ADDITIONAL,
             });
 
-            expectWithin(interval, runtimeRangeFor(Millis(500), 1));
+            expectWithin(interval, runtimeRangeFor(Millis(500), 1, ADDITIONAL));
         });
 
         it("uses the idle interval for retransmissions when the peer is no longer active", () => {
@@ -54,9 +58,20 @@ describe("MRP", () => {
                 transmissionNumber: 1,
                 sessionParameters,
                 isPeerActive: false,
+                additionalDelay: ADDITIONAL,
             });
 
-            expectWithin(interval, runtimeRangeFor(Seconds(10), 1));
+            expectWithin(interval, runtimeRangeFor(Seconds(10), 1, ADDITIONAL));
+        });
+
+        it("adds no margin when additionalDelay is omitted", () => {
+            const interval = MRP.retransmissionIntervalOf({
+                transmissionNumber: 0,
+                sessionParameters,
+                isPeerActive: true,
+            });
+
+            expectWithin(interval, runtimeRangeFor(Seconds(10), 0, 0));
         });
     });
 
