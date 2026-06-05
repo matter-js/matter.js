@@ -216,7 +216,9 @@ export class DeviceAdvertiser {
             await ad.close();
         }
 
-        this.#advertiseFabric(fabric, "retransmit");
+        // "startup" runs the full announcement burst so a record-content change is observed reliably; a single
+        // "retransmit" packet could be lost. Matches the fabric-replaced rebuild path.
+        this.#advertiseFabric(fabric, "startup");
     }
 
     toString() {
