@@ -18,6 +18,23 @@ import { MockSite } from "../../node/mock-site.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 
+/**
+ * Minimal mock advertiser that records ServiceDescriptions passed to advertise().
+ * Extends Advertiser so it can be added to DeviceAdvertiser.
+ */
+class RecordingAdvertiser extends Advertiser {
+    readonly calls: Array<{ description: ServiceDescription; event: Advertiser.BroadcastEvent }> = [];
+
+    protected getAdvertisement(_description: ServiceDescription) {
+        return undefined;
+    }
+
+    override advertise(description: ServiceDescription, event: Advertiser.BroadcastEvent) {
+        this.calls.push({ description, event });
+        return undefined;
+    }
+}
+
 describe("IcdManagementServer", () => {
     before(() => {
         MockTime.init();
@@ -616,23 +633,6 @@ describe("IcdManagementServer", () => {
             maximumCheckInBackoff: 3600,
         } as const;
 
-        /**
-         * Minimal mock advertiser that records ServiceDescriptions passed to advertise().
-         * Extends Advertiser so it can be added to DeviceAdvertiser.
-         */
-        class RecordingAdvertiser extends Advertiser {
-            readonly calls: Array<{ description: ServiceDescription; event: Advertiser.BroadcastEvent }> = [];
-
-            protected getAdvertisement(_description: ServiceDescription) {
-                return undefined;
-            }
-
-            override advertise(description: ServiceDescription, event: Advertiser.BroadcastEvent) {
-                this.calls.push({ description, event });
-                return undefined;
-            }
-        }
-
         it("LITS device with no registrations starts in SIT mode", async () => {
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({
@@ -776,6 +776,151 @@ describe("IcdManagementServer", () => {
             expect(opAdsAfter.length).greaterThan(0);
             const descAfter = opAdsAfter[0].description as ServiceDescription.Operational;
             expect(descAfter.icd).equals(IcdManagement.OperatingMode.Sit);
+        });
+    });
+
+    describe("DynamicSitLitSupport (DSLS) setOperatingMode", () => {
+        const dslsServer = IcdManagementServer.with(
+            IcdManagement.Feature.CheckInProtocolSupport,
+            IcdManagement.Feature.LongIdleTimeSupport,
+            IcdManagement.Feature.DynamicSitLitSupport,
+        );
+        const RootWithDsls = ServerNode.RootEndpoint.with(dslsServer);
+
+        const DSLS_CONFIG = {
+            operatingMode: IcdManagement.OperatingMode.Sit,
+            activeModeThreshold: 5000,
+            idleModeDuration: 3600,
+            activeModeDuration: 1000,
+            maximumCheckInBackoff: 3600,
+        } as const;
+
+        it("setOperatingMode(Lit) with no registrations forces LIT and refreshes advertisement", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
+            });
+
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            let refreshCount = 0;
+            const origRefresh = deviceAdvertiser.refreshOperationalAdvertisement.bind(deviceAdvertiser);
+            deviceAdvertiser.refreshOperationalAdvertisement = async fabric => {
+                refreshCount++;
+                return origRefresh(fabric);
+            };
+
+            await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(Promise.resolve());
+
+            expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
+            expect(refreshCount).greaterThan(0);
+
+            // Provider should yield LIT with no idleInterval.
+            const recorder = new RecordingAdvertiser();
+            deviceAdvertiser.addAdvertiser(recorder);
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
+            const opAds = recorder.calls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.icd).equals(IcdManagement.OperatingMode.Lit);
+            expect(desc.idleInterval).to.be.undefined;
+            expect(desc.activeThreshold).equals(Millis(DSLS_CONFIG.activeModeThreshold));
+        });
+
+        it("setOperatingMode(Sit) after forced LIT switches back to SIT and refreshes advertisement", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
+            });
+
+            // Force to LIT first.
+            await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(Promise.resolve());
+            expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
+
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            let refreshCount = 0;
+            const origRefresh = deviceAdvertiser.refreshOperationalAdvertisement.bind(deviceAdvertiser);
+            deviceAdvertiser.refreshOperationalAdvertisement = async fabric => {
+                refreshCount++;
+                return origRefresh(fabric);
+            };
+
+            // Switch back to SIT.
+            await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Sit));
+            await MockTime.resolve(Promise.resolve());
+
+            expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
+            expect(refreshCount).greaterThan(0);
+
+            // Provider should yield SIT with idleInterval present.
+            const recorder = new RecordingAdvertiser();
+            deviceAdvertiser.addAdvertiser(recorder);
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            await deviceAdvertiser.refreshOperationalAdvertisement(fabric);
+            const opAds = recorder.calls.filter(c => c.description.kind === "operational");
+            expect(opAds.length).greaterThan(0);
+            const desc = opAds[0].description as ServiceDescription.Operational;
+            expect(desc.icd).equals(IcdManagement.OperatingMode.Sit);
+            expect(desc.idleInterval).not.undefined;
+        });
+
+        it("non-DSLS LITS device setOperatingMode(Lit) with no registrations throws", async () => {
+            const litServer = IcdManagementServer.with(
+                IcdManagement.Feature.CheckInProtocolSupport,
+                IcdManagement.Feature.LongIdleTimeSupport,
+            );
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(litServer),
+                    icdManagement: DSLS_CONFIG,
+                },
+            });
+
+            // device.act() throws synchronously when the actor throws; wrap in a thenable so rejectedWith can catch it.
+            await expect(
+                Promise.resolve().then(() =>
+                    device.act(agent => agent.get(litServer).setOperatingMode(IcdManagement.OperatingMode.Lit)),
+                ),
+            ).rejectedWith(/DynamicSitLitSupport.*operating mode follows/i);
+        });
+
+        it("non-DSLS LITS device setOperatingMode matching registration state succeeds", async () => {
+            const litServer = IcdManagementServer.with(
+                IcdManagement.Feature.CheckInProtocolSupport,
+                IcdManagement.Feature.LongIdleTimeSupport,
+            );
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(litServer),
+                    icdManagement: DSLS_CONFIG,
+                },
+            });
+
+            // No registrations → registration-driven mode is SIT; requesting SIT is allowed without DSLS.
+            await device.act(agent => agent.get(litServer).setOperatingMode(IcdManagement.OperatingMode.Sit));
+            await MockTime.resolve(Promise.resolve());
+
+            expect(device.stateOf(litServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
+        });
+
+        it("CIP-only IcdManagementServer setOperatingMode throws for missing LITS feature", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            // device.act() throws synchronously when the actor throws; wrap in a thenable so rejectedWith can catch it.
+            await expect(
+                Promise.resolve().then(() =>
+                    device.act(agent =>
+                        agent.get(IcdManagementServer).setOperatingMode(IcdManagement.OperatingMode.Lit),
+                    ),
+                ),
+            ).rejectedWith(/requires the LongIdleTimeSupport feature/i);
         });
     });
 });

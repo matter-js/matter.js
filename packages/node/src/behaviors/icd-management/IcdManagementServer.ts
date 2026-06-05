@@ -22,11 +22,13 @@ import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types"
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 
-// Both CIP and LITS are in the base so `this.state.operatingMode` and `this.events.operatingMode$Changed` typecheck
-// without casts throughout the shared logic. The exported IcdManagementServer resets to CIP-only via `.with(CIP)`.
+// CIP, LITS, and DSLS are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`, and
+// `this.features.dynamicSitLitSupport` typecheck throughout the shared logic. The exported IcdManagementServer
+// resets to CIP-only via `.with(CIP)`.
 const IcdManagementLogicBase = IcdManagementBehavior.with(
     IcdManagement.Feature.CheckInProtocolSupport,
     IcdManagement.Feature.LongIdleTimeSupport,
+    IcdManagement.Feature.DynamicSitLitSupport,
 );
 
 /**
@@ -59,6 +61,12 @@ const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
  * When enabled via `IcdManagementServer.with(IcdManagement.Feature.LongIdleTimeSupport)`, the mandatory
  * `operatingMode` attribute has no spec-defined default and must be configured by the application (initialization
  * throws otherwise). Configure it to {@link IcdManagement.OperatingMode.Sit} unless the device starts in LIT.
+ *
+ * ### Dynamic SIT/LIT (DSLS)
+ *
+ * When also enabled via `IcdManagement.Feature.DynamicSitLitSupport`, the application may call
+ * {@link setOperatingMode} at runtime to switch between SIT and LIT even when registrations exist — for example
+ * when a mains-powered device switches to battery.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.16
  */
@@ -108,10 +116,14 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             this.reactTo(counter.changed, this.#persistCounter);
             this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
 
-            this.#refreshIcdAdvertisementCache();
-
             if (this.features.longIdleTimeSupport) {
                 this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged);
+                // Reconcile the persisted operatingMode with the effective mode: a DSLS force is runtime-only and gone
+                // after a restart, so the attribute must fall back to the registration-driven mode (and refresh the
+                // advertisement cache to match).
+                this.#updateOperatingMode();
+            } else {
+                this.#refreshIcdAdvertisementCache();
             }
         }
 
@@ -152,14 +164,20 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
     /**
      * Effective ICD operating mode: LIT when LITS is enabled and at least one client is registered, otherwise SIT.
+     * DSLS devices may override with a forced mode set via {@link setOperatingMode}.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.15.1.5–9.15.1.6
      */
     get #effectiveMode(): IcdManagement.OperatingMode {
-        if (this.features.longIdleTimeSupport && this.state.registeredClients.length > 0) {
-            return IcdManagement.OperatingMode.Lit;
+        if (!this.features.longIdleTimeSupport) {
+            return IcdManagement.OperatingMode.Sit;
         }
-        return IcdManagement.OperatingMode.Sit;
+        if (this.features.dynamicSitLitSupport && this.internal.forcedOperatingMode !== undefined) {
+            return this.internal.forcedOperatingMode;
+        }
+        return this.state.registeredClients.length > 0
+            ? IcdManagement.OperatingMode.Lit
+            : IcdManagement.OperatingMode.Sit;
     }
 
     /**
@@ -312,6 +330,35 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
+     * Set the ICD operating mode at runtime.
+     *
+     * Requires the Long Idle Time feature. Without Dynamic SIT/LIT Support the mode is registration-driven and the
+     * requested mode must match the current registration state; with DSLS the mode may be forced either way (e.g. a
+     * mains-powered device dropping to battery).
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.4
+     */
+    setOperatingMode(mode: IcdManagement.OperatingMode) {
+        if (!this.features.longIdleTimeSupport) {
+            throw new ImplementationError("setOperatingMode requires the LongIdleTimeSupport feature");
+        }
+        if (!this.features.dynamicSitLitSupport) {
+            const registrationDriven =
+                this.state.registeredClients.length > 0
+                    ? IcdManagement.OperatingMode.Lit
+                    : IcdManagement.OperatingMode.Sit;
+            if (mode !== registrationDriven) {
+                throw new ImplementationError(
+                    "Without DynamicSitLitSupport the operating mode follows registration state and cannot be forced",
+                );
+            }
+        } else {
+            this.internal.forcedOperatingMode = mode;
+        }
+        this.#updateOperatingMode();
+    }
+
+    /**
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
      */
     override async unregisterClient(request: IcdManagement.UnregisterClientRequest): Promise<void> {
@@ -406,6 +453,8 @@ export namespace IcdManagementBaseServer {
         icdKeys: Map<string, IcdKeyEntry> = new Map();
         /** Cached advertisement data read by the DeviceAdvertiser provider outside a behavior transaction. */
         currentIcdAdvertisement?: IcdAdvertisement;
+        /** Runtime-only; not persisted, so a restart reverts to the registration-driven mode. {@link IcdManagementBaseServer.setOperatingMode} */
+        forcedOperatingMode?: IcdManagement.OperatingMode;
     }
 
     export declare const ExtensionInterface: {
