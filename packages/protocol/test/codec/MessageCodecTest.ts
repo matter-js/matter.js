@@ -177,6 +177,43 @@ describe("MessageCodec", () => {
         });
     });
 
+    describe("encode privacy", () => {
+        it("sets the privacy bit in the encoded packet header", () => {
+            const headerBytes = MessageCodec.encodePacketHeader({
+                sessionId: 0xdb7d,
+                sessionType: 1, // group
+                messageId: 0x12345679,
+                destGroupId: 2,
+                sourceNodeId: NodeId(1n),
+                hasPrivacyEnhancements: true,
+                isControlMessage: false,
+                hasMessageExtensions: false,
+            });
+            // security flags byte (index 3) = group (0x01) | privacy (0x80) = 0x81
+            expect(Bytes.of(headerBytes)[3]).equals(0x81);
+        });
+
+        it("encodePacket uses pre-serialized headerBytes when present", () => {
+            const headerBytes = Bytes.fromHex("067ddb81d926afce24c8a0981bdd44f4e730");
+            const applicationPayload = Bytes.fromHex("2b2f915a66c9596290ebe44082177b3c0c921a2fca4e10");
+            const result = MessageCodec.encodePacket({
+                header: {
+                    sessionId: 0xdb7d,
+                    sessionType: 1,
+                    messageId: 0x12345679,
+                    destGroupId: 2,
+                    sourceNodeId: NodeId(1n),
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                headerBytes,
+                applicationPayload,
+            });
+            expect(Bytes.toHex(result)).equals(Bytes.toHex(Bytes.concat(headerBytes, applicationPayload)));
+        });
+    });
+
     describe("encode", () => {
         it("encodes a message", () => {
             const result = MessageCodec.encodePacket(MessageCodec.encodePayload(DECODED));
