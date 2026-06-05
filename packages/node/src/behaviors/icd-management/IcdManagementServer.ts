@@ -7,12 +7,27 @@
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { Bytes, Duration, ImplementationError, Millis, Seconds } from "@matter/general";
 import { AccessLevel, DataModelPath, fabricIdx, field, listOf, nodeId, nonvolatile, octstr } from "@matter/model";
-import { AccessControl, assertRemoteActor, Fabric, FabricManager, hasRemoteActor, IcdCounter } from "@matter/protocol";
+import {
+    AccessControl,
+    assertRemoteActor,
+    DeviceAdvertiser,
+    Fabric,
+    FabricManager,
+    hasRemoteActor,
+    IcdAdvertisement,
+    IcdCounter,
+    SessionManager,
+} from "@matter/protocol";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 
-const IcdManagementLogicBase = IcdManagementBehavior.with(IcdManagement.Feature.CheckInProtocolSupport);
+// Both CIP and LITS are in the base so `this.state.operatingMode` and `this.events.operatingMode$Changed` typecheck
+// without casts throughout the shared logic. The exported IcdManagementServer resets to CIP-only via `.with(CIP)`.
+const IcdManagementLogicBase = IcdManagementBehavior.with(
+    IcdManagement.Feature.CheckInProtocolSupport,
+    IcdManagement.Feature.LongIdleTimeSupport,
+);
 
 /**
  * Minimum ActiveModeThreshold a LIT ICD must use.
@@ -92,7 +107,16 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             this.state.icdCounter = counter.value;
             this.reactTo(counter.changed, this.#persistCounter);
             this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
+
+            this.#refreshIcdAdvertisementCache();
+
+            if (this.features.longIdleTimeSupport) {
+                this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged);
+            }
         }
+
+        // DeviceAdvertiser is closed and recreated on each stop/start cycle; register the provider every time.
+        this.env.get(DeviceAdvertiser).setIcdAdvertisementProvider(() => this.internal.currentIcdAdvertisement);
 
         // Rebuild the operational view on every online: fabric.icd is runtime-only and starts empty after a full
         // restart. Drop keys for fabrics that no longer exist so a stale key can never be replayed.
@@ -126,6 +150,69 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         }
     }
 
+    /**
+     * Effective ICD operating mode: LIT when LITS is enabled and at least one client is registered, otherwise SIT.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1.5–9.15.1.6
+     */
+    get #effectiveMode(): IcdManagement.OperatingMode {
+        if (this.features.longIdleTimeSupport && this.state.registeredClients.length > 0) {
+            return IcdManagement.OperatingMode.Lit;
+        }
+        return IcdManagement.OperatingMode.Sit;
+    }
+
+    /**
+     * Rebuild and cache the ICD advertisement in {@link IcdManagementBaseServer.Internal.currentIcdAdvertisement}.
+     *
+     * The cached value is read by the DeviceAdvertiser provider outside the behavior's transaction context, so we push
+     * rather than letting the provider pull from state.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+     */
+    #refreshIcdAdvertisementCache() {
+        const mode = this.#effectiveMode;
+        const { idleInterval, activeInterval } = this.env.get(SessionManager).sessionParameters;
+        const advertisement: IcdAdvertisement = {
+            icd: mode,
+            activeInterval,
+            activeThreshold: Millis(this.state.activeModeThreshold),
+        };
+        // @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2 — LIT SHOULD NOT advertise SII
+        if (mode === IcdManagement.OperatingMode.Sit) {
+            advertisement.idleInterval = idleInterval;
+        }
+        this.internal.currentIcdAdvertisement = advertisement;
+    }
+
+    /**
+     * Update the `operatingMode` attribute to the effective mode (LITS only, no-op otherwise).
+     *
+     * Must be called inside a reactor or command context so the state write is transactional.
+     */
+    #updateOperatingMode() {
+        if (!this.features.longIdleTimeSupport) {
+            return;
+        }
+        const effective = this.#effectiveMode;
+        if (this.state.operatingMode !== effective) {
+            this.state.operatingMode = effective;
+        }
+        this.#refreshIcdAdvertisementCache();
+    }
+
+    /**
+     * Re-advertise all fabrics when the operating mode transitions between SIT and LIT.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+     */
+    async #onOperatingModeChanged() {
+        const advertiser = this.env.get(DeviceAdvertiser);
+        for (const fabric of this.env.get(FabricManager).fabrics) {
+            await advertiser.refreshOperationalAdvertisement(fabric);
+        }
+    }
+
     async #onFabricDeleted(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
 
@@ -140,6 +227,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
         // The fabric object still exists at this point; clear its operational registrations.
         fabric.icd.clearRegistrations();
+
+        this.#updateOperatingMode();
     }
 
     #persistCounter(value: number) {
@@ -197,6 +286,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             clientType: request.clientType,
         });
 
+        this.#updateOperatingMode();
+
         return { icdCounter: this.internal.icdCounter!.value };
     }
 
@@ -244,6 +335,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         this.internal.icdKeys.delete(this.#keyFor(fabricIndex, request.checkInNodeId));
         this.#persistKeys();
         fabric.icd.deleteRegistration(request.checkInNodeId);
+
+        this.#updateOperatingMode();
     }
 
     /**
@@ -311,6 +404,8 @@ export namespace IcdManagementBaseServer {
     export class Internal {
         icdCounter?: IcdCounter;
         icdKeys: Map<string, IcdKeyEntry> = new Map();
+        /** Cached advertisement data read by the DeviceAdvertiser provider outside a behavior transaction. */
+        currentIcdAdvertisement?: IcdAdvertisement;
     }
 
     export declare const ExtensionInterface: {
@@ -320,5 +415,9 @@ export namespace IcdManagementBaseServer {
 
 /**
  * The default {@link IcdManagementBehavior} server implementation, with the Check-In Protocol Support feature.
+ *
+ * The active feature set is reset to CIP-only here even though the logic base includes LITS. This matches the
+ * OnOff/SmokeCoAlarm pattern: the base composes all features for type safety, the exported class narrows to the
+ * deployed set. To also enable LITS use `IcdManagementServer.with(IcdManagement.Feature.LongIdleTimeSupport)`.
  */
-export class IcdManagementServer extends IcdManagementBaseServer {}
+export class IcdManagementServer extends IcdManagementBaseServer.with(IcdManagement.Feature.CheckInProtocolSupport) {}
