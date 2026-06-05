@@ -1214,6 +1214,37 @@ describe("InteractionProtocol", () => {
                 expect((await fillIterableDataReport(result)).attributeReportsPayload?.length || 0).equals(count);
             });
         }
+
+        async function readBasicInformationWithFilter(wildcardFilterConfigurationVersion?: number) {
+            const result = await interactionProtocol.handleReadRequest(
+                await createDummyMessageExchange(node),
+                {
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                    isFabricFiltered: true,
+                    attributeRequests: [
+                        {
+                            endpointId: undefined,
+                            clusterId: ClusterId(0x28), // BasicInformation
+                            attributeId: undefined,
+                            wildcardPathFlags: { skipGlobalAttributes: true },
+                            wildcardFilterConfigurationVersion,
+                        },
+                    ],
+                },
+                interaction.BarelyMockedMessage,
+            );
+            return (await fillIterableDataReport(result)).attributeReportsPayload?.length || 0;
+        }
+
+        // ConfigurationVersion defaults to 1; skipGlobalAttributes drops 3 of the 23 BasicInformation attributes.
+        it("applies WildcardPathFlags when the filter version is current", async () => {
+            expect(await readBasicInformationWithFilter(undefined)).equals(20); // omitted == current
+            expect(await readBasicInformationWithFilter(1)).equals(20); // equal to current
+        });
+
+        it("ignores WildcardPathFlags when the configuration changed past the filter version", async () => {
+            expect(await readBasicInformationWithFilter(0)).equals(23); // stale filter -> flags do not apply
+        });
     });
 
     describe("handleSubscribeRequest", () => {

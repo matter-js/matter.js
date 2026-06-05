@@ -25,6 +25,7 @@ export const TlvAttributePath = TlvTaggedList({
     attributeId: TlvOptionalField(4, TlvAttributeId),
     listIndex: TlvOptionalField(5, TlvNullable(TlvUInt16)),
     wildcardPathFlags: TlvOptionalField(6, TlvBitmap(TlvUInt32, WildcardPathFlagsBitmap)),
+    wildcardFilterConfigurationVersion: TlvOptionalField(7, TlvUInt32),
 });
 
 export type AttributePath = TypeFromSchema<typeof TlvAttributePath>;
