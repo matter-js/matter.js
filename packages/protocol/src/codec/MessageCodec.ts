@@ -58,6 +58,8 @@ export interface Packet {
     header: PacketHeader;
     messageExtension?: Bytes;
     applicationPayload: Bytes;
+    /** Optional pre-serialized (and possibly privacy-obfuscated) header bytes; used instead of re-encoding `header`. */
+    headerBytes?: Bytes;
 }
 
 export interface DecodedPacket extends Packet {
@@ -347,11 +349,11 @@ export class MessageCodec {
         };
     }
 
-    static encodePacket({ header, applicationPayload, messageExtension }: Packet): Bytes {
+    static encodePacket({ header, applicationPayload, messageExtension, headerBytes }: Packet): Bytes {
         if (messageExtension !== undefined || header.hasMessageExtensions) {
             throw new NotImplementedError(`Message extensions not supported when encoding a packet.`);
         }
-        return Bytes.concat(this.encodePacketHeader(header), applicationPayload);
+        return Bytes.concat(headerBytes ?? this.encodePacketHeader(header), applicationPayload);
     }
 
     private static decodePayloadHeader(reader: DataReader<Endian.Little>): PayloadHeader {
@@ -386,6 +388,7 @@ export class MessageCodec {
         destNodeId,
         sourceNodeId,
         sessionType,
+        hasPrivacyEnhancements,
     }: PacketHeader) {
         if (
             sessionType === SessionType.Group &&
@@ -401,7 +404,7 @@ export class MessageCodec {
             (destGroupId !== undefined ? PacketHeaderFlag.HasDestGroupId : 0) |
             (destNodeId !== undefined ? PacketHeaderFlag.HasDestNodeId : 0) |
             (sourceNodeId !== undefined ? PacketHeaderFlag.HasSourceNodeId : 0);
-        const securityFlags = sessionType;
+        const securityFlags = sessionType | (hasPrivacyEnhancements ? SecurityFlag.HasPrivacyEnhancements : 0);
 
         writer.writeUInt8(flags);
         writer.writeUInt16(sessionId);
