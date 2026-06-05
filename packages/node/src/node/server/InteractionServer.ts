@@ -72,6 +72,12 @@ import { ServerSubscription, ServerSubscriptionConfig, ServerSubscriptionContext
 
 const logger = Logger.get("InteractionServer");
 
+// Hard acceptance ceiling for paths in a single read/subscribe interaction, set to the upper bound of the
+// CapabilityMinimaStruct field constraints in the data model.  Separate from the advertised CapabilityMinima defaults:
+// we advertise a guaranteed floor and accept up to this ceiling, blocking only beyond it.
+const MAX_READ_PATHS = 10_000;
+const MAX_SUBSCRIBE_PATHS = 10_000;
+
 export interface PeerSubscription {
     subscriptionId: number;
     peerAddress: PeerAddress;
@@ -350,6 +356,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         }
 
+        const readPathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (readPathsCount > MAX_READ_PATHS) {
+            throw new StatusResponseError(
+                `Read request with ${readPathsCount} paths exceeds maximum of ${MAX_READ_PATHS}`,
+                Status.PathsExhausted,
+            );
+        }
+
         return {
             dataReport: {
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
@@ -574,6 +588,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
             throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
+        }
+
+        const subscribePathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (subscribePathsCount > MAX_SUBSCRIBE_PATHS) {
+            throw new StatusResponseError(
+                `Subscribe request with ${subscribePathsCount} paths exceeds maximum of ${MAX_SUBSCRIBE_PATHS}`,
+                Status.PathsExhausted,
+            );
         }
 
         NodeSession.assert(exchange.session, "Subscriptions are only implemented on secure sessions");

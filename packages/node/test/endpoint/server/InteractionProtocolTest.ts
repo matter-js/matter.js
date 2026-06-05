@@ -1245,6 +1245,18 @@ describe("InteractionProtocol", () => {
         it("ignores WildcardPathFlags when the configuration changed past the filter version", async () => {
             expect(await readBasicInformationWithFilter(0)).equals(23); // stale filter -> flags do not apply
         });
+
+        it("rejects a read exceeding the path ceiling with PathsExhausted", async () => {
+            const attributeRequests = Array.from({ length: 10_001 }, () => READ_REQUEST.attributeRequests![0]);
+
+            await expect(
+                interactionProtocol.handleReadRequest(
+                    await createDummyMessageExchange(node),
+                    { ...READ_REQUEST, attributeRequests, eventRequests: undefined },
+                    interaction.BarelyMockedMessage,
+                ),
+            ).rejectedWith(StatusResponseError, /exceeds maximum of 10000/);
+        });
     });
 
     describe("handleSubscribeRequest", () => {
@@ -1276,6 +1288,23 @@ describe("InteractionProtocol", () => {
             );
             expect(statusSent).equals(128);
             expect(closed).equals(true);
+        });
+
+        it("rejects a subscribe exceeding the path ceiling with PathsExhausted", async () => {
+            const attributeRequests = Array.from(
+                { length: 10_001 },
+                () => INVALID_SUBSCRIBE_REQUEST.attributeRequests![0],
+            );
+            const exchange = await createDummyMessageExchange(node);
+
+            await expect(
+                interactionProtocol.handleSubscribeRequest(
+                    exchange,
+                    { ...INVALID_SUBSCRIBE_REQUEST, attributeRequests, eventRequests: undefined },
+                    new InteractionServerMessenger(exchange),
+                    interaction.BarelyMockedMessage,
+                ),
+            ).rejectedWith(StatusResponseError, /exceeds maximum of 10000/);
         });
     });
 
