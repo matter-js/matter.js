@@ -14,9 +14,9 @@ import { ServerNode } from "@matter/main";
 import { OnOffClient } from "@matter/main/behaviors/on-off";
 
 // Create the controller
-const controller = await ServerNode.create();
+const controller = await ServerNode.create({ id: "controller" });
 
-const [, , command, ...args] = process.argv.slice(2);
+const [command, ...args] = process.argv.slice(2);
 
 switch (command) {
     case "commission":
@@ -70,9 +70,7 @@ switch (command) {
         break;
 
     default:
-        die(
-            `Unsupported command ${process.argv[1] ?? "(none)"}.  Supported commands: commission, toggle, decommission`,
-        );
+        die(`Unsupported command ${command ?? "(none)"}.  Supported commands: commission, toggle, decommission`);
 }
 
 /**
