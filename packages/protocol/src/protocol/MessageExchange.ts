@@ -195,6 +195,7 @@ export class MessageExchange {
     readonly #onSend?: MessageExchange.SendNotifier;
     readonly #onReceive?: MessageExchange.ReceiveNotifier;
     readonly #addressOverride?: ServerAddressUdp;
+    readonly #network?: NetworkProfile;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -259,6 +260,7 @@ export class MessageExchange {
         this.#onSend = onSend;
         this.#onReceive = onReceive;
         this.#addressOverride = addressOverride;
+        this.#network = network;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -985,7 +987,16 @@ export class MessageExchange {
     }
 
     get #mrpResubmissionBackOffTime() {
-        let backOff = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
+        const additionalDelay = Duration.max(
+            this.#context.localAdditionalMrpDelay,
+            this.#network?.additionalMrpDelay ?? Millis(0),
+        );
+        let backOff = this.channel.getMrpResubmissionBackOffTime(
+            this.#retransmissionCounter,
+            undefined,
+            false,
+            additionalDelay,
+        );
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {
             backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
         }
