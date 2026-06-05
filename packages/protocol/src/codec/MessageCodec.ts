@@ -8,6 +8,7 @@ import { Mark } from "#common/Mark.js";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Bytes,
+    CRYPTO_AEAD_MIC_LENGTH_BYTES,
     DataReader,
     DataWriter,
     Diagnostic,
@@ -222,6 +223,12 @@ export class MessageCodec {
                 );
             }
             const privacyHeader = reader.readByteArray(privacyHeaderLength);
+            // Reject early: the privacy nonce is derived from the MIC, so a packet without a full MIC must not proceed.
+            if (reader.remainingBytesCount < CRYPTO_AEAD_MIC_LENGTH_BYTES) {
+                throw new UnexpectedDataError(
+                    `Privacy-enhanced message too short to contain a MIC: ${reader.remainingBytesCount} bytes remaining.`,
+                );
+            }
             return {
                 header: {
                     securityFlags,

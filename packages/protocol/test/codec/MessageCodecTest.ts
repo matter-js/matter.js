@@ -166,6 +166,12 @@ describe("MessageCodec", () => {
             expect(packet.applicationPayload.byteLength).equals(22);
         });
 
+        it("rejects a privacy-enhanced packet truncated below the MIC length", () => {
+            // Same CHIP vector but truncated to an 18-byte header + only 8 payload bytes (< 16-byte MIC).
+            const wire = Bytes.fromHex("067ddb81d926afce24c8a0981bdd44f4e7302b2f915a66c95962");
+            expect(() => MessageCodec.decodePacket(wire)).throws(/too short to contain a MIC/);
+        });
+
         it("decodes obfuscated header fields once deobfuscated", () => {
             const messageFlags = 0x06; // version 0, source node id + dest group id present
             const region = Bytes.fromHex("7956341201000000000000000200");
