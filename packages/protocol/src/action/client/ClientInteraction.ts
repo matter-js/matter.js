@@ -63,7 +63,10 @@ import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 
 const logger = Logger.get("ClientInteraction");
 
-/** Returns a log-friendly peer address diagnostic for sessions that expose one (currently: group multicast). */
+/**
+ * Returns a log-friendly peer address diagnostic for sessions that expose one
+ * (currently: group multicast).
+ */
 function peerAddressDiagnostic(session: Session | undefined) {
     if (session !== undefined && GroupSession.is(session)) {
         return Diagnostic.dict({ dest: session.multicastAddress });
