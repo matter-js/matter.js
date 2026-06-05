@@ -429,8 +429,9 @@ export class ExchangeManager implements Transport.Provider {
         exchange.closed.on(() => this.deleteExchange(exchangeIndex));
         this.#exchanges.set(exchangeIndex, exchange);
 
-        // A node SHOULD limit itself to a maximum of 5 concurrent exchanges over a unicast session. This is
-        // to prevent a node from exhausting the message counter window of the peer node.
+        // The spec recommends a maximum of 5 concurrent exchanges over a unicast session to avoid exhausting the
+        // peer's message counter window; we allow MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION as a practical
+        // upper bound and evict the least-recently-active exchange once exceeded.
         // TODO Make sure Group sessions are handled differently
         this.#cleanupSessionExchanges(exchange.session.id);
     }
@@ -446,14 +447,15 @@ export class ExchangeManager implements Transport.Provider {
         if (sessionExchanges.length <= MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION) {
             return;
         }
-        // let's use the first entry in the Map as the oldest exchange and close it
         // TODO: Adjust this logic into a Exchange creation queue instead of hard closing
-        const exchangeToClose = sessionExchanges[0];
+        const exchangeToClose = sessionExchanges.reduce((oldest, exchange) =>
+            exchange.lastActive < oldest.lastActive ? exchange : oldest,
+        );
         logger.info(
             exchangeToClose.via,
-            `Closing oldest exchange for session because of too many concurrent outgoing exchanges. Ensure to not send that many parallel messages to one peer.`,
+            `Closing least-recently-active exchange for session because of too many concurrent outgoing exchanges. Ensure to not send that many parallel messages to one peer.`,
         );
-        logger.debug(exchangeToClose.via, "Closing oldest exchange");
+        logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
         this.#workers.add(exchangeToClose.close());
     }
 

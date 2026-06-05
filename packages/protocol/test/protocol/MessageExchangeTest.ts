@@ -117,6 +117,32 @@ describe("MessageExchange", () => {
         });
     });
 
+    describe("activity tracking", () => {
+        before(() => MockTime.enable());
+
+        it("updates lastActive on receive", async () => {
+            const { exchange } = createExchange(new ProtocolMocks.NodeSession());
+            const before = exchange.lastActive;
+
+            await MockTime.advance(1000);
+            await exchange.onMessageReceived(fakeInboundMessage());
+
+            expect(exchange.lastActive).to.equal(before + 1000);
+        });
+
+        it("updates lastActive on send", async () => {
+            const session = new ProtocolMocks.NodeSession();
+            (session.channel as any).send = async (): Promise<void> => {};
+            const { exchange } = createExchange(session);
+            const before = exchange.lastActive;
+
+            await MockTime.advance(2000);
+            await exchange.send(0, Bytes.empty, { requiresAck: false, disableMrpLogic: true });
+
+            expect(exchange.lastActive).to.equal(before + 2000);
+        });
+    });
+
     describe("cross-protocol StatusReport", () => {
         it("accepts SecureChannel StatusReport on a non-SecureChannel exchange and delivers it to the consumer", async () => {
             // Reproduces the case where a peer sends a spec-compliant StatusReport (protocolId=0, type=0x40)

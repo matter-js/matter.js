@@ -229,6 +229,7 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
+    #lastActive = Time.nowMs;
 
     constructor(config: MessageExchange.Config) {
         const {
@@ -304,6 +305,16 @@ export class MessageExchange {
         return this.#closed.value || (this.#isInitiator && this.#closing.value);
     }
 
+    /** Timestamp of the last send or receive on this exchange, used to evict the least-recently-active exchange. */
+    get lastActive() {
+        return this.#lastActive;
+    }
+
+    #notifyActivity(messageReceived: boolean) {
+        this.#lastActive = Time.nowMs;
+        this.session.notifyActivity(messageReceived);
+    }
+
     /**
      * Emit when the exchange is closing, but not yet closed. We only wait for acks and retries to happen, but the
      * actual interaction logic is already done.
@@ -373,7 +384,7 @@ export class MessageExchange {
             );
         }
 
-        this.session.notifyActivity(true);
+        this.#notifyActivity(true);
         this.#onReceive?.(message, duplicate);
 
         if (duplicate) {
@@ -506,7 +517,7 @@ export class MessageExchange {
 
         this.#used = true;
         this.#messageSendCounter++;
-        this.session.notifyActivity(false);
+        this.#notifyActivity(false);
 
         let ackedMessageId = standaloneAckMessageId;
         if (ackedMessageId === undefined && this.session.usesMrp) {
@@ -748,7 +759,7 @@ export class MessageExchange {
         }
 
         this.#messageSendCounter++;
-        this.session.notifyActivity(false);
+        this.#notifyActivity(false);
 
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.#mrpResubmissionBackOffTime;
