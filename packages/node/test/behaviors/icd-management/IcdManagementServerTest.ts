@@ -5,6 +5,7 @@
  */
 
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
+import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
 import { FabricManager } from "@matter/protocol";
@@ -263,6 +264,86 @@ describe("IcdManagementServer", () => {
             await expect(
                 cmds.unregisterClient({ checkInNodeId: NodeId(peer1.peerAddress!.nodeId + 99n) }),
             ).rejectedWith(/not found/i);
+        });
+    });
+
+    describe("fabric lifecycle", () => {
+        const key = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
+
+        it("restores registrations into fabric.icd after node stop and restart", async () => {
+            // MockSite has no restart primitive, so we use stop/start directly on the device node to
+            // re-trigger #online() and verify that the rebuild path repopulates fabric.icd from persisted state.
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            // Confirm fabric.icd has the registration from the command handler.
+            const fabric = device.env.get(FabricManager).fabrics[0];
+            expect(fabric.icd.registrations).length(1);
+
+            // Simulate state loss by clearing fabric.icd, as would happen if the node were fully restarted
+            // without reinitializing from persisted storage.
+            fabric.icd.clearRegistrations();
+            expect(fabric.icd.registrations).length(0);
+
+            // Stop then restart the device node — #online() fires again and replays persisted state.
+            await MockTime.resolve(device.stop());
+            await MockTime.resolve(device.start());
+
+            const fabricAfter = device.env.get(FabricManager).fabrics[0];
+            const registrations = fabricAfter.icd.registrations;
+            expect(registrations).length(1);
+            expect(registrations[0].checkInNodeId).equals(checkInNodeId);
+            expect(Bytes.areEqual(registrations[0].key, key)).true;
+        });
+
+        it("drops icdKeys when the fabric is removed", async () => {
+            // Tests the #onFabricDeleted handler: after fabric removal the internal key store must be empty.
+            // The registeredClients attribute is fabric-scoped and auto-pruned by the framework during the
+            // deleting phase (FabricScopedDataHandler), so we only verify the icdKeys cleanup here.
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            // Confirm the key is present before removal.
+            await device.act(agent => {
+                expect(agent.get(IcdManagementServer).internal.icdKeys.size).equals(1);
+            });
+
+            // Trigger fabric removal via the controller — this fires the full fabric deletion sequence,
+            // including the deleting event (which auto-prunes registeredClients) and deleted event
+            // (which triggers our #onFabricDeleted handler to clean icdKeys).
+            const fabricIndex = device.env.get(FabricManager).fabrics[0].fabricIndex;
+            await MockTime.resolve(peer1.commandsOf(OperationalCredentialsClient).removeFabric({ fabricIndex }), {
+                macrotasks: true,
+            });
+
+            // icdKeys must be empty after deletion.
+            await device.act(agent => {
+                expect(agent.get(IcdManagementServer).internal.icdKeys.size).equals(0);
+            });
         });
     });
 });
