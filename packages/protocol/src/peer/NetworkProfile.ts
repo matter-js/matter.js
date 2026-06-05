@@ -83,7 +83,8 @@ export class NetworkProfiles {
     set defaults(options: NetworkProfiles.PartialOptions) {
         // Cached profiles derive from the previous defaults.
         this.#networks.clear();
-        const base = { ...NetworkProfiles.defaults };
+        // Layer onto current instance defaults so partial options compose across calls.
+        const base = { ...this.#defaults };
         for (const key of Object.keys(options) as (keyof NetworkProfiles.Templates)[]) {
             const override = options[key];
             if (override !== undefined) {
