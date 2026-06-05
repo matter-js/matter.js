@@ -267,6 +267,35 @@ describe("IcdManagementServer", () => {
         });
     });
 
+    describe("StayActiveRequest", () => {
+        it("promises at least the spec floor", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const cmds = controller.peers.get("peer1")!.commandsOf(IcdManagementClient);
+
+            const r1 = await cmds.stayActiveRequest({ stayActiveDuration: 5000 });
+            expect(r1.promisedActiveDuration).greaterThanOrEqual(5000);
+
+            const r2 = await cmds.stayActiveRequest({ stayActiveDuration: 60000 });
+            expect(r2.promisedActiveDuration).greaterThanOrEqual(30000);
+        });
+
+        it("small request promises at least min(30000, requested)", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const r = await controller.peers.get("peer1")!.commandsOf(IcdManagementClient).stayActiveRequest({
+                stayActiveDuration: 20,
+            });
+            expect(r.promisedActiveDuration).greaterThanOrEqual(20);
+        });
+    });
+
     describe("fabric lifecycle", () => {
         const key = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
 
