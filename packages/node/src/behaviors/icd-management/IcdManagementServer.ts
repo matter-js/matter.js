@@ -98,7 +98,7 @@ export class IcdManagementServer extends Base {
         const fabricIndex = fabric.fabricIndex;
 
         // registeredClients is fabric-scoped and auto-pruned by the framework during the deleting phase; we only
-        // need to clean the non-scoped internal key store here.
+        // need to clean the non-scoped internal key store here. The reactor supplies a transaction for the state write.
         for (const key of [...this.internal.icdKeys.keys()]) {
             if (key.startsWith(`${fabricIndex}:`)) {
                 this.internal.icdKeys.delete(key);

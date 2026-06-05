@@ -8,9 +8,11 @@ import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-managem
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 import { FabricManager } from "@matter/protocol";
-import { NodeId } from "@matter/types";
+import { FabricIndex, NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 
@@ -293,6 +295,137 @@ describe("IcdManagementServer", () => {
                 stayActiveDuration: 20,
             });
             expect(r.promisedActiveDuration).greaterThanOrEqual(20);
+        });
+    });
+
+    describe("Manage-privilege verificationKey", () => {
+        // MockExchange with a non-zero fabricIndex (FabricIndex(1)) satisfies the framework's fabric-scoped data
+        // constraint. The MockExchange constructor overrides accessLevelsFor on its internal fake Fabric to return
+        // exactly [View, <accessLevel>], so #isAdministrator() sees only the specified privilege.
+
+        const fabricIndex = FabricIndex(1);
+        const checkInNodeId = NodeId(0x0101n);
+        const initialKey = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
+        const replacementKey = Bytes.fromHex("a0a1a2a3a4a5a6a7a8a9aaabacadaeaf");
+        const wrongKey = Bytes.fromHex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
+
+        function adminExchange() {
+            return new MockExchange({ fabricIndex, nodeId: NodeId(1) }, { accessLevel: AccessLevel.Administer });
+        }
+
+        function manageExchange() {
+            return new MockExchange({ fabricIndex, nodeId: NodeId(2) }, { accessLevel: AccessLevel.Manage });
+        }
+
+        async function withRegisteredNode() {
+            const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint.with(IcdManagementServer));
+
+            await node.online({ exchange: adminExchange(), command: true }, agent =>
+                agent.get(IcdManagementServer).registerClient({
+                    checkInNodeId,
+                    monitoredSubject: checkInNodeId,
+                    key: initialKey,
+                    clientType: IcdManagement.ClientType.Permanent,
+                }),
+            );
+
+            return node;
+        }
+
+        it("registerClient update as Manage with correct verificationKey succeeds and updates the entry", async () => {
+            await using node = await withRegisteredNode();
+
+            await node.online({ exchange: manageExchange(), command: true }, agent =>
+                agent.get(IcdManagementServer).registerClient({
+                    checkInNodeId,
+                    monitoredSubject: checkInNodeId,
+                    key: replacementKey,
+                    verificationKey: initialKey,
+                    clientType: IcdManagement.ClientType.Ephemeral,
+                }),
+            );
+
+            const state = node.stateOf(IcdManagementServer);
+            expect(state.registeredClients).length(1);
+            expect(state.registeredClients[0].clientType).equals(IcdManagement.ClientType.Ephemeral);
+
+            // The stored ICDToken must rotate to the new key, else a later verificationKey check would use the old one.
+            await node.online({ exchange: adminExchange(), command: true }, agent => {
+                const stored = [...agent.get(IcdManagementServer).internal.icdKeys.values()].find(
+                    e => e.checkInNodeId === checkInNodeId,
+                );
+                expect(stored).not.undefined;
+                expect(Bytes.areEqual(stored!.key, replacementKey)).true;
+            });
+        });
+
+        it("registerClient update as Manage with wrong verificationKey rejects with Failure", async () => {
+            await using node = await withRegisteredNode();
+
+            await expect(
+                node.online({ exchange: manageExchange(), command: true }, agent =>
+                    agent.get(IcdManagementServer).registerClient({
+                        checkInNodeId,
+                        monitoredSubject: checkInNodeId,
+                        key: replacementKey,
+                        verificationKey: wrongKey,
+                        clientType: IcdManagement.ClientType.Ephemeral,
+                    }),
+                ),
+            ).rejectedWith(/verificationkey mismatch/i);
+        });
+
+        it("registerClient update as Manage with missing verificationKey rejects with Failure", async () => {
+            await using node = await withRegisteredNode();
+
+            await expect(
+                node.online({ exchange: manageExchange(), command: true }, agent =>
+                    agent.get(IcdManagementServer).registerClient({
+                        checkInNodeId,
+                        monitoredSubject: checkInNodeId,
+                        key: replacementKey,
+                        clientType: IcdManagement.ClientType.Ephemeral,
+                    }),
+                ),
+            ).rejectedWith(/verificationkey mismatch/i);
+        });
+
+        it("unregisterClient as Manage with correct verificationKey succeeds and removes the entry", async () => {
+            await using node = await withRegisteredNode();
+
+            await node.online({ exchange: manageExchange(), command: true }, agent =>
+                agent.get(IcdManagementServer).unregisterClient({
+                    checkInNodeId,
+                    verificationKey: initialKey,
+                }),
+            );
+
+            expect(node.stateOf(IcdManagementServer).registeredClients).deep.equals([]);
+        });
+
+        it("unregisterClient as Manage with wrong verificationKey rejects with Failure", async () => {
+            await using node = await withRegisteredNode();
+
+            await expect(
+                node.online({ exchange: manageExchange(), command: true }, agent =>
+                    agent.get(IcdManagementServer).unregisterClient({
+                        checkInNodeId,
+                        verificationKey: wrongKey,
+                    }),
+                ),
+            ).rejectedWith(/verificationkey mismatch/i);
+        });
+
+        it("unregisterClient as Manage with missing verificationKey rejects with Failure", async () => {
+            await using node = await withRegisteredNode();
+
+            await expect(
+                node.online({ exchange: manageExchange(), command: true }, agent =>
+                    agent.get(IcdManagementServer).unregisterClient({
+                        checkInNodeId,
+                    }),
+                ),
+            ).rejectedWith(/verificationkey mismatch/i);
         });
     });
 
