@@ -70,6 +70,35 @@ const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
  * validates spec constraints on the timing attributes at startup. Use {@link IcdManagementServer.with} to specialize
  * for additional features, or extend this class to override its behavior.
  *
+ * ## Idle/active mode
+ *
+ * The server tracks the ICD idle/active mode (distinct from the SIT/LIT {@link IcdManagement.OperatingMode}). matter.js
+ * nodes never truly sleep and stay reachable, so the mode is **fully externally driven** — the device never sleeps or
+ * wakes on its own. It is meant for spec/cert completeness, for verifying a controller against a real ICD peer, and as
+ * power hooks for a node that proxies real sleepy hardware. The device enters active mode at startup and on every
+ * idle→active wake; it stays active until told to sleep.
+ *
+ * Events (subscribe via `events.<name>`):
+ * - `activeModeEntered` — entered active mode (initial power-up or an idle→active wake). On a CIP device this is where
+ *   Phase 2c will send Check-Ins. Hook hardware power-up here.
+ * - `idleModeEntered` — entered idle mode. Hook hardware power-down here.
+ * - `mayEnterIdleMode` — the active window (≥ `activeModeDuration`, extended by network activity and StayActive) has
+ *   elapsed while quiet: the application may now put the device to sleep. Advisory only — no transition happens.
+ *
+ * Runtime methods:
+ * - {@link requestActiveMode} — wake into active mode for a full active window.
+ * - {@link enterIdleMode} — force idle now (unconditional); pairs with `mayEnterIdleMode`.
+ * - {@link triggerUserActiveMode} — simulate the device-physical User Active Mode Trigger (UAT feature; wakes the
+ *   device). UAT exposes no Matter command.
+ * - {@link setOperatingMode} — switch SIT↔LIT at runtime (DSLS feature; orthogonal to idle/active mode).
+ *
+ * Inbound network activity also extends/wakes active mode automatically. Idle/active transitions only happen via these
+ * methods, a StayActiveRequest, or inbound activity — never on an internal timer.
+ *
+ * **For tests / a cert harness:** drive transitions deterministically — call {@link enterIdleMode} to go quiet, then
+ * {@link requestActiveMode}/{@link triggerUserActiveMode} (or send any request to the device) to force the idle→active
+ * transition that triggers Check-In sending (Phase 2c). Advance a mock time source to elapse the active window.
+ *
  * ## Extension points
  *
  * Override {@link stayActive} to customize the StayActiveRequest response: return the duration actually promised.
@@ -89,6 +118,13 @@ const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
  * When also enabled via `IcdManagement.Feature.DynamicSitLitSupport`, the application may call
  * {@link setOperatingMode} at runtime to switch between SIT and LIT even when registrations exist — for example
  * when a mains-powered device switches to battery.
+ *
+ * ## User Active Mode Trigger (UAT)
+ *
+ * Enable with `IcdManagement.Feature.UserActiveModeTrigger`. The application configures `userActiveModeTriggerHint`
+ * (which physical action wakes the device) and, when the hint requires it, `userActiveModeTriggerInstruction`
+ * (initialization throws if a hint bit that depends on the instruction is set without one). UAT defines no Matter
+ * command — call {@link triggerUserActiveMode} to simulate the physical trigger.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.16
  */
