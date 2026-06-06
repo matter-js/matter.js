@@ -54,9 +54,8 @@ const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
  *
  * ## Extension points
  *
- * Override {@link stayActive} to react to StayActiveRequest: extend the device's active period for the requested time
- * and return the duration actually promised. The default implementation only honors the spec minimum and does not
- * track active time, so a device that wants to genuinely stay awake should override it.
+ * Override {@link stayActive} to customize the StayActiveRequest response: return the duration actually promised.
+ * The default drives the mode machine and honors the spec floor (`min(30s, requested)`); override for a custom policy.
  *
  * ## Long Idle Time (LITS)
  *
@@ -361,16 +360,38 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
-     * Extension point: return the duration for which the device promises to stay active.
-     *
-     * The default honors the spec floor only (the promise is at least the smaller of 30s and the request); with no
-     * active-mode machine yet it neither tracks nor extends real active time. Phase 2b overrides this to fold in
-     * remaining active time and actually extend active mode; apps may override for custom power policy.
+     * Extend the device's active window by the requested duration and return the duration actually promised: the real
+     * remaining active duration, never less than the spec floor of `min(30s, requested)`. Override for a custom policy.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
      */
     protected stayActive(requestedDuration: Duration): Duration {
-        return Duration.min(STAY_ACTIVE_PROMISE_FLOOR, requestedDuration);
+        const floor = Duration.min(STAY_ACTIVE_PROMISE_FLOOR, requestedDuration);
+        const modeState = this.internal.modeState;
+        if (modeState === undefined) {
+            return floor;
+        }
+        return Duration.max(modeState.requestActive(requestedDuration), floor);
+    }
+
+    /**
+     * Wake the device into Active mode for a full active window (the idle→active transition; on a CIP device this is
+     * where Phase 2c sends Check-Ins). No-op before the node is online.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     */
+    requestActiveMode() {
+        this.internal.modeState?.requestActive(Millis(this.state.activeModeDuration));
+    }
+
+    /**
+     * Put the device into Idle mode (e.g. when the application/test decides to "sleep"). Forces idle unconditionally.
+     * No-op before the node is online.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     */
+    enterIdleMode() {
+        this.internal.modeState?.enterIdle();
     }
 
     /**
@@ -516,6 +537,8 @@ export namespace IcdManagementBaseServer {
 
     export declare const ExtensionInterface: {
         stayActive(requestedDuration: Duration): Duration;
+        requestActiveMode(): void;
+        enterIdleMode(): void;
     };
 }
 
