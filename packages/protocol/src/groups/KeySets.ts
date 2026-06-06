@@ -126,7 +126,7 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
                     `No operational keys found for groupKeySet ${keySetId} that are not in the future.`,
                 );
             }
-            return relevantKeys[operationalKeys.length - 1];
+            return relevantKeys[relevantKeys.length - 1];
         }
     }
 

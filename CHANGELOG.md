@@ -33,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A forward message-counter jump of exactly the window size no longer retains stale replay-bitmap bits, which could wrongly reject a later legitimate message as duplicate
     - Fix: When the per-session concurrent-exchange limit is exceeded, the least-recently-active exchange is now closed instead of the oldest-created one
     - Fix: A Sigma1 carrying only one of `resumptionId`/`initiatorResumeMic` is now rejected with INVALID_PARAMETER instead of being treated as a fresh handshake
+    - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
 
 - @matter/node
     - Enhancement: Added `network.ownNetworkProfileId` to set the local network's MRP additive margin, and exposed `additionalMrpDelay` and `probeAddress` in network profile config

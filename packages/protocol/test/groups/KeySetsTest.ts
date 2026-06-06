@@ -5,7 +5,29 @@
  */
 
 import { KeySets, type OperationalKeySet } from "#groups/KeySets.js";
-import { MatterFlowError } from "@matter/general";
+import { ImplementationError, MatterFlowError, Time } from "@matter/general";
+
+const HOUR_US = 60 * 60 * 1000 * 1000;
+
+/** Build a 3-slot key set whose slots carry distinct session ids 100/101/102 and the given epoch start times (µs). */
+function threeKeySet(
+    groupKeySetId: number,
+    startTimes0Us: number,
+    startTimes1Us: number,
+    startTimes2Us: number,
+): OperationalKeySet {
+    return keySet(groupKeySetId, {
+        operationalEpochKey0: Uint8Array.of(0),
+        groupSessionId0: 100,
+        epochStartTime0: startTimes0Us,
+        operationalEpochKey1: Uint8Array.of(1),
+        groupSessionId1: 101,
+        epochStartTime1: startTimes1Us,
+        operationalEpochKey2: Uint8Array.of(2),
+        groupSessionId2: 102,
+        epochStartTime2: startTimes2Us,
+    } as Partial<OperationalKeySet>);
+}
 
 function keySet(groupKeySetId: number, overrides: Partial<OperationalKeySet> = {}): OperationalKeySet {
     return {
@@ -67,6 +89,38 @@ describe("KeySets", () => {
             sets.add(keySet(0));
 
             expect(sets.currentKeyForId(0).sessionId).equal(100);
+        });
+
+        it("returns the newest non-future key when a future-dated key is installed", () => {
+            const nowUs = Time.nowUs * 1000;
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(threeKeySet(5, nowUs - 2 * HOUR_US, nowUs - HOUR_US, nowUs + HOUR_US));
+
+            expect(sets.currentKeyForId(5).sessionId).equal(101);
+        });
+
+        it("returns the newest key when all keys are in the past", () => {
+            const nowUs = Time.nowUs * 1000;
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(threeKeySet(5, nowUs - 3 * HOUR_US, nowUs - 2 * HOUR_US, nowUs - HOUR_US));
+
+            expect(sets.currentKeyForId(5).sessionId).equal(102);
+        });
+
+        it("throws when every key is in the future", () => {
+            const nowUs = Time.nowUs * 1000;
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(threeKeySet(5, nowUs + HOUR_US, nowUs + 2 * HOUR_US, nowUs + 3 * HOUR_US));
+
+            expect(() => sets.currentKeyForId(5)).throws(ImplementationError, "not in the future");
+        });
+
+        it("returns the second-newest key for the IPK key set (§4.14.2.6)", () => {
+            const nowUs = Time.nowUs * 1000;
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(threeKeySet(0, nowUs - 3 * HOUR_US, nowUs - 2 * HOUR_US, nowUs - HOUR_US));
+
+            expect(sets.currentKeyForId(0).sessionId).equal(101);
         });
     });
 });
