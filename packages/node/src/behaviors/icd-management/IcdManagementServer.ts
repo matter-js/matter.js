@@ -24,13 +24,14 @@ import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 import { IcdModeState } from "./IcdMode.js";
 
-// CIP, LITS, and DSLS are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`, and
-// `this.features.dynamicSitLitSupport` typecheck throughout the shared logic. The exported IcdManagementServer
-// resets to CIP-only via `.with(CIP)`.
+// CIP, LITS, DSLS, and UAT are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`,
+// `this.features.dynamicSitLitSupport`, and `this.features.userActiveModeTrigger` typecheck throughout the shared
+// logic. The exported IcdManagementServer resets to CIP-only via `.with(CIP)`.
 const IcdManagementLogicBase = IcdManagementBehavior.with(
     IcdManagement.Feature.CheckInProtocolSupport,
     IcdManagement.Feature.LongIdleTimeSupport,
     IcdManagement.Feature.DynamicSitLitSupport,
+    IcdManagement.Feature.UserActiveModeTrigger,
 );
 
 /**
@@ -46,6 +47,23 @@ const MIN_LIT_ACTIVE_MODE_THRESHOLD = Seconds(5);
  * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
  */
 const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
+
+/**
+ * UserActiveModeTriggerHint bits that require a non-empty UserActiveModeTriggerInstruction. The `*LightsBlink` bits also
+ * depend on the instruction but may leave it empty, so they are excluded.
+ *
+ * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
+ */
+const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
+    "customInstruction",
+    "actuateSensorSeconds",
+    "actuateSensorTimes",
+    "resetButtonSeconds",
+    "resetButtonTimes",
+    "setupButtonSeconds",
+    "setupButtonTimes",
+    "appDefinedButton",
+] as const;
 
 /**
  * Default device-side ICD Management server implementation. Enables the Check-In Protocol Support (CIP) feature and
@@ -107,6 +125,19 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             throw new ImplementationError(
                 `LIT ICD requires activeModeThreshold (${Duration.format(Millis(this.state.activeModeThreshold))}) >= ${Duration.format(MIN_LIT_ACTIVE_MODE_THRESHOLD)}`,
             );
+        }
+
+        // @see {@link MatterSpecification.v151.Core} § 9.16.6.7–9.16.6.8 — these trigger hints require a non-empty
+        // instruction string telling the user how to trigger active mode. The generated conformance is "desc" (prose
+        // table), so this coupling is not enforced by the framework and must be checked here.
+        if (this.features.userActiveModeTrigger && !this.state.userActiveModeTriggerInstruction) {
+            const hint = this.state.userActiveModeTriggerHint;
+            const missing = INSTRUCTION_REQUIRED_TRIGGER_HINTS.find(bit => hint[bit]);
+            if (missing !== undefined) {
+                throw new ImplementationError(
+                    `userActiveModeTriggerHint.${missing} requires a non-empty userActiveModeTriggerInstruction`,
+                );
+            }
         }
 
         this.reactTo((this.endpoint.lifecycle as NodeLifecycle).online, this.#online);
@@ -385,6 +416,16 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
+     * Simulate the device-physical User Active Mode Trigger (button press, power cycle, etc.): wakes the device into
+     * Active mode. UAT exposes no Matter command — this is a device-side action.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
+     */
+    triggerUserActiveMode() {
+        this.requestActiveMode();
+    }
+
+    /**
      * Put the device into Idle mode (e.g. when the application/test decides to "sleep"). Forces idle unconditionally.
      * No-op before the node is online.
      *
@@ -539,6 +580,7 @@ export namespace IcdManagementBaseServer {
         stayActive(requestedDuration: Duration): Duration;
         requestActiveMode(): void;
         enterIdleMode(): void;
+        triggerUserActiveMode(): void;
     };
 }
 
