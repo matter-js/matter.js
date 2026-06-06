@@ -28,7 +28,9 @@ export const RefrigeratorDt = DeviceType(
     ),
 
     Requirement({ name: "RefrigeratorAlarm", id: 0x57, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "[Rev > v2]", element: "serverCluster" }),
+    Requirement(
+        { name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "[Rev >= v3]", element: "serverCluster" }
+    ),
     Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType" })
 );
 

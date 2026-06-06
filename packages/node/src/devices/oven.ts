@@ -37,7 +37,7 @@ export namespace OvenRequirements {
 export const OvenDeviceDefinition = MutableEndpoint({
     name: "Oven",
     deviceType: 0x7b,
-    deviceRevision: 3,
+    deviceRevision: 2,
     requirements: OvenRequirements,
     behaviors: SupportedBehaviors()
 });

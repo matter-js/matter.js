@@ -1099,7 +1099,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "OFFONLY", conformance: "[!LT | DF]", constraint: "2", title: "OffOnly",
+                name: "OFFONLY", conformance: "[!(LT | DF)]", constraint: "2", title: "OffOnly",
                 xref: "cluster§1.5.4.3",
 
                 details: "When this feature is supported, the Off command shall be supported and the On and Toggle commands " +
@@ -32573,7 +32573,7 @@ export const SpecMatter = Matter(
         Attribute({ name: "MaxPathsPerInvoke", id: 0x16, conformance: "X", xref: "core§9.13.5" }),
 
         Attribute({
-            name: "ConfigurationVersion", id: 0x18, conformance: "P, [Rev >= v5]", xref: "core§9.13.5.4",
+            name: "ConfigurationVersion", id: 0x18, conformance: "[Rev >= v6]", xref: "core§9.13.5.4",
 
             details: "This attribute shall contain the current version number for the configuration of the bridged device. " +
                 "A larger value of ConfigurationVersion shall indicate a newer configuration than a lower value." +
@@ -34261,7 +34261,7 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "Rev >= v5",
+            name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "Rev >= v6",
             constraint: "min 1", default: 1, quality: "N", xref: "core§11.1.5.24",
             details: "This attribute shall contain the current version number for the configuration of the Node. A larger " +
                 "value of ConfigurationVersion shall indicate a newer configuration than a lower value."
@@ -35850,7 +35850,7 @@ export const SpecMatter = Matter(
         Attribute(
             {
                 name: "AvailableEndpoints", id: 0x0, type: "list", access: "R V", conformance: "SET",
-                constraint: "max 20", quality: "F", xref: "core§11.8.6.1",
+                constraint: "max 20", quality: "F", xref: "core§11.8.5.1",
                 details: "Indicates the list of endpoints capable of providing power to and/or consuming power from the " +
                     "endpoint hosting this server."
             },
@@ -35861,41 +35861,13 @@ export const SpecMatter = Matter(
         Attribute(
             {
                 name: "ActiveEndpoints", id: 0x1, type: "list", access: "R V", conformance: "DYPF",
-                constraint: "max 20", quality: "N", xref: "core§11.8.6.2",
+                constraint: "max 20", quality: "N", xref: "core§11.8.5.2",
                 details: "Indicates the current list of endpoints currently providing or consuming power to or from the " +
                     "endpoint hosting this server. This list shall be a subset of the value of the AvailableEndpoints " +
                     "attribute."
             },
 
             Field({ name: "entry", type: "endpoint-no" })
-        ),
-
-        Datatype(
-            {
-                name: "CircuitNodeStruct", type: "struct", xref: "core§11.8.5.1",
-                details: "This indicates a device on the circuit represented by this server."
-            },
-            Field({
-                name: "Node", id: 0x1, type: "node-id", access: "F", conformance: "M", xref: "core§11.8.5.1.1",
-                details: "This field shall indicate the ID of a node which is on the electrical circuit represented by this " +
-                    "server."
-            }),
-
-            Field({
-                name: "Endpoint", id: 0x2, type: "endpoint-no", access: "F", conformance: "O",
-                xref: "core§11.8.5.1.2",
-                details: "This field shall indicate the endpoint ID of the indicated node which is on the electrical circuit " +
-                    "represented by this server."
-            }),
-
-            Field({
-                name: "Label", id: 0x3, type: "string", access: "F", conformance: "O", constraint: "max 128",
-                xref: "core§11.8.5.1.3",
-                details: "This field shall indicate a friendly name for the node, to be used when the client does not have " +
-                    "access to the node's fabric."
-            }),
-
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
         )
     ),
 
@@ -47268,7 +47240,7 @@ export const SpecMatter = Matter(
             { name: "RefrigeratorAlarm", id: 0x57, conformance: "O", element: "serverCluster", xref: "device§13.2.7" }
         ),
         Requirement({
-            name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "[Rev > v2]",
+            name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "[Rev >= v3]",
             element: "serverCluster", xref: "device§13.2.7"
         }),
         Requirement({
@@ -47506,7 +47478,7 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 123, revision: 3 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 123, revision: 2 } ], element: "attribute" })
         ),
         Requirement({
             name: "Heater", type: "TemperatureControlledCabinet.Heater", conformance: "M", element: "condition",

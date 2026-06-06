@@ -10,8 +10,6 @@ import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
-import type { NodeId } from "../datatype/NodeId.js";
-import type { FabricIndex } from "../datatype/FabricIndex.js";
 
 /**
  * Definitions for the PowerTopology cluster.
@@ -51,7 +49,7 @@ export declare namespace PowerTopology {
          * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
          * hosting this server.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.8.5.1
          */
         availableEndpoints: EndpointNumber[];
     }
@@ -64,7 +62,7 @@ export declare namespace PowerTopology {
          * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
          * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.8.5.2
          */
         activeEndpoints: EndpointNumber[];
     }
@@ -80,7 +78,7 @@ export declare namespace PowerTopology {
          * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
          * hosting this server.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.8.5.1
          */
         availableEndpoints: EndpointNumber[];
 
@@ -88,7 +86,7 @@ export declare namespace PowerTopology {
          * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
          * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.8.5.2
          */
         activeEndpoints: EndpointNumber[];
     }
@@ -132,40 +130,6 @@ export declare namespace PowerTopology {
          * The specified set of endpoints may change
          */
         DynamicPowerFlow = "DynamicPowerFlow"
-    }
-
-    /**
-     * This indicates a device on the circuit represented by this server.
-     *
-     * @see {@link MatterSpecification.v151.Core} § 11.8.5.1
-     */
-    export class CircuitNode {
-        constructor(values?: Partial<CircuitNode>);
-
-        /**
-         * This field shall indicate the ID of a node which is on the electrical circuit represented by this server.
-         *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.5.1.1
-         */
-        node: NodeId;
-
-        /**
-         * This field shall indicate the endpoint ID of the indicated node which is on the electrical circuit
-         * represented by this server.
-         *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.5.1.2
-         */
-        endpoint?: EndpointNumber;
-
-        /**
-         * This field shall indicate a friendly name for the node, to be used when the client does not have access to
-         * the node's fabric.
-         *
-         * @see {@link MatterSpecification.v151.Core} § 11.8.5.1.3
-         */
-        label?: string;
-
-        fabricIndex: FabricIndex;
     }
 
     /**

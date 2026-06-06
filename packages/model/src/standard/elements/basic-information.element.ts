@@ -101,7 +101,7 @@ export const BasicInformation = Cluster(
         constraint: "min 1", default: 1, quality: "F"
     }),
     Attribute({
-        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "Rev >= v5",
+        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "Rev >= v6",
         constraint: "min 1", default: 1, quality: "N"
     }),
     Event(

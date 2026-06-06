@@ -45,7 +45,7 @@ export const BridgedDeviceBasicInformation = Cluster(
     Attribute({ name: "ProductAppearance", id: 0x14, conformance: "[Rev >= v2]" }),
     Attribute({ name: "SpecificationVersion", id: 0x15, conformance: "X" }),
     Attribute({ name: "MaxPathsPerInvoke", id: 0x16, conformance: "X" }),
-    Attribute({ name: "ConfigurationVersion", id: 0x18, conformance: "P, [Rev >= v5]" }),
+    Attribute({ name: "ConfigurationVersion", id: 0x18, conformance: "[Rev >= v6]" }),
     Event({ name: "StartUp", id: 0x0, conformance: "O", priority: "critical" }),
     Event({ name: "ShutDown", id: 0x1, conformance: "O", priority: "critical" }),
     Event(
