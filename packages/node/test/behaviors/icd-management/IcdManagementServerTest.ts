@@ -8,17 +8,61 @@ import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
-import { Bytes, Millis } from "@matter/general";
+import { Bytes, Crypto, Millis } from "@matter/general";
 import { AccessLevel } from "@matter/model";
-import { Advertiser, DeviceAdvertiser, FabricManager, ServiceDescription } from "@matter/protocol";
+import {
+    Advertiser,
+    DeviceAdvertiser,
+    FabricManager,
+    type IcdCheckInRequest,
+    IcdCheckInSender,
+    ServiceDescription,
+    SessionManager,
+} from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { activeSubscriptionSubjects } from "../../../src/behaviors/icd-management/IcdCheckInSuppression.js";
 import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
+import { subscribedPeer } from "../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 const RootWithIcdOnline = MockServerNode.RootEndpoint.with(IcdManagementServer);
+
+/**
+ * Builds an IcdManagementServer subclass whose Check-In sender records each send() and reports success without
+ * dialing. The real IcdCheckInSender.send() encode path runs (dummy address + sendUnsecured → true).
+ */
+function recordingIcdServer() {
+    const sent = new Array<{ fabricIndex: number; peerNodeId: bigint; counter: number }>();
+
+    class RecordingSender extends IcdCheckInSender {
+        override async send(request: IcdCheckInRequest): Promise<boolean> {
+            const ok = await super.send(request);
+            if (ok) {
+                sent.push({
+                    fabricIndex: request.fabricIndex,
+                    peerNodeId: request.peerNodeId,
+                    counter: request.counter,
+                });
+            }
+            return ok;
+        }
+    }
+
+    class RecordingIcdServer extends IcdManagementServer {
+        protected createCheckInSender() {
+            return new RecordingSender({
+                crypto: this.env.get(Crypto),
+                resolveAddress: async () => ({ type: "udp", ip: "::1", port: 5540 }),
+                sendUnsecured: async () => true,
+            });
+        }
+    }
+
+    return { sent, RecordingIcdServer };
+}
 
 /**
  * Minimal mock advertiser that records ServiceDescriptions passed to advertise().
@@ -1090,6 +1134,177 @@ describe("IcdManagementServer", () => {
             expect(res.promisedActiveDuration).equals(45000);
             expect(events).deep.equals([]); // no spurious activeModeEntered on an already-active device
             await device.close();
+        });
+    });
+
+    describe("Check-In sending", () => {
+        // idleModeDuration (s) >= activeModeDuration (ms); maximumCheckInBackoff (s) >= idleModeDuration. With
+        // maximumCheckInBackoff == idleModeDuration the back-off cap is one cycle: a send on every wake.
+        const checkInConfig = {
+            idleModeDuration: 4,
+            maximumCheckInBackoff: 4,
+            activeModeDuration: 2000,
+            activeModeThreshold: 1000,
+        } as const;
+
+        const key = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
+
+        /** Force one idle→active wake and let the activeModeEntered reactor's send pass run to completion. */
+        async function wake(device: ServerNode) {
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+            await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+        }
+
+        async function commissionedRecordingPair() {
+            const { sent, RecordingIcdServer } = recordingIcdServer();
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(RecordingIcdServer),
+                    icdManagement: checkInConfig,
+                },
+            });
+            return { site, sent, controller, device };
+        }
+
+        it("sends one Check-In per wake for a Permanent client with no covering subscription", async () => {
+            const { site, sent, controller, device } = await commissionedRecordingPair();
+            await using _site = site;
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            const counterBefore = device.stateOf(IcdManagementServer).icdCounter;
+            sent.length = 0;
+
+            await wake(device);
+
+            expect(sent).length(1);
+            expect(sent[0].peerNodeId).equals(checkInNodeId);
+            expect(device.stateOf(IcdManagementServer).icdCounter).equals(counterBefore + 1);
+        });
+
+        it("suppresses the Check-In for a client covered by an active matching subscription", async () => {
+            const { site, sent, controller, device } = await commissionedRecordingPair();
+            await using _site = site;
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+
+            // The covering subscription's subject is the controller's operational node id on the device's fabric.
+            const monitoredSubject = await device.act(agent => {
+                const fabricIndex = agent.env.get(FabricManager).fabrics[0].fabricIndex;
+                const subjects = activeSubscriptionSubjects(agent.env.get(SessionManager), fabricIndex);
+                return subjects[0]?.id;
+            });
+            expect(monitoredSubject).not.undefined;
+
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: monitoredSubject!,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            sent.length = 0;
+            await wake(device);
+
+            expect(sent).length(0);
+        });
+
+        it("never sends to an Ephemeral client", async () => {
+            const { site, sent, controller, device } = await commissionedRecordingPair();
+            await using _site = site;
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key,
+                clientType: IcdManagement.ClientType.Ephemeral,
+            });
+
+            sent.length = 0;
+            await wake(device);
+
+            expect(sent).length(0);
+        });
+
+        it("follows the back-off schedule across no-response wakes", async () => {
+            // maximumCheckInBackoff (16s) is 4x idleModeDuration (4s) → cap 4 cycles. Doubling gaps 1,2,4 (capped):
+            // sends at wakes 0, 1, 3, 7, then every 4th (11, 15, ...).
+            const { sent, RecordingIcdServer } = recordingIcdServer();
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(RecordingIcdServer),
+                    icdManagement: { ...checkInConfig, maximumCheckInBackoff: 16 },
+                },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            sent.length = 0;
+            const sentAtWake = new Array<number>();
+            for (let w = 0; w < 12; w++) {
+                const before = sent.length;
+                await wake(device);
+                if (sent.length > before) {
+                    sentAtWake.push(w);
+                }
+            }
+
+            expect(sentAtWake).deep.equals([0, 1, 3, 7, 11]);
+        });
+
+        it("triggerUserActiveMode resets the back-off so the next wake sends again", async () => {
+            const { sent, RecordingIcdServer } = recordingIcdServer();
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(RecordingIcdServer),
+                    icdManagement: { ...checkInConfig, maximumCheckInBackoff: 16 },
+                },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const checkInNodeId = peer1.peerAddress!.nodeId;
+            await peer1.commandsOf(IcdManagementClient).registerClient({
+                checkInNodeId,
+                monitoredSubject: checkInNodeId,
+                key,
+                clientType: IcdManagement.ClientType.Permanent,
+            });
+
+            sent.length = 0;
+            // Wake 0 sends; wake 1 sends; wake 2 is suppressed by back-off (gap of 2 cycles).
+            await wake(device);
+            await wake(device);
+            const beforeSuppressed = sent.length;
+            await wake(device);
+            expect(sent.length).equals(beforeSuppressed); // wake 2 suppressed
+
+            // UAT resets the back-off; the wake it triggers sends immediately.
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+            await device.act(agent => agent.get(IcdManagementServer).triggerUserActiveMode());
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(sent.length).equals(beforeSuppressed + 1);
         });
     });
 });
