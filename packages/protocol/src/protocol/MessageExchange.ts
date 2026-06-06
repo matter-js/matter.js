@@ -576,9 +576,13 @@ export class MessageExchange {
             if (!GroupSession.is(session)) {
                 throw new InternalError("Session is not a GroupSession, but session type is Group.");
             }
-            const destGroupId = GroupId.fromNodeId(this.#peerNodeId!);
+            const peerNodeId = this.#peerNodeId;
+            if (peerNodeId === undefined) {
+                throw new InternalError("Group message exchange requires a peer NodeId.");
+            }
+            const destGroupId = GroupId.fromNodeId(peerNodeId);
             if (destGroupId === 0) {
-                throw new InternalError(`Invalid GroupId extracted from NodeId ${this.#peerNodeId}`);
+                throw new InternalError(`Invalid GroupId extracted from NodeId ${peerNodeId}`);
             }
             const messageId = await abort.attempt(this.session.getIncrementedMessageCounter());
             if (messageId === undefined) {
