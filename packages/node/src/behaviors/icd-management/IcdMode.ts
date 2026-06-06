@@ -16,7 +16,7 @@ export interface IcdModeStateOptions {
     activeModeDuration: Duration;
     /** Active-window extension granted per network activity. @see {@link MatterSpecification.v151.Core} § 9.16.6.3 */
     activeModeThreshold: Duration;
-    /** Entered Active mode — initial power-up or an idle→active wake. The Check-In send point (Phase 2c). */
+    /** Entered Active mode — initial power-up or an idle→active wake. The Check-In send point. */
     onActiveEntered: () => void;
     /** Active→Idle transition (device went idle). */
     onIdleEntered: () => void;

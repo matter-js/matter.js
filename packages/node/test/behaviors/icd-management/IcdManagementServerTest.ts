@@ -799,7 +799,7 @@ describe("IcdManagementServer", () => {
         };
 
         it("triggerUserActiveMode wakes an idle device", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.createOnline(MockServerNode.RootEndpoint.with(uatServer), uatConfig);
             device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
             await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
@@ -1006,7 +1006,7 @@ describe("IcdManagementServer", () => {
         };
 
         it("starts in active mode and emits activeModeEntered on online", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.create(RootWithIcd, idleActiveConfig);
             device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
             device.eventsOf(IcdManagementServer).idleModeEntered.on(() => void events.push("idle"));
@@ -1017,7 +1017,7 @@ describe("IcdManagementServer", () => {
         });
 
         it("signals mayEnterIdleMode after the active window without transitioning", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
             device.eventsOf(IcdManagementServer).idleModeEntered.on(() => void events.push("idle"));
             device.eventsOf(IcdManagementServer).mayEnterIdleMode.on(() => void events.push("may"));
@@ -1027,7 +1027,7 @@ describe("IcdManagementServer", () => {
         });
 
         it("inbound node activity extends the active window", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
             device.eventsOf(IcdManagementServer).mayEnterIdleMode.on(() => void events.push("may"));
             await MockTime.advance(1500);
@@ -1040,7 +1040,7 @@ describe("IcdManagementServer", () => {
         });
 
         it("requestActiveMode wakes an idle device", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
             device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
             await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
@@ -1050,7 +1050,7 @@ describe("IcdManagementServer", () => {
         });
 
         it("enterIdleMode forces idle unconditionally", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
             device.eventsOf(IcdManagementServer).idleModeEntered.on(() => void events.push("idle"));
             await device.act(agent => agent.get(IcdManagementServer).enterIdleMode()); // before window elapses
@@ -1080,7 +1080,7 @@ describe("IcdManagementServer", () => {
         });
 
         it("stayActive extends an already-active window without re-emitting activeModeEntered", async () => {
-            const events: string[] = [];
+            const events = new Array<string>();
             const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
             device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
             // Device is already Active; stayActiveRequest must extend the window without firing activeModeEntered again.
