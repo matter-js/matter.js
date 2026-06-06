@@ -516,17 +516,17 @@ export class SessionManager {
      * result in an error.
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
-        const groupId = packet.header.destGroupId;
-        if (groupId === undefined) {
-            throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
-        }
-        GroupId.assertGroupId(GroupId(groupId));
-
-        const { message, key, sessionId, sourceNodeId, keySetId, fabric } = GroupSession.decode(
+        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = GroupSession.decode(
             this.#context.fabrics,
             packet,
             aad,
         );
+
+        const groupId = message.packetHeader.destGroupId;
+        if (groupId === undefined) {
+            throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
+        }
+        GroupId.assertGroupId(GroupId(groupId));
 
         let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
         if (session === undefined) {
@@ -536,6 +536,7 @@ export class SessionManager {
                 fabric,
                 keySetId,
                 operationalGroupKey: key,
+                operationalPrivacyKey: privacyKey,
                 peerNodeId: sourceNodeId,
             });
         }

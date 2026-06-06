@@ -7,6 +7,7 @@
 import { Mark } from "#common/Mark.js";
 import {
     Bytes,
+    CRYPTO_AEAD_MIC_LENGTH_BYTES,
     DataReader,
     DataWriter,
     Diagnostic,
@@ -50,10 +51,14 @@ export interface Packet {
     header: PacketHeader;
     messageExtension?: Bytes;
     applicationPayload: Bytes;
+    /** Optional pre-serialized (and possibly privacy-obfuscated) header bytes; used instead of re-encoding `header`. */
+    headerBytes?: Bytes;
 }
 
 export interface DecodedPacket extends Packet {
     header: DecodedPacketHeader;
+    /** For privacy-enhanced packets: the still-obfuscated header region (message counter + node/group IDs). */
+    privacyHeader?: Bytes;
 }
 
 export interface Message {
@@ -70,6 +75,7 @@ export namespace Message {
 
     export function diagnosticsOf(context: { via: string }, message: Message, logContext?: ExchangeLogContext) {
         const {
+            packetHeader: { hasPrivacyEnhancements },
             payloadHeader: { messageType, protocolId, ackedMessageId, requiresAck },
             payload,
         } = message;
@@ -90,6 +96,7 @@ export namespace Message {
                 msgFlags: Diagnostic.asFlags({
                     reqAck: requiresAck,
                     dup: duplicate,
+                    privacy: hasPrivacyEnhancements,
                 }),
                 size: payload.byteLength ? payload.byteLength : undefined,
                 payload: payload.byteLength ? payload : undefined,
@@ -154,20 +161,142 @@ function mapProtocolAndMessageType(protocolId: number, messageType: number): { t
 export class MessageCodec {
     static decodePacket(data: Bytes): DecodedPacket {
         const reader = new DataReader(data, Endian.Little);
-        const header = this.decodePacketHeader(reader);
+
+        const flags = reader.readUInt8();
+        const version = (flags & PacketHeaderFlag.VersionMask) >> 4;
+        const hasDestNodeId = (flags & PacketHeaderFlag.HasDestNodeId) !== 0;
+        const hasDestGroupId = (flags & PacketHeaderFlag.HasDestGroupId) !== 0;
+        const hasSourceNodeId = (flags & PacketHeaderFlag.HasSourceNodeId) !== 0;
+
+        if (hasDestNodeId && hasDestGroupId)
+            throw new UnexpectedDataError(
+                "The header cannot contain destination group and node at the same time. Reserved for future use. Discard message.",
+            );
+        if (version !== HEADER_VERSION) throw new NotImplementedError(`Unsupported header version ${version}.`);
+
+        const sessionId = reader.readUInt16();
+        const securityFlags = reader.readUInt8();
+
+        const sessionType = securityFlags & SecurityFlag.SessionTypeMask;
+        if (sessionType !== SessionType.Group && sessionType !== SessionType.Unicast) {
+            throw new UnexpectedDataError(`Unsupported session type ${sessionType}.`);
+        }
+        if (sessionType === SessionType.Unicast && hasDestGroupId) {
+            throw new UnexpectedDataError(`Unicast session cannot have destination group id.`);
+        }
+        if (sessionType === SessionType.Group) {
+            if (!hasDestGroupId && !hasDestNodeId) {
+                throw new UnexpectedDataError(`Group session must have destination group id or destination node id.`);
+            }
+            if (!hasSourceNodeId) {
+                throw new UnexpectedDataError(`Group session must have source node id.`);
+            }
+        }
+
+        const hasPrivacyEnhancements = (securityFlags & SecurityFlag.HasPrivacyEnhancements) !== 0;
+        const isControlMessage = (securityFlags & SecurityFlag.IsControlMessage) !== 0;
+        if (isControlMessage) {
+            throw new NotImplementedError(`Control Messages not supported.`);
+        }
+        const hasMessageExtensions = (securityFlags & SecurityFlag.HasMessageExtension) !== 0;
+
+        if (hasPrivacyEnhancements) {
+            if (hasMessageExtensions) {
+                throw new NotImplementedError(`Privacy enhancements with message extensions not supported.`);
+            }
+            const privacyHeaderLength = 4 + (hasSourceNodeId ? 8 : 0) + (hasDestNodeId ? 8 : hasDestGroupId ? 2 : 0);
+            if (reader.remainingBytesCount < privacyHeaderLength) {
+                throw new UnexpectedDataError(
+                    `Privacy header length ${privacyHeaderLength} exceeds remaining message size ${reader.remainingBytesCount}.`,
+                );
+            }
+            const privacyHeader = reader.readByteArray(privacyHeaderLength);
+            // Reject early: the privacy nonce is derived from the MIC, so a packet without a full MIC must not proceed.
+            if (reader.remainingBytesCount < CRYPTO_AEAD_MIC_LENGTH_BYTES) {
+                throw new UnexpectedDataError(
+                    `Privacy-enhanced message too short to contain a MIC: ${reader.remainingBytesCount} bytes remaining.`,
+                );
+            }
+            return {
+                header: {
+                    securityFlags,
+                    sessionId,
+                    sessionType,
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                    messageId: 0,
+                    sourceNodeId: undefined,
+                    destNodeId: undefined,
+                    destGroupId: undefined,
+                },
+                privacyHeader,
+                applicationPayload: reader.remainingBytes,
+            };
+        }
+
+        const messageId = reader.readUInt32();
+        const sourceNodeId = hasSourceNodeId ? NodeId(reader.readUInt64()) : undefined;
+        const destNodeId = hasDestNodeId ? NodeId(reader.readUInt64()) : undefined;
+        const destGroupId = hasDestGroupId ? GroupId(reader.readUInt16()) : undefined;
+
+        const header: DecodedPacketHeader = {
+            securityFlags,
+            sessionId,
+            sourceNodeId,
+            messageId,
+            destGroupId,
+            destNodeId,
+            sessionType,
+            hasPrivacyEnhancements: false,
+            isControlMessage: false,
+            hasMessageExtensions,
+        };
 
         let messageExtension: Bytes | undefined = undefined;
-        if (header.hasMessageExtensions) {
+        if (hasMessageExtensions) {
             const extensionLength = reader.readUInt16();
             messageExtension = reader.readByteArray(extensionLength);
         }
 
-        const applicationPayload = reader.remainingBytes;
         return {
             header,
             messageExtension,
-            applicationPayload,
+            applicationPayload: reader.remainingBytes,
         };
+    }
+
+    /**
+     * Decode the message counter and node/group IDs from a deobfuscated privacy header region. Presence of each field
+     * is determined from the (cleartext) message flags byte.
+     */
+    static decodeObfuscatedHeaderFields(
+        messageFlags: number,
+        region: Bytes,
+    ): Pick<DecodedPacketHeader, "messageId" | "sourceNodeId" | "destNodeId" | "destGroupId"> {
+        const hasDestNodeId = (messageFlags & PacketHeaderFlag.HasDestNodeId) !== 0;
+        const hasDestGroupId = (messageFlags & PacketHeaderFlag.HasDestGroupId) !== 0;
+        const hasSourceNodeId = (messageFlags & PacketHeaderFlag.HasSourceNodeId) !== 0;
+
+        if (hasDestNodeId && hasDestGroupId)
+            throw new UnexpectedDataError(
+                "The header cannot contain destination group and node at the same time. Reserved for future use. Discard message.",
+            );
+
+        const expectedLength = 4 + (hasSourceNodeId ? 8 : 0) + (hasDestNodeId ? 8 : hasDestGroupId ? 2 : 0);
+        if (region.byteLength < expectedLength) {
+            throw new UnexpectedDataError(
+                `Privacy header region length ${region.byteLength} is shorter than expected ${expectedLength}.`,
+            );
+        }
+
+        const reader = new DataReader(region, Endian.Little);
+        const messageId = reader.readUInt32();
+        const sourceNodeId = hasSourceNodeId ? NodeId(reader.readUInt64()) : undefined;
+        const destNodeId = hasDestNodeId ? NodeId(reader.readUInt64()) : undefined;
+        const destGroupId = hasDestGroupId ? GroupId(reader.readUInt16()) : undefined;
+
+        return { messageId, sourceNodeId, destNodeId, destGroupId };
     }
 
     static decodePayload({ header, applicationPayload }: DecodedPacket): DecodedMessage {
@@ -204,73 +333,11 @@ export class MessageCodec {
         };
     }
 
-    static encodePacket({ header, applicationPayload, messageExtension }: Packet): Bytes {
+    static encodePacket({ header, applicationPayload, messageExtension, headerBytes }: Packet): Bytes {
         if (messageExtension !== undefined || header.hasMessageExtensions) {
             throw new NotImplementedError(`Message extensions not supported when encoding a packet.`);
         }
-        return Bytes.concat(this.encodePacketHeader(header), applicationPayload);
-    }
-
-    private static decodePacketHeader(reader: DataReader<Endian.Little>): DecodedPacketHeader {
-        // Read and parse message flags
-        const flags = reader.readUInt8();
-        const version = (flags & PacketHeaderFlag.VersionMask) >> 4;
-        const hasDestNodeId = (flags & PacketHeaderFlag.HasDestNodeId) !== 0;
-        const hasDestGroupId = (flags & PacketHeaderFlag.HasDestGroupId) !== 0;
-        const hasSourceNodeId = (flags & PacketHeaderFlag.HasSourceNodeId) !== 0;
-
-        if (hasDestNodeId && hasDestGroupId)
-            throw new UnexpectedDataError(
-                "The header cannot contain destination group and node at the same time. Reserved for future use. Discard message.",
-            );
-        if (version !== HEADER_VERSION) throw new NotImplementedError(`Unsupported header version ${version}.`);
-
-        const sessionId = reader.readUInt16();
-        const securityFlags = reader.readUInt8();
-        const messageId = reader.readUInt32();
-        const sourceNodeId = hasSourceNodeId ? NodeId(reader.readUInt64()) : undefined;
-        const destNodeId = hasDestNodeId ? NodeId(reader.readUInt64()) : undefined;
-        const destGroupId = hasDestGroupId ? GroupId(reader.readUInt16()) : undefined;
-
-        const sessionType = securityFlags & SecurityFlag.SessionTypeMask;
-
-        if (sessionType !== SessionType.Group && sessionType !== SessionType.Unicast) {
-            throw new UnexpectedDataError(`Unsupported session type ${sessionType}.`);
-        }
-        if (sessionType === SessionType.Unicast && hasDestGroupId) {
-            throw new UnexpectedDataError(`Unicast session cannot have destination group id.`);
-        }
-        if (sessionType === SessionType.Group) {
-            if (!hasDestGroupId && !hasDestNodeId) {
-                throw new UnexpectedDataError(`Group session must have destination group id or destination node id.`);
-            }
-            if (!hasSourceNodeId) {
-                throw new UnexpectedDataError(`Group session must have source node id.`);
-            }
-        }
-        const hasPrivacyEnhancements = (securityFlags & SecurityFlag.HasPrivacyEnhancements) !== 0;
-        if (hasPrivacyEnhancements) {
-            throw new NotImplementedError(`Privacy enhancements not supported.`);
-        }
-        const isControlMessage = (securityFlags & SecurityFlag.IsControlMessage) !== 0;
-        if (isControlMessage) {
-            // And also currently not needed because MCP is not relevant
-            throw new NotImplementedError(`Control Messages not supported.`);
-        }
-        const hasMessageExtensions = (securityFlags & SecurityFlag.HasMessageExtension) !== 0;
-
-        return {
-            securityFlags,
-            sessionId,
-            sourceNodeId,
-            messageId,
-            destGroupId,
-            destNodeId,
-            sessionType,
-            hasPrivacyEnhancements,
-            isControlMessage,
-            hasMessageExtensions,
-        };
+        return Bytes.concat(headerBytes ?? this.encodePacketHeader(header), applicationPayload);
     }
 
     private static decodePayloadHeader(reader: DataReader<Endian.Little>): PayloadHeader {
@@ -305,6 +372,7 @@ export class MessageCodec {
         destNodeId,
         sourceNodeId,
         sessionType,
+        hasPrivacyEnhancements,
     }: PacketHeader) {
         if (
             sessionType === SessionType.Group &&
@@ -318,7 +386,7 @@ export class MessageCodec {
             (destGroupId !== undefined ? PacketHeaderFlag.HasDestGroupId : 0) |
             (destNodeId !== undefined ? PacketHeaderFlag.HasDestNodeId : 0) |
             (sourceNodeId !== undefined ? PacketHeaderFlag.HasSourceNodeId : 0);
-        const securityFlags = sessionType;
+        const securityFlags = sessionType | (hasPrivacyEnhancements ? SecurityFlag.HasPrivacyEnhancements : 0);
 
         writer.writeUInt8(flags);
         writer.writeUInt16(sessionId);

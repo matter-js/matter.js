@@ -405,7 +405,7 @@ export class MessageExchange {
                 messageId: await this.session.getIncrementedMessageCounter(),
                 destNodeId: this.#peerNodeId,
                 sourceNodeId: this.#nodeId,
-                hasPrivacyEnhancements: false,
+                hasPrivacyEnhancements: false, // Privacy is only defined for group messages
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
@@ -424,7 +424,7 @@ export class MessageExchange {
                 messageId: await session.getIncrementedMessageCounter(),
                 destGroupId,
                 sourceNodeId: this.#nodeId, // We are the source node, so use our NodeId
-                hasPrivacyEnhancements: false,
+                hasPrivacyEnhancements: this.session.usePrivacy,
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
