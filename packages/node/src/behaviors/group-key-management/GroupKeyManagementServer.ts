@@ -442,6 +442,12 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         }
         this.state.groupKeySets.splice(existingIndex, 1);
 
+        // Per core§11.2.7.4.1: GroupKeyMap entries for the accessing fabric that refer to the removed key set SHALL be
+        // removed from the list.
+        this.state.groupKeyMap = this.state.groupKeyMap.filter(
+            entry => entry.fabricIndex !== fabricIndex || entry.groupKeySetId !== groupKeySetId,
+        );
+
         // Sync to Fabric group manager to remove too
         await fabric.groups.removeGroupKeySet(groupKeySetId);
     }
