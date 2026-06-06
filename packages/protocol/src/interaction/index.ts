@@ -10,4 +10,5 @@ export * from "./DecodedDataReport.js";
 export * from "./EventDataDecoder.js";
 export * from "./FabricAccessControl.js";
 export * from "./InteractionMessenger.js";
+export * from "./subjectMatches.js";
 export * from "./Subscription.js";

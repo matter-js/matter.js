@@ -8,7 +8,6 @@ import type { Fabric } from "#fabric/Fabric.js";
 import { Diagnostic, InternalError, Logger, MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import {
-    CaseAuthenticatedTag,
     ClusterId,
     DeviceTypeId,
     EndpointNumber,
@@ -20,6 +19,7 @@ import {
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { AccessControl as AccessControlContext } from "../action/server/AccessControl.js";
+import { subjectMatches } from "./subjectMatches.js";
 
 const logger = Logger.get("FabricAccessControl");
 
@@ -137,27 +137,6 @@ export class FabricAccessControl {
     }
 
     /**
-     * Subjects must match exactly, or both are CAT with matching CAT ID and acceptable CAT version
-     */
-    #subjectMatches(aclSubject: SubjectId, isdSubject: SubjectId): boolean {
-        if (BigInt(aclSubject) === BigInt(isdSubject)) {
-            return true;
-        }
-        const aclNode = NodeId(aclSubject);
-        const isdNode = NodeId(isdSubject);
-        if (!NodeId.isCaseAuthenticatedTag(aclNode) || !NodeId.isCaseAuthenticatedTag(isdNode)) {
-            return false;
-        }
-        const aclSubjectCat = NodeId.extractAsCaseAuthenticatedTag(aclNode);
-        const isdSubjectCat = NodeId.extractAsCaseAuthenticatedTag(isdNode);
-        return (
-            CaseAuthenticatedTag.getIdentifyValue(aclSubjectCat) ===
-                CaseAuthenticatedTag.getIdentifyValue(isdSubjectCat) &&
-            CaseAuthenticatedTag.getVersion(isdSubjectCat) >= CaseAuthenticatedTag.getVersion(aclSubjectCat)
-        );
-    }
-
-    /**
      * Add the new privilege to the granted privileges set and also add any privileges subsumed by the new privilege.
      */
     #addGrantedPrivilege(grantedPrivileges: Set<AccessLevel>, privilege: AccessLevel): void {
@@ -239,7 +218,7 @@ export class FabricAccessControl {
                 let matchedSubject = false;
                 subjectLoop: for (const aclSubject of aclEntry.subjects) {
                     for (const isdSubject of subjectDesc.subjects) {
-                        if (this.#subjectMatches(aclSubject, isdSubject)) {
+                        if (subjectMatches(aclSubject, isdSubject)) {
                             matchedSubject = true;
                             break subjectLoop;
                         }
