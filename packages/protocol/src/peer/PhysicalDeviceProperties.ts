@@ -82,9 +82,10 @@ export namespace PhysicalDeviceProperties {
             );
         }
 
-        // Lengthen the ceiling by some jitter to spread out device responses when devices are longer idle. Only ever
-        // add time, never subtract, so jitter cannot increase report frequency (and thus traffic) on the mesh. Clamp
-        // to the floor so a requested ceiling below the floor still yields a usable value.
+        // Lengthen the ceiling by jitter (added, never subtracted) to spread out device responses when devices are
+        // longer idle, so it cannot increase report frequency (and thus traffic) on the mesh. The result is floored
+        // to whole seconds (the wire granularity). Clamp to the floor so a requested ceiling below the floor still
+        // yields a usable value.
         const maxJitter = Math.max(maxIntervalCeiling * SUBSCRIPTION_CEILING_JITTER, SUBSCRIPTION_CEILING_JITTER_MIN);
         const jitter = Math.round(maxJitter * Math.random());
         maxIntervalCeiling = Duration.max(minIntervalFloor, Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter))));
