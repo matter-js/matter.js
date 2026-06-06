@@ -781,6 +781,66 @@ describe("IcdManagementServer", () => {
         });
     });
 
+    describe("UserActiveModeTrigger (UAT)", () => {
+        const uatServer = IcdManagementServer.with(
+            IcdManagement.Feature.CheckInProtocolSupport,
+            IcdManagement.Feature.UserActiveModeTrigger,
+        );
+
+        const uatConfig = {
+            icdManagement: {
+                idleModeDuration: 4,
+                maximumCheckInBackoff: 4,
+                activeModeDuration: 2000,
+                activeModeThreshold: 1000,
+                userActiveModeTriggerHint: { customInstruction: true },
+                userActiveModeTriggerInstruction: "Press and hold the button for 5s",
+            },
+        };
+
+        it("triggerUserActiveMode wakes an idle device", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.createOnline(MockServerNode.RootEndpoint.with(uatServer), uatConfig);
+            device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+            await device.act(agent => agent.get(IcdManagementServer).triggerUserActiveMode());
+            expect(events).deep.equals(["active"]);
+            await device.close();
+        });
+
+        it("rejects a CustomInstruction hint without an instruction string", async () => {
+            await expect(
+                MockServerNode.create(ServerNode.RootEndpoint.with(uatServer), {
+                    icdManagement: {
+                        userActiveModeTriggerHint: { customInstruction: true },
+                        userActiveModeTriggerInstruction: "",
+                    },
+                }),
+            ).rejectedWith("Behaviors have errors");
+        });
+
+        it("rejects any instruction-dependent hint without an instruction string", async () => {
+            await expect(
+                MockServerNode.create(ServerNode.RootEndpoint.with(uatServer), {
+                    icdManagement: {
+                        userActiveModeTriggerHint: { resetButtonSeconds: true },
+                        userActiveModeTriggerInstruction: "",
+                    },
+                }),
+            ).rejectedWith("Behaviors have errors");
+        });
+
+        it("accepts a hint that does not depend on the instruction with an empty instruction", async () => {
+            const device = await MockServerNode.create(ServerNode.RootEndpoint.with(uatServer), {
+                icdManagement: {
+                    userActiveModeTriggerHint: { powerCycle: true },
+                    userActiveModeTriggerInstruction: "",
+                },
+            });
+            await device.close();
+        });
+    });
+
     describe("DynamicSitLitSupport (DSLS) setOperatingMode", () => {
         const dslsServer = IcdManagementServer.with(
             IcdManagement.Feature.CheckInProtocolSupport,
