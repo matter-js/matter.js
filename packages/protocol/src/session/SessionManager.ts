@@ -29,6 +29,7 @@ import {
     Logger,
     MatterAggregateError,
     MatterFlowError,
+    Millis,
     Mutex,
     Observable,
     ObserverGroup,
@@ -162,6 +163,12 @@ export class SessionManager {
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
     #sessionParameters: SessionParameters;
+
+    /**
+     * Additive MRP retransmission margin for our own (sender-side) network.  Derived from the
+     * configured "own" network profile; defaults to 0 (treated as a low-latency local network).
+     */
+    localAdditionalMrpDelay: Duration = Millis(0);
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
@@ -580,13 +587,6 @@ export class SessionManager {
      * result in an error.
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
-        const rawGroupId = packet.header.destGroupId;
-        if (rawGroupId === undefined) {
-            throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
-        }
-        const groupId = GroupId(rawGroupId);
-        GroupId.assertGroupId(groupId);
-
         let decoded;
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
@@ -600,7 +600,13 @@ export class SessionManager {
             throw error;
         }
 
-        const { message, key, sessionId, sourceNodeId, keySetId, fabric } = decoded;
+        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = decoded;
+
+        const groupId = message.packetHeader.destGroupId;
+        if (groupId === undefined) {
+            throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
+        }
+        GroupId.assertGroupId(GroupId(groupId));
 
         let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
         if (session === undefined) {
@@ -610,6 +616,7 @@ export class SessionManager {
                 fabric,
                 keySetId,
                 operationalGroupKey: key,
+                operationalPrivacyKey: privacyKey,
                 peerNodeId: sourceNodeId,
                 multicastAddress: fabric.groups.multicastAddressFor(groupId),
             });

@@ -197,7 +197,12 @@ export class ExchangeManager implements Transport.Provider {
         const bytes = Bytes.of(messageBytes);
         const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
 
-        const messageId = packet.header.messageId;
+        // Privacy enhancements are only defined for group messages; a unicast message with the privacy flag is invalid
+        // and dropped, matching the CHIP SDK.
+        if (packet.header.hasPrivacyEnhancements && packet.header.sessionType !== SessionType.Group) {
+            logger.info("Dropping unicast message with privacy flag set");
+            return;
+        }
 
         let isDuplicate: boolean;
         let session: Session | undefined;
@@ -245,7 +250,7 @@ export class ExchangeManager implements Transport.Provider {
             message = session.decode(packet, aad);
 
             try {
-                session.updateMessageCounter(messageId);
+                session.updateMessageCounter(message.packetHeader.messageId);
                 isDuplicate = false;
             } catch (e) {
                 DuplicateMessageError.accept(e);
@@ -253,15 +258,17 @@ export class ExchangeManager implements Transport.Provider {
             }
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;
-            if (packet.header.sourceNodeId === undefined) {
-                throw new UnexpectedDataError("Group session message must include a source NodeId");
-            }
 
             let key: Bytes;
             ({ session, message, key } = this.#sessions.groupSessionFromPacket(packet, aad));
 
+            const sourceNodeId = message.packetHeader.sourceNodeId;
+            if (sourceNodeId === undefined) {
+                throw new UnexpectedDataError("Group session message must include a source NodeId");
+            }
+
             try {
-                session.updateMessageCounter(messageId, packet.header.sourceNodeId, key);
+                session.updateMessageCounter(message.packetHeader.messageId, sourceNodeId, key);
                 isDuplicate = false;
             } catch (e) {
                 DuplicateMessageError.accept(e);
@@ -276,6 +283,8 @@ export class ExchangeManager implements Transport.Provider {
         } else {
             throw new MatterFlowError(`Unsupported session type: ${packet.header.sessionType}`);
         }
+
+        const messageId = message.packetHeader.messageId;
 
         const exchangeIndex = message.payloadHeader.isInitiatorMessage
             ? message.payloadHeader.exchangeId
@@ -437,8 +446,9 @@ export class ExchangeManager implements Transport.Provider {
         exchange.closed.on(() => this.deleteExchange(exchangeIndex));
         this.#exchanges.set(exchangeIndex, exchange);
 
-        // A node SHOULD limit itself to a maximum of 5 concurrent exchanges over a unicast session. This is
-        // to prevent a node from exhausting the message counter window of the peer node.
+        // The spec recommends a maximum of 5 concurrent exchanges over a unicast session to avoid exhausting the
+        // peer's message counter window; we allow MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION as a practical
+        // upper bound and evict the least-recently-active exchange once exceeded.
         // TODO Make sure Group sessions are handled differently
         this.#cleanupSessionExchanges(exchange.session.id);
     }
@@ -454,14 +464,15 @@ export class ExchangeManager implements Transport.Provider {
         if (sessionExchanges.length <= MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION) {
             return;
         }
-        // let's use the first entry in the Map as the oldest exchange and close it
         // TODO: Adjust this logic into a Exchange creation queue instead of hard closing
-        const exchangeToClose = sessionExchanges[0];
+        const exchangeToClose = sessionExchanges.reduce((leastRecentlyActive, exchange) =>
+            exchange.lastActive < leastRecentlyActive.lastActive ? exchange : leastRecentlyActive,
+        );
         logger.info(
             exchangeToClose.via,
-            `Closing oldest exchange for session because of too many concurrent outgoing exchanges. Ensure to not send that many parallel messages to one peer.`,
+            `Closing least-recently-active exchange for session because of too many concurrent exchanges. Ensure to not send that many parallel messages to one peer.`,
         );
-        logger.debug(exchangeToClose.via, "Closing oldest exchange");
+        logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
         this.#workers.add(exchangeToClose.close());
     }
 
@@ -483,6 +494,7 @@ export class ExchangeManager implements Transport.Provider {
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
+            localAdditionalMrpDelay: this.#sessions.localAdditionalMrpDelay,
 
             peerLost: async (exchange: MessageExchange, cause: Error) => {
                 if (!(session instanceof NodeSession)) {

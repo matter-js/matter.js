@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+import { MessagePrivacy } from "#codec/MessagePrivacy.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import { GroupKeySet, KeySets, OperationalKeySet } from "#groups/KeySets.js";
 import { MessagingState } from "#groups/MessagingState.js";
@@ -142,16 +143,30 @@ export class FabricGroups {
             epochKey2 !== null
                 ? await this.#fabric.crypto.createHkdfKey(epochKey2, globalId, GROUP_SECURITY_INFO)
                 : null;
+        const operationalPrivacyKey0 = Bytes.of(
+            await MessagePrivacy.deriveKey(this.#fabric.crypto, operationalEpochKey0),
+        );
+        const operationalPrivacyKey1 =
+            operationalEpochKey1 !== null
+                ? Bytes.of(await MessagePrivacy.deriveKey(this.#fabric.crypto, operationalEpochKey1))
+                : null;
+        const operationalPrivacyKey2 =
+            operationalEpochKey2 !== null
+                ? Bytes.of(await MessagePrivacy.deriveKey(this.#fabric.crypto, operationalEpochKey2))
+                : null;
         this.#keySets.add({
             ...groupKeySet,
             operationalEpochKey0,
+            operationalPrivacyKey0,
             groupSessionId0: await this.#keySets.sessionIdFromKey(this.#fabric.crypto, operationalEpochKey0),
             operationalEpochKey1,
+            operationalPrivacyKey1,
             groupSessionId1:
                 operationalEpochKey1 !== null
                     ? await this.#keySets.sessionIdFromKey(this.#fabric.crypto, operationalEpochKey1)
                     : null,
             operationalEpochKey2,
+            operationalPrivacyKey2,
             groupSessionId2:
                 operationalEpochKey2 !== null
                     ? await this.#keySets.sessionIdFromKey(this.#fabric.crypto, operationalEpochKey2)

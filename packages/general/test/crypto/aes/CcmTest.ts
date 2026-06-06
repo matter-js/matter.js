@@ -177,4 +177,22 @@ describe("Ccm", () => {
             });
         });
     }
+
+    describe("byte offset handling", () => {
+        // NIST tcId 10 has 16-byte adata (>14 bytes), exercising the multi-block adata path that also builds a DataView.
+        const v = vectors.find(entry => entry.name === "NIST tcId 10")!;
+
+        it("encrypts plaintext and adata supplied at a non-zero byteOffset", () => {
+            const ccm = Ccm(Bytes.fromHex(v.key));
+
+            const ptView = Bytes.of(Bytes.concat(Bytes.fromHex("aabbcc"), Bytes.fromHex(v.pt))).subarray(3);
+            const aadView = Bytes.of(Bytes.concat(Bytes.fromHex("ddeeff"), Bytes.fromHex(v.adata))).subarray(3);
+
+            const result = Bytes.toHex(
+                ccm.encrypt({ nonce: Bytes.of(Bytes.fromHex(v.nonce)), adata: aadView, pt: ptView }),
+            );
+
+            expect(result).equals(v.ct + v.tag);
+        });
+    });
 });
