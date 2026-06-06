@@ -27,6 +27,7 @@ import {
     Lifetime,
     Logger,
     Millis,
+    NetworkError,
     Observable,
     ServerAddress,
     ServerAddressIp,
@@ -564,6 +565,13 @@ export async function PeerConnection(
         } else {
             delay = timing.delayAfterUnhandledError;
             category = "general";
+        }
+
+        // A network-layer failure (e.g. ENETUNREACH/EHOSTUNREACH) may mean the cached address no longer
+        // routes; flag unreachable so mDNS rediscovery can surface a fresh address. The cause is
+        // indeterminate (router reboot, routing change) so we still keep retrying with the tuned delay above.
+        if (causedBy(e, NetworkError)) {
+            peer.service.status.isReachable = false;
         }
 
         const handleError = options?.handleError ?? context.handleError;
