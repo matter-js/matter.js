@@ -568,8 +568,7 @@ export async function PeerConnection(
         }
 
         // A network-layer failure (e.g. ENETUNREACH/EHOSTUNREACH) may mean the cached address no longer
-        // routes; flag unreachable so mDNS rediscovery can surface a fresh address. The cause is
-        // indeterminate (router reboot, routing change) so we still keep retrying with the tuned delay above.
+        // routes; flag unreachable so mDNS rediscovery can surface a fresh address.
         if (causedBy(e, NetworkError)) {
             peer.service.status.isReachable = false;
         }
