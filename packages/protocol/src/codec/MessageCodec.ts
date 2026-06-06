@@ -83,6 +83,7 @@ export namespace Message {
 
     export function diagnosticsOf(context: { via: string }, message: Message, logContext?: ExchangeLogContext) {
         const {
+            packetHeader: { hasPrivacyEnhancements },
             payloadHeader: { messageType, protocolId, ackedMessageId, requiresAck },
             payload,
         } = message;
@@ -103,6 +104,7 @@ export namespace Message {
                 msgFlags: Diagnostic.asFlags({
                     reqAck: requiresAck,
                     dup: duplicate,
+                    privacy: hasPrivacyEnhancements,
                 }),
                 size: payload.byteLength ? payload.byteLength : undefined,
                 payload: payload.byteLength ? payload : undefined,
