@@ -9,6 +9,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/general
+    - Fix: AES-CCM encryption now honors the `byteOffset` of subarray inputs for plaintext and AAD (Backported from 0.17.2)
+
+- @matter/protocol
+    - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK (Backported from 0.17.2)
+
 ## 0.16.11 (2026-04-10)
 
 - @project-chip/matter.js
