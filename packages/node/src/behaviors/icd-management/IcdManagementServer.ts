@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, Duration, ImplementationError, Millis, Seconds } from "@matter/general";
+import { Bytes, Duration, ImplementationError, Millis, Observable, Seconds } from "@matter/general";
 import { AccessLevel, DataModelPath, fabricIdx, field, listOf, nodeId, nonvolatile, octstr } from "@matter/model";
 import {
     AccessControl,
@@ -21,6 +22,7 @@ import {
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
+import { IcdModeState } from "./IcdMode.js";
 
 // CIP, LITS, and DSLS are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`, and
 // `this.features.dynamicSitLitSupport` typecheck throughout the shared logic. The exported IcdManagementServer
@@ -76,6 +78,7 @@ const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
 export class IcdManagementBaseServer extends IcdManagementLogicBase {
     declare internal: IcdManagementBaseServer.Internal;
     declare readonly state: IcdManagementBaseServer.State;
+    declare readonly events: IcdManagementBaseServer.Events;
 
     override initialize() {
         const idleModeDuration = Seconds(this.state.idleModeDuration);
@@ -132,6 +135,25 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             } else {
                 this.#refreshIcdAdvertisementCache();
             }
+
+            // Idle/active mode machine, externally driven. Created once; (re)started below on every online, paused on
+            // goingOffline. The idle→active transition is the Check-In send point (Phase 2c hooks activeModeEntered).
+            // @see {@link MatterSpecification.v151.Core} § 9.15.1
+            this.internal.modeState = new IcdModeState({
+                activeModeDuration: Millis(this.state.activeModeDuration),
+                activeModeThreshold: Millis(this.state.activeModeThreshold),
+                onActiveEntered: () => this.events.activeModeEntered.emit(),
+                onIdleEntered: () => this.events.idleModeEntered.emit(),
+                onMayEnterIdle: () => this.events.mayEnterIdleMode.emit(),
+            });
+            this.reactTo((this.endpoint.lifecycle as NodeLifecycle).goingOffline, this.#onGoingOffline);
+
+            // Must use .on() directly: reactTo wraps each invocation in a NodeActivity whose close re-emits inactive,
+            // causing infinite recursion.
+            const inactive = this.env.get(NodeActivity).inactive;
+            const observer = () => this.internal.modeState?.noteActivity();
+            inactive.on(observer);
+            this.internal.inactiveObserver = { inactive, observer };
         }
 
         // DeviceAdvertiser is closed and recreated on each stop/start cycle; register the provider every time.
@@ -167,6 +189,21 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
                 clientType: client.clientType,
             });
         }
+
+        this.internal.modeState?.start();
+    }
+
+    #onGoingOffline() {
+        this.internal.modeState?.stop();
+    }
+
+    override async [Symbol.asyncDispose]() {
+        const { inactive, observer } = this.internal.inactiveObserver ?? {};
+        if (inactive && observer) {
+            inactive.off(observer);
+        }
+        this.internal.modeState?.[Symbol.dispose]();
+        await super[Symbol.asyncDispose]?.();
     }
 
     /**
@@ -462,6 +499,19 @@ export namespace IcdManagementBaseServer {
         currentIcdAdvertisement?: IcdAdvertisement;
         /** Runtime-only; not persisted, so a restart reverts to the registration-driven mode. {@link IcdManagementBaseServer.setOperatingMode} */
         forcedOperatingMode?: IcdManagement.OperatingMode;
+        /** Idle/active mode machine; created once on first online, (re)started on each subsequent online. */
+        modeState?: IcdModeState;
+        /** Direct NodeActivity.inactive subscription, stored for cleanup (reactTo would recurse). */
+        inactiveObserver?: { inactive: NodeActivity["inactive"]; observer: () => void };
+    }
+
+    export class Events extends IcdManagementLogicBase.Events {
+        /** Idle→Active transition (also fires on initial power-up); hook hardware power-up / Check-In send (Phase 2c). */
+        activeModeEntered = Observable();
+        /** Active→Idle transition; hook hardware power-down. */
+        idleModeEntered = Observable();
+        /** Active window elapsed and quiet: the app may now put the device to sleep via enterIdleMode. */
+        mayEnterIdleMode = Observable();
     }
 
     export declare const ExtensionInterface: {

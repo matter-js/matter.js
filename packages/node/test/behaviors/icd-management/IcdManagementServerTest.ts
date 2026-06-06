@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
@@ -17,6 +18,7 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
+const RootWithIcdOnline = MockServerNode.RootEndpoint.with(IcdManagementServer);
 
 /**
  * Minimal mock advertiser that records ServiceDescriptions passed to advertise().
@@ -929,6 +931,52 @@ describe("IcdManagementServer", () => {
                     ),
                 ),
             ).rejectedWith(/requires the LongIdleTimeSupport feature/i);
+        });
+    });
+
+    describe("idle/active mode", () => {
+        // idleModeDuration (seconds) must be >= activeModeDuration (ms) and maximumCheckInBackoff >= idleModeDuration.
+        const idleActiveConfig = {
+            icdManagement: {
+                idleModeDuration: 4,
+                maximumCheckInBackoff: 4,
+                activeModeDuration: 2000,
+                activeModeThreshold: 1000,
+            },
+        };
+
+        it("starts in active mode and emits activeModeEntered on online", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.create(RootWithIcd, idleActiveConfig);
+            device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
+            device.eventsOf(IcdManagementServer).idleModeEntered.on(() => void events.push("idle"));
+            device.eventsOf(IcdManagementServer).mayEnterIdleMode.on(() => void events.push("may"));
+            await MockTime.resolve(device.start());
+            expect(events).deep.equals(["active"]);
+            await device.close();
+        });
+
+        it("signals mayEnterIdleMode after the active window without transitioning", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            device.eventsOf(IcdManagementServer).idleModeEntered.on(() => void events.push("idle"));
+            device.eventsOf(IcdManagementServer).mayEnterIdleMode.on(() => void events.push("may"));
+            await MockTime.advance(2000);
+            expect(events).deep.equals(["may"]);
+            await device.close();
+        });
+
+        it("inbound node activity extends the active window", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            device.eventsOf(IcdManagementServer).mayEnterIdleMode.on(() => void events.push("may"));
+            await MockTime.advance(1500);
+            device.env.get(NodeActivity).begin("test").close(); // both inactive emissions call noteActivity; window extends to t+1000=2500ms
+            await MockTime.advance(900); // t=2400: not yet
+            expect(events).deep.equals([]);
+            await MockTime.advance(200); // t=2600: window elapsed
+            expect(events).deep.equals(["may"]);
+            await device.close();
         });
     });
 });
