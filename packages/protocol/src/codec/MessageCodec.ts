@@ -173,7 +173,26 @@ function mapProtocolAndMessageType(protocolId: number, messageType: number): { t
 }
 
 export class MessageCodec {
-    static decodePacket(data: Bytes): DecodedPacket {
+    /**
+     * Decode the cleartext header prefix (flags, sessionId, securityFlags) and optionally the obfuscated
+     * header region for privacy-enhanced packets. Returns parsed fields for cleartext portion and raw
+     * obfuscated region for privacy packets.
+     */
+    static decodeFixedHeader(data: Bytes): {
+        flags: number;
+        sessionType: SessionType;
+        hasPrivacyEnhancements: boolean;
+        hasMessageExtensions: boolean;
+        sessionId: number;
+        securityFlags: number;
+        messageId?: number;
+        sourceNodeId?: bigint;
+        destNodeId?: bigint;
+        destGroupId?: number;
+        obfuscatedRegion?: Bytes;
+        /** Bytes following the fixed (and, for privacy packets, obfuscated) header — the encrypted/cleartext tail. */
+        applicationPayload: Bytes;
+    } {
         const reader = new DataReader(data, Endian.Little);
 
         const flags = reader.readUInt8();
@@ -224,11 +243,63 @@ export class MessageCodec {
                     `Privacy header length ${privacyHeaderLength} exceeds remaining message size ${reader.remainingBytesCount}.`,
                 );
             }
-            const privacyHeader = reader.readByteArray(privacyHeaderLength);
+            const obfuscatedRegion = reader.readByteArray(privacyHeaderLength);
+            return {
+                flags,
+                sessionType,
+                hasPrivacyEnhancements: true,
+                hasMessageExtensions: false,
+                sessionId,
+                securityFlags,
+                obfuscatedRegion,
+                applicationPayload: reader.remainingBytes,
+            };
+        }
+
+        const messageId = reader.readUInt32();
+        const sourceNodeId = hasSourceNodeId ? reader.readUInt64() : undefined;
+        const destNodeId = hasDestNodeId ? reader.readUInt64() : undefined;
+        const destGroupId = hasDestGroupId ? reader.readUInt16() : undefined;
+
+        return {
+            flags,
+            sessionType,
+            hasPrivacyEnhancements: false,
+            hasMessageExtensions,
+            sessionId,
+            securityFlags,
+            messageId,
+            sourceNodeId,
+            destNodeId,
+            destGroupId,
+            applicationPayload: reader.remainingBytes,
+        };
+    }
+
+    static decodePacket(data: Bytes): DecodedPacket {
+        const {
+            sessionType,
+            hasPrivacyEnhancements,
+            hasMessageExtensions,
+            sessionId,
+            securityFlags,
+            messageId,
+            sourceNodeId,
+            destNodeId,
+            destGroupId,
+            obfuscatedRegion,
+            applicationPayload,
+        } = MessageCodec.decodeFixedHeader(data);
+
+        if (hasPrivacyEnhancements) {
+            // decodeFixedHeader sets obfuscatedRegion whenever privacy is enabled; assert the invariant for the type.
+            if (obfuscatedRegion === undefined) {
+                throw new UnexpectedDataError("Privacy-enhanced packet is missing its obfuscated header region.");
+            }
             // Reject early: the privacy nonce is derived from the MIC, so a packet without a full MIC must not proceed.
-            if (reader.remainingBytesCount < CRYPTO_AEAD_MIC_LENGTH_BYTES) {
+            if (applicationPayload.byteLength < CRYPTO_AEAD_MIC_LENGTH_BYTES) {
                 throw new UnexpectedDataError(
-                    `Privacy-enhanced message too short to contain a MIC: ${reader.remainingBytesCount} bytes remaining.`,
+                    `Privacy-enhanced message too short to contain a MIC: ${applicationPayload.byteLength} bytes remaining.`,
                 );
             }
             return {
@@ -244,23 +315,23 @@ export class MessageCodec {
                     destNodeId: undefined,
                     destGroupId: undefined,
                 },
-                privacyHeader,
-                applicationPayload: reader.remainingBytes,
+                privacyHeader: obfuscatedRegion,
+                applicationPayload,
             };
         }
 
-        const messageId = reader.readUInt32();
-        const sourceNodeId = hasSourceNodeId ? NodeId(reader.readUInt64()) : undefined;
-        const destNodeId = hasDestNodeId ? NodeId(reader.readUInt64()) : undefined;
-        const destGroupId = hasDestGroupId ? GroupId(reader.readUInt16()) : undefined;
+        // decodeFixedHeader always reads the counter for non-privacy packets; assert the invariant for the type.
+        if (messageId === undefined) {
+            throw new UnexpectedDataError("Message is missing its message counter.");
+        }
 
         const header: DecodedPacketHeader = {
             securityFlags,
             sessionId,
-            sourceNodeId,
+            sourceNodeId: sourceNodeId === undefined ? undefined : NodeId(sourceNodeId),
             messageId,
-            destGroupId,
-            destNodeId,
+            destGroupId: destGroupId === undefined ? undefined : GroupId(destGroupId),
+            destNodeId: destNodeId === undefined ? undefined : NodeId(destNodeId),
             sessionType,
             hasPrivacyEnhancements: false,
             isControlMessage: false,
@@ -268,7 +339,9 @@ export class MessageCodec {
         };
 
         let messageExtension: Bytes | undefined = undefined;
+        let payload = applicationPayload;
         if (hasMessageExtensions) {
+            const reader = new DataReader(applicationPayload, Endian.Little);
             const extensionLength = reader.readUInt16();
             if (extensionLength > reader.remainingBytesCount) {
                 throw new UnexpectedDataError(
@@ -276,12 +349,13 @@ export class MessageCodec {
                 );
             }
             messageExtension = reader.readByteArray(extensionLength);
+            payload = reader.remainingBytes;
         }
 
         return {
             header,
             messageExtension,
-            applicationPayload: reader.remainingBytes,
+            applicationPayload: payload,
         };
     }
 

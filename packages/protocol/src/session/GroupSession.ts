@@ -61,7 +61,16 @@ export class GroupSession extends SecureSession {
     readonly keySetId: number;
 
     constructor(config: GroupSession.Config) {
-        const { manager, fabric, operationalGroupKey, operationalPrivacyKey, id, peerNodeId, keySetId, multicastAddress } = config;
+        const {
+            manager,
+            fabric,
+            operationalGroupKey,
+            operationalPrivacyKey,
+            id,
+            peerNodeId,
+            keySetId,
+            multicastAddress,
+        } = config;
         super({
             ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check

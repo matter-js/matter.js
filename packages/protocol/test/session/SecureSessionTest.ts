@@ -10,7 +10,7 @@ import { FabricManager } from "#fabric/FabricManager.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
-import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
+import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
 
 const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
     "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
@@ -139,6 +139,7 @@ describe("SecureSession", () => {
                 operationalGroupKey: current.key,
                 operationalPrivacyKey: current.privacyKey,
                 peerNodeId: NodeId(0xffffffffffff0000n | BigInt(groupId)),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(groupId)),
             });
 
             const message: Message = {

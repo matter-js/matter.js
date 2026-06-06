@@ -277,7 +277,10 @@ export class ExchangeManager implements Transport.Provider {
                 this.#sessions.emitGroupMessage({
                     result: Groupcast.GroupcastTestResult.MessageReplay,
                     fabric: (session as GroupSession).fabric,
-                    groupId: packet.header.destGroupId !== undefined ? GroupId(packet.header.destGroupId) : undefined,
+                    groupId:
+                        message.packetHeader.destGroupId !== undefined
+                            ? GroupId(message.packetHeader.destGroupId)
+                            : undefined,
                 });
             }
         } else {

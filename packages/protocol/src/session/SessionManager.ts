@@ -591,22 +591,25 @@ export class SessionManager {
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
         } catch (error) {
-            // Emit Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.
+            // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
+            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.
             if (causedBy(error, GroupSessionNoKeyError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey, groupId });
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey });
             } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth, groupId });
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth });
             }
             throw error;
         }
 
         const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = decoded;
 
-        const groupId = message.packetHeader.destGroupId;
-        if (groupId === undefined) {
+        // The group id is only authoritative after decode, since privacy obfuscates it in the wire header.
+        const rawGroupId = message.packetHeader.destGroupId;
+        if (rawGroupId === undefined) {
             throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
         }
-        GroupId.assertGroupId(GroupId(groupId));
+        const groupId = GroupId(rawGroupId);
+        GroupId.assertGroupId(groupId);
 
         let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
         if (session === undefined) {
