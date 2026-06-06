@@ -19,11 +19,12 @@ const logger = Logger.get("BridgedDeviceBasicInformationServer");
  *
  * All attributes are optional except for the "reachable" attribute.
  *
- * On a configuration change of the bridged node, bump its `ConfigurationVersion` with
- * {@link increaseConfigurationVersion}; called standalone it also increments the bridge's
- * {@link BasicInformationServer} version, since a bridged-node change is also a change of the bridge.  To coalesce
- * several bridged-node changes into a single bridge increment, drive them from
- * {@link BasicInformationServer.increaseConfigurationVersion} and pass its `context` here.
+ * `ConfigurationVersion` is optional on bridged devices; enable it by providing an initial value when configuring the
+ * device.  On a configuration change of the bridged node, bump it with {@link increaseConfigurationVersion} (which
+ * throws if not enabled); called standalone it also increments the bridge's {@link BasicInformationServer} version,
+ * since a bridged-node change is also a change of the bridge.  To coalesce several bridged-node changes into a single
+ * bridge increment, drive them from {@link BasicInformationServer.increaseConfigurationVersion} and pass its `context`
+ * here.
  */
 export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInformationBehavior {
     override async initialize() {
@@ -53,18 +54,26 @@ export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInfor
      * To group changes across multiple bridged nodes into a single bridge increment, drive them from
      * {@link BasicInformationServer.increaseConfigurationVersion} and pass its callback's `context` here: the change is
      * applied in that shared transaction and the bridge increment is left to the enclosing call.
+     *
+     * `ConfigurationVersion` is optional on bridged devices.  Throws if it is not enabled on this node — provide an
+     * initial `configurationVersion` value when configuring the device before calling this.
      */
     async increaseConfigurationVersion<T = void>(
         change?: (context: ActionContext) => MaybePromise<T>,
         context?: ActionContext,
     ): Promise<T> {
-        const result = await change?.(context ?? this.context);
-
-        if (this.state.configurationVersion !== undefined) {
-            this.state.configurationVersion = BasicInformationServer.nextConfigurationVersion(
-                this.state.configurationVersion,
+        if (this.state.configurationVersion === undefined) {
+            throw new ImplementationError(
+                "ConfigurationVersion is not enabled on this bridged device; set an initial configurationVersion " +
+                    "value when configuring BridgedDeviceBasicInformation before calling increaseConfigurationVersion.",
             );
         }
+
+        const result = await change?.(context ?? this.context);
+
+        this.state.configurationVersion = BasicInformationServer.nextConfigurationVersion(
+            this.state.configurationVersion,
+        );
 
         // A shared context means the bridge increment is owned by the enclosing change; only bump it standalone.
         if (context === undefined) {

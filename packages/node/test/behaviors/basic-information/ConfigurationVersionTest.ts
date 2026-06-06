@@ -6,9 +6,15 @@
 
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
+import { OnOffLightDevice } from "#devices/on-off-light";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedLightDevice, createBridge } from "../../endpoints/bridge-helpers.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
+
+// A bridged device that enables the optional ConfigurationVersion attribute by seeding an initial value.
+const VersionedBridgedLightDevice = OnOffLightDevice.with(
+    BridgedDeviceBasicInformationServer.set({ configurationVersion: 1 }),
+);
 
 function configVersion(node: MockServerNode) {
     return node.stateOf(BasicInformationServer).configurationVersion;
@@ -50,8 +56,8 @@ describe("ConfigurationVersion", () => {
         const bridge = await createBridge({
             type: AggregatorEndpoint,
             parts: [
-                { type: BridgedLightDevice, id: "lightA" },
-                { type: BridgedLightDevice, id: "lightB" },
+                { type: VersionedBridgedLightDevice, id: "lightA" },
+                { type: VersionedBridgedLightDevice, id: "lightB" },
             ],
         });
         const node = bridge.owner as MockServerNode;
@@ -75,6 +81,9 @@ describe("ConfigurationVersion", () => {
 
         // Two bridged-node changes in one shared transaction → the bridge increments exactly once
         expect(configVersion(node)).equals(before + 1);
+        // ...and each bridged node's own version increments
+        expect(lightA.stateOf(BridgedDeviceBasicInformationServer).configurationVersion).equals(2);
+        expect(lightB.stateOf(BridgedDeviceBasicInformationServer).configurationVersion).equals(2);
 
         await node.close();
     });
@@ -82,7 +91,7 @@ describe("ConfigurationVersion", () => {
     it("bumps the bridge for a standalone bridged-node change", async () => {
         const bridge = await createBridge({
             type: AggregatorEndpoint,
-            parts: [{ type: BridgedLightDevice, id: "light" }],
+            parts: [{ type: VersionedBridgedLightDevice, id: "light" }],
         });
         const node = bridge.owner as MockServerNode;
         const light = bridge.parts.require("light");
@@ -94,6 +103,23 @@ describe("ConfigurationVersion", () => {
         );
 
         expect(configVersion(node)).equals(before + 1);
+
+        await node.close();
+    });
+
+    it("throws when increasing a bridged node's ConfigurationVersion that is not enabled", async () => {
+        const bridge = await createBridge({
+            type: AggregatorEndpoint,
+            parts: [{ type: BridgedLightDevice, id: "light" }],
+        });
+        const node = bridge.owner as MockServerNode;
+        const light = bridge.parts.require("light");
+
+        await expect(
+            node.act(agent =>
+                light.agentFor(agent.context).get(BridgedDeviceBasicInformationServer).increaseConfigurationVersion(),
+            ),
+        ).rejectedWith(/ConfigurationVersion is not enabled/);
 
         await node.close();
     });
