@@ -978,5 +978,58 @@ describe("IcdManagementServer", () => {
             expect(events).deep.equals(["may"]);
             await device.close();
         });
+
+        it("requestActiveMode wakes an idle device", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+            await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
+            expect(events).deep.equals(["active"]); // one wake after the idle
+            await device.close();
+        });
+
+        it("enterIdleMode forces idle unconditionally", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            device.eventsOf(IcdManagementServer).idleModeEntered.on(() => void events.push("idle"));
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode()); // before window elapses
+            expect(events).deep.equals(["idle"]);
+            await device.close();
+        });
+
+        it("stayActive extends the active window and promises the real remaining duration", async () => {
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+            const res = await device.act(agent =>
+                agent.get(IcdManagementServer).stayActiveRequest({ stayActiveDuration: 45000 }),
+            );
+            expect(res.promisedActiveDuration).equals(45000);
+            await device.close();
+        });
+
+        it("stayActive honors the 30s floor for a short request", async () => {
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+            const res = await device.act(agent =>
+                agent.get(IcdManagementServer).stayActiveRequest({ stayActiveDuration: 10 }),
+            );
+            // 10ms request while idle: window floor = activeModeDuration 2s; promise = max(2000, min(30000,10)) = 2000.
+            expect(res.promisedActiveDuration).equals(2000);
+            await device.close();
+        });
+
+        it("stayActive extends an already-active window without re-emitting activeModeEntered", async () => {
+            const events: string[] = [];
+            const device = await MockServerNode.createOnline(RootWithIcdOnline, idleActiveConfig);
+            device.eventsOf(IcdManagementServer).activeModeEntered.on(() => void events.push("active"));
+            // Device is already Active; stayActiveRequest must extend the window without firing activeModeEntered again.
+            const res = await device.act(agent =>
+                agent.get(IcdManagementServer).stayActiveRequest({ stayActiveDuration: 45000 }),
+            );
+            expect(res.promisedActiveDuration).equals(45000);
+            expect(events).deep.equals([]); // no spurious activeModeEntered on an already-active device
+            await device.close();
+        });
     });
 });
