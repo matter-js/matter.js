@@ -31,6 +31,11 @@ const DEFAULT_SUBSCRIBE_PATHS_SUPPORTED = 20;
 
 /**
  * This is the default server implementation of BasicInformationBehavior.
+ *
+ * `ConfigurationVersion` (mandatory since Matter 1.6) is seeded to 1 and constrained to only ever increase.  When the
+ * node's configuration changes in a way clients should detect, bump it with {@link increaseConfigurationVersion},
+ * which runs your change and increments the version exactly once afterwards — do not set `configurationVersion`
+ * directly.  Bridged nodes have their own version; see {@link BridgedDeviceBasicInformationServer}.
  */
 export class BasicInformationServer extends Base {
     override initialize() {

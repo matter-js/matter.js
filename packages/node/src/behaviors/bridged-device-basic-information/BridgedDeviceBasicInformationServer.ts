@@ -18,6 +18,12 @@ const logger = Logger.get("BridgedDeviceBasicInformationServer");
  * This is the default server implementation of BridgedDeviceBasicInformationBehavior.
  *
  * All attributes are optional except for the "reachable" attribute.
+ *
+ * On a configuration change of the bridged node, bump its `ConfigurationVersion` with
+ * {@link increaseConfigurationVersion}; called standalone it also increments the bridge's
+ * {@link BasicInformationServer} version, since a bridged-node change is also a change of the bridge.  To coalesce
+ * several bridged-node changes into a single bridge increment, drive them from
+ * {@link BasicInformationServer.increaseConfigurationVersion} and pass its `context` here.
  */
 export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInformationBehavior {
     override async initialize() {

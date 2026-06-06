@@ -576,7 +576,7 @@ export class MessageExchange {
             if (!GroupSession.is(session)) {
                 throw new InternalError("Session is not a GroupSession, but session type is Group.");
             }
-            const destGroupId = GroupId.fromNodeId(this.#peerNodeId!); // TODO !!! Where get from?
+            const destGroupId = GroupId.fromNodeId(this.#peerNodeId!);
             if (destGroupId === 0) {
                 throw new InternalError(`Invalid GroupId extracted from NodeId ${this.#peerNodeId}`);
             }
