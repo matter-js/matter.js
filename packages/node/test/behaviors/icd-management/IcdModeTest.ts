@@ -8,7 +8,7 @@ import { Seconds } from "@matter/general";
 import { IcdMode, IcdModeState } from "../../../src/behaviors/icd-management/IcdMode.js";
 
 function makeState() {
-    const events: string[] = [];
+    const events = new Array<string>();
     const state = new IcdModeState({
         activeModeDuration: Seconds(2),
         activeModeThreshold: Seconds(1),

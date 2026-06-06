@@ -79,8 +79,8 @@ const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
  * idle→active wake; it stays active until told to sleep.
  *
  * Events (subscribe via `events.<name>`):
- * - `activeModeEntered` — entered active mode (initial power-up or an idle→active wake). On a CIP device this is where
- *   Phase 2c will send Check-Ins. Hook hardware power-up here.
+ * - `activeModeEntered` — entered active mode (initial power-up or an idle→active wake). On a CIP device this is the
+ *   idle→active transition at which Check-Ins are sent (§ 9.15.1). Hook hardware power-up here.
  * - `idleModeEntered` — entered idle mode. Hook hardware power-down here.
  * - `mayEnterIdleMode` — the active window (≥ `activeModeDuration`, extended by network activity and StayActive) has
  *   elapsed while quiet: the application may now put the device to sleep. Advisory only — no transition happens.
@@ -97,7 +97,7 @@ const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
  *
  * **For tests / a cert harness:** drive transitions deterministically — call {@link enterIdleMode} to go quiet, then
  * {@link requestActiveMode}/{@link triggerUserActiveMode} (or send any request to the device) to force the idle→active
- * transition that triggers Check-In sending (Phase 2c). Advance a mock time source to elapse the active window.
+ * transition that triggers Check-In sending. Advance a mock time source to elapse the active window.
  *
  * ## Extension points
  *
@@ -203,7 +203,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             }
 
             // Idle/active mode machine, externally driven. Created once; (re)started below on every online, paused on
-            // goingOffline. The idle→active transition is the Check-In send point (Phase 2c hooks activeModeEntered).
+            // goingOffline. The idle→active transition is the Check-In send point.
             // @see {@link MatterSpecification.v151.Core} § 9.15.1
             this.internal.modeState = new IcdModeState({
                 activeModeDuration: Millis(this.state.activeModeDuration),
@@ -443,7 +443,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
     /**
      * Wake the device into Active mode for a full active window (the idle→active transition; on a CIP device this is
-     * where Phase 2c sends Check-Ins). No-op before the node is online.
+     * where a CIP ICD sends Check-Ins). No-op before the node is online.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.15.1
      */
@@ -604,7 +604,7 @@ export namespace IcdManagementBaseServer {
     }
 
     export class Events extends IcdManagementLogicBase.Events {
-        /** Idle→Active transition (also fires on initial power-up); hook hardware power-up / Check-In send (Phase 2c). */
+        /** Idle→Active transition (also fires on initial power-up); hook hardware power-up / Check-In send. */
         activeModeEntered = Observable();
         /** Active→Idle transition; hook hardware power-down. */
         idleModeEntered = Observable();
