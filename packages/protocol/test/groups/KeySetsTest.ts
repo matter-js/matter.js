@@ -17,13 +17,13 @@ function threeKeySet(
     startTimes2Us: number,
 ): OperationalKeySet {
     return keySet(groupKeySetId, {
-        operationalEpochKey0: Uint8Array.of(0),
+        operationalEpochKey0: Uint8Array.from({ length: 16 }, () => 0),
         groupSessionId0: 100,
         epochStartTime0: startTimes0Us,
-        operationalEpochKey1: Uint8Array.of(1),
+        operationalEpochKey1: Uint8Array.from({ length: 16 }, () => 1),
         groupSessionId1: 101,
         epochStartTime1: startTimes1Us,
-        operationalEpochKey2: Uint8Array.of(2),
+        operationalEpochKey2: Uint8Array.from({ length: 16 }, () => 2),
         groupSessionId2: 102,
         epochStartTime2: startTimes2Us,
     } as Partial<OperationalKeySet>);
