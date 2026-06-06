@@ -6,21 +6,37 @@
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, Duration, ImplementationError, Millis, Observable, Seconds } from "@matter/general";
+import {
+    Bytes,
+    ChannelType,
+    Crypto,
+    Duration,
+    ImplementationError,
+    isIPv6,
+    Millis,
+    Observable,
+    Seconds,
+} from "@matter/general";
 import { AccessLevel, DataModelPath, fabricIdx, field, listOf, nodeId, nonvolatile, octstr } from "@matter/model";
 import {
     AccessControl,
     assertRemoteActor,
     DeviceAdvertiser,
+    ExchangeManager,
     Fabric,
     FabricManager,
     hasRemoteActor,
     IcdAdvertisement,
+    IcdCheckInSender,
     IcdCounter,
+    PeerAddress,
+    PeerSet,
     SessionManager,
 } from "@matter/protocol";
-import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
+import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, Status, StatusResponseError } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { DoublingCheckInBackOff, IcdCheckInBackOff } from "./IcdCheckInBackOff.js";
+import { activeSubscriptionSubjects, isMonitoredSubjectCovered } from "./IcdCheckInSuppression.js";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 import { IcdModeState } from "./IcdMode.js";
 
@@ -214,6 +230,13 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             });
             this.reactTo((this.endpoint.lifecycle as NodeLifecycle).goingOffline, this.#onGoingOffline);
 
+            this.internal.checkInBackOff = new DoublingCheckInBackOff(
+                Seconds(this.state.idleModeDuration),
+                Seconds(this.state.maximumCheckInBackoff),
+            );
+            this.internal.checkInSender ??= this.createCheckInSender();
+            this.reactTo(this.events.activeModeEntered, this.#sendCheckIns);
+
             // Must use .on() directly: reactTo wraps each invocation in a NodeActivity whose close re-emits inactive,
             // causing infinite recursion.
             const inactive = this.env.get(NodeActivity).inactive;
@@ -261,6 +284,103 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
     #onGoingOffline() {
         this.internal.modeState?.stop();
+    }
+
+    /**
+     * Builds the Check-In sender. Override in tests to record sends. Resolution uses the peer's cached operational
+     * address (tagged from its last session, refreshed by mDNS); the send opens a one-shot unsecured Secure Channel
+     * session and transmits unreliably.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     */
+    protected createCheckInSender(): IcdCheckInSender {
+        const peers = this.env.get(PeerSet);
+        const sessions = this.env.get(SessionManager);
+        const exchanges = this.env.get(ExchangeManager);
+        return new IcdCheckInSender({
+            crypto: this.env.get(Crypto),
+            resolveAddress: async ({ fabricIndex, peerNodeId }) => {
+                const peer = peers.addKnownPeer({ address: PeerAddress({ fabricIndex, nodeId: peerNodeId }) });
+                return peer.descriptor.operationalAddress;
+            },
+            sendUnsecured: async (address, messageType, payload) => {
+                const channelType = address.type === "tcp" ? ChannelType.TCP : ChannelType.UDP;
+                const lookupAddress =
+                    channelType === ChannelType.UDP ? (isIPv6(address.ip) ? "::" : "0.0.0.0") : undefined;
+                const iface = exchanges.interfaceFor(channelType, lookupAddress);
+                if (iface === undefined) {
+                    return false;
+                }
+                const channel = await iface.openChannel(address, {});
+                let owned = false;
+                try {
+                    await using session = sessions.createUnsecuredSession({ channel, isInitiator: true });
+                    owned = true;
+                    await using exchange = exchanges.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
+                    await exchange.send(messageType, payload, {
+                        requiresAck: false,
+                        disableMrpLogic: true,
+                        suppressPeerLoss: true,
+                    });
+                    return true;
+                } finally {
+                    if (!owned) {
+                        await channel.close();
+                    }
+                }
+            },
+        });
+    }
+
+    /**
+     * Send a Check-In to every Permanent registration not currently covered by an active matching subscription, gated
+     * by the per-client back-off. Runs on each idle→active wake. The ICD counter advances once per real send.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16.5.3.2
+     */
+    async #sendCheckIns() {
+        const sender = this.internal.checkInSender;
+        const backOff = this.internal.checkInBackOff;
+        const counter = this.internal.icdCounter;
+        // Guard against overlapping passes: the pass awaits per-client sends while mutating back-off state, so a wake
+        // that re-fires mid-pass must not start a second concurrent pass over the same state.
+        if (sender === undefined || backOff === undefined || counter === undefined || this.internal.sendingCheckIns) {
+            return;
+        }
+        this.internal.sendingCheckIns = true;
+        try {
+            const sessions = this.env.get(SessionManager);
+            const activeModeThreshold = this.state.activeModeThreshold;
+            for (const fabric of this.env.get(FabricManager).fabrics) {
+                const subjects = activeSubscriptionSubjects(sessions, fabric.fabricIndex);
+                for (const reg of fabric.icd.registrations) {
+                    if (reg.clientType !== IcdManagement.ClientType.Permanent) {
+                        continue;
+                    }
+                    const key = this.#keyFor(fabric.fabricIndex, reg.checkInNodeId);
+                    if (isMonitoredSubjectCovered(reg.monitoredSubject, subjects)) {
+                        backOff.recordAnswered(key);
+                        continue;
+                    }
+                    if (!backOff.shouldSend(key)) {
+                        continue;
+                    }
+                    backOff.recordSent(key);
+                    const ok = await sender.send({
+                        fabricIndex: fabric.fabricIndex,
+                        peerNodeId: reg.checkInNodeId,
+                        key: reg.key,
+                        counter: counter.value,
+                        activeModeThreshold,
+                    });
+                    if (ok) {
+                        counter.increment();
+                    }
+                }
+            }
+        } finally {
+            this.internal.sendingCheckIns = false;
+        }
     }
 
     override async [Symbol.asyncDispose]() {
@@ -349,6 +469,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         for (const key of [...this.internal.icdKeys.keys()]) {
             if (key.startsWith(`${fabricIndex}:`)) {
                 this.internal.icdKeys.delete(key);
+                this.internal.checkInBackOff?.forget(key);
             }
         }
         this.#persistKeys();
@@ -458,6 +579,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
      */
     triggerUserActiveMode() {
+        this.internal.checkInBackOff?.resetAll();
         this.requestActiveMode();
     }
 
@@ -521,9 +643,11 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         this.state.registeredClients = this.state.registeredClients.filter(
             c => !(c.fabricIndex === fabricIndex && c.checkInNodeId === request.checkInNodeId),
         );
-        this.internal.icdKeys.delete(this.#keyFor(fabricIndex, request.checkInNodeId));
+        const key = this.#keyFor(fabricIndex, request.checkInNodeId);
+        this.internal.icdKeys.delete(key);
         this.#persistKeys();
         fabric.icd.deleteRegistration(request.checkInNodeId);
+        this.internal.checkInBackOff?.forget(key);
 
         this.#updateOperatingMode();
     }
@@ -601,6 +725,12 @@ export namespace IcdManagementBaseServer {
         modeState?: IcdModeState;
         /** Direct NodeActivity.inactive subscription, stored for cleanup (reactTo would recurse). */
         inactiveObserver?: { inactive: NodeActivity["inactive"]; observer: () => void };
+        /** Per-client Check-In back-off; runtime-only, created on first online. */
+        checkInBackOff?: IcdCheckInBackOff;
+        /** Check-In sender; built via createCheckInSender(), overridable in tests. */
+        checkInSender?: IcdCheckInSender;
+        /** True while a Check-In send pass is in flight, to prevent overlapping passes on rapid re-wakes. */
+        sendingCheckIns?: boolean;
     }
 
     export class Events extends IcdManagementLogicBase.Events {
