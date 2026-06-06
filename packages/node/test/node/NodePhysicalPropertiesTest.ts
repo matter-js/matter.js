@@ -147,5 +147,13 @@ async function expectParamsWithCluster(
 function expectParams(node: Node, expected: Partial<Subscribe>, request?: Partial<Subscribe>) {
     const properties = NodePhysicalProperties(node);
     const params = PhysicalDeviceProperties.subscriptionIntervalBoundsFor({ properties, request });
-    expect(params).deep.equals(expected);
+    if (expected.minIntervalFloor !== undefined) {
+        expect(params.minIntervalFloor).to.equal(expected.minIntervalFloor);
+    }
+    if (expected.maxIntervalCeiling !== undefined) {
+        // ±5% jitter is always applied to the ceiling, floored to whole seconds.
+        const baseSeconds = Seconds.of(expected.maxIntervalCeiling);
+        expect(params.maxIntervalCeiling).to.be.at.least(Seconds(Math.floor(baseSeconds * 0.95)));
+        expect(params.maxIntervalCeiling).to.be.at.most(Seconds(Math.floor(baseSeconds * 1.05)));
+    }
 }

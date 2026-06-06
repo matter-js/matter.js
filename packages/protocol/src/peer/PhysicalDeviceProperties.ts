@@ -14,7 +14,7 @@ const DEFAULT_SUBSCRIPTION_CEILING_WIFI = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY = Minutes(3);
 const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
-const THREAD_SUBSCRIPTION_CEILING_JITTER = 0.05; // 5% +/- Jitter for the Subscription ceiling time
+const SUBSCRIPTION_CEILING_JITTER = 0.05; // 5% +/- Jitter for the Subscription ceiling time
 
 export interface PhysicalDeviceProperties {
     supportsThread: boolean;
@@ -49,14 +49,8 @@ export namespace PhysicalDeviceProperties {
             description = "Node";
         }
 
-        const {
-            isMainsPowered,
-            isBatteryPowered,
-            isIntermittentlyConnected,
-            supportsThread,
-            isThreadSleepyEndDevice,
-            threadActive,
-        } = properties ?? {};
+        const { isMainsPowered, isBatteryPowered, isIntermittentlyConnected, supportsThread, isThreadSleepyEndDevice } =
+            properties ?? {};
 
         if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
             if (minIntervalFloor !== undefined) {
@@ -87,15 +81,11 @@ export namespace PhysicalDeviceProperties {
             );
         }
 
-        if (threadActive) {
-            // Add some Jitter to the Subscription ceiling time to ensure the device responses are spread a bit when
-            // devices are longer idle
-            // Logic does not validate if the resulting value gets too small because our defaults are high enough
-            // for this to never happen.
-            const maxJitter = maxIntervalCeiling * THREAD_SUBSCRIPTION_CEILING_JITTER;
-            const jitter = Math.round(maxJitter * Math.random() * 2 - maxJitter);
-            maxIntervalCeiling = Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter)));
-        }
+        // Add some Jitter to the Subscription ceiling time to ensure the device responses are spread a bit when
+        // devices are longer idle. Clamp to the floor so a small requested ceiling cannot jitter below it.
+        const maxJitter = maxIntervalCeiling * SUBSCRIPTION_CEILING_JITTER;
+        const jitter = Math.round(maxJitter * Math.random() * 2 - maxJitter);
+        maxIntervalCeiling = Duration.max(minIntervalFloor, Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter))));
 
         return {
             minIntervalFloor,
