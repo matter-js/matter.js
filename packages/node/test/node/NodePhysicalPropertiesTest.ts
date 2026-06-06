@@ -151,10 +151,10 @@ function expectParams(node: Node, expected: Partial<Subscribe>, request?: Partia
         expect(params.minIntervalFloor).to.equal(expected.minIntervalFloor);
     }
     if (expected.maxIntervalCeiling !== undefined) {
-        // ±max(5%, 10s) jitter is always applied to the ceiling, floored to whole seconds.
+        // Up to +max(10%, 10s) one-sided jitter is always applied to the ceiling, floored to whole seconds.
         const baseSeconds = Seconds.of(expected.maxIntervalCeiling);
-        const window = Math.max(baseSeconds * 0.05, 10);
-        expect(params.maxIntervalCeiling).to.be.at.least(Seconds(Math.floor(baseSeconds - window)));
+        const window = Math.max(baseSeconds * 0.1, 10);
+        expect(params.maxIntervalCeiling).to.be.at.least(Seconds(baseSeconds));
         expect(params.maxIntervalCeiling).to.be.at.most(Seconds(Math.floor(baseSeconds + window)));
     }
 }

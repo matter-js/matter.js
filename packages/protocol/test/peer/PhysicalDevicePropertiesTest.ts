@@ -75,10 +75,10 @@ describe("PhysicalDeviceProperties", () => {
         });
 
         describe("maxIntervalCeiling", () => {
-            // ±max(5%, 10s) jitter is always applied and the result is floored to whole seconds.
+            // Up to +max(10%, 10s) one-sided jitter is always applied, floored to whole seconds.
             const expectJittered = (actual: number, baseSeconds: number) => {
-                const window = Math.max(baseSeconds * 0.05, 10);
-                expect(actual).to.be.at.least(Seconds(Math.floor(baseSeconds - window)));
+                const window = Math.max(baseSeconds * 0.1, 10);
+                expect(actual).to.be.at.least(Seconds(baseSeconds));
                 expect(actual).to.be.at.most(Seconds(Math.floor(baseSeconds + window)));
             };
 
