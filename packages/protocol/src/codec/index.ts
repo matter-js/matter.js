@@ -7,3 +7,4 @@
 export { Base64, DerCodec, DnsCodec, type DerNode } from "#general";
 export * from "./BtpCodec.js";
 export * from "./MessageCodec.js";
+export * from "./MessagePrivacy.js";

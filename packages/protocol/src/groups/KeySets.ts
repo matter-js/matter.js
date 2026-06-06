@@ -11,7 +11,7 @@ export const GROUP_KEY_INFO = Bytes.fromString("GroupKeyHash");
 
 export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
     /** Operational enhanced structure for fast access based on the group session id. */
-    readonly #sessions = new Map<number, { keySetId: number; key: Bytes }[]>();
+    readonly #sessions = new Map<number, { keySetId: number; key: Bytes; privacyKey?: Bytes }[]>();
 
     get sessions() {
         return this.#sessions;
@@ -44,15 +44,18 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
         if (groupKeySet === undefined) {
             throw new MatterFlowError(`GroupKeySet for groupKeySet ${keySetId} not found.`);
         }
-        const operationalKeys = Array<{ key: Bytes; sessionId?: number; startTime: Timestamp }>();
+        const operationalKeys = Array<{ key: Bytes; privacyKey?: Bytes; sessionId?: number; startTime: Timestamp }>();
         const {
             operationalEpochKey0,
+            operationalPrivacyKey0,
             groupSessionId0,
             epochStartTime0,
             operationalEpochKey1,
+            operationalPrivacyKey1,
             groupSessionId1,
             epochStartTime1,
             operationalEpochKey2,
+            operationalPrivacyKey2,
             groupSessionId2,
             epochStartTime2,
         } = groupKeySet;
@@ -62,12 +65,14 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
         }
         operationalKeys.push({
             key: operationalEpochKey0,
+            privacyKey: operationalPrivacyKey0,
             sessionId: groupSessionId0 !== null ? groupSessionId0 : undefined,
             startTime: Timestamp.fromMicroseconds(epochStartTime0),
         });
         if (operationalEpochKey1 !== null && groupSessionId1 !== null && epochStartTime1 !== null) {
             operationalKeys.push({
                 key: operationalEpochKey1,
+                privacyKey: operationalPrivacyKey1 ?? undefined,
                 sessionId: groupSessionId1,
                 startTime: Timestamp.fromMicroseconds(epochStartTime1),
             });
@@ -75,6 +80,7 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
         if (operationalEpochKey2 !== null && groupSessionId2 !== null && epochStartTime2 !== null) {
             operationalKeys.push({
                 key: operationalEpochKey2,
+                privacyKey: operationalPrivacyKey2 ?? undefined,
                 sessionId: groupSessionId2,
                 startTime: Timestamp.fromMicroseconds(epochStartTime2),
             });
@@ -172,17 +178,29 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
             }
             if (keySet.groupSessionId0 !== null) {
                 const list = this.#sessions.get(keySet.groupSessionId0) ?? [];
-                list.push({ key: keySet.operationalEpochKey0, keySetId: id });
+                list.push({
+                    key: keySet.operationalEpochKey0,
+                    privacyKey: keySet.operationalPrivacyKey0,
+                    keySetId: id,
+                });
                 this.#sessions.set(keySet.groupSessionId0, list);
             }
             if (keySet.groupSessionId1 !== null && keySet.operationalEpochKey1 !== null) {
                 const list = this.#sessions.get(keySet.groupSessionId1) ?? [];
-                list.push({ key: keySet.operationalEpochKey1, keySetId: id });
+                list.push({
+                    key: keySet.operationalEpochKey1,
+                    privacyKey: keySet.operationalPrivacyKey1 ?? undefined,
+                    keySetId: id,
+                });
                 this.#sessions.set(keySet.groupSessionId1, list);
             }
             if (keySet.groupSessionId2 !== null && keySet.operationalEpochKey2 !== null) {
                 const list = this.#sessions.get(keySet.groupSessionId2) ?? [];
-                list.push({ key: keySet.operationalEpochKey2, keySetId: id });
+                list.push({
+                    key: keySet.operationalEpochKey2,
+                    privacyKey: keySet.operationalPrivacyKey2 ?? undefined,
+                    keySetId: id,
+                });
                 this.#sessions.set(keySet.groupSessionId2, list);
             }
         }
@@ -194,9 +212,12 @@ export type GroupKeySet = GroupKeyManagement.GroupKeySet;
 /** Enhanced structure of GroupKeySet to include operational data for easier operational processing. */
 export type OperationalKeySet = GroupKeySet & {
     operationalEpochKey0: Bytes;
+    operationalPrivacyKey0?: Bytes;
     groupSessionId0: number | null;
     operationalEpochKey1: Bytes | null;
+    operationalPrivacyKey1?: Bytes | null;
     groupSessionId1: number | null;
     operationalEpochKey2: Bytes | null;
+    operationalPrivacyKey2?: Bytes | null;
     groupSessionId2: number | null;
 };

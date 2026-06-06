@@ -73,7 +73,7 @@ export function Ccm(key: Bytes) {
             }
 
             // Create view for loading plaintext words in platform byte order
-            const ptView = new DataView(input.pt.buffer);
+            const ptView = new DataView(input.pt.buffer, input.pt.byteOffset, input.pt.byteLength);
 
             // Allocate ciphertext output buffer
             const ct = new Uint8Array(ptLength + CRYPTO_AEAD_MIC_LENGTH_BYTES);
@@ -175,7 +175,7 @@ export function Ccm(key: Bytes) {
 
             // Add remainder of adata
             if (adataLength > 14) {
-                const adataView = new DataView(input.adata!.buffer);
+                const adataView = new DataView(input.adata!.buffer, input.adata!.byteOffset, input.adata!.byteLength);
                 for (let i = 14; i < adataLength; i += 16) {
                     WordArray.bytesToBlock(adataView, tempBlock1.words, i);
                     add();

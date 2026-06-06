@@ -309,6 +309,11 @@ export abstract class Session {
         return this.#channel !== undefined && !!this.#channel?.supportsLargeMessages;
     }
 
+    /** Whether outgoing messages set the privacy ("P") flag and obfuscate the header. Gates encode only; off by default. */
+    get usePrivacy(): boolean {
+        return false;
+    }
+
     get hasActiveExchanges() {
         return !!this.#exchanges.size;
     }
