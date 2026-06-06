@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic } from "../log/Diagnostic.js";
 import { MatterError } from "../MatterError.js";
 import { repackErrorAs } from "../util/Error.js";
 import type { MaybePromise } from "../util/Promises.js";
@@ -17,7 +18,21 @@ export interface TcpConnectOptions extends Transport.OpenChannelOptions {
     timeout?: number;
 }
 
-export class NetworkError extends MatterError {}
+/**
+ * Network errors typically reflect transient environmental conditions (unreachable host, interface down) rather than
+ * defects, so they present as a compact message without a stack trace.
+ */
+export class NetworkError extends MatterError {
+    get [Diagnostic.value]() {
+        const { cause } = this;
+        const causeMessage = cause instanceof Error ? cause.message : undefined;
+        return Diagnostic.errorMessage({
+            id: this.id,
+            message: this.message,
+            cause: causeMessage === this.message ? undefined : cause,
+        });
+    }
+}
 
 export class TcpDisconnectError extends NetworkError {}
 

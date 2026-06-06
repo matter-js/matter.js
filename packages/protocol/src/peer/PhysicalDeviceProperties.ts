@@ -14,7 +14,8 @@ const DEFAULT_SUBSCRIPTION_CEILING_WIFI = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY = Minutes(3);
 const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
-const THREAD_SUBSCRIPTION_CEILING_JITTER = 0.05; // 5% +/- Jitter for the Subscription ceiling time
+const SUBSCRIPTION_CEILING_JITTER = 0.1; // up to +10% jitter on the Subscription ceiling time
+const SUBSCRIPTION_CEILING_JITTER_MIN = Seconds(10); // ... but at least +10s so smaller ceilings spread meaningfully
 
 export interface PhysicalDeviceProperties {
     supportsThread: boolean;
@@ -49,14 +50,8 @@ export namespace PhysicalDeviceProperties {
             description = "Node";
         }
 
-        const {
-            isMainsPowered,
-            isBatteryPowered,
-            isIntermittentlyConnected,
-            supportsThread,
-            isThreadSleepyEndDevice,
-            threadActive,
-        } = properties ?? {};
+        const { isMainsPowered, isBatteryPowered, isIntermittentlyConnected, supportsThread, isThreadSleepyEndDevice } =
+            properties ?? {};
 
         if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
             if (minIntervalFloor !== undefined) {
@@ -87,15 +82,13 @@ export namespace PhysicalDeviceProperties {
             );
         }
 
-        if (threadActive) {
-            // Add some Jitter to the Subscription ceiling time to ensure the device responses are spread a bit when
-            // devices are longer idle
-            // Logic does not validate if the resulting value gets too small because our defaults are high enough
-            // for this to never happen.
-            const maxJitter = maxIntervalCeiling * THREAD_SUBSCRIPTION_CEILING_JITTER;
-            const jitter = Math.round(maxJitter * Math.random() * 2 - maxJitter);
-            maxIntervalCeiling = Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter)));
-        }
+        // Lengthen the ceiling by jitter (added, never subtracted) to spread out device responses when devices are
+        // longer idle, so it cannot increase report frequency (and thus traffic) on the mesh. The result is floored
+        // to whole seconds (the wire granularity). Clamp to the floor so a requested ceiling below the floor still
+        // yields a usable value.
+        const maxJitter = Math.max(maxIntervalCeiling * SUBSCRIPTION_CEILING_JITTER, SUBSCRIPTION_CEILING_JITTER_MIN);
+        const jitter = Math.round(maxJitter * Math.random());
+        maxIntervalCeiling = Duration.max(minIntervalFloor, Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter))));
 
         return {
             minIntervalFloor,

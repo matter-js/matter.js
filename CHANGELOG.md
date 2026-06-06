@@ -23,10 +23,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
+    - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
     - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
     - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
+    - Fix: A failed operational reconnect caused by a network-layer send error (e.g. ENETUNREACH on a stale persisted address) now triggers mDNS rediscovery instead of retrying the unreachable address indefinitely
     - Fix: TcpChannel now closes the connection on a zero-length stream frame instead of silently skipping it, preventing a peer from holding a connection slot open indefinitely
     - Fix: A forward message-counter jump of exactly the window size no longer retains stale replay-bitmap bits, which could wrongly reject a later legitimate message as duplicate
     - Fix: When the per-session concurrent-exchange limit is exceeded, the least-recently-active exchange is now closed instead of the oldest-created one
