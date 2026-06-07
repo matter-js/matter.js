@@ -479,13 +479,11 @@ export class ControllerCommissioner {
         } = options;
 
         const commissioningOptions = {
-            regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Most restrictive default if not specified
-            regulatoryCountryCode: "XX",
             ...options,
+            regulatoryLocation: options.regulatoryLocation ?? GeneralCommissioning.RegulatoryLocationType.Outdoor,
+            regulatoryCountryCode: options.regulatoryCountryCode ?? "XX",
         };
 
-        // TODO: Create the fabric only when needed before commissioning (to do when refactoring MatterController away)
-        // TODO also move certificateManager and other parts into that class to get rid of them here
         // TODO Depending on the Error type during commissioning we can do a retry ...
         /*
             Whenever the Fail-Safe timer is armed, Commissioners and Administrators SHALL NOT consider any cluster
