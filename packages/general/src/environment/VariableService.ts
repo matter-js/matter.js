@@ -94,9 +94,12 @@ export class VariableService {
         let value = this.#maybeValue(name);
 
         if (value === undefined && name.match(/[^A-Z0-9.]/gi)) {
-            // Replace runs of non-var chars (and adjacent dots) with a single separator and trim ends, so the
-            // sanitized key never contains empty segments (e.g. "_foo" → "foo", "a.x™.b" → "a.x.b").
-            const sanitizedName = name.replaceAll(/[^A-Z0-9]+/gi, ".").replace(/^\.+|\.+$/g, "");
+            // Split on runs of non-var chars (and dots) and drop empty segments, so the sanitized key never
+            // contains empty segments (e.g. "_foo" → "foo", "a.x™.b" → "a.x.b").
+            const sanitizedName = name
+                .split(/[^A-Z0-9]+/i)
+                .filter(Boolean)
+                .join(".");
             if (sanitizedName !== "") {
                 value = this.#maybeValue(sanitizedName);
                 if (value !== undefined) {
