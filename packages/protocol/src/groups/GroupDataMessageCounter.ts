@@ -36,16 +36,16 @@ export class GroupDataMessageCounter extends MessageCounter {
         private readonly storageKey: string,
         seed?: number,
     ) {
-        super(crypto); // random init in [1, 2^28]
+        super(crypto);
         this.#construction = Construction(this, async () => {
             if (await storage.has(storageKey)) {
                 const stored = await storage.get<number>(storageKey);
-                if (stored < 0 || stored > MAX_COUNTER_VALUE_32BIT) {
+                if (typeof stored !== "number" || stored < 0 || stored > MAX_COUNTER_VALUE_32BIT) {
                     throw new InternalError(`Invalid group data counter value: ${stored}`);
                 }
                 this.messageCounter = stored;
             } else if (seed !== undefined) {
-                if (seed < 0 || seed > MAX_COUNTER_VALUE_32BIT) {
+                if (typeof seed !== "number" || seed < 0 || seed > MAX_COUNTER_VALUE_32BIT) {
                     throw new InternalError(`Invalid group data counter seed: ${seed}`);
                 }
                 this.messageCounter = seed;

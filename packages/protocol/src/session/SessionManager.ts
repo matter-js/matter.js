@@ -529,6 +529,7 @@ export class SessionManager {
      * Returns the session for the current group epoch key.  The source is this node and the peer is the group.
      */
     async groupSessionForAddress(address: PeerAddress, transports: Transport.Provider) {
+        this.#construction.assert();
         const groupId = GroupId.fromNodeId(address.nodeId);
         GroupId.assertGroupId(groupId);
 
@@ -566,6 +567,7 @@ export class SessionManager {
      * result in an error.
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
+        this.#construction.assert();
         const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = GroupSession.decode(
             this.#context.fabrics,
             packet,

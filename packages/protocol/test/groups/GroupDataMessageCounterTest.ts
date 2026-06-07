@@ -81,4 +81,11 @@ describe("GroupDataMessageCounter", () => {
             "Invalid group data counter value",
         );
     });
+
+    it("rejects a non-numeric stored value", async () => {
+        await storage.set(STORAGE_KEY, "not-a-number");
+        await expect(GroupDataMessageCounter.create(crypto, storage, STORAGE_KEY)).rejectedWith(
+            "Invalid group data counter value",
+        );
+    });
 });
