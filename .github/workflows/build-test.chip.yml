@@ -77,11 +77,12 @@ jobs:
         id: check-rebuild
         run: echo "build-needed=true" >> $GITHUB_OUTPUT
 
-      # Run the additional matter.js WebSocket controller variant only on scheduled/manual runs to keep PR cycles fast
+      # Run the additional matter.js WebSocket controller variant on scheduled/manual runs and whenever CHIP image
+      # files change; otherwise stick to chiptool only to keep PR cycles fast
       - name: Determine controllers to test
         id: controllers
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.src }}" = "true" ]; then
             echo 'controllers=["chiptool","matterjs"]' >> $GITHUB_OUTPUT
           else
             echo 'controllers=["chiptool"]' >> $GITHUB_OUTPUT
