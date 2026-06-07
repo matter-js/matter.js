@@ -334,7 +334,10 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
     /**
      * Send a Check-In to every Permanent registration not currently covered by an active matching subscription, gated
-     * by the per-client back-off. Runs on each idle→active wake. The ICD counter advances once per real send.
+     * by the per-client back-off. Runs on each idle→active wake. The ICD counter advances once per send pass.
+     *
+     * The transmitted counter is the post-increment value: clients track the registration counter as offset 0 and
+     * reject offsets <= the last seen, so the first Check-In must carry an offset >= 1.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16.5.3.2
      */
@@ -351,6 +354,9 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         try {
             const sessions = this.env.get(SessionManager);
             const activeModeThreshold = this.state.activeModeThreshold;
+            // One counter value shared by every Check-In in this pass across all fabrics (ICDCounter is device-global);
+            // advanced once when the first send is due so the available range is not depleted per client.
+            let sendCounter: number | undefined;
             for (const fabric of this.env.get(FabricManager).fabrics) {
                 const subjects = activeSubscriptionSubjects(sessions, fabric.fabricIndex);
                 for (const reg of fabric.icd.registrations) {
@@ -366,16 +372,16 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
                         continue;
                     }
                     backOff.recordSent(key);
-                    const ok = await sender.send({
+                    if (sendCounter === undefined) {
+                        sendCounter = counter.increment();
+                    }
+                    await sender.send({
                         fabricIndex: fabric.fabricIndex,
                         peerNodeId: reg.checkInNodeId,
                         key: reg.key,
-                        counter: counter.value,
+                        counter: sendCounter,
                         activeModeThreshold,
                     });
-                    if (ok) {
-                        counter.increment();
-                    }
                 }
             }
         } finally {
