@@ -35,6 +35,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: When the per-session concurrent-exchange limit is exceeded, the least-recently-active exchange is now closed instead of the oldest-created one
     - Fix: A Sigma1 carrying only one of `resumptionId`/`initiatorResumeMic` is now rejected with INVALID_PARAMETER instead of being treated as a fresh handshake
     - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
+    - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse
     - Fix: Ensure that the default `regulatoryCountryCode` ("XX") is applied when commissioning a Wi-Fi/Thread device without an explicit value
 
 - @matter/node

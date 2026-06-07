@@ -7,6 +7,7 @@
 import { Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
+import { MessageCounter } from "#protocol/MessageCounter.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
@@ -139,6 +140,7 @@ describe("SecureSession", () => {
                 operationalGroupKey: current.key,
                 operationalPrivacyKey: current.privacyKey,
                 peerNodeId: NodeId(0xffffffffffff0000n | BigInt(groupId)),
+                messageCounter: new MessageCounter(fabric.crypto),
             });
 
             const message: Message = {
