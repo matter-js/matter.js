@@ -91,6 +91,7 @@ export class FabricIcd {
                 handler({
                     peerNodeId: peer.peerNodeId,
                     counter: decoded.counter,
+                    offset: validation.offset,
                     activeModeThreshold: decoded.activeModeThreshold,
                     refreshNeeded: validation.refreshNeeded,
                 });
@@ -129,6 +130,8 @@ export namespace FabricIcd {
     export interface ReceivedCheckIn {
         peerNodeId: NodeId;
         counter: number;
+        /** Unsigned offset of {@link counter} from the peer's registration baseline; the persisted rolling position. */
+        offset: number;
         activeModeThreshold: number;
         refreshNeeded: boolean;
     }

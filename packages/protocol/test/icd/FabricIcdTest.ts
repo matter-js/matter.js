@@ -69,7 +69,7 @@ describe("FabricIcd", () => {
 
             expect(result).true;
             expect(received).deep.equal([
-                { peerNodeId: NodeId(11), counter: 12, activeModeThreshold: 5000, refreshNeeded: false },
+                { peerNodeId: NodeId(11), counter: 12, offset: 2, activeModeThreshold: 5000, refreshNeeded: false },
             ]);
         });
 
