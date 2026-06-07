@@ -6,10 +6,9 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
-import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
 import { Bytes, Observable, Timestamp } from "@matter/general";
-import { bool, field, listOf, nonvolatile, octstr, subjectId, systimeMs, uint32, uint8, vendorId } from "@matter/model";
-import { SubjectId, VendorId } from "@matter/types";
+import { bool, field, nonvolatile, octstr, subjectId, systimeMs, uint32, uint8 } from "@matter/model";
+import { SubjectId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 
 /**
@@ -79,12 +78,6 @@ export namespace IcdClient {
          */
         @field(systimeMs)
         lastCheckInReceivedAt?: Timestamp;
-
-        /**
-         * Admin VendorIds excluded from the multi-admin safety check at registration.
-         */
-        @field(listOf(vendorId), nonvolatile)
-        ignoredFabricVendors: VendorId[] = [...IcdMultiAdminError.TRUSTED_ECOSYSTEM_VENDORS];
     }
 
     export class Events extends BaseEvents {
