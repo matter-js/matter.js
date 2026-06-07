@@ -122,6 +122,9 @@ export class PersistedMessageCounter extends MessageCounter {
         options: PersistedMessageCounterOptions = {},
     ) {
         const { aboutToRolloverCallback, rolloverInfoDifference = ROLLOVER_INFO_DIFFERENCE, reserve, seed } = options;
+        if (reserve !== undefined && (!Number.isInteger(reserve) || reserve <= 0)) {
+            throw new InternalError(`Invalid message counter reserve: ${reserve}`);
+        }
         super(crypto, aboutToRolloverCallback, rolloverInfoDifference);
         this.#reserve = reserve;
         this.#construction = Construction(this, async () => {

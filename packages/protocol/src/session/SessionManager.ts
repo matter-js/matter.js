@@ -226,6 +226,7 @@ export class SessionManager {
 
     /** The single node-global Group Encrypted Data Message Counter shared by all group sessions (spec §4.6.1.3). */
     get groupDataMessageCounter() {
+        this.#construction.assert();
         return this.#groupDataMessageCounter;
     }
 

@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+import { MAX_COUNTER_VALUE_32BIT } from "#protocol/MessageCounter.js";
 import { MessageReceptionStateEncryptedWithRollover } from "#protocol/MessageReceptionState.js";
 import { Bytes, InternalError, Logger, StorageContext } from "@matter/general";
 import { NodeId } from "@matter/types";
@@ -46,8 +47,8 @@ export class MessagingState {
                 continue;
             }
             const value = await this.#storage.get<number>(storageKey);
-            if (typeof value !== "number") {
-                logger.warn(`Ignoring non-numeric legacy group data counter at ${storageKey}: ${value}`);
+            if (typeof value !== "number" || value < 0 || value > MAX_COUNTER_VALUE_32BIT) {
+                logger.warn(`Ignoring invalid legacy group data counter at ${storageKey}: ${value}`);
                 continue;
             }
             if (max === undefined || value > max) {
