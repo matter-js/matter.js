@@ -11,7 +11,7 @@ import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { MessageCounter } from "#protocol/MessageCounter.js";
+import type { MessageCounter } from "#protocol/MessageCounter.js";
 import {
     Bytes,
     ChannelType,

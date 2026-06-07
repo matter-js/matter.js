@@ -28,7 +28,7 @@ export class FabricGroups {
     constructor(fabric: Fabric, storage?: StorageContext) {
         this.#fabric = fabric;
         this.#groups = new Groups(fabric, this.#keySets);
-        this.#messagingState = new MessagingState(storage);
+        this.#messagingState = new MessagingState();
 
         // KeySet with ID 0 is always the Fabric IPK, so we initialize from there because this is not stored
         // in Key Management Cluster
