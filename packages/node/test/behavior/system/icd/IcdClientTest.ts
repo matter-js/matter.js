@@ -10,10 +10,17 @@ import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerNode } from "#node/index.js";
 import { FabricManager, TestFabric } from "@matter/protocol";
-import { FabricId, VendorId } from "@matter/types";
+import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { MockSite } from "../../../node/mock-site.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
+
+/** Force one device idle→active wake and let the Check-In send pass run to completion. */
+async function wakeDevice(device: ServerNode) {
+    await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+    await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
+    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+}
 
 describe("IcdClient", () => {
     before(() => {
@@ -134,6 +141,92 @@ describe("IcdClient", () => {
             await peer1.act(agent => agent.get(IcdClient).register());
             expect(peer1.stateOf(IcdClient).registered).true;
             expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+        });
+    });
+
+    describe("check-in receipt", () => {
+        it("receives a real device Check-In, emits checkedIn, and advances counter state", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            // addCommissionedPair leaves an active subscription whose subject is the controller's own node id. Register a
+            // monitored subject that subscription does not cover so the device's suppression check does not fire and a
+            // real Check-In is transmitted to us.
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            const activeModeThreshold = device.stateOf(IcdManagementServer).activeModeThreshold;
+            const counterBefore = device.stateOf(IcdManagementServer).icdCounter;
+
+            const checkedIn = new Promise<{ counter: number; activeModeThreshold: number }>(resolve =>
+                peer1.eventsOf(IcdClient).checkedIn.once(resolve),
+            );
+
+            // No subscription exists, so the device's monitored subject is uncovered and a Check-In is transmitted.
+            await wakeDevice(device);
+            const received = await MockTime.resolve(checkedIn, { macrotasks: true });
+
+            expect(received.activeModeThreshold).equals(activeModeThreshold);
+            // The device transmits the post-increment counter, so the first Check-In lands one past the registration
+            // baseline (offset 1) rather than at the baseline (offset 0, which would be rejected as a replay).
+            expect(received.counter).equals(counterBefore + 1);
+
+            const state = peer1.stateOf(IcdClient);
+            expect(state.lastCheckInReceivedAt).not.undefined;
+            expect(state.lastOffset).equals(received.counter - state.counterStart!);
+            expect(state.lastOffset).greaterThan(0);
+        });
+    });
+
+    describe("key refresh", () => {
+        it("refreshes the key when a Check-In counter crosses the refresh threshold", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            const originalCounterStart = peer1.stateOf(IcdClient).counterStart!;
+
+            // Pull the running peer's rolling baseline back by 2^31 so the next real device Check-In (counter near the
+            // original baseline) lands at offset >= KEY_REFRESH_OFFSET and reports refreshNeeded — the state a real
+            // deployment reaches organically after 2^31 check-ins. The real RX path then drives #onCheckIn → #refreshKey.
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            const peerNodeId = peer1.stateOf(CommissioningClient).peerAddress!.nodeId;
+            const peerEntry = fabric.icd.peerFor(peerNodeId)!;
+            peerEntry.counterStart = (originalCounterStart - 0x80000000) >>> 0;
+
+            const refreshed = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).keyRefreshed.once(() => resolve()),
+            );
+
+            await wakeDevice(device);
+            await MockTime.resolve(refreshed, { macrotasks: true });
+            // keyRefreshed emits inside the refresh transaction; let it commit before reading state.
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            const state = peer1.stateOf(IcdClient);
+            // counterStart advancing proves the re-key registerClient round-trip ran (MockCrypto.randomBytes is
+            // deterministic, so the key bytes themselves cannot be asserted to differ).
+            expect(state.lastOffset).equals(0);
+            expect(state.counterStart).not.equals(originalCounterStart);
+
+            // The device accepted the re-key in place: still exactly one registration for this controller.
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+
+            const checkedInAgain = new Promise<{ counter: number }>(resolve =>
+                peer1.eventsOf(IcdClient).checkedIn.once(resolve),
+            );
+            await wakeDevice(device);
+            const again = await MockTime.resolve(checkedInAgain, { macrotasks: true });
+            // A Check-In validating against the NEW key lands past the reset baseline.
+            expect(again.counter).greaterThan(peer1.stateOf(IcdClient).counterStart!);
+            expect(peer1.stateOf(IcdClient).lastOffset).greaterThan(0);
         });
     });
 });
