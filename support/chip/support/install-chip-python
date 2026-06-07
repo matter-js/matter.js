@@ -81,8 +81,11 @@ pip install --break-system-packages -r scripts/tests/requirements.txt
 pip install --break-system-packages nest_asyncio
 
 # Install CHIP wheels globally
+# matter-controller-wheels is a collection target re-bundling matter-clusters/matter-core/matter-repl, which the
+# individual *._build_wheel targets already emit; installing both copies makes pip's resolver fail on duplicates
 find out -name \*.whl \
     | grep -v matter_yamltests-0.0.1 \
+    | grep -v matter-controller-wheels \
     | xargs pip install --break-system-packages --upgrade
 
 # Nuke build artifacts
