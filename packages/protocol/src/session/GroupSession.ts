@@ -26,6 +26,7 @@ import {
 } from "#general";
 import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import type { MessageCounter } from "#protocol/MessageCounter.js";
 import { FabricIndex, GroupId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
@@ -46,11 +47,20 @@ export class GroupSession extends SecureSession {
     readonly keySetId: number;
 
     constructor(config: GroupSession.Config) {
-        const { manager, fabric, operationalGroupKey, operationalPrivacyKey, id, peerNodeId, keySetId } = config;
+        const {
+            manager,
+            fabric,
+            operationalGroupKey,
+            operationalPrivacyKey,
+            id,
+            peerNodeId,
+            keySetId,
+            messageCounter,
+        } = config;
         super({
             ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check
-            messageCounter: fabric.groups.messaging.counterFor(operationalGroupKey),
+            messageCounter,
         });
         this.#id = id;
         this.#fabric = fabric;
@@ -76,8 +86,9 @@ export class GroupSession extends SecureSession {
         keySetId: number;
         groupNodeId: NodeId;
         operationalGroupKey: Bytes;
+        messageCounter: MessageCounter;
     }) {
-        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey } = options;
+        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey, messageCounter } = options;
 
         const groupId = GroupId.fromNodeId(groupNodeId);
         const multicastAddress = fabric.groups.multicastAddressFor(groupId);
@@ -103,6 +114,7 @@ export class GroupSession extends SecureSession {
             peerNodeId: groupNodeId,
             operationalGroupKey,
             operationalPrivacyKey: Bytes.of(await MessagePrivacy.deriveKey(fabric.crypto, operationalGroupKey)),
+            messageCounter,
         });
     }
 
@@ -345,6 +357,7 @@ export namespace GroupSession {
         peerNodeId: NodeId; //The Target Group Node Id
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
         operationalPrivacyKey?: Bytes;
+        messageCounter: MessageCounter;
     }
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {
