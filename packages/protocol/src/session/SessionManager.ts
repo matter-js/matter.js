@@ -7,6 +7,7 @@
 import type { DecodedPacket } from "#codec/MessageCodec.js";
 import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { FabricManager } from "#fabric/FabricManager.js";
+import { GroupDataMessageCounter } from "#groups/GroupDataMessageCounter.js";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
@@ -142,6 +143,7 @@ export class SessionManager {
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
+    #groupDataMessageCounter!: GroupDataMessageCounter;
     #sessionParameters: SessionParameters;
 
     /**
@@ -212,6 +214,11 @@ export class SessionManager {
 
     get crypto() {
         return this.#context.fabrics.crypto;
+    }
+
+    /** The single node-global Group Encrypted Data Message Counter shared by all group sessions (spec §4.6.1.3). */
+    get groupDataMessageCounter() {
+        return this.#groupDataMessageCounter;
     }
 
     /**
@@ -546,6 +553,7 @@ export class SessionManager {
             keySetId,
             operationalGroupKey: key,
             groupNodeId: address.nodeId,
+            messageCounter: this.#groupDataMessageCounter,
         });
     }
 
@@ -580,6 +588,7 @@ export class SessionManager {
                 operationalGroupKey: key,
                 operationalPrivacyKey: privacyKey,
                 peerNodeId: sourceNodeId,
+                messageCounter: this.#groupDataMessageCounter,
             });
         }
 
@@ -694,6 +703,8 @@ export class SessionManager {
     async #initialize() {
         await this.#context.fabrics.construction;
 
+        this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
+
         const storedResumptionRecords = await this.#context.storage.get<ResumptionStorageRecord[]>(
             "resumptionRecords",
             [],
@@ -740,6 +751,35 @@ export class SessionManager {
         );
     }
 
+    /**
+     * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
+     * model, seed it above every value any per-key counter could already have used so it never rolls back below a
+     * value already sent with a surviving key (spec §4.6.1.3); then clear the legacy entries.
+     */
+    async #createGroupDataMessageCounter() {
+        const storage = this.#context.storage;
+
+        let seed: number | undefined;
+        if (!(await storage.has("groupDataCounter"))) {
+            for (const fabric of this.#context.fabrics) {
+                const max = await fabric.groups.messaging.legacyGroupDataCounterMax();
+                if (max !== undefined && (seed === undefined || max > seed)) {
+                    seed = max;
+                }
+            }
+        }
+
+        const counter = await GroupDataMessageCounter.create(this.crypto, storage, "groupDataCounter", seed);
+
+        if (seed !== undefined) {
+            for (const fabric of this.#context.fabrics) {
+                await fabric.groups.messaging.clearLegacyGroupDataCounters();
+            }
+        }
+
+        return counter;
+    }
+
     getActiveSessionInformation(): ActiveSessionInformation[] {
         this.#construction.assert();
         return [...this.#sessions]
@@ -772,6 +812,7 @@ export class SessionManager {
         await this.closeAllSessions();
         await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
+        this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
 
     async closeAllSessions() {
