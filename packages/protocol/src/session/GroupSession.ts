@@ -356,7 +356,7 @@ export namespace GroupSession {
         peerNodeId: NodeId; //The Target Group Node Id
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
         operationalPrivacyKey?: Bytes;
-        messageCounter: MessageCounter; // The shared node-global group data message counter.
+        messageCounter: MessageCounter;
     }
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {

@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { MessageReceptionStateEncryptedWithRollover } from "#protocol/MessageReceptionState.js";
-import { Bytes, InternalError, StorageContext } from "@matter/general";
+import { Bytes, InternalError, Logger, StorageContext } from "@matter/general";
 import { NodeId } from "@matter/types";
+
+const logger = Logger.get("MessagingState");
 
 /** Legacy per-operational-key group data counter storage key: 32 hex chars (16-byte key hash) + "-data". */
 const LEGACY_GROUP_DATA_COUNTER_KEY = /^[0-9a-f]{32}-data$/;
@@ -31,8 +33,8 @@ export class MessagingState {
 
     /**
      * @deprecated Migration-only. Reads the maximum value across the legacy per-operational-key group data counters so
-     * the node-global GroupDataMessageCounter can be seeded above every previously used value. Remove once the
-     * migration window has passed.
+     * the node-global group data counter can be seeded above every previously used value. Remove once the migration
+     * window has passed.
      */
     async legacyGroupDataCounterMax(): Promise<number | undefined> {
         if (!this.#storage) {
@@ -44,7 +46,11 @@ export class MessagingState {
                 continue;
             }
             const value = await this.#storage.get<number>(storageKey);
-            if (typeof value === "number" && (max === undefined || value > max)) {
+            if (typeof value !== "number") {
+                logger.warn(`Ignoring non-numeric legacy group data counter at ${storageKey}: ${value}`);
+                continue;
+            }
+            if (max === undefined || value > max) {
                 max = value;
             }
         }

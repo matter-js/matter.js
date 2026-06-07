@@ -7,7 +7,6 @@
 import type { DecodedPacket } from "#codec/MessageCodec.js";
 import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { FabricManager } from "#fabric/FabricManager.js";
-import { GroupDataMessageCounter } from "#groups/GroupDataMessageCounter.js";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
@@ -43,7 +42,7 @@ import {
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
 import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
-import { MessageCounter } from "../protocol/MessageCounter.js";
+import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
 import type { Session } from "./Session.js";
@@ -123,6 +122,15 @@ export interface SessionManagerContext {
 
 const ID_SPACE_UPPER_BOUND = 0xffff;
 
+/** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
+const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
+
+/**
+ * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
+ * is persisted this far ahead so an unclean restart never rolls it back (Matter spec §4.6.1.3).
+ */
+const GROUP_DATA_COUNTER_RESERVE = 1000;
+
 /**
  * Thrown when communication terminates due node shutdown.
  */
@@ -143,7 +151,7 @@ export class SessionManager {
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
-    #groupDataMessageCounter!: GroupDataMessageCounter;
+    #groupDataMessageCounter!: PersistedMessageCounter;
     #sessionParameters: SessionParameters;
 
     /**
@@ -761,22 +769,16 @@ export class SessionManager {
     async #createGroupDataMessageCounter() {
         const storage = this.#context.storage;
 
-        let seed: number | undefined;
-        if (!(await storage.has("groupDataCounter"))) {
-            for (const fabric of this.#context.fabrics) {
-                const max = await fabric.groups.messaging.legacyGroupDataCounterMax();
-                if (max !== undefined && (seed === undefined || max > seed)) {
-                    seed = max;
-                }
-            }
-        }
+        const migrating = !(await storage.has(GROUP_DATA_COUNTER_KEY));
+        const seed = migrating ? await this.#context.fabrics.legacyGroupDataCounterMax() : undefined;
 
-        const counter = await GroupDataMessageCounter.create(this.crypto, storage, "groupDataCounter", seed);
+        const counter = await PersistedMessageCounter.create(this.crypto, storage, GROUP_DATA_COUNTER_KEY, {
+            reserve: GROUP_DATA_COUNTER_RESERVE,
+            seed,
+        });
 
-        if (seed !== undefined) {
-            for (const fabric of this.#context.fabrics) {
-                await fabric.groups.messaging.clearLegacyGroupDataCounters();
-            }
+        if (migrating) {
+            await this.#context.fabrics.clearLegacyGroupDataCounters();
         }
 
         return counter;
