@@ -305,7 +305,7 @@ export namespace Discovery {
          * The local ID to assign the node if newly discovered.  This is the stable identifier used for the node's "id"
          * property.
          *
-         * By default matter.js assigns an ID of the form "nodeN".
+         * By default matter.js assigns an ID of the form "peerN".
          */
         id?: string;
     };

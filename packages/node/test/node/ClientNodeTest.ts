@@ -240,6 +240,38 @@ describe("ClientNode", () => {
         expect(controller.peers.size).equals(1);
     });
 
+    it("commissions with an explicit id and restores the peer under that id after restart", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({ id: "device", passcode, discriminator, timeout: Seconds(90) }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).equals(1);
+        expect([...controller.peers].map(n => n.id)).deep.equals(["device"]);
+        expect(controller.peers.get("device")).not.undefined;
+
+        // *** RESTART controller (models the two-process commission-then-toggle flow) ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+
+        expect(controllerB.peers.size).equals(1);
+        expect([...controllerB.peers].map(n => n.id)).deep.equals(["device"]);
+        expect(controllerB.peers.get("device")).not.undefined;
+    });
+
     it("rejects node-level commissioning without known addresses", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addUncommissionedPair();
