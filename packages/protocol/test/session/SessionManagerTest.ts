@@ -9,6 +9,7 @@ import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
+    b$,
     Bytes,
     Key,
     MemoryStorageDriver,
@@ -258,6 +259,40 @@ describe("SessionManager", () => {
 
             expect(await sessionManager.groupDataMessageCounter.getIncrementedCounter()).greaterThan(4242);
             expect(await fabricStorage.has(legacyKey)).equal(false);
+        });
+
+        it("does not roll the counter back when a group key set is removed (Q-02)", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+            await fabric.groups.setFromGroupKeySet({
+                groupKeySetId: 1,
+                groupKeySecurityPolicy: 0,
+                epochKey0: b$`000102030405060708090a0b0c0d0e0f`,
+                epochStartTime0: 1,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+                groupKeyMulticastPolicy: 0,
+            });
+
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: fabricManager,
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+
+            const before = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
+            fabric.groups.removeGroupKeySet(1);
+            const after = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
+            expect(after).greaterThan(before);
         });
     });
 });
