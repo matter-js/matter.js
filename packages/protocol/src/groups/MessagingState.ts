@@ -8,6 +8,9 @@ import { MessageReceptionStateEncryptedWithRollover } from "#protocol/MessageRec
 import { Bytes, Crypto, ImplementationError, InternalError, StorageContext } from "@matter/general";
 import { NodeId } from "@matter/types";
 
+/** Legacy per-operational-key group data counter storage key: 32 hex chars (16-byte key hash) + "-data". */
+const LEGACY_GROUP_DATA_COUNTER_KEY = /^[0-9a-f]{32}-data$/;
+
 export class MessagingState {
     /**
      * Message counter for sending data messages to a group per Operational key. No need to scope to a source node
@@ -59,6 +62,43 @@ export class MessagingState {
         if (forDelete) {
             // If we are deleting the group key set, also delete the persisted counter values
             await this.#storage?.delete(`${operationalKeyHex}-data`);
+        }
+    }
+
+    /**
+     * @deprecated Migration-only. Reads the maximum value across the legacy per-operational-key group data counters so
+     * the node-global GroupDataMessageCounter can be seeded above every previously used value. Remove once the
+     * migration window has passed.
+     */
+    async legacyGroupDataCounterMax(): Promise<number | undefined> {
+        if (!this.#storage) {
+            return undefined;
+        }
+        let max: number | undefined;
+        for (const storageKey of await this.#storage.keys()) {
+            if (!LEGACY_GROUP_DATA_COUNTER_KEY.test(storageKey)) {
+                continue;
+            }
+            const value = await this.#storage.get<number>(storageKey);
+            if (typeof value === "number" && (max === undefined || value > max)) {
+                max = value;
+            }
+        }
+        return max;
+    }
+
+    /**
+     * @deprecated Migration-only. Deletes the legacy per-operational-key group data counters after the node-global
+     * counter has been seeded from them. Remove once the migration window has passed.
+     */
+    async clearLegacyGroupDataCounters(): Promise<void> {
+        if (!this.#storage) {
+            return;
+        }
+        for (const storageKey of await this.#storage.keys()) {
+            if (LEGACY_GROUP_DATA_COUNTER_KEY.test(storageKey)) {
+                await this.#storage.delete(storageKey);
+            }
         }
     }
 
