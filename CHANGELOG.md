@@ -19,7 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
-    - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored from storage on restart
+    - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored correctly from storage on restart
 
 - @matter/protocol
     - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
