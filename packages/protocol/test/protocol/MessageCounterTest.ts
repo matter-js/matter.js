@@ -89,12 +89,9 @@ describe("MessageCounter", () => {
 
         it("Message counter rolls over if allowed", async () => {
             await testStorageContext.set("counter", MAX_COUNTER_VALUE_32BIT);
-            const messageCounter = await PersistedMessageCounter.create(
-                crypto,
-                testStorageContext,
-                "counter",
-                async () => {},
-            );
+            const messageCounter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                aboutToRolloverCallback: async () => {},
+            });
             expect(await messageCounter.getIncrementedCounter()).equals(0);
         });
 
@@ -102,15 +99,12 @@ describe("MessageCounter", () => {
             const initCounter = MAX_COUNTER_VALUE_32BIT - 101;
             await testStorageContext.set("counter", initCounter);
             let callbackCalled = false;
-            const messageCounter = await PersistedMessageCounter.create(
-                crypto,
-                testStorageContext,
-                "counter",
-                async () => {
+            const messageCounter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                aboutToRolloverCallback: async () => {
                     callbackCalled = true;
                 },
-                100,
-            );
+                rolloverInfoDifference: 100,
+            });
             expect(callbackCalled).to.be.false;
             expect(await messageCounter.getIncrementedCounter()).equals(initCounter + 1);
             expect(callbackCalled).to.be.true;
@@ -123,19 +117,84 @@ describe("MessageCounter", () => {
             const initCounter = MAX_COUNTER_VALUE_32BIT - 100;
             await testStorageContext.set("counter", initCounter);
             let callbackCalled = false;
-            const messageCounter = await PersistedMessageCounter.create(
-                crypto,
-                testStorageContext,
-                "counter",
-                async () => {
+            const messageCounter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                aboutToRolloverCallback: async () => {
                     callbackCalled = true;
                 },
-                100,
-            );
+                rolloverInfoDifference: 100,
+            });
             expect(callbackCalled).to.be.true;
             callbackCalled = false;
             expect(await messageCounter.getIncrementedCounter()).equals(initCounter + 1);
             expect(callbackCalled).to.be.false;
+        });
+
+        it("reserves a block ahead and does not write storage within the block", async () => {
+            const messageCounter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+            });
+            const start = (0x12345678 >>> 4) + 1;
+            expect(await testStorageContext.get<number>("counter")).equal(start + 1000);
+            await messageCounter.getIncrementedCounter();
+            await messageCounter.getIncrementedCounter();
+            expect(await testStorageContext.get<number>("counter")).equal(start + 1000);
+        });
+
+        it("never rolls back across a restart when reserving", async () => {
+            const first = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+            });
+            const used = await first.getIncrementedCounter();
+            const second = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+            });
+            expect(await second.getIncrementedCounter()).greaterThan(used);
+        });
+
+        it("seeds the initial value when nothing is persisted", async () => {
+            const messageCounter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                seed: 5_000_000,
+            });
+            expect(await messageCounter.getIncrementedCounter()).equal(5_000_001);
+        });
+
+        it("ignores the seed when a value is already persisted", async () => {
+            await testStorageContext.set("counter", 9_000_000);
+            const messageCounter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                seed: 1,
+            });
+            expect(await messageCounter.getIncrementedCounter()).equal(9_000_001);
+        });
+
+        it("rejects an invalid reserve", async () => {
+            await expect(
+                PersistedMessageCounter.create(crypto, testStorageContext, "counter", { reserve: 0 }),
+            ).rejectedWith("Invalid message counter reserve");
+        });
+
+        it("re-reserves after a rollover so wrapped values are not re-issued", async () => {
+            await testStorageContext.set("counter", MAX_COUNTER_VALUE_32BIT);
+            const counter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+                aboutToRolloverCallback: async () => {},
+            });
+            expect(await counter.getIncrementedCounter()).equal(0); // rolls over
+            // Wrapped low values are persisted ahead immediately, not left at the stale near-MAX reserve.
+            expect(await testStorageContext.get<number>("counter")).equal(1000);
+
+            const used = await counter.getIncrementedCounter();
+            const restart = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+                aboutToRolloverCallback: async () => {},
+            });
+            expect(await restart.getIncrementedCounter()).greaterThan(used);
+        });
+
+        it("rejects a non-numeric persisted value", async () => {
+            await testStorageContext.set("counter", "not-a-number");
+            await expect(PersistedMessageCounter.create(crypto, testStorageContext, "counter")).rejectedWith(
+                "Invalid message counter value",
+            );
         });
     });
 });

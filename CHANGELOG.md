@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK (Backported from 0.17.2)
     - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation (Backported from 0.17.2)
+    - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse (Backported from 0.17.2)
 
 ## 0.16.11 (2026-04-10)
 
