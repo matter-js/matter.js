@@ -11,6 +11,7 @@ import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import type { MessageCounter } from "#protocol/MessageCounter.js";
 import {
     Bytes,
     ChannelType,
@@ -70,11 +71,12 @@ export class GroupSession extends SecureSession {
             peerNodeId,
             keySetId,
             multicastAddress,
+            messageCounter,
         } = config;
         super({
             ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check
-            messageCounter: fabric.groups.messaging.counterFor(operationalGroupKey),
+            messageCounter,
         });
         this.#id = id;
         this.#fabric = fabric;
@@ -106,8 +108,9 @@ export class GroupSession extends SecureSession {
         keySetId: number;
         groupNodeId: NodeId;
         operationalGroupKey: Bytes;
+        messageCounter: MessageCounter;
     }) {
-        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey } = options;
+        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey, messageCounter } = options;
 
         const groupId = GroupId.fromNodeId(groupNodeId);
         const multicastAddress = fabric.groups.multicastAddressFor(groupId);
@@ -133,6 +136,7 @@ export class GroupSession extends SecureSession {
             operationalGroupKey,
             operationalPrivacyKey: Bytes.of(await MessagePrivacy.deriveKey(fabric.crypto, operationalGroupKey)),
             multicastAddress,
+            messageCounter,
         });
     }
 
@@ -376,6 +380,7 @@ export namespace GroupSession {
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
         operationalPrivacyKey?: Bytes;
         multicastAddress: string; // IPv6 multicast destination address this session sends to.
+        messageCounter: MessageCounter;
     }
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {

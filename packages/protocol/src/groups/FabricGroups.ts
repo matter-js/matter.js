@@ -28,7 +28,7 @@ export class FabricGroups {
     constructor(fabric: Fabric, storage?: StorageContext) {
         this.#fabric = fabric;
         this.#groups = new Groups(fabric, this.#keySets);
-        this.#messagingState = new MessagingState(fabric.crypto, storage);
+        this.#messagingState = new MessagingState();
 
         // KeySet with ID 0 is always the Fabric IPK, so we initialize from there because this is not stored
         // in Key Management Cluster
@@ -123,14 +123,11 @@ export class FabricGroups {
      * Overwriting the existing one if it exists.
      */
     async setFromGroupKeySet(groupKeySet: GroupKeySet) {
-        const { groupKeySetId, epochKey0, epochKey1, epochKey2 } = groupKeySet;
+        const { epochKey0, epochKey1, epochKey2 } = groupKeySet;
 
         if (epochKey0 === null) {
             throw new MatterFlowError("EpochKey0 must be set"); // checked before, but to make typing happy
         }
-
-        // Clean up the counters and data from old keys, will be initialized again on next use
-        await this.#cleanUpCounters(groupKeySetId);
 
         // Lets pre-calculate the operational keys
         const globalId = Bytes.fromHex(hex.fixed(this.#fabric.globalId, 16));
@@ -174,25 +171,11 @@ export class FabricGroups {
         });
     }
 
-    /** Removes a group key set by its id and cleans up the counters and data. */
-    async removeGroupKeySet(groupKeySetId: number) {
+    /** Removes a group key set by its id. */
+    removeGroupKeySet(groupKeySetId: number) {
         if (groupKeySetId === 0) {
             throw new InternalError("Cannot remove the group key set 0.");
         }
-        await this.#cleanUpCounters(groupKeySetId, true);
         return this.#keySets.delete("groupKeySetId", groupKeySetId);
-    }
-
-    /** Cleans up the counters and data for a group key set by its id. */
-    async #cleanUpCounters(groupKeySetId: number, forDelete = false) {
-        if (this.#keySets.forId(groupKeySetId) === undefined) {
-            return;
-        }
-
-        // Clean up counters for the group key set
-        const operationalKeys = this.#keySets.allKeysForId(groupKeySetId);
-        for (const { key } of operationalKeys) {
-            await this.#messagingState.removeCounter(key, forDelete);
-        }
     }
 }

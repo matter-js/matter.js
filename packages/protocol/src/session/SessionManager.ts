@@ -44,7 +44,7 @@ import {
 import { CaseAuthenticatedTag, ClusterId, EndpointNumber, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
-import { MessageCounter } from "../protocol/MessageCounter.js";
+import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
 import type { Session } from "./Session.js";
@@ -142,6 +142,15 @@ export interface SessionManagerContext {
 
 const ID_SPACE_UPPER_BOUND = 0xffff;
 
+/** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
+const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
+
+/**
+ * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
+ * is persisted this far ahead so an unclean restart never rolls it back (Matter spec §4.6.1.3).
+ */
+const GROUP_DATA_COUNTER_RESERVE = 1000;
+
 /**
  * Thrown when communication terminates due node shutdown.
  */
@@ -162,6 +171,7 @@ export class SessionManager {
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
+    #groupDataMessageCounter!: PersistedMessageCounter;
     #sessionParameters: SessionParameters;
 
     /**
@@ -233,6 +243,12 @@ export class SessionManager {
 
     get crypto() {
         return this.#context.fabrics.crypto;
+    }
+
+    /** The single node-global Group Encrypted Data Message Counter shared by all group sessions (spec §4.6.1.3). */
+    get groupDataMessageCounter() {
+        this.#construction.assert();
+        return this.#groupDataMessageCounter;
     }
 
     /**
@@ -551,6 +567,7 @@ export class SessionManager {
      * Returns the session for the current group epoch key.  The source is this node and the peer is the group.
      */
     async groupSessionForAddress(address: PeerAddress, transports: Transport.Provider) {
+        this.#construction.assert();
         const groupId = GroupId.fromNodeId(address.nodeId);
         GroupId.assertGroupId(groupId);
 
@@ -575,6 +592,7 @@ export class SessionManager {
             keySetId,
             operationalGroupKey: key,
             groupNodeId: address.nodeId,
+            messageCounter: this.#groupDataMessageCounter,
         });
     }
 
@@ -587,6 +605,7 @@ export class SessionManager {
      * result in an error.
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
+        this.#construction.assert();
         let decoded;
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
@@ -622,6 +641,7 @@ export class SessionManager {
                 operationalPrivacyKey: privacyKey,
                 peerNodeId: sourceNodeId,
                 multicastAddress: fabric.groups.multicastAddressFor(groupId),
+                messageCounter: this.#groupDataMessageCounter,
             });
         }
 
@@ -741,6 +761,8 @@ export class SessionManager {
     async #initialize() {
         await this.#context.fabrics.construction;
 
+        this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
+
         const storedResumptionRecords = await this.#context.storage.get<ResumptionStorageRecord[]>(
             "resumptionRecords",
             [],
@@ -787,6 +809,39 @@ export class SessionManager {
         );
     }
 
+    /**
+     * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
+     * model, seed it above every value any per-key counter could already have used so it never rolls back below a
+     * value already sent with a surviving key (spec §4.6.1.3); then clear the legacy entries.
+     */
+    async #createGroupDataMessageCounter() {
+        const storage = this.#context.storage;
+
+        const migrating = !(await storage.has(GROUP_DATA_COUNTER_KEY));
+        const seed = migrating ? await this.#context.fabrics.legacyGroupDataCounterMax() : undefined;
+
+        const counter = await PersistedMessageCounter.create(this.crypto, storage, GROUP_DATA_COUNTER_KEY, {
+            reserve: GROUP_DATA_COUNTER_RESERVE,
+            seed,
+            // Presence of the callback lets the counter roll over to 0 (matching CHIP) rather than throwing. The node
+            // cannot rotate group epoch keys itself (the Administrator does, §4.17.3.3); for now we only warn near
+            // exhaustion (spec §4.6.4).
+            // TODO Expose this "group epoch keys must be rotated" signal to external logic instead of only logging, so
+            //  the controller key-management layer can act on it.
+            aboutToRolloverCallback: async () => {
+                logger.warn(
+                    "Group data message counter is approaching rollover; group epoch keys should be rotated to avoid message counter reuse.",
+                );
+            },
+        });
+
+        if (migrating) {
+            await this.#context.fabrics.clearLegacyGroupDataCounters();
+        }
+
+        return counter;
+    }
+
     getActiveSessionInformation(): ActiveSessionInformation[] {
         this.#construction.assert();
         return [...this.#sessions]
@@ -819,6 +874,7 @@ export class SessionManager {
         await this.closeAllSessions();
         await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
+        this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
 
     async closeAllSessions() {
