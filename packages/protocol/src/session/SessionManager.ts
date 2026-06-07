@@ -777,8 +777,10 @@ export class SessionManager {
             reserve: GROUP_DATA_COUNTER_RESERVE,
             seed,
             // Presence of the callback lets the counter roll over to 0 (matching CHIP) rather than throwing. The node
-            // cannot rotate epoch keys itself (the Administrator does, §4.17.3.3); the best it can do near exhaustion
-            // is warn so the keys get rotated before the counter wraps under a surviving key (spec §4.6.4).
+            // cannot rotate group epoch keys itself (the Administrator does, §4.17.3.3); for now we only warn near
+            // exhaustion (spec §4.6.4).
+            // TODO Expose this "group epoch keys must be rotated" signal to external logic instead of only logging, so
+            //  the controller key-management layer can act on it.
             aboutToRolloverCallback: async () => {
                 logger.warn(
                     "Group data message counter is approaching rollover; group epoch keys should be rotated to avoid message counter reuse.",
