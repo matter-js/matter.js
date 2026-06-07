@@ -182,6 +182,30 @@ describe("MessageCounter", () => {
             expect(await messageCounter.getIncrementedCounter()).equal(9_000_001);
         });
 
+        it("rejects an invalid reserve", async () => {
+            await expect(
+                PersistedMessageCounter.create(crypto, testStorageContext, "counter", { reserve: 0 }),
+            ).rejectedWith("Invalid message counter reserve");
+        });
+
+        it("re-reserves after a rollover so wrapped values are not re-issued", async () => {
+            await testStorageContext.set("counter", MAX_COUNTER_VALUE_32BIT);
+            const counter = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+                aboutToRolloverCallback: async () => {},
+            });
+            expect(await counter.getIncrementedCounter()).equal(0); // rolls over
+            // Wrapped low values are persisted ahead immediately, not left at the stale near-MAX reserve.
+            expect(await testStorageContext.get<number>("counter")).equal(1000);
+
+            const used = await counter.getIncrementedCounter();
+            const restart = await PersistedMessageCounter.create(crypto, testStorageContext, "counter", {
+                reserve: 1000,
+                aboutToRolloverCallback: async () => {},
+            });
+            expect(await restart.getIncrementedCounter()).greaterThan(used);
+        });
+
         it("rejects a non-numeric persisted value", async () => {
             await testStorageContext.set("counter", "not-a-number");
             await expect(PersistedMessageCounter.create(crypto, testStorageContext, "counter")).rejectedWith(

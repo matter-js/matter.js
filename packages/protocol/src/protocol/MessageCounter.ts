@@ -10,7 +10,7 @@ import { Construction, Crypto, InternalError, StorageContext, asyncNew } from "@
 export const MAX_COUNTER_VALUE_32BIT = 0xffffffff;
 
 /** Default number of messages before a rollover callback is called. */
-const ROLLOVER_INFO_DIFFERENCE = 1000;
+const ROLLOVER_INFO_DIFFERENCE = 100_000;
 
 export enum MessageCounterTypes {
     /**
@@ -162,7 +162,9 @@ export class PersistedMessageCounter extends MessageCounter {
         const counter = await super.getIncrementedCounter();
         if (this.#reserve === undefined) {
             await this.storageContext.set(this.storageKey, counter);
-        } else if (counter >= this.#reserved) {
+        } else if (counter >= this.#reserved || counter < this.#reserved - this.#reserve) {
+            // Re-reserve at the block boundary, and also after a rollover to 0 (counter drops below the reserved
+            // window) so the wrapped-around low values are persisted ahead and never re-issued after a restart.
             await this.#reserveAhead();
         }
         return counter;
