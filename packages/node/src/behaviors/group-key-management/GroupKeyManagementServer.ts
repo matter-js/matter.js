@@ -422,7 +422,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         };
     }
 
-    override async keySetRemove({ groupKeySetId }: GroupKeyManagement.KeySetRemoveRequest) {
+    override keySetRemove({ groupKeySetId }: GroupKeyManagement.KeySetRemoveRequest) {
         if (groupKeySetId === 0) {
             throw new StatusResponseError(`GroupKeySet ${groupKeySetId} cannot be removed`, Status.InvalidCommand);
         }
@@ -432,7 +432,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
 
-        // Replace or add the group key set to the internal persisted state
+        // Remove the group key set from the internal persisted state
         const existingIndex = this.state.groupKeySets.findIndex(
             ({ groupKeySetId: entryId, fabricIndex: entryIndex }) =>
                 entryIndex === fabricIndex && entryId === groupKeySetId,
@@ -449,7 +449,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         );
 
         // Sync to Fabric group manager to remove too
-        await fabric.groups.removeGroupKeySet(groupKeySetId);
+        fabric.groups.removeGroupKeySet(groupKeySetId);
     }
 
     override keySetReadAllIndices(): GroupKeyManagement.KeySetReadAllIndicesResponse {
