@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
     - Fix: AES-CCM encryption now honors the `byteOffset` of subarray inputs for plaintext and AAD
+    - Fix: Ensure that variable name sanitization does not throw on special characters adjacent to dots (e.g. node IDs like `Dyson360VisNav™`)
 
 - @matter/node
     - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
