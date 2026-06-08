@@ -31,6 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
     - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
     - Enhancement: Validate the CASE session parameters when establishing a TCP connection and fail the session if they do not match the expectations
+    - Enhancement: Lengthened the BTP handshake-response timeout (5s → 15s) and central idle timeout (30s → 60s) to match CHIP
     - Fix: Ignore announced TCP support for peers reporting Matter spec version < 1.5.0
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
@@ -44,6 +45,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
     - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse
     - Fix: Ensure that the default `regulatoryCountryCode` ("XX") is applied when commissioning a Wi-Fi/Thread device without an explicit value
+    - Fix: BTP central now advertises the negotiated ATT_MTU minus the 3-byte GATT header as its segment size, so a peer no longer selects fragments that overflow the link
+    - Fix: BTP window accounting now counts outstanding packets by modular distance, fixing a miscount across the sequence-number wrap
+    - Fix: BTP now reserves the remote receive window's last slot for an acknowledgement and sends a stand-alone ack proactively once its own receive window runs low
+    - Fix: BTP now resumes a stalled send queue when an incoming acknowledgement reopens the window
+    - Fix: BTP now closes the session if reassembly exceeds the declared message length
     - Fix: A corrupted PAA in the local DCL certificate cache is now re-fetched from DCL once before failing, recovering from broken storage
     - Fix: Unexpected errors during device attestation validation (e.g. an unrecoverably corrupt trust-store certificate) are now surfaced as an attestation finding for the `onAttestationFailure` policy to judge, instead of aborting commissioning outside the findings mechanism
 
