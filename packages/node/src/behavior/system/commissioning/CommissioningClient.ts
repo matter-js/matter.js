@@ -10,7 +10,7 @@ import { SoftwareUpdateManager } from "#behavior/system/software-update/Software
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import type { ClientNode } from "#node/ClientNode.js";
-import { IdentityService } from "#node/server/IdentityService.js";
+import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     ClassExtends,
@@ -203,6 +203,19 @@ export class CommissioningClient extends Behavior {
             throw new ImplementationError(`Cannot commission ${node} because the node has not been located`);
         }
 
+        const identity = this.env.get(IdentityService);
+
+        // Reservation is deferred to the post-PASE gate below, so fast-fail an explicit node ID that is already
+        // taken (a commissioned peer or the controller's own identity) here instead of only after discovery+PASE.
+        if (
+            opts.nodeId !== undefined &&
+            identity.peerAddressInUse({ fabricIndex: fabric.fabricIndex, nodeId: opts.nodeId })
+        ) {
+            throw new IdentityConflictError(
+                `Cannot assign NodeId ${opts.nodeId} on fabric ${fabric.fabricIndex}: the peer address is already in use`,
+            );
+        }
+
         const commissioner = node.env.get(ControllerCommissioner);
 
         // Claim the node ID only once a candidate wins PASE.  Parallel candidates share one supplied node ID, so
@@ -263,7 +276,7 @@ export class CommissioningClient extends Behavior {
             await this.#update(this.env.get(PeerSet).for(address));
         } catch (e) {
             if (allocatedAddress !== undefined) {
-                this.env.get(IdentityService).releasePeerAddress(allocatedAddress);
+                identity.releasePeerAddress(allocatedAddress);
             }
             throw e;
         }

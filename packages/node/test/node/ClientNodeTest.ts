@@ -420,6 +420,37 @@ describe("ClientNode", () => {
         expect(commissioned.state.commissioning.peerAddress?.nodeId).equals(explicitNodeId);
     });
 
+    it("rejects commissioning with an explicit node ID that is already in use before establishing PASE", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const device = await site.addDevice({
+            commissioning: {
+                discriminator: 999,
+                passcode: 22223333,
+            },
+        });
+
+        // The node ID already assigned to the commissioned peer is reserved and must be refused.
+        const usedNodeId = controller.peers.get("peer1")!.peerAddress!.nodeId;
+
+        const discovered = await MockTime.resolve(
+            controller.peers.discover({ longDiscriminator: 999, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        // Use a wrong passcode: the conflict must be reported before PASE, so we expect "already in use"
+        // rather than a PASE failure that would result if the check ran only at post-PASE allocation.
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode: 11112222, discriminator: 999, nodeId: usedNodeId })).rejectedWith(
+                /already in use/i,
+            ),
+        );
+
+        expect(device.state.commissioning.commissioned).equals(false);
+    });
+
     it("commissions via known-address flow even when first address has invalid credentials", async () => {
         await using site = new MockSite();
         const controller = await site.addController();

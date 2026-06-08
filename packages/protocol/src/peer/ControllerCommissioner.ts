@@ -238,9 +238,21 @@ export class ControllerCommissioner {
         });
 
         // Claim the operational identity only after PASE; undefined means another candidate already won the race.
+        // We own the ephemeral session until #commissionConnectedNode takes over and force-closes it, so on any
+        // early exit here (lost race, or a claim error such as a node ID conflict) close it ourselves.
         let assignedNodeId = nodeId;
         if (claimNodeIdAfterPase !== undefined) {
-            assignedNodeId = await claimNodeIdAfterPase();
+            try {
+                assignedNodeId = await claimNodeIdAfterPase();
+            } catch (error) {
+                // Close the ephemeral session but let the original claim error surface, not a close failure.
+                await session
+                    .initiateForceClose({ cause: new CommissioningError("Claiming the node ID failed after PASE") })
+                    .catch(closeError =>
+                        logger.info("Error closing PASE session after failed node ID claim:", closeError),
+                    );
+                throw error;
+            }
             if (assignedNodeId === undefined) {
                 await session.initiateForceClose({
                     cause: new CommissioningError("PASE established but other device connected faster"),
