@@ -45,6 +45,11 @@ switch (command) {
             if (node === undefined) {
                 die("Cannot toggle because there is no commissioned device");
             }
+
+            // A peer must be online before we can interact with it.  Either start the controller ServerNode (its
+            // `online` event starts all peers automatically) or start each peer individually as we do here.
+            await node.start();
+
             const endpoint = node.parts.get(endpointNo);
             if (endpoint === undefined) {
                 die(`Cannot toggle because endpoint ${endpointNo} does not exist`);
@@ -64,8 +69,10 @@ switch (command) {
                 die("Cannot decommission because there is no commissioned device");
             }
 
-            // Decommission
-            await node.delete();
+            // decommission() talks to the device to remove our fabric, so the peer must be online first (same as
+            // toggle).  Use delete() instead if the device is unreachable, but that leaves it factory-reset-pending.
+            await node.start();
+            await node.decommission();
         }
         break;
 
