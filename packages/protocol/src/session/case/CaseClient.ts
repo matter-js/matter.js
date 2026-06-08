@@ -167,11 +167,12 @@ export class CaseClient {
             } = resumptionRecord;
             const { responderSessionId: peerSessionId, resumptionId, resumeMic } = sigma2Resume;
 
-            // We use the Fallbacks for the session parameters overridden by our stored ones from the resumption record
-            const sessionParameters = {
+            // We use the Fallbacks for the session parameters overridden by our stored ones from the resumption record.
+            // Normalize via the factory so validation sees the same decoded/spec-gated parameters the session adopts.
+            const sessionParameters = SessionParameters({
                 ...exchange.session.parameters,
                 ...(resumptionSessionParams ?? {}),
-            };
+            });
 
             validateSessionParameters?.(sessionParameters);
 
@@ -231,11 +232,12 @@ export class CaseClient {
                 exchange.session.timingParameters = responderSessionParams;
             }
 
-            // We use the Fallbacks for the session parameters overridden by what was sent by the device in Sigma2
-            const peerSessionParameters = {
+            // We use the Fallbacks for the session parameters overridden by what was sent by the device in Sigma2.
+            // Normalize via the factory so validation sees the same decoded/spec-gated parameters the session adopts.
+            const peerSessionParameters = SessionParameters({
                 ...exchange.session.parameters,
                 ...(responderSessionParams ?? {}),
-            };
+            });
 
             validateSessionParameters?.(peerSessionParameters);
 

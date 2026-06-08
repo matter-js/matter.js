@@ -255,23 +255,25 @@ describe("ClientNodeTcp", () => {
         });
     });
 
-    describe("spec-version gate", () => {
-        it("honors TCP for a device advertising TCP server and reporting spec version >= 1.5.0", async () => {
+    describe("session-parameter TCP gate", () => {
+        it("honors TCP when the peer's session parameters report TCP server support", async () => {
             await using site = new MockSite();
             const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const peer = protocolPeer(controller);
-            peer.descriptor.sessionParameters = { ...peer.sessionParameters, specificationVersion: 0x01050000 };
-
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).true;
             expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
         });
 
-        it("falls back to UDP for a device advertising TCP server but reporting spec version < 1.5.0", async () => {
+        it("falls back to UDP when the peer's session parameters do not report TCP server support", async () => {
             await using site = new MockSite();
             const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const peer = protocolPeer(controller);
-            peer.descriptor.sessionParameters = { ...peer.sessionParameters, specificationVersion: 0x01040000 };
+            peer.descriptor.sessionParameters = {
+                ...peer.sessionParameters,
+                supportedTransports: { tcpClient: false, tcpServer: false },
+            };
 
             expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
         });
@@ -283,7 +285,6 @@ describe("ClientNodeTcp", () => {
             const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const peer = protocolPeer(controller);
-            peer.descriptor.sessionParameters = { ...peer.sessionParameters, specificationVersion: 0x01050000 };
             expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
 
             peer.markTcpUnsupported();

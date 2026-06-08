@@ -246,15 +246,18 @@ export class Peer {
     get sessionParameters() {
         const bi = this.basicInformation;
         const dd = this.descriptor.discoveryData;
+        const descriptorParams = this.#descriptor.sessionParameters;
 
         return SessionParameters({
             dataModelRevision: bi?.dataModelRevision,
             maxPathsPerInvoke: bi?.maxPathsPerInvoke,
-            specificationVersion: bi?.specificationVersion,
             idleInterval: dd?.SII,
             activeInterval: dd?.SAI,
             activeThreshold: dd?.SAT,
-            ...this.#descriptor.sessionParameters,
+            ...descriptorParams,
+            // BasicInformation and the CASE-negotiated parameters report the same spec version, but one may update
+            // before the other; take the newer so a stale descriptor value cannot mask a fresher BasicInformation read.
+            specificationVersion: Math.max(bi?.specificationVersion ?? 0, descriptorParams?.specificationVersion ?? 0),
         });
     }
 
