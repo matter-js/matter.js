@@ -205,18 +205,28 @@ export class CommissioningClient extends Behavior {
 
         const commissioner = node.env.get(ControllerCommissioner);
 
-        const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
+        // Claim the node ID only once a candidate wins PASE.  Parallel candidates share one supplied node ID, so
+        // reserving before PASE would fail every loser with an identity conflict; only the winner reserves here.
+        const raceGate = options.continueCommissioningAfterPase;
+        let allocatedAddress: PeerAddress | undefined;
+        const claimNodeIdAfterPase = async () => {
+            if (raceGate !== undefined && !raceGate()) {
+                return undefined;
+            }
+            allocatedAddress = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
+            return allocatedAddress.nodeId;
+        };
 
         const commissioningOptions: LocatedNodeCommissioningOptions = {
             addresses: addresses.map(ServerAddress),
             fabric,
-            nodeId: address.nodeId,
+            nodeId: opts.nodeId,
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
             onAttestationFailure: options.onAttestationFailure,
             abort: options.abort,
-            continueCommissioningAfterPase: options.continueCommissioningAfterPase,
+            claimNodeIdAfterPase,
             wifiNetwork: options.wifiNetwork,
             threadNetwork: options.threadNetwork,
             regulatoryLocation: options.regulatoryLocation,
@@ -244,7 +254,7 @@ export class CommissioningClient extends Behavior {
         }
 
         try {
-            const { fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
+            const { address, fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
             this.state.commissionedAt = Time.nowMs;
             this.state.fabricIndexOnPeer = fabricIndexOnPeer;
@@ -252,7 +262,9 @@ export class CommissioningClient extends Behavior {
             // Apply changes from the peer
             await this.#update(this.env.get(PeerSet).for(address));
         } catch (e) {
-            this.env.get(IdentityService).releasePeerAddress(address);
+            if (allocatedAddress !== undefined) {
+                this.env.get(IdentityService).releasePeerAddress(allocatedAddress);
+            }
             throw e;
         }
 

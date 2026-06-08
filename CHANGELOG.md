@@ -21,6 +21,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
     - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored correctly from storage on restart
     - Fix: A TCP-enabled server now reports TCP support in its session parameters (not only in mDNS), so peers learn it during PASE/CASE
+    - Fix: Claim the peer node ID only once a candidate wins PASE, to avoid spurious "peer address already in use" conflicts across parallel commissioning attempts
+    - Fix: Refreshing a discovered node's metadata while it is being commissioned no longer crashes the process with a synchronous transaction conflict
 
 - @matter/protocol
     - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
