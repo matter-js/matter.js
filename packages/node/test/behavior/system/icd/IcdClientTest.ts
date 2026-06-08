@@ -9,11 +9,27 @@ import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerNode } from "#node/index.js";
+import { ImplementationError, Seconds } from "@matter/general";
 import { FabricManager, TestFabric } from "@matter/protocol";
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockSite } from "../../../node/mock-site.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
+
+const LitIcdServer = IcdManagementServer.with(
+    IcdManagement.Feature.CheckInProtocolSupport,
+    IcdManagement.Feature.LongIdleTimeSupport,
+);
+const RootWithLitIcd = ServerNode.RootEndpoint.with(LitIcdServer);
+
+const LIT_CONFIG = {
+    operatingMode: IcdManagement.OperatingMode.Sit,
+    activeModeThreshold: 5000,
+    idleModeDuration: 3600,
+    activeModeDuration: 1000,
+    maximumCheckInBackoff: 3600,
+};
 
 /** Force one device idle→active wake and let the Check-In send pass run to completion. */
 async function wakeDevice(device: ServerNode) {
@@ -142,6 +158,25 @@ describe("IcdClient", () => {
             expect(peer1.stateOf(IcdClient).registered).true;
             expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
         });
+
+        it("throws when already registered", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            let caught: unknown;
+            try {
+                await peer1.act(agent => agent.get(IcdClient).register());
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught).instanceof(ImplementationError);
+            expect(peer1.stateOf(IcdClient).registered).true;
+        });
     });
 
     describe("check-in receipt", () => {
@@ -227,6 +262,144 @@ describe("IcdClient", () => {
             // A Check-In validating against the NEW key lands past the reset baseline.
             expect(again.counter).greaterThan(peer1.stateOf(IcdClient).counterStart!);
             expect(peer1.stateOf(IcdClient).lastOffset).greaterThan(0);
+        });
+    });
+
+    describe("unregister", () => {
+        it("removes the peer registration, clears state, drops the fabric feed, and emits unregistered", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register());
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            expect(fabric.icd.hasPeers).true;
+
+            const unregistered = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).unregistered.once(() => resolve()),
+            );
+
+            await peer1.act(agent => agent.get(IcdClient).unregister());
+            await MockTime.resolve(unregistered, { macrotasks: true });
+
+            const state = peer1.stateOf(IcdClient);
+            expect(state.registered).false;
+            expect(state.key).undefined;
+            expect(state.counterStart).undefined;
+            expect(state.lastOffset).undefined;
+
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+            expect(fabric.icd.hasPeers).false;
+        });
+
+        it("is a no-op when not registered", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).unregister());
+            expect(peer1.stateOf(IcdClient).registered).false;
+        });
+    });
+
+    describe("stayActive", () => {
+        it("requests a stay-active window and returns the promised duration", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const promised = await peer1.act(agent => agent.get(IcdClient).stayActive(Seconds(60)));
+
+            expect(promised).greaterThan(0);
+        });
+    });
+
+    describe("feature getters", () => {
+        it("reports peerSupportsLit false for a CIP-only peer", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1.stateOf(IcdClient)).not.undefined;
+            const supportsLit = await peer1.act(agent => agent.get(IcdClient).peerSupportsLit);
+            const requiresCheckIn = await peer1.act(agent => agent.get(IcdClient).peerRequiresCheckIn);
+            expect(supportsLit).false;
+            expect(requiresCheckIn).false;
+        });
+
+        it("reports peerSupportsLit true for a LIT peer", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithLitIcd, icdManagement: LIT_CONFIG },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const supportsLit = await peer1.act(agent => agent.get(IcdClient).peerSupportsLit);
+            const requiresCheckIn = await peer1.act(agent => agent.get(IcdClient).peerRequiresCheckIn);
+            expect(supportsLit).true;
+            expect(requiresCheckIn).true;
+        });
+    });
+
+    describe("init restore", () => {
+        it("re-arms the Check-In receive path after a controller restart", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            const controllerId = controller.id;
+            await site.close();
+
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+            expect(peer1b).not.undefined;
+            expect(peer1b.stateOf(IcdClient).registered).true;
+
+            const fabricIndex = peer1b.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controllerB.env.get(FabricManager).for(fabricIndex);
+            // initialize() re-fed the restored peer so a Check-In arriving after restart still validates.
+            expect(fabric.icd.hasPeers).true;
+        });
+    });
+
+    describe("decommission cleanup", () => {
+        it("unregisters locally when the node is decommissioned", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            expect(fabric.icd.hasPeers).true;
+
+            const unregistered = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).unregistered.once(() => resolve()),
+            );
+
+            await peer1.act(agent => agent.get(CommissioningClient).decommission());
+            await MockTime.resolve(unregistered, { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(fabric.icd.hasPeers).false;
         });
     });
 });

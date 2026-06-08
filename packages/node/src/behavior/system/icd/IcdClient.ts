@@ -10,9 +10,19 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Node } from "#node/Node.js";
-import { Bytes, Crypto, ImplementationError, Logger, Observable, Time, Timestamp } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    Duration,
+    ImplementationError,
+    Logger,
+    Millis,
+    Observable,
+    Time,
+    Timestamp,
+} from "@matter/general";
 import { bool, field, nonvolatile, octstr, subjectId, systimeMs, uint32, uint8 } from "@matter/model";
-import { FabricManager, type FabricIcd } from "@matter/protocol";
+import { FabricManager, PeerAddress, type FabricIcd } from "@matter/protocol";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdMultiAdminError } from "./IcdMultiAdminError.js";
@@ -40,6 +50,78 @@ export class IcdClient extends Behavior {
         return this.state.registered;
     }
 
+    /** Whether the peer supports the Long Idle Time feature; undefined feature map (unknown) reads as false. */
+    get peerSupportsLit() {
+        return this.endpoint.maybeFeaturesOf(IcdManagementClient)?.longIdleTimeSupport === true;
+    }
+
+    /** A LIT peer publishes Check-Ins rather than staying subscribable, so callers must await one before contacting it. */
+    get peerRequiresCheckIn() {
+        return this.peerSupportsLit;
+    }
+
+    /**
+     * Wire lifecycle reactors. Runs `early` so they are registered before the owner first comes online.
+     */
+    override initialize() {
+        if (this.endpoint instanceof Node) {
+            this.reactTo(this.endpoint.lifecycle.decommissioned, this.#onDecommissioned);
+        }
+
+        // Restore keys off the OWNER (controller) being online, not the peer: only then is the controller fabric
+        // loaded. The peer's own online state is irrelevant — an ICD peer is offline precisely when it sends Check-Ins.
+        const owner = this.endpoint.owner;
+        if (owner instanceof Node) {
+            this.reactTo(owner.lifecycle.online, this.#restoreReceivePath);
+            if (owner.lifecycle.isOnline) {
+                this.#restoreReceivePath();
+            }
+        }
+    }
+
+    /**
+     * Re-arm the Check-In receive path from persisted registration state. The {@link FabricIcd} peer entry is
+     * runtime-only, so it is rebuilt on every controller online (restart or reconnect).
+     */
+    #restoreReceivePath() {
+        if (!this.state.registered || this.state.key === undefined) {
+            return;
+        }
+        const { fabric, peerNodeId } = this.#fabricContext();
+        this.#feedFabricIcd(fabric, peerNodeId);
+    }
+
+    /**
+     * Decommission already removed our fabric from the peer (peerAddress is cleared), so no peer
+     * {@link IcdManagement.unregisterClient} is possible or needed — only local cleanup.
+     */
+    #onDecommissioned() {
+        if (this.state.registered) {
+            this.#clearRegistration();
+        }
+    }
+
+    /** Drop the FabricIcd peer entry, clear all registration state, and emit `unregistered`. */
+    #clearRegistration() {
+        this.#dropFedPeer();
+        this.state.registered = false;
+        this.state.key = undefined;
+        this.state.counterStart = undefined;
+        this.state.lastOffset = undefined;
+        this.state.monitoredSubject = undefined;
+        this.state.clientType = undefined;
+        this.events.unregistered.emit();
+    }
+
+    #dropFedPeer() {
+        const fedPeer = this.internal.fedPeer;
+        if (fedPeer === undefined) {
+            return;
+        }
+        this.env.get(FabricManager).maybeFor(fedPeer.fabricIndex)?.icd.deletePeer(fedPeer.nodeId);
+        this.internal.fedPeer = undefined;
+    }
+
     /**
      * Register this controller as a Check-In client on the peer.
      *
@@ -58,6 +140,12 @@ export class IcdClient extends Behavior {
         allowMultiAdmin?: boolean;
         ignoredVendors?: VendorId[];
     }) {
+        if (this.state.registered) {
+            throw new ImplementationError(
+                "ICD client is already registered; unregister first or let key refresh re-key in place.",
+            );
+        }
+
         if (!(this.endpoint instanceof Node) || !this.endpoint.lifecycle.isOnline) {
             throw new ImplementationError("ICD registration requires the peer node to be online.");
         }
@@ -104,6 +192,43 @@ export class IcdClient extends Behavior {
         this.events.registered.emit();
     }
 
+    /**
+     * Remove this controller's Check-In registration from the peer and tear down the local receive path.
+     *
+     * Best-effort on the peer: local state is cleared even if the peer {@link IcdManagement.unregisterClient} fails (it
+     * may be unreachable). A no-op when not registered.
+     */
+    async unregister(): Promise<void> {
+        if (!this.state.registered) {
+            return;
+        }
+
+        // Clear registered up front so a late refreshNeeded Check-In cannot start a new re-key that races this
+        // teardown; then settle any already in-flight re-key before we tear down the peer entry.
+        this.state.registered = false;
+        await this.internal.keyRefresh;
+
+        const { ownNodeId } = this.#fabricContext();
+
+        try {
+            await this.#peerIcd().unregisterClient({ checkInNodeId: ownNodeId, verificationKey: this.state.key });
+        } finally {
+            this.#clearRegistration();
+        }
+    }
+
+    /**
+     * Ask the peer to remain in Active mode for at least `duration` and return the duration it actually promised.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
+     */
+    async stayActive(duration: Duration): Promise<Duration> {
+        const { promisedActiveDuration } = await this.#peerIcd().stayActiveRequest({
+            stayActiveDuration: Millis.of(duration),
+        });
+        return Millis(promisedActiveDuration);
+    }
+
     #fabricContext() {
         const peerAddress = this.endpoint.stateOf(CommissioningClient).peerAddress;
         if (peerAddress === undefined) {
@@ -135,6 +260,7 @@ export class IcdClient extends Behavior {
             this.internal.checkInHandler = this.callback(this.#onCheckIn, { offline: true, lock: true });
         }
         fabric.icd.addPeer({ peerNodeId, key, counterStart, lastOffset }, this.internal.checkInHandler);
+        this.internal.fedPeer = PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId });
     }
 
     #onCheckIn(checkIn: FabricIcd.ReceivedCheckIn) {
@@ -148,7 +274,7 @@ export class IcdClient extends Behavior {
 
         // A tracked in-flight refresh (presence also guards against a second overlapping re-key) keeps the promise
         // awaitable at teardown instead of orphaned.
-        if (refreshNeeded && this.internal.keyRefresh === undefined) {
+        if (refreshNeeded && this.state.registered && this.internal.keyRefresh === undefined) {
             this.internal.keyRefresh = this.#startKeyRefresh();
         }
     }
@@ -214,6 +340,9 @@ export namespace IcdClient {
 
         /** In-flight key refresh; tracked so a second refreshNeeded Check-In can't overlap it and teardown can await it. */
         keyRefresh?: Promise<void>;
+
+        /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */
+        fedPeer?: PeerAddress;
     }
 
     export class State {
