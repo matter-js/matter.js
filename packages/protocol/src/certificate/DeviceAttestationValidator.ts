@@ -32,6 +32,9 @@ export enum DeviceAttestationCheck {
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
     TrustedAsTestCertificate = "TrustedAsTestCertificate",
+
+    /** An unexpected error during validation (e.g. an unrecoverably corrupt trust-store certificate). */
+    ValidationError = "ValidationError",
 }
 
 /** A single finding from the attestation validation process. */

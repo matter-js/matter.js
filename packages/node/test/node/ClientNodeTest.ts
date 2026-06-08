@@ -375,6 +375,82 @@ describe("ClientNode", () => {
         expect(controller.peers.size).at.least(1);
     });
 
+    it("commissions same-discriminator devices with an explicit node ID without a peer-address conflict", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const wrongPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 20202021,
+            },
+        });
+        const matchingPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 22223333,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const wrongDeviceCrypto = wrongPasscodeDevice.env.get(Crypto) as MockCrypto;
+        const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
+
+        await controller.start();
+
+        // A caller-supplied node ID is shared by every parallel candidate.  Allocation must happen only after a
+        // candidate wins PASE, otherwise the losing candidate reserves the ID first and the winner fails with an
+        // identity conflict before it can commission.
+        const explicitNodeId = NodeId(88n);
+        const commissioned = await MockTime.resolve(
+            controller.peers.commission({
+                passcode: 22223333,
+                discriminator: 1234,
+                nodeId: explicitNodeId,
+                timeout: Seconds(90),
+            }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
+
+        expect(commissioned).not.undefined;
+        expect(wrongPasscodeDevice.state.commissioning.commissioned).equals(false);
+        expect(matchingPasscodeDevice.state.commissioning.commissioned).equals(true);
+        expect(commissioned.state.commissioning.peerAddress?.nodeId).equals(explicitNodeId);
+    });
+
+    it("rejects commissioning with an explicit node ID that is already in use before establishing PASE", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const device = await site.addDevice({
+            commissioning: {
+                discriminator: 999,
+                passcode: 22223333,
+            },
+        });
+
+        // The node ID already assigned to the commissioned peer is reserved and must be refused.
+        const usedNodeId = controller.peers.get("peer1")!.peerAddress!.nodeId;
+
+        const discovered = await MockTime.resolve(
+            controller.peers.discover({ longDiscriminator: 999, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        // Use a wrong passcode: the conflict must be reported before PASE, so we expect "already in use"
+        // rather than a PASE failure that would result if the check ran only at post-PASE allocation.
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode: 11112222, discriminator: 999, nodeId: usedNodeId })).rejectedWith(
+                /already in use/i,
+            ),
+        );
+
+        expect(device.state.commissioning.commissioned).equals(false);
+    });
+
     it("commissions via known-address flow even when first address has invalid credentials", async () => {
         await using site = new MockSite();
         const controller = await site.addController();

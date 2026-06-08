@@ -10,7 +10,7 @@ import { SoftwareUpdateManager } from "#behavior/system/software-update/Software
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import type { ClientNode } from "#node/ClientNode.js";
-import { IdentityService } from "#node/server/IdentityService.js";
+import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     ClassExtends,
@@ -203,20 +203,43 @@ export class CommissioningClient extends Behavior {
             throw new ImplementationError(`Cannot commission ${node} because the node has not been located`);
         }
 
+        const identity = this.env.get(IdentityService);
+
+        // Reservation is deferred to the post-PASE gate below, so fast-fail an explicit node ID that is already
+        // taken (a commissioned peer or the controller's own identity) here instead of only after discovery+PASE.
+        if (
+            opts.nodeId !== undefined &&
+            identity.peerAddressInUse({ fabricIndex: fabric.fabricIndex, nodeId: opts.nodeId })
+        ) {
+            throw new IdentityConflictError(
+                `Cannot assign NodeId ${opts.nodeId} on fabric ${fabric.fabricIndex}: the peer address is already in use`,
+            );
+        }
+
         const commissioner = node.env.get(ControllerCommissioner);
 
-        const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
+        // Claim the node ID only once a candidate wins PASE.  Parallel candidates share one supplied node ID, so
+        // reserving before PASE would fail every loser with an identity conflict; only the winner reserves here.
+        const raceGate = options.continueCommissioningAfterPase;
+        let allocatedAddress: PeerAddress | undefined;
+        const claimNodeIdAfterPase = async () => {
+            if (raceGate !== undefined && !raceGate()) {
+                return undefined;
+            }
+            allocatedAddress = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
+            return allocatedAddress.nodeId;
+        };
 
         const commissioningOptions: LocatedNodeCommissioningOptions = {
             addresses: addresses.map(ServerAddress),
             fabric,
-            nodeId: address.nodeId,
+            nodeId: opts.nodeId,
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
             onAttestationFailure: options.onAttestationFailure,
             abort: options.abort,
-            continueCommissioningAfterPase: options.continueCommissioningAfterPase,
+            claimNodeIdAfterPase,
             wifiNetwork: options.wifiNetwork,
             threadNetwork: options.threadNetwork,
             regulatoryLocation: options.regulatoryLocation,
@@ -244,7 +267,7 @@ export class CommissioningClient extends Behavior {
         }
 
         try {
-            const { fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
+            const { address, fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
             this.state.commissionedAt = Time.nowMs;
             this.state.fabricIndexOnPeer = fabricIndexOnPeer;
@@ -252,7 +275,9 @@ export class CommissioningClient extends Behavior {
             // Apply changes from the peer
             await this.#update(this.env.get(PeerSet).for(address));
         } catch (e) {
-            this.env.get(IdentityService).releasePeerAddress(address);
+            if (allocatedAddress !== undefined) {
+                identity.releasePeerAddress(allocatedAddress);
+            }
             throw e;
         }
 

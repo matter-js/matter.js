@@ -8,6 +8,13 @@ import { SupportedTransportsBitmap, SupportedTransportsSchema } from "#common/Su
 import { Specification } from "@matter/model";
 import { SessionIntervals } from "./SessionIntervals.js";
 
+/**
+ * Minimum peer specification version for which TCP transport is honored. Some Matter 1.4 devices advertise TCP
+ * support but do not implement it reliably, so {@link SessionParameters} clears TCP from the supported transports of
+ * any peer reporting an older (or unknown) spec version.
+ */
+export const MIN_TCP_SPEC_VERSION = 0x01050000;
+
 export interface SessionParameters extends SessionIntervals {
     /** Version of Data Model for the Session parameters side where it appears. */
     dataModelRevision: number;
@@ -38,6 +45,13 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
         supportedTransports = SupportedTransportsSchema.decode(supportedTransports);
     }
     supportedTransports ??= SessionParameters.fallbacks.supportedTransports;
+
+    // TCP is only honored for Matter 1.5.0+ peers; clear it for older or unknown spec versions so supportedTransports
+    // is the single source of truth for transport selection.
+    const specificationVersion = config?.specificationVersion ?? SessionParameters.fallbacks.specificationVersion;
+    if (specificationVersion < MIN_TCP_SPEC_VERSION) {
+        supportedTransports = { tcpClient: false, tcpServer: false };
+    }
 
     // The MAX_TCP_MESSAGE_SIZE field SHALL only be present if the SUPPORTED_TRANSPORTS field indicates that TCP is
     // supported

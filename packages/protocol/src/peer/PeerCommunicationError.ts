@@ -19,6 +19,13 @@ export class PeerCommunicationError extends MatterError {}
 export class TransientPeerCommunicationError extends PeerCommunicationError {}
 
 /**
+ * Thrown when a session is established over TCP but the peer's negotiated session parameters report no TCP server
+ * support. Not transient so {@link CaseClient.pair} reports it to the peer as InvalidParam; the connect path then
+ * falls back to UDP.
+ */
+export class TcpUnsupportedError extends PeerCommunicationError {}
+
+/**
  * Thrown when an operation aborts because session establishment times out.
  */
 export class PeerUnreachableError extends TransientPeerCommunicationError {

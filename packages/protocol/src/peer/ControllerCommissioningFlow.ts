@@ -16,6 +16,7 @@ import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import {
     asError,
     Bytes,
+    CanceledError,
     causedBy,
     ChannelType,
     Diagnostic,
@@ -57,6 +58,7 @@ import { TimeSynchronization } from "@matter/types/clusters/time-synchronization
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import {
     AttestationFinding,
+    DeviceAttestationCheck,
     DeviceAttestationError,
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
@@ -1199,9 +1201,22 @@ export class ControllerCommissioningFlow {
             );
             findings = result.findings;
         } catch (error) {
-            DeviceAttestationError.accept(error);
-            findings = [{ level: "error", type: error.failure, message: error.message }];
-            baseError = error;
+            // A cancellation (e.g. shutdown/close while the DCL service is consulted) must propagate
+            // cleanly rather than be downgraded to an attestation finding.
+            if (causedBy(error, CanceledError)) {
+                throw error;
+            }
+            baseError = asError(error);
+            if (error instanceof DeviceAttestationError) {
+                findings = [{ level: "error", type: error.failure, message: error.message }];
+            } else {
+                // Unexpected validation error (e.g. an unrecoverably corrupt trust-store certificate).
+                // Surface it as an error finding so the onFailure policy can still judge it, instead of
+                // hard-aborting commissioning outside the findings mechanism.
+                findings = [
+                    { level: "error", type: DeviceAttestationCheck.ValidationError, message: baseError.message },
+                ];
+            }
         }
 
         if (findings.length > 0) {
