@@ -5,6 +5,7 @@
  */
 
 import type { Message } from "#codec/MessageCodec.js";
+import { DiscoveryData } from "#common/Scanner.js";
 import type { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
@@ -519,12 +520,22 @@ export async function PeerConnection(
                     initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
                     validateSessionParameters: isTcp
                         ? params => {
-                              if (!params.supportedTransports?.tcpServer) {
-                                  peer.markTcpUnsupported();
-                                  throw new TcpUnsupportedError(
-                                      `Peer negotiated a TCP session but reports no TCP server support`,
-                                  );
+                              // Mirror resolveTransports so connect and validation agree: absent tag 8 never denies, and
+                              // a `false` (which on resume can be a stale resumption-record value, not the device's
+                              // current advertisement) is overridden while mDNS still advertises a TCP server.
+                              if (params.supportedTransports.tcpServer !== false) {
+                                  return;
                               }
+                              const advertisedByMdns =
+                                  (DiscoveryData(peer.service.parameters).T ?? peer.descriptor.discoveryData?.T)
+                                      ?.tcpServer === true;
+                              if (advertisedByMdns) {
+                                  return;
+                              }
+                              peer.markTcpUnsupported();
+                              throw new TcpUnsupportedError(
+                                  `Peer negotiated a TCP session but reports no TCP server support`,
+                              );
                           }
                         : undefined,
                 });

@@ -165,13 +165,15 @@ export class CaseClient {
                 sessionParameters: resumptionSessionParams,
                 caseAuthenticatedTags,
             } = resumptionRecord;
-            const { responderSessionId: peerSessionId, resumptionId, resumeMic } = sigma2Resume;
+            const { responderSessionId: peerSessionId, resumptionId, resumeMic, responderSessionParams } = sigma2Resume;
 
-            // We use the Fallbacks for the session parameters overridden by our stored ones from the resumption record.
-            // Normalize via the factory so validation sees the same decoded/spec-gated parameters the session adopts.
+            // Sigma2Resume's freshly-sent parameters are more current than the resumption record, so they take
+            // precedence.  Normalize via the factory so validation sees the same decoded/spec-gated parameters the
+            // session adopts.
             const sessionParameters = SessionParameters({
                 ...exchange.session.parameters,
                 ...(resumptionSessionParams ?? {}),
+                ...(responderSessionParams ?? {}),
             });
 
             validateSessionParameters?.(sessionParameters);
