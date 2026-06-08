@@ -8,7 +8,7 @@ import { camelize, InternalError, Logger } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
 import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
-import { FabricIndex, Status } from "@matter/types";
+import { BitmapEncodedValue, FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
@@ -153,16 +153,40 @@ function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): Va
     };
 }
 
+/**
+ * OR the bits [start, start+length) into a 32-bit mask.  Returns undefined (disabling reserved-bit enforcement) if the
+ * range cannot be represented in a 32-bit mask, since JS bitwise operators are 32-bit.
+ */
+function addBitsToMask(mask: number | undefined, start: number, length: number): number | undefined {
+    if (mask === undefined || start < 0 || length <= 0 || start + length > 32) {
+        return undefined;
+    }
+    const lowMask = length >= 32 ? 0xffffffff : 2 ** length - 1;
+    return (mask | ((lowMask << start) >>> 0)) >>> 0;
+}
+
 function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     const fields = {} as Record<string, { schema: ValueModel; max: number }>;
+
+    // Union of every bit position covered by a defined field.  Any bit set outside this mask in the encoded value is
+    // reserved and may not be written (Matter spec: reserved bitmap bits SHALL be 0).  Decode discards reserved bits,
+    // so we recover them from BitmapEncodedValue.  Left undefined if any field's bit range cannot be determined, in
+    // which case we skip reserved-bit enforcement rather than risk false rejections.
+    let definedMask: number | undefined = 0;
 
     for (const field of supervisor.membersOf(schema)) {
         const constraint = field.effectiveConstraint;
         let max;
         if (typeof constraint.min === "number" && typeof constraint.max === "number") {
             max = Math.pow(2, constraint.max - constraint.min + 1) - 1; // e.g bits 0..2 -> 2^3 - 1 = 7 aka 111b
+            definedMask = addBitsToMask(definedMask, constraint.min, constraint.max - constraint.min + 1);
         } else {
             max = 1;
+            if (typeof constraint.value === "number") {
+                definedMask = addBitsToMask(definedMask, constraint.value, 1);
+            } else {
+                definedMask = undefined;
+            }
         }
         let name;
         if (field?.parent?.id === FeatureMap.id) {
@@ -178,6 +202,13 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
 
     return (value, _session, location) => {
         assertObject(value, location);
+
+        if (definedMask !== undefined) {
+            const encoded = (value as Record<symbol, unknown>)[BitmapEncodedValue];
+            if (typeof encoded === "number" && (encoded & ~definedMask) >>> 0 !== 0) {
+                throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
+            }
+        }
 
         for (const key in value) {
             const field = fields[key];
