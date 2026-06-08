@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
     - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored correctly from storage on restart
+    - Fix: Writing a bitmap attribute with reserved (undefined) bits set now returns ConstraintError instead of being silently accepted
     - Fix: A TCP-enabled server now reports TCP support in its session parameters (not only in mDNS), so peers learn it during PASE/CASE
     - Fix: Claim the peer node ID only once a candidate wins PASE, to avoid spurious "peer address already in use" conflicts across parallel commissioning attempts
     - Fix: Refreshing a discovered node's metadata while it is being commissioned no longer crashes the process with a synchronous transaction conflict
