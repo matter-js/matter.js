@@ -110,6 +110,7 @@ export class IcdClient extends Behavior {
         this.state.lastOffset = undefined;
         this.state.monitoredSubject = undefined;
         this.state.clientType = undefined;
+        this.state.lastCheckInReceivedAt = undefined;
         this.events.unregistered.emit();
     }
 
@@ -330,6 +331,7 @@ export class IcdClient extends Behavior {
      */
     override async [Symbol.asyncDispose]() {
         await this.internal.keyRefresh;
+        await super[Symbol.asyncDispose]?.();
     }
 }
 
