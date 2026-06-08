@@ -343,9 +343,13 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         await owner.act("start-network", agent => agent.load(ProductDescriptionServer));
 
-        // Apply settings to environmental components
+        // Apply settings to environmental components. TCP support is reported in our session parameters (not only
+        // mDNS) so peers learn it during PASE/CASE and can select TCP for sessions they initiate to us.
         env.get(SessionManager).sessionParameters = {
             maxPathsPerInvoke: this.owner.state.basicInformation.maxPathsPerInvoke,
+            ...(tcpConfig.incoming || tcpConfig.outgoing
+                ? { supportedTransports: { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming } }
+                : {}),
         };
 
         await this.#initializeGroupNetworking();

@@ -21,12 +21,17 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
     - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored correctly from storage on restart
     - Fix: Writing a bitmap attribute with reserved (undefined) bits set now returns ConstraintError instead of being silently accepted
+    - Fix: A TCP-enabled server now reports TCP support in its session parameters (not only in mDNS), so peers learn it during PASE/CASE
+    - Fix: Claim the peer node ID only once a candidate wins PASE, to avoid spurious "peer address already in use" conflicts across parallel commissioning attempts
+    - Fix: Refreshing a discovered node's metadata while it is being commissioned no longer crashes the process with a synchronous transaction conflict
 
 - @matter/protocol
     - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
     - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
+    - Enhancement: Validate the CASE session parameters when establishing a TCP connection and fail the session if they do not match the expectations
+    - Fix: Ignore announced TCP support for peers reporting Matter spec version < 1.5.0
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
     - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
