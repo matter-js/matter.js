@@ -54,6 +54,7 @@ jobs:
     outputs:
       build-needed: ${{ steps.check-rebuild.outputs.build-needed }}
       controllers: ${{ steps.controllers.outputs.controllers }}
+      rebuild-marker: ${{ steps.marker.outputs.present }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v6
@@ -123,16 +124,25 @@ jobs:
         if: needs.workflow-conditions.outputs.build-needed == 'true'
         uses: actions/checkout@v6
 
+      # A [rebuild-chip] rebuild exists to test against the current CHIP master, so refresh the SHA before building.
+      # The resulting sha.txt is used only for this run's build; it is never committed on push/pull_request (see
+      # publish-image), so no SHA bump leaks into the PR.
       - name: Increment CHIP SHA
         id: increment-sha
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.updateChipSha)
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && inputs.updateChipSha) ||
+          needs.workflow-conditions.outputs.rebuild-marker == 'true'
         run: |
           cd support/chip
           ./bin/update-version
 
       - name: Get CHIP SHA
         id: get-sha
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: >-
+          github.event_name == 'schedule' ||
+          github.event_name == 'workflow_dispatch' ||
+          needs.workflow-conditions.outputs.rebuild-marker == 'true'
         run: |
           cd support/chip
           echo chip-sha=$(cat sha.txt) >> $GITHUB_OUTPUT
