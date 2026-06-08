@@ -30,7 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
     - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
-    - Enhancement: Validate the CASE session parameters when establishing a TCP connection and fail the session if they do not match the expectations
+    - Enhancement: Prefer TCP for operational connections when the peer advertises TCP-server support via its session parameters or mDNS; a negotiated TCP session is declined only on an explicit no-TCP report
     - Enhancement: Lengthened the BTP handshake-response timeout (5s → 15s) and central idle timeout (30s → 60s) to match CHIP
     - Fix: Ignore announced TCP support for peers reporting Matter spec version < 1.5.0
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
