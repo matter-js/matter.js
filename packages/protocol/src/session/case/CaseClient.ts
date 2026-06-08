@@ -12,6 +12,7 @@ import { ExchangeSendOptions, MessageExchange } from "#protocol/MessageExchange.
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Abort,
     Bytes,
@@ -50,17 +51,34 @@ export class CaseClient {
     }
 
     async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClient.PairOptions) {
-        const { expectedProcessingTime, caseAuthenticatedTags, abort } = options ?? {};
+        const {
+            expectedProcessingTime,
+            caseAuthenticatedTags,
+            abort,
+            validateSessionParameters,
+            maxInitialRetransmissions: maxRetransmissions,
+            maxInitialRetransmissionTime: maxRetransmissionTime,
+            initialRetransmissionTime,
+        } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
         using localAbort = new Abort({ abort });
 
         try {
-            return await this.#doPair(messenger, exchange, fabric, peerNodeId, localAbort, caseAuthenticatedTags, {
-                maxRetransmissions: options?.maxInitialRetransmissions,
-                maxRetransmissionTime: options?.maxInitialRetransmissionTime,
-                initialRetransmissionTime: options?.initialRetransmissionTime,
-            });
+            return await this.#doPair(
+                messenger,
+                exchange,
+                fabric,
+                peerNodeId,
+                localAbort,
+                caseAuthenticatedTags,
+                {
+                    maxRetransmissions,
+                    maxRetransmissionTime,
+                    initialRetransmissionTime,
+                },
+                validateSessionParameters,
+            );
         } catch (error) {
             if (
                 !localAbort.aborted &&
@@ -82,6 +100,7 @@ export class CaseClient {
         abort: Abort,
         caseAuthenticatedTags?: readonly CaseAuthenticatedTag[],
         initialSendOptions?: ExchangeSendOptions,
+        validateSessionParameters?: CaseClient.ValidateSessionParameters,
     ) {
         const { crypto } = fabric;
 
@@ -148,11 +167,14 @@ export class CaseClient {
             } = resumptionRecord;
             const { responderSessionId: peerSessionId, resumptionId, resumeMic } = sigma2Resume;
 
-            // We use the Fallbacks for the session parameters overridden by our stored ones from the resumption record
-            const sessionParameters = {
+            // We use the Fallbacks for the session parameters overridden by our stored ones from the resumption record.
+            // Normalize via the factory so validation sees the same decoded/spec-gated parameters the session adopts.
+            const sessionParameters = SessionParameters({
                 ...exchange.session.parameters,
                 ...(resumptionSessionParams ?? {}),
-            };
+            });
+
+            validateSessionParameters?.(sessionParameters);
 
             const resumeSalt = Bytes.concat(initiatorRandom, resumptionId);
             const resumeKey = await abort.attempt(crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO));
@@ -210,11 +232,14 @@ export class CaseClient {
                 exchange.session.timingParameters = responderSessionParams;
             }
 
-            // We use the Fallbacks for the session parameters overridden by what was sent by the device in Sigma2
-            const peerSessionParameters = {
+            // We use the Fallbacks for the session parameters overridden by what was sent by the device in Sigma2.
+            // Normalize via the factory so validation sees the same decoded/spec-gated parameters the session adopts.
+            const peerSessionParameters = SessionParameters({
                 ...exchange.session.parameters,
                 ...(responderSessionParams ?? {}),
-            };
+            });
+
+            validateSessionParameters?.(peerSessionParameters);
 
             const sharedSecret = await abort.attempt(crypto.generateDhSecret(localKey, PublicKey(peerKey)));
             const sigma2Salt = Bytes.concat(
@@ -343,6 +368,13 @@ export class CaseClient {
 }
 
 export namespace CaseClient {
+    /**
+     * Validates the peer's negotiated session parameters before the session is adopted. Invoked for both fresh and
+     * resumed handshakes. Throwing aborts establishment; {@link CaseClient.pair} reports the failure to the peer as
+     * InvalidParam.
+     */
+    export type ValidateSessionParameters = (peerSessionParameters: SessionParameters) => void;
+
     export interface PairOptions {
         expectedProcessingTime?: Duration;
         caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
@@ -350,5 +382,6 @@ export namespace CaseClient {
         maxInitialRetransmissions?: number;
         maxInitialRetransmissionTime?: Duration;
         initialRetransmissionTime?: Duration;
+        validateSessionParameters?: ValidateSessionParameters;
     }
 }

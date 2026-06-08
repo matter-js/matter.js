@@ -581,6 +581,9 @@ export class ControllerCommissioner {
 
                 const peer = this.#context.peers.for(address);
                 peer.descriptor.discoveryData = discoveryData;
+                // PASE already negotiated the device's session parameters; seed them so the initial operational CASE
+                // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
+                peer.descriptor.sessionParameters = ephemeralSession.parameters;
                 await peer.connect({
                     // 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
                     connectionTimeout: Seconds(255),

@@ -40,7 +40,7 @@ import {
 import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
-import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
+import { TcpUnsupportedError, TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 const logger = Logger.get("PeerConnection");
@@ -377,6 +377,10 @@ export async function PeerConnection(
         logger.warn(logHeaderFor(address), ...message);
     }
 
+    function notice(address: ServerAddressIp, ...message: unknown[]) {
+        logger.notice(logHeaderFor(address), ...message);
+    }
+
     function info(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.info(logHeaderFor(address, via), ...message);
     }
@@ -505,6 +509,7 @@ export async function PeerConnection(
                     }
                 });
 
+                const isTcp = "type" in address && address.type === "tcp";
                 const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
                     ...options,
                     abort: localAbort,
@@ -512,6 +517,16 @@ export async function PeerConnection(
                     maxInitialRetransmissions: Infinity,
                     maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
                     initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
+                    validateSessionParameters: isTcp
+                        ? params => {
+                              if (!params.supportedTransports?.tcpServer) {
+                                  peer.markTcpUnsupported();
+                                  throw new TcpUnsupportedError(
+                                      `Peer negotiated a TCP session but reports no TCP server support`,
+                                  );
+                              }
+                          }
+                        : undefined,
                 });
 
                 outputSession = session;
@@ -542,6 +557,21 @@ export async function PeerConnection(
      */
     async function handleConnectionError(e: Error, address: ServerAddressIp, addressAbort: Abort, lifetime: Lifetime) {
         using _handling = lifetime.join("handling error");
+
+        // The peer accepted a TCP session but denies TCP support. With a hard TCP requirement we cannot fall back, and
+        // re-resolution would re-attempt TCP and spin, so fail fatally for the caller. Otherwise the peer is now
+        // flagged (markTcpUnsupported) so re-resolution prefers UDP; end this connection so Peer.connect reconnects
+        // over UDP.
+        if (causedBy(e, TcpUnsupportedError)) {
+            if (requiredTransport === ChannelType.TCP) {
+                error(address, "Peer reports no TCP support but TCP was required; aborting connection");
+                fatalError = asError(e);
+            } else {
+                notice(address, "Peer negotiated a TCP session but reports no TCP support; falling back to UDP");
+            }
+            overallAbort();
+            return;
+        }
 
         let delay: undefined | Duration;
         let category: "busy" | "resumption" | "peer" | "network" | "general" | undefined;
