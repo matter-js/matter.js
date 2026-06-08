@@ -377,6 +377,10 @@ export async function PeerConnection(
         logger.warn(logHeaderFor(address), ...message);
     }
 
+    function notice(address: ServerAddressIp, ...message: unknown[]) {
+        logger.notice(logHeaderFor(address), ...message);
+    }
+
     function info(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.info(logHeaderFor(address, via), ...message);
     }
@@ -554,10 +558,17 @@ export async function PeerConnection(
     async function handleConnectionError(e: Error, address: ServerAddressIp, addressAbort: Abort, lifetime: Lifetime) {
         using _handling = lifetime.join("handling error");
 
-        // The peer accepted a TCP session but denies TCP support; the peer is now flagged so re-resolution prefers
-        // UDP. End this connection so Peer.connect re-resolves and reconnects over UDP.
+        // The peer accepted a TCP session but denies TCP support. With a hard TCP requirement we cannot fall back, and
+        // re-resolution would re-attempt TCP and spin, so fail fatally for the caller. Otherwise the peer is now
+        // flagged (markTcpUnsupported) so re-resolution prefers UDP; end this connection so Peer.connect reconnects
+        // over UDP.
         if (causedBy(e, TcpUnsupportedError)) {
-            warn(address, "Peer negotiated a TCP session but reports no TCP support; falling back to UDP");
+            if (requiredTransport === ChannelType.TCP) {
+                error(address, "Peer reports no TCP support but TCP was required; aborting connection");
+                fatalError = asError(e);
+            } else {
+                notice(address, "Peer negotiated a TCP session but reports no TCP support; falling back to UDP");
+            }
             overallAbort();
             return;
         }
