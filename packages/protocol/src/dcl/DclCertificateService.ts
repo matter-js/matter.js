@@ -190,11 +190,133 @@ export class DclCertificateService {
 
     /**
      * Get certificate as DER bytes.
+     *
+     * Self-heals a corrupted local cache: if the stored certificate no longer parses (e.g. a
+     * truncated or mangled storage entry), make one best-effort re-fetch from DCL so a broken cache
+     * entry cannot permanently break attestation for an otherwise-valid trust anchor. If recovery
+     * fails the original bytes are returned unchanged, leaving the caller's normal validation to
+     * surface the parse failure rather than masking it with a different error here.
+     *
      * @throws {MatterDclError} if certificate not found or filtered by trust policy
      */
     async getCertificateAsDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
-        return this.#getCertificateDer(subjectKeyId, options);
+
+        const der = await this.#getCertificateDer(subjectKeyId, options);
+        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
+        const metadata = this.#certificateIndex.get(normalizedId);
+
+        const parseError = this.#certificateParseError(der, metadata?.kind);
+        if (parseError === undefined) {
+            return der;
+        }
+
+        logger.notice(
+            `Cached certificate failed to parse; attempting one re-fetch from DCL to recover`,
+            Diagnostic.dict({ skid: normalizedId }),
+            Diagnostic.errorMessage(parseError),
+        );
+        const refetched = await this.#tryRefetchRootCertificate(normalizedId, metadata?.isProduction ?? true, options);
+        if (refetched !== undefined) {
+            const refetchParseError = this.#certificateParseError(refetched, metadata?.kind);
+            if (refetchParseError === undefined) {
+                return refetched;
+            }
+            logger.warn(
+                `Re-fetched certificate also failed to parse`,
+                Diagnostic.dict({ skid: normalizedId }),
+                Diagnostic.errorMessage(refetchParseError),
+            );
+        }
+
+        return der;
+    }
+
+    /** Parse error of a DER certificate, or undefined if it parses, using the extension set for its kind. */
+    #certificateParseError(der: Bytes, kind?: DclCertificateService.CertificateKind): Error | undefined {
+        try {
+            Certificate.parseAsn1Certificate(
+                der,
+                (kind ?? "PAA") === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+            );
+            return undefined;
+        } catch (error) {
+            return asError(error);
+        }
+    }
+
+    /**
+     * Best-effort force re-fetch of a single root certificate from DCL, overwriting the cached copy
+     * to recover from a corrupted local storage entry. Never throws: returns the freshly stored DER,
+     * or undefined if the certificate could not be re-fetched (not a root cert, absent from DCL, or
+     * any fetch error).
+     */
+    async #tryRefetchRootCertificate(
+        normalizedId: string,
+        isProduction: boolean,
+        options?: DclCertificateService.GetCertificateOptions,
+    ): Promise<Bytes | undefined> {
+        if (this.#fetchPromise !== undefined) {
+            await this.#fetchPromise;
+        }
+
+        try {
+            if (!(await this.#fetchAndStoreRootCertificateBySkid(normalizedId, isProduction, true, this.#options))) {
+                return undefined;
+            }
+        } catch (error) {
+            logger.warn(
+                `Re-fetch of certificate ${normalizedId} from DCL failed`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return undefined;
+        }
+
+        const metadata = this.#certificateIndex.get(normalizedId);
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
+            return undefined;
+        }
+
+        const der = await this.#storage!.get<Bytes>(normalizedId);
+        return der && der.byteLength > 0 ? Bytes.of(der) : undefined;
+    }
+
+    /**
+     * Fetch a single root certificate from DCL by SubjectKeyIdentifier and store it. Returns true if
+     * a matching root certificate was found and stored, false if DCL has no such root certificate.
+     * Throws on DCL/network errors; callers decide how to handle them.
+     */
+    async #fetchAndStoreRootCertificateBySkid(
+        normalizedId: string,
+        isProduction: boolean,
+        force: boolean,
+        options?: DclClient.Options,
+    ): Promise<boolean> {
+        const config = isProduction
+            ? (this.#options.dclConfig ?? DclConfig.production)
+            : (this.#options.testDclConfig ?? DclConfig.test);
+        const dclClient = new DclClient(config);
+        const certRefs = await dclClient.fetchRootCertificateList(options);
+
+        const skidWithColons = normalizedId
+            .match(/.{1,2}/g)
+            ?.join(":")
+            .toUpperCase();
+        const certRef = certRefs.find(ref => ref.subjectKeyId === skidWithColons);
+        if (!certRef) {
+            return false;
+        }
+
+        await this.#fetchAndStoreCertificate(
+            this.#storage!,
+            dclClient,
+            certRef,
+            isProduction,
+            force,
+            options ?? this.#options,
+        );
+        await this.#saveIndex();
+        return true;
     }
 
     /** Internal DER retrieval without construction assert (safe during init). */
@@ -286,19 +408,7 @@ export class DclCertificateService {
 
         try {
             const isProduction = options?.isProduction ?? true;
-            const config = isProduction
-                ? (this.#options.dclConfig ?? DclConfig.production)
-                : (this.#options.testDclConfig ?? DclConfig.test);
-            const dclClient = new DclClient(config);
-            const certRefs = await dclClient.fetchRootCertificateList(options);
-
-            const subjectKeyIdWithColons = normalizedId
-                .match(/.{1,2}/g)
-                ?.join(":")
-                .toUpperCase();
-            const certRef = certRefs.find(ref => ref.subjectKeyId === subjectKeyIdWithColons);
-
-            if (!certRef) {
+            if (!(await this.#fetchAndStoreRootCertificateBySkid(normalizedId, isProduction, false, options))) {
                 logger.debug(
                     `Certificate not found in DCL`,
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
@@ -306,18 +416,8 @@ export class DclCertificateService {
                 return;
             }
 
-            await this.#fetchAndStoreCertificate(
-                this.#storage!,
-                dclClient,
-                certRef,
-                isProduction,
-                false,
-                options ?? this.#options,
-            );
-
             const fetched = this.#certificateIndex.get(normalizedId);
             if (fetched) {
-                await this.#saveIndex();
                 logger.info(
                     `Fetched and stored certificate from DCL`,
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
