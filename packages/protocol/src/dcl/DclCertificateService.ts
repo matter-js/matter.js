@@ -173,19 +173,7 @@ export class DclCertificateService {
      */
     async getCertificateAsPem(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
-
-        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
-        const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata, options)) {
-            throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
-        }
-
-        const derBytes = await this.#storage!.get<Bytes>(normalizedId);
-        if (!derBytes || derBytes.byteLength === 0) {
-            throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
-        }
-
-        return Pem.encode(derBytes);
+        return Pem.encode(await this.#getCertificateDer(subjectKeyId, options));
     }
 
     /**
