@@ -474,12 +474,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<NobleBleChannel> {
         const { address: peripheralAddress } = peripheral;
-        let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
-            mtu = MatterBle.MAXIMUM_BTP_MTU;
-        }
+        const mtu = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
         logger.debug(
-            `Peripheral ${peripheralAddress}: Using MTU=${mtu} bytes (Peripheral supports up to ${peripheral.mtu} bytes)`,
+            `Peripheral ${peripheralAddress}: Using BTP segment size=${mtu} bytes (Peripheral ATT_MTU up to ${peripheral.mtu} bytes)`,
         );
 
         const {

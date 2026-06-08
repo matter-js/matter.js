@@ -38,6 +38,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
     - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse
     - Fix: Ensure that the default `regulatoryCountryCode` ("XX") is applied when commissioning a Wi-Fi/Thread device without an explicit value
+    - Fix: BTP central now advertises the negotiated ATT_MTU minus the 3-byte GATT header as its segment size, so a peer no longer selects fragments that overflow the link
+    - Fix: BTP window accounting now counts outstanding packets by modular distance, fixing a miscount across the sequence-number wrap
+    - Fix: BTP now reserves the remote receive window's last slot for an acknowledgement and sends a stand-alone ack proactively once its own receive window runs low
+    - Fix: BTP now resumes a stalled send queue when an incoming acknowledgement reopens the window
+    - Fix: BTP now closes the session if reassembly exceeds the declared message length
+    - Enhancement: Lengthened the BTP handshake-response timeout (5s → 15s) and central idle timeout (30s → 60s) to match CHIP
 
 - @matter/node
     - Enhancement: Added `network.ownNetworkProfileId` to set the local network's MRP additive margin, and exposed `additionalMrpDelay` and `probeAddress` in network profile config
