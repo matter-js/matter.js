@@ -41,6 +41,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
     - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse
     - Fix: Ensure that the default `regulatoryCountryCode` ("XX") is applied when commissioning a Wi-Fi/Thread device without an explicit value
+    - Fix: A corrupted PAA in the local DCL certificate cache is now re-fetched from DCL once before failing, recovering from broken storage
+    - Fix: Unexpected errors during device attestation validation (e.g. an unrecoverably corrupt trust-store certificate) are now surfaced as an attestation finding for the `onAttestationFailure` policy to judge, instead of aborting commissioning outside the findings mechanism
 
 - @matter/node
     - Enhancement: Added `network.ownNetworkProfileId` to set the local network's MRP additive margin, and exposed `additionalMrpDelay` and `probeAddress` in network profile config
