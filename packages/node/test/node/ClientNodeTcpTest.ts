@@ -254,4 +254,58 @@ describe("ClientNodeTcp", () => {
             expect(newSession!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
     });
+
+    describe("spec-version gate", () => {
+        it("honors TCP for a device advertising TCP server and reporting spec version >= 1.5.0", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            peer.descriptor.sessionParameters = { ...peer.sessionParameters, specificationVersion: 0x01050000 };
+
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
+        });
+
+        it("falls back to UDP for a device advertising TCP server but reporting spec version < 1.5.0", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            peer.descriptor.sessionParameters = { ...peer.sessionParameters, specificationVersion: 0x01040000 };
+
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
+        });
+    });
+
+    describe("tcp-unsupported flag", () => {
+        it("falls back to UDP after a peer is flagged TCP-unsupported", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            peer.descriptor.sessionParameters = { ...peer.sessionParameters, specificationVersion: 0x01050000 };
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
+
+            peer.markTcpUnsupported();
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
+        });
+    });
+
+    describe("session parameter TCP support", () => {
+        it("reports TCP server support in session parameters when incoming TCP is enabled", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).true;
+        });
+
+        it("does not report TCP server support when the device has no TCP", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
+
+            const peer = protocolPeer(controller);
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).to.not.equal(true);
+        });
+    });
 });

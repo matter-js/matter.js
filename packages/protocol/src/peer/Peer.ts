@@ -277,11 +277,25 @@ export class Peer {
     }
 
     /**
+     * Record that the peer does not support TCP despite advertising it, by clearing TCP from its persisted session
+     * parameters. Honored by {@link resolveTransports} and persisted across restart; a later session reporting real
+     * TCP support overwrites it.
+     */
+    markTcpUnsupported() {
+        this.#descriptor.sessionParameters = {
+            ...this.sessionParameters,
+            supportedTransports: { tcpClient: false, tcpServer: false },
+        };
+    }
+
+    /**
      * Resolve the ordered list of transports to attempt for this peer.
      *
      * - `requiredTransport` is a hard constraint: only that transport.
-     * - Else effective soft preference is `preferredTransport ?? transportPreference`. When TCP
-     *   and the peer advertises TCP server support, returns `[TCP, UDP]`.
+     * - Else effective soft preference is `preferredTransport ?? transportPreference`. When TCP, the peer's session
+     *   parameters confirm TCP server support (pre-1.5 peers and peers proven not to support TCP report no TCP via
+     *   {@link SessionParameters}/{@link markTcpUnsupported}; unknown support is treated as none), and the peer
+     *   advertises TCP server support, returns `[TCP, UDP]`.
      * - Else `undefined` (default UDP, no constraint).
      */
     resolveTransports(requiredTransport?: ChannelType, preferredTransport?: ChannelType): IpChannelType[] | undefined {
@@ -290,6 +304,9 @@ export class Peer {
         }
         const effectivePreference = preferredTransport ?? this.transportPreference;
         if (effectivePreference !== ChannelType.TCP) {
+            return undefined;
+        }
+        if (!this.sessionParameters.supportedTransports?.tcpServer) {
             return undefined;
         }
         // Live-read from service TXT params; the descriptor cache lags by one observer tick when
