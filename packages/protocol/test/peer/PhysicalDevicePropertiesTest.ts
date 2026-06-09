@@ -18,10 +18,17 @@ const BASE_PROPERTIES: PhysicalDeviceProperties = {
     isMainsPowered: true,
     isBatteryPowered: false,
     isIntermittentlyConnected: false,
+    isLongIdleTimeOperating: false,
     isThreadSleepyEndDevice: false,
 };
 
 describe("PhysicalDeviceProperties", () => {
+    describe("isLongIdleTimeOperating", () => {
+        it("defaults to false in BASE_PROPERTIES", () => {
+            expect(BASE_PROPERTIES.isLongIdleTimeOperating).to.equal(false);
+        });
+    });
+
     describe("subscriptionIntervalBoundsFor", () => {
         describe("minIntervalFloor", () => {
             it("defaults to 1 second when called with no arguments", () => {
@@ -147,7 +154,7 @@ describe("PhysicalDeviceProperties", () => {
                 expect(maxIntervalCeiling).to.equal(Minutes(1));
             });
 
-            it("does not apply jitter when Thread is active for ICD device with Instant floor", () => {
+            it("applies jitter when Thread is active for ICD device with Instant floor", () => {
                 const { minIntervalFloor, maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: {
                         ...BASE_PROPERTIES,

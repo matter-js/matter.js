@@ -31,6 +31,7 @@ export function NodePhysicalProperties(node: Node) {
         isMainsPowered: false,
         isBatteryPowered: false,
         isIntermittentlyConnected: rootEndpointServerList.includes(IcdManagement.id as ClusterId),
+        isLongIdleTimeOperating: false,
         isThreadSleepyEndDevice: false,
     };
 

@@ -54,6 +54,10 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
             return props().isIntermittentlyConnected;
         },
 
+        get isLongIdleTimeOperating() {
+            return props().isLongIdleTimeOperating;
+        },
+
         get isThreadSleepyEndDevice() {
             return props().isThreadSleepyEndDevice;
         },
