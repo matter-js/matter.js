@@ -546,7 +546,7 @@ async function doThreadCredentials(
             break;
         case "set":
             if (!threadName || !threadOperationalDataset) {
-                console.log(`Cannot change Thread network credentials: New values not provided`);
+                console.log(`Cannot change Thread network credentials: values must be non-empty`);
                 return;
             }
             await theNode.Store.set("ThreadName", threadName);
