@@ -10,6 +10,7 @@ import { Seconds } from "@matter/general";
 import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
+import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { MockSite } from "./mock-site.js";
 
 /**
@@ -155,5 +156,26 @@ describe("Decommission", () => {
         }
 
         expect(controller.peers.size).equals(1);
+    });
+
+    it("probe resolves false on a destroyed node instead of throwing", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const interaction = peer1.interaction as ClientNodeInteraction;
+
+        const restore = await patchRemoveFabric(peer1, async function () {
+            throw new PeerMessageMissingError(Seconds(11));
+        });
+        try {
+            await MockTime.resolve(peer1.decommission());
+        } finally {
+            restore();
+        }
+
+        // Node is now destroyed; a late monitor probe must not throw.
+        const reachable = await MockTime.resolve(interaction.probe());
+        expect(reachable).is.false;
     });
 });
