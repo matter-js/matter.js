@@ -61,8 +61,10 @@ export class IcdPeerWakefulness {
             this.#setAvailable(false);
         } else {
             this.#cancelTimers();
-            this.#setAwake(true);
-            this.#setAvailable(true);
+            // Force-emit (not the change-guarded setter): a consumer parked on the awake/available edge must resume
+            // when the peer becomes always-awake, even if the value was already true.
+            this.#awake.emit(true);
+            this.#available.emit(true);
         }
     }
 

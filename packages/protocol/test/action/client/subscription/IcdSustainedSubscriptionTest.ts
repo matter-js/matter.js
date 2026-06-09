@@ -169,6 +169,64 @@ describe("IcdSustainedSubscription", () => {
         await MockTime.resolve(subscription.done, { macrotasks: true });
     });
 
+    it("retries a flipped SIT peer after a bounded delay instead of stranding on a wake edge", async () => {
+        const wakefulness = litWakefulness();
+
+        let subscribeCount = 0;
+        const subscription = build(wakefulness, {
+            subscribe: async () => {
+                subscribeCount++;
+                if (subscribeCount === 1) {
+                    throw new Error("transient failure");
+                }
+                return fakePeerSub();
+            },
+        });
+
+        // A runtime DSLS LIT->SIT flip forces always-awake and releases the parked loop, which then subscribes (and
+        // fails). A SIT peer sends no Check-In, so the post-failure resume must come from the bounded fallback.
+        wakefulness.requiresAwait = false;
+        await flush();
+        expect(subscribeCount).equal(1);
+
+        await MockTime.advance(IcdSustainedSubscription.SIT_RETRY_INTERVAL);
+        await flush();
+        expect(subscribeCount).equal(2);
+        expect(subscription.active.value).equal(true);
+
+        subscription.close();
+        await MockTime.resolve(subscription.done, { macrotasks: true });
+    });
+
+    it("refreshes the awake window on each subscription report", async () => {
+        const wakefulness = litWakefulness();
+
+        let capturedUpdated: SustainedClientSubscribe["updated"];
+        const subscription = build(wakefulness, {
+            request: { sustain: true, updated: async () => {} } as unknown as SustainedClientSubscribe,
+            subscribe: async (request: Subscribe) => {
+                capturedUpdated = (request as SustainedClientSubscribe).updated;
+                return fakePeerSub();
+            },
+        });
+
+        wakefulness.noteSignal(); // awake for activeModeThreshold (5s)
+        await flush();
+        expect(subscription.active.value).equal(true);
+
+        // Near the end of the 5s window, a report arrives and must re-arm the awake window.
+        await MockTime.advance(4_000);
+        await capturedUpdated?.(undefined as never);
+        await flush();
+
+        // Past the original 5s window but within the refreshed one -> still awake.
+        await MockTime.advance(2_000);
+        expect(wakefulness.awake.value).equal(true);
+
+        subscription.close();
+        await MockTime.resolve(subscription.done, { macrotasks: true });
+    });
+
     it("close() resolves done cleanly while parked", async () => {
         const wakefulness = litWakefulness();
         const subscription = build(wakefulness);

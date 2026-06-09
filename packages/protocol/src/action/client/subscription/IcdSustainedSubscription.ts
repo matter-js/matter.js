@@ -21,6 +21,8 @@ import {
     ImplementationError,
     Logger,
     Observer,
+    Seconds,
+    Time,
 } from "@matter/general";
 import { SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
@@ -39,6 +41,9 @@ const logger = Logger.get("ClientSubscription");
  * underlying subscription: a parked-but-expected peer is still reachable; only a missed Check-In window means offline.
  */
 export class IcdSustainedSubscription extends ClientSubscription {
+    /** Bounded retry interval used only on the degraded path where a once-LIT peer no longer requires await. */
+    static readonly SIT_RETRY_INTERVAL = Seconds(15);
+
     #request: SustainedClientSubscribe;
     #subscription?: ActiveSubscription;
     #subscribe: (request: Subscribe, abort: AbortSignal) => Promise<PeerSubscription>;
@@ -107,7 +112,13 @@ export class IcdSustainedSubscription extends ClientSubscription {
 
                 const request: SustainedClientSubscribe = { ...this.#request, updated };
                 if (this.#request.updated) {
-                    request.updated = this.#request.updated.bind(request);
+                    const bound = this.#request.updated.bind(request);
+                    // A report (or bootstrap-read response) is inbound peer activity, so refresh the wake/availability
+                    // windows: an actively-reporting peer must read as awake for concurrent interactions.
+                    request.updated = result => {
+                        this.#wakefulness.noteSignal();
+                        return bound(result);
+                    };
                 }
                 const closed = new Promise<void>(resolve => {
                     request.closed = () => {
@@ -170,11 +181,24 @@ export class IcdSustainedSubscription extends ClientSubscription {
     }
 
     /**
-     * Resolve on the next awake transition to true, regardless of the current value.  Unlike awaiting the observable
-     * directly (which resolves immediately when already truthy), this waits for a genuinely fresh Check-In.
+     * Resume the run loop after a failed send. For a LIT peer this resolves on the next awake transition to true (a
+     * genuinely fresh Check-In), avoiding a retry within the current window against a peer that has likely gone back to
+     * sleep. A peer no longer requiring await (e.g. a runtime DSLS LIT→SIT flip) has no Check-In to park for, so it
+     * resumes after a bounded delay instead of stranding on an awake edge that will never re-emit; such a peer ideally
+     * re-selects a plain SustainedSubscription (tracked as a follow-up).
      */
-    #nextWake() {
-        return new Promise<void>(resolve => {
+    async #nextWake(): Promise<void> {
+        if (!this.#wakefulness.requiresAwait) {
+            const retry = Time.sleep("icd sit retry", IcdSustainedSubscription.SIT_RETRY_INTERVAL);
+            try {
+                await this.abort.race(retry);
+            } finally {
+                retry.cancel();
+            }
+            return;
+        }
+
+        await new Promise<void>(resolve => {
             const observer: Observer<[boolean]> = awake => {
                 if (awake) {
                     cleanup();
