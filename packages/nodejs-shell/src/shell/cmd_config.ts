@@ -504,7 +504,7 @@ async function doWifiCredentials(
             break;
         case "set":
             if (!wifiSsid || !wifiPassword) {
-                console.log(`Cannot change Wi-Fi credentials: New values not provided`);
+                console.log(`Cannot change Wi-Fi credentials: values must be non-empty`);
                 return;
             }
             await theNode.Store.set("WiFiSsid", wifiSsid);
