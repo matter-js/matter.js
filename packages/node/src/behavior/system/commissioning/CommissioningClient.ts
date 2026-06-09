@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
+import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -14,6 +15,7 @@ import { IdentityConflictError, IdentityService } from "#node/server/IdentitySer
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     ClassExtends,
+    causedBy,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -56,12 +58,15 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
+    FabricRemovedError,
     LocatedNodeCommissioningOptions,
     OperationalAddress,
     Peer,
     PeerAddress,
+    PeerInitiatedCloseError,
     PeerLeftError,
     PeerSet,
+    PeerUnresponsiveError,
     PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
     SessionParameters as ProtocolSessionParameters,
@@ -328,36 +333,78 @@ export class CommissioningClient extends Behavior {
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
         const fabricIndex = opcreds.state.currentFabricIndex;
-        logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
 
-        const result = await opcreds.removeFabric({ fabricIndex });
+        // Removing the fabric we communicate over destroys the session the NocResponse must travel on, so the response
+        // is frequently lost.  Treat the command as confirmed if it was delivered (transient peer error) or if a
+        // matching leave event arrives.  Arm the listener before sending so a fast leave cannot be missed.
+        let leaveSeen = false;
+        const leaveEvents = this.endpoint.eventsOf(BasicInformationClient).leave;
+        const onLeave = ({ fabricIndex: leftFabricIndex }: { fabricIndex: FabricIndex }) => {
+            if (leftFabricIndex === fabricIndex) {
+                leaveSeen = true;
+            }
+        };
+        leaveEvents?.on(onLeave);
 
-        if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
-            throw new MatterError(
-                `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
-            );
-        }
-
-        // Must run before commit unbinds Peer via peerAddress$Changed.
-        const node = this.endpoint as ClientNode;
         try {
-            await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
-        } catch (error) {
-            logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
+            logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
+
+            // A non-Ok status is an explicit refusal and must never be overridden by a leave event, so raise it after
+            // the rescue block rather than inside the try.
+            let nonOkFailure: MatterError | undefined;
+            try {
+                const result = await opcreds.removeFabric({ fabricIndex });
+                if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+                    nonOkFailure = new MatterError(
+                        `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
+                    );
+                }
+            } catch (error) {
+                if (
+                    leaveSeen ||
+                    causedBy(
+                        error,
+                        PeerUnresponsiveError,
+                        PeerLeftError,
+                        FabricRemovedError,
+                        PeerInitiatedCloseError,
+                    )
+                ) {
+                    logger.info(
+                        `Node ${formerAddress} removal confirmed without response`,
+                        `(${leaveSeen ? "leave event" : "session closed"})`,
+                    );
+                } else {
+                    throw error;
+                }
+            }
+            if (nonOkFailure !== undefined) {
+                throw nonOkFailure;
+            }
+
+            // Removal confirmed.  Must run before commit unbinds Peer via peerAddress$Changed.
+            const node = this.endpoint as ClientNode;
+            try {
+                await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+            } catch (error) {
+                logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
+            }
+
+            this.state.peerAddress = undefined;
+            this.state.commissionedAt = undefined;
+            this.state.fabricIndexOnPeer = undefined;
+
+            await this.context.transaction.commit();
+
+            logger.info(
+                "Decommissioned",
+                Diagnostic.strong(this.endpoint.id),
+                "formerly",
+                Diagnostic.strong(formerAddress),
+            );
+        } finally {
+            leaveEvents?.off(onLeave);
         }
-
-        this.state.peerAddress = undefined;
-        this.state.commissionedAt = undefined;
-        this.state.fabricIndexOnPeer = undefined;
-
-        await this.context.transaction.commit();
-
-        logger.info(
-            "Decommissioned",
-            Diagnostic.strong(this.endpoint.id),
-            "formerly",
-            Diagnostic.strong(formerAddress),
-        );
     }
 
     /**
