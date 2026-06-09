@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis } from "@matter/general";
+import { Duration, Millis, ObserverGroup } from "@matter/general";
 import { IcdClient, IcdMultiAdminError } from "@matter/node";
 import { IcdManagementClient } from "@matter/node/behaviors/icd-management";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
@@ -12,6 +12,8 @@ import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { PairedNode } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+
+const watchers = new Map<string, ObserverGroup>();
 
 async function printStatus(paired: PairedNode) {
     const clientNode = paired.node;
@@ -147,6 +149,41 @@ export default function commands(theNode: MatterNode) {
                         for (const paired of nodes) {
                             await printStatus(paired);
                         }
+                    },
+                })
+                .command({
+                    command: "watch <node-id> [state]",
+                    describe:
+                        "Stream ICD events for a peer live (state: on|off, default on); awake is shown by `icd status`",
+                    builder: (y: Argv) =>
+                        y
+                            .positional("node-id", { describe: "node id", type: "string", demandOption: true })
+                            .positional("state", {
+                                describe: "on|off",
+                                choices: ["on", "off"] as const,
+                                default: "on" as const,
+                            }),
+                    handler: async (argv: any) => {
+                        const key = String(argv.nodeId);
+                        watchers.get(key)?.close();
+                        watchers.delete(key);
+                        if (argv.state === "off") {
+                            console.log(`Stopped watching node ${argv.nodeId}`);
+                            return;
+                        }
+                        const clientNode = await clientNodeFor(theNode, argv.nodeId);
+                        const observers = new ObserverGroup();
+                        const stamp = (msg: string) => console.log(`[icd ${argv.nodeId}] ${msg}`);
+                        const events = clientNode.eventsOf(IcdClient);
+                        observers.on(events.registered, () => stamp("registered"));
+                        observers.on(events.unregistered, () => stamp("unregistered"));
+                        observers.on(events.checkedIn, ({ counter, activeModeThreshold }) =>
+                            stamp(`check-in counter=${counter} SAT(ms)=${activeModeThreshold}`),
+                        );
+                        observers.on(events.keyRefreshed, () => stamp("key refreshed"));
+                        observers.on(events.available$Changed, (value: boolean) => stamp(`available=${value}`));
+                        watchers.set(key, observers);
+                        console.log(`Watching node ${argv.nodeId} (run \`icd watch ${argv.nodeId} off\` to stop)`);
                     },
                 })
                 .demandCommand(1, "You must specify an icd subcommand"),
