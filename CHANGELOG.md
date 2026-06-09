@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.2 (2026-06-09)
 
 - @matter/general
     - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
