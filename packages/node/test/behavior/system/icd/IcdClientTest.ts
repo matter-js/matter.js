@@ -7,13 +7,15 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
-import { IcdManagementServer } from "#behaviors/icd-management";
+import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
+import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { ImplementationError, Seconds } from "@matter/general";
+import { Crypto, ImplementationError, MockCrypto, Seconds } from "@matter/general";
 import { FabricManager, TestFabric } from "@matter/protocol";
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockSite } from "../../../node/mock-site.js";
+import { subscribedPeer } from "../../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 
@@ -22,6 +24,13 @@ const LitIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.LongIdleTimeSupport,
 );
 const RootWithLitIcd = ServerNode.RootEndpoint.with(LitIcdServer);
+
+const DslsIcdServer = IcdManagementServer.with(
+    IcdManagement.Feature.CheckInProtocolSupport,
+    IcdManagement.Feature.LongIdleTimeSupport,
+    IcdManagement.Feature.DynamicSitLitSupport,
+);
+const RootWithDslsIcd = ServerNode.RootEndpoint.with(DslsIcdServer);
 
 const LIT_CONFIG = {
     operatingMode: IcdManagement.OperatingMode.Sit,
@@ -36,6 +45,40 @@ async function wakeDevice(device: ServerNode) {
     await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
     await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
     await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+}
+
+async function commission(controller: ServerNode, device: ServerNode) {
+    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+    controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+    if (!controller.lifecycle.isOnline) {
+        await controller.start();
+    }
+
+    const { passcode, discriminator } = device.state.commissioning;
+    await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+        macrotasks: true,
+    });
+
+    controllerCrypto.entropic = deviceCrypto.entropic = false;
+}
+
+/** Commission a DSLS device that is operating in LIT mode before the controller subscribes. */
+async function litOperatingPair(site: MockSite) {
+    const { controller, device } = await site.addUncommissionedPair({
+        device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+    });
+    await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+    await commission(controller, device);
+    const peer1 = await subscribedPeer(controller, "peer1");
+    return { controller, device, peer1 };
+}
+
+function wakefulnessOf(controller: ServerNode, peer: ClientNode) {
+    const peerAddress = peer.stateOf(CommissioningClient).peerAddress!;
+    const fabric = controller.env.get(FabricManager).for(peerAddress.fabricIndex);
+    return fabric.icd.wakefulnessFor(peerAddress.nodeId);
 }
 
 describe("IcdClient", () => {
@@ -374,6 +417,96 @@ describe("IcdClient", () => {
             const fabric = controllerB.env.get(FabricManager).for(fabricIndex);
             // initialize() re-fed the restored peer so a Check-In arriving after restart still validates.
             expect(fabric.icd.hasPeers).true;
+        });
+    });
+
+    describe("availability", () => {
+        it("seeds available true on register and expires it after the idle window with no check-in", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            expect(peer1.stateOf(IcdClient).available).true;
+
+            const changed = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).available$Changed.once(() => resolve()),
+            );
+
+            // idleModeDuration (3600s) + AVAILABILITY_MARGIN (5s) + slack.
+            await MockTime.advance(Seconds(3700));
+            await MockTime.resolve(changed, { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).available).false;
+            expect(wakefulnessOf(controller, peer1)!.available.value).false;
+        });
+
+        it("restores available true on a check-in after expiry", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await litOperatingPair(site);
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            await MockTime.advance(Seconds(3700));
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(peer1.stateOf(IcdClient).available).false;
+
+            await wakeDevice(device);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).available).true;
+            expect(wakefulnessOf(controller, peer1)!.available.value).true;
+        });
+
+        it("keeps a SIT/non-LIT registered peer available at all times", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            expect(peer1.stateOf(IcdClient).available).true;
+            expect(wakefulnessOf(controller, peer1)!.requiresAwait).false;
+
+            await MockTime.advance(Seconds(3700));
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(peer1.stateOf(IcdClient).available).true;
+        });
+
+        it("extends the awake window when stayActive promises a longer duration", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            const wakefulness = wakefulnessOf(controller, peer1)!;
+            const promised = await peer1.act(agent => agent.get(IcdClient).stayActive(Seconds(120)));
+            expect(promised).greaterThan(0);
+
+            // activeModeThreshold is 5s, so absent the StayActive extension awake would already have lapsed by now.
+            await MockTime.advance(Seconds(30));
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(wakefulness.awake.value).true;
+        });
+
+        it("flips requiresAwait when a registered DSLS peer switches SIT→LIT at runtime", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            expect(wakefulnessOf(controller, peer1)!.requiresAwait).false;
+
+            const modeChanged = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdManagementClient).operatingMode$Changed.once(() => resolve()),
+            );
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(modeChanged, { macrotasks: true });
+
+            expect(wakefulnessOf(controller, peer1)!.requiresAwait).true;
         });
     });
 

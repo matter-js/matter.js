@@ -11,6 +11,7 @@ import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Node } from "#node/Node.js";
 import {
+    AsyncObservableValue,
     Bytes,
     Crypto,
     Duration,
@@ -18,6 +19,8 @@ import {
     Logger,
     Millis,
     Observable,
+    Observer,
+    Seconds,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -60,6 +63,14 @@ export class IcdClient extends Behavior {
         return this.peerSupportsLit;
     }
 
+    /** Whether the peer is currently operating in LIT mode (LIT-capable AND OperatingMode === Lit; a DSLS flip changes this at runtime). */
+    get #peerIsLongIdleTimeOperating() {
+        return (
+            this.peerSupportsLit &&
+            this.endpoint.maybeStateOf(IcdManagementClient)?.operatingMode === IcdManagement.OperatingMode.Lit
+        );
+    }
+
     /**
      * Wire lifecycle reactors. Runs `early` so they are registered before the owner first comes online.
      */
@@ -77,6 +88,31 @@ export class IcdClient extends Behavior {
                 this.#restoreReceivePath();
             }
         }
+
+        // A DSLS peer can flip SIT⇄LIT at runtime; track it so a fed peer's requiresAwait stays correct. operatingMode
+        // (and thus operatingMode$Changed) only exists on LIT-capable peers.
+        if (this.endpoint.behaviors.has(IcdManagementClient)) {
+            this.maybeReactTo(
+                this.endpoint.eventsOf(IcdManagementClient).operatingMode$Changed,
+                this.#onOperatingModeChanged,
+            );
+        }
+    }
+
+    #onOperatingModeChanged() {
+        const wakefulness = this.#fedWakefulness();
+        if (wakefulness !== undefined) {
+            wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
+        }
+    }
+
+    /** The {@link IcdPeerWakefulness} for the currently fed peer, or undefined when no peer is fed. */
+    #fedWakefulness() {
+        const fedPeer = this.internal.fedPeer;
+        if (fedPeer === undefined) {
+            return undefined;
+        }
+        return this.env.get(FabricManager).maybeFor(fedPeer.fabricIndex)?.icd.wakefulnessFor(fedPeer.nodeId);
     }
 
     /**
@@ -88,7 +124,8 @@ export class IcdClient extends Behavior {
             return;
         }
         const { fabric, peerNodeId } = this.#fabricContext();
-        this.#feedFabricIcd(fabric, peerNodeId);
+        // Peer reachability is unknown after a controller restart, so do not seed the availability window.
+        this.#feedFabricIcd(fabric, peerNodeId, false);
     }
 
     /**
@@ -111,6 +148,7 @@ export class IcdClient extends Behavior {
         this.state.monitoredSubject = undefined;
         this.state.clientType = undefined;
         this.state.lastCheckInReceivedAt = undefined;
+        this.state.available = false;
         this.events.unregistered.emit();
     }
 
@@ -119,8 +157,18 @@ export class IcdClient extends Behavior {
         if (fedPeer === undefined) {
             return;
         }
+        this.#unsubscribeAvailable();
         this.env.get(FabricManager).maybeFor(fedPeer.fabricIndex)?.icd.deletePeer(fedPeer.nodeId);
         this.internal.fedPeer = undefined;
+    }
+
+    #unsubscribeAvailable() {
+        const { availableSource, availableListener } = this.internal;
+        if (availableSource !== undefined && availableListener !== undefined) {
+            availableSource.off(availableListener);
+        }
+        this.internal.availableSource = undefined;
+        this.internal.availableListener = undefined;
     }
 
     /**
@@ -189,7 +237,8 @@ export class IcdClient extends Behavior {
         this.state.clientType = clientType;
         this.state.registered = true;
 
-        this.#feedFabricIcd(fabric, peerNodeId);
+        // The peer just answered registration I/O, so it is reachable: seed the availability window.
+        this.#feedFabricIcd(fabric, peerNodeId, true);
         this.events.registered.emit();
     }
 
@@ -227,7 +276,9 @@ export class IcdClient extends Behavior {
         const { promisedActiveDuration } = await this.#peerIcd().stayActiveRequest({
             stayActiveDuration: Millis.of(duration),
         });
-        return Millis(promisedActiveDuration);
+        const promised = Millis(promisedActiveDuration);
+        this.#fedWakefulness()?.noteStayActive(promised);
+        return promised;
     }
 
     #fabricContext() {
@@ -252,7 +303,7 @@ export class IcdClient extends Behavior {
         return this.agent.get(IcdManagementClient);
     }
 
-    #feedFabricIcd(fabric: ReturnType<FabricManager["for"]>, peerNodeId: NodeId) {
+    #feedFabricIcd(fabric: ReturnType<FabricManager["for"]>, peerNodeId: NodeId, seed: boolean) {
         const { key, counterStart, lastOffset } = this.state;
         if (key === undefined || counterStart === undefined || lastOffset === undefined) {
             throw new ImplementationError("ICD peer cannot be fed to the fabric before registration state is set.");
@@ -262,6 +313,35 @@ export class IcdClient extends Behavior {
         }
         fabric.icd.addPeer({ peerNodeId, key, counterStart, lastOffset }, this.internal.checkInHandler);
         this.internal.fedPeer = PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId });
+
+        const wakefulness = fabric.icd.wakefulnessFor(peerNodeId);
+        if (wakefulness === undefined) {
+            return;
+        }
+
+        const icdState = this.endpoint.maybeStateOf(IcdManagementClient);
+        wakefulness.setTimings({
+            activeModeThreshold:
+                icdState?.activeModeThreshold === undefined ? undefined : Millis(icdState.activeModeThreshold),
+            idleModeDuration: icdState?.idleModeDuration === undefined ? undefined : Seconds(icdState.idleModeDuration),
+        });
+        wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
+
+        if (seed) {
+            wakefulness.noteSignal();
+        }
+
+        // addPeer recreates the wakefulness each feed (e.g. key refresh), so re-establish the availability mirror.
+        this.#unsubscribeAvailable();
+        const listener = this.callback(this.#onAvailableChanged, { offline: true, lock: true });
+        wakefulness.available.on(listener);
+        this.internal.availableSource = wakefulness.available;
+        this.internal.availableListener = listener;
+        this.state.available = wakefulness.available.value === true;
+    }
+
+    #onAvailableChanged(available: boolean) {
+        this.state.available = available;
     }
 
     #onCheckIn(checkIn: FabricIcd.ReceivedCheckIn) {
@@ -321,7 +401,8 @@ export class IcdClient extends Behavior {
         this.state.lastOffset = 0;
 
         fabric.icd.deletePeer(peerNodeId);
-        this.#feedFabricIcd(fabric, peerNodeId);
+        // The refresh is driven by a Check-In we just decrypted, so the peer is reachable: seed the window.
+        this.#feedFabricIcd(fabric, peerNodeId, true);
         this.events.keyRefreshed.emit();
     }
 
@@ -345,6 +426,12 @@ export namespace IcdClient {
 
         /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */
         fedPeer?: PeerAddress;
+
+        /** The fed peer's wakefulness `available` observable we currently mirror; recreated on every feed. */
+        availableSource?: AsyncObservableValue<[boolean]>;
+
+        /** Listener mirroring {@link availableSource} into {@link State.available}; removed on drop and before re-feed. */
+        availableListener?: Observer<[boolean]>;
     }
 
     export class State {
@@ -389,6 +476,12 @@ export namespace IcdClient {
          */
         @field(systimeMs)
         lastCheckInReceivedAt?: Timestamp;
+
+        /**
+         * Whether the peer is reachable (within its expected Check-In window). Non-LIT peers are always available.
+         */
+        @field(bool)
+        available: boolean = false;
     }
 
     export class Events extends BaseEvents {
@@ -396,5 +489,6 @@ export namespace IcdClient {
         unregistered = Observable();
         checkedIn = Observable<[checkIn: { counter: number; activeModeThreshold: number }]>();
         keyRefreshed = Observable();
+        available$Changed = new Observable<[value: boolean, oldValue: boolean]>();
     }
 }
