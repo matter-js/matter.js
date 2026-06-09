@@ -5,6 +5,7 @@
  */
 
 import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
+import { Paa } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
@@ -497,6 +498,50 @@ describe("DclCertificateService", () => {
             await service.construction;
 
             await expect(service.getCertificateAsPem("NONEXISTENT")).to.be.rejected;
+
+            await service.close();
+        });
+
+        const NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
+
+        async function corruptStoredCertificate(skid: string) {
+            const storage = await environment.get(StorageService).open("certificates");
+            await storage.createContext("root").set(skid, Bytes.fromHex("3003010203"));
+        }
+
+        it("force re-fetches a corrupted cached certificate and returns valid DER", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const good = await service.getCertificateAsDer(NOVID_SKID);
+            expect(() => Paa.fromAsn1(good)).to.not.throw();
+
+            await corruptStoredCertificate(NOVID_SKID);
+
+            const healed = await service.getCertificateAsDer(NOVID_SKID);
+            expect(Bytes.areEqual(healed, good)).to.be.true;
+            expect(() => Paa.fromAsn1(healed)).to.not.throw();
+
+            await service.close();
+        });
+
+        it("returns the original bytes when a corrupted cache cannot be re-fetched", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+            await service.getCertificateAsDer(NOVID_SKID);
+
+            const corrupt = Bytes.fromHex("3003010203");
+            await corruptStoredCertificate(NOVID_SKID);
+            // Empty root list wins on reverse-order match, so the re-fetch finds no replacement.
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Recovery fails, so the original (corrupt) bytes are returned unchanged for the caller's
+            // normal validation to surface the parse failure rather than masking it here.
+            const result = await service.getCertificateAsDer(NOVID_SKID);
+            expect(Bytes.areEqual(result, corrupt)).to.be.true;
+            expect(() => Paa.fromAsn1(result)).to.throw();
 
             await service.close();
         });

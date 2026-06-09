@@ -254,4 +254,84 @@ describe("ClientNodeTcp", () => {
             expect(newSession!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
     });
+
+    describe("session-parameter TCP gate", () => {
+        it("honors TCP when the peer's session parameters report TCP server support", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).true;
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
+        });
+
+        it("falls back to UDP when the peer's session parameters do not report TCP server support", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            peer.descriptor.sessionParameters = {
+                ...peer.sessionParameters,
+                supportedTransports: { tcpClient: false, tcpServer: false },
+            };
+
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
+        });
+
+        it("attempts TCP when session parameters omit TCP support but mDNS advertises a TCP server", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            // Some 1.5+ peers omit SUPPORTED_TRANSPORTS (tag 8) yet serve TCP; mDNS T must then decide.
+            peer.descriptor.sessionParameters = { ...peer.sessionParameters, supportedTransports: {} };
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).undefined;
+            expect(peer.descriptor.discoveryData?.T?.tcpServer).true;
+
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
+        });
+
+        it("falls back to UDP when session parameters omit TCP support and mDNS does not advertise a TCP server", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
+
+            const peer = protocolPeer(controller);
+            peer.descriptor.sessionParameters = { ...peer.sessionParameters, supportedTransports: {} };
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).undefined;
+            expect(peer.descriptor.discoveryData?.T?.tcpServer).not.true;
+
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
+        });
+    });
+
+    describe("tcp-unsupported flag", () => {
+        it("falls back to UDP after a peer is flagged TCP-unsupported", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
+
+            peer.markTcpUnsupported();
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
+        });
+    });
+
+    describe("session parameter TCP support", () => {
+        it("reports TCP server support in session parameters when incoming TCP is enabled", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).true;
+        });
+
+        it("does not report TCP server support when the device has no TCP", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
+
+            const peer = protocolPeer(controller);
+            expect(peer.sessionParameters.supportedTransports?.tcpServer).to.not.equal(true);
+        });
+    });
 });

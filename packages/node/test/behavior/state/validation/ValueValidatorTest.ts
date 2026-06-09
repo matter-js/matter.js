@@ -6,8 +6,9 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { DataModelPath, FieldModel } from "@matter/model";
-import { DatatypeError, IntegerRangeError } from "@matter/protocol";
+import { AttributeModel, DataModelPath, FieldElement as Field, FieldModel } from "@matter/model";
+import { DatatypeError, IntegerRangeError, Val } from "@matter/protocol";
+import { BitmapEncodedValue } from "@matter/types";
 
 describe("ValueValidator", () => {
     implementInt("uint8", 0, 0xff);
@@ -16,6 +17,48 @@ describe("ValueValidator", () => {
     implementInt("int8", -128, 127);
     implementInt("int32", -2147483648, 2147483647);
     implementInt("int64", -9223372036854775808n, 9223372036854775807n);
+
+    describe("bitmap reserved bits", () => {
+        // multiA occupies bits 0–2, multiB bits 4–6; bit 3 and bit 7 are reserved.
+        const schema = new AttributeModel(
+            { id: 1, name: "TestBitmap", type: "map8" },
+            Field({ name: "multiA", constraint: "0 to 2" }),
+            Field({ name: "multiB", constraint: "4 to 6" }),
+        );
+        const validator = RootSupervisor.for(schema).validate!;
+
+        function validate(encoded: number, bits: Val.Struct) {
+            const value: Val.Struct = { ...bits };
+            Object.defineProperty(value, BitmapEncodedValue, { value: encoded });
+            validator(value, {} as ValueSupervisor.Session, { path: new DataModelPath(schema.path) });
+        }
+
+        it("accepts defined multi-bit field values", () => {
+            expect(() => validate(0b0110_0101, { multiA: 5, multiB: 6 })).not.throws();
+        });
+
+        it("rejects a reserved gap bit", () => {
+            expect(() => validate(0b0000_1000, { multiA: 0, multiB: 0 })).throws(
+                DatatypeError,
+                "is not free of reserved bits",
+            );
+        });
+
+        it("rejects a reserved high bit", () => {
+            expect(() => validate(0b1000_0000, { multiA: 0, multiB: 0 })).throws(
+                DatatypeError,
+                "is not free of reserved bits",
+            );
+        });
+
+        it("skips enforcement when no encoded value is carried", () => {
+            expect(() =>
+                validator({ multiA: 0, multiB: 0 }, {} as ValueSupervisor.Session, {
+                    path: new DataModelPath(schema.path),
+                }),
+            ).not.throws();
+        });
+    });
 });
 
 function implementInt(type: string, min: number | bigint, max: number | bigint) {

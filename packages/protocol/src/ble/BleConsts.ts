@@ -31,14 +31,29 @@ export namespace MatterBle {
 
     export const MINIMUM_ATT_MTU = 20; // 23-byte minimum ATT_MTU - 3 bytes for ATT operation header
     export const MAXIMUM_BTP_MTU = 244; // Maximum size of BTP segment
+    export const MAXIMUM_ATT_MTU = MAXIMUM_BTP_MTU + 3; // 247: BTP segment plus the 3-byte GATT header (§4.19.3.1.4)
+
+    /** §4.19.3.1.4: BTP segment size is the ATT_MTU minus the 3-byte GATT header, clamped to the supported range. */
+    export function btpSegmentSizeFromAttMtu(attMtu: number): number {
+        const segmentSize = attMtu - 3;
+        if (segmentSize < MINIMUM_ATT_MTU) return MINIMUM_ATT_MTU;
+        if (segmentSize > MAXIMUM_BTP_MTU) return MAXIMUM_BTP_MTU;
+        return segmentSize;
+    }
 
     export const BTP_MAXIMUM_WINDOW_SIZE = 255; // Server maximum window size
+
+    /** §4.19.4.7: reserve the remote window's last slot for an ack so a full window on both sides can't deadlock. */
+    export const BTP_WINDOW_NO_ACK_SEND_THRESHOLD = 1;
+
+    /** §4.19.4.8: at this many free local-window slots or fewer, send any pending ack immediately. */
+    export const BTP_IMMEDIATE_ACK_WINDOW_THRESHOLD = 2;
 
     /**
      * The maximum amount of time after sending a BTP Session Handshake request to wait for a BTP Session Handshake
      * response before closing the connection.
      */
-    export const BTP_CONN_RSP_TIMEOUT = Seconds(5); // timer starts when receives handshake request & waits for a subscription request on c2
+    export const BTP_CONN_RSP_TIMEOUT = Seconds(15); // timer starts when receives handshake request & waits for a subscription request on c2
 
     /** The maximum amount of time after receipt of a segment before a stand-alone ACK must be sent. */
     export const BTP_ACK_TIMEOUT = Seconds(15); // timer in ms before ack should be sent for a segment
@@ -49,7 +64,7 @@ export namespace MatterBle {
      * The maximum amount of time no unique data has been sent over a BTP session before the Central Device must close
      * the BTP session.
      */
-    export const BTP_CONN_IDLE_TIMEOUT = Seconds(30);
+    export const BTP_CONN_IDLE_TIMEOUT = Seconds(60);
 
     /** BTP protocol versions supported, sorted in descending order. */
     export const BTP_SUPPORTED_VERSIONS = [4];

@@ -4,7 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, DerCodec, DerType, MockCrypto, MockFetch, ObjectId, Pem, Seconds } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    DerCodec,
+    DerType,
+    MockCrypto,
+    MockFetch,
+    ObjectId,
+    Pem,
+    Seconds,
+    StorageService,
+} from "@matter/general";
 import {
     AttestationFinding,
     CertificationDeclaration,
@@ -160,6 +171,16 @@ interface AttestationTestOptions {
 
     /** Called after site + DCL setup but before commissioning. Use to add revocation mocks. */
     setupBeforeCommission?: (context: { fetchMock: MockFetch }) => void | Promise<void>;
+
+    /**
+     * After the DCL trust store is populated, overwrite the cached PAA at this SKID with unparseable
+     * bytes. With re-fetch available this exercises the storage self-heal; combined with
+     * {@link blockCachedPaaRefetch} it exercises the unexpected-error → finding path.
+     */
+    corruptCachedPaaSkid?: Bytes | string;
+
+    /** Block the DCL root-certificate re-fetch so a corrupted cache cannot self-heal. */
+    blockCachedPaaRefetch?: boolean;
 }
 
 /**
@@ -198,6 +219,21 @@ async function runAttestationTest(options: AttestationTestOptions) {
             }
             // Inject the Matter test CD signer so CD signature verification works for test CDs
             await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            if (options.corruptCachedPaaSkid !== undefined) {
+                const normalizedSkid =
+                    typeof options.corruptCachedPaaSkid === "string"
+                        ? options.corruptCachedPaaSkid.replace(/:/g, "").toUpperCase()
+                        : Bytes.toHex(options.corruptCachedPaaSkid).toUpperCase();
+                const storage = await controller.env.get(StorageService).open("certificates");
+                await storage.createContext("root").set(normalizedSkid, Bytes.fromHex("3003010203"));
+                if (options.blockCachedPaaRefetch) {
+                    // Empty root list wins on reverse-order match, so the corrupt cache cannot self-heal.
+                    fetchMock.addResponse("/dcl/pki/root-certificates", {
+                        approvedRootCertificates: { schemaVersion: 0, certs: [] },
+                    });
+                }
+            }
         }
 
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
@@ -358,6 +394,45 @@ describe("device attestation during commissioning", () => {
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 onAttestationFailure: false,
                 expectRejection: /finding\(s\) and was rejected by policy/,
+            }));
+    });
+
+    describe("corrupt cached PAA", () => {
+        it("self-heals a corrupt cached PAA by re-fetching from DCL", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                corruptCachedPaaSkid: TestCert_PAA_NoVID_SKID,
+                onAttestationFailure: () => true,
+                assertFindings: findings => {
+                    // Recovered, so the normal chain runs — no unexpected ValidationError.
+                    expect(findings.map(f => f.type)).to.not.include(DeviceAttestationCheck.ValidationError);
+                },
+                assertResult: device => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                },
+            }));
+
+        it("surfaces an unrecoverable corrupt cached PAA as a judgeable finding", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                corruptCachedPaaSkid: TestCert_PAA_NoVID_SKID,
+                blockCachedPaaRefetch: true,
+                onAttestationFailure: () => true,
+                assertFindings: findings => {
+                    expect(findings.map(f => f.type)).to.include(DeviceAttestationCheck.ValidationError);
+                },
+                assertResult: device => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                },
+            }));
+
+        it("rejects an unrecoverable corrupt cached PAA when policy rejects, surfacing the cause", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                corruptCachedPaaSkid: TestCert_PAA_NoVID_SKID,
+                blockCachedPaaRefetch: true,
+                onAttestationFailure: false,
+                expectRejection: /Invalid certificate structure/,
             }));
     });
 

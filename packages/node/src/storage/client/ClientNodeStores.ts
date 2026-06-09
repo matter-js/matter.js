@@ -45,13 +45,10 @@ export class ClientNodeStores {
         const contexts = await this.#storage.contexts();
 
         for (const id of contexts) {
-            if (!id.startsWith(CLIENT_ID_PREFIX)) {
-                continue;
-            }
-
-            const num = Number.parseInt(id.slice(CLIENT_ID_PREFIX.length));
-            if (Number.isFinite(num)) {
-                if (this.#nextAutomaticId <= num) {
+            // Keep the auto-allocation counter ahead of any persisted "peerN" id; custom ids are restored too.
+            if (id.startsWith(CLIENT_ID_PREFIX)) {
+                const num = Number.parseInt(id.slice(CLIENT_ID_PREFIX.length));
+                if (Number.isFinite(num) && this.#nextAutomaticId <= num) {
                     this.#nextAutomaticId = num + 1;
                 }
             }
