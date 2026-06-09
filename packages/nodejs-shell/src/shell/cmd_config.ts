@@ -503,7 +503,7 @@ async function doWifiCredentials(
             );
             break;
         case "set":
-            if (wifiSsid === undefined || wifiPassword === undefined) {
+            if (!wifiSsid || !wifiPassword) {
                 console.log(`Cannot change Wi-Fi credentials: New values not provided`);
                 return;
             }
@@ -545,7 +545,7 @@ async function doThreadCredentials(
             );
             break;
         case "set":
-            if (threadName === undefined || threadOperationalDataset === undefined) {
+            if (!threadName || !threadOperationalDataset) {
                 console.log(`Cannot change Thread network credentials: New values not provided`);
                 return;
             }
