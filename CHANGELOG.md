@@ -24,6 +24,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A TCP-enabled server now reports TCP support in its session parameters (not only in mDNS), so peers learn it during PASE/CASE
     - Fix: Claim the peer node ID only once a candidate wins PASE, to avoid spurious "peer address already in use" conflicts across parallel commissioning attempts
     - Fix: Refreshing a discovered node's metadata while it is being commissioned no longer crashes the process with a synchronous transaction conflict
+    - Fix: Ensure that decommissioning removes a node locally even when the device drops the RemoveFabric response after closing the session, and no longer stalls shutdown
+    - Fix: Ensure that probing a node during teardown reports it unreachable instead of throwing
 
 - @matter/protocol
     - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
@@ -32,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
     - Enhancement: Prefer TCP for operational connections when the peer advertises TCP-server support via its session parameters or mDNS; a negotiated TCP session is declined only on an explicit no-TCP report
     - Enhancement: Lengthened the BTP handshake-response timeout (5s → 15s) and central idle timeout (30s → 60s) to match CHIP
+    - Enhancement: Added `PeerMessageMissingError` (subtype of `PeerUnresponsiveError`) thrown when an expected message does not arrive on an active exchange, distinguishing it from a request that was never acknowledged
     - Fix: Ignore announced TCP support for peers reporting Matter spec version < 1.5.0
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
