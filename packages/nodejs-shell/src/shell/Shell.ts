@@ -21,6 +21,7 @@ import cmdCommission from "./cmd_commission.js";
 import cmdConfig from "./cmd_config.js";
 import cmdDcl from "./cmd_dcl.js";
 import cmdDiscover from "./cmd_discover.js";
+import cmdIcd from "./cmd_icd.js";
 import cmdIdentify from "./cmd_identify.js";
 import cmdNodes from "./cmd_nodes.js";
 import cmdOta from "./cmd_ota.js";
@@ -171,6 +172,7 @@ export class Shell {
                     cmdVendor(this.theNode),
                     cmdTlv(),
                     cmdDcl(),
+                    cmdIcd(this.theNode),
                     exitCommand(),
                 ])
                 .command({
