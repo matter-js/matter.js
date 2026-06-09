@@ -63,6 +63,14 @@ export class IcdClient extends Behavior {
         return this.peerSupportsLit;
     }
 
+    /**
+     * Whether the peer is currently awake (send-now). Mirrors the per-peer wakefulness; a non-LIT or not-yet-fed peer
+     * has nothing to await and reads true. Read-only observability — hold/park still consume the signal in protocol.
+     */
+    get awake() {
+        return this.#fedWakefulness()?.awake.value ?? true;
+    }
+
     /** Whether the peer is currently operating in LIT mode (LIT-capable AND OperatingMode === Lit; a DSLS flip changes this at runtime). */
     get #peerIsLongIdleTimeOperating() {
         return (

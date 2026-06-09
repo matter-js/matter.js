@@ -523,6 +523,27 @@ describe("IcdClient", () => {
         });
     });
 
+    describe("awake getter", () => {
+        it("defaults true unregistered, mirrors the wakefulness once registered", async () => {
+            await using site = new MockSite();
+            const { device, peer1 } = await litOperatingPair(site);
+
+            // Not registered -> no fed wakefulness -> defaults awake (nothing to await).
+            expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(true);
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(true); // seeded on register
+
+            await MockTime.advance(Seconds(3700)); // past idle+margin, no check-in
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(false);
+
+            await wakeDevice(device); // device Check-In re-arms awake
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(true);
+        });
+    });
+
     describe("decommission cleanup", () => {
         it("unregisters locally when the node is decommissioned", async () => {
             await using site = new MockSite();
