@@ -56,6 +56,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Enhancement: Added `network.ownNetworkProfileId` to set the local network's MRP additive margin, and exposed `additionalMrpDelay` and `probeAddress` in network profile config
 
+- @matter/nodejs-shell
+    - Fix: Stored Wi-Fi/Thread credentials are only applied during commissioning when their values are non-empty, so an empty operational dataset no longer fails commissioning of IP-only devices
+    - Fix: `config wifi/thread set` now rejects empty credential values
+
 ## 0.17.1 (2026-06-03)
 
 - @matter/\*
