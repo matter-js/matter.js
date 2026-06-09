@@ -340,7 +340,9 @@ export class CommissioningClient extends Behavior {
         let leaveSeen = false;
         const leaveEvents = this.endpoint.eventsOf(BasicInformationClient).leave;
         const onLeave = ({ fabricIndex: leftFabricIndex }: { fabricIndex: FabricIndex }) => {
-            if (leftFabricIndex === fabricIndex) {
+            // Ignore leaves replayed during subscription establishment; they may be stale events from a prior
+            // commissioning with the same identifier, matching the guard in Peers#onLeave.
+            if (leftFabricIndex === fabricIndex && this.agent.get(NetworkClient).subscriptionActive) {
                 leaveSeen = true;
             }
         };

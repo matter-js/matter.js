@@ -12,6 +12,7 @@ import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter
 import { FabricIndex } from "@matter/types";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { MockSite } from "./mock-site.js";
+import { subscribedPeer } from "./node-helpers.js";
 
 /**
  * Replace the exact `removeFabric` the decommission path invokes, on the runtime prototype of the peer's
@@ -89,7 +90,7 @@ describe("Decommission", () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 
-        const peer1 = controller.peers.get("peer1")!;
+        const peer1 = await subscribedPeer(controller, "peer1");
         const peerAddress = peer1.peerAddress!;
         const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
 
@@ -113,7 +114,7 @@ describe("Decommission", () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 
-        const peer1 = controller.peers.get("peer1")!;
+        const peer1 = await subscribedPeer(controller, "peer1");
         const peerAddress = peer1.peerAddress!;
         const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
         const otherFabricIndex = FabricIndex(fabricIndex + 1);
@@ -137,7 +138,7 @@ describe("Decommission", () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 
-        const peer1 = controller.peers.get("peer1")!;
+        const peer1 = await subscribedPeer(controller, "peer1");
         const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
 
         const restore = await patchRemoveFabric(peer1, async function () {
