@@ -396,10 +396,11 @@ export class BtpSessionHandler {
 
             const segmentPayload = currentProcessedMessage.readByteArray(this.fragmentSize - btpHeaderLength);
 
+            const ackNumberToSend = hasAckNumber ? this.prevIncomingSequenceNumber : undefined;
             const btpPacket = {
                 header: packetHeader,
                 payload: {
-                    ackNumber: hasAckNumber ? this.prevIncomingSequenceNumber : undefined,
+                    ackNumber: ackNumberToSend,
                     sequenceNumber: this.getNextSequenceNumber(),
                     messageLength: packetHeader.isBeginningSegment ? remainingMessageLength : undefined, // remainingMessageLength if the fill length on beginning packet
                     segmentPayload,
@@ -410,6 +411,14 @@ export class BtpSessionHandler {
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
             logger.debug(`Sending BTP packet raw: ${Bytes.toHex(packet)}`);
 
+            // Commit the acknowledgement before awaiting the write so a concurrent send (e.g. a stand-alone ack
+            // or a reply triggered by an incoming message) cannot observe the stale value and ack the same
+            // sequence number twice — a duplicate ack is rejected by spec-compliant peers.
+            const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
+            if (ackNumberToSend !== undefined) {
+                this.prevAckedSequenceNumber = ackNumberToSend;
+            }
+
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
@@ -418,13 +427,10 @@ export class BtpSessionHandler {
                 // Any other error is unexpected and is rethrown so the session can handle it.
                 BleDisconnectedError.accept(error);
                 logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                this.prevAckedSequenceNumber = previousAckedSequenceNumber;
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
                 return;
-            }
-            // Update ACK bookkeeping only after the packet was sent successfully
-            if (hasAckNumber) {
-                this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             }
 
             if (!this.ackReceiveTimer.isRunning) {
@@ -488,8 +494,9 @@ export class BtpSessionHandler {
 
     /** Send a stand-alone acknowledgement packet if one is pending. */
     private async sendStandaloneAck() {
-        if (this.prevIncomingSequenceNumber === this.prevAckedSequenceNumber) return;
-        logger.debug(`Sending BTP ACK for sequence number ${this.prevIncomingSequenceNumber}`);
+        const ackNumberToSend = this.prevIncomingSequenceNumber;
+        if (ackNumberToSend === this.prevAckedSequenceNumber) return;
+        logger.debug(`Sending BTP ACK for sequence number ${ackNumberToSend}`);
         const btpPacket = {
             header: {
                 isHandshakeRequest: false,
@@ -500,11 +507,17 @@ export class BtpSessionHandler {
                 isEndingSegment: false,
             },
             payload: {
-                ackNumber: this.prevIncomingSequenceNumber,
+                ackNumber: ackNumberToSend,
                 sequenceNumber: this.getNextSequenceNumber(),
             },
         };
         const packet = BtpCodec.encodeBtpPacket(btpPacket);
+
+        // Commit the acknowledgement before awaiting the write so an interleaved data send cannot observe the
+        // stale value and ack the same sequence number again — a duplicate ack is rejected by spec-compliant peers.
+        const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
+        this.prevAckedSequenceNumber = ackNumberToSend;
+        this.sendAckTimer.stop();
         try {
             await this.writeBleCallback(packet);
         } catch (error) {
@@ -512,10 +525,9 @@ export class BtpSessionHandler {
             // Any other error is unexpected and is rethrown so the session can handle it.
             BleDisconnectedError.accept(error);
             logger.debug("BTP ACK send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+            this.prevAckedSequenceNumber = previousAckedSequenceNumber;
             return;
         }
-        this.sendAckTimer.stop();
-        this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
         if (!this.ackReceiveTimer.isRunning) {
             this.ackReceiveTimer.start(); // starts the timer
         }

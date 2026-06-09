@@ -848,6 +848,80 @@ describe("BtpSessionHandler", () => {
             await peripheral.close();
         });
 
+        // Regression: a stand-alone ack whose write is still in flight must not let a concurrent data send
+        // re-acknowledge the same sequence number (a duplicate ack is rejected by spec-compliant peers).
+        it("does not duplicate an acknowledgement when a data send interleaves a pending stand-alone ack", async () => {
+            const writes = new Array<Bytes>();
+            let hangStandalone = false;
+            let releaseStandaloneWrite: (() => void) | undefined;
+
+            let onWrite = (_: Bytes): Promise<void> => Promise.resolve();
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                Bytes.fromHex("656c04000000b90006"), // window size 6
+                async data => onWrite(data),
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+            onWrite = data => {
+                const decoded = BtpCodec.decodeBtpPacket(data);
+                writes.push(data);
+                // A stand-alone ack carries no segment payload; hold its write open to force the interleave.
+                if (hangStandalone && decoded.payload.segmentPayload.byteLength === 0) {
+                    return new Promise<void>(resolve => {
+                        releaseStandaloneWrite = resolve;
+                    });
+                }
+                return Promise.resolve();
+            };
+
+            const continuing = (sequenceNumber: number) =>
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: false,
+                        isEndingSegment: false,
+                        isContinuingSegment: sequenceNumber !== 0,
+                        isBeginningSegment: sequenceNumber === 0,
+                    },
+                    payload: {
+                        sequenceNumber,
+                        messageLength: sequenceNumber === 0 ? 100 : undefined,
+                        segmentPayload: Bytes.fromHex("0102"),
+                    },
+                });
+
+            // Drop the local receive window to the immediate-ack threshold without completing a message.
+            await peripheral.handleIncomingBleData(continuing(0));
+            await peripheral.handleIncomingBleData(continuing(1));
+            await peripheral.handleIncomingBleData(continuing(2));
+            expect(writes.length).equal(0);
+
+            // The fourth packet triggers a stand-alone ack whose write we hold open.
+            hangStandalone = true;
+            const incoming = peripheral.handleIncomingBleData(continuing(3));
+            await Promise.resolve();
+            expect(writes.length).equal(1); // the stand-alone ack (still in flight)
+            expect(BtpCodec.decodeBtpPacket(writes[0]).payload.ackNumber).equal(3);
+
+            // While the ack write is pending, send a data message: it must not re-ack sequence number 3.
+            const sending = peripheral.sendMatterMessage(Bytes.fromHex("0a0b0c"));
+            await Promise.resolve();
+
+            const dataPacket = BtpCodec.decodeBtpPacket(writes[writes.length - 1]);
+            expect(dataPacket.payload.segmentPayload.byteLength).greaterThan(0); // it is the data packet
+            expect(dataPacket.header.hasAckNumber).equal(false);
+
+            releaseStandaloneWrite?.();
+            await incoming;
+            await sending;
+
+            await peripheral.close();
+        });
+
         // §4.19.4.6 + the window guard: outstanding packets that span the 255 -> 0 wrap must be counted by
         // modular distance, so the window neither over-sends nor stalls across the boundary.
         it("transfers many messages correctly while sequence numbers wrap", async () => {
