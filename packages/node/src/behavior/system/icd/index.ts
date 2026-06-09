@@ -6,3 +6,4 @@
 
 export * from "./IcdClient.js";
 export * from "./IcdMultiAdminError.js";
+export * from "./IcdPeerAsleepError.js";

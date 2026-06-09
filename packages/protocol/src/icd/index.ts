@@ -8,3 +8,4 @@ export * from "./CheckInMessage.js";
 export * from "./FabricIcd.js";
 export * from "./IcdCheckInSender.js";
 export * from "./IcdCounter.js";
+export * from "./IcdPeerWakefulness.js";
