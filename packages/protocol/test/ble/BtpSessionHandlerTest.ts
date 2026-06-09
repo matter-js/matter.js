@@ -848,6 +848,42 @@ describe("BtpSessionHandler", () => {
             await peripheral.close();
         });
 
+        // A non-disconnect write error must re-raise but still roll back send state, so the session is not
+        // left wedged (sendInProgress stuck, queue half-applied).
+        it("re-raises a non-disconnect write error and resets send state", async () => {
+            let failNextWrite = true;
+            const writes = new Array<Bytes>();
+            const central = await BtpSessionHandler.createAsCentral(
+                Bytes.fromHex("656c04f40005"), // window size 5
+                async data => {
+                    if (failNextWrite) {
+                        failNextWrite = false;
+                        throw new Error("boom");
+                    }
+                    writes.push(data);
+                },
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+
+            let raised: unknown;
+            try {
+                await central.sendMatterMessage(Bytes.fromHex("0102"));
+            } catch (error) {
+                raised = error;
+            }
+            expect(raised).instanceOf(Error);
+            expect((raised as Error).message).equal("boom");
+
+            // sendInProgress was reset, so a subsequent send proceeds and succeeds.
+            await central.sendMatterMessage(Bytes.fromHex("0304"));
+            expect(writes.length).equal(1);
+
+            await central.close();
+        });
+
         // Regression: a stand-alone ack whose write is still in flight must not let a concurrent data send
         // re-acknowledge the same sequence number (a duplicate ack is rejected by spec-compliant peers).
         it("does not duplicate an acknowledgement when a data send interleaves a pending stand-alone ack", async () => {

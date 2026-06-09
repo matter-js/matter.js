@@ -422,14 +422,14 @@ export class BtpSessionHandler {
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
-                // Clear the queue to avoid malformed state from partially-consumed DataReaders.
-                // Any other error is unexpected and is rethrown so the session can handle it.
-                BleDisconnectedError.accept(error);
-                logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                // Roll back the bookkeeping the failed write left half-applied (ack commit, queue, send flag) so it
+                // runs for every error, then absorb an expected disconnect and re-raise anything unexpected.
+                // The queue is cleared to avoid malformed state from partially-consumed DataReaders.
                 this.prevAckedSequenceNumber = previousAckedSequenceNumber;
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
+                BleDisconnectedError.accept(error);
+                logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
                 return;
             }
 
@@ -520,11 +520,11 @@ export class BtpSessionHandler {
         try {
             await this.writeBleCallback(packet);
         } catch (error) {
-            // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
-            // Any other error is unexpected and is rethrown so the session can handle it.
+            // Roll back the ack commit before absorbing an expected disconnect and re-raising anything unexpected,
+            // so a failed write never leaves the acknowledgement marked as sent.
+            this.prevAckedSequenceNumber = previousAckedSequenceNumber;
             BleDisconnectedError.accept(error);
             logger.debug("BTP ACK send failed because BLE is disconnected", Diagnostic.errorMessage(error));
-            this.prevAckedSequenceNumber = previousAckedSequenceNumber;
             return;
         }
         this.sendAckTimer.stop();
