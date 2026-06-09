@@ -427,7 +427,10 @@ export class BtpSessionHandler {
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
                 BleDisconnectedError.accept(error);
-                logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                logger.debug(
+                    `BTP packet (seq ${btpPacket.payload.sequenceNumber}) send failed because BLE is disconnected`,
+                    Diagnostic.errorMessage(error),
+                );
                 return;
             }
 
@@ -448,6 +451,11 @@ export class BtpSessionHandler {
             }
         }
         this.sendInProgress = false;
+
+        // A pending ack that could not be piggybacked (e.g. an incoming packet arrived mid-send) would otherwise
+        // be stranded until the send-ack timer, since the timer is one-shot and may have already fired while a
+        // send held the lock; flush it now that the send completed.
+        await this.sendStandaloneAck();
     }
 
     /**
@@ -488,46 +496,59 @@ export class BtpSessionHandler {
 
     /** Send a stand-alone acknowledgement packet if one is pending. */
     private async sendStandaloneAck() {
-        // A data send already in flight will piggyback the pending ack; don't issue a racing concurrent write.
+        // Mutually exclusive with processSendQueue (both directions): if a send is in progress it will piggyback
+        // the pending ack, and two concurrent writes could otherwise reach the wire out of order.
         if (this.sendInProgress) return;
         const ackNumberToSend = this.prevIncomingSequenceNumber;
         if (ackNumberToSend === this.prevAckedSequenceNumber) return;
         // §4.19.4.7: an ack still consumes a remote-window slot, so never send into a full window.
         if (!this.canSend(true)) return;
-        logger.debug(`Sending BTP ACK for sequence number ${ackNumberToSend}`);
-        const btpPacket = {
-            header: {
-                isHandshakeRequest: false,
-                hasManagementOpcode: false,
-                hasAckNumber: true,
-                isBeginningSegment: false,
-                isContinuingSegment: false,
-                isEndingSegment: false,
-            },
-            payload: {
-                ackNumber: ackNumberToSend,
-                sequenceNumber: this.getNextSequenceNumber(),
-            },
-        };
-        const packet = BtpCodec.encodeBtpPacket(btpPacket);
 
-        // Commit the ack before the await so an interleaved data send can't re-ack the same sequence
-        // (spec-compliant peers reject a duplicate ack).
-        const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
-        this.prevAckedSequenceNumber = ackNumberToSend;
+        this.sendInProgress = true;
         try {
-            await this.writeBleCallback(packet);
-        } catch (error) {
-            // Roll back before re-raising so a failed write never leaves the ack marked as sent.
-            this.prevAckedSequenceNumber = previousAckedSequenceNumber;
-            BleDisconnectedError.accept(error);
-            logger.debug("BTP ACK send failed because BLE is disconnected", Diagnostic.errorMessage(error));
-            return;
+            logger.debug(`Sending BTP ACK for sequence number ${ackNumberToSend}`);
+            const btpPacket = {
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isBeginningSegment: false,
+                    isContinuingSegment: false,
+                    isEndingSegment: false,
+                },
+                payload: {
+                    ackNumber: ackNumberToSend,
+                    sequenceNumber: this.getNextSequenceNumber(),
+                },
+            };
+            const packet = BtpCodec.encodeBtpPacket(btpPacket);
+
+            // Commit the ack before the await so an interleaved send can't re-ack the same sequence
+            // (spec-compliant peers reject a duplicate ack).
+            const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
+            this.prevAckedSequenceNumber = ackNumberToSend;
+            try {
+                await this.writeBleCallback(packet);
+            } catch (error) {
+                // Roll back before re-raising so a failed write never leaves the ack marked as sent.
+                this.prevAckedSequenceNumber = previousAckedSequenceNumber;
+                BleDisconnectedError.accept(error);
+                logger.debug(
+                    `BTP ACK (seq ${btpPacket.payload.sequenceNumber}, ack ${ackNumberToSend}) send failed because BLE is disconnected`,
+                    Diagnostic.errorMessage(error),
+                );
+                return;
+            }
+            this.sendAckTimer.stop();
+            if (!this.ackReceiveTimer.isRunning) {
+                this.ackReceiveTimer.start(); // starts the timer
+            }
+        } finally {
+            this.sendInProgress = false;
         }
-        this.sendAckTimer.stop();
-        if (!this.ackReceiveTimer.isRunning) {
-            this.ackReceiveTimer.start(); // starts the timer
-        }
+
+        // Flush any Matter message that was queued while the ack held the send lock.
+        await this.processSendQueue();
     }
 
     /**

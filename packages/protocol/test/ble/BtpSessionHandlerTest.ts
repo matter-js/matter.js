@@ -943,17 +943,21 @@ describe("BtpSessionHandler", () => {
             expect(writes.length).equal(1); // the stand-alone ack (still in flight)
             expect(BtpCodec.decodeBtpPacket(writes[0]).payload.ackNumber).equal(3);
 
-            // While the ack write is pending, send a data message: it must not re-ack sequence number 3.
+            // While the ack write is in flight, a data message is queued (not sent concurrently) since the ack
+            // holds the send lock.
             const sending = peripheral.sendMatterMessage(Bytes.fromHex("0a0b0c"));
             await Promise.resolve();
+            expect(writes.length).equal(1);
 
-            const dataPacket = BtpCodec.decodeBtpPacket(writes[writes.length - 1]);
-            expect(dataPacket.payload.segmentPayload.byteLength).greaterThan(0); // it is the data packet
-            expect(dataPacket.header.hasAckNumber).equal(false);
-
+            // Once the ack write completes, the queued data is flushed — and must not re-ack sequence number 3.
             releaseStandaloneWrite?.();
             await incoming;
             await sending;
+
+            expect(writes.length).equal(2);
+            const dataPacket = BtpCodec.decodeBtpPacket(writes[1]);
+            expect(dataPacket.payload.segmentPayload.byteLength).greaterThan(0); // it is the data packet
+            expect(dataPacket.header.hasAckNumber).equal(false);
 
             await peripheral.close();
         });
@@ -1010,8 +1014,15 @@ describe("BtpSessionHandler", () => {
             await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
             expect(writes.length).equal(1);
 
+            // Once the data write completes, the stranded ack must be flushed (not lost to the one-shot timer).
             releaseDataWrite?.();
             await sending;
+
+            expect(writes.length).equal(2);
+            const flushedAck = BtpCodec.decodeBtpPacket(writes[1]);
+            expect(flushedAck.header.hasAckNumber).equal(true);
+            expect(flushedAck.payload.ackNumber).equal(0);
+            expect(flushedAck.payload.segmentPayload.byteLength).equal(0);
 
             await peripheral.close();
         });
