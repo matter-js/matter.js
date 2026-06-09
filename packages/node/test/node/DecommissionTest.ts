@@ -6,7 +6,7 @@
 
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Seconds } from "@matter/general";
-import { PeerSet, PeerUnresponsiveError } from "@matter/protocol";
+import { PeerResponseMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { MockSite } from "./mock-site.js";
 
@@ -36,7 +36,7 @@ describe("Decommission", () => {
 
     it("removes the node when removeFabric is delivered but the response is lost", async () => {
         await using site = new MockSite();
-        const { controller, device } = await site.addCommissionedPair();
+        const { controller } = await site.addCommissionedPair();
 
         const peer1 = controller.peers.get("peer1")!;
         const peerAddress = peer1.peerAddress!;
@@ -46,7 +46,7 @@ describe("Decommission", () => {
         const restore = await patchRemoveFabric(peer1, async function () {
             stubCalled = true;
             // Device tore down the session keyed to our fabric before delivering NocResponse.
-            throw new PeerUnresponsiveError(Seconds(11));
+            throw new PeerResponseMissingError(Seconds(11));
         });
 
         try {
@@ -58,6 +58,27 @@ describe("Decommission", () => {
         expect(stubCalled).is.true;
         expect(controller.peers.size).equals(0);
         expect(controller.env.get(PeerSet).has(peerAddress)).is.false;
-        void device;
+    });
+
+    it("keeps the node when removeFabric is never acknowledged", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.peerAddress!;
+
+        const restore = await patchRemoveFabric(peer1, async function () {
+            // Outbound MRP ack never arrived: the device may never have received the command.
+            throw new PeerUnresponsiveError(Seconds(11));
+        });
+
+        try {
+            await expect(MockTime.resolve(peer1.decommission())).rejectedWith(PeerUnresponsiveError);
+        } finally {
+            restore();
+        }
+
+        expect(controller.peers.size).equals(1);
+        expect(controller.env.get(PeerSet).has(peerAddress)).is.true;
     });
 });

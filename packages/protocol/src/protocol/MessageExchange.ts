@@ -7,7 +7,7 @@
 import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { NetworkProfile } from "#peer/NetworkProfile.js";
-import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { PeerResponseMissingError, PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
@@ -696,7 +696,7 @@ export class MessageExchange {
             abort: options?.abort,
 
             timeoutHandler: () => {
-                throw new PeerUnresponsiveError(timeout!);
+                throw new PeerResponseMissingError(timeout!);
             },
         });
 

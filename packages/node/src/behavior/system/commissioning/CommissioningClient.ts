@@ -65,8 +65,8 @@ import {
     PeerAddress,
     PeerInitiatedCloseError,
     PeerLeftError,
+    PeerResponseMissingError,
     PeerSet,
-    PeerUnresponsiveError,
     PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
     SessionParameters as ProtocolSessionParameters,
@@ -349,8 +349,7 @@ export class CommissioningClient extends Behavior {
         try {
             logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
 
-            // A non-Ok status is an explicit refusal and must never be overridden by a leave event, so raise it after
-            // the rescue block rather than inside the try.
+            // A non-Ok status is an explicit refusal and must never be overridden by a leave event.
             let nonOkFailure: MatterError | undefined;
             try {
                 const result = await opcreds.removeFabric({ fabricIndex });
@@ -364,7 +363,7 @@ export class CommissioningClient extends Behavior {
                     leaveSeen ||
                     causedBy(
                         error,
-                        PeerUnresponsiveError,
+                        PeerResponseMissingError,
                         PeerLeftError,
                         FabricRemovedError,
                         PeerInitiatedCloseError,

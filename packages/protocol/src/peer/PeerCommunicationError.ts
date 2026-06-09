@@ -46,6 +46,15 @@ export class PeerUnresponsiveError extends TransientPeerCommunicationError {
 }
 
 /**
+ * Thrown when the peer acknowledged our request but did not send the expected response before the timeout.
+ *
+ * Subtype of {@link PeerUnresponsiveError}: the exchange was active and our message was delivered (acked); only the
+ * response is missing.  Distinguished from the bare {@link PeerUnresponsiveError} raised when our outbound message was
+ * never acked (the peer may never have received it).
+ */
+export class PeerResponseMissingError extends PeerUnresponsiveError {}
+
+/**
  * Thrown when a session is closed due to peer shutdown.
  */
 export class PeerShutdownError extends TransientPeerCommunicationError {
