@@ -5,7 +5,7 @@
  */
 
 import { PhysicalDeviceProperties } from "#peer/PhysicalDeviceProperties.js";
-import { Instant, Minutes, Seconds } from "@matter/general";
+import { Instant, Seconds } from "@matter/general";
 
 const { subscriptionIntervalBoundsFor } = PhysicalDeviceProperties;
 
@@ -151,12 +151,12 @@ describe("PhysicalDeviceProperties", () => {
                 expectJittered(maxIntervalCeiling, 60);
             });
 
-            it("does not apply jitter when Thread is not active", () => {
+            it("applies jitter when Thread is not active", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, supportsThread: true, threadActive: false },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Minutes(1));
+                expectJittered(maxIntervalCeiling, 60);
             });
 
             it("applies jitter for an ICD device while keeping the Instant floor", () => {
