@@ -5,10 +5,41 @@
  */
 
 import { IcdClient, IcdMultiAdminError } from "@matter/node";
+import { IcdManagementClient } from "@matter/node/behaviors/icd-management";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { PairedNode } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+
+async function printStatus(paired: PairedNode) {
+    const clientNode = paired.node;
+    if (!clientNode.behaviors.has(IcdClient)) {
+        return;
+    }
+    const icd = clientNode.stateOf(IcdClient);
+    const mgmt = clientNode.maybeStateOf(IcdManagementClient);
+    const supportsLit = clientNode.maybeFeaturesOf(IcdManagementClient)?.longIdleTimeSupport === true;
+    const awake = await clientNode.act(agent => agent.get(IcdClient).awake);
+    const operatingModeLabel =
+        mgmt === undefined
+            ? "n/a"
+            : (IcdManagement.OperatingMode[mgmt.operatingMode ?? -1] ?? mgmt.operatingMode ?? "unknown");
+    console.log(
+        [
+            `node ${paired.nodeId}:`,
+            `  registered=${icd.registered}`,
+            `  available=${icd.available}`,
+            `  awake=${awake}`,
+            `  supportsLit=${supportsLit}`,
+            `  operatingMode=${operatingModeLabel}`,
+            `  activeModeThreshold(ms)=${mgmt?.activeModeThreshold ?? "n/a"}`,
+            `  idleModeDuration(s)=${mgmt?.idleModeDuration ?? "n/a"}`,
+            `  lastCheckIn=${icd.lastCheckInReceivedAt ?? "never"}`,
+            `  counterStart=${icd.counterStart ?? "n/a"} lastOffset=${icd.lastOffset ?? "n/a"}`,
+        ].join("\n"),
+    );
+}
 
 async function clientNodeFor(theNode: MatterNode, nodeIdStr: string) {
     const paired = (await theNode.connectAndGetNodes(nodeIdStr))[0];
@@ -84,6 +115,18 @@ export default function commands(theNode: MatterNode) {
                         const clientNode = await clientNodeFor(theNode, argv.nodeId);
                         await clientNode.act(agent => agent.get(IcdClient).unregister());
                         console.log(`Unregistered Check-In client on node ${argv.nodeId}`);
+                    },
+                })
+                .command({
+                    command: "status [node-id]",
+                    describe: "Show ICD state for one peer, or all ICD peers if no id",
+                    builder: (y: Argv) =>
+                        y.positional("node-id", { describe: "node id", type: "string", default: undefined }),
+                    handler: async (argv: any) => {
+                        const nodes = await theNode.connectAndGetNodes(argv.nodeId);
+                        for (const paired of nodes) {
+                            await printStatus(paired);
+                        }
                     },
                 })
                 .demandCommand(1, "You must specify an icd subcommand"),
