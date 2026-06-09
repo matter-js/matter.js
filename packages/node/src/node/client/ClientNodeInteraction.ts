@@ -21,6 +21,7 @@ import {
     ClientSubscriptions,
     ClientWrite,
     DecodedInvokeResult,
+    FabricManager,
     Interactable,
     OperationalAddressChangedError,
     PeerSet,
@@ -121,6 +122,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
             closed: request.closed?.bind(request),
         };
+
+        if (intermediateRequest.sustain && ClientNodePhysicalProperties(this.#node).isLongIdleTimeOperating) {
+            intermediateRequest.icdWakefulness = this.#icdWakefulness();
+        }
 
         return this.#interaction.subscribe(intermediateRequest, context);
     }
@@ -223,6 +228,18 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     get #structure() {
         return (this.#node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+    }
+
+    /**
+     * Wakefulness of a LIT peer, or undefined when the peer is uncommissioned or has no registered ICD entry yet.  An
+     * undefined result routes the subscription to the non-LIT path rather than throwing.
+     */
+    #icdWakefulness() {
+        const address = this.#node.state.commissioning.peerAddress;
+        if (address === undefined) {
+            return undefined;
+        }
+        return this.#node.env.get(FabricManager).maybeFor(address.fabricIndex)?.icd.wakefulnessFor(address.nodeId);
     }
 
     /**

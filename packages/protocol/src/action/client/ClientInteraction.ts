@@ -57,6 +57,7 @@ import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
 import { ClientSubscription } from "./subscription/ClientSubscription.js";
 import { ClientSubscriptions } from "./subscription/ClientSubscriptions.js";
 import { PeerSubscription } from "./subscription/PeerSubscription.js";
+import { subscriptionFor } from "./subscription/subscriptionFor.js";
 import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 
 const logger = Logger.get("ClientInteraction");
@@ -942,22 +943,29 @@ export class ClientInteraction<
             // Update interactionSession BEFORE constructing SustainedSubscription so closures see the correct value
             interactionSession = { ...interactionSession, connectionTimeout: Forever } as SessionT;
 
-            subscription = new SustainedSubscription({
-                lifetime: this.subscriptions,
-                subscribe,
-                peer,
-                closed: () => this.subscriptions.delete(subscription),
-                request,
-                abort: session?.abort,
-                retries: this.#sustainRetries,
-                read,
-                // TCP has 1:1 session-connection binding plus OS keep-alive — the session is
-                // evicted when the connection drops, so no liveness probe is needed.
-                probe: abort =>
-                    this.#exchangeProvider.channelType === ChannelType.TCP
-                        ? Promise.resolve(true)
-                        : this.probe({ abort }),
-            });
+            const wakefulness = request.icdWakefulness;
+            subscription = subscriptionFor(
+                { isLongIdleTimeOperating: wakefulness !== undefined },
+                {
+                    sustained: {
+                        lifetime: this.subscriptions,
+                        subscribe,
+                        peer,
+                        closed: () => this.subscriptions.delete(subscription),
+                        request,
+                        abort: session?.abort,
+                        retries: this.#sustainRetries,
+                        read,
+                        // TCP has 1:1 session-connection binding plus OS keep-alive — the session is
+                        // evicted when the connection drops, so no liveness probe is needed.
+                        probe: abort =>
+                            this.#exchangeProvider.channelType === ChannelType.TCP
+                                ? Promise.resolve(true)
+                                : this.probe({ abort }),
+                    },
+                    wakefulness,
+                },
+            );
         } else {
             subscription = await subscribe(request);
         }

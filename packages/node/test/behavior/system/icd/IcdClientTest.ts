@@ -11,7 +11,14 @@ import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-managem
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Crypto, ImplementationError, MockCrypto, Seconds } from "@matter/general";
-import { FabricManager, TestFabric } from "@matter/protocol";
+import {
+    ClientSubscribe,
+    FabricManager,
+    IcdSustainedSubscription,
+    Subscribe,
+    SustainedSubscription,
+    TestFabric,
+} from "@matter/protocol";
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockSite } from "../../../node/mock-site.js";
@@ -533,6 +540,37 @@ describe("IcdClient", () => {
 
             expect(peer1.stateOf(IcdClient).registered).false;
             expect(fabric.icd.hasPeers).false;
+        });
+    });
+
+    describe("sustained subscription routing", () => {
+        const sustainRequest: ClientSubscribe = { ...Subscribe({ attributes: [{}] }), sustain: true };
+
+        it("routes a registered LIT peer to an IcdSustainedSubscription", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+
+            await peer1.act(agent => agent.get(IcdClient).register());
+            expect(wakefulnessOf(controller, peer1)).not.undefined;
+
+            const subscription = await peer1.interaction.subscribe(sustainRequest);
+            IcdSustainedSubscription.assert(subscription);
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("routes a non-ICD peer to a SustainedSubscription", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const subscription = await MockTime.resolve(peer1.interaction.subscribe(sustainRequest), {
+                macrotasks: true,
+            });
+            SustainedSubscription.assert(subscription);
+            expect(subscription instanceof IcdSustainedSubscription).false;
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
     });
 });
