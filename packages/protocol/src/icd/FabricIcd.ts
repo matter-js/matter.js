@@ -5,7 +5,7 @@
  */
 
 import type { Crypto } from "@matter/general";
-import { Bytes, Logger } from "@matter/general";
+import { Bytes, ImplementationError, Logger } from "@matter/general";
 import { type SubjectId, NodeId } from "@matter/types";
 import type { IcdManagement } from "@matter/types/clusters/icd-management";
 import { CheckInMessage } from "./CheckInMessage.js";
@@ -54,6 +54,21 @@ export class FabricIcd {
     addPeer(peer: FabricIcd.Peer, handler: FabricIcd.CheckInHandler): void {
         this.#peers.get(peer.peerNodeId)?.wakefulness.close();
         this.#peers.set(peer.peerNodeId, { peer, handler, wakefulness: new IcdPeerWakefulness() });
+    }
+
+    /**
+     * Re-key a registered peer in place (key refresh), preserving its {@link IcdPeerWakefulness} and handler. Recreating
+     * the entry would orphan consumers that hold the wakefulness (e.g. a parked IcdSustainedSubscription), so the
+     * rolling-counter baseline is updated without disturbing the wakefulness windows.
+     */
+    updatePeer(peerNodeId: NodeId, peer: Pick<FabricIcd.Peer, "key" | "counterStart" | "lastOffset">): void {
+        const entry = this.#peers.get(peerNodeId);
+        if (entry === undefined) {
+            throw new ImplementationError(`Cannot update unregistered ICD peer ${peerNodeId}.`);
+        }
+        entry.peer.key = peer.key;
+        entry.peer.counterStart = peer.counterStart;
+        entry.peer.lastOffset = peer.lastOffset;
     }
 
     peerFor(peerNodeId: NodeId): FabricIcd.Peer | undefined {

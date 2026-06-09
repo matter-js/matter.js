@@ -400,9 +400,9 @@ export class IcdClient extends Behavior {
         this.state.counterStart = icdCounter;
         this.state.lastOffset = 0;
 
-        fabric.icd.deletePeer(peerNodeId);
-        // The refresh is driven by a Check-In we just decrypted, so the peer is reachable: seed the window.
-        this.#feedFabricIcd(fabric, peerNodeId, true);
+        // Re-key in place rather than delete+re-add: the wakefulness (and any subscription parked on it) must survive
+        // the refresh. The triggering Check-In already re-armed the windows.
+        fabric.icd.updatePeer(peerNodeId, { key, counterStart: icdCounter, lastOffset: 0 });
         this.events.keyRefreshed.emit();
     }
 

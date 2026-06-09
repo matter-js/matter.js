@@ -286,6 +286,9 @@ describe("IcdClient", () => {
             const peerEntry = fabric.icd.peerFor(peerNodeId)!;
             peerEntry.counterStart = (originalCounterStart - 0x80000000) >>> 0;
 
+            // The wakefulness must survive a re-key in place: a parked subscription holds this instance.
+            const wakefulnessBefore = fabric.icd.wakefulnessFor(peerNodeId);
+
             const refreshed = new Promise<void>(resolve =>
                 peer1.eventsOf(IcdClient).keyRefreshed.once(() => resolve()),
             );
@@ -303,6 +306,9 @@ describe("IcdClient", () => {
 
             // The device accepted the re-key in place: still exactly one registration for this controller.
             expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+
+            // Re-key preserved the wakefulness instance (not delete+recreate), so a parked subscription stays valid.
+            expect(fabric.icd.wakefulnessFor(peerNodeId)).equals(wakefulnessBefore);
 
             const checkedInAgain = new Promise<{ counter: number }>(resolve =>
                 peer1.eventsOf(IcdClient).checkedIn.once(resolve),
