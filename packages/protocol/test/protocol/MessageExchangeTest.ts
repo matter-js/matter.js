@@ -218,4 +218,13 @@ describe("MessageExchange", () => {
             expect(sentMessages[0].payloadHeader.messageType).equals(0x10);
         });
     });
+
+    describe("ICD operational discovery on retry (MRP 4.12)", () => {
+        // TODO(ICD phase 3b-4 follow-up): the retransmission path does not yet start Operational Discovery in parallel
+        // with the first MRP retry for an ICD peer, nor adopt freshly discovered address/MRP parameters mid-exchange
+        // (MessageExchange #addressOverride is fixed at construction). Implement, then un-skip this test.
+        it(
+            "starts operational discovery in parallel with the first retry and adopts discovered params for an ICD peer",
+        );
+    });
 });
