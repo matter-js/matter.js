@@ -517,7 +517,6 @@ export class BtpSessionHandler {
         // stale value and ack the same sequence number again — a duplicate ack is rejected by spec-compliant peers.
         const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
         this.prevAckedSequenceNumber = ackNumberToSend;
-        this.sendAckTimer.stop();
         try {
             await this.writeBleCallback(packet);
         } catch (error) {
@@ -528,6 +527,7 @@ export class BtpSessionHandler {
             this.prevAckedSequenceNumber = previousAckedSequenceNumber;
             return;
         }
+        this.sendAckTimer.stop();
         if (!this.ackReceiveTimer.isRunning) {
             this.ackReceiveTimer.start(); // starts the timer
         }
