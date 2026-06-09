@@ -14,8 +14,8 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
-    ClassExtends,
     causedBy,
+    ClassExtends,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -361,13 +361,7 @@ export class CommissioningClient extends Behavior {
             } catch (error) {
                 if (
                     leaveSeen ||
-                    causedBy(
-                        error,
-                        PeerMessageMissingError,
-                        PeerLeftError,
-                        FabricRemovedError,
-                        PeerInitiatedCloseError,
-                    )
+                    causedBy(error, PeerMessageMissingError, PeerLeftError, FabricRemovedError, PeerInitiatedCloseError)
                 ) {
                     logger.info(
                         `Node ${formerAddress} removal confirmed without response`,

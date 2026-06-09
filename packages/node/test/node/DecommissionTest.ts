@@ -6,11 +6,11 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { Seconds } from "@matter/general";
 import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { MockSite } from "./mock-site.js";
 
 /**
