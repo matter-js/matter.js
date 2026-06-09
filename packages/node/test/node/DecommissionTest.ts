@@ -6,7 +6,7 @@
 
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Seconds } from "@matter/general";
-import { PeerResponseMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
+import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { MockSite } from "./mock-site.js";
 
@@ -46,7 +46,7 @@ describe("Decommission", () => {
         const restore = await patchRemoveFabric(peer1, async function () {
             stubCalled = true;
             // Device tore down the session keyed to our fabric before delivering NocResponse.
-            throw new PeerResponseMissingError(Seconds(11));
+            throw new PeerMessageMissingError(Seconds(11));
         });
 
         try {

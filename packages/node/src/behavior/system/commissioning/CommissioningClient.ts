@@ -65,7 +65,7 @@ import {
     PeerAddress,
     PeerInitiatedCloseError,
     PeerLeftError,
-    PeerResponseMissingError,
+    PeerMessageMissingError,
     PeerSet,
     PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
@@ -363,7 +363,7 @@ export class CommissioningClient extends Behavior {
                     leaveSeen ||
                     causedBy(
                         error,
-                        PeerResponseMissingError,
+                        PeerMessageMissingError,
                         PeerLeftError,
                         FabricRemovedError,
                         PeerInitiatedCloseError,
