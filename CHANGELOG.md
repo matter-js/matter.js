@@ -51,6 +51,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: BTP now resumes a stalled send queue when an incoming acknowledgement reopens the window
     - Fix: BTP now closes the session if reassembly exceeds the declared message length
     - Fix: BTP commits the acknowledged sequence number before awaiting the write so a stand-alone ack and a concurrent data send no longer acknowledge the same sequence twice (a duplicate ack is rejected by spec-compliant peers)
+    - Fix: BTP no longer issues a stand-alone ack into a full remote receive window or concurrently with an in-flight fragment write
     - Fix: A corrupted PAA in the local DCL certificate cache is now re-fetched from DCL once before failing, recovering from broken storage
     - Fix: Unexpected errors during device attestation validation (e.g. an unrecoverably corrupt trust-store certificate) are now surfaced as an attestation finding for the `onAttestationFailure` policy to judge, instead of aborting commissioning outside the findings mechanism
 
