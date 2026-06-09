@@ -5,7 +5,7 @@
  */
 
 import { PhysicalDeviceProperties } from "#peer/PhysicalDeviceProperties.js";
-import { Instant, Seconds } from "@matter/general";
+import { Instant, Minutes, Seconds } from "@matter/general";
 
 const { subscriptionIntervalBoundsFor } = PhysicalDeviceProperties;
 
@@ -111,7 +111,7 @@ describe("PhysicalDeviceProperties", () => {
                 expectJittered(maxIntervalCeiling, 60);
             });
 
-            it("uses 3 minutes for a Thread sleepy end device", () => {
+            it("uses 3  for a Thread sleepy end device", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, supportsThread: true, isThreadSleepyEndDevice: true },
                 });
