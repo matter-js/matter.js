@@ -6,6 +6,7 @@
 
 import { CheckInMessage } from "#icd/CheckInMessage.js";
 import { FabricIcd } from "#icd/FabricIcd.js";
+import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { Bytes, StandardCrypto } from "@matter/general";
 import { NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
@@ -133,6 +134,43 @@ describe("FabricIcd", () => {
             const result = await icd.processCheckIn(payload);
 
             expect(result).false;
+        });
+    });
+
+    describe("controller role — wakefulness", () => {
+        it("wakefulnessFor returns an IcdPeerWakefulness after addPeer", () => {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+
+            expect(icd.wakefulnessFor(NodeId(11))).instanceof(IcdPeerWakefulness);
+        });
+
+        it("processCheckIn calls noteSignal on the matching peer's wakefulness", async () => {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+
+            const wakefulness = icd.wakefulnessFor(NodeId(11))!;
+            wakefulness.requiresAwait = true;
+            expect(wakefulness.awake.value).false;
+
+            const payload = await CheckInMessage.encodeIcd(crypto, KEY_A, 12, 5000);
+            await icd.processCheckIn(payload);
+
+            expect(wakefulness.awake.value).true;
+            wakefulness.close();
+        });
+
+        it("wakefulnessFor returns undefined after deletePeer", () => {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            icd.deletePeer(NodeId(11));
+
+            expect(icd.wakefulnessFor(NodeId(11))).undefined;
+        });
+
+        it("wakefulnessFor returns undefined for unknown peer", () => {
+            const icd = fabricIcd();
+            expect(icd.wakefulnessFor(NodeId(99))).undefined;
         });
     });
 });

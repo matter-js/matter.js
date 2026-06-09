@@ -9,6 +9,7 @@ import { Bytes, Logger } from "@matter/general";
 import { type SubjectId, NodeId } from "@matter/types";
 import type { IcdManagement } from "@matter/types/clusters/icd-management";
 import { CheckInMessage } from "./CheckInMessage.js";
+import { IcdPeerWakefulness } from "./IcdPeerWakefulness.js";
 
 const logger = Logger.get("FabricIcd");
 
@@ -23,7 +24,10 @@ const logger = Logger.get("FabricIcd");
 export class FabricIcd {
     readonly #crypto: Crypto;
     readonly #registrations = new Map<NodeId, FabricIcd.Registration>();
-    readonly #peers = new Map<NodeId, { peer: FabricIcd.Peer; handler: FabricIcd.CheckInHandler }>();
+    readonly #peers = new Map<
+        NodeId,
+        { peer: FabricIcd.Peer; handler: FabricIcd.CheckInHandler; wakefulness: IcdPeerWakefulness }
+    >();
 
     constructor(crypto: Crypto) {
         this.#crypto = crypto;
@@ -48,14 +52,20 @@ export class FabricIcd {
     }
 
     addPeer(peer: FabricIcd.Peer, handler: FabricIcd.CheckInHandler): void {
-        this.#peers.set(peer.peerNodeId, { peer, handler });
+        this.#peers.get(peer.peerNodeId)?.wakefulness.close();
+        this.#peers.set(peer.peerNodeId, { peer, handler, wakefulness: new IcdPeerWakefulness() });
     }
 
     peerFor(peerNodeId: NodeId): FabricIcd.Peer | undefined {
         return this.#peers.get(peerNodeId)?.peer;
     }
 
+    wakefulnessFor(peerNodeId: NodeId): IcdPeerWakefulness | undefined {
+        return this.#peers.get(peerNodeId)?.wakefulness;
+    }
+
     deletePeer(peerNodeId: NodeId): void {
+        this.#peers.get(peerNodeId)?.wakefulness.close();
         this.#peers.delete(peerNodeId);
     }
 
@@ -71,7 +81,7 @@ export class FabricIcd {
      * @see {@link MatterSpecification.v151.Core} § 4.22.4.2
      */
     async processCheckIn(payload: Bytes): Promise<boolean> {
-        for (const { peer, handler } of this.#peers.values()) {
+        for (const { peer, handler, wakefulness } of this.#peers.values()) {
             let decoded: CheckInMessage.DecodedIcdCheckIn;
             try {
                 decoded = await CheckInMessage.decodeIcd(this.#crypto, peer.key, payload);
@@ -87,6 +97,7 @@ export class FabricIcd {
 
             // Advance before the handler: a received counter value is consumed exactly once regardless of handler outcome.
             peer.lastOffset = validation.offset;
+            wakefulness.noteSignal();
             try {
                 handler({
                     peerNodeId: peer.peerNodeId,
