@@ -101,6 +101,12 @@ export class CaseServer implements ProtocolHandler {
 
         // Initialize context with information from a peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();
+
+        // Spec §4.14.2.3.4 step 1: resumptionID and initiatorResumeMIC are present together or not at all
+        if ((sigma1.resumptionId === undefined) !== (sigma1.initiatorResumeMic === undefined)) {
+            throw new UnexpectedDataError("Sigma1 must carry both resumptionId and initiatorResumeMic or neither.");
+        }
+
         const resumptionRecord =
             sigma1.resumptionId !== undefined && sigma1.initiatorResumeMic !== undefined
                 ? this.#sessions.findResumptionRecordById(sigma1.resumptionId)

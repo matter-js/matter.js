@@ -5,7 +5,7 @@
  */
 
 import { PhysicalDeviceProperties } from "#peer/PhysicalDeviceProperties.js";
-import { Instant, Minutes, Seconds } from "@matter/general";
+import { Instant, Seconds } from "@matter/general";
 
 const { subscriptionIntervalBoundsFor } = PhysicalDeviceProperties;
 
@@ -82,10 +82,17 @@ describe("PhysicalDeviceProperties", () => {
         });
 
         describe("maxIntervalCeiling", () => {
+            // Up to +max(10%, 10s) one-sided jitter is always applied, floored to whole seconds.
+            const expectJittered = (actual: number, baseSeconds: number) => {
+                const window = Math.max(baseSeconds * 0.1, 10);
+                expect(actual).to.be.at.least(Seconds(baseSeconds));
+                expect(actual).to.be.at.most(Seconds(Math.floor(baseSeconds + window)));
+            };
+
             it("defaults to 1 minute with no properties", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor();
 
-                expect(maxIntervalCeiling).to.equal(Minutes(1));
+                expectJittered(maxIntervalCeiling, 60);
             });
 
             it("uses 1 minute for a WiFi device", () => {
@@ -93,7 +100,7 @@ describe("PhysicalDeviceProperties", () => {
                     properties: { ...BASE_PROPERTIES, supportsWifi: true },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Minutes(1));
+                expectJittered(maxIntervalCeiling, 60);
             });
 
             it("uses 1 minute for a Thread device that is not sleepy", () => {
@@ -101,7 +108,7 @@ describe("PhysicalDeviceProperties", () => {
                     properties: { ...BASE_PROPERTIES, supportsThread: true, isThreadSleepyEndDevice: false },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Minutes(1));
+                expectJittered(maxIntervalCeiling, 60);
             });
 
             it("uses 3 minutes for a Thread sleepy end device", () => {
@@ -109,7 +116,7 @@ describe("PhysicalDeviceProperties", () => {
                     properties: { ...BASE_PROPERTIES, supportsThread: true, isThreadSleepyEndDevice: true },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Minutes(3));
+                expectJittered(maxIntervalCeiling, 180);
             });
 
             it("uses 10 minutes for a battery-powered device", () => {
@@ -117,7 +124,7 @@ describe("PhysicalDeviceProperties", () => {
                     properties: { ...BASE_PROPERTIES, isBatteryPowered: true, isMainsPowered: false },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Minutes(10));
+                expectJittered(maxIntervalCeiling, 600);
             });
 
             it("uses non-battery ceiling when device is both battery and mains powered", () => {
@@ -125,25 +132,23 @@ describe("PhysicalDeviceProperties", () => {
                     properties: { ...BASE_PROPERTIES, isBatteryPowered: true, isMainsPowered: true },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Minutes(1));
+                expectJittered(maxIntervalCeiling, 60);
             });
 
-            it("respects an explicitly requested ceiling", () => {
+            it("applies jitter to an explicitly requested ceiling", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     request: { maxIntervalCeiling: Seconds(45) },
                 });
 
-                expect(maxIntervalCeiling).to.equal(Seconds(45));
+                expectJittered(maxIntervalCeiling, 45);
             });
 
-            it("applies ±5% jitter to the ceiling when Thread is active", () => {
+            it("applies jitter regardless of network type", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, supportsThread: true, threadActive: true },
                 });
 
-                // 5% of Minutes(1) = ±3 seconds, result rounded to whole seconds
-                expect(maxIntervalCeiling).to.be.at.least(Seconds(57));
-                expect(maxIntervalCeiling).to.be.at.most(Seconds(63));
+                expectJittered(maxIntervalCeiling, 60);
             });
 
             it("does not apply jitter when Thread is not active", () => {
@@ -154,19 +159,13 @@ describe("PhysicalDeviceProperties", () => {
                 expect(maxIntervalCeiling).to.equal(Minutes(1));
             });
 
-            it("applies jitter when Thread is active for ICD device with Instant floor", () => {
+            it("applies jitter for an ICD device while keeping the Instant floor", () => {
                 const { minIntervalFloor, maxIntervalCeiling } = subscriptionIntervalBoundsFor({
-                    properties: {
-                        ...BASE_PROPERTIES,
-                        isIntermittentlyConnected: true,
-                        supportsThread: true,
-                        threadActive: true,
-                    },
+                    properties: { ...BASE_PROPERTIES, isIntermittentlyConnected: true },
                 });
 
                 expect(minIntervalFloor).to.equal(Instant);
-                expect(maxIntervalCeiling).to.be.at.least(Seconds(57));
-                expect(maxIntervalCeiling).to.be.at.most(Seconds(63));
+                expectJittered(maxIntervalCeiling, 60);
             });
         });
     });

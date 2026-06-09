@@ -5,6 +5,7 @@
  */
 
 import type { Message } from "#codec/MessageCodec.js";
+import { DiscoveryData } from "#common/Scanner.js";
 import type { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
@@ -27,6 +28,7 @@ import {
     Lifetime,
     Logger,
     Millis,
+    NetworkError,
     Observable,
     ServerAddress,
     ServerAddressIp,
@@ -39,7 +41,7 @@ import {
 import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
-import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
+import { TcpUnsupportedError, TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 const logger = Logger.get("PeerConnection");
@@ -376,6 +378,10 @@ export async function PeerConnection(
         logger.warn(logHeaderFor(address), ...message);
     }
 
+    function notice(address: ServerAddressIp, ...message: unknown[]) {
+        logger.notice(logHeaderFor(address), ...message);
+    }
+
     function info(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.info(logHeaderFor(address, via), ...message);
     }
@@ -504,6 +510,7 @@ export async function PeerConnection(
                     }
                 });
 
+                const isTcp = "type" in address && address.type === "tcp";
                 const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
                     ...options,
                     abort: localAbort,
@@ -511,6 +518,26 @@ export async function PeerConnection(
                     maxInitialRetransmissions: Infinity,
                     maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
                     initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
+                    validateSessionParameters: isTcp
+                        ? params => {
+                              // Mirror resolveTransports so connect and validation agree: absent tag 8 never denies, and
+                              // a `false` (which on resume can be a stale resumption-record value, not the device's
+                              // current advertisement) is overridden while mDNS still advertises a TCP server.
+                              if (params.supportedTransports.tcpServer !== false) {
+                                  return;
+                              }
+                              const advertisedByMdns =
+                                  (DiscoveryData(peer.service.parameters).T ?? peer.descriptor.discoveryData?.T)
+                                      ?.tcpServer === true;
+                              if (advertisedByMdns) {
+                                  return;
+                              }
+                              peer.markTcpUnsupported();
+                              throw new TcpUnsupportedError(
+                                  `Peer negotiated a TCP session but reports no TCP server support`,
+                              );
+                          }
+                        : undefined,
                 });
 
                 outputSession = session;
@@ -542,6 +569,21 @@ export async function PeerConnection(
     async function handleConnectionError(e: Error, address: ServerAddressIp, addressAbort: Abort, lifetime: Lifetime) {
         using _handling = lifetime.join("handling error");
 
+        // The peer accepted a TCP session but denies TCP support. With a hard TCP requirement we cannot fall back, and
+        // re-resolution would re-attempt TCP and spin, so fail fatally for the caller. Otherwise the peer is now
+        // flagged (markTcpUnsupported) so re-resolution prefers UDP; end this connection so Peer.connect reconnects
+        // over UDP.
+        if (causedBy(e, TcpUnsupportedError)) {
+            if (requiredTransport === ChannelType.TCP) {
+                error(address, "Peer reports no TCP support but TCP was required; aborting connection");
+                fatalError = asError(e);
+            } else {
+                notice(address, "Peer negotiated a TCP session but reports no TCP support; falling back to UDP");
+            }
+            overallAbort();
+            return;
+        }
+
         let delay: undefined | Duration;
         let category: "busy" | "resumption" | "peer" | "network" | "general" | undefined;
         const csre = ChannelStatusResponseError.of(e);
@@ -564,6 +606,12 @@ export async function PeerConnection(
         } else {
             delay = timing.delayAfterUnhandledError;
             category = "general";
+        }
+
+        // A network-layer failure (e.g. ENETUNREACH/EHOSTUNREACH) may mean the cached address no longer
+        // routes; flag unreachable so mDNS rediscovery can surface a fresh address.
+        if (causedBy(e, NetworkError)) {
+            peer.service.status.isReachable = false;
         }
 
         const handleError = options?.handleError ?? context.handleError;

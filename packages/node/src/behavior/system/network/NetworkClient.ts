@@ -16,6 +16,7 @@ import {
     ClientSubscription,
     OperationalAddress,
     PeerSet,
+    SessionParameters,
     Subscribe,
     SustainedSubscription,
     Val,
@@ -52,11 +53,15 @@ export class NetworkClient extends NetworkBehavior {
                 if (ipAddresses.length) {
                     const operationalAddress = OperationalAddress.from(ServerAddress(ipAddresses[0]));
                     if (operationalAddress !== undefined) {
+                        // Persisted session parameters carry the device's spec version, needed by the connect path
+                        // (e.g. the TCP spec-version gate) before any operational session is established.
+                        const persistedParams = this.#node.state.commissioning.sessionParameters;
                         // Make sure the PeerSet knows about this peer now too
                         peerSet.addKnownPeer({
                             address: peerAddress,
                             operationalAddress,
                             discoveryData: RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
+                            sessionParameters: persistedParams ? SessionParameters(persistedParams) : undefined,
                         });
                     }
                 }

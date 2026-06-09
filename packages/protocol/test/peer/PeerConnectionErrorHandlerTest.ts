@@ -4,8 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
-import { Duration, Minutes, Seconds } from "@matter/general";
+import {
+    AddressUnreachableError,
+    causedBy,
+    Duration,
+    MatterError,
+    Minutes,
+    NetworkError,
+    NetworkUnreachableError,
+    Seconds,
+} from "@matter/general";
 import { GeneralStatusCode, SecureChannelStatusCode } from "@matter/types";
 
 /**
@@ -105,6 +115,41 @@ describe("PeerConnection error handler", () => {
             const { delay, aborted } = applyHandler(undefined, error, defaultDelay);
             expect(delay).equals(defaultDelay);
             expect(aborted).equals(false);
+        });
+    });
+
+    describe("network error rediscovery gate", () => {
+        /**
+         * Reproduces the gate in PeerConnection.handleConnectionError that flags the service unreachable to drive
+         * mDNS rediscovery (`peer.service.status.isReachable = false`). A network-layer send failure may mean the
+         * cached operational address no longer routes, so we kick rediscovery without changing the tuned retry delay.
+         *
+         * The resolving mechanism this drives is covered end-to-end by IpServiceStatusTest ("solicits and resolves
+         * per connection status").
+         */
+        function flagsUnreachable(error: Error): boolean {
+            return causedBy(error, NetworkError);
+        }
+
+        it("flags unreachable for NetworkUnreachableError (ENETUNREACH)", () => {
+            expect(flagsUnreachable(new NetworkUnreachableError("send ENETUNREACH"))).equals(true);
+        });
+
+        it("flags unreachable for AddressUnreachableError (EHOSTUNREACH)", () => {
+            expect(flagsUnreachable(new AddressUnreachableError("send EHOSTUNREACH"))).equals(true);
+        });
+
+        it("flags unreachable when a network error is wrapped as a cause", () => {
+            const wrapped = new MatterError("connect failed", { cause: new NetworkUnreachableError("ENETUNREACH") });
+            expect(flagsUnreachable(wrapped)).equals(true);
+        });
+
+        it("does not flag unreachable for transient peer errors (handled by MRP retransmission path)", () => {
+            expect(flagsUnreachable(new TransientPeerCommunicationError("peer unresponsive"))).equals(false);
+        });
+
+        it("does not flag unreachable for generic errors", () => {
+            expect(flagsUnreachable(new Error("something else"))).equals(false);
         });
     });
 

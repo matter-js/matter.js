@@ -214,24 +214,21 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                             // expired-node cull observe stale `discoveredAt` and delete the node mid-commission,
                             // which collapses the BehaviorBacking and surfaces as "Datasource not yet initialized".
                             //
-                            // The descriptor refresh is tracked in `promises` for discovery-level error reporting, but
-                            // the onDiscovered chain is fire-and-forget with errors swallowed — same pattern as the
-                            // new-node branch below.  Pushing the chained promise into `promises` is unsafe because
-                            // DiscoveryAggregateError.allSettled snapshots the array and would not await callback-side
-                            // additions.
-                            const updatePromise = node.act(agent => {
-                                agent.commissioning.descriptor = descriptor;
-                            });
+                            // Fire-and-forget with errors swallowed, same as the new-node branch below.
                             const reusedNode = node;
-                            if (MaybePromise.is(updatePromise)) {
-                                promises.push(updatePromise);
-                                updatePromise.then(
-                                    () => this.onDiscovered(reusedNode),
-                                    () => {},
-                                );
-                            } else {
-                                this.onDiscovered(reusedNode);
-                            }
+                            MaybePromise.then(
+                                node.act(async agent => {
+                                    // Open the transaction asynchronously so a concurrent commission on this node
+                                    // serializes us; a plain synchronous write throws SynchronousTransactionConflictError
+                                    // mid-commission and that rejection crashes the process.
+                                    const { transaction } = agent.context;
+                                    await transaction.addResources(agent.commissioning);
+                                    await transaction.begin();
+                                    agent.commissioning.descriptor = descriptor;
+                                }),
+                                () => this.onDiscovered(reusedNode),
+                                () => {},
+                            );
                         } else {
                             // This node is new to us — defer onDiscovered until construction completes
                             // so that node.state.commissioning is committed and readable by listeners.
@@ -305,7 +302,7 @@ export namespace Discovery {
          * The local ID to assign the node if newly discovered.  This is the stable identifier used for the node's "id"
          * property.
          *
-         * By default matter.js assigns an ID of the form "nodeN".
+         * By default matter.js assigns an ID of the form "peerN".
          */
         id?: string;
     };

@@ -59,7 +59,7 @@ export class ReactNativeBleCentralInterface implements Transport {
         let device: Device;
         try {
             device = await peripheral.connect();
-            await device.requestMTU(MatterBle.MAXIMUM_BTP_MTU);
+            await device.requestMTU(MatterBle.MAXIMUM_ATT_MTU);
         } catch (error) {
             if (error instanceof ReactNativeBleError && error.errorCode === BleErrorCode.DeviceAlreadyConnected) {
                 device = peripheral;
@@ -170,11 +170,8 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         onMatterMessageListener: (socket: Channel<Bytes>, data: Bytes) => void,
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<ReactNativeBleChannel> {
-        let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
-            mtu = MatterBle.MAXIMUM_BTP_MTU;
-        }
-        logger.debug(`Using MTU=${mtu} (Peripheral MTU=${peripheral.mtu})`);
+        const mtu = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
+        logger.debug(`Using BTP segment size=${mtu} (Peripheral ATT_MTU=${peripheral.mtu})`);
         const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({
             versions: MatterBle.BTP_SUPPORTED_VERSIONS,
             attMtu: mtu,

@@ -7,7 +7,11 @@
 import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { NetworkProfile } from "#peer/NetworkProfile.js";
-import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import {
+    PeerMessageMissingError,
+    PeerUnresponsiveError,
+    TransientPeerCommunicationError,
+} from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
@@ -547,7 +551,7 @@ export class MessageExchange {
                 messageId,
                 destNodeId: this.#peerNodeId,
                 sourceNodeId: this.#nodeId,
-                hasPrivacyEnhancements: false,
+                hasPrivacyEnhancements: false, // Privacy is only defined for group messages
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
@@ -570,7 +574,7 @@ export class MessageExchange {
                 messageId,
                 destGroupId,
                 sourceNodeId: this.#nodeId, // We are the source node, so use our NodeId
-                hasPrivacyEnhancements: false,
+                hasPrivacyEnhancements: this.session.usePrivacy,
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
@@ -696,7 +700,7 @@ export class MessageExchange {
             abort: options?.abort,
 
             timeoutHandler: () => {
-                throw new PeerUnresponsiveError(timeout!);
+                throw new PeerMessageMissingError(timeout!);
             },
         });
 

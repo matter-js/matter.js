@@ -246,15 +246,18 @@ export class Peer {
     get sessionParameters() {
         const bi = this.basicInformation;
         const dd = this.descriptor.discoveryData;
+        const descriptorParams = this.#descriptor.sessionParameters;
 
         return SessionParameters({
             dataModelRevision: bi?.dataModelRevision,
             maxPathsPerInvoke: bi?.maxPathsPerInvoke,
-            specificationVersion: bi?.specificationVersion,
             idleInterval: dd?.SII,
             activeInterval: dd?.SAI,
             activeThreshold: dd?.SAT,
-            ...this.#descriptor.sessionParameters,
+            ...descriptorParams,
+            // BasicInformation and the CASE-negotiated parameters report the same spec version, but one may update
+            // before the other; take the newer so a stale descriptor value cannot mask a fresher BasicInformation read.
+            specificationVersion: Math.max(bi?.specificationVersion ?? 0, descriptorParams?.specificationVersion ?? 0),
         });
     }
 
@@ -277,28 +280,75 @@ export class Peer {
     }
 
     /**
+     * Record that the peer does not support TCP despite advertising it, by clearing TCP from its persisted session
+     * parameters. Honored by {@link resolveTransports} and persisted across restart; a later session reporting real
+     * TCP support overwrites it.
+     */
+    markTcpUnsupported() {
+        this.#descriptor.sessionParameters = {
+            ...this.sessionParameters,
+            supportedTransports: { tcpClient: false, tcpServer: false },
+        };
+    }
+
+    /**
      * Resolve the ordered list of transports to attempt for this peer.
      *
-     * - `requiredTransport` is a hard constraint: only that transport.
-     * - Else effective soft preference is `preferredTransport ?? transportPreference`. When TCP
-     *   and the peer advertises TCP server support, returns `[TCP, UDP]`.
-     * - Else `undefined` (default UDP, no constraint).
+     * `requiredTransport` is a hard constraint.  Otherwise, with an effective TCP preference
+     * (`preferredTransport ?? transportPreference`), the `SUPPORTED_TRANSPORTS.tcpServer` session parameter (tag 8)
+     * decides when present, falling back to the mDNS TXT `T` advertisement only when absent.  Pre-1.5 peers resolve
+     * to UDP.  `undefined` means default UDP.
      */
     resolveTransports(requiredTransport?: ChannelType, preferredTransport?: ChannelType): IpChannelType[] | undefined {
+        return this.#transportDecision(requiredTransport, preferredTransport).transports;
+    }
+
+    #transportDecision(
+        requiredTransport?: ChannelType,
+        preferredTransport?: ChannelType,
+    ): { transports: IpChannelType[] | undefined; reason: string; diag: Record<string, unknown> } {
+        const tcp: IpChannelType[] = [ChannelType.TCP, ChannelType.UDP];
         if (requiredTransport === ChannelType.TCP || requiredTransport === ChannelType.UDP) {
-            return [requiredTransport];
+            return { transports: [requiredTransport], reason: "transport explicitly required", diag: {} };
         }
         const effectivePreference = preferredTransport ?? this.transportPreference;
         if (effectivePreference !== ChannelType.TCP) {
-            return undefined;
+            return { transports: undefined, reason: "no TCP preference active", diag: {} };
         }
-        // Live-read from service TXT params; the descriptor cache lags by one observer tick when
-        // operational TXT and addresses arrive in the same mDNS response. Trade-off: if `tcpServer`
-        // is later withdrawn, the heap ordering of already-enqueued addresses becomes stale —
-        // acceptable since TCP-server-capability withdrawal mid-connect is not a real-world flow.
-        const liveT = DiscoveryData(this.#service.parameters).T;
-        const T = liveT ?? this.#descriptor.discoveryData?.T;
-        return T?.tcpServer ? [ChannelType.TCP, ChannelType.UDP] : undefined;
+
+        // mDNS T is a fallback for an absent tag 8 only — some 1.5+ peers omit the field yet serve TCP.  Pre-1.5 peers
+        // arrive as an explicit `false` (SessionParameters clears their TCP), so the 1.5.0 gate needs no code here.
+        // Live TXT first: the descriptor cache lags a tick when TXT and addresses share one mDNS response.
+        const params = this.sessionParameters;
+        const specVersion = Diagnostic.hex(params.specificationVersion);
+        const tcpServerParam = params.supportedTransports.tcpServer;
+        if (tcpServerParam === true) {
+            return {
+                transports: tcp,
+                reason: "session parameter confirms TCP server",
+                diag: { paramTcpServer: true, specVersion },
+            };
+        }
+        if (tcpServerParam === false) {
+            return {
+                transports: undefined,
+                reason: "session parameter denies TCP server",
+                diag: { paramTcpServer: false, specVersion },
+            };
+        }
+        const tcpServerMdns =
+            (DiscoveryData(this.#service.parameters).T ?? this.#descriptor.discoveryData?.T)?.tcpServer === true;
+        return tcpServerMdns
+            ? {
+                  transports: tcp,
+                  reason: "TCP server advertised via mDNS (session parameter absent)",
+                  diag: { paramTcpServer: "absent", mdnsTcpServer: true, specVersion },
+              }
+            : {
+                  transports: undefined,
+                  reason: "no TCP server (session parameter absent, no mDNS advertisement)",
+                  diag: { paramTcpServer: "absent", mdnsTcpServer: false, specVersion },
+              };
     }
 
     /**
@@ -310,7 +360,22 @@ export class Peer {
         }
 
         while (true) {
-            const transports = this.resolveTransports(options?.requiredTransport, options?.preferredTransport);
+            const { transports } = this.#transportDecision(options?.requiredTransport, options?.preferredTransport);
+            /* Debug aid (one line per connect — noisy); uncomment to trace transport selection:
+            {
+                const { reason, diag } = this.#transportDecision(options?.requiredTransport, options?.preferredTransport);
+                logger.debug(
+                    "Transport resolution",
+                    Diagnostic.dict({
+                        peer: this.address.toString(),
+                        result: transports === undefined ? "UDP (no constraint)" : transports.join("+"),
+                        reason,
+                        peerPreference: this.transportPreference ?? "none",
+                        ...diag,
+                    }),
+                );
+            }
+            */
             let session: NodeSession | undefined;
             if (transports === undefined) {
                 session = this.newestSession();
@@ -321,6 +386,16 @@ export class Peer {
                 }
             }
             if (session) {
+                /* Debug aid; uncomment to trace existing-session reuse:
+                logger.debug(
+                    "Reusing existing session",
+                    Diagnostic.dict({
+                        peer: this.address.toString(),
+                        sessionTransport: session.channel.transportChannel.type,
+                        wantedTransports: transports === undefined ? "UDP (no constraint)" : transports.join("+"),
+                    }),
+                );
+                */
                 return session;
             }
 

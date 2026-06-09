@@ -207,6 +207,14 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     }
 
     async probe(options?: ClientProbeOptions): Promise<boolean> {
+        // A monitor probe can race node teardown (decommission/destroy); report unreachable rather than throwing.
+        if (
+            this.#node.construction.status !== Lifecycle.Status.Active ||
+            !this.#node.owner?.lifecycle.isOnline ||
+            this.#node.state.commissioning.peerAddress === undefined
+        ) {
+            return false;
+        }
         return this.#interaction.probe(options);
     }
 

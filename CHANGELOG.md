@@ -9,28 +9,61 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.2 (2026-06-09)
 
 - @matter/general
     - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
+    - Fix: AES-CCM encryption now honors the `byteOffset` of subarray inputs for plaintext and AAD
+    - Fix: Ensure that variable name sanitization does not throw on special characters adjacent to dots (e.g. node IDs like `Dyson360VisNav™`)
 
 - @matter/node
     - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
     - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
+    - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored correctly from storage on restart
+    - Fix: Writing a bitmap attribute with reserved (undefined) bits set now returns ConstraintError instead of being silently accepted
+    - Fix: A TCP-enabled server now reports TCP support in its session parameters (not only in mDNS), so peers learn it during PASE/CASE
+    - Fix: Claim the peer node ID only once a candidate wins PASE, to avoid spurious "peer address already in use" conflicts across parallel commissioning attempts
+    - Fix: Refreshing a discovered node's metadata while it is being commissioned no longer crashes the process with a synchronous transaction conflict
+    - Fix: Ensure that decommissioning removes a node locally even when the device drops the RemoveFabric response after closing the session, and no longer stalls shutdown
+    - Fix: Ensure that probing a node during teardown reports it unreachable instead of throwing
 
 - @matter/protocol
+    - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
     - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
     - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
+    - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
+    - Enhancement: Prefer TCP for operational connections when the peer advertises TCP-server support via its session parameters or mDNS; a negotiated TCP session is declined only on an explicit no-TCP report
+    - Enhancement: Lengthened the BTP handshake-response timeout (5s → 15s) and central idle timeout (30s → 60s) to match CHIP
+    - Enhancement: Added `PeerMessageMissingError` (subtype of `PeerUnresponsiveError`) thrown when an expected message does not arrive on an active exchange, distinguishing it from a request that was never acknowledged
+    - Fix: Ignore announced TCP support for peers reporting Matter spec version < 1.5.0
     - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
     - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
     - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
     - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
+    - Fix: A failed operational reconnect caused by a network-layer send error (e.g. ENETUNREACH on a stale persisted address) now triggers mDNS rediscovery instead of retrying the unreachable address indefinitely
     - Fix: TcpChannel now closes the connection on a zero-length stream frame instead of silently skipping it, preventing a peer from holding a connection slot open indefinitely
     - Fix: A forward message-counter jump of exactly the window size no longer retains stale replay-bitmap bits, which could wrongly reject a later legitimate message as duplicate
     - Fix: When the per-session concurrent-exchange limit is exceeded, the least-recently-active exchange is now closed instead of the oldest-created one
+    - Fix: A Sigma1 carrying only one of `resumptionId`/`initiatorResumeMic` is now rejected with INVALID_PARAMETER instead of being treated as a fresh handshake
+    - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
+    - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse
+    - Fix: Ensure that the default `regulatoryCountryCode` ("XX") is applied when commissioning a Wi-Fi/Thread device without an explicit value
+    - Fix: BTP central now advertises the negotiated ATT_MTU minus the 3-byte GATT header as its segment size, so a peer no longer selects fragments that overflow the link
+    - Fix: BTP window accounting now counts outstanding packets by modular distance, fixing a miscount across the sequence-number wrap
+    - Fix: BTP now reserves the remote receive window's last slot for an acknowledgement and sends a stand-alone ack proactively once its own receive window runs low
+    - Fix: BTP now resumes a stalled send queue when an incoming acknowledgement reopens the window
+    - Fix: BTP now closes the session if reassembly exceeds the declared message length
+    - Fix: BTP commits the acknowledged sequence number before awaiting the write so a stand-alone ack and a concurrent data send no longer acknowledge the same sequence twice (a duplicate ack is rejected by spec-compliant peers)
+    - Fix: BTP no longer issues a stand-alone ack into a full remote receive window or concurrently with an in-flight fragment write
+    - Fix: A corrupted PAA in the local DCL certificate cache is now re-fetched from DCL once before failing, recovering from broken storage
+    - Fix: Unexpected errors during device attestation validation (e.g. an unrecoverably corrupt trust-store certificate) are now surfaced as an attestation finding for the `onAttestationFailure` policy to judge, instead of aborting commissioning outside the findings mechanism
 
 - @matter/node
     - Enhancement: Added `network.ownNetworkProfileId` to set the local network's MRP additive margin, and exposed `additionalMrpDelay` and `probeAddress` in network profile config
+
+- @matter/nodejs-shell
+    - Fix: Stored Wi-Fi/Thread credentials are only applied during commissioning when their values are non-empty, so an empty operational dataset no longer fails commissioning of IP-only devices
+    - Fix: `config wifi/thread set` now rejects empty credential values
 
 ## 0.17.1 (2026-06-03)
 

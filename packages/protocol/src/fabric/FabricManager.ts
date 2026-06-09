@@ -273,6 +273,32 @@ export class FabricManager {
         return this.fabrics.map(translator);
     }
 
+    /**
+     * @deprecated Migration-only. Returns the maximum legacy per-operational-key group data counter across all fabrics,
+     * so the node-global group data counter can be seeded above every previously used value. Remove once the migration
+     * window has passed.
+     */
+    async legacyGroupDataCounterMax(): Promise<number | undefined> {
+        let max: number | undefined;
+        for (const fabric of this.fabrics) {
+            const fabricMax = await fabric.groups.messaging.legacyGroupDataCounterMax();
+            if (fabricMax !== undefined && (max === undefined || fabricMax > max)) {
+                max = fabricMax;
+            }
+        }
+        return max;
+    }
+
+    /**
+     * @deprecated Migration-only. Clears the legacy per-operational-key group data counters from all fabrics after the
+     * node-global counter has been seeded from them. Remove once the migration window has passed.
+     */
+    async clearLegacyGroupDataCounters(): Promise<void> {
+        for (const fabric of this.fabrics) {
+            await fabric.groups.messaging.clearLegacyGroupDataCounters();
+        }
+    }
+
     async findFabricFromDestinationId(destinationId: Bytes, initiatorRandom: Bytes) {
         this.#construction.assert();
 
