@@ -848,6 +848,185 @@ describe("BtpSessionHandler", () => {
             await peripheral.close();
         });
 
+        // A non-disconnect write error must re-raise but still roll back send state, so the session is not
+        // left wedged (sendInProgress stuck, queue half-applied).
+        it("re-raises a non-disconnect write error and resets send state", async () => {
+            let failNextWrite = true;
+            const writes = new Array<Bytes>();
+            const central = await BtpSessionHandler.createAsCentral(
+                Bytes.fromHex("656c04f40005"), // window size 5
+                async data => {
+                    if (failNextWrite) {
+                        failNextWrite = false;
+                        throw new Error("boom");
+                    }
+                    writes.push(data);
+                },
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+
+            let raised: unknown;
+            try {
+                await central.sendMatterMessage(Bytes.fromHex("0102"));
+            } catch (error) {
+                raised = error;
+            }
+            expect(raised).instanceOf(Error);
+            expect((raised as Error).message).equal("boom");
+
+            // sendInProgress was reset, so a subsequent send proceeds and succeeds.
+            await central.sendMatterMessage(Bytes.fromHex("0304"));
+            expect(writes.length).equal(1);
+
+            await central.close();
+        });
+
+        // Regression: a stand-alone ack whose write is still in flight must not let a concurrent data send
+        // re-acknowledge the same sequence number (a duplicate ack is rejected by spec-compliant peers).
+        it("does not duplicate an acknowledgement when a data send interleaves a pending stand-alone ack", async () => {
+            const writes = new Array<Bytes>();
+            let hangStandalone = false;
+            let releaseStandaloneWrite: (() => void) | undefined;
+
+            let onWrite = (_: Bytes): Promise<void> => Promise.resolve();
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                Bytes.fromHex("656c04000000b90006"), // window size 6
+                async data => onWrite(data),
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+            onWrite = data => {
+                const decoded = BtpCodec.decodeBtpPacket(data);
+                writes.push(data);
+                // A stand-alone ack carries no segment payload; hold its write open to force the interleave.
+                if (hangStandalone && decoded.payload.segmentPayload.byteLength === 0) {
+                    return new Promise<void>(resolve => {
+                        releaseStandaloneWrite = resolve;
+                    });
+                }
+                return Promise.resolve();
+            };
+
+            const continuing = (sequenceNumber: number) =>
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: false,
+                        isEndingSegment: false,
+                        isContinuingSegment: sequenceNumber !== 0,
+                        isBeginningSegment: sequenceNumber === 0,
+                    },
+                    payload: {
+                        sequenceNumber,
+                        messageLength: sequenceNumber === 0 ? 100 : undefined,
+                        segmentPayload: Bytes.fromHex("0102"),
+                    },
+                });
+
+            // Drop the local receive window to the immediate-ack threshold without completing a message.
+            await peripheral.handleIncomingBleData(continuing(0));
+            await peripheral.handleIncomingBleData(continuing(1));
+            await peripheral.handleIncomingBleData(continuing(2));
+            expect(writes.length).equal(0);
+
+            // The fourth packet triggers a stand-alone ack whose write we hold open.
+            hangStandalone = true;
+            const incoming = peripheral.handleIncomingBleData(continuing(3));
+            await Promise.resolve();
+            expect(writes.length).equal(1); // the stand-alone ack (still in flight)
+            expect(BtpCodec.decodeBtpPacket(writes[0]).payload.ackNumber).equal(3);
+
+            // While the ack write is in flight, a data message is queued (not sent concurrently) since the ack
+            // holds the send lock.
+            const sending = peripheral.sendMatterMessage(Bytes.fromHex("0a0b0c"));
+            await Promise.resolve();
+            expect(writes.length).equal(1);
+
+            // Once the ack write completes, the queued data is flushed — and must not re-ack sequence number 3.
+            releaseStandaloneWrite?.();
+            await incoming;
+            await sending;
+
+            expect(writes.length).equal(2);
+            const dataPacket = BtpCodec.decodeBtpPacket(writes[1]);
+            expect(dataPacket.payload.segmentPayload.byteLength).greaterThan(0); // it is the data packet
+            expect(dataPacket.header.hasAckNumber).equal(false);
+
+            await peripheral.close();
+        });
+
+        // §4.19.4.7 + concurrency: while a data write is in flight, neither an incoming packet nor the send-ack
+        // timer may issue a concurrent stand-alone ack write (the in-flight fragment will carry the ack).
+        it("does not send a stand-alone ack while a data write is in flight", async () => {
+            const writes = new Array<Bytes>();
+            let hangData = false;
+            let releaseDataWrite: (() => void) | undefined;
+
+            let onWrite = (_: Bytes): Promise<void> => Promise.resolve();
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                Bytes.fromHex("656c04000000b90006"), // window size 6
+                async data => onWrite(data),
+                async () => {},
+                async () => {}, // accept incoming Matter messages without responding
+            );
+            onWrite = data => {
+                const decoded = BtpCodec.decodeBtpPacket(data);
+                writes.push(data);
+                if (hangData && decoded.payload.segmentPayload.byteLength > 0) {
+                    return new Promise<void>(resolve => {
+                        releaseDataWrite = resolve;
+                    });
+                }
+                return Promise.resolve();
+            };
+
+            // Start a data send with no pending ack yet; its write hangs, holding sendInProgress.
+            hangData = true;
+            const sending = peripheral.sendMatterMessage(Bytes.fromHex("0a0b0c"));
+            await Promise.resolve();
+            expect(writes.length).equal(1);
+            expect(BtpCodec.decodeBtpPacket(writes[0]).header.hasAckNumber).equal(false);
+
+            // An incoming data packet now creates a pending ack, but must not write while the data send is in flight.
+            const incoming = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: false,
+                    isEndingSegment: true,
+                    isContinuingSegment: false,
+                    isBeginningSegment: true,
+                },
+                payload: { sequenceNumber: 0, messageLength: 2, segmentPayload: Bytes.fromHex("0102") },
+            });
+            await peripheral.handleIncomingBleData(incoming);
+            expect(writes.length).equal(1);
+
+            // The send-ack timer firing mid-write must also not produce a concurrent ack.
+            await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
+            expect(writes.length).equal(1);
+
+            // Once the data write completes, the stranded ack must be flushed (not lost to the one-shot timer).
+            releaseDataWrite?.();
+            await sending;
+
+            expect(writes.length).equal(2);
+            const flushedAck = BtpCodec.decodeBtpPacket(writes[1]);
+            expect(flushedAck.header.hasAckNumber).equal(true);
+            expect(flushedAck.payload.ackNumber).equal(0);
+            expect(flushedAck.payload.segmentPayload.byteLength).equal(0);
+
+            await peripheral.close();
+        });
+
         // §4.19.4.6 + the window guard: outstanding packets that span the 255 -> 0 wrap must be counted by
         // modular distance, so the window neither over-sends nor stalls across the boundary.
         it("transfers many messages correctly while sequence numbers wrap", async () => {

@@ -266,9 +266,8 @@ export class BtpCodec {
             throw new BtpProtocolError("Please use the specific methods to encode a Handshake packet");
         }
 
+        // The handshake and management-opcode bits are rejected above, so only the segment/ack bits remain.
         const header =
-            // (isHandshakeRequest ? BtpHeaderBits.HandshakeBit : 0) | ... but always false here
-            // (hasManagementOpcode ? BtpHeaderBits.ManagementMsg : 0) | ... but alw<ys false here
             (hasAckNumber ? BtpHeaderBits.AckMsg : 0) |
             (isEndingSegment ? BtpHeaderBits.EndSegment : 0) |
             (isContinuingSegment ? BtpHeaderBits.ContinuingSegment : 0) |

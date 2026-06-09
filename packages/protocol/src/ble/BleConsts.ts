@@ -33,10 +33,7 @@ export namespace MatterBle {
     export const MAXIMUM_BTP_MTU = 244; // Maximum size of BTP segment
     export const MAXIMUM_ATT_MTU = MAXIMUM_BTP_MTU + 3; // 247: BTP segment plus the 3-byte GATT header (§4.19.3.1.4)
 
-    /**
-     * Derive the BTP segment size from a negotiated GATT ATT_MTU. Per §4.19.3.1.4 the value carried in the BTP
-     * handshake is the ATT_MTU minus the 3-byte GATT header; clamp the result to the supported BTP range.
-     */
+    /** §4.19.3.1.4: BTP segment size is the ATT_MTU minus the 3-byte GATT header, clamped to the supported range. */
     export function btpSegmentSizeFromAttMtu(attMtu: number): number {
         const segmentSize = attMtu - 3;
         if (segmentSize < MINIMUM_ATT_MTU) return MINIMUM_ATT_MTU;
@@ -46,16 +43,10 @@ export namespace MatterBle {
 
     export const BTP_MAXIMUM_WINDOW_SIZE = 255; // Server maximum window size
 
-    /**
-     * §4.19.4.7: a peer must not consume the remote receive window's last open slot with a data-only packet; that
-     * slot is reserved for an acknowledgement so a full window on both sides cannot deadlock.
-     */
+    /** §4.19.4.7: reserve the remote window's last slot for an ack so a full window on both sides can't deadlock. */
     export const BTP_WINDOW_NO_ACK_SEND_THRESHOLD = 1;
 
-    /**
-     * §4.19.4.8: once the local receive window shrinks to this many free slots or fewer, send any pending
-     * acknowledgement immediately as a stand-alone packet rather than waiting for the send-ack timer.
-     */
+    /** §4.19.4.8: at this many free local-window slots or fewer, send any pending ack immediately. */
     export const BTP_IMMEDIATE_ACK_WINDOW_THRESHOLD = 2;
 
     /**
