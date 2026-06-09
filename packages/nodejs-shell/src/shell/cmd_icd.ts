@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Duration, Millis } from "@matter/general";
 import { IcdClient, IcdMultiAdminError } from "@matter/node";
 import { IcdManagementClient } from "@matter/node/behaviors/icd-management";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
@@ -115,6 +116,25 @@ export default function commands(theNode: MatterNode) {
                         const clientNode = await clientNodeFor(theNode, argv.nodeId);
                         await clientNode.act(agent => agent.get(IcdClient).unregister());
                         console.log(`Unregistered Check-In client on node ${argv.nodeId}`);
+                    },
+                })
+                .command({
+                    command: "stay-active <node-id> [duration-ms]",
+                    describe: "Ask the peer to stay in Active mode; prints the promised duration",
+                    builder: (y: Argv) =>
+                        y
+                            .positional("node-id", { describe: "node id", type: "string", demandOption: true })
+                            .positional("duration-ms", {
+                                describe: "requested active duration (ms)",
+                                type: "number",
+                                default: 30000,
+                            }),
+                    handler: async (argv: any) => {
+                        const clientNode = await clientNodeFor(theNode, argv.nodeId);
+                        const promised = await clientNode.act(agent =>
+                            agent.get(IcdClient).stayActive(Millis(argv.durationMs)),
+                        );
+                        console.log(`Node ${argv.nodeId} promised active for ${Duration.format(promised)}`);
                     },
                 })
                 .command({
