@@ -11,14 +11,7 @@ import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-managem
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Crypto, ImplementationError, MockCrypto, Seconds } from "@matter/general";
-import {
-    ClientSubscribe,
-    FabricManager,
-    IcdSustainedSubscription,
-    Subscribe,
-    SustainedSubscription,
-    TestFabric,
-} from "@matter/protocol";
+import { ClientSubscribe, FabricManager, Subscribe, SustainedSubscription, TestFabric } from "@matter/protocol";
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockSite } from "../../../node/mock-site.js";
@@ -573,20 +566,22 @@ describe("IcdClient", () => {
     describe("sustained subscription routing", () => {
         const sustainRequest: ClientSubscribe = { ...Subscribe({ attributes: [{}] }), sustain: true };
 
-        it("routes a registered LIT peer to an IcdSustainedSubscription", async () => {
+        it("parks a registered await-mode LIT peer's sustained subscription on its wake signal", async () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
 
             await peer1.act(agent => agent.get(IcdClient).register());
-            expect(wakefulnessOf(controller, peer1)).not.undefined;
+            const wakefulness = wakefulnessOf(controller, peer1);
+            expect(wakefulness).not.undefined;
+            expect(wakefulness!.requiresAwait).true;
 
             const subscription = await peer1.interaction.subscribe(sustainRequest);
-            IcdSustainedSubscription.assert(subscription);
+            SustainedSubscription.assert(subscription);
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
-        it("routes a non-ICD peer to a SustainedSubscription", async () => {
+        it("routes a non-ICD peer to a plain (non-parking) SustainedSubscription", async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
@@ -595,7 +590,7 @@ describe("IcdClient", () => {
                 macrotasks: true,
             });
             SustainedSubscription.assert(subscription);
-            expect(subscription instanceof IcdSustainedSubscription).false;
+            expect(wakefulnessOf(controller, peer1)).undefined;
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });

@@ -147,14 +147,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             },
 
             closed: request.closed?.bind(request),
-        };
 
-        if (intermediateRequest.sustain) {
-            const wakefulness = this.#icdWakefulness();
-            if (wakefulness?.requiresAwait) {
-                intermediateRequest.icdWakefulness = wakefulness;
-            }
-        }
+            // Resolve wakefulness live: the sustained subscription reads it on each loop decision, so a peer
+            // registered after subscribe, or flipped SIT⇄LIT at runtime, is honored without re-subscribing.
+            icdWakefulness: () => this.#icdWakefulness(),
+        };
 
         return this.#interaction.subscribe(intermediateRequest, context);
     }

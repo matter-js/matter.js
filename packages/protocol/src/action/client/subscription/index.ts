@@ -8,7 +8,5 @@ export * from "./ClientSubscribe.js";
 export * from "./ClientSubscription.js";
 export * from "./ClientSubscriptionHandler.js";
 export * from "./ClientSubscriptions.js";
-export * from "./IcdSustainedSubscription.js";
 export * from "./PeerSubscription.js";
-export * from "./subscriptionFor.js";
 export * from "./SustainedSubscription.js";

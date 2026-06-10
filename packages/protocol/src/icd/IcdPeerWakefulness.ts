@@ -102,6 +102,11 @@ export class IcdPeerWakefulness {
 
     close() {
         this.#cancelTimers();
+        // Release any consumer parked on the awake/available edge (a sustained subscription or an interaction hold)
+        // when the peer entry is torn down, so it re-evaluates the live wakefulness instead of stranding on signals
+        // that will never re-fire.
+        this.#awake.emit(true);
+        this.#available.emit(true);
     }
 
     [Symbol.dispose]() {

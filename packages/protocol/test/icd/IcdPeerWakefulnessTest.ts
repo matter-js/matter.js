@@ -73,4 +73,19 @@ describe("IcdPeerWakefulness", () => {
         expect(w.awake.value).equals(true);
         expect(w.available.value).equals(true);
     });
+
+    it("close() releases a consumer parked on the awake edge", async () => {
+        const w = lit();
+        let released = false;
+        w.awake.on(awake => {
+            if (awake) {
+                released = true;
+            }
+        });
+        expect(w.awake.value).equals(false);
+        w.close();
+        await MockTime.yield();
+        expect(released).equals(true);
+        expect(w.awake.value).equals(true);
+    });
 });
