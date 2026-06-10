@@ -5,10 +5,11 @@
  */
 
 import { Message } from "#codec/MessageCodec.js";
+import { NetworkProfile } from "#peer/NetworkProfile.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, MatterFlowError, Millis, NetworkError } from "@matter/general";
+import { Bytes, Duration, MatterFlowError, Millis, NetworkError, Seconds, Semaphore } from "@matter/general";
 import { BDX_PROTOCOL_ID, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 
 /**
@@ -216,6 +217,82 @@ describe("MessageExchange", () => {
             expect(sentMessages.length).equals(1);
             expect(sentMessages[0].payloadHeader.protocolId).equals(BDX_PROTOCOL_ID);
             expect(sentMessages[0].payloadHeader.messageType).equals(0x10);
+        });
+    });
+
+    describe("MRP backoff margin", () => {
+        // A throttle profile whose own additionalMrpDelay is deliberately wrong; the exchange must ignore it.
+        function unlimitedThrottle(): NetworkProfile {
+            return { id: "unlimited", semaphore: new Semaphore("test", Infinity), additionalMrpDelay: Seconds(5) };
+        }
+
+        // Captures the additionalDelay the exchange passes to the channel, then aborts the send before it awaits
+        // an ack so the test does not block.
+        async function captureAdditionalDelay(options: {
+            localAdditionalMrpDelay: Duration;
+            peerAdditionalMrpDelay?: Duration;
+            network?: NetworkProfile;
+        }): Promise<Duration | undefined> {
+            // MRP only engages on unreliable transports; the default mock channel is reliable.
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false;
+            const session = new ProtocolMocks.NodeSession({ channel });
+            let captured: Duration | undefined;
+            (session.channel as any).getMrpResubmissionBackOffTime = (
+                _retransmissionCount: number,
+                _sessionParameters: unknown,
+                _calculateMaximum: boolean,
+                additionalDelay?: Duration,
+            ) => {
+                captured = additionalDelay;
+                throw new NetworkError("captured");
+            };
+
+            const exchange = MessageExchange.initiate(
+                {
+                    session,
+                    localSessionParameters: SessionParameters(SessionParameters.defaults),
+                    localAdditionalMrpDelay: options.localAdditionalMrpDelay,
+                    async peerLost() {},
+                    retry() {},
+                },
+                1,
+                SECURE_CHANNEL_PROTOCOL_ID,
+                { network: options.network, peerAdditionalMrpDelay: options.peerAdditionalMrpDelay },
+            );
+
+            await expect(exchange.send(1, Bytes.empty, { requiresAck: true })).to.be.rejectedWith("captured");
+            return captured;
+        }
+
+        it("uses peerAdditionalMrpDelay and ignores the throttle profile margin", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Millis(0),
+                peerAdditionalMrpDelay: Seconds(1.5),
+                network: unlimitedThrottle(),
+            });
+
+            expect(captured).equals(Seconds(1.5));
+        });
+
+        it("falls back to localAdditionalMrpDelay as a floor when no peer margin is given", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Seconds(1.5),
+                peerAdditionalMrpDelay: undefined,
+                network: unlimitedThrottle(),
+            });
+
+            expect(captured).equals(Seconds(1.5));
+        });
+
+        it("applies no margin when neither local nor peer margin is set", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Millis(0),
+                peerAdditionalMrpDelay: undefined,
+                network: unlimitedThrottle(),
+            });
+
+            expect(captured).equals(Millis(0));
         });
     });
 });

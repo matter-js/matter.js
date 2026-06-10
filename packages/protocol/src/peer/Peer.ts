@@ -579,6 +579,7 @@ export class Peer {
 
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
+                additionalMrpDelay: options?.additionalMrpDelay,
                 timing: options?.timing,
                 requiredTransport: options?.requiredTransport,
                 preferredTransport: options?.preferredTransport,
@@ -620,6 +621,12 @@ export namespace Peer {
          * Network identifier used for timing parameters.
          */
         network?: string;
+
+        /**
+         * Per-call override for the peer-medium MRP retransmission margin.  When omitted the margin derives from
+         * the peer's network medium, independent of any {@link network} throttle override.
+         */
+        additionalMrpDelay?: Duration;
 
         /**
          * A timeout relative to beginning of connection process.

@@ -33,6 +33,12 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
     network?: string;
 
     /**
+     * Per-call override for the peer-medium MRP retransmission margin.  When omitted the margin derives from the
+     * peer's network medium, independent of any {@link network} throttle override.
+     */
+    additionalMrpDelay?: Duration;
+
+    /**
      * Optional address override for the exchange.  When set, messages are sent to this address
      * instead of the session's default peer address.
      */

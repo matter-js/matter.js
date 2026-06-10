@@ -109,6 +109,9 @@ export async function PeerConnection(
 
     // Reserve network communication slot
     let network = context.networks.select(peer, options?.network);
+    const mediumProfile = context.networks.forPeer(peer);
+    const peerAdditionalMrpDelay =
+        options?.additionalMrpDelay ?? mediumProfile.connect?.additionalMrpDelay ?? mediumProfile.additionalMrpDelay;
     if (network.connect) {
         network = network.connect;
     }
@@ -456,7 +459,13 @@ export async function PeerConnection(
                 isInitiator: true,
             });
 
-            await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network);
+            await using exchange = PeerConnection.createExchange(
+                peer,
+                context.exchanges,
+                unsecuredSession,
+                network,
+                peerAdditionalMrpDelay,
+            );
 
             info(
                 Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
@@ -691,6 +700,13 @@ export namespace PeerConnection {
     export interface Options {
         abort?: AbortSignal;
         network?: string;
+
+        /**
+         * Per-call override for the peer-medium MRP retransmission margin.  When omitted the margin derives from
+         * the peer's network medium, independent of any {@link network} throttle override.
+         */
+        additionalMrpDelay?: Duration;
+
         kicker?: Observable<[KickOrigin]>;
 
         /** See {@link Peer.ConnectOptions.requiredTransport}. */
@@ -718,10 +734,17 @@ export namespace PeerConnection {
         exchanges: ExchangeManager,
         session: Session,
         network: NetworkProfile,
+        peerAdditionalMrpDelay?: Duration,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
         addressOverride?: ServerAddressUdp,
     ) {
-        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network, addressOverride });
+        return exchanges.initiateExchangeForSession(session, protocol, {
+            onSend,
+            onReceive,
+            network,
+            peerAdditionalMrpDelay,
+            addressOverride,
+        });
 
         function onSend(_message: Message, retransmission: number) {
             if (retransmission) {

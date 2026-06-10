@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Fix: Ensure that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
+
 ## 0.17.2 (2026-06-09)
 
 - @matter/general

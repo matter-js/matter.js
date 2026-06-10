@@ -5,7 +5,7 @@
  */
 
 import type { NetworkProfile } from "#peer/NetworkProfile.js";
-import type { ServerAddressUdp } from "@matter/general";
+import type { Duration, ServerAddressUdp } from "@matter/general";
 
 /**
  * Represents a client request with customizable transmission behavior.
@@ -22,6 +22,14 @@ export interface ClientRequest {
      * @see {@link NetworkProfile}
      */
     network?: string;
+
+    /**
+     * Override the peer-medium MRP retransmission margin for this interaction.
+     *
+     * By default the margin derives from the peer's network medium (e.g. thread's longer margin), independent of
+     * the {@link network} throttle profile.  Set this to override that default for a single interaction.
+     */
+    additionalMrpDelay?: Duration;
 
     /**
      * Override the destination address for this interaction's exchange.
