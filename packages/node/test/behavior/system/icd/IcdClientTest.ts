@@ -72,7 +72,24 @@ async function litOperatingPair(site: MockSite) {
     await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
     await commission(controller, device);
     const peer1 = await subscribedPeer(controller, "peer1");
+    // A LIT-operating peer auto-registers at commissioning (deferred own transaction with peer I/O); drain until it settles.
+    await settleAutoRegistration(peer1);
     return { controller, device, peer1 };
+}
+
+/** Await a pending LIT auto-registration to commit. Resolves immediately when already registered. */
+async function settleAutoRegistration(peer: ClientNode) {
+    if (peer.stateOf(IcdClient).registered) {
+        return;
+    }
+    const registered = new Promise<void>(resolve => peer.eventsOf(IcdClient).registered.once(() => resolve()));
+    await MockTime.resolve(registered, { macrotasks: true });
+}
+
+/** Drop the auto-registration and re-register under a subject the active subscription does not cover, so the device transmits Check-Ins. */
+async function reRegisterWithSubject(peer: ClientNode, monitoredSubject: SubjectId) {
+    await peer.act(agent => agent.get(IcdClient).unregister());
+    await peer.act(agent => agent.get(IcdClient).register({ monitoredSubject }));
 }
 
 function wakefulnessOf(controller: ServerNode, peer: ClientNode) {
@@ -219,6 +236,63 @@ describe("IcdClient", () => {
             }
             expect(caught).instanceof(ImplementationError);
             expect(peer1.stateOf(IcdClient).registered).true;
+        });
+    });
+
+    describe("auto-register on LIT", () => {
+        it("auto-registers a LIT-operating peer at commissioning without an explicit register()", async () => {
+            await using site = new MockSite();
+            const { peer1 } = await litOperatingPair(site);
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(peer1.stateOf(IcdClient).key).not.undefined;
+        });
+
+        it("does NOT auto-register a LIT-advertising peer below spec 1.4.0", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair({
+                device: {
+                    type: RootWithDslsIcd,
+                    icdManagement: LIT_CONFIG,
+                    basicInformation: { specificationVersion: 0x01030000 },
+                },
+            });
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await commission(controller, device);
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+        });
+
+        it("does NOT auto-register a DSLS peer operating in SIT", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+        });
+
+        it("auto-registers on a runtime SIT->LIT flip", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(peer1.stateOf(IcdClient).registered).false;
+
+            const modeChanged = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdManagementClient).operatingMode$Changed.once(() => resolve()),
+            );
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(modeChanged, { macrotasks: true });
+            await settleAutoRegistration(peer1);
+
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(peer1.stateOf(IcdClient).key).not.undefined;
         });
     });
 
@@ -431,7 +505,7 @@ describe("IcdClient", () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
 
-            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
             expect(peer1.stateOf(IcdClient).available).true;
 
             const changed = new Promise<void>(resolve =>
@@ -450,7 +524,7 @@ describe("IcdClient", () => {
             await using site = new MockSite();
             const { controller, device, peer1 } = await litOperatingPair(site);
 
-            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
 
             await MockTime.advance(Seconds(3700));
             await MockTime.resolve(Promise.resolve(), { macrotasks: true });
@@ -484,7 +558,7 @@ describe("IcdClient", () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
 
-            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
 
             const wakefulness = wakefulnessOf(controller, peer1)!;
             const promised = await peer1.act(agent => agent.get(IcdClient).stayActive(Seconds(120)));
@@ -521,6 +595,7 @@ describe("IcdClient", () => {
             await using site = new MockSite();
             const { device, peer1 } = await litOperatingPair(site);
 
+            await peer1.act(agent => agent.get(IcdClient).unregister());
             // Not registered -> no fed wakefulness -> defaults awake (nothing to await).
             expect(await peer1.act(agent => agent.get(IcdClient).awake)).equals(true);
 
@@ -570,7 +645,8 @@ describe("IcdClient", () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
 
-            await peer1.act(agent => agent.get(IcdClient).register());
+            // The LIT-operating peer auto-registered at commissioning.
+            expect(peer1.stateOf(IcdClient).registered).true;
             const wakefulness = wakefulnessOf(controller, peer1);
             expect(wakefulness).not.undefined;
             expect(wakefulness!.requiresAwait).true;
