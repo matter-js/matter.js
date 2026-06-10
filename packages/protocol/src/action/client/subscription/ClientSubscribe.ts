@@ -32,11 +32,12 @@ export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
     refreshRequest?: (request: SustainedClientSubscribe) => SustainedClientSubscribe;
 
     /**
-     * Wakefulness signals for a LIT (Long Idle Time) ICD peer.  When present, the sustained subscription parks on the
-     * peer's wake signal instead of running a timed retry/probe.  Attached by the node layer, which knows both that the
-     * peer is operating in Long Idle Time mode and the peer's {@link IcdPeerWakefulness}.
+     * Live provider of the peer's {@link IcdPeerWakefulness}.  Read on each sustained-subscription loop decision: when
+     * it returns a wakefulness in await mode the subscription parks on the peer's wake signal instead of running a
+     * timed retry/probe; otherwise it behaves as a non-ICD sustained subscription.  Attached by the node layer, which
+     * resolves the peer's wakefulness live so a peer registered after subscribe, or flipped SIT⇄LIT, is honored.
      */
-    icdWakefulness?: IcdPeerWakefulness;
+    icdWakefulness?: () => IcdPeerWakefulness | undefined;
 }
 
 export type ClientSubscribe = PlainClientSubscribe | SustainedClientSubscribe;

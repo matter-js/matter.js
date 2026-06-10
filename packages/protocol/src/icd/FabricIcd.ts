@@ -58,8 +58,8 @@ export class FabricIcd {
 
     /**
      * Re-key a registered peer in place (key refresh), preserving its {@link IcdPeerWakefulness} and handler. Recreating
-     * the entry would orphan consumers that hold the wakefulness (e.g. a parked IcdSustainedSubscription), so the
-     * rolling-counter baseline is updated without disturbing the wakefulness windows.
+     * the entry would reset the live wakefulness windows that a parked sustained subscription resolves each loop, so the
+     * rolling-counter baseline is updated without disturbing them.
      */
     updatePeer(peerNodeId: NodeId, peer: Pick<FabricIcd.Peer, "key" | "counterStart" | "lastOffset">): void {
         const entry = this.#peers.get(peerNodeId);
