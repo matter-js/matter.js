@@ -51,6 +51,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
         await this.#peer.connect({
             abort: options?.abort,
             network: options?.network,
+            additionalMrpDelay: options?.additionalMrpDelay,
             connectionTimeout: options?.connectionTimeout,
             requiredTransport: options?.requiredTransport,
             preferredTransport: options?.preferredTransport,
@@ -72,6 +73,8 @@ export class PeerExchangeProvider extends ExchangeProvider {
             }
 
             const network = this.#context.networks.select(this.#peer, options?.network);
+            const peerAdditionalMrpDelay =
+                options?.additionalMrpDelay ?? this.#context.networks.forPeer(this.#peer).additionalMrpDelay;
             const slot = await network.semaphore.obtainSlot(abort);
 
             try {
@@ -112,6 +115,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     this.#context.exchanges,
                     session,
                     network,
+                    peerAdditionalMrpDelay,
                     options?.protocol ?? INTERACTION_PROTOCOL_ID,
                     options?.addressOverride,
                 );
