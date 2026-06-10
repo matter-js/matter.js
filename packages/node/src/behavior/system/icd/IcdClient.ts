@@ -29,6 +29,7 @@ import { FabricManager, PeerAddress, type FabricIcd } from "@matter/protocol";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdMultiAdminError } from "./IcdMultiAdminError.js";
+import { litSupported } from "./litSupported.js";
 
 const logger = Logger.get("IcdClient");
 
@@ -53,9 +54,9 @@ export class IcdClient extends Behavior {
         return this.state.registered;
     }
 
-    /** Whether the peer supports the Long Idle Time feature; undefined feature map (unknown) reads as false. */
+    /** Whether the peer is LIT-capable (LongIdleTimeSupport feature and specification version >= 1.4.0). */
     get peerSupportsLit() {
-        return this.endpoint.maybeFeaturesOf(IcdManagementClient)?.longIdleTimeSupport === true;
+        return litSupported(this.endpoint);
     }
 
     /** A LIT peer publishes Check-Ins rather than staying subscribable, so callers must await one before contacting it. */
