@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { litSupported } from "#behavior/system/icd/litSupported.js";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
@@ -23,7 +24,7 @@ import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-
 export function NodePhysicalProperties(node: Node) {
     const rootEndpointServerList = [...(node.maybeStateOf(DescriptorClient)?.serverList ?? [])];
 
-    const supportsLit = node.maybeFeaturesOf(IcdManagementClient)?.longIdleTimeSupport === true;
+    const supportsLit = litSupported(node);
     const operatingMode = node.maybeStateOf(IcdManagementClient)?.operatingMode;
 
     const properties: PhysicalDeviceProperties = {
