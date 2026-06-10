@@ -106,12 +106,63 @@ export class IcdClient extends Behavior {
                 this.#onOperatingModeChanged,
             );
         }
+
+        // register() needs the peer online. At commissioning the peer is reachable while operatingMode is read but only
+        // reports online afterwards, so the peer-online edge — not init — is the reliable trigger; on a later restart of
+        // an already-online LIT peer, the init call below covers the already-online case.
+        if (this.endpoint instanceof Node) {
+            this.reactTo(this.endpoint.lifecycle.online, this.#ensureLitRegistration);
+            if (this.endpoint.lifecycle.isOnline) {
+                this.#ensureLitRegistration();
+            }
+        }
     }
 
     #onOperatingModeChanged() {
         const wakefulness = this.#fedWakefulness();
         if (wakefulness !== undefined) {
             wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
+        }
+        this.#ensureLitRegistration();
+    }
+
+    /**
+     * Register as a Check-In client when the peer operates in LIT mode and we are not registered. Mandatory for LIT
+     * peers, so it bypasses the multi-admin blacklist. Deferred own transaction; best-effort (a failure, e.g. peer
+     * offline, is logged and retried by the next trigger). The running SustainedSubscription reads the wakefulness live,
+     * so it adapts to the registration with no re-subscribe.
+     */
+    #ensureLitRegistration() {
+        if (!this.#peerIsLongIdleTimeOperating || this.state.registered || this.internal.autoRegister !== undefined) {
+            return;
+        }
+        this.internal.autoRegister = this.#autoRegister();
+    }
+
+    async #autoRegister() {
+        try {
+            // Defer so an in-flight transaction settles before we open the registration transaction (mirror #startKeyRefresh).
+            await Promise.resolve();
+            await this.endpoint.act("icd-auto-register", async agent => {
+                const icd = agent.get(IcdClient);
+                // Re-check inside the transaction: state, reachability, or operating mode may have changed since the
+                // trigger fired. A peer that went offline in the meantime is a no-op (the next online edge retries),
+                // not an error.
+                if (
+                    icd.state.registered ||
+                    !(icd.endpoint instanceof Node) ||
+                    !icd.endpoint.lifecycle.isOnline ||
+                    !litSupported(icd.endpoint) ||
+                    icd.endpoint.maybeStateOf(IcdManagementClient)?.operatingMode !== IcdManagement.OperatingMode.Lit
+                ) {
+                    return;
+                }
+                await icd.register({ allowMultiAdmin: true });
+            });
+        } catch (error) {
+            logger.warn("ICD auto-registration for LIT peer failed", error);
+        } finally {
+            this.internal.autoRegister = undefined;
         }
     }
 
@@ -420,6 +471,7 @@ export class IcdClient extends Behavior {
      * would leave the controller and peer with mismatched keys.
      */
     override async [Symbol.asyncDispose]() {
+        await this.internal.autoRegister;
         await this.internal.keyRefresh;
         await super[Symbol.asyncDispose]?.();
     }
@@ -432,6 +484,9 @@ export namespace IcdClient {
 
         /** In-flight key refresh; tracked so a second refreshNeeded Check-In can't overlap it and teardown can await it. */
         keyRefresh?: Promise<void>;
+
+        /** In-flight LIT auto-registration; tracked so overlapping triggers can't double-register and teardown can await it. */
+        autoRegister?: Promise<void>;
 
         /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */
         fedPeer?: PeerAddress;
