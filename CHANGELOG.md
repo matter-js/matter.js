@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Fix: Ensure that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
+    - Adjustment: MRP now selects the active/idle retransmission interval by peer activity for every transmission including the first, instead of forcing the first transmission to the idle interval
 
 ## 0.17.2 (2026-06-09)
 
