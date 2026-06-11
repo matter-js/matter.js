@@ -150,7 +150,10 @@ export class IcdTestInstance extends NodeTestInstance {
                 activeModeDuration,
                 activeModeThreshold: 5000, // ms; LIT requires >= 5000
                 clientsSupportedPerFabric: 2,
-                maximumCheckInBackoff: Math.max(idleModeDuration, 3600), // seconds; must be >= idleModeDuration
+                // Mirror chip's lit-icd reference (MaximumCheckInBackOff == IdleModeDuration): no back-off, so every
+                // uncovered client receives a Check-In every cycle. TC_ICDB_2_4 relies on this to observe two Check-Ins
+                // (TH1 + TH2) within a single active-idle-active cycle.
+                maximumCheckInBackoff: idleModeDuration, // seconds; spec requires >= idleModeDuration
                 userActiveModeTriggerHint: {
                     powerCycle: true,
                     customInstruction: true,
