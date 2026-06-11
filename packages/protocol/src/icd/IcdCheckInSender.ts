@@ -36,7 +36,8 @@ export interface IcdCheckInRequest {
 
 /**
  * Builds and sends device-side ICD Check-In messages (Secure Channel opcode 0x50) unsecured to a registered client.
- * Best-effort: returns false (never throws) when the peer is unresolvable or the send fails.
+ * Best-effort transport: returns false (does not throw) when the peer is unresolvable or the send fails. Encode-time
+ * and programmer errors are NOT transport failures and propagate.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.15.1
  */
@@ -49,15 +50,26 @@ export class IcdCheckInSender {
 
     async send(request: IcdCheckInRequest): Promise<boolean> {
         const { fabricIndex, peerNodeId, key, counter, activeModeThreshold } = request;
+
+        let address: IcdCheckInAddress | undefined;
         try {
-            const address = await this.#context.resolveAddress({ fabricIndex, peerNodeId });
-            if (address === undefined) {
-                return false;
-            }
-            const payload = await CheckInMessage.encodeIcd(this.#context.crypto, key, counter, activeModeThreshold);
+            address = await this.#context.resolveAddress({ fabricIndex, peerNodeId });
+        } catch (error) {
+            logger.debug(`Check-In to ${peerNodeId} on fabric ${fabricIndex}: address resolution failed`, error);
+            return false;
+        }
+        if (address === undefined) {
+            return false;
+        }
+
+        // Outside the transport try/catch: an encode failure is a programmer/crypto bug, not a delivery failure, and
+        // must surface rather than be swallowed as a best-effort `false`.
+        const payload = await CheckInMessage.encodeIcd(this.#context.crypto, key, counter, activeModeThreshold);
+
+        try {
             return await this.#context.sendUnsecured(address, SecureMessageType.IcdCheckInMessage, payload);
         } catch (error) {
-            logger.debug(`Check-In to ${peerNodeId} on fabric ${fabricIndex} failed`, error);
+            logger.debug(`Check-In to ${peerNodeId} on fabric ${fabricIndex}: send failed`, error);
             return false;
         }
     }
