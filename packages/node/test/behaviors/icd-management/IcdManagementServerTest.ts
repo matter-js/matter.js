@@ -1187,6 +1187,7 @@ describe("IcdManagementServer", () => {
             maximumCheckInBackoff: 4,
             activeModeDuration: 2000,
             activeModeThreshold: 1000,
+            clientsSupportedPerFabric: 2,
         } as const;
 
         const key = Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf");
@@ -1231,6 +1232,38 @@ describe("IcdManagementServer", () => {
             expect(sent).length(1);
             expect(sent[0].peerNodeId).equals(checkInNodeId);
             expect(device.stateOf(IcdManagementServer).icdCounter).equals(counterBefore + 1);
+        });
+
+        it("advances the ICDCounter once per Check-In sent across multiple registered clients", async () => {
+            const { site, sent, controller, device } = await commissionedRecordingPair();
+            await using _site = site;
+
+            const peer1 = controller.peers.get("peer1")!;
+            const nodeA = peer1.peerAddress!.nodeId;
+            const nodeB = NodeId(nodeA + 1n);
+            const keyB = Bytes.fromHex("e0e1e2e3e4e5e6e7e8e9eaebecedeeef");
+            for (const [checkInNodeId, k] of [
+                [nodeA, key],
+                [nodeB, keyB],
+            ] as const) {
+                await peer1.commandsOf(IcdManagementClient).registerClient({
+                    checkInNodeId,
+                    monitoredSubject: checkInNodeId,
+                    key: k,
+                    clientType: IcdManagement.ClientType.Permanent,
+                });
+            }
+
+            const counterBefore = device.stateOf(IcdManagementServer).icdCounter;
+            sent.length = 0;
+
+            await wake(device);
+
+            // One Check-In per client, each carrying a distinct post-increment counter value (§ 4.6.3).
+            expect(sent).length(2);
+            const counters = sent.map(s => s.counter).sort((a, b) => a - b);
+            expect(counters[1]).equals(counters[0] + 1);
+            expect(device.stateOf(IcdManagementServer).icdCounter).equals(counterBefore + 2);
         });
 
         it("suppresses the Check-In for a client covered by an active matching subscription", async () => {
