@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Seconds, Time, Timer } from "@matter/general";
+import { Millis, Seconds, Time, Timer } from "@matter/general";
 import { NodeLifecycle } from "@matter/main";
 import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
 import { IcdManagementServer } from "@matter/main/behaviors/icd-management";
@@ -20,9 +20,12 @@ const ICD_DSLS_WITHDRAW_SIT = 0x0046000000000007n;
 /**
  * Root-endpoint behavior for the lit-icd test app. Two jobs:
  *  1. Map ICD TestEventTriggers onto the device-side ICD API.
- *  2. Drive a repeating idle→active cycle (chip's lit-icd app does this in its main loop) so a
- *     registered client receives unsolicited Check-Ins. Production ICD is externally-driven, so the
- *     cycle lives here in the test app only.
+ *  2. Drive a fixed idle↔active cadence so a registered client receives unsolicited Check-Ins. Production matter.js
+ *     ICD is externally driven (never sleeps on its own), so this simulates the scheduled cycling that the CHIP SDK's
+ *     ICDManager does natively. The cadence runs on our own timers — a bounded `activeModeDuration` active window then
+ *     an `idleModeDuration` idle window — rather than the spec-layer `mayEnterIdleMode` signal, which inbound
+ *     subscription traffic keeps deferring (so the device would otherwise never return to idle, and Check-Ins would
+ *     not resume promptly after a subscription is torn down — see TC_ICDB_2_2).
  */
 export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
     declare protected internal: IcdTestEventServer.Internal;
@@ -32,7 +35,7 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
 
         if (this.endpoint.behaviors.has(IcdManagementServer)) {
             const events = this.endpoint.eventsOf(IcdManagementServer);
-            this.reactTo(events.mayEnterIdleMode, this.#onMayEnterIdle, { lock: true });
+            this.reactTo(events.activeModeEntered, this.#onActiveEntered, { lock: true });
             this.reactTo(events.idleModeEntered, this.#onIdleEntered, { lock: true });
             this.reactTo((this.endpoint.lifecycle as NodeLifecycle).goingOffline, this.#stopTimers, { lock: true });
         }
@@ -61,13 +64,27 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
         }
     }
 
-    #onMayEnterIdle() {
+    #onActiveEntered() {
+        this.#armActiveWindow();
+    }
+
+    #armActiveWindow() {
+        this.#stopTimers();
         const icd = this.agent.get(IcdManagementServer);
+        this.internal.activeTimer = Time.getTimer(
+            "icd-test-active-window",
+            Millis(icd.state.activeModeDuration),
+            this.callback(this.#onActiveWindowDone, { lock: true }),
+        ).start();
+    }
+
+    #onActiveWindowDone() {
+        // AddActiveModeReq holds the device active: re-arm the active window instead of sleeping.
         if (this.internal.keepActive) {
-            icd.requestActiveMode();
-        } else {
-            icd.enterIdleMode();
+            this.#armActiveWindow();
+            return;
         }
+        this.agent.get(IcdManagementServer).enterIdleMode();
     }
 
     #onIdleEntered() {
@@ -85,7 +102,9 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
     }
 
     #stopTimers() {
+        this.internal.activeTimer?.stop();
         this.internal.idleTimer?.stop();
+        this.internal.activeTimer = undefined;
         this.internal.idleTimer = undefined;
     }
 
@@ -98,6 +117,7 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
 export namespace IcdTestEventServer {
     export class Internal extends GeneralDiagnosticsServer.Internal {
         keepActive = false;
+        activeTimer?: Timer;
         idleTimer?: Timer;
     }
 }
