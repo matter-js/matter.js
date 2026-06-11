@@ -771,23 +771,24 @@ describe("Environment", () => {
     });
 
     describe("log configuration via variables", () => {
-        let savedDefault: Environment;
         let savedLevel: LogLevel | string;
 
         beforeEach(() => {
-            savedDefault = Environment.default;
             savedLevel = Logger.level;
         });
 
         afterEach(() => {
-            Environment.default = savedDefault;
             Logger.level = savedLevel;
         });
 
+        // Mirrors the wiring in Environment.set default without swapping the shared global default (which would
+        // dispose it and break other tests sharing the process).
         function applyLogLevel(value: string | number) {
-            const configured = new Environment("test-log");
+            using configured = new Environment("test-log");
             configured.vars.set("log.level", value);
-            Environment.default = configured;
+            configured.vars.use(() => {
+                Logger.level = configured.vars.get("log.level", LogLevel.names[LogLevel(Logger.level)]);
+            });
         }
 
         it("applies string level names", () => {
