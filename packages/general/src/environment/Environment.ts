@@ -30,8 +30,8 @@ const logger = Logger.get("Environment");
  * Access to general platform-dependent features.
  *
  * The following variables are defined by this class:
- * * `log.level` - Log level to use, as a name (`debug`, `info`, `notice`, `warn`, `error`, `fatal`) or number (0-5) {@link Logger.LEVEL}
- * * `log.format` - Log format to use {@link Logger.FORMAT}
+ * * `log.level` - Log level to use, as a name (`debug`, `info`, `notice`, `warn`, `error`, `fatal`) or number (0-5) {@link Logger.level}
+ * * `log.format` - Log format to use {@link Logger.format}
  * * `log.stack.limit` - Stack trace limit, see https://nodejs.org/api/errors.html#errorstacktracelimit
  * * `mdns.networkInterface` - Network interface to use for MDNS broadcasts and scanning, default are all available interfaces
  * * `mdns.ipv4` - Also announce/scan on IPv4 interfaces
