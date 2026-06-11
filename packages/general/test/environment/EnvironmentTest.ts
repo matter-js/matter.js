@@ -7,6 +7,8 @@
 import { Environment } from "#environment/Environment.js";
 import { Environmental } from "#environment/Environmental.js";
 import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
+import { LogLevel } from "#log/LogLevel.js";
+import { Logger } from "#log/Logger.js";
 
 /** Asserts that all provided values are strictly equal to each other */
 function expectAllEqual<T>(...values: T[]) {
@@ -765,6 +767,50 @@ describe("Environment", () => {
             expect(parent.has(TestService)).to.be.true;
             expect(child.has(TestService)).to.be.true;
             expect(dependent2.get(TestService)).to.equal(service);
+        });
+    });
+
+    describe("log configuration via variables", () => {
+        let savedLevel: LogLevel | string;
+
+        beforeEach(() => {
+            savedLevel = Logger.level;
+        });
+
+        afterEach(() => {
+            Logger.level = savedLevel;
+        });
+
+        // Mirrors the wiring in Environment.set default without swapping the shared global default (which would
+        // dispose it and break other tests sharing the process).
+        function applyLogLevel(value: string | number) {
+            using configured = new Environment("test-log");
+            configured.vars.set("log.level", value);
+            configured.vars.use(() => {
+                Logger.level = configured.vars.get("log.level", LogLevel.names[LogLevel(Logger.level)]);
+            });
+        }
+
+        it("applies string level names", () => {
+            applyLogLevel("info");
+            expect(Logger.level).to.equal(LogLevel.INFO);
+
+            applyLogLevel("debug");
+            expect(Logger.level).to.equal(LogLevel.DEBUG);
+        });
+
+        it("applies numeric levels", () => {
+            applyLogLevel(4);
+            expect(Logger.level).to.equal(LogLevel.ERROR);
+        });
+
+        it("applies numeric string levels", () => {
+            applyLogLevel("2");
+            expect(Logger.level).to.equal(LogLevel.NOTICE);
+        });
+
+        it("rejects invalid level names", () => {
+            expect(() => applyLogLevel("bogus")).to.throw();
         });
     });
 });

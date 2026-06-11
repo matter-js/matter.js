@@ -9,6 +9,7 @@ import { SharedEnvironmentServices } from "#environment/SharedEnvironmentService
 import { SharedServicesManager } from "#environment/SharedServicesManager.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import { LogFormat } from "#log/LogFormat.js";
+import { LogLevel } from "#log/LogLevel.js";
 import { InternalError } from "#MatterError.js";
 import { Instant } from "#time/TimeUnit.js";
 import { Lifetime } from "#util/Lifetime.js";
@@ -29,8 +30,8 @@ const logger = Logger.get("Environment");
  * Access to general platform-dependent features.
  *
  * The following variables are defined by this class:
- * * `log.level` - Log level to use {@link Logger.LEVEL}
- * * `log.format` - Log format to use {@link Logger.FORMAT}
+ * * `log.level` - Log level to use, as a name (`debug`, `info`, `notice`, `warn`, `error`, `fatal`) or number (0-5) {@link Logger.level}
+ * * `log.format` - Log format to use {@link Logger.format}
  * * `log.stack.limit` - Stack trace limit, see https://nodejs.org/api/errors.html#errorstacktracelimit
  * * `mdns.networkInterface` - Network interface to use for MDNS broadcasts and scanning, default are all available interfaces
  * * `mdns.ipv4` - Also announce/scan on IPv4 interfaces
@@ -349,7 +350,7 @@ export class Environment implements ServiceProvider, Lifetime.Owner {
         global = env;
 
         env.vars.use(() => {
-            Logger.level = env.vars.get("log.level", Logger.level);
+            Logger.level = env.vars.get("log.level", LogLevel.names[LogLevel(Logger.level)]);
             Logger.format = env.vars.get("log.format", Logger.format);
 
             const stackLimit = global.vars.number("log.stack.limit");

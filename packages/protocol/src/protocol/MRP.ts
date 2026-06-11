@@ -20,7 +20,7 @@ export namespace MRP {
     /** The scaler for random jitter in the backoff equation. */
     export const BACKOFF_JITTER = 0.25;
 
-    /** The scaler margin increase to backoff over the peer sleepy interval. */
+    /** The scaler margin increase to backoff over the applicable (active/idle) interval. */
     export const BACKOFF_MARGIN = 1.1;
 
     /** The number of retransmissions before transitioning from linear to exponential backoff. */
@@ -128,11 +128,10 @@ export namespace MRP {
     ) {
         const { activeInterval, idleInterval } = sessionParameters;
 
-        // The first message of an exchange SHALL use the idle interval; subsequent ones SHOULD use the active
-        // interval "unless the sender has other means to determine whether the device is active or idle" —
-        // isPeerActive is that means, so honor it per retransmission like CHIP does (ICD correctness)
-        const peerActive = transmissionNumber > 0 && isPeerActive;
-        let baseInterval = peerActive ? activeInterval : idleInterval;
+        // Every transmission (including the initial one) selects its interval by PeerActiveMode, re-evaluated
+        // per (re)transmission, matching CHIP GetMRPBaseTimeout(). isPeerActive already yields idle for a
+        // genuinely quiet peer, so no position-based first-message rule is needed.
+        let baseInterval = isPeerActive ? activeInterval : idleInterval;
         if (!calculateMaximum) {
             baseInterval += additionalDelay;
         }

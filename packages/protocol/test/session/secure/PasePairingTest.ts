@@ -6,10 +6,32 @@
 
 import { PaseClient } from "#session/pase/PaseClient.js";
 import { SPAKE_CONTEXT } from "#session/pase/PaseMessenger.js";
-import { Bytes, Spake2p, StandardCrypto } from "@matter/general";
+import { PaseServer } from "#session/pase/PaseServer.js";
+import { Bytes, MatterFlowError, Spake2p, StandardCrypto } from "@matter/general";
 
 describe("PasePairing", () => {
     const crypto = new StandardCrypto();
+
+    describe("cancelPairing", () => {
+        it("does not throw when sending the error status report fails", async () => {
+            const server = new PaseServer({} as any, 0n, new Uint8Array());
+            let closed = false;
+            const messenger = {
+                sendError: () =>
+                    Promise.reject(
+                        new MatterFlowError("The previous message has not been acked yet, cannot send a new message"),
+                    ),
+                close: () => {
+                    closed = true;
+                    return Promise.resolve();
+                },
+            };
+
+            await server.cancelPairing(messenger as any);
+
+            expect(closed).true;
+        });
+    });
 
     describe("random passcode generation", () => {
         it("uses 27-bit candidates and rejects out-of-range and forbidden values", () => {

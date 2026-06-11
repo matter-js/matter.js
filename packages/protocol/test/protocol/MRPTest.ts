@@ -31,11 +31,22 @@ describe("MRP", () => {
             expect(value).to.be.at.most(max);
         }
 
-        it("uses the idle interval for the first transmission even when the peer is active", () => {
+        it("uses the active interval for the first transmission when the peer is active", () => {
             const interval = MRP.retransmissionIntervalOf({
                 transmissionNumber: 0,
                 sessionParameters,
                 isPeerActive: true,
+                additionalDelay: ADDITIONAL,
+            });
+
+            expectWithin(interval, runtimeRangeFor(Millis(500), 0, ADDITIONAL));
+        });
+
+        it("uses the idle interval for the first transmission when the peer is inactive", () => {
+            const interval = MRP.retransmissionIntervalOf({
+                transmissionNumber: 0,
+                sessionParameters,
+                isPeerActive: false,
                 additionalDelay: ADDITIONAL,
             });
 
@@ -71,7 +82,7 @@ describe("MRP", () => {
                 isPeerActive: true,
             });
 
-            expectWithin(interval, runtimeRangeFor(Seconds(10), 0, 0));
+            expectWithin(interval, runtimeRangeFor(Millis(500), 0, 0));
         });
     });
 
@@ -90,11 +101,21 @@ describe("MRP", () => {
             );
         }
 
-        it("uses the idle interval for the first transmission even when the peer is active", () => {
+        it("uses the active interval for the first transmission when the peer is active", () => {
             const interval = MRP.maxRetransmissionIntervalOf({
                 transmissionNumber: 0,
                 sessionParameters,
                 isPeerActive: true,
+            });
+
+            expect(interval).to.equal(maximumFor(Millis(500), 0));
+        });
+
+        it("uses the idle interval for the first transmission when the peer is inactive", () => {
+            const interval = MRP.maxRetransmissionIntervalOf({
+                transmissionNumber: 0,
+                sessionParameters,
+                isPeerActive: false,
             });
 
             expect(interval).to.equal(maximumFor(Seconds(10), 0));
@@ -155,6 +176,46 @@ describe("MRP", () => {
                 });
 
                 expect(timeout).to.equal(Seconds(35));
+            });
+        });
+
+        describe("UDP channel", () => {
+            // Both legs use SessionIntervals defaults (idle 500ms, active 300ms, threshold 4000ms). The numbers are
+            // the deterministic maximum-backoff sums for five transmissions, so the first transmission of each leg now
+            // honors PeerActiveMode (active leg starts at 300ms, idle leg at 500ms).
+            it("composes the active peer leg, the active return leg, processing time and buffer", () => {
+                const timeout = MRP.maxPeerResponseTimeOf({
+                    peerSessionParameters: SessionParameters(),
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: true,
+                });
+
+                // 4229 (peer, active) + 4229 (return, active) + 2000 (processing) + 5000 (buffer)
+                expect(timeout).to.equal(Millis(15458));
+            });
+
+            it("uses the idle peer leg when the peer is inactive while the return leg stays active", () => {
+                const timeout = MRP.maxPeerResponseTimeOf({
+                    peerSessionParameters: SessionParameters(),
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: false,
+                });
+
+                // 7050 (peer, idle) + 4229 (return, active) + 2000 (processing) + 5000 (buffer)
+                expect(timeout).to.equal(Millis(18279));
+            });
+
+            it("drops the peer leg when peer session parameters are unknown", () => {
+                const timeout = MRP.maxPeerResponseTimeOf({
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: true,
+                });
+
+                // 4229 (return, active) + 2000 (processing) + 5000 (buffer)
+                expect(timeout).to.equal(Millis(11229));
             });
         });
 

@@ -199,7 +199,7 @@ export class MessageExchange {
     #onSend?: MessageExchange.SendNotifier;
     #onReceive?: MessageExchange.ReceiveNotifier;
     readonly #addressOverride?: ServerAddressUdp;
-    readonly #network?: NetworkProfile;
+    readonly #peerAdditionalMrpDelay?: Duration;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -251,6 +251,7 @@ export class MessageExchange {
             onSend,
             onReceive,
             network,
+            peerAdditionalMrpDelay,
             addressOverride,
         } = config;
 
@@ -264,7 +265,7 @@ export class MessageExchange {
         this.#onSend = onSend;
         this.#onReceive = onReceive;
         this.#addressOverride = addressOverride;
-        this.#network = network;
+        this.#peerAdditionalMrpDelay = peerAdditionalMrpDelay;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -1017,7 +1018,7 @@ export class MessageExchange {
     get #mrpResubmissionBackOffTime() {
         const additionalDelay = Duration.max(
             this.#context.localAdditionalMrpDelay,
-            this.#network?.additionalMrpDelay ?? Millis(0),
+            this.#peerAdditionalMrpDelay ?? Millis(0),
         );
         let backOff = this.channel.getMrpResubmissionBackOffTime(
             this.#retransmissionCounter,
@@ -1045,9 +1046,17 @@ export namespace MessageExchange {
         onReceive?: ReceiveNotifier;
 
         /**
-         * Network Profile used
+         * Network profile governing exchange throttling.  Retained for diagnostics; MRP backoff derives from
+         * {@link peerAdditionalMrpDelay} instead, so an explicit throttle override (e.g. "unlimited") does not
+         * affect retransmission timing.
          */
         network?: NetworkProfile;
+
+        /**
+         * Additive MRP retransmission margin for the peer's network medium.  Sourced independently of
+         * {@link network} so concurrency overrides cannot strip the medium-correct margin (e.g. thread's).
+         */
+        peerAdditionalMrpDelay?: Duration;
 
         /**
          * Optional address override for this exchange.  When set, messages are sent to this address
