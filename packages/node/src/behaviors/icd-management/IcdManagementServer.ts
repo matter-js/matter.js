@@ -211,7 +211,23 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             }
         }
 
+        // Seed before the network runtime brings up the DeviceAdvertiser and publishes the first operational
+        // announcement, so the ICD DNS-SD TXT key is present from that first announce.
+        this.#installIcdAdvertisement();
+
         this.reactTo((this.endpoint.lifecycle as NodeLifecycle).online, this.#online);
+    }
+
+    /**
+     * Register the ICD advertisement provider and seed its cache. The provider returns the pushed cache rather than
+     * reading state because it runs outside the behavior transaction.
+     *
+     * Read-only by design: it derives the mode from {@link #effectiveMode} and never writes `operatingMode`, so calling
+     * it from initialize() does not satisfy the mandatory-attribute check that rejects an unconfigured LIT device.
+     */
+    #installIcdAdvertisement() {
+        this.env.get(DeviceAdvertiser).setIcdAdvertisementProvider(() => this.internal.currentIcdAdvertisement);
+        this.#refreshIcdAdvertisementCache();
     }
 
     #online() {
@@ -231,10 +247,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             if (this.features.longIdleTimeSupport) {
                 this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged, { offline: true });
                 // A DSLS force is runtime-only, so after a restart reconcile operatingMode to the registration-driven
-                // mode and prime the advertisement cache.
+                // mode. Safe to write here (online reactor); initialize() must not, to preserve the mandatory check.
                 this.#updateOperatingMode();
-            } else {
-                this.#refreshIcdAdvertisementCache();
             }
 
             // Idle/active mode machine, externally driven. Created once; (re)started below on every online, paused on
@@ -264,8 +278,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             this.internal.inactiveObserver = { inactive, observer };
         }
 
-        // DeviceAdvertiser is closed and recreated on each stop/start cycle; register the provider every time.
-        this.env.get(DeviceAdvertiser).setIcdAdvertisementProvider(() => this.internal.currentIcdAdvertisement);
+        // DeviceAdvertiser is closed and recreated on each stop/start cycle, so re-register and re-seed every online.
+        this.#installIcdAdvertisement();
 
         // Rebuild the operational view on every online: fabric.icd is runtime-only and starts empty after a full
         // restart. Drop keys for fabrics that no longer exist so a stale key can never be replayed.
