@@ -7,6 +7,8 @@
 import { Environment } from "#environment/Environment.js";
 import { Environmental } from "#environment/Environmental.js";
 import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
+import { LogLevel } from "#log/LogLevel.js";
+import { Logger } from "#log/Logger.js";
 
 /** Asserts that all provided values are strictly equal to each other */
 function expectAllEqual<T>(...values: T[]) {
@@ -765,6 +767,49 @@ describe("Environment", () => {
             expect(parent.has(TestService)).to.be.true;
             expect(child.has(TestService)).to.be.true;
             expect(dependent2.get(TestService)).to.equal(service);
+        });
+    });
+
+    describe("log configuration via variables", () => {
+        let savedDefault: Environment;
+        let savedLevel: LogLevel | string;
+
+        beforeEach(() => {
+            savedDefault = Environment.default;
+            savedLevel = Logger.level;
+        });
+
+        afterEach(() => {
+            Environment.default = savedDefault;
+            Logger.level = savedLevel;
+        });
+
+        function applyLogLevel(value: string | number) {
+            const configured = new Environment("test-log");
+            configured.vars.set("log.level", value);
+            Environment.default = configured;
+        }
+
+        it("applies string level names", () => {
+            applyLogLevel("info");
+            expect(Logger.level).to.equal(LogLevel.INFO);
+
+            applyLogLevel("debug");
+            expect(Logger.level).to.equal(LogLevel.DEBUG);
+        });
+
+        it("applies numeric levels", () => {
+            applyLogLevel(4);
+            expect(Logger.level).to.equal(LogLevel.ERROR);
+        });
+
+        it("applies numeric string levels", () => {
+            applyLogLevel("2");
+            expect(Logger.level).to.equal(LogLevel.NOTICE);
+        });
+
+        it("rejects invalid level names", () => {
+            expect(() => applyLogLevel("bogus")).to.throw();
         });
     });
 });
