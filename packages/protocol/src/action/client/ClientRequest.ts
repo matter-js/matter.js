@@ -24,6 +24,14 @@ export interface ClientRequest {
     network?: string;
 
     /**
+     * Override the peer-medium MRP retransmission margin for this interaction.
+     *
+     * By default the margin derives from the peer's network medium (e.g. thread's longer margin), independent of
+     * the {@link network} throttle profile.  Set this to override that default for a single interaction.
+     */
+    additionalMrpDelay?: Duration;
+
+    /**
      * Override the destination address for this interaction's exchange.
      *
      * When set, messages are sent to this address instead of the session's default peer address,

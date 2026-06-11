@@ -97,6 +97,7 @@ interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
     pathKey: string;
     network?: string;
+    additionalMrpDelay?: Duration;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
@@ -612,6 +613,7 @@ export class ClientInteraction<
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
             pathKey,
             network: request.network,
+            additionalMrpDelay: request.additionalMrpDelay,
             resolve: resolver,
             reject: rejecter,
         };
@@ -764,6 +766,9 @@ export class ClientInteraction<
             // Preserve the network profile from the queued commands (all commands in a batch share the same
             // ClientInteraction so they will normally have the same network; pick the first defined value)
             const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
+            const batchAdditionalMrpDelay = commandList.find(
+                c => c.additionalMrpDelay !== undefined,
+            )?.additionalMrpDelay;
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             // Skip validation: already validated on submit. timed=false: only non-timed commands
@@ -771,6 +776,7 @@ export class ClientInteraction<
             const batchRequest = {
                 ...Invoke({ commands: invokeRequests, skipValidation: true, timed: false }),
                 network: batchNetwork,
+                additionalMrpDelay: batchAdditionalMrpDelay,
             } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
@@ -1038,6 +1044,7 @@ export class ClientInteraction<
             try {
                 messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
                     network: request.network ?? this.#network,
+                    additionalMrpDelay: request.additionalMrpDelay,
                     abort,
                     connectionTimeout: session?.connectionTimeout,
                     addressOverride: request.addressOverride,
