@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Observable } from "@matter/general";
+import { Crypto, Observable } from "@matter/general";
 
 /**
  * Counter advance applied on every boot.
@@ -34,6 +34,18 @@ export class IcdCounter {
 
     /** Emits the new counter value after every {@link increment}. */
     readonly changed = Observable<[value: number]>();
+
+    /**
+     * Random initial counter value for a factory-reset device: a 28-bit DRBG value plus one (range 1 … 2²⁸).
+     * Randomizing the start widens the counter space traversed before key refresh and avoids cross-device counter
+     * correlation, since the counter is bound into the Check-In AES-CCM nonce together with the ICD key.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 4.6.1.1 (Message Counter Initialization)
+     * @see {@link MatterSpecification.v151.Core} § 4.6.3 (Check-In Counter — randomize on factory reset)
+     */
+    static randomInitialValue(crypto: Crypto): number {
+        return (crypto.randomUint32 >>> 4) + 1;
+    }
 
     constructor(persistedValue: number) {
         this.#value = (persistedValue + BOOT_BUMP) >>> 0;

@@ -236,7 +236,13 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         // One-time setup. online may re-fire across stop/start on the same instance; the counter and its persistence
         // reactor must be created once (and are torn down with the behavior on dispose).
         if (this.internal.icdCounter === undefined) {
-            const counter = new IcdCounter(this.state.icdCounter);
+            // A factory-fresh device persists the attribute default (0); randomize its initial Check-In Counter per
+            // § 4.6.1.1 instead of starting predictably. A persisted value (always >= boot-bump) is kept as-is.
+            const seed =
+                this.state.icdCounter === 0
+                    ? IcdCounter.randomInitialValue(this.env.get(Crypto))
+                    : this.state.icdCounter;
+            const counter = new IcdCounter(seed);
             this.internal.icdCounter = counter;
             // Persist the boot-bump now; later increments persist via the reactor so writes stay transactional.
             // @see {@link MatterSpecification.v151.Core} § 4.6.3
