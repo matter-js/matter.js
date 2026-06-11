@@ -136,5 +136,19 @@ describe("CheckInMessage", () => {
             expect(result.valid).true;
             expect(result.refreshNeeded).true;
         });
+
+        // Spec § 4.22.3.4.1: key refresh is required when the offset is >= 2^31 (not >). Lock both sides of the
+        // boundary so a future change to `>` would fail here.
+        it("refresh NOT needed at offset 2^31 - 1", () => {
+            const result = CheckInMessage.validateCounter(0x7fffffff, { counterStart: 0, lastOffset: 0 });
+            expect(result.valid).true;
+            expect(result.refreshNeeded).false;
+        });
+
+        it("refresh needed at exactly offset 2^31", () => {
+            const result = CheckInMessage.validateCounter(0x80000000, { counterStart: 0, lastOffset: 0 });
+            expect(result.valid).true;
+            expect(result.refreshNeeded).true;
+        });
     });
 });
