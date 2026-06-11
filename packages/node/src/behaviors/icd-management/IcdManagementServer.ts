@@ -43,7 +43,26 @@ import { IcdModeState } from "./IcdMode.js";
 // CIP, LITS, DSLS, and UAT are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`,
 // `this.features.dynamicSitLitSupport`, and `this.features.userActiveModeTrigger` typecheck throughout the shared
 // logic. The exported IcdManagementServer resets to CIP-only via `.with(CIP)`.
-const IcdManagementLogicBase = IcdManagementBehavior.with(
+// Drop the length bound on the RegisterClient/UnregisterClient verificationKey so a malformed (e.g. over-length) key is
+// not rejected by the interaction layer with ConstraintError before the handler runs. Per § 9.16.7.1/§ 9.16.7.3 the key
+// is only checked for a Manage-privileged caller (an Administrator ignores it); #assertMayModify compares the bytes, so
+// a wrong length simply fails to match. Mirrors the GroupsServer model relaxation.
+const { commands: icdCommands } = IcdManagement.schema;
+const registerClientCommand = icdCommands.require("RegisterClient");
+const unregisterClientCommand = icdCommands.require("UnregisterClient");
+const IcdManagementSchema = IcdManagement.schema.extend(
+    undefined,
+    registerClientCommand.extend(
+        undefined,
+        registerClientCommand.fields.extend("VerificationKey", { constraint: "none" }),
+    ),
+    unregisterClientCommand.extend(
+        undefined,
+        unregisterClientCommand.fields.extend("VerificationKey", { constraint: "none" }),
+    ),
+);
+
+const IcdManagementLogicBase = IcdManagementBehavior.for(IcdManagement, IcdManagementSchema).with(
     IcdManagement.Feature.CheckInProtocolSupport,
     IcdManagement.Feature.LongIdleTimeSupport,
     IcdManagement.Feature.DynamicSitLitSupport,
@@ -210,7 +229,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
 
             if (this.features.longIdleTimeSupport) {
-                this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged);
+                this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged, { offline: true });
                 // A DSLS force is runtime-only, so after a restart reconcile operatingMode to the registration-driven
                 // mode and prime the advertisement cache.
                 this.#updateOperatingMode();
