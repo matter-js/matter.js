@@ -52,7 +52,7 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
                 this.agent.get(IcdManagementServer).setOperatingMode(IcdManagement.OperatingMode.Sit);
                 return;
             case ICD_DSLS_WITHDRAW_SIT:
-                this.agent.get(IcdManagementServer).setOperatingMode(IcdManagement.OperatingMode.Lit);
+                this.agent.get(IcdManagementServer).withdrawForcedOperatingMode();
                 return;
             default:
                 // Counter/back-off triggers (…03/…04/…05) are out of v1 scope; delegate the rest

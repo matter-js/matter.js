@@ -972,6 +972,48 @@ describe("IcdManagementServer", () => {
             expect(desc.idleInterval).not.undefined;
         });
 
+        it("withdrawForcedOperatingMode reverts a forced LIT to the registration-driven mode and refreshes", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithDsls, icdManagement: DSLS_CONFIG },
+            });
+
+            // Force LIT with no registrations.
+            await device.act(agent => agent.get(dslsServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(Promise.resolve());
+            expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Lit);
+
+            const deviceAdvertiser = device.env.get(DeviceAdvertiser);
+            let refreshCount = 0;
+            const origRefresh = deviceAdvertiser.refreshOperationalAdvertisement.bind(deviceAdvertiser);
+            deviceAdvertiser.refreshOperationalAdvertisement = async fabric => {
+                refreshCount++;
+                return origRefresh(fabric);
+            };
+
+            // Withdraw the override → registration-driven mode; no registrations means SIT.
+            await device.act(agent => agent.get(dslsServer).withdrawForcedOperatingMode());
+            await MockTime.resolve(Promise.resolve());
+
+            expect(device.stateOf(dslsServer).operatingMode).equals(IcdManagement.OperatingMode.Sit);
+            expect(refreshCount).greaterThan(0);
+        });
+
+        it("non-DSLS LITS device withdrawForcedOperatingMode throws", async () => {
+            const litServer = IcdManagementServer.with(
+                IcdManagement.Feature.CheckInProtocolSupport,
+                IcdManagement.Feature.LongIdleTimeSupport,
+            );
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(litServer), icdManagement: DSLS_CONFIG },
+            });
+
+            await expect(
+                Promise.resolve().then(() => device.act(agent => agent.get(litServer).withdrawForcedOperatingMode())),
+            ).rejectedWith(/DynamicSitLitSupport/i);
+        });
+
         it("non-DSLS LITS device setOperatingMode(Lit) with no registrations throws", async () => {
             const litServer = IcdManagementServer.with(
                 IcdManagement.Feature.CheckInProtocolSupport,

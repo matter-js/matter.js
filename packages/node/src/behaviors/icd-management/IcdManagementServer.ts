@@ -662,6 +662,22 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
+     * Withdraw a forced operating mode set via {@link setOperatingMode}, reverting to the registration-driven mode
+     * (SIT with no registrations, LIT otherwise). A DSLS device calls this when the condition that forced the mode
+     * clears (e.g. a smoke alarm losing mains power and dropping to battery-saving LIT). Requires the Dynamic SIT/LIT
+     * Support feature; a no-op when no override is active.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.4
+     */
+    withdrawForcedOperatingMode() {
+        if (!this.features.dynamicSitLitSupport) {
+            throw new ImplementationError("withdrawForcedOperatingMode requires the DynamicSitLitSupport feature");
+        }
+        this.internal.forcedOperatingMode = undefined;
+        this.#updateOperatingMode();
+    }
+
+    /**
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
      */
     override async unregisterClient(request: IcdManagement.UnregisterClientRequest): Promise<void> {
