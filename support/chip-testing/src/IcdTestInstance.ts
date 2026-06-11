@@ -25,8 +25,14 @@ import { ContactSensorDevice } from "@matter/main/devices/contact-sensor";
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { IcdTestEventServer } from "./cluster/IcdTestEventServer.js";
-import { getIntParameter, getParameter } from "./GenericTestApp.js";
+import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
+
+/** Read a `--name value` argument from the chip-supplied app-args (or the process.argv fallback). */
+function argValue(args: string[], name: string): string | undefined {
+    const i = args.findIndex(arg => arg === `-${name}` || arg === `--${name}`);
+    return i !== -1 && i + 1 < args.length ? args[i + 1] : undefined;
+}
 
 const LitIcdRootEndpoint = ServerNode.RootEndpoint.with(
     AdministratorCommissioningServer.with("Basic"),
@@ -49,6 +55,13 @@ const LitIcdRootEndpoint = ServerNode.RootEndpoint.with(
 export class IcdTestInstance extends NodeTestInstance {
     static override id = "lit-icd-6100";
 
+    #appArgs?: string[];
+
+    constructor(config: DeviceTestInstanceConfig) {
+        super(config);
+        this.#appArgs = config.appArgs;
+    }
+
     override async initialize() {
         await this.activateCommandPipe("lit_icd");
         await super.initialize();
@@ -57,14 +70,19 @@ export class IcdTestInstance extends NodeTestInstance {
     async setupServer(): Promise<ServerNode> {
         const networkId = Bytes.fromHex("6574682D617070");
 
-        const enableKeyHex = getParameter("enable-key");
+        // The chip harness passes per-run app-args (e.g. ICDB's short --icdIdleModeDuration) via config.appArgs; fall
+        // back to process.argv for standalone CLI invocations.
+        const sourceArgs = this.#appArgs ?? process.argv.slice(2);
+
+        const enableKeyHex = argValue(sourceArgs, "enable-key");
         const deviceTestEnableKey = enableKeyHex
             ? Bytes.fromHex(enableKeyHex)
             : Bytes.fromHex(NodeTestInstance.testEnableKey);
 
-        // CI shrinks the idle window so ICDB 1.1's full-cycle wait is fast.
-        const idleModeDuration = getIntParameter("icdIdleModeDuration") ?? 3600; // seconds
-        const activeModeDuration = getIntParameter("icdActiveModeDurationMs") ?? 10000; // ms
+        const idleArg = argValue(sourceArgs, "icdIdleModeDuration");
+        const activeArg = argValue(sourceArgs, "icdActiveModeDurationMs");
+        const idleModeDuration = idleArg !== undefined ? Number.parseInt(idleArg, 10) : 3600; // seconds
+        const activeModeDuration = activeArg !== undefined ? Number.parseInt(activeArg, 10) : 10000; // ms
 
         const serverNode = await ServerNode.create(LitIcdRootEndpoint, {
             id: this.id,
