@@ -484,7 +484,7 @@ jobs:
           echo "ALL_CLUSTERS_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_LOCK_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "ENERGY_MANAGEMENT_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
-          echo "LIT_ICD_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
+          echo "LIT_ICD_APP: ../support/chip-testing/dist/esm/IcdTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_MICROWAVE_OVEN_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_RVC_APP: ../support/chip-testing/dist/esm/RvcTestApp.js" >> /tmp/test_env.yaml
           echo "NETWORK_MANAGEMENT_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
@@ -551,5 +551,13 @@ jobs:
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_OPCREDS_3_8.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_SC_3_6.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_SC_7_1.py'
+          # ICD tests present on chip master but not yet in our pinned docker image. They run against the lit-icd app
+          # (LIT_ICD_APP above). TC_ICDB_3_1/3_2 exercise DSLS SIT/LIT withdraw which the device does not fully support
+          # yet, so they may fail until a release-force path is added.
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_2_1_2_2.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_2_3.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_2_4.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_3_1.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_3_2.py'
 
   #        scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_CADMIN_1_19.py'
