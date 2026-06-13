@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { Crypto, MockCrypto, Seconds } from "@matter/general";
-import { FabricManager, Read } from "@matter/protocol";
+import { Seconds } from "@matter/general";
+import { Read } from "@matter/protocol";
 import { EndpointNumber, NodeId, SubjectId } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
 import { MockSite } from "../mock-site.js";
 import { subscribedPeer } from "../node-helpers.js";
 
@@ -28,43 +28,11 @@ const RootWithDslsIcd = ServerNode.RootEndpoint.with(DslsIcdServer);
 const SitIcdServer = IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport);
 const RootWithSitIcd = ServerNode.RootEndpoint.with(SitIcdServer);
 
-const LIT_CONFIG = {
-    operatingMode: IcdManagement.OperatingMode.Sit,
-    activeModeThreshold: 5000,
-    idleModeDuration: 3600,
-    activeModeDuration: 1000,
-    maximumCheckInBackoff: 3600,
-};
-
 const MONITORED = SubjectId(NodeId(0xabcdn));
 
 const descriptorRead = Read(
     Read.Attribute({ endpoint: EndpointNumber(0), cluster: Descriptor, attributes: "serverList" }),
 );
-
-/** Force one device idle→active wake and let the Check-In send pass run to completion. */
-async function wakeDevice(device: ServerNode) {
-    await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
-    await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
-    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
-}
-
-async function commission(controller: ServerNode, device: ServerNode) {
-    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-    controllerCrypto.entropic = deviceCrypto.entropic = true;
-
-    if (!controller.lifecycle.isOnline) {
-        await controller.start();
-    }
-
-    const { passcode, discriminator } = device.state.commissioning;
-    await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-        macrotasks: true,
-    });
-
-    controllerCrypto.entropic = deviceCrypto.entropic = false;
-}
 
 /** Commission a DSLS device that is operating in LIT mode and register the controller as a Check-In client. */
 async function registeredLitPair(site: MockSite) {
@@ -79,12 +47,6 @@ async function registeredLitPair(site: MockSite) {
     await MockTime.advance(Seconds(6));
     await MockTime.resolve(Promise.resolve(), { macrotasks: true });
     return { controller, device, peer1 };
-}
-
-function wakefulnessOf(controller: ServerNode, peer: ClientNode) {
-    const peerAddress = peer.stateOf(CommissioningClient).peerAddress!;
-    const fabric = controller.env.get(FabricManager).for(peerAddress.fabricIndex);
-    return fabric.icd.wakefulnessFor(peerAddress.nodeId);
 }
 
 async function drainRead(peer: ClientNode) {

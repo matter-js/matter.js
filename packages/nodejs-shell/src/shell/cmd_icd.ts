@@ -183,6 +183,11 @@ export default function commands(theNode: MatterNode) {
                         observers.on(events.keyRefreshed, () => stamp("key refreshed"));
                         observers.on(events.available$Changed, (value: boolean) => stamp(`available=${value}`));
                         watchers.set(key, observers);
+                        // Drop the watcher when the node goes away so it doesn't leak in the map.
+                        clientNode.lifecycle.destroyed.once(() => {
+                            watchers.get(key)?.close();
+                            watchers.delete(key);
+                        });
                         console.log(`Watching node ${argv.nodeId} (run \`icd watch ${argv.nodeId} off\` to stop)`);
                     },
                 })

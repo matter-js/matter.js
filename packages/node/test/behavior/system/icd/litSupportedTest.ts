@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MIN_LIT_SPECIFICATION_VERSION, litSupported } from "#behavior/system/icd/litSupported.js";
+import { litSupported, MIN_LIT_SPECIFICATION_VERSION } from "#behavior/system/icd/litSupported.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerNode } from "#node/index.js";
-import { Crypto, MockCrypto, Seconds } from "@matter/general";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { commission, LIT_CONFIG } from "../../../node/icd-helpers.js";
 import { MockSite } from "../../../node/mock-site.js";
 import { subscribedPeer } from "../../../node/node-helpers.js";
 
@@ -19,31 +19,6 @@ const LitIcdServer = IcdManagementServer.with(
 const RootWithLitIcd = ServerNode.RootEndpoint.with(LitIcdServer);
 
 const RootWithCipIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
-
-const LIT_CONFIG = {
-    operatingMode: IcdManagement.OperatingMode.Sit,
-    activeModeThreshold: 5000,
-    idleModeDuration: 3600,
-    activeModeDuration: 1000,
-    maximumCheckInBackoff: 3600,
-};
-
-async function commission(controller: ServerNode, device: ServerNode) {
-    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-    controllerCrypto.entropic = deviceCrypto.entropic = true;
-
-    if (!controller.lifecycle.isOnline) {
-        await controller.start();
-    }
-
-    const { passcode, discriminator } = device.state.commissioning;
-    await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-        macrotasks: true,
-    });
-
-    controllerCrypto.entropic = deviceCrypto.entropic = false;
-}
 
 describe("litSupported", () => {
     before(() => {

@@ -58,8 +58,8 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
                 this.agent.get(IcdManagementServer).withdrawForcedOperatingMode();
                 return;
             default:
-                // Counter/back-off triggers (…03/…04/…05) are out of v1 scope; delegate the rest
-                // (incl. the DGGEN fault triggers) to TestGeneralDiagnosticsServer.
+                // Counter/back-off triggers (…03/…04/…05) are out of v1 scope; delegate the rest to
+                // TestGeneralDiagnosticsServer (which handles the reboot trigger and rejects anything unknown).
                 super.triggerTestEvent(eventTrigger);
         }
     }
