@@ -10,8 +10,8 @@ import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { Crypto, ImplementationError, MockCrypto, Seconds } from "@matter/general";
-import { ClientSubscribe, FabricManager, Subscribe, SustainedSubscription, TestFabric } from "@matter/protocol";
+import { Crypto, ImplementationError, Minutes, MockCrypto, Seconds, ServerAddressIp, Time } from "@matter/general";
+import { ClientSubscribe, FabricManager, Peer, Subscribe, SustainedSubscription, TestFabric } from "@matter/protocol";
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { MockSite } from "../../../node/mock-site.js";
@@ -96,6 +96,17 @@ function wakefulnessOf(controller: ServerNode, peer: ClientNode) {
     const peerAddress = peer.stateOf(CommissioningClient).peerAddress!;
     const fabric = controller.env.get(FabricManager).for(peerAddress.fabricIndex);
     return fabric.icd.wakefulnessFor(peerAddress.nodeId);
+}
+
+/** Replace the peer's mDNS-discovered addresses and emit the change so PeerAddressMonitor reacts. */
+async function simulateAddressChange(protopeer: Peer, remove: ServerAddressIp[], add: ServerAddressIp[]) {
+    for (const addr of remove) {
+        protopeer.service.addresses.delete(addr);
+    }
+    for (const addr of add) {
+        protopeer.service.addresses.add(addr);
+    }
+    await protopeer.service.changed.emit();
 }
 
 describe("IcdClient", () => {
@@ -669,6 +680,41 @@ describe("IcdClient", () => {
             expect(wakefulnessOf(controller, peer1)).undefined;
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+    });
+
+    describe("address monitor", () => {
+        it("does not probe or close a sleeping LIT ICD when its address leaves mDNS", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+            expect(wakefulnessOf(controller, peer1)?.requiresAwait).true;
+
+            const protopeer = peer1.env.get(Peer);
+            const currentAddress = protopeer.descriptor.operationalAddress;
+            expect(currentAddress).not.undefined;
+
+            let probeCalled = false;
+            MockTime.interceptOnce(protopeer.interaction!, "probe", async result => {
+                probeCalled = true;
+                result.resolve = false;
+            });
+
+            // Past the probe cooldown, so only the ICD guard (not timing) can suppress a probe.
+            await MockTime.advance(Minutes(3));
+
+            // Old address gone, only a new one announced — a sleeping ICD cannot be probed to confirm it.
+            const oldAddresses = [...protopeer.service.addresses];
+            await simulateAddressChange(protopeer, oldAddresses, [{ ip: "abcd::99", port: currentAddress!.port }]);
+
+            await MockTime.advance(Seconds(11));
+            await MockTime.resolve(Time.sleep("probe window", Seconds(5)));
+
+            // Hands off: no probe issued, the session is NOT torn down (without the guard the failed probe
+            // calls handlePeerLoss and takes the controller offline), and the current address is untouched.
+            expect(probeCalled).false;
+            expect(protopeer.hasSession).true;
+            expect(controller.lifecycle.isOnline).true;
+            expect(protopeer.descriptor.operationalAddress!.ip).equals(currentAddress!.ip);
         });
     });
 });
