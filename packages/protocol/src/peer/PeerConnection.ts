@@ -306,8 +306,7 @@ export async function PeerConnection(
             return;
         }
         const variants = expandAddresses(fallback);
-        // The interned first variant is the fallback marker; reference equality
-        // must match what comes back out of pendingAddresses.
+        // Intern so attempts/pendingAddresses key on one canonical object; fallback identity is matched by value.
         attemptingFallback = addresses.add(variants[0]);
         for (const variant of variants) {
             pendingAddresses.add(variant);
@@ -409,7 +408,7 @@ export async function PeerConnection(
 
         // If this is not the fallback address but we're still attempting to connect to the fallback, it means that
         // we've discovered addresses that do not include the fallback; terminate the fallback attempt
-        if (attemptingFallback && address !== attemptingFallback) {
+        if (attemptingFallback && !ServerAddress.isEqual(address, attemptingFallback)) {
             deleteAddress(
                 attemptingFallback,
                 "Aborting attempt to last known address because device reports address change",
@@ -479,7 +478,7 @@ export async function PeerConnection(
                 }),
                 Diagnostic.asFlags({
                     [network.id]: true,
-                    fallback: address === attemptingFallback,
+                    fallback: attemptingFallback !== undefined && ServerAddress.isEqual(address, attemptingFallback),
                 }),
             );
 
@@ -498,6 +497,11 @@ export async function PeerConnection(
 
                 kick = kicker?.use((origin: KickOrigin) => {
                     if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+                        return;
+                    }
+
+                    if (exchange.retransmissionRestartSaving < context.timing.kickMinRestartSaving) {
+                        debug(via, address, `Suppressing "${origin}" kick, restart would save too little time`);
                         return;
                     }
 

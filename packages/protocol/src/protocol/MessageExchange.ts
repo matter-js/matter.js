@@ -992,20 +992,46 @@ export class MessageExchange {
     }
 
     get #mrpResubmissionBackOffTime() {
+        return this.#backOffFor(this.#retransmissionCounter);
+    }
+
+    /**
+     * Scheduled MRP backoff for a given (re)transmission number, after the send-option overrides.
+     *
+     * The cap never drops below the peer's idle interval: a peer whose idle base backoff already exceeds
+     * maxRetransmissionTime must not be retried faster than its own idle cadence.
+     */
+    #backOffFor(retransmissionCount: number, calculateMaximum = false) {
         const additionalDelay = Duration.max(
             this.#context.localAdditionalMrpDelay,
             this.#peerAdditionalMrpDelay ?? Millis(0),
         );
         let backOff = this.channel.getMrpResubmissionBackOffTime(
-            this.#retransmissionCounter,
+            retransmissionCount,
             undefined,
-            false,
+            calculateMaximum,
             additionalDelay,
         );
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {
             backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
         }
-        return Duration.min(backOff, this.#sendOptions.maxRetransmissionTime ?? Forever);
+        const cap = Duration.max(
+            this.#sendOptions.maxRetransmissionTime ?? Forever,
+            this.session.parameters.idleInterval ?? Instant,
+        );
+        return Duration.min(backOff, cap);
+    }
+
+    /**
+     * How much restarting the exchange (resetting the retransmission counter to 0) would shorten the wait until
+     * the next (re)transmission.  Zero when current backoff is already at its base — e.g. an idle peer, whose fresh
+     * interval is just as slow, so a restart saves nothing.
+     */
+    get retransmissionRestartSaving(): Duration {
+        return Duration.max(
+            Instant,
+            Millis(this.#backOffFor(this.#retransmissionCounter, true) - this.#backOffFor(0, true)),
+        );
     }
 }
 
