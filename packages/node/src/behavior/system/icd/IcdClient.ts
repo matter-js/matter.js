@@ -230,7 +230,7 @@ export class IcdClient extends Behavior {
      * Register this controller as a Check-In client on the peer.
      *
      * Installs a shared {@link IcdManagement.RegisterClientRequest.key} on the peer so it can send us encrypted
-     * Check-In messages, records the rolling-counter baseline in {@link State}, and arms the controller-side Check-In
+     * Check-In messages, records the rolling-counter baseline in {@link IcdClient.State}, and arms the controller-side Check-In
      * receive path on the fabric.
      *
      * @throws {ImplementationError} if the peer is not online (registration reads from and writes to the peer), or its
@@ -496,7 +496,7 @@ export namespace IcdClient {
         /** The fed peer's wakefulness `available` observable we currently mirror; recreated on every feed. */
         availableSource?: AsyncObservableValue<[boolean]>;
 
-        /** Listener mirroring {@link availableSource} into {@link State.available}; removed on drop and before re-feed. */
+        /** Listener mirroring {@link availableSource} into {@link IcdClient.State.available}; removed on drop and before re-feed. */
         availableListener?: Observer<[boolean]>;
     }
 
