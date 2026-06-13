@@ -102,7 +102,7 @@ export class UdpMulticastServer {
         "UDP broadcast channel",
         (netInterface, isIPv4) => this.createBroadcastChannel(netInterface, isIPv4),
         Minutes(5),
-        async (_netInterface, channel) => channel.close(),
+        async (_key, channel) => channel.close(),
     );
 
     private constructor(
