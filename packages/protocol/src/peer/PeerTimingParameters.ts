@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, merge as mergeObjects, Minutes, Seconds } from "@matter/general";
+import { Duration, merge as mergeObjects, Millis, Minutes, Seconds } from "@matter/general";
 
 /**
  * Parameters that control network timing for Matter sessions controlled by matter.js.
@@ -71,6 +71,16 @@ export interface PeerTimingParameters {
      * has retransmitted fewer than this many times is suppressed.
      */
     kickMinRetransmissions: number;
+
+    /**
+     * Minimum time a kick-initiated restart must shave off the next retransmission to be worthwhile.
+     *
+     * Restarting resets MRP backoff to its base interval, so it only helps once backoff has grown well
+     * beyond that base.  A kick whose restart would save less than this is suppressed — for an idle/sleepy
+     * peer the base interval is already large, so a restart gains nothing and needlessly tears down the
+     * in-flight exchange.
+     */
+    kickMinRestartSaving: Duration;
 
     /**
      * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
@@ -151,10 +161,12 @@ export namespace PeerTimingParameters {
         return result;
     }
 
+    const maxInitialContactRetryInterval = Minutes(2);
+
     // TODO - tune these
     export const defaults: PeerTimingParameters = {
         defaultConnectionTimeout: Seconds(90),
-        maxDelayBetweenInitialContactRetries: Minutes(2),
+        maxDelayBetweenInitialContactRetries: maxInitialContactRetryInterval,
 
         // We assume 30s processing time on peer for single Sigma actions, so give one IP a bit of time
         // to have a chance before potentially adding a load with a second try
@@ -164,6 +176,7 @@ export namespace PeerTimingParameters {
         delayAfterUnhandledError: Minutes(2),
         kickThrottleInterval: Seconds(3),
         kickMinRetransmissions: 2,
+        kickMinRestartSaving: Millis(maxInitialContactRetryInterval / 2),
         kickRestartCooldown: {
             addressChange: Minutes(30),
             connect: Minutes(10),
