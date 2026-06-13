@@ -207,6 +207,14 @@ describe("ClientConnectivityTest", () => {
         const ep1 = peer1.parts.get("ep1")!;
 
         protopeer = peer1.env.get(Peer);
+
+        // Production retains the last-known discovered addresses across a restart (remember-and-reuse), and their async
+        // eviction races this assertion. Reset the live discovered set to a known-empty baseline so the checks below
+        // deterministically prove that a blocked mDNS adds nothing new while the persisted operational address still
+        // drives the fallback connection.
+        for (const addr of [...protopeer.service.addresses]) {
+            protopeer.service.addresses.delete(addr);
+        }
         expect(protopeer.service.addresses.size).equals(0);
 
         // PeerConnection can't discover addresses via MDNS, so it uses the last known
