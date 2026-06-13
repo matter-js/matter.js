@@ -50,6 +50,11 @@ class GenericCache<T> {
         this.timestamps.delete(key);
     }
 
+    /** Evict the entry addressed by the same params passed to {@link Cache.get}/{@link AsyncCache.get}. */
+    async evict(...params: unknown[]) {
+        await this.delete(this.keyFor(params));
+    }
+
     async clear() {
         for (const key of this.values.keys()) {
             await this.delete(key);

@@ -9,7 +9,7 @@ import { Minutes } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Logger } from "../../log/Logger.js";
-import { Cache } from "../../util/Cache.js";
+import { AsyncCache } from "../../util/Cache.js";
 import { asError } from "../../util/Error.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NoAddressAvailableError } from "../Network.js";
@@ -98,11 +98,11 @@ export class UdpMulticastServer {
         }
     }
 
-    private readonly broadcastChannels = new Cache<Promise<UdpSocket>>(
+    private readonly broadcastChannels = new AsyncCache<UdpSocket>(
         "UDP broadcast channel",
         (netInterface, isIPv4) => this.createBroadcastChannel(netInterface, isIPv4),
         Minutes(5),
-        async (_netInterface, channel) => (await channel).close(),
+        async (_netInterface, channel) => channel.close(),
     );
 
     private constructor(
@@ -151,12 +151,14 @@ export class UdpMulticastServer {
 
         // When we know the network interface and the unicast target, we can send unicast
         if (uniCastTarget !== undefined && netInterface !== undefined) {
+            const ipV4Target = isIPv4(uniCastTarget);
             try {
                 await (
-                    await this.broadcastChannels.get(netInterface, isIPv4(uniCastTarget))
+                    await this.broadcastChannels.get(netInterface, ipV4Target)
                 ).send(uniCastTarget, this.#broadcastPort, message);
             } catch (error) {
                 logger.info(`${netInterface} ${uniCastTarget}: ${asError(error).message}`);
+                await this.#evictBroadcastChannel(netInterface, ipV4Target);
             }
         } else {
             const netInterfaces =
@@ -184,6 +186,7 @@ export class UdpMulticastServer {
                                 ).send(address, this.#broadcastPort, message);
                             } catch (error) {
                                 logger.info(`${netInterface}: ${asError(error).message}`);
+                                await this.#evictBroadcastChannel(netInterface, isIPv4);
                             }
                         }),
                         `Error sending UDP Multicast message on interface ${netInterface}`,
@@ -191,6 +194,19 @@ export class UdpMulticastServer {
                 }),
                 "Error sending UDP Multicast message",
             );
+        }
+    }
+
+    /**
+     * Drop a broadcast channel after a send failure so the next send rebinds it. A failed send can mean the cached
+     * socket is bound to an interface address that no longer exists (e.g. after the host resumed from standby).
+     * Eviction must never escalate a send failure, so closing the stale socket is best-effort.
+     */
+    async #evictBroadcastChannel(netInterface: string, isIPv4: boolean) {
+        try {
+            await this.broadcastChannels.evict(netInterface, isIPv4);
+        } catch (error) {
+            logger.info(`${netInterface}: failed to evict broadcast channel: ${asError(error).message}`);
         }
     }
 
