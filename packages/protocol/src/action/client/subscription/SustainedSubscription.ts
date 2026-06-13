@@ -136,7 +136,7 @@ export class SustainedSubscription extends ClientSubscription {
                         await this.#nextWake(wakefulnessBefore);
                         awaitFreshSignal = false;
                     } else if (!wakefulnessBefore.awake.value) {
-                        await this.#parkUntilAwake(wakefulnessBefore);
+                        await this.#awaitAwake(wakefulnessBefore);
                     }
                     if (this.abort.aborted) {
                         break;
@@ -303,34 +303,33 @@ export class SustainedSubscription extends ClientSubscription {
     }
 
     /**
-     * Park until the await-mode LIT peer is awake.  The persistent availability observer governs reachability while
-     * parked; this only resolves the loop when the peer wakes or we abort.
+     * Resolve on the peer's next awake transition to true (a genuinely fresh Check-In), or when the subscription
+     * aborts.  Uses {@link Abort.race} so an already-aborted signal resolves immediately rather than stranding on an
+     * awake edge that may never come (the peer is asleep).
      */
-    async #parkUntilAwake(wakefulness: IcdPeerWakefulness) {
-        await new Promise<void>(resolve => {
-            const onAwake: Observer<[boolean]> = awake => {
-                if (awake) {
-                    cleanup();
+    async #awaitAwake(wakefulness: IcdPeerWakefulness): Promise<void> {
+        let observer: Observer<[boolean]> | undefined;
+        const awake = new Promise<void>(resolve => {
+            observer = value => {
+                if (value) {
                     resolve();
                 }
             };
-            const onAbort = () => {
-                cleanup();
-                resolve();
-            };
-            const cleanup = () => {
-                wakefulness.awake.off(onAwake);
-                this.abort.removeEventListener("abort", onAbort);
-            };
-            wakefulness.awake.on(onAwake);
-            this.abort.addEventListener("abort", onAbort);
+            wakefulness.awake.on(observer);
         });
+        try {
+            await this.abort.race(awake);
+        } finally {
+            if (observer) {
+                wakefulness.awake.off(observer);
+            }
+        }
     }
 
     /**
-     * Resume after a failed send to an await-mode LIT peer.  Resolves on the next awake transition to true (a
-     * genuinely fresh Check-In).  A peer no longer requiring await (e.g. a runtime DSLS LIT→SIT flip) has no Check-In
-     * to park for, so it resumes after a bounded delay instead of stranding on an awake edge that will never re-emit.
+     * Resume after a failed send to an await-mode LIT peer by parking for the next Check-In.  A peer no longer
+     * requiring await (e.g. a runtime DSLS LIT→SIT flip) has no Check-In to park for, so it resumes after a bounded
+     * delay instead of stranding on an awake edge that will never re-emit.
      */
     async #nextWake(wakefulness: IcdPeerWakefulness): Promise<void> {
         if (!wakefulness.requiresAwait) {
@@ -343,24 +342,7 @@ export class SustainedSubscription extends ClientSubscription {
             return;
         }
 
-        await new Promise<void>(resolve => {
-            const observer: Observer<[boolean]> = awake => {
-                if (awake) {
-                    cleanup();
-                    resolve();
-                }
-            };
-            const onAbort = () => {
-                cleanup();
-                resolve();
-            };
-            const cleanup = () => {
-                wakefulness.awake.off(observer);
-                this.abort.removeEventListener("abort", onAbort);
-            };
-            wakefulness.awake.on(observer);
-            this.abort.addEventListener("abort", onAbort);
-        });
+        await this.#awaitAwake(wakefulness);
     }
 
     get interactionModelRevision() {
