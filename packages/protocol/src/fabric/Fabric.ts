@@ -277,9 +277,13 @@ export class Fabric {
         return this.#icd;
     }
 
-    /** True once ICD state was initialized; lets message processing skip fabrics without ICD use. */
+    /**
+     * True when this fabric has controller-role ICD peers whose Check-Ins we receive. Lets inbound Check-In processing
+     * skip fabrics with no receive path — in particular a pure ICD device, which holds only device-role registrations
+     * (it sends Check-Ins, never receives them) and must not trial-decrypt inbound Check-In messages.
+     */
     get icdActive() {
-        return this.#icd !== undefined;
+        return this.#icd?.hasPeers === true;
     }
 
     get accessControl() {
