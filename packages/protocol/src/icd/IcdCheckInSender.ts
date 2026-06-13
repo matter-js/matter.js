@@ -4,25 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { OperationalAddress } from "#peer/PeerDescriptor.js";
 import { Bytes, Crypto, Logger } from "@matter/general";
 import { FabricIndex, NodeId, SecureMessageType } from "@matter/types";
 import { CheckInMessage } from "./CheckInMessage.js";
 
 const logger = Logger.get("IcdCheckInSender");
 
-/** A resolved operational address to dial, or undefined when the peer cannot be located. */
-export interface IcdCheckInAddress {
-    type: "udp" | "tcp";
-    ip: string;
-    port: number;
-}
-
 export interface IcdCheckInSenderContext {
     crypto: Crypto;
     /** Resolve a registered client's operational address (cached address preferred; best-effort). */
-    resolveAddress(input: { fabricIndex: FabricIndex; peerNodeId: NodeId }): Promise<IcdCheckInAddress | undefined>;
+    resolveAddress(input: { fabricIndex: FabricIndex; peerNodeId: NodeId }): Promise<OperationalAddress | undefined>;
     /** Send `payload` as an unsecured Secure Channel message of `messageType` to `address`. Returns false on failure. */
-    sendUnsecured(address: IcdCheckInAddress, messageType: number, payload: Bytes): Promise<boolean>;
+    sendUnsecured(address: OperationalAddress, messageType: number, payload: Bytes): Promise<boolean>;
 }
 
 export interface IcdCheckInRequest {
@@ -51,7 +45,7 @@ export class IcdCheckInSender {
     async send(request: IcdCheckInRequest): Promise<boolean> {
         const { fabricIndex, peerNodeId, key, counter, activeModeThreshold } = request;
 
-        let address: IcdCheckInAddress | undefined;
+        let address: OperationalAddress | undefined;
         try {
             address = await this.#context.resolveAddress({ fabricIndex, peerNodeId });
         } catch (error) {

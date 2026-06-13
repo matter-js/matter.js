@@ -173,12 +173,10 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
                 if (!fabric.icdActive) {
                     continue;
                 }
-                try {
-                    if (await fabric.icd.processCheckIn(message.payload)) {
-                        return;
-                    }
-                } catch (e) {
-                    logger.debug("Error processing ICD check-in", e);
+                // processCheckIn classifies its own expected cases (wrong-key/malformed decode and handler errors are
+                // handled internally), so anything thrown here is unexpected and must surface rather than be swallowed.
+                if (await fabric.icd.processCheckIn(message.payload)) {
+                    return;
                 }
             }
             logger.debug("Ignoring ICD check-in matching no registered peer");
