@@ -7,21 +7,21 @@
 import { Crypto, Observable } from "@matter/general";
 
 /**
- * Counter advance applied on every boot.
- *
- * Chosen to exceed the number of check-ins plausibly sent between persists. With write-through persistence a small
- * constant suffices; the spec example uses 1000.
+ * Counter advance applied on every boot. Bounds the crash window: a value can only be reused (reusing its AES-CCM
+ * nonce) if more than this many increments are lost unpersisted at crash. Must exceed the most Check-Ins one wake pass
+ * can send — at most (fabrics × Permanent clients per fabric) — which stays far below this. The spec example uses 1000.
  *
  * @see {@link MatterSpecification.v151.Core} § 4.6.3
  */
-const BOOT_BUMP = 100;
+const BOOT_BUMP = 1000;
 
 /**
  * Runtime ICD check-in counter (ICDCounter attribute, quality C N).
  *
  * The owner constructs this from the persisted attribute value, persists {@link value} once, then persists every
- * {@link changed} emission. The persisted value is advanced by {@link BOOT_BUMP} on construction so a crash between an
- * increment and its persist can never cause a counter value to be reused.
+ * {@link changed} emission. The persisted value is advanced by {@link BOOT_BUMP} on construction so a crash cannot
+ * resume below an already-sent counter value (which would reuse its nonce) unless more than {@link BOOT_BUMP}
+ * increments were lost unpersisted.
  *
  * uint32 wrap-around is harmless: clients apply mod-2³² offset arithmetic and refresh their keys before the offset
  * reaches 2³¹.
