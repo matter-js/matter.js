@@ -142,6 +142,29 @@ describe("IcdClient", () => {
             expect(fabric.icd.hasPeers).true;
         });
 
+        it("issues RegisterClient with a 16-byte key and the requested monitored subject", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const monitoredSubject = SubjectId(NodeId(0xabcdn));
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject }));
+
+            // TC-ICDM-6.1 param checks. The Key is a 16-byte octstr the client generates; the device stores it
+            // write-only, so assert the bytes on the client side.
+            expect(peer1.stateOf(IcdClient).key!.byteLength).equals(16);
+
+            const registered = device.stateOf(IcdManagementServer).registeredClients;
+            expect(registered).length(1);
+            expect(registered[0].monitoredSubject).equals(monitoredSubject);
+            expect(registered[0].clientType).equals(IcdManagement.ClientType.Permanent);
+
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            expect(registered[0].checkInNodeId).equals(controller.env.get(FabricManager).for(fabricIndex).nodeId);
+        });
+
         it("rejects a multi-admin peer and succeeds when allowMultiAdmin is set", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair({
@@ -303,6 +326,46 @@ describe("IcdClient", () => {
             expect(state.lastCheckInReceivedAt).not.undefined;
             expect(state.lastOffset).equals(received.counter - state.counterStart!);
             expect(state.lastOffset).greaterThan(0);
+        });
+
+        it("drops a replayed Check-In without emitting checkedIn or advancing offset", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            // A first Check-In advances the rolling offset.
+            const first = new Promise<void>(resolve => peer1.eventsOf(IcdClient).checkedIn.once(() => resolve()));
+            await wakeDevice(device);
+            await MockTime.resolve(first, { macrotasks: true });
+
+            const offsetAfterFirst = peer1.stateOf(IcdClient).lastOffset;
+            const receivedAtAfterFirst = peer1.stateOf(IcdClient).lastCheckInReceivedAt;
+
+            // Raise the runtime replay floor above any near-term counter (well below 2^31 so no key refresh), so the
+            // next real Check-In is rejected as a replay/stale counter before it can reach the handler.
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            const peerNodeId = peer1.stateOf(CommissioningClient).peerAddress!.nodeId;
+            fabric.icd.peerFor(peerNodeId)!.lastOffset = 0x10000000;
+
+            let checkInsAfterReplay = 0;
+            const observer = () => {
+                checkInsAfterReplay++;
+            };
+            peer1.eventsOf(IcdClient).checkedIn.on(observer);
+
+            await wakeDevice(device);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            peer1.eventsOf(IcdClient).checkedIn.off(observer);
+
+            // The replayed Check-In is dropped at the fabric layer: no event, no client-state change.
+            expect(checkInsAfterReplay).equals(0);
+            expect(peer1.stateOf(IcdClient).lastOffset).equals(offsetAfterFirst);
+            expect(peer1.stateOf(IcdClient).lastCheckInReceivedAt).equals(receivedAtAfterFirst);
         });
     });
 
@@ -467,6 +530,37 @@ describe("IcdClient", () => {
             const fabric = controllerB.env.get(FabricManager).for(fabricIndex);
             // initialize() re-fed the restored peer so a Check-In arriving after restart still validates.
             expect(fabric.icd.hasPeers).true;
+        });
+
+        it("restores the replay floor (lastOffset) after a controller restart", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            // Receive a Check-In so the persisted rolling offset is non-zero.
+            const checkedIn = new Promise<void>(resolve => peer1.eventsOf(IcdClient).checkedIn.once(() => resolve()));
+            await wakeDevice(device);
+            await MockTime.resolve(checkedIn, { macrotasks: true });
+            const persistedOffset = peer1.stateOf(IcdClient).lastOffset!;
+            expect(persistedOffset).greaterThan(0);
+
+            const controllerId = controller.id;
+            await site.close();
+
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+            expect(peer1b.stateOf(IcdClient).lastOffset).equals(persistedOffset);
+
+            // The runtime peer entry is re-seeded with the persisted offset, so a counter at or below it stays rejected
+            // as a replay across the restart.
+            const fabricIndex = peer1b.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controllerB.env.get(FabricManager).for(fabricIndex);
+            const peerNodeId = peer1b.stateOf(CommissioningClient).peerAddress!.nodeId;
+            expect(fabric.icd.peerFor(peerNodeId)!.lastOffset).equals(persistedOffset);
         });
     });
 
