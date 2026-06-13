@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `log.level` (e.g. `MATTER_LOG_LEVEL`) now accepts string level names like `info` again, not just numeric values
+    - Fix: A failed UDP multicast send now evicts and rebuilds the broadcast channel instead of caching a dead socket
 
 - @matter/protocol
     - Fix: Ensure that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
