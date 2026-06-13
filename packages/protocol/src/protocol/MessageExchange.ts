@@ -721,9 +721,6 @@ export class MessageExchange {
     }
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
-        // TODO(ICD phase 3b-4 follow-up): for an ICD peer, MRP 4.12 requires starting Operational Discovery in parallel
-        // with the first retry and adopting the freshly discovered address/MRP parameters. #addressOverride is fixed at
-        // construction, so this is not yet done. See the pending test in MessageExchangeTest.
         this.#retransmissionCounter++;
         this.#totalRetransmissionCounter++;
         if (
