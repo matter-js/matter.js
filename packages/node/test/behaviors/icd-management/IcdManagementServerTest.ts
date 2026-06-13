@@ -11,6 +11,7 @@ import { ServerNode } from "#node/index.js";
 import { Bytes, Crypto, Millis } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import {
+    activeSubscriptionSubjects,
     Advertiser,
     DeviceAdvertiser,
     FabricManager,
@@ -21,7 +22,6 @@ import {
 } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { activeSubscriptionSubjects } from "../../../src/behaviors/icd-management/IcdCheckInSuppression.js";
 import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";

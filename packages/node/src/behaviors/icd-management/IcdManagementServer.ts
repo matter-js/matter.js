@@ -20,23 +20,25 @@ import {
 import { AccessLevel, DataModelPath, fabricIdx, field, listOf, nodeId, nonvolatile, octstr } from "@matter/model";
 import {
     AccessControl,
+    activeSubscriptionSubjects,
     assertRemoteActor,
     DeviceAdvertiser,
+    DoublingCheckInBackOff,
     ExchangeManager,
     Fabric,
     FabricManager,
     hasRemoteActor,
     IcdAdvertisement,
+    IcdCheckInBackOff,
     IcdCheckInSender,
     IcdCounter,
+    isMonitoredSubjectCovered,
     PeerAddress,
     PeerSet,
     SessionManager,
 } from "@matter/protocol";
 import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, Status, StatusResponseError } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { DoublingCheckInBackOff, IcdCheckInBackOff } from "./IcdCheckInBackOff.js";
-import { activeSubscriptionSubjects, isMonitoredSubjectCovered } from "./IcdCheckInSuppression.js";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 import { IcdModeState } from "./IcdMode.js";
 

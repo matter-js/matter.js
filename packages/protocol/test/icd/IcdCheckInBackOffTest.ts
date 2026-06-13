@@ -5,7 +5,7 @@
  */
 
 import { Seconds } from "@matter/general";
-import { DoublingCheckInBackOff } from "../../../src/behaviors/icd-management/IcdCheckInBackOff.js";
+import { DoublingCheckInBackOff } from "../../src/icd/IcdCheckInBackOff.js";
 
 /** Advance `cycles` idle→active wakes; return the cycle indices at which a send was due. */
 function sendCycles(backoff: DoublingCheckInBackOff, key: string, cycles: number): number[] {

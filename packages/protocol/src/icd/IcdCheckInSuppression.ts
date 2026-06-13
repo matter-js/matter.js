@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SessionManager, Subject, subjectMatches } from "@matter/protocol";
+import { Subject } from "#action/server/Subject.js";
+import { subjectMatches } from "#interaction/subjectMatches.js";
+import { SessionManager } from "#session/SessionManager.js";
 import { FabricIndex, NodeId, SubjectId } from "@matter/types";
 
 /** A subscription's subject as exposed by NodeSession.subjectFor(). */

@@ -5,7 +5,7 @@
  */
 
 import { CaseAuthenticatedTag, NodeId, SubjectId } from "@matter/types";
-import { isMonitoredSubjectCovered } from "../../../src/behaviors/icd-management/IcdCheckInSuppression.js";
+import { isMonitoredSubjectCovered } from "../../src/icd/IcdCheckInSuppression.js";
 
 describe("isMonitoredSubjectCovered", () => {
     it("is covered when a subscription subject node id matches", () => {
