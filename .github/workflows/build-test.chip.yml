@@ -78,7 +78,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [ -n "$PR_HEAD_SHA" ]; then
+          if [ -n "$PR_BASE_SHA" ]; then
             msg="$(git log --format=%B "$PR_BASE_SHA".."$PR_HEAD_SHA")"
           else
             msg="$PUSH_MSG"
