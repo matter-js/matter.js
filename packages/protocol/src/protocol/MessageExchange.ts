@@ -1001,7 +1001,7 @@ export class MessageExchange {
      * The cap never drops below the peer's idle interval: a peer whose idle base backoff already exceeds
      * maxRetransmissionTime must not be retried faster than its own idle cadence.
      */
-    #backOffFor(retransmissionCount: number, calculateMaximum = false) {
+    #backOffFor(retransmissionCount: number) {
         const additionalDelay = Duration.max(
             this.#context.localAdditionalMrpDelay,
             this.#peerAdditionalMrpDelay ?? Millis(0),
@@ -1009,7 +1009,7 @@ export class MessageExchange {
         let backOff = this.channel.getMrpResubmissionBackOffTime(
             retransmissionCount,
             undefined,
-            calculateMaximum,
+            false,
             additionalDelay,
         );
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {
@@ -1024,14 +1024,17 @@ export class MessageExchange {
 
     /**
      * How much restarting the exchange (resetting the retransmission counter to 0) would shorten the wait until
-     * the next (re)transmission.  Zero when current backoff is already at its base — e.g. an idle peer, whose fresh
-     * interval is just as slow, so a restart saves nothing.
+     * the next (re)transmission.  Roughly zero near the base interval — e.g. an idle peer, whose fresh interval is
+     * just as slow.
      */
     get retransmissionRestartSaving(): Duration {
-        return Duration.max(
-            Instant,
-            Millis(this.#backOffFor(this.#retransmissionCounter, true) - this.#backOffFor(0, true)),
-        );
+        // No pending retransmit → nothing for a restart to shorten → report no saving so the kick is suppressed.
+        const currentWait = this.#retransmissionTimer?.interval;
+        if (currentWait === undefined) {
+            return Instant;
+        }
+        // Read the live timer's real interval (margins/jitter/cap baked in), not a freshly recomputed random one.
+        return Duration.max(Instant, Millis(currentWait - this.#backOffFor(0)));
     }
 }
 
