@@ -59,11 +59,6 @@ export class IcdClient extends Behavior {
         return litSupported(this.endpoint);
     }
 
-    /** A LIT peer publishes Check-Ins rather than staying subscribable, so callers must await one before contacting it. */
-    get peerRequiresCheckIn() {
-        return this.peerSupportsLit;
-    }
-
     /**
      * Whether the peer is currently awake (send-now). Mirrors the per-peer wakefulness; a non-LIT or not-yet-fed peer
      * has nothing to await and reads true. Read-only observability — hold/park still consume the signal in protocol.
@@ -428,7 +423,14 @@ export class IcdClient extends Behavior {
             await Promise.resolve();
             await this.endpoint.act("icd-key-refresh", agent => agent.get(IcdClient).#refreshKey());
         } catch (error) {
-            logger.warn("ICD key refresh failed", error);
+            // The new key is persisted only after registerClient resolves, so a transient/unreachable failure leaves
+            // the old key intact and the next Check-In retries. A programmer/state error (ImplementationError) is not
+            // that benign case — it can leave the controller and peer keys out of sync, so surface it loudly.
+            if (error instanceof ImplementationError) {
+                logger.error("ICD key refresh failed unexpectedly; controller and peer keys may be out of sync", error);
+            } else {
+                logger.warn("ICD key refresh failed; will retry on next check-in", error);
+            }
         } finally {
             this.internal.keyRefresh = undefined;
         }

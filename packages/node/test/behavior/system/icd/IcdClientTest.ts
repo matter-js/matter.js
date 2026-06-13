@@ -10,10 +10,11 @@ import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { Crypto, ImplementationError, Minutes, MockCrypto, Seconds, ServerAddressIp, Time } from "@matter/general";
+import { ImplementationError, Minutes, Seconds, ServerAddressIp, Time } from "@matter/general";
 import { ClientSubscribe, FabricManager, Peer, Subscribe, SustainedSubscription, TestFabric } from "@matter/protocol";
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../../../node/icd-helpers.js";
 import { MockSite } from "../../../node/mock-site.js";
 import { subscribedPeer } from "../../../node/node-helpers.js";
 
@@ -31,38 +32,6 @@ const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.DynamicSitLitSupport,
 );
 const RootWithDslsIcd = ServerNode.RootEndpoint.with(DslsIcdServer);
-
-const LIT_CONFIG = {
-    operatingMode: IcdManagement.OperatingMode.Sit,
-    activeModeThreshold: 5000,
-    idleModeDuration: 3600,
-    activeModeDuration: 1000,
-    maximumCheckInBackoff: 3600,
-};
-
-/** Force one device idle→active wake and let the Check-In send pass run to completion. */
-async function wakeDevice(device: ServerNode) {
-    await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
-    await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
-    await MockTime.resolve(Promise.resolve(), { macrotasks: true });
-}
-
-async function commission(controller: ServerNode, device: ServerNode) {
-    const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-    const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-    controllerCrypto.entropic = deviceCrypto.entropic = true;
-
-    if (!controller.lifecycle.isOnline) {
-        await controller.start();
-    }
-
-    const { passcode, discriminator } = device.state.commissioning;
-    await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-        macrotasks: true,
-    });
-
-    controllerCrypto.entropic = deviceCrypto.entropic = false;
-}
 
 /** Commission a DSLS device that is operating in LIT mode before the controller subscribes. */
 async function litOperatingPair(site: MockSite) {
@@ -90,12 +59,6 @@ async function settleAutoRegistration(peer: ClientNode) {
 async function reRegisterWithSubject(peer: ClientNode, monitoredSubject: SubjectId) {
     await peer.act(agent => agent.get(IcdClient).unregister());
     await peer.act(agent => agent.get(IcdClient).register({ monitoredSubject }));
-}
-
-function wakefulnessOf(controller: ServerNode, peer: ClientNode) {
-    const peerAddress = peer.stateOf(CommissioningClient).peerAddress!;
-    const fabric = controller.env.get(FabricManager).for(peerAddress.fabricIndex);
-    return fabric.icd.wakefulnessFor(peerAddress.nodeId);
 }
 
 /** Replace the peer's mDNS-discovered addresses and emit the change so PeerAddressMonitor reacts. */
@@ -467,9 +430,7 @@ describe("IcdClient", () => {
             const peer1 = controller.peers.get("peer1")!;
             expect(peer1.stateOf(IcdClient)).not.undefined;
             const supportsLit = await peer1.act(agent => agent.get(IcdClient).peerSupportsLit);
-            const requiresCheckIn = await peer1.act(agent => agent.get(IcdClient).peerRequiresCheckIn);
             expect(supportsLit).false;
-            expect(requiresCheckIn).false;
         });
 
         it("reports peerSupportsLit true for a LIT peer", async () => {
@@ -480,9 +441,7 @@ describe("IcdClient", () => {
 
             const peer1 = controller.peers.get("peer1")!;
             const supportsLit = await peer1.act(agent => agent.get(IcdClient).peerSupportsLit);
-            const requiresCheckIn = await peer1.act(agent => agent.get(IcdClient).peerRequiresCheckIn);
             expect(supportsLit).true;
-            expect(requiresCheckIn).true;
         });
     });
 
