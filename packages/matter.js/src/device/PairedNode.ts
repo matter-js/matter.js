@@ -1398,8 +1398,6 @@ export class PairedNode {
         // Unlike close() this keeps the instance (observers, construction) intact so connect() can reconnect it; the
         // node is disabled via disconnectNode() which ends the subscription.
         this.#updateEndpointStructureTimer.stop();
-        // Set Disconnected before disabling: disconnectNode() ends the subscription, which fires
-        // subscriptionStatusChanged(false); were the state still Connected the handler would flip it to Reconnecting.
         this.#setConnectionState(NodeStates.Disconnected);
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
