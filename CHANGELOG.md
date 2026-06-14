@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovery kick no longer restarts an in-flight CASE handshake when a restart would barely shorten the next retransmission, avoiding needless teardown of a sleepy peer's exchange
     - Fix: The MRP retransmission interval is no longer capped below the peer's idle interval
     - Fix: The connection fallback address is now compared by value, so a rediscovered last-known address is no longer mistaken for an address change
+    - Fix: Ensure that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
 
 ## 0.17.2 (2026-06-09)
 
