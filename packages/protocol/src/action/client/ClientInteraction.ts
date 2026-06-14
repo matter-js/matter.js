@@ -963,6 +963,7 @@ export class ClientInteraction<
                     this.#exchangeProvider.channelType === ChannelType.TCP
                         ? Promise.resolve(true)
                         : this.probe({ abort }),
+                wakefulness: request.icdWakefulness,
             });
         } else {
             subscription = await subscribe(request);

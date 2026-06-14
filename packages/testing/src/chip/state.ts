@@ -224,7 +224,7 @@ export const State = {
         try {
             Values.test = test;
             await beforeTest(subject, test);
-            await test.invoke(subject, reporter.beginStep.bind(reporter), args);
+            await test.invoke(subject, reporter.beginStep.bind(reporter), args, Values.singleUseSubject);
         } finally {
             Values.test = undefined;
         }

@@ -112,6 +112,14 @@ export class PeerAddressMonitor {
             return;
         }
 
+        // A LIT ICD is asleep most of the time and won't answer a probe until it wakes; probing it would fail
+        // and tear down a healthy session. Leave its address untouched — a genuine move is recovered by reconnect
+        // when the next (wake-gated) send exhausts its retries.
+        // @see {@link MatterSpecification.v151.Core} § 4.12.2.1
+        if (this.#peer.fabric.icd?.wakefulnessFor(this.#peer.address.nodeId)?.requiresAwait) {
+            return;
+        }
+
         const currentAddress = channel.networkAddress;
         const currentIp = currentAddress.ip;
         const discoveredAddresses = this.#peer.service.addresses;

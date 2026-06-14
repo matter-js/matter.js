@@ -18,6 +18,7 @@ export * from "./dcl/index.js";
 export * from "./events/index.js";
 export * from "./fabric/index.js";
 export * from "./groups/index.js";
+export * from "./icd/index.js";
 export * from "./interaction/index.js";
 export * from "./mdns/index.js";
 export * from "./ota/index.js";

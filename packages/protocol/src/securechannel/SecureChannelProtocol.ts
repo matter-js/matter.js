@@ -96,10 +96,12 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
 export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol {
     #paseCommissioner: PaseServer | undefined;
     readonly #caseCommissioner: CaseServer;
+    readonly #fabrics: FabricManager;
     readonly #tooManyPaseErrors = AsyncObservable<[]>();
 
     constructor(sessions: SessionManager, fabrics: FabricManager) {
         super();
+        this.#fabrics = fabrics;
         this.#caseCommissioner = new CaseServer(sessions, fabrics);
     }
 
@@ -150,8 +152,36 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
             case SecureMessageType.Sigma1:
                 await this.#caseCommissioner.onNewExchange(exchange);
                 break;
+            case SecureMessageType.IcdCheckInMessage:
+                await this.#handleIcdCheckIn(exchange, message);
+                break;
             default:
                 await super.onNewExchange(exchange, message);
+        }
+    }
+
+    /**
+     * Silently processes an ICD Check-In message: trial-decrypts against every fabric that has active ICD state,
+     * invokes the matching peer handler, then closes the exchange.  The handler itself never sends a response;
+     * conformant Check-Ins are unreliable (R=0) so no acknowledgement is generated either.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 4.22 (Check-In Protocol), § 9.15.1.3.3
+     */
+    async #handleIcdCheckIn(exchange: MessageExchange, message: Message) {
+        try {
+            for (const fabric of this.#fabrics) {
+                if (!fabric.icdActive) {
+                    continue;
+                }
+                // processCheckIn classifies its own expected cases (wrong-key/malformed decode and handler errors are
+                // handled internally), so anything thrown here is unexpected and must surface rather than be swallowed.
+                if (await fabric.icd.processCheckIn(message.payload)) {
+                    return;
+                }
+            }
+            logger.debug("Ignoring ICD check-in matching no registered peer");
+        } finally {
+            await exchange.close();
         }
     }
 }
