@@ -1045,7 +1045,7 @@ export class ClientInteraction<
         try {
             if (this.#abort.aborted) {
                 throw new ImplementationError(
-                    `Cannot ${what} ${this.#address ?? this.#exchangeProvider.peerAddress ?? "uncommissioned node"} because interactable is closed`,
+                    `Cannot start ${what} ${this.#address ?? this.#exchangeProvider.peerAddress ?? "uncommissioned node"} because interactable is closed`,
                 );
             }
 
