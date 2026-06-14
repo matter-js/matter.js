@@ -232,15 +232,11 @@ async function createCommand(
 
     command.push(...args, ...extraArgs);
 
-    // An uncommissioned subject self-commissions in setup_class, which builds its setup payload from these.
-    // get_setup_payload_info_config asserts equal discriminator/passcode counts, so pass both or neither.
-    if (uncommissioned && !command.includes("--discriminator") && !command.includes("--passcode")) {
-        command.push(
-            "--discriminator",
-            `${subject.commissioning.discriminator}`,
-            "--passcode",
-            `${subject.commissioning.passcode}`,
-        );
+    // Uncommissioned subjects read the setup code in setup_class (self-commission, or assert it like TC_SC_7_1).
+    // The QR pairing code encodes discriminator + passcode, so it satisfies both get_setup_payload_info_config and
+    // setup-code tests that reject bare discriminator/passcode.
+    if (uncommissioned && !command.includes("--qr-code")) {
+        command.push("--qr-code", subject.commissioning.qrPairingCode);
     }
 
     if (!command.includes("--PICS")) {
