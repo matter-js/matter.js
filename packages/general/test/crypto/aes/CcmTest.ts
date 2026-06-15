@@ -204,12 +204,18 @@ describe("Ccm", () => {
         const ccm = Ccm(Bytes.fromHex(v.key));
         const input = { adata: Bytes.of(Bytes.fromHex(v.adata)), nonce: Bytes.of(Bytes.fromHex(v.nonce)) };
 
-        it("throws CryptoDecryptError on a tampered tag", () => {
-            const corrupted = Bytes.of(Bytes.fromHex(v.ct + v.tag));
-            corrupted[corrupted.length - 1] ^= 0xff;
+        const ctLength = Bytes.of(Bytes.fromHex(v.ct)).length;
+        const tagLength = Bytes.of(Bytes.fromHex(v.tag)).length;
 
-            expect(() => ccm.decrypt({ ...input, ct: corrupted })).throws(CryptoDecryptError);
-        });
+        // Flip one byte in each 32-bit tag word so a comparison that only checked some words would not catch them all.
+        for (let word = 0; word < tagLength / 4; word++) {
+            it(`throws CryptoDecryptError on a tag tampered in word ${word}`, () => {
+                const corrupted = Bytes.of(Bytes.fromHex(v.ct + v.tag));
+                corrupted[ctLength + word * 4] ^= 0xff;
+
+                expect(() => ccm.decrypt({ ...input, ct: corrupted })).throws(CryptoDecryptError);
+            });
+        }
 
         it("throws CryptoDecryptError when decrypting with the wrong key", () => {
             const wrongCcm = Ccm(Bytes.fromHex("ffffffffffffffffffffffffffffffff"));
