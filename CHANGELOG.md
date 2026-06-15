@@ -13,11 +13,19 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `log.level` (e.g. `MATTER_LOG_LEVEL`) now accepts string level names like `info` again, not just numeric values
+    - Fix: A failed UDP multicast send now evicts and rebuilds the broadcast channel instead of caching a dead socket
 
 - @matter/protocol
     - Fix: Ensure that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
     - Adjustment: MRP now selects the active/idle retransmission interval by peer activity for every transmission including the first, instead of forcing the first transmission to the idle interval
     - Fix: Prevent a crash when a PASE pairing timeout fires while a previous message is still awaiting acknowledgement
+    - Fix: A discovery kick no longer restarts an in-flight CASE handshake when a restart would barely shorten the next retransmission, avoiding needless teardown of a sleepy peer's exchange
+    - Fix: The MRP retransmission interval is no longer capped below the peer's idle interval
+    - Fix: The connection fallback address is now compared by value, so a rediscovered last-known address is no longer mistaken for an address change
+    - Fix: Ensure that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
+
+- @project-chip/matter.js
+    - Fix: Ensure that `PairedNode.connect()` reconnects a node that was previously disconnected
 
 ## 0.17.2 (2026-06-09)
 

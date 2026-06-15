@@ -513,6 +513,22 @@ export class PairedNode {
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
+
+        // disconnect() disables the underlying node; re-enable it so the node restarts and NetworkClient can
+        // (re)subscribe.  Without this a connect() after disconnect() is a no-op because isDisabled stays set.
+        if (this.#clientNode.stateOf(NetworkClient).isDisabled) {
+            this.#clientNode
+                .enable()
+                .then(() => {
+                    if (this.#options.autoSubscribe === false) {
+                        return this.#initializeWithRead();
+                    }
+                    this.#activateSubscription();
+                })
+                .catch(error => logger.warn(this.#peerAddress, `Error connecting to node`, error));
+            return;
+        }
+
         if (this.#options.autoSubscribe === false) {
             this.#initializeWithRead().catch(error => {
                 logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
@@ -1377,9 +1393,12 @@ export class PairedNode {
         };
     }
 
-    /** Closes the current session, ends the subscription and disconnects the device. */
+    /** Closes the current session, ends the subscription and disconnects the device. The node can be reconnected via connect(). */
     async disconnect() {
-        this.close();
+        // Unlike close() this keeps the instance (observers, construction) intact so connect() can reconnect it; the
+        // node is disabled via disconnectNode() which ends the subscription.
+        this.#updateEndpointStructureTimer.stop();
+        this.#setConnectionState(NodeStates.Disconnected);
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
 
