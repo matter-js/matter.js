@@ -14,7 +14,6 @@ export * from "./MockCrypto.js";
 export * from "./NodeJsStyleCrypto.js";
 export * from "./Pem.js";
 export * from "./Pkcs7.js";
-export * from "./PrivacyEnhancements.js";
 export * from "./Shs.js";
 export * from "./Spake2p.js";
 export * from "./StandardCrypto.js";
