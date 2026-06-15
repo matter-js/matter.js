@@ -186,6 +186,17 @@ export class ClientInteraction<
 
         using _closing = this.#lifetime.closing();
 
+        // Close subscriptions established through this interaction so they do not outlive the interactable; a
+        // sustained subscription would otherwise retry forever against a closed interactable.
+        const peer = this.#exchangeProvider.peerAddress;
+        if (this.#subscriptions !== undefined && peer !== undefined) {
+            for (const subscription of [...this.#subscriptions]) {
+                if (PeerAddress.is(peer, subscription.peer)) {
+                    subscription.close();
+                }
+            }
+        }
+
         // Close batching
         this.#batchTimer?.stop();
         for (const [, pending] of this.#pendingCommands) {
@@ -1035,7 +1046,7 @@ export class ClientInteraction<
         try {
             if (this.#abort.aborted) {
                 throw new ImplementationError(
-                    `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+                    `Cannot start ${what} ${this.#address ?? this.#exchangeProvider.peerAddress ?? "uncommissioned node"} because interactable is closed`,
                 );
             }
 
