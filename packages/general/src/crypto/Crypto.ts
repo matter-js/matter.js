@@ -98,7 +98,9 @@ export abstract class Crypto extends Entropy {
     abstract createPbkdf2Key(secret: Bytes, salt: Bytes, iteration: number, keyLength: number): MaybePromise<Bytes>;
 
     /**
-     * Create a key from a secret using HKDF.
+     * Create a key from a secret using HKDF. The length parameter defines the length in bytes.
+     *
+     * @see {@link MatterSpecification.v151.Core} §3.8
      */
     abstract createHkdfKey(secret: Bytes, salt: Bytes, info: Bytes, length?: number): MaybePromise<Bytes>;
 

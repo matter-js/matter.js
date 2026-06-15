@@ -57,7 +57,7 @@ export class Spake2p {
 
     static create(crypto: Crypto, context: Bytes, w0: bigint) {
         const curve = Point.CURVE();
-        const random = crypto.randomBigInt(32, curve.p);
+        const random = crypto.randomBigInt(32, curve.n);
         return new Spake2p(crypto, context, random, w0);
     }
 
