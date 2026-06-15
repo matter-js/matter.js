@@ -13,7 +13,7 @@
  */
 
 import { CRYPTO_AEAD_MIC_LENGTH_BYTES, CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "#crypto/CryptoConstants.js";
-import { CryptoInputError } from "#crypto/CryptoError.js";
+import { CryptoDecryptError, CryptoInputError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Aes } from "./Aes.js";
 import { WordArray } from "./WordArray.js";
@@ -127,10 +127,14 @@ export function Ccm(key: Bytes) {
             // Compute MIC using CBC-MAC
             cbcMac(input, ptView, ptLength);
 
+            // Constant-time tag comparison: accumulate all word differences and check once, so timing does not leak
+            // how many leading tag words matched.
+            let micDiff = 0;
             for (let i = 0; i < computedMic.words.length; i++) {
-                if (inputMic.words[i] !== computedMic.words[i]) {
-                    throw new CryptoInputError("Message authentication failed due to invalid signature");
-                }
+                micDiff |= inputMic.words[i] ^ computedMic.words[i];
+            }
+            if (micDiff !== 0) {
+                throw new CryptoDecryptError("Message authentication failed: tag mismatch");
             }
 
             return pt;

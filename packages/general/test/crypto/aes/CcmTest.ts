@@ -5,6 +5,7 @@
  */
 
 import { Ccm } from "#crypto/aes/Ccm.js";
+import { CryptoDecryptError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 
 /**
@@ -193,6 +194,35 @@ describe("Ccm", () => {
             );
 
             expect(result).equals(v.ct + v.tag);
+        });
+    });
+
+    describe("tag verification", () => {
+        // A wrong key (or any tampered tag) must surface as CryptoDecryptError so the group-session multi-key
+        // candidate loop treats it as "wrong key, try next" rather than propagating an uncaught error.
+        const v = vectors.find(entry => entry.name === "NIST tcId 10")!;
+        const ccm = Ccm(Bytes.fromHex(v.key));
+        const input = { adata: Bytes.of(Bytes.fromHex(v.adata)), nonce: Bytes.of(Bytes.fromHex(v.nonce)) };
+
+        const ctLength = Bytes.of(Bytes.fromHex(v.ct)).length;
+        const tagLength = Bytes.of(Bytes.fromHex(v.tag)).length;
+
+        // Flip one byte in each 32-bit tag word so a comparison that only checked some words would not catch them all.
+        for (let word = 0; word < tagLength / 4; word++) {
+            it(`throws CryptoDecryptError on a tag tampered in word ${word}`, () => {
+                const corrupted = Bytes.of(Bytes.fromHex(v.ct + v.tag));
+                corrupted[ctLength + word * 4] ^= 0xff;
+
+                expect(() => ccm.decrypt({ ...input, ct: corrupted })).throws(CryptoDecryptError);
+            });
+        }
+
+        it("throws CryptoDecryptError when decrypting with the wrong key", () => {
+            const wrongCcm = Ccm(Bytes.fromHex("ffffffffffffffffffffffffffffffff"));
+
+            expect(() => wrongCcm.decrypt({ ...input, ct: Bytes.of(Bytes.fromHex(v.ct + v.tag)) })).throws(
+                CryptoDecryptError,
+            );
         });
     });
 });
