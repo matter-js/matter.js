@@ -50,7 +50,7 @@
         "chai": "^4.5.0",
         "chai-as-promised": "^7.1.2",
         "dockerode": "^5.0.0",
-        "esbuild": "^0.28.0",
+        "esbuild": "^0.28.1",
         "express": "^5.2.1",
         "mocha": "^11.7.6",
         "playwright": "^1.60.0",
