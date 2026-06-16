@@ -49,16 +49,16 @@ import {
 } from "@matter/protocol";
 import {
     AttributeData,
+    AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    EventPath,
     INTERACTION_PROTOCOL_ID,
     InvokeResponseData,
     ReceivedStatusResponseError,
     Status,
     StatusResponseError,
     TlvAny,
-    TlvAttributePath,
     TlvClusterPath,
-    TlvEventPath,
     TlvInvokeResponseData,
     TlvInvokeResponseForSend,
     TlvSubscribeResponse,
@@ -75,14 +75,14 @@ export interface PeerSubscription {
     peerAddress: PeerAddress;
     minIntervalFloor: Duration;
     maxIntervalCeiling: Duration;
-    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[];
-    eventRequests?: TypeFromSchema<typeof TlvEventPath>[];
+    attributeRequests?: AttributePath[];
+    eventRequests?: EventPath[];
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
 }
 
-function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
+function validateReadAttributesPath(path: AttributePath, isGroupSession = false) {
     if (isGroupSession) {
         throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
     }
@@ -97,7 +97,7 @@ function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath
     }
 }
 
-function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGroupSession = false) {
+function validateReadEventPath(path: EventPath, isGroupSession = false) {
     const { clusterId, eventId } = path;
     if (clusterId === undefined && eventId !== undefined) {
         throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
@@ -112,10 +112,7 @@ function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGrou
  * processing is identical for both interaction types, so they validate through one entry point to
  * keep the rules from drifting.
  */
-function validateReadPaths(
-    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[],
-    eventRequests?: TypeFromSchema<typeof TlvEventPath>[],
-) {
+function validateReadPaths(attributeRequests?: AttributePath[], eventRequests?: EventPath[]) {
     attributeRequests?.forEach(path => validateReadAttributesPath(path));
     eventRequests?.forEach(path => validateReadEventPath(path));
 }
