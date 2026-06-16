@@ -107,6 +107,19 @@ function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGrou
     }
 }
 
+/**
+ * Single early/upfront valid-path gate shared by Read and Subscribe. Per Matter §8.4.3.2 the path
+ * processing is identical for both interaction types, so they validate through one entry point to
+ * keep the rules from drifting.
+ */
+function validateReadPaths(
+    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[],
+    eventRequests?: TypeFromSchema<typeof TlvEventPath>[],
+) {
+    attributeRequests?.forEach(path => validateReadAttributesPath(path));
+    eventRequests?.forEach(path => validateReadEventPath(path));
+}
+
 function clusterPathToId({ nodeId, endpointId, clusterId }: TypeFromSchema<typeof TlvClusterPath>) {
     return `${nodeId}/${endpointId}/${clusterId}`;
 }
@@ -309,6 +322,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 Status.InvalidAction,
             );
         }
+
+        validateReadPaths(attributeRequests, eventRequests);
 
         return {
             dataReport: {
@@ -592,9 +607,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        // Validate of the paths before proceeding
-        attributeRequests?.forEach(path => validateReadAttributesPath(path));
-        eventRequests?.forEach(path => validateReadEventPath(path));
+        validateReadPaths(attributeRequests, eventRequests);
 
         if (minIntervalFloorSeconds < 0) {
             throw new StatusResponseError(
