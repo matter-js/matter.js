@@ -32,7 +32,15 @@ import {
     Subject,
     Val,
 } from "@matter/protocol";
-import { AttributeId, type ClusterTyping, NodeId, Status, StatusResponse, StatusResponseError } from "@matter/types";
+import {
+    AttributeId,
+    ClusterId,
+    type ClusterTyping,
+    NodeId,
+    Status,
+    StatusResponse,
+    StatusResponseError,
+} from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteState } from "./AtomicWriteState.js";
 
@@ -112,25 +120,11 @@ export class AtomicWriteHandler {
             attributes.set(attr, attributeName);
         }
 
-        const existingState = this.#pendingWrites.find(
-            s =>
-                PeerAddress.is(s.peerAddress, peerAddress) &&
-                s.endpoint.number == endpoint.number &&
-                s.clusterId === cluster.cluster.id,
-        );
+        const existingState = this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id);
 
         if (requestType === Thermostat.RequestType.BeginWrite) {
             if (timeout === undefined) {
                 throw new StatusResponse.InvalidCommandError("Timeout missing for BeginWrite request");
-            }
-
-            if (
-                existingState !== undefined &&
-                existingState.attributeRequests.some(attr => attributeRequests.includes(attr))
-            ) {
-                throw new StatusResponse.InvalidCommandError(
-                    "An atomic write for at least one of the attributes is already in progress for this peer",
-                );
             }
 
             const initialValues: Val.Struct = {};
@@ -179,6 +173,16 @@ export class AtomicWriteHandler {
         if (!ClusterBehavior.is(cluster)) {
             throw new InternalError("Cluster behavior expected for atomic write handler");
         }
+
+        // §7.15.6.4.1 step 1: reject at command level if this peer already holds an atomic write on the cluster/endpoint
+        // for any attributes, before per-attribute processing (matches CHIP's InAtomicWrite gate).
+        const peerAddress = this.#derivePeerAddress(context);
+        if (peerAddress !== undefined && this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id)) {
+            throw new StatusResponse.InvalidInStateError(
+                "An atomic write is already in progress for this peer on this cluster and endpoint",
+            );
+        }
+
         let commandStatusCode = Status.Success;
         const attributeStatus = request.attributeRequests.map(attr => {
             let statusCode = Status.Success;
@@ -333,6 +337,18 @@ export class AtomicWriteHandler {
                 writeState.close();
             }
         }
+    }
+
+    /**
+     * Returns the atomic write state this peer holds on the given cluster/endpoint, if any.
+     */
+    #pendingWriteForPeer(peerAddress: PeerAddress, endpoint: Endpoint, clusterId: ClusterId) {
+        return this.#pendingWrites.find(
+            s =>
+                PeerAddress.is(s.peerAddress, peerAddress) &&
+                s.endpoint.number === endpoint.number &&
+                s.clusterId === clusterId,
+        );
     }
 
     /**
