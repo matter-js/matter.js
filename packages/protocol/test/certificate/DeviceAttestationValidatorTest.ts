@@ -263,7 +263,11 @@ describe("DeviceAttestationValidator", () => {
             // Use the pre-generated DAC with wrong vendorId (created at same time as PAI in before())
             await expect(
                 DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: wrongVendorDacDer })),
-            ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId.*does not match PAI vendorId/);
+                // VendorIDs are reported as fixed-width 4-digit uppercase hex with a 0x prefix
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /DAC vendorId 0x[0-9A-F]{4} does not match PAI vendorId 0x[0-9A-F]{4}/,
+            );
         });
     });
 

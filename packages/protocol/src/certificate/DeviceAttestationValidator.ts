@@ -60,7 +60,7 @@ export class DeviceAttestationError extends CommissioningError {
 }
 
 function idHex(id?: number) {
-    return id === undefined ? "undefined" : Diagnostic.hex(id);
+    return id === undefined ? "undefined" : `0x${Diagnostic.hex(id, 4).toUpperCase()}`;
 }
 
 export namespace DeviceAttestationValidator {

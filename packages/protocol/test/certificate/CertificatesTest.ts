@@ -264,8 +264,9 @@ describe("Certificates", () => {
             expect(dac.cert.issuer.productId).to.be.undefined;
         });
 
-        // Matter-specific VID/PID OID arc 1.3.6.1.4.1.37244.2.* (spec appendix E)
-        const MATTER_ATT_CERT_OID_BASE = "2b0601040182a27c02";
+        // Matter-specific VID/PID OID arc 1.3.6.1.4.1.37244.2.* (spec appendix E), with the DER
+        // OBJECT IDENTIFIER tag (0x06) and length (0x0a) prefixed to avoid a coincidental match.
+        const MATTER_ATT_CERT_OID_BASE = "060a2b0601040182a27c02";
 
         it("re-encodes a fallback DAC without injecting Matter VID/PID OIDs", () => {
             const dac = Dac.fromAsn1(NUKI_DAC_ASN1);
