@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
+import { Bytes, Crypto, Diagnostic, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
@@ -57,6 +57,10 @@ export class DeviceAttestationError extends CommissioningError {
     ) {
         super(message);
     }
+}
+
+function idHex(id?: number) {
+    return id === undefined ? "undefined" : `0x${Diagnostic.hex(id, 4).toUpperCase()}`;
 }
 
 export namespace DeviceAttestationValidator {
@@ -131,7 +135,7 @@ export namespace DeviceAttestationValidator {
         if (dac.cert.subject.vendorId !== pai.cert.subject.vendorId) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.VendorIdMismatch,
-                `DAC vendorId ${dac.cert.subject.vendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
+                `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match PAI vendorId ${idHex(pai.cert.subject.vendorId)}`,
             );
         }
 
@@ -270,7 +274,7 @@ export namespace DeviceAttestationValidator {
             if (paaVendorId !== undefined && paaVendorId !== pai.cert.subject.vendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.VendorIdMismatch,
-                    `PAA vendorId ${paaVendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
+                    `PAA vendorId ${idHex(paaVendorId)} does not match PAI vendorId ${idHex(pai.cert.subject.vendorId)}`,
                 );
             }
 
@@ -356,7 +360,7 @@ export namespace DeviceAttestationValidator {
         if (cdContent.vendorId !== data.vendorId) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                `CD vendor_id ${cdContent.vendorId} does not match BasicInformation VendorID ${data.vendorId}`,
+                `CD vendor_id ${idHex(cdContent.vendorId)} does not match BasicInformation VendorID ${idHex(data.vendorId)}`,
             );
         }
 
@@ -364,7 +368,7 @@ export namespace DeviceAttestationValidator {
         if (!cdContent.produceIdArray.includes(data.productId)) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                `CD product_id_array does not contain BasicInformation ProductID ${data.productId}`,
+                `CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}] does not contain BasicInformation ProductID ${idHex(data.productId)}`,
             );
         }
 
@@ -383,27 +387,27 @@ export namespace DeviceAttestationValidator {
             if (dac.cert.subject.vendorId !== cdContent.dacOriginVendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC vendorId does not match CD dac_origin_vendor_id",
+                    `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match CD dac_origin_vendor_id ${idHex(cdContent.dacOriginVendorId)}`,
                 );
             }
             if (pai.cert.subject.vendorId !== cdContent.dacOriginVendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI vendorId does not match CD dac_origin_vendor_id",
+                    `PAI vendorId ${idHex(pai.cert.subject.vendorId)} does not match CD dac_origin_vendor_id ${idHex(cdContent.dacOriginVendorId)}`,
                 );
             }
             const dacProductId = dac.cert.subject.productId;
             if (dacProductId !== undefined && dacProductId !== cdContent.dacOriginProductId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC productId does not match CD dac_origin_product_id",
+                    `DAC productId ${idHex(dacProductId)} does not match CD dac_origin_product_id ${idHex(cdContent.dacOriginProductId)}`,
                 );
             }
             const paiProductId = pai.cert.subject.productId;
             if (paiProductId !== undefined && paiProductId !== cdContent.dacOriginProductId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI productId does not match CD dac_origin_product_id",
+                    `PAI productId ${idHex(paiProductId)} does not match CD dac_origin_product_id ${idHex(cdContent.dacOriginProductId)}`,
                 );
             }
         } else {
@@ -411,27 +415,27 @@ export namespace DeviceAttestationValidator {
             if (dac.cert.subject.vendorId !== cdContent.vendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC vendorId does not match CD vendor_id",
+                    `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match CD vendor_id ${idHex(cdContent.vendorId)}`,
                 );
             }
             if (pai.cert.subject.vendorId !== cdContent.vendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI vendorId does not match CD vendor_id",
+                    `PAI vendorId ${idHex(pai.cert.subject.vendorId)} does not match CD vendor_id ${idHex(cdContent.vendorId)}`,
                 );
             }
             const dacProductId = dac.cert.subject.productId;
             if (dacProductId !== undefined && !cdContent.produceIdArray.includes(dacProductId)) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC productId not found in CD product_id_array",
+                    `DAC productId ${idHex(dacProductId)} not found in CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}]`,
                 );
             }
             const paiProductId = pai.cert.subject.productId;
             if (paiProductId !== undefined && !cdContent.produceIdArray.includes(paiProductId)) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI productId not found in CD product_id_array",
+                    `PAI productId ${idHex(paiProductId)} not found in CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}]`,
                 );
             }
         }
