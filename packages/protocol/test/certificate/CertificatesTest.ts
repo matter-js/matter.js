@@ -290,34 +290,37 @@ describe("Certificates", () => {
     });
 
     describe("parseMatterFallbackVidPid", () => {
-        it("extracts the value following a valid prefix", () => {
-            expect(parseMatterFallbackVidPid("ACME DAC Mvid:FFF1 Mpid:00B1", "Mvid:")).to.equal(0xfff1);
-            expect(parseMatterFallbackVidPid("ACME DAC Mvid:FFF1 Mpid:00B1", "Mpid:")).to.equal(0x00b1);
-        });
-
         it("returns undefined when the prefix is absent", () => {
             expect(parseMatterFallbackVidPid("Matter Test Cert", "Mvid:")).to.be.undefined;
         });
 
-        it("ignores separators and ordering", () => {
-            expect(parseMatterFallbackVidPid("Mpid:00B1,ACME,Mvid:FFF1", "Mvid:")).to.equal(0xfff1);
-            expect(parseMatterFallbackVidPid("Mvid:FFF1Mpid:00B1", "Mpid:")).to.equal(0x00b1);
+        // Valid examples from spec 6.2.2.2.1, all claiming VendorID 0xFFF1 and ProductID 0x00B1
+        it("parses the spec's valid encodings (VID 0xFFF1, PID 0x00B1)", () => {
+            for (const cn of [
+                "ACME Matter Devel DAC 5CDA9899 Mvid:FFF1 Mpid:00B1",
+                "ACME Matter Devel DAC 5CDA9899 Mpid:00B1 Mvid:FFF1", // order irrelevant
+                "Mpid:00B1,ACME Matter Devel DAC 5CDA9899,Mvid:FFF1", // separators irrelevant
+                "ACME Matter Devel DAC 5CDA9899 Mvid:FFF1Mpid:00B1", // adjacent
+                "Mvid:FFF1ACME Matter Devel DAC 5CDAMpid:00B19899", // trailing hex ignored (consume exactly 4)
+            ]) {
+                expect(parseMatterFallbackVidPid(cn, "Mvid:")).to.equal(0xfff1);
+                expect(parseMatterFallbackVidPid(cn, "Mpid:")).to.equal(0x00b1);
+            }
         });
 
         it("uses the leftmost correctly-encoded match", () => {
-            // Spec 6.2.2.2.1 example: VID 0xFFF1, PID 0xFE67 (earlier Mpid: prefixes are not valid encodings)
+            // Spec 6.2.2.2.1: PID 0xFE67 — earlier Mpid: prefixes are not valid encodings
             expect(parseMatterFallbackVidPid("Mpid:Mvid:FFF1 Mpid:12cd Matter Test Mpid:FE67", "Mpid:")).to.equal(
                 0xfe67,
             );
         });
 
-        it("extracts the first 4 hex chars when more follow, matching CHIP", () => {
-            expect(parseMatterFallbackVidPid("Mvid:135DA", "Mvid:")).to.equal(0x135d);
-        });
-
-        it("throws when a prefix appears but no value is correctly encoded", () => {
-            expect(() => parseMatterFallbackVidPid("ACME DAC Mvid:FF1 Mpid:00B1", "Mvid:")).to.throw(CertificateError);
-            expect(() => parseMatterFallbackVidPid("ACME DAC Mvid:fff1", "Mvid:")).to.throw(CertificateError);
+        // Invalid examples from spec 6.2.2.2.1: prefix present but no correctly-encoded value
+        it("throws on the spec's malformed encodings", () => {
+            expect(() => parseMatterFallbackVidPid("DAC Mvid:FF1 Mpid:00B1", "Mvid:")).to.throw(CertificateError); // 3 digits
+            expect(() => parseMatterFallbackVidPid("DAC Mvid:fff1 Mpid:00B1", "Mvid:")).to.throw(CertificateError); // lowercase
+            expect(() => parseMatterFallbackVidPid("DAC Mvid:FFF1 Mpid:B1", "Mpid:")).to.throw(CertificateError); // 2 digits
+            expect(() => parseMatterFallbackVidPid("DAC Mpid: Mvid:FFF1", "Mpid:")).to.throw(CertificateError); // prefix only
         });
     });
 

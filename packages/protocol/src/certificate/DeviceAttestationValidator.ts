@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
+import { Bytes, Crypto, Diagnostic, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
@@ -59,9 +59,8 @@ export class DeviceAttestationError extends CommissioningError {
     }
 }
 
-/** Format a VendorID/ProductID as a 4-digit hex string for diagnostics, matching Matter convention. */
 function idHex(id?: number) {
-    return id === undefined ? "undefined" : `0x${id.toString(16).toUpperCase().padStart(4, "0")}`;
+    return id === undefined ? "undefined" : Diagnostic.hex(id);
 }
 
 export namespace DeviceAttestationValidator {

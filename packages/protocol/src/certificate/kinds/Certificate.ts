@@ -171,9 +171,6 @@ export abstract class Certificate<CT extends MatterCertificate> {
  * prefix `Mvid:`/`Mpid:` followed by 4 uppercase hexadecimal characters, anywhere within a
  * `commonName`. Returns the leftmost correctly-encoded value, or `undefined` if the prefix is
  * absent. Throws if the prefix appears but no correctly-encoded value exists (spec 6.2.2.2.1).
- *
- * A 5th or later hex digit immediately following the value is ignored (the first 4 are used),
- * matching the dominant CHIP implementation.
  */
 export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | "Mpid:"): number | undefined {
     const match = commonName.match(new RegExp(`${prefix}([0-9A-F]{4})`));
