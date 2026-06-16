@@ -5,7 +5,7 @@
  */
 
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DataReadQueue, Millis } from "@matter/general";
+import { DataReadQueue, Millis, Seconds } from "@matter/general";
 import { MessageExchange, NodeSession } from "@matter/protocol";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -20,6 +20,11 @@ describe("ServerSubscription", () => {
     async function createSubscription(
         node: MockServerNode,
         makeExchange: () => MessageExchange,
+        overrides?: {
+            minIntervalFloorSeconds?: number;
+            maxIntervalCeilingSeconds?: number;
+            negotiateIntervals?: boolean;
+        },
     ): Promise<ServerSubscription> {
         const fabric = await node.addFabric();
         const session = (await node.createExchange({ fabric })).session as NodeSession;
@@ -33,15 +38,15 @@ describe("ServerSubscription", () => {
                 initiateExchange: makeExchange,
             },
             request: {
-                minIntervalFloorSeconds: 0,
-                maxIntervalCeilingSeconds: 60,
+                minIntervalFloorSeconds: overrides?.minIntervalFloorSeconds ?? 0,
+                maxIntervalCeilingSeconds: overrides?.maxIntervalCeilingSeconds ?? 60,
                 // No attributeRequests / eventRequests → keepalive-only sends, no RemoteActorContext needed
                 isFabricFiltered: false,
             },
             subscriptionOptions: ServerSubscriptionConfig.of(),
-            // Use fixed short intervals so tests don't depend on randomization
-            useAsMaxInterval: Millis(200),
-            useAsSendInterval: Millis(100),
+            // Use fixed short intervals so tests don't depend on randomization, unless a test wants the
+            // real #determineSendingIntervals negotiation exercised.
+            ...(overrides?.negotiateIntervals ? {} : { useAsMaxInterval: Millis(200), useAsSendInterval: Millis(100) }),
         });
     }
 
@@ -60,6 +65,23 @@ describe("ServerSubscription", () => {
 
         expect(subscription.isCanceledByPeer).is.true;
         expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("keeps negotiated maxInterval >= minIntervalFloor when floor exceeds the 60-min publisher limit", async () => {
+        // Spec §8.5.3.2: MinIntervalFloor <= MaxInterval. A floor above MAX_INTERVAL_PUBLISHER_LIMIT
+        // (60 min) must not be capped below the floor.
+        const node = await MockServerNode.createOnline();
+
+        const floorSeconds = 65535; // uint16 max, ~18.2 h
+        const subscription = await createSubscription(node, () => ({}) as any, {
+            minIntervalFloorSeconds: floorSeconds,
+            maxIntervalCeilingSeconds: floorSeconds,
+            negotiateIntervals: true,
+        });
+
+        expect(subscription.maxInterval).to.be.at.least(Seconds(floorSeconds));
 
         await MockTime.resolve(node.close());
     });
