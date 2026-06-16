@@ -12,6 +12,7 @@ import { SecureChannelProtocol } from "#securechannel/SecureChannelProtocol.js";
 import { PaseServer } from "#session/pase/PaseServer.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Environment,
     Environmental,
     InternalError,
@@ -117,7 +118,7 @@ export class DeviceCommissioner {
 
         this.#context.secureChannelProtocol.setPaseCommissioner(
             await PaseServer.fromPin(this.#context.sessions, this.#context.commissioningConfig.values.passcode, {
-                iterations: 1000,
+                iterations: CRYPTO_PBKDF_ITERATIONS_MIN,
                 salt: this.#context.fabrics.crypto.randomBytes(32),
             }),
         );

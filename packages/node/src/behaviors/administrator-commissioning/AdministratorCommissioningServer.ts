@@ -5,7 +5,17 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "@matter/general";
+import {
+    CRYPTO_PBKDF_ITERATIONS_MAX,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
+    Duration,
+    InternalError,
+    Logger,
+    Seconds,
+    Time,
+    Timer,
+    Worker,
+} from "@matter/general";
 import {
     assertRemoteActor,
     DeviceCommissioner,
@@ -73,7 +83,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         if (pakePasscodeVerifier.byteLength !== PAKE_PASSCODE_VERIFIER_LENGTH) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE passcode verifier length is invalid");
         }
-        if (iterations < 1000 || iterations > 100_000) {
+        if (iterations < CRYPTO_PBKDF_ITERATIONS_MIN || iterations > CRYPTO_PBKDF_ITERATIONS_MAX) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE iterations invalid");
         }
         if (salt.byteLength < 16 || salt.byteLength > 32) {
