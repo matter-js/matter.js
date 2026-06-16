@@ -460,7 +460,7 @@ export class ServerSubscription implements Subscription {
                 break;
             }
 
-            this.#lastUpdateTime = Time.nowMs; // TODO Count time from here or from "receive of the ack"?
+            this.#lastUpdateTime = Time.nowMs;
 
             try {
                 using sending = updating?.join("sending");
