@@ -34,7 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Decodes VendorID/ProductID from the "fallback method" (`Mvid:`/`Mpid:` in the commonName) of attestation certificates
 
 - @matter/types
-    - Fix: Ensures that the most-significant bit of a nullable bitmap is reserved for NULL as defined in matter spec
+    - Fix: Ensures that the most-significant bit of a nullable bitmap is reserved for NULL as defined in the Matter specification
 
 - @project-chip/matter.js
     - Fix: Ensure that `PairedNode.connect()` reconnects a node that was previously disconnected
