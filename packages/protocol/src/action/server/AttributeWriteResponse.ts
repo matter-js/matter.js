@@ -238,10 +238,6 @@ export class AttributeWriteResponse<
             }
         }
 
-        // Old implementation aka Matter 1.2 and lower need the ACL check moved here.
-        // see https://github.com/project-chip/connectedhomeip/issues/33735
-        // We have patched our tests for now
-
         if (hasRemoteActor(this.session)) {
             if (limits.timed && !this.session.timed) {
                 this.#errorCount++;
