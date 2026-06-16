@@ -16,13 +16,13 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 
 const PresetsThermostat = ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets"));
 
-const PRESETS_ATTRIBUTE = Thermostat.Complete.attributes.presets.id;
+const PRESETS_ATTRIBUTE = Thermostat.attributes.presets.id;
 
 function beginWrite(endpoint: Endpoint, attributeRequests: number[]) {
     return Invoke(
         Invoke.ConcreteCommandRequest({
             endpoint,
-            cluster: Thermostat.Cluster,
+            cluster: Thermostat,
             command: "atomicRequest",
             fields: {
                 requestType: Thermostat.RequestType.BeginWrite,
@@ -90,7 +90,7 @@ describe("AtomicWriteHandler", () => {
         expect(second).deep.equals([
             {
                 kind: "cmd-status",
-                path: { clusterId: Thermostat.Cluster.id, commandId: 254, endpointId: 1 },
+                path: { clusterId: Thermostat.id, commandId: Thermostat.commands.atomicRequest.id, endpointId: 1 },
                 status: Status.InvalidInState,
                 clusterStatus: undefined,
                 commandRef: undefined,
