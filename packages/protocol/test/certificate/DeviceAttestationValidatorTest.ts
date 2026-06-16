@@ -432,7 +432,7 @@ describe("DeviceAttestationValidator", () => {
                 ),
             ).to.be.rejectedWith(
                 DeviceAttestationError,
-                /CD product_id_array does not contain BasicInformation ProductID/,
+                /CD product_id_array.*does not contain BasicInformation ProductID/,
             );
         });
 
@@ -453,7 +453,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationElements, attestationSignature, vendorId: altVendorId }),
                 ),
-            ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId does not match CD vendor_id/);
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId.*does not match CD vendor_id/);
         });
     });
 
