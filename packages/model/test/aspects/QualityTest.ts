@@ -57,6 +57,20 @@ describe("Quality", () => {
         });
     });
 
+    describe("extend", () => {
+        Quality.FlagNames.forEach(flag => {
+            const field = Quality.Flag[flag];
+
+            it(`preserves ${field} from base through merge`, () => {
+                const base = new Quality({ [field]: true });
+                const other = new Quality({ reportable: true });
+                const merged = base.extend(other);
+                expect(merged[field]).equal(true);
+                expect(merged.reportable).equal(true);
+            });
+        });
+    });
+
     describe("mixed flags", () => {
         it("parse correctly", () => {
             const quality = new Quality("X !N F !S P");
