@@ -11,7 +11,7 @@ import { WriteResult } from "#action/response/WriteResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger, serialize, toHex } from "@matter/general";
-import { AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
+import { AccessLevel, AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     ArraySchema,
     AttributePath,
@@ -195,10 +195,12 @@ export class AttributeWriteResponse<
             limits = attribute.limits;
         }
 
+        // Order prescribed by core spec 8.7.3.2: a View-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the write.
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
             // We need some fallback location if cluster is not defined
-            const location = {
+            const location: AccessControl.Location = {
                 ...(cluster?.location ?? {
                     path: DataModelPath.none,
                     endpoint: endpointId,
@@ -206,20 +208,11 @@ export class AttributeWriteResponse<
                 }),
                 owningFabric: this.session.fabric,
             };
+            access = { session: this.session, location };
 
-            const permission = this.session.authorityAt(limits.writeLevel, location);
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
-
-                case AccessControl.Authority.Unauthorized:
-                    return this.#asStatus(path, Status.UnsupportedAccess);
-
-                case AccessControl.Authority.Restricted:
-                    return this.#asStatus(path, Status.AccessRestricted);
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            const denial = this.#authorize(access.session, AccessLevel.View, location);
+            if (denial !== undefined) {
+                return this.#asStatus(path, denial);
             }
         }
 
@@ -236,6 +229,13 @@ export class AttributeWriteResponse<
         if (!limits.writable) {
             this.#errorCount++;
             return this.#asStatus(path, Status.UnsupportedWrite);
+        }
+
+        if (access !== undefined) {
+            const denial = this.#authorize(access.session, limits.writeLevel, access.location);
+            if (denial !== undefined) {
+                return this.#asStatus(path, denial);
+            }
         }
 
         // Old implementation aka Matter 1.2 and lower need the ACL check moved here.
@@ -357,6 +357,26 @@ export class AttributeWriteResponse<
             },
             value,
         );
+    }
+
+    /**
+     * Validate access at {@link level}.  Returns undefined if granted; otherwise the status to report.
+     */
+    #authorize(session: AccessControl.RemoteActorSession, level: AccessLevel, location: AccessControl.Location) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return undefined;
+
+            case AccessControl.Authority.Unauthorized:
+                return Status.UnsupportedAccess;
+
+            case AccessControl.Authority.Restricted:
+                return Status.AccessRestricted;
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
+        }
     }
 
     /**
