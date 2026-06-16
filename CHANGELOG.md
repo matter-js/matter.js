@@ -20,17 +20,18 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
 
 - @matter/node
-    - Fix: Ensure that the negotiated subscription MaxInterval stays at or above the requested MinIntervalFloor when the floor exceeds the 60-minute publisher limit
+    - Fix: Ensures that the negotiated subscription MaxInterval stays at or above the requested MinIntervalFloor when the floor exceeds the 60-minute publisher limit
 
 - @matter/protocol
-    - Fix: Ensure that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
+    - Fix: Ensures that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
     - Adjustment: MRP now selects the active/idle retransmission interval by peer activity for every transmission including the first, instead of forcing the first transmission to the idle interval
-    - Fix: Prevent a crash when a PASE pairing timeout fires while a previous message is still awaiting acknowledgement
+    - Fix: Prevents a crash when a PASE pairing timeout fires while a previous message is still awaiting acknowledgement
     - Fix: A discovery kick no longer restarts an in-flight CASE handshake when a restart would barely shorten the next retransmission, avoiding needless teardown of a sleepy peer's exchange
     - Fix: The MRP retransmission interval is no longer capped below the peer's idle interval
     - Fix: The connection fallback address is now compared by value, so a rediscovered last-known address is no longer mistaken for an address change
-    - Fix: Ensure that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
-    - Fix: Ensure spec-compliant read/subscribe/write/invoke responses for a model-known but absent high-privilege attribute, event or command
+    - Fix: Ensures that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
+    - Fix: Ensures spec-compliant read/subscribe/write/invoke responses for a model-known but absent high-privilege attribute, event or command
+    - Fix: Decodes VendorID/ProductID from the "fallback method" (`Mvid:`/`Mpid:` in the commonName) of attestation certificates
 
 - @project-chip/matter.js
     - Fix: Ensure that `PairedNode.connect()` reconnects a node that was previously disconnected
