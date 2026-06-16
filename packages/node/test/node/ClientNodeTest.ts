@@ -1878,9 +1878,9 @@ const PEER1_STATE = {
         sessionParameters: {
             activeInterval: 300,
             activeThreshold: 4000,
-            dataModelRevision: 19,
+            dataModelRevision: Specification.DATA_MODEL_REVISION,
             idleInterval: 500,
-            interactionModelRevision: 12,
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             maxPathsPerInvoke: 10,
             maxTcpMessageSize: undefined,
             specificationVersion: Specification.SPECIFICATION_VERSION,
