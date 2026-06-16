@@ -266,20 +266,25 @@ export class ServerSubscription implements Subscription {
         // controller minimum. But in general never faster than minimum interval configured or 2 seconds
         // (SUBSCRIPTION_MIN_INTERVAL_S). Additionally, we add a randomization window to the max interval to avoid all
         // devices sending at the same time. But we make sure not to exceed the global max interval.
-        const maxInterval = Duration.min(
-            Millis.floor(
-                Millis(
-                    Duration.max(
-                        subscriptionMinInterval,
+        // Spec §8.5.3.2 lower bound: MaxInterval must stay >= MinIntervalFloor even when the floor
+        // exceeds the publisher limit, so re-raise after the MAX_INTERVAL_PUBLISHER_LIMIT cap.
+        const maxInterval = Duration.max(
+            this.minIntervalFloor,
+            Duration.min(
+                Millis.floor(
+                    Millis(
                         Duration.max(
-                            this.minIntervalFloor,
-                            Duration.min(subscriptionMaxInterval, this.maxIntervalCeiling),
-                        ),
-                    ) +
-                        subscriptionRandomizationWindow * Math.random(),
+                            subscriptionMinInterval,
+                            Duration.max(
+                                this.minIntervalFloor,
+                                Duration.min(subscriptionMaxInterval, this.maxIntervalCeiling),
+                            ),
+                        ) +
+                            subscriptionRandomizationWindow * Math.random(),
+                    ),
                 ),
+                MAX_INTERVAL_PUBLISHER_LIMIT,
             ),
-            MAX_INTERVAL_PUBLISHER_LIMIT,
         );
         let sendInterval = Millis.floor(Millis(maxInterval / 2)); // Ideally we send at half the max interval
         if (sendInterval < Minutes.one) {
@@ -455,7 +460,7 @@ export class ServerSubscription implements Subscription {
                 break;
             }
 
-            this.#lastUpdateTime = Time.nowMs; // TODO Count time from here or from "receive of the ack"?
+            this.#lastUpdateTime = Time.nowMs;
 
             try {
                 using sending = updating?.join("sending");
