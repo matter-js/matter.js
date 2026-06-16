@@ -38,7 +38,7 @@ import { Identity } from "@matter/general";
  * Device feature of the Access Control Cluster (see Section 15.3.4.1, "ManagedAclAllowed Condition"). Consequently,
  * Commissioners of this device type should be aware of this feature and its use.
  *
- * @see {@link MatterSpecification.v151.Device} § 15.3
+ * @see {@link MatterSpecification.v16.Device} § 15.3
  */
 export interface NetworkInfrastructureManagerDevice extends Identity<typeof NetworkInfrastructureManagerDeviceDefinition> {}
 

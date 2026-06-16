@@ -20,7 +20,7 @@ import type { Status } from "../globals/Status.js";
  *
  * !thermostat devices
  *
- * @see {@link MatterSpecification.v151.Cluster} § 4.3
+ * @see {@link MatterSpecification.v16.Cluster} § 4.3
  */
 export declare namespace Thermostat {
     /**
@@ -34,7 +34,7 @@ export declare namespace Thermostat {
     export const name: "Thermostat";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 11;
 
@@ -61,7 +61,7 @@ export declare namespace Thermostat {
          *   - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
          *     LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.2
          */
         localTemperature: number | null;
 
@@ -73,7 +73,7 @@ export declare namespace Thermostat {
          * this attribute shall remain unchanged. This behavior is in place for backwards compatibility with existing
          * thermostats.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.21
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.21
          */
         controlSequenceOfOperation: ControlSequenceOfOperation;
 
@@ -81,25 +81,25 @@ export declare namespace Thermostat {
          * Indicates the current operating mode of the thermostat. Its value shall be limited by the
          * ControlSequenceOfOperation attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.22
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.22
          */
         systemMode: SystemMode;
 
         /**
          * Indicates the outdoor temperature, as measured locally or remotely (over the network).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.3
          */
         outdoorTemperature?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         piCoolingDemand?: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         piHeatingDemand?: any;
@@ -110,7 +110,7 @@ export declare namespace Thermostat {
          * parameters are set via software, there shall be read/write access in order to provide remote programming
          * capability.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.9
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.9
          * @deprecated
          */
         hvacSystemTypeConfiguration?: any;
@@ -125,7 +125,7 @@ export declare namespace Thermostat {
          * If the LocalTemperature RemoteSensing bit is written with a value of 1 when the LTNE feature is present, the
          * write shall fail and the server shall report a CONSTRAINT_ERROR.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.20
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.20
          */
         remoteSensing?: RemoteSensing;
 
@@ -147,7 +147,7 @@ export declare namespace Thermostat {
          * If this attribute is updated to SetpointHoldOff and the SetpointHoldExpiryTimestamp is supported, the server
          * shall set the SetpointHoldExpiryTimestamp to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.27
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.27
          */
         temperatureSetpointHold?: TemperatureSetpointHold;
 
@@ -163,12 +163,12 @@ export declare namespace Thermostat {
          * If this attribute is set to null and the SetpointHoldExpiryTimestamp is supported, the server shall set the
          * SetpointHoldExpiryTimestamp to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.28
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.28
          */
         temperatureSetpointHoldDuration?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         thermostatProgrammingOperationMode?: any;
@@ -178,7 +178,7 @@ export declare namespace Thermostat {
          *
          * Unimplemented outputs shall be treated as if they were Off.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.29
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.29
          */
         thermostatRunningState?: RelayState;
 
@@ -191,7 +191,7 @@ export declare namespace Thermostat {
          * provider). Because automation services may initiate frequent setpoint changes, this attribute clearly
          * differentiates the source of setpoint changes made at the thermostat.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.30
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.30
          */
         setpointChangeSource?: SetpointChangeSource;
 
@@ -202,49 +202,49 @@ export declare namespace Thermostat {
          *
          * The null value indicates that the previous setpoint was unknown.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.31
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.31
          */
         setpointChangeAmount?: number | null;
 
         /**
          * Indicates the time in UTC at which the SetpointChangeAmount attribute change was recorded.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.32
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.32
          */
         setpointChangeSourceTimestamp?: number;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         occupiedSetback?: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         occupiedSetbackMin?: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         occupiedSetbackMax?: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         unoccupiedSetback?: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         unoccupiedSetbackMin?: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         unoccupiedSetbackMax?: any;
@@ -275,7 +275,7 @@ export declare namespace Thermostat {
          * setpoint is of a specified amount greater than the measured temperature. This allows the heated space to be
          * quickly heated to the desired level set by the user.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.33
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.33
          */
         emergencyHeatDelta?: number;
 
@@ -283,56 +283,56 @@ export declare namespace Thermostat {
          * Indicates the type of Mini Split ACTypeEnum of Mini Split AC is defined depending on how Cooling and Heating
          * condition is achieved by Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.34
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.34
          */
         acType?: AcType;
 
         /**
          * Indicates capacity of Mini Split AC in terms of the format defined by the ACCapacityFormat attribute
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.35
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.35
          */
         acCapacity?: number;
 
         /**
          * Indicates type of refrigerant used within the Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.36
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.36
          */
         acRefrigerantType?: AcRefrigerantType;
 
         /**
          * Indicates the type of compressor used within the Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.37
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.37
          */
         acCompressorType?: AcCompressorType;
 
         /**
          * Indicates the type of errors encountered within the Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.38
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.38
          */
         acErrorCode?: AcErrorCode;
 
         /**
          * Indicates the position of Louver on the AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.39
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.39
          */
         acLouverPosition?: AcLouverPosition;
 
         /**
          * Indicates the temperature of the AC coil, as measured locally or remotely (over the network).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.40
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.40
          */
         acCoilTemperature?: number | null;
 
         /**
          * Indicates the format for the ACCapacity attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.41
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.41
          */
         acCapacityFormat?: AcCapacityFormat;
 
@@ -347,7 +347,7 @@ export declare namespace Thermostat {
          * If the TemperatureSetpointHold is set to SetpointHoldOff, this attribute shall be set to null indicating
          * there is no hold on the Thermostat.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.52
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.52
          */
         setpointHoldExpiryTimestamp?: number | null;
     }
@@ -360,7 +360,7 @@ export declare namespace Thermostat {
          * Indicates whether the heated/cooled space is occupied or not, as measured locally or remotely (over the
          * network).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.4
          */
         occupancy: Occupancy;
     }
@@ -386,7 +386,7 @@ export declare namespace Thermostat {
          * does not support the OCC feature or the Occupied bit is set on the Occupancy attribute, the value of the
          * ActivePresetHandle attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.12
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.12
          */
         occupiedHeatingSetpoint: number;
 
@@ -396,7 +396,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.5
          */
         absMinHeatSetpointLimit?: number;
 
@@ -406,7 +406,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.6
          */
         absMaxHeatSetpointLimit?: number;
 
@@ -423,7 +423,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.15
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.15
          */
         minHeatSetpointLimit?: number;
 
@@ -436,7 +436,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.16
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.16
          */
         maxHeatSetpointLimit?: number;
     }
@@ -462,7 +462,7 @@ export declare namespace Thermostat {
          * does not support the OCC feature or the Occupied bit is set on the Occupancy attribute, the value of the
          * ActivePresetHandle attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.11
          */
         occupiedCoolingSetpoint: number;
 
@@ -472,7 +472,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.7
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.7
          */
         absMinCoolSetpointLimit?: number;
 
@@ -482,7 +482,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.8
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.8
          */
         absMaxCoolSetpointLimit?: number;
 
@@ -495,7 +495,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.17
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.17
          */
         minCoolSetpointLimit?: number;
 
@@ -508,7 +508,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.18
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.18
          */
         maxCoolSetpointLimit?: number;
     }
@@ -534,7 +534,7 @@ export declare namespace Thermostat {
          * > NOTE: Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
          *   range of -2.5°C to 2.5°C.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.10
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.10
          */
         localTemperatureCalibration?: number;
     }
@@ -560,7 +560,7 @@ export declare namespace Thermostat {
          * Occupied bit is not set on the Occupancy attribute, the value of the ActivePresetHandle attribute shall be
          * set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.13
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.13
          */
         unoccupiedCoolingSetpoint: number;
     }
@@ -587,7 +587,7 @@ export declare namespace Thermostat {
          * Occupied bit is not set on the Occupancy attribute, the value of the ActivePresetHandle attribute shall be
          * set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.14
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.14
          */
         unoccupiedHeatingSetpoint: number;
     }
@@ -612,7 +612,7 @@ export declare namespace Thermostat {
          * > NOTE: For backwards compatibility, this attribute is optionally writeable. However any writes to this
          *   attribute shall be silently ignored.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.19
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.19
          */
         minSetpointDeadBand: number;
 
@@ -621,7 +621,7 @@ export declare namespace Thermostat {
          * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat's
          * system mode is in auto mode.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.23
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.23
          */
         thermostatRunningMode?: ThermostatRunningMode;
     }
@@ -635,7 +635,7 @@ export declare namespace Thermostat {
          * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat's
          * system mode is in auto mode.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.23
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.23
          */
         thermostatRunningMode: ThermostatRunningMode;
     }
@@ -652,21 +652,21 @@ export declare namespace Thermostat {
          * PresetScenarioEnum values (maximum 7). The list shall NOT contain any PresetTypeStruct entries with duplicate
          * PresetScenarioEnum values.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.42
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.42
          */
         presetTypes: PresetType[];
 
         /**
          * Indicates the maximum number of entries supported by the Presets attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.44
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.44
          */
         numberOfPresets: number;
 
         /**
          * Indicates the PresetHandle of the active preset. If this attribute is null, then there is no active preset.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.48
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.48
          */
         activePresetHandle: Bytes | null;
 
@@ -758,7 +758,7 @@ export declare namespace Thermostat {
          *      or more of the entries in the ThermostatSuggestions attribute, the server shall delete any such entries
          *      from the ThermostatSuggestions attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.50
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.50
          */
         presets: Preset[];
     }
@@ -776,21 +776,21 @@ export declare namespace Thermostat {
          * SystemMode values (maximum 3, since the data type only allows Auto, Heat and Cool). The list shall NOT
          * contain any ScheduleTypeStruct entries with duplicate SystemModeEnum values.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.43
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.43
          */
         scheduleTypes: ScheduleType[];
 
         /**
          * Indicates the maximum number of entries supported by the Schedules attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.45
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.45
          */
         numberOfSchedules: number;
 
         /**
          * Indicates the maximum number of transitions per Schedules attribute entry.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.46
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.46
          */
         numberOfScheduleTransitions: number;
 
@@ -798,7 +798,7 @@ export declare namespace Thermostat {
          * Indicates the maximum number of transitions per day of the week supported by each Schedules attribute entry.
          * If this value is null, there is no limit on the number of transitions per day.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.47
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.47
          */
         numberOfScheduleTransitionPerDay: number | null;
 
@@ -806,7 +806,7 @@ export declare namespace Thermostat {
          * Indicates the ScheduleHandle of the active schedule. A null value in this attribute indicates that there is
          * no active schedule.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.49
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.49
          */
         activeScheduleHandle: Bytes | null;
 
@@ -919,7 +919,7 @@ export declare namespace Thermostat {
          *
          *   2. Otherwise, the attribute status shall be SUCCESS.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.51
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.51
          */
         schedules: Schedule[];
     }
@@ -931,7 +931,7 @@ export declare namespace Thermostat {
         /**
          * Indicates the maximum number of entries supported by the ThermostatSuggestions attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.53
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.53
          */
         maxThermostatSuggestions: number;
 
@@ -948,7 +948,7 @@ export declare namespace Thermostat {
          * See Section 4.3.7, "Re-evaluation of Current Thermostat Suggestion" for what to do if this attribute's value
          * changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.54
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.54
          */
         thermostatSuggestions: ThermostatSuggestion[];
 
@@ -972,7 +972,7 @@ export declare namespace Thermostat {
          * the server shall re-evaluate whether it is doing so and update the ActivePresetHandle and
          * ThermostatSuggestionNotFollowingReason attributes as needed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.55
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.55
          */
         currentThermostatSuggestion: ThermostatSuggestion | null;
 
@@ -987,7 +987,7 @@ export declare namespace Thermostat {
          *
          * If the CurrentThermostatSuggestion attribute is null, this attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.56
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.56
          */
         thermostatSuggestionNotFollowingReason: ThermostatSuggestionNotFollowingReason | null;
     }
@@ -1011,7 +1011,7 @@ export declare namespace Thermostat {
          *   - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
          *     LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.2
          */
         localTemperature: number | null;
 
@@ -1023,7 +1023,7 @@ export declare namespace Thermostat {
          * this attribute shall remain unchanged. This behavior is in place for backwards compatibility with existing
          * thermostats.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.21
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.21
          */
         controlSequenceOfOperation: ControlSequenceOfOperation;
 
@@ -1031,25 +1031,25 @@ export declare namespace Thermostat {
          * Indicates the current operating mode of the thermostat. Its value shall be limited by the
          * ControlSequenceOfOperation attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.22
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.22
          */
         systemMode: SystemMode;
 
         /**
          * Indicates the outdoor temperature, as measured locally or remotely (over the network).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.3
          */
         outdoorTemperature: number | null;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         piCoolingDemand: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         piHeatingDemand: any;
@@ -1060,7 +1060,7 @@ export declare namespace Thermostat {
          * parameters are set via software, there shall be read/write access in order to provide remote programming
          * capability.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.9
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.9
          * @deprecated
          */
         hvacSystemTypeConfiguration: any;
@@ -1075,7 +1075,7 @@ export declare namespace Thermostat {
          * If the LocalTemperature RemoteSensing bit is written with a value of 1 when the LTNE feature is present, the
          * write shall fail and the server shall report a CONSTRAINT_ERROR.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.20
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.20
          */
         remoteSensing: RemoteSensing;
 
@@ -1097,7 +1097,7 @@ export declare namespace Thermostat {
          * If this attribute is updated to SetpointHoldOff and the SetpointHoldExpiryTimestamp is supported, the server
          * shall set the SetpointHoldExpiryTimestamp to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.27
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.27
          */
         temperatureSetpointHold: TemperatureSetpointHold;
 
@@ -1113,12 +1113,12 @@ export declare namespace Thermostat {
          * If this attribute is set to null and the SetpointHoldExpiryTimestamp is supported, the server shall set the
          * SetpointHoldExpiryTimestamp to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.28
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.28
          */
         temperatureSetpointHoldDuration: number | null;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         thermostatProgrammingOperationMode: any;
@@ -1128,7 +1128,7 @@ export declare namespace Thermostat {
          *
          * Unimplemented outputs shall be treated as if they were Off.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.29
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.29
          */
         thermostatRunningState: RelayState;
 
@@ -1141,7 +1141,7 @@ export declare namespace Thermostat {
          * provider). Because automation services may initiate frequent setpoint changes, this attribute clearly
          * differentiates the source of setpoint changes made at the thermostat.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.30
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.30
          */
         setpointChangeSource: SetpointChangeSource;
 
@@ -1152,49 +1152,49 @@ export declare namespace Thermostat {
          *
          * The null value indicates that the previous setpoint was unknown.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.31
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.31
          */
         setpointChangeAmount: number | null;
 
         /**
          * Indicates the time in UTC at which the SetpointChangeAmount attribute change was recorded.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.32
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.32
          */
         setpointChangeSourceTimestamp: number;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         occupiedSetback: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         occupiedSetbackMin: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         occupiedSetbackMax: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         unoccupiedSetback: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         unoccupiedSetbackMin: any;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11
          * @deprecated
          */
         unoccupiedSetbackMax: any;
@@ -1225,7 +1225,7 @@ export declare namespace Thermostat {
          * setpoint is of a specified amount greater than the measured temperature. This allows the heated space to be
          * quickly heated to the desired level set by the user.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.33
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.33
          */
         emergencyHeatDelta: number;
 
@@ -1233,56 +1233,56 @@ export declare namespace Thermostat {
          * Indicates the type of Mini Split ACTypeEnum of Mini Split AC is defined depending on how Cooling and Heating
          * condition is achieved by Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.34
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.34
          */
         acType: AcType;
 
         /**
          * Indicates capacity of Mini Split AC in terms of the format defined by the ACCapacityFormat attribute
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.35
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.35
          */
         acCapacity: number;
 
         /**
          * Indicates type of refrigerant used within the Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.36
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.36
          */
         acRefrigerantType: AcRefrigerantType;
 
         /**
          * Indicates the type of compressor used within the Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.37
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.37
          */
         acCompressorType: AcCompressorType;
 
         /**
          * Indicates the type of errors encountered within the Mini Split AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.38
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.38
          */
         acErrorCode: AcErrorCode;
 
         /**
          * Indicates the position of Louver on the AC.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.39
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.39
          */
         acLouverPosition: AcLouverPosition;
 
         /**
          * Indicates the temperature of the AC coil, as measured locally or remotely (over the network).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.40
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.40
          */
         acCoilTemperature: number | null;
 
         /**
          * Indicates the format for the ACCapacity attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.41
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.41
          */
         acCapacityFormat: AcCapacityFormat;
 
@@ -1297,7 +1297,7 @@ export declare namespace Thermostat {
          * If the TemperatureSetpointHold is set to SetpointHoldOff, this attribute shall be set to null indicating
          * there is no hold on the Thermostat.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.52
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.52
          */
         setpointHoldExpiryTimestamp: number | null;
 
@@ -1305,7 +1305,7 @@ export declare namespace Thermostat {
          * Indicates whether the heated/cooled space is occupied or not, as measured locally or remotely (over the
          * network).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.4
          */
         occupancy: Occupancy;
 
@@ -1326,7 +1326,7 @@ export declare namespace Thermostat {
          * does not support the OCC feature or the Occupied bit is set on the Occupancy attribute, the value of the
          * ActivePresetHandle attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.12
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.12
          */
         occupiedHeatingSetpoint: number;
 
@@ -1336,7 +1336,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.5
          */
         absMinHeatSetpointLimit: number;
 
@@ -1346,7 +1346,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.6
          */
         absMaxHeatSetpointLimit: number;
 
@@ -1363,7 +1363,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.15
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.15
          */
         minHeatSetpointLimit: number;
 
@@ -1376,7 +1376,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.16
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.16
          */
         maxHeatSetpointLimit: number;
 
@@ -1397,7 +1397,7 @@ export declare namespace Thermostat {
          * does not support the OCC feature or the Occupied bit is set on the Occupancy attribute, the value of the
          * ActivePresetHandle attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.11
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.11
          */
         occupiedCoolingSetpoint: number;
 
@@ -1407,7 +1407,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.7
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.7
          */
         absMinCoolSetpointLimit: number;
 
@@ -1417,7 +1417,7 @@ export declare namespace Thermostat {
          *
          * Refer to Setpoint Limits for constraints
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.8
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.8
          */
         absMaxCoolSetpointLimit: number;
 
@@ -1430,7 +1430,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.17
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.17
          */
         minCoolSetpointLimit: number;
 
@@ -1443,7 +1443,7 @@ export declare namespace Thermostat {
          * consistent with the constraints and cannot be resolved by modifying setpoints then a response with the status
          * code CONSTRAINT_ERROR shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.18
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.18
          */
         maxCoolSetpointLimit: number;
 
@@ -1464,7 +1464,7 @@ export declare namespace Thermostat {
          * > NOTE: Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
          *   range of -2.5°C to 2.5°C.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.10
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.10
          */
         localTemperatureCalibration: number;
 
@@ -1485,7 +1485,7 @@ export declare namespace Thermostat {
          * Occupied bit is not set on the Occupancy attribute, the value of the ActivePresetHandle attribute shall be
          * set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.13
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.13
          */
         unoccupiedCoolingSetpoint: number;
 
@@ -1507,7 +1507,7 @@ export declare namespace Thermostat {
          * Occupied bit is not set on the Occupancy attribute, the value of the ActivePresetHandle attribute shall be
          * set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.14
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.14
          */
         unoccupiedHeatingSetpoint: number;
 
@@ -1527,7 +1527,7 @@ export declare namespace Thermostat {
          * > NOTE: For backwards compatibility, this attribute is optionally writeable. However any writes to this
          *   attribute shall be silently ignored.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.19
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.19
          */
         minSetpointDeadBand: number;
 
@@ -1536,7 +1536,7 @@ export declare namespace Thermostat {
          * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat's
          * system mode is in auto mode.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.23
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.23
          */
         thermostatRunningMode: ThermostatRunningMode;
 
@@ -1548,21 +1548,21 @@ export declare namespace Thermostat {
          * PresetScenarioEnum values (maximum 7). The list shall NOT contain any PresetTypeStruct entries with duplicate
          * PresetScenarioEnum values.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.42
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.42
          */
         presetTypes: PresetType[];
 
         /**
          * Indicates the maximum number of entries supported by the Presets attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.44
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.44
          */
         numberOfPresets: number;
 
         /**
          * Indicates the PresetHandle of the active preset. If this attribute is null, then there is no active preset.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.48
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.48
          */
         activePresetHandle: Bytes | null;
 
@@ -1654,7 +1654,7 @@ export declare namespace Thermostat {
          *      or more of the entries in the ThermostatSuggestions attribute, the server shall delete any such entries
          *      from the ThermostatSuggestions attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.50
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.50
          */
         presets: Preset[];
 
@@ -1667,21 +1667,21 @@ export declare namespace Thermostat {
          * SystemMode values (maximum 3, since the data type only allows Auto, Heat and Cool). The list shall NOT
          * contain any ScheduleTypeStruct entries with duplicate SystemModeEnum values.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.43
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.43
          */
         scheduleTypes: ScheduleType[];
 
         /**
          * Indicates the maximum number of entries supported by the Schedules attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.45
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.45
          */
         numberOfSchedules: number;
 
         /**
          * Indicates the maximum number of transitions per Schedules attribute entry.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.46
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.46
          */
         numberOfScheduleTransitions: number;
 
@@ -1689,7 +1689,7 @@ export declare namespace Thermostat {
          * Indicates the maximum number of transitions per day of the week supported by each Schedules attribute entry.
          * If this value is null, there is no limit on the number of transitions per day.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.47
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.47
          */
         numberOfScheduleTransitionPerDay: number | null;
 
@@ -1697,7 +1697,7 @@ export declare namespace Thermostat {
          * Indicates the ScheduleHandle of the active schedule. A null value in this attribute indicates that there is
          * no active schedule.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.49
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.49
          */
         activeScheduleHandle: Bytes | null;
 
@@ -1810,14 +1810,14 @@ export declare namespace Thermostat {
          *
          *   2. Otherwise, the attribute status shall be SUCCESS.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.51
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.51
          */
         schedules: Schedule[];
 
         /**
          * Indicates the maximum number of entries supported by the ThermostatSuggestions attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.53
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.53
          */
         maxThermostatSuggestions: number;
 
@@ -1834,7 +1834,7 @@ export declare namespace Thermostat {
          * See Section 4.3.7, "Re-evaluation of Current Thermostat Suggestion" for what to do if this attribute's value
          * changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.54
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.54
          */
         thermostatSuggestions: ThermostatSuggestion[];
 
@@ -1858,7 +1858,7 @@ export declare namespace Thermostat {
          * the server shall re-evaluate whether it is doing so and update the ActivePresetHandle and
          * ThermostatSuggestionNotFollowingReason attributes as needed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.55
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.55
          */
         currentThermostatSuggestion: ThermostatSuggestion | null;
 
@@ -1873,7 +1873,7 @@ export declare namespace Thermostat {
          *
          * If the CurrentThermostatSuggestion attribute is null, this attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.11.56
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.56
          */
         thermostatSuggestionNotFollowingReason: ThermostatSuggestionNotFollowingReason | null;
     }
@@ -1885,7 +1885,7 @@ export declare namespace Thermostat {
         /**
          * This command will raise or lower the setpoint based on the provided values.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.1
          */
         setpointRaiseLower(request: SetpointRaiseLowerRequest): MaybePromise;
     }
@@ -1897,7 +1897,7 @@ export declare namespace Thermostat {
         /**
          * This command will set the active preset to the provided preset handle.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.3
          */
         setActivePresetRequest(request: SetActivePresetRequest): MaybePromise;
     }
@@ -1909,7 +1909,7 @@ export declare namespace Thermostat {
         /**
          * This command will set the active schedule to the provided schedule handle.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.2
          */
         setActiveScheduleRequest(request: SetActiveScheduleRequest): MaybePromise;
     }
@@ -1921,14 +1921,14 @@ export declare namespace Thermostat {
         /**
          * This command will add a new suggestion based on the specified values.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.4
          */
         addThermostatSuggestion(request: AddThermostatSuggestionRequest): MaybePromise<AddThermostatSuggestionResponse>;
 
         /**
          * This command will remove the specified suggestion.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.6
          */
         removeThermostatSuggestion(request: RemoveThermostatSuggestionRequest): MaybePromise;
     }
@@ -1958,7 +1958,7 @@ export declare namespace Thermostat {
         /**
          * This event shall be generated when the ThermostatRunningMode attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.5
          */
         runningModeChange: RunningModeChangeEvent;
     }
@@ -1970,7 +1970,7 @@ export declare namespace Thermostat {
         /**
          * This event shall be generated when the SystemMode attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.1
          */
         systemModeChange: SystemModeChangeEvent;
 
@@ -1978,14 +1978,14 @@ export declare namespace Thermostat {
          * This event shall be generated when the value of any of the OccupiedHeatingSetpoint,
          * UnoccupiedHeatingSetpoint, OccupiedCoolingSetpoint, or UnoccupiedCoolingSetpoint attributes is changed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4
          */
         setpointChange: SetpointChangeEvent;
 
         /**
          * This event shall be generated when the ThermostatRunningState attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.6
          */
         runningStateChange: RunningStateChangeEvent;
     }
@@ -2006,7 +2006,7 @@ export declare namespace Thermostat {
          *
          * LocalTemperatureChange events shall NOT be generated more often than once every 60 seconds.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.2
          */
         localTemperatureChange: LocalTemperatureChangeEvent;
     }
@@ -2018,7 +2018,7 @@ export declare namespace Thermostat {
         /**
          * This event shall be generated when the Occupancy attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.3
          */
         occupancyChange: OccupancyChangeEvent;
     }
@@ -2030,7 +2030,7 @@ export declare namespace Thermostat {
         /**
          * This event shall be generated when the ActiveScheduleHandle attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.8
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.8
          */
         activeScheduleChange: ActiveScheduleChangeEvent;
     }
@@ -2042,7 +2042,7 @@ export declare namespace Thermostat {
         /**
          * This event shall be generated when the ActivePresetHandle attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.7
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.7
          */
         activePresetChange: ActivePresetChangeEvent;
     }
@@ -2057,14 +2057,14 @@ export declare namespace Thermostat {
         /**
          * This event shall be generated when the ThermostatRunningMode attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.5
          */
         runningModeChange: RunningModeChangeEvent;
 
         /**
          * This event shall be generated when the SystemMode attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.1
          */
         systemModeChange: SystemModeChangeEvent;
 
@@ -2072,14 +2072,14 @@ export declare namespace Thermostat {
          * This event shall be generated when the value of any of the OccupiedHeatingSetpoint,
          * UnoccupiedHeatingSetpoint, OccupiedCoolingSetpoint, or UnoccupiedCoolingSetpoint attributes is changed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4
          */
         setpointChange: SetpointChangeEvent;
 
         /**
          * This event shall be generated when the ThermostatRunningState attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.6
          */
         runningStateChange: RunningStateChangeEvent;
 
@@ -2095,28 +2095,28 @@ export declare namespace Thermostat {
          *
          * LocalTemperatureChange events shall NOT be generated more often than once every 60 seconds.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.2
          */
         localTemperatureChange: LocalTemperatureChangeEvent;
 
         /**
          * This event shall be generated when the Occupancy attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.3
          */
         occupancyChange: OccupancyChangeEvent;
 
         /**
          * This event shall be generated when the ActiveScheduleHandle attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.8
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.8
          */
         activeScheduleChange: ActiveScheduleChangeEvent;
 
         /**
          * This event shall be generated when the ActivePresetHandle attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.7
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.7
          */
         activePresetChange: ActivePresetChangeEvent;
     }
@@ -2166,7 +2166,7 @@ export declare namespace Thermostat {
     /**
      * These are optional features supported by ThermostatCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.4
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.4
      */
     export enum Feature {
         /**
@@ -2209,7 +2209,7 @@ export declare namespace Thermostat {
          * externally, for example due to the temperature control being done by a separate subsystem which does not
          * offer a view into the currently measured temperature, but allows setpoints to be provided.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.4.1
          */
         LocalTemperatureNotExposed = "LocalTemperatureNotExposed",
 
@@ -2219,7 +2219,7 @@ export declare namespace Thermostat {
          * This feature indicates that the thermostat is capable of schedules. If this feature is supported, the
          * thermostat shall support a mechanism to do time synchronization.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.4.2
          */
         MatterScheduleConfiguration = "MatterScheduleConfiguration",
 
@@ -2243,7 +2243,7 @@ export declare namespace Thermostat {
          * This feature indicates that the thermostat can process suggestions. If this feature is supported, the
          * thermostat shall support a mechanism to do time synchronization.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.4.3
          */
         ThermostatSuggestions = "ThermostatSuggestions"
     }
@@ -2257,7 +2257,7 @@ export declare namespace Thermostat {
      * Systems which support cooling or heating, requiring external intervention to change modes or where the whole
      * building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.16
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.16
      */
     export enum ControlSequenceOfOperation {
         /**
@@ -2292,7 +2292,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.20
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.20
      */
     export enum SystemMode {
         /**
@@ -2331,7 +2331,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.5
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.5
      */
     export class RemoteSensing {
         constructor(values?: Partial<RemoteSensing> | number);
@@ -2353,7 +2353,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.22
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.22
      */
     export enum TemperatureSetpointHold {
         /**
@@ -2368,7 +2368,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.4
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.4
      */
     export class RelayState {
         constructor(values?: Partial<RelayState> | number);
@@ -2410,7 +2410,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.18
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.18
      */
     export enum SetpointChangeSource {
         /**
@@ -2430,7 +2430,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.14
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.14
      */
     export enum AcType {
         /**
@@ -2460,7 +2460,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.13
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.13
      */
     export enum AcRefrigerantType {
         /**
@@ -2485,7 +2485,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.11
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.11
      */
     export enum AcCompressorType {
         /**
@@ -2510,7 +2510,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.1
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.1
      */
     export class AcErrorCode {
         constructor(values?: Partial<AcErrorCode> | number);
@@ -2542,7 +2542,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.12
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.12
      */
     export enum AcLouverPosition {
         /**
@@ -2572,7 +2572,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.10
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.10
      */
     export enum AcCapacityFormat {
         /**
@@ -2582,7 +2582,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.2
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.2
      */
     export class Occupancy {
         constructor(values?: Partial<Occupancy> | number);
@@ -2593,13 +2593,13 @@ export declare namespace Thermostat {
          * If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall indicate the
          * unoccupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.2.1
          */
         occupied?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.21
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.21
      */
     export enum ThermostatRunningMode {
         /**
@@ -2619,7 +2619,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.24
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.24
      */
     export class PresetType {
         constructor(values?: Partial<PresetType>);
@@ -2627,27 +2627,27 @@ export declare namespace Thermostat {
         /**
          * This field shall specify a PresetScenarioEnum value supported by this thermostat.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.24.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.24.1
          */
         presetScenario: PresetScenario;
 
         /**
          * This field shall specify a limit for the number of presets for this PresetScenarioEnum.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.24.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.24.2
          */
         numberOfPresets: number;
 
         /**
          * This field shall specify a bitmap of features for this PresetTypeStruct.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.24.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.24.3
          */
         presetTypeFeatures: PresetTypeFeatures;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23
      */
     export class Preset {
         constructor(values?: Partial<Preset>);
@@ -2659,14 +2659,14 @@ export declare namespace Thermostat {
          * This field shall only be null when the encompassing PresetStruct is appended to the Presets attribute for the
          * purpose of creating a new Preset. Refer to Presets for the creation of Preset handles.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23.1
          */
         presetHandle: Bytes | null;
 
         /**
          * This field shall indicate the associated PresetScenarioEnum value for this preset.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23.2
          */
         presetScenario: PresetScenario;
 
@@ -2676,7 +2676,7 @@ export declare namespace Thermostat {
          * Within each subset of presets sharing the same PresetScenario field value, there shall NOT be any presets
          * with the same value, including null as a value, in the Name field.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23.3
          */
         name?: string | null;
 
@@ -2684,7 +2684,7 @@ export declare namespace Thermostat {
          * This field shall indicate the cooling setpoint for the preset. Refer to Setpoint Limits for value
          * constraints.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23.4
          */
         coolingSetpoint?: number;
 
@@ -2692,7 +2692,7 @@ export declare namespace Thermostat {
          * This field shall indicate the heating setpoint for the preset. Refer to Setpoint Limits for value
          * constraints.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23.5
          */
         heatingSetpoint?: number;
 
@@ -2700,13 +2700,13 @@ export declare namespace Thermostat {
          * This field shall indicate whether the preset is marked as "built-in", meaning that it can be modified, but it
          * cannot be deleted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.23.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.23.6
          */
         builtIn: boolean | null;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.28
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.28
      */
     export class ScheduleType {
         constructor(values?: Partial<ScheduleType>);
@@ -2715,14 +2715,14 @@ export declare namespace Thermostat {
          * This field shall specify a SystemModeEnum supported by this thermostat for Schedules. The only valid values
          * for this field shall be Auto, Heat, and Cool.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.28.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.28.1
          */
         systemMode: SystemMode;
 
         /**
          * This field shall specify a limit for the number of Schedules for this SystemMode.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.28.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.28.2
          */
         numberOfSchedules: number;
 
@@ -2730,13 +2730,13 @@ export declare namespace Thermostat {
          * This field shall specify a bitmap of features for this schedule entry. At least one of SupportsPresets and
          * SupportsSetpoints shall be set.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.28.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.28.3
          */
         scheduleTypeFeatures: ScheduleTypeFeatures;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26
      */
     export class Schedule {
         constructor(values?: Partial<Schedule>);
@@ -2748,7 +2748,7 @@ export declare namespace Thermostat {
          * This field shall only be null when the encompassing ScheduleStruct is appended to the Schedules attribute for
          * the purpose of creating a new Schedule. Refer to Schedules for the creation of Schedule handles.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26.1
          */
         scheduleHandle: Bytes | null;
 
@@ -2756,21 +2756,21 @@ export declare namespace Thermostat {
          * This field shall specify the default thermostat system mode for transitions in this schedule. The only valid
          * values for this field shall be Auto, Heat, and Cool.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26.2
          */
         systemMode: SystemMode;
 
         /**
          * This field shall specify a name for the ScheduleStruct.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26.3
          */
         name?: string;
 
         /**
          * This field shall indicate the default PresetHandle value for transitions in this schedule.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26.4
          */
         presetHandle?: Bytes;
 
@@ -2802,7 +2802,7 @@ export declare namespace Thermostat {
          * ScheduleTransitionStruct with the largest TransitionTime field from the set of ScheduleTransitionStructs
          * whose DayOfWeek field matches the current day of the week.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26.5
          */
         transitions: ScheduleTransition[];
 
@@ -2810,13 +2810,13 @@ export declare namespace Thermostat {
          * This field shall indicate whether the schedule is marked as "built-in", meaning that it can be modified, but
          * it cannot be deleted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.26.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.26.6
          */
         builtIn: boolean | null;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.29
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.29
      */
     export class ThermostatSuggestion {
         constructor(values?: Partial<ThermostatSuggestion>);
@@ -2825,7 +2825,7 @@ export declare namespace Thermostat {
          * This field shall have a generated identifier that identifies a distinct entry of type
          * ThermostatSuggestionStruct.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.29.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.29.1
          */
         uniqueId: number;
 
@@ -2833,27 +2833,27 @@ export declare namespace Thermostat {
          * This field shall indicate the PresetHandle of the PresetStruct that represents the thermostat suggestion
          * value.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.29.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.29.2
          */
         presetHandle: Bytes;
 
         /**
          * This field shall indicate the UTC timestamp at which the suggestion shall take effect.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.29.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.29.3
          */
         effectiveTime: number;
 
         /**
          * This field shall indicate the UTC timestamp at which the suggestion shall expire.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.29.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.29.4
          */
         expirationTime: number;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.9
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.9
      */
     export class ThermostatSuggestionNotFollowingReason {
         constructor(values?: Partial<ThermostatSuggestionNotFollowingReason> | number);
@@ -2902,7 +2902,7 @@ export declare namespace Thermostat {
     /**
      * This command will raise or lower the setpoint based on the provided values.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.1
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.1
      */
     export class SetpointRaiseLowerRequest {
         constructor(values?: Partial<SetpointRaiseLowerRequest>);
@@ -2910,7 +2910,7 @@ export declare namespace Thermostat {
         /**
          * The field shall specify which setpoints are to be adjusted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.1.1
          */
         mode: SetpointRaiseLowerMode;
 
@@ -2918,7 +2918,7 @@ export declare namespace Thermostat {
          * This field shall indicate the amount (possibly negative) that should be added to the setpoint(s), in steps of
          * 0.1°C.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.1.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.1.2
          */
         amount: number;
     }
@@ -2926,7 +2926,7 @@ export declare namespace Thermostat {
     /**
      * This command will set the active preset to the provided preset handle.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.3
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.3
      */
     export class SetActivePresetRequest {
         constructor(values?: Partial<SetActivePresetRequest>);
@@ -2935,7 +2935,7 @@ export declare namespace Thermostat {
          * This field shall specify the value of the PresetHandle field on the PresetStruct to be made active. If the
          * field is set to null, that indicates there should be no active preset.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.3.1
          */
         presetHandle: Bytes | null;
     }
@@ -2943,7 +2943,7 @@ export declare namespace Thermostat {
     /**
      * This command will set the active schedule to the provided schedule handle.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.2
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.2
      */
     export class SetActiveScheduleRequest {
         constructor(values?: Partial<SetActiveScheduleRequest>);
@@ -2951,7 +2951,7 @@ export declare namespace Thermostat {
         /**
          * This field shall specify the value of the ScheduleHandle field on the ScheduleStruct to be made active.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.2.1
          */
         scheduleHandle: Bytes;
     }
@@ -2959,7 +2959,7 @@ export declare namespace Thermostat {
     /**
      * This command will add a new suggestion based on the specified values.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.4
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.4
      */
     export class AddThermostatSuggestionRequest {
         constructor(values?: Partial<AddThermostatSuggestionRequest>);
@@ -2967,7 +2967,7 @@ export declare namespace Thermostat {
         /**
          * This field shall specify the value of the thermostat suggestion.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.4.1
          */
         presetHandle: Bytes;
 
@@ -2975,7 +2975,7 @@ export declare namespace Thermostat {
          * This field shall indicate the timestamp in UTC at which the thermostat suggestion shall become available. If
          * this field is set to null, that means the thermostat suggestion shall become available immediately.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.4.2
          */
         effectiveTime: number | null;
 
@@ -2983,7 +2983,7 @@ export declare namespace Thermostat {
          * This field shall indicate the duration in minutes after which the thermostat suggestion provided by this
          * command shall expire.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.4.3
          */
         expirationInMinutes: number;
     }
@@ -2991,7 +2991,7 @@ export declare namespace Thermostat {
     /**
      * This command is sent in response to the AddThermostatSuggestion command.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.5
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.5
      */
     export class AddThermostatSuggestionResponse {
         constructor(values?: Partial<AddThermostatSuggestionResponse>);
@@ -3001,7 +3001,7 @@ export declare namespace Thermostat {
          * ThermostatSuggestions attribute via the AddThermostatSuggestion command for which this response shall be
          * sent.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.5.1
          */
         uniqueId: number;
     }
@@ -3009,7 +3009,7 @@ export declare namespace Thermostat {
     /**
      * This command will remove the specified suggestion.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.6
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.6
      */
     export class RemoveThermostatSuggestionRequest {
         constructor(values?: Partial<RemoveThermostatSuggestionRequest>);
@@ -3018,7 +3018,7 @@ export declare namespace Thermostat {
          * This field shall contain a unique identifier for an entry in the ThermostatSuggestions attribute that shall
          * be removed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.12.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.12.6.1
          */
         uniqueId: number;
     }
@@ -3040,7 +3040,7 @@ export declare namespace Thermostat {
     /**
      * This event shall be generated when the ThermostatRunningMode attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.5
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.5
      */
     export class RunningModeChangeEvent {
         constructor(values?: Partial<RunningModeChangeEvent>);
@@ -3049,7 +3049,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the ThermostatRunningMode attribute. If the previous value is
          * unavailable, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.5.1
          */
         previousRunningMode?: ThermostatRunningMode;
 
@@ -3057,7 +3057,7 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * ThermostatRunningMode attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.5.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.5.2
          */
         currentRunningMode: ThermostatRunningMode;
     }
@@ -3065,7 +3065,7 @@ export declare namespace Thermostat {
     /**
      * This event shall be generated when the SystemMode attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.1
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.1
      */
     export class SystemModeChangeEvent {
         constructor(values?: Partial<SystemModeChangeEvent>);
@@ -3074,7 +3074,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the SystemMode attribute. If the previous value is
          * unavailable, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.1.1
          */
         previousSystemMode?: SystemMode;
 
@@ -3082,7 +3082,7 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * SystemMode attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.1.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.1.2
          */
         currentSystemMode: SystemMode;
     }
@@ -3091,7 +3091,7 @@ export declare namespace Thermostat {
      * This event shall be generated when the value of any of the OccupiedHeatingSetpoint, UnoccupiedHeatingSetpoint,
      * OccupiedCoolingSetpoint, or UnoccupiedCoolingSetpoint attributes is changed.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4
      */
     export class SetpointChangeEvent {
         constructor(values?: Partial<SetpointChangeEvent>);
@@ -3101,7 +3101,7 @@ export declare namespace Thermostat {
          * OccupiedHeatingSetpoint or UnoccupiedHeatingSetpoint, the value of this field shall be Heat. If the changed
          * attribute is OccupiedCoolingSetpoint or UnoccupiedCoolingSetpoint, the value of this field shall be Cool.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4.1
          */
         systemMode: SystemMode;
 
@@ -3110,7 +3110,7 @@ export declare namespace Thermostat {
          * OccupiedHeatingSetpoint or OccupiedCoolingSetpoint, the value of this field shall be 1. If the changed
          * attribute is UnoccupiedHeatingSetpoint or UnoccupiedCoolingSetpoint, the value of this field shall be 0.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4.2
          */
         occupancy?: Occupancy;
 
@@ -3118,7 +3118,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the changed attribute. If the previous value is unavailable,
          * this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4.3
          */
         previousSetpoint?: number;
 
@@ -3126,7 +3126,7 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * changed attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.4.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.4.4
          */
         currentSetpoint: number;
     }
@@ -3134,7 +3134,7 @@ export declare namespace Thermostat {
     /**
      * This event shall be generated when the ThermostatRunningState attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.6
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.6
      */
     export class RunningStateChangeEvent {
         constructor(values?: Partial<RunningStateChangeEvent>);
@@ -3143,7 +3143,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the ThermostatRunningState attribute. If the previous value
          * is unavailable, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.6.1
          */
         previousRunningState?: RelayState;
 
@@ -3151,7 +3151,7 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * ThermostatRunningState attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.6.2
          */
         currentRunningState: RelayState;
     }
@@ -3168,7 +3168,7 @@ export declare namespace Thermostat {
      *
      * LocalTemperatureChange events shall NOT be generated more often than once every 60 seconds.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.2
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.2
      */
     export class LocalTemperatureChangeEvent {
         constructor(values?: Partial<LocalTemperatureChangeEvent>);
@@ -3176,7 +3176,7 @@ export declare namespace Thermostat {
         /**
          * This field shall indicate the current value of the LocalTemperature attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.2.1
          */
         currentLocalTemperature: number | null;
     }
@@ -3184,7 +3184,7 @@ export declare namespace Thermostat {
     /**
      * This event shall be generated when the Occupancy attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.3
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.3
      */
     export class OccupancyChangeEvent {
         constructor(values?: Partial<OccupancyChangeEvent>);
@@ -3193,7 +3193,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the Occupancy attribute. If the previous value is
          * unavailable, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.3.1
          */
         previousOccupancy?: Occupancy;
 
@@ -3201,7 +3201,7 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * Occupancy attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.3.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.3.2
          */
         currentOccupancy: Occupancy;
     }
@@ -3209,7 +3209,7 @@ export declare namespace Thermostat {
     /**
      * This event shall be generated when the ActiveScheduleHandle attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.8
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.8
      */
     export class ActiveScheduleChangeEvent {
         constructor(values?: Partial<ActiveScheduleChangeEvent>);
@@ -3218,7 +3218,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the ActiveScheduleHandle attribute. If the previous value is
          * unavailable, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.8.1
          */
         previousScheduleHandle?: Bytes | null;
 
@@ -3226,7 +3226,7 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * ActiveScheduleHandle attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.8.2
          */
         currentScheduleHandle: Bytes | null;
     }
@@ -3234,7 +3234,7 @@ export declare namespace Thermostat {
     /**
      * This event shall be generated when the ActivePresetHandle attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.7
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.7
      */
     export class ActivePresetChangeEvent {
         constructor(values?: Partial<ActivePresetChangeEvent>);
@@ -3243,7 +3243,7 @@ export declare namespace Thermostat {
          * This field shall indicate the previous value of the ActivePresetHandle attribute. If the previous value is
          * unavailable, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.7.1
          */
         previousPresetHandle?: Bytes | null;
 
@@ -3251,13 +3251,13 @@ export declare namespace Thermostat {
          * This field shall indicate the current (after the change that caused the event to be generated) value of the
          * ActivePresetHandle attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.13.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.13.7.2
          */
         currentPresetHandle: Bytes | null;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.3
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.3
      */
     export class PresetTypeFeatures {
         constructor(values?: Partial<PresetTypeFeatures> | number);
@@ -3274,7 +3274,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.6
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.6
      */
     export class ScheduleTypeFeatures {
         constructor(values?: Partial<ScheduleTypeFeatures> | number);
@@ -3286,7 +3286,7 @@ export declare namespace Thermostat {
          * field on the encompassing ScheduleTypeStruct supports specifying presets on ScheduleTransitionStructs
          * contained in its Transitions field.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.6.1
          */
         supportsPresets?: boolean;
 
@@ -3297,7 +3297,7 @@ export declare namespace Thermostat {
          * field on the encompassing ScheduleTypeStruct supports specifying setpoints on ScheduleTransitionStructs
          * contained in its Transitions field.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.6.2
          */
         supportsSetpoints?: boolean;
 
@@ -3307,7 +3307,7 @@ export declare namespace Thermostat {
          * This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the SystemMode
          * field on the encompassing ScheduleTypeStruct supports setting the value of the Name field.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.6.3
          */
         supportsNames?: boolean;
 
@@ -3317,13 +3317,13 @@ export declare namespace Thermostat {
          * This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the SystemMode
          * field on the encompassing ScheduleTypeStruct supports setting its SystemMode field to Off.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.6.4
          */
         supportsOff?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.7
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.7
      */
     export class ScheduleDayOfWeek {
         constructor(values?: Partial<ScheduleDayOfWeek> | number);
@@ -3370,7 +3370,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.8
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.8
      */
     export class ScheduleMode {
         constructor(values?: Partial<ScheduleMode> | number);
@@ -3387,7 +3387,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.15
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.15
      */
     export enum SetpointRaiseLowerMode {
         /**
@@ -3407,7 +3407,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17
      */
     export enum PresetScenario {
         /**
@@ -3416,7 +3416,7 @@ export declare namespace Thermostat {
          * This value shall indicate the preset for periods when the thermostat's temperature-controlled area is
          * occupied. It is intended for thermostats that can automatically determine occupancy.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.2
          */
         Occupied = 1,
 
@@ -3426,7 +3426,7 @@ export declare namespace Thermostat {
          * This value shall indicate the preset for periods when the thermostat's temperature-controlled area is
          * unoccupied. It is intended for thermostats that can automatically determine occupancy.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.3
          */
         Unoccupied = 2,
 
@@ -3435,7 +3435,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be asleep.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.4
          */
         Sleep = 3,
 
@@ -3444,7 +3444,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be waking up.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.5
          */
         Wake = 4,
 
@@ -3454,7 +3454,7 @@ export declare namespace Thermostat {
          * This value shall indicate the preset for periods when users are on vacation, or otherwise out-of-home for
          * extended periods of time.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.6
          */
         Vacation = 5,
 
@@ -3463,7 +3463,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be going to sleep.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.7
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.7
          */
         GoingToSleep = 6,
 
@@ -3472,13 +3472,13 @@ export declare namespace Thermostat {
          *
          * This value shall indicate a free-form preset; when set, the Name field on PresetStruct shall NOT be null.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.17.8
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.17.8
          */
         UserDefined = 254
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.19
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.19
      */
     export enum StartOfWeek {
         Sunday = 0,
@@ -3493,7 +3493,7 @@ export declare namespace Thermostat {
     /**
      * This represents a single transition in a Thermostat schedule
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.25
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.25
      */
     export class WeeklyScheduleTransition {
         constructor(values?: Partial<WeeklyScheduleTransition>);
@@ -3503,21 +3503,21 @@ export declare namespace Thermostat {
          * be represented by a 16 bits unsigned integer to designate the minutes since midnight. For example, 6am will
          * be represented by 360 minutes since midnight and 11:30pm will be represented by 1410 minutes since midnight.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.25.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.25.1
          */
         transitionTime: number;
 
         /**
          * This field shall represent the heat setpoint to be applied at this associated transition start time.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.25.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.25.2
          */
         heatSetpoint: number | null;
 
         /**
          * This field shall represent the cool setpoint to be applied at this associated transition start time.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.25.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.25.3
          */
         coolSetpoint: number | null;
     }
@@ -3582,7 +3582,7 @@ export declare namespace Thermostat {
      *   - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Cool or Auto
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27
+     * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27
      */
     export class ScheduleTransition {
         constructor(values?: Partial<ScheduleTransition>);
@@ -3591,7 +3591,7 @@ export declare namespace Thermostat {
          * This field shall specify a bitmask of days of the week that the transition applies to. The Vacation bit shall
          * NOT be set; vacation schedules shall be set via the vacation preset.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27.1
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27.1
          */
         dayOfWeek: ScheduleDayOfWeek;
 
@@ -3601,7 +3601,7 @@ export declare namespace Thermostat {
          *
          * Handling of transitions during the changeover of Daylight Saving Time is implementation-dependent.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27.2
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27.2
          */
         transitionTime: number;
 
@@ -3609,7 +3609,7 @@ export declare namespace Thermostat {
          * This field shall specify the preset used at the TransitionTime. If this field is provided, then the
          * SystemMode, CoolingSetpoint and HeatingSetpoint fields shall NOT be provided.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27.3
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27.3
          */
         presetHandle?: Bytes;
 
@@ -3618,7 +3618,7 @@ export declare namespace Thermostat {
          * default for the schedule. The only valid values for this field shall be Auto, Heat, Cool and Off. This field
          * shall only be included when the required system mode differs from the schedule's default SystemMode.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27.4
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27.4
          */
         systemMode?: SystemMode;
 
@@ -3626,7 +3626,7 @@ export declare namespace Thermostat {
          * This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field shall
          * NOT be included. Refer to Setpoint Limits for value constraints.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27.5
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27.5
          */
         coolingSetpoint?: number;
 
@@ -3634,7 +3634,7 @@ export declare namespace Thermostat {
          * This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field shall
          * NOT be included. Refer to Setpoint Limits for value constraints.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 4.3.10.27.6
+         * @see {@link MatterSpecification.v16.Cluster} § 4.3.10.27.6
          */
         heatingSetpoint?: number;
     }

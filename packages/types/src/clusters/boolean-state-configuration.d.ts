@@ -17,7 +17,7 @@ import type { MaybePromise } from "@matter/general";
  * This cluster is used to configure a boolean sensor, including optional state change alarm features and configuration
  * of the sensitivity level associated with the sensor.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 1.8
+ * @see {@link MatterSpecification.v16.Cluster} § 1.8
  */
 export declare namespace BooleanStateConfiguration {
     /**
@@ -31,7 +31,7 @@ export declare namespace BooleanStateConfiguration {
     export const name: "BooleanStateConfiguration";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 2;
 
@@ -49,7 +49,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * Indicates any faults registered by the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.8
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.8
          */
         sensorFault?: SensorFault;
     }
@@ -64,7 +64,7 @@ export declare namespace BooleanStateConfiguration {
          * If a write interaction to this attribute contains an unsupported sensitivity value, a CONSTRAINT_ERROR status
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.1
          */
         currentSensitivityLevel: number;
 
@@ -76,14 +76,14 @@ export declare namespace BooleanStateConfiguration {
          * highest sensitivity level. The number of supported sensitivity levels SHOULD represent unique sensitivity
          * levels supported by the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.2
          */
         supportedSensitivityLevels: number;
 
         /**
          * Indicates the default sensitivity level selected by the manufacturer.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.3
          */
         defaultSensitivityLevel?: number;
     }
@@ -105,7 +105,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Active
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.4
          */
         alarmsActive: AlarmMode;
 
@@ -118,7 +118,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Supported
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.7
          */
         alarmsSupported: AlarmMode;
 
@@ -133,7 +133,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Enabled
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.6
          */
         alarmsEnabled?: AlarmMode;
     }
@@ -155,7 +155,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Suppressed
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.5
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.5
          */
         alarmsSuppressed: AlarmMode;
     }
@@ -170,7 +170,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * Indicates any faults registered by the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.8
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.8
          */
         sensorFault: SensorFault;
 
@@ -180,7 +180,7 @@ export declare namespace BooleanStateConfiguration {
          * If a write interaction to this attribute contains an unsupported sensitivity value, a CONSTRAINT_ERROR status
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.1
          */
         currentSensitivityLevel: number;
 
@@ -192,14 +192,14 @@ export declare namespace BooleanStateConfiguration {
          * highest sensitivity level. The number of supported sensitivity levels SHOULD represent unique sensitivity
          * levels supported by the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.2
          */
         supportedSensitivityLevels: number;
 
         /**
          * Indicates the default sensitivity level selected by the manufacturer.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.3
          */
         defaultSensitivityLevel: number;
 
@@ -216,7 +216,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Active
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.4
          */
         alarmsActive: AlarmMode;
 
@@ -229,7 +229,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Supported
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.7
          */
         alarmsSupported: AlarmMode;
 
@@ -244,7 +244,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Enabled
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.6
          */
         alarmsEnabled: AlarmMode;
 
@@ -261,7 +261,7 @@ export declare namespace BooleanStateConfiguration {
          *
          *   - 1 = Suppressed
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.6.5
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.6.5
          */
         alarmsSuppressed: AlarmMode;
     }
@@ -273,7 +273,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This command allows setting the enable or disable value for the specified alarm modes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.7.2
          */
         enableDisableAlarm(request: EnableDisableAlarmRequest): MaybePromise;
     }
@@ -285,7 +285,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This command will suppress the alarm modes specified.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.7.1
          */
         suppressAlarm(request: SuppressAlarmRequest): MaybePromise;
     }
@@ -305,7 +305,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This event shall be generated when the device registers or clears a fault.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.2
          */
         sensorFault?: SensorFaultEvent;
     }
@@ -323,7 +323,7 @@ export declare namespace BooleanStateConfiguration {
          * If several alarm modes change state at the same time, a single event combining multiple changes may be
          * emitted instead of multiple events each representing a single change.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.1
          */
         alarmsStateChanged: AlarmsStateChangedEvent;
     }
@@ -335,7 +335,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This event shall be generated when the device registers or clears a fault.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.2
          */
         sensorFault: SensorFaultEvent;
     }
@@ -350,7 +350,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This event shall be generated when the device registers or clears a fault.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.2
          */
         sensorFault: SensorFaultEvent;
 
@@ -363,7 +363,7 @@ export declare namespace BooleanStateConfiguration {
          * If several alarm modes change state at the same time, a single event combining multiple changes may be
          * emitted instead of multiple events each representing a single change.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.1
          */
         alarmsStateChanged: AlarmsStateChangedEvent;
     }
@@ -395,7 +395,7 @@ export declare namespace BooleanStateConfiguration {
     /**
      * These are optional features supported by BooleanStateConfigurationCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.4
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.4
      */
     export enum Feature {
         /**
@@ -432,7 +432,7 @@ export declare namespace BooleanStateConfiguration {
          * is intended to stop the physical alarming, e.g. emitting a sound or blinking a light; it does not impact
          * alarm reporting in AlarmsActive.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.4.1
          */
         AlarmSuppress = "AlarmSuppress",
 
@@ -449,13 +449,13 @@ export declare namespace BooleanStateConfiguration {
          * This feature shall indicate that the device supports reporting sensor faults. When this feature is supported,
          * there shall be at least one cause of internal failure that will generate the SensorFault.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.4.2
          */
         FaultEvents = "FaultEvents"
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.5.2
      */
     export class SensorFault {
         constructor(values?: Partial<SensorFault> | number);
@@ -467,7 +467,7 @@ export declare namespace BooleanStateConfiguration {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.5.1
      */
     export class AlarmMode {
         constructor(values?: Partial<AlarmMode> | number);
@@ -486,7 +486,7 @@ export declare namespace BooleanStateConfiguration {
     /**
      * This command allows setting the enable or disable value for the specified alarm modes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.7.2
      */
     export class EnableDisableAlarmRequest {
         constructor(values?: Partial<EnableDisableAlarmRequest>);
@@ -495,7 +495,7 @@ export declare namespace BooleanStateConfiguration {
          * This field shall indicate the alarm modes to either enable or disable depending on the bit status, as
          * specified for the AlarmsEnabled attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.7.2.1
          */
         alarmsToEnableDisable: AlarmMode;
     }
@@ -503,7 +503,7 @@ export declare namespace BooleanStateConfiguration {
     /**
      * This command will suppress the alarm modes specified.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.7.1
      */
     export class SuppressAlarmRequest {
         constructor(values?: Partial<SuppressAlarmRequest>);
@@ -511,7 +511,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This field shall indicate the alarm modes to suppress.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.7.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.7.1.1
          */
         alarmsToSuppress: AlarmMode;
     }
@@ -519,7 +519,7 @@ export declare namespace BooleanStateConfiguration {
     /**
      * This event shall be generated when the device registers or clears a fault.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.2
      */
     export class SensorFaultEvent {
         constructor(values?: Partial<SensorFaultEvent>);
@@ -527,7 +527,7 @@ export declare namespace BooleanStateConfiguration {
         /**
          * This field shall indicate the value of the SensorFault attribute, at the time this event is generated.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.2.1
          */
         sensorFault: SensorFault;
     }
@@ -541,7 +541,7 @@ export declare namespace BooleanStateConfiguration {
      * If several alarm modes change state at the same time, a single event combining multiple changes may be emitted
      * instead of multiple events each representing a single change.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.1
      */
     export class AlarmsStateChangedEvent {
         constructor(values?: Partial<AlarmsStateChangedEvent>);
@@ -550,7 +550,7 @@ export declare namespace BooleanStateConfiguration {
          * This field shall indicate the state of active alarm modes, as indicated by the AlarmsActive attribute, at the
          * time the event was generated.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.1.1
          */
         alarmsActive: AlarmMode;
 
@@ -558,7 +558,7 @@ export declare namespace BooleanStateConfiguration {
          * This field shall indicate the state of suppressed alarm modes, as indicated by the AlarmsSuppressed
          * attribute, at the time the event was generated.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.8.8.1.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.8.8.1.2
          */
         alarmsSuppressed?: AlarmMode;
     }

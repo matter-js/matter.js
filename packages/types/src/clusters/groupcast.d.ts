@@ -37,7 +37,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  *
  * > NOTE: Support for Groupcast cluster is provisional.
  *
- * @see {@link MatterSpecification.v151.Core} § 11.27
+ * @see {@link MatterSpecification.v16.Core} § 11.27
  */
 export declare namespace Groupcast {
     /**
@@ -51,7 +51,7 @@ export declare namespace Groupcast {
     export const name: "Groupcast";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -103,7 +103,7 @@ export declare namespace Groupcast {
          *
          * The following examples would be ILLEGAL:
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.1
          */
         membership: Membership[];
 
@@ -113,7 +113,7 @@ export declare namespace Groupcast {
          * This attribute does not specify the maximum number of list entries in the Membership attribute list, but
          * rather the maximum number of different GroupID values which can appear across all entries of the list.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.2
          */
         maxMembershipCount: number;
 
@@ -125,7 +125,7 @@ export declare namespace Groupcast {
          * value may be less than MaxMembershipCount. When the PerGroup feature is supported, the value of this
          * attribute shall be at least 4.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.3
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.3
          */
         maxMcastAddrCount: number;
 
@@ -135,7 +135,7 @@ export declare namespace Groupcast {
          * IanaAddr policy. This count shall include one unique multicast address for each group configured to use the
          * PerGroup policy. The value of this attribute shall NOT exceed MaxMcastAddrCount.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.4
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.4
          */
         usedMcastAddrCount: number;
 
@@ -151,7 +151,7 @@ export declare namespace Groupcast {
          *
          * This attribute shall be set to zero when the server initializes.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.5
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.5
          */
         fabricUnderTest: FabricIndex;
     }
@@ -200,7 +200,7 @@ export declare namespace Groupcast {
          *
          * The following examples would be ILLEGAL:
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.1
          */
         membership: Membership[];
 
@@ -210,7 +210,7 @@ export declare namespace Groupcast {
          * This attribute does not specify the maximum number of list entries in the Membership attribute list, but
          * rather the maximum number of different GroupID values which can appear across all entries of the list.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.2
          */
         maxMembershipCount: number;
 
@@ -222,7 +222,7 @@ export declare namespace Groupcast {
          * value may be less than MaxMembershipCount. When the PerGroup feature is supported, the value of this
          * attribute shall be at least 4.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.3
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.3
          */
         maxMcastAddrCount: number;
 
@@ -232,7 +232,7 @@ export declare namespace Groupcast {
          * IanaAddr policy. This count shall include one unique multicast address for each group configured to use the
          * PerGroup policy. The value of this attribute shall NOT exceed MaxMcastAddrCount.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.4
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.4
          */
         usedMcastAddrCount: number;
 
@@ -248,7 +248,7 @@ export declare namespace Groupcast {
          *
          * This attribute shall be set to zero when the server initializes.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.6.5
+         * @see {@link MatterSpecification.v16.Core} § 11.27.6.5
          */
         fabricUnderTest: FabricIndex;
     }
@@ -267,7 +267,7 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1
          */
         joinGroup(request: JoinGroupRequest): MaybePromise;
 
@@ -277,7 +277,7 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.2
          */
         leaveGroup(request: LeaveGroupRequest): MaybePromise<LeaveGroupResponse>;
 
@@ -288,7 +288,7 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.4
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.4
          */
         updateGroupKey(request: UpdateGroupKeyRequest): MaybePromise;
 
@@ -298,7 +298,7 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.6
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.6
          */
         groupcastTesting(request: GroupcastTestingRequest): MaybePromise;
     }
@@ -313,7 +313,7 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.5
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.5
          */
         configureAuxiliaryAcl(request: ConfigureAuxiliaryAclRequest): MaybePromise;
     }
@@ -337,7 +337,7 @@ export declare namespace Groupcast {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1
          */
         groupcastTesting: GroupcastTestingEvent;
     }
@@ -356,7 +356,7 @@ export declare namespace Groupcast {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1
          */
         groupcastTesting: GroupcastTestingEvent;
     }
@@ -370,7 +370,7 @@ export declare namespace Groupcast {
     /**
      * These are optional features supported by GroupcastCluster.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.4
+     * @see {@link MatterSpecification.v16.Core} § 11.27.4
      */
     export enum Feature {
         /**
@@ -379,7 +379,7 @@ export declare namespace Groupcast {
          * This feature indicates that the device can join one or more Groupcast groups and receive multicast messages
          * targeted to those groups.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.4.1
          */
         Listener = "Listener",
 
@@ -390,7 +390,7 @@ export declare namespace Groupcast {
          * which it belongs. Being a sender does not imply the ability to listen to messages sent to those multicast
          * addresses.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.4.2
          */
         Sender = "Sender",
 
@@ -403,7 +403,7 @@ export declare namespace Groupcast {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.27.5.4
+     * @see {@link MatterSpecification.v16.Core} § 11.27.5.4
      */
     export class Membership {
         constructor(values?: Partial<Membership>);
@@ -412,7 +412,7 @@ export declare namespace Groupcast {
          * This field shall indicate an identifier for the multicast group within the fabric. Group Identifier is a
          * 16-bit value that shall be assigned by the administrator when the group is created.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.4.1
          */
         groupId: GroupId;
 
@@ -428,7 +428,7 @@ export declare namespace Groupcast {
          * FeatureMap bits both set, the empty or missing list indicates that the group is joined for sending, but since
          * there are not endpoints available in the group membership, no group messages will be possible to receive.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.4.2
          */
         endpoints?: EndpointNumber[];
 
@@ -441,7 +441,7 @@ export declare namespace Groupcast {
          * operational key for their group. If not, the administrator may update the GroupKey using the UpdateGroupKey
          * command to recover communication.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.4.3
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.4.3
          */
         keySetId: number;
 
@@ -452,14 +452,14 @@ export declare namespace Groupcast {
          *
          * See also the ConfigureAuxiliaryACL command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.4.4
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.4.4
          */
         hasAuxiliaryAcl?: boolean;
 
         /**
          * This field shall indicate how the IPv6 Multicast Address shall be constructed for this group.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.4.5
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.4.5
          */
         mcastAddrPolicy: MulticastAddrPolicy;
 
@@ -476,7 +476,7 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.7.1
+     * @see {@link MatterSpecification.v16.Core} § 11.27.7.1
      */
     export class JoinGroupRequest {
         constructor(values?: Partial<JoinGroupRequest>);
@@ -484,7 +484,7 @@ export declare namespace Groupcast {
         /**
          * This field shall indicate the destination group to which the server is to be added.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.1
          */
         groupId: GroupId;
 
@@ -494,7 +494,7 @@ export declare namespace Groupcast {
          * endpoint and up to 20 endpoints. The RootEndpoint (Endpoint 0) shall never be included in the Endpoints list
          * as groupcast commands shall not interact with clusters on the RootEndpoint.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.2
          */
         endpoints: EndpointNumber[];
 
@@ -514,7 +514,7 @@ export declare namespace Groupcast {
          *
          *     > NOTE: This field represents maps to the GroupKeySetID as defined in the Group Key Management cluster.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.3
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.3
          */
         keySetId: number;
 
@@ -543,7 +543,7 @@ export declare namespace Groupcast {
          *     the group; however, the InputKey itself shall NOT be stored. This field may be omitted to join endpoints
          *     to an existing GroupID or to associate the group to a different, pre-existing KeySetID.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.4
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.4
          */
         key?: Bytes;
 
@@ -554,7 +554,7 @@ export declare namespace Groupcast {
          * shall be removed. If this field is omitted, there shall NOT be any change. See the Effect on Receipt section
          * of this command for more detail.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.5
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.5
          */
         useAuxiliaryAcl?: boolean;
 
@@ -563,7 +563,7 @@ export declare namespace Groupcast {
          * field, or whether those endpoints are added to the existing membership. See Section 11.27.7.1.7, "Effect on
          * Receipt".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.6
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.6
          */
         replaceEndpoints?: boolean;
 
@@ -571,7 +571,7 @@ export declare namespace Groupcast {
          * This field shall indicate the IPv6 Multicast Address that shall be used by the group. If omitted, the group
          * shall use the IANA-assigned Multicast Address.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.1.8
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.1.8
          */
         mcastAddrPolicy?: MulticastAddrPolicy;
     }
@@ -582,7 +582,7 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.7.2
+     * @see {@link MatterSpecification.v16.Core} § 11.27.7.2
      */
     export class LeaveGroupRequest {
         constructor(values?: Partial<LeaveGroupRequest>);
@@ -591,7 +591,7 @@ export declare namespace Groupcast {
          * This field shall indicate the group affected by this command. The unspecified GroupID 0 shall indicate that
          * all groups on the node for this fabric are affected by the command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.2.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.2.1
          */
         groupId: GroupId;
 
@@ -600,7 +600,7 @@ export declare namespace Groupcast {
          * 4. Omitting this field indicates that the server shall remove itself completely from the group identified by
          * the GroupID field. See 5.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.2.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.2.2
          */
         endpoints?: EndpointNumber[];
     }
@@ -610,7 +610,7 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.7.3
+     * @see {@link MatterSpecification.v16.Core} § 11.27.7.3
      */
     export class LeaveGroupResponse {
         constructor(values?: Partial<LeaveGroupResponse>);
@@ -619,7 +619,7 @@ export declare namespace Groupcast {
          * This field shall indicate the group affected by the LeaveGroup command. The value of this field shall be the
          * same value as the GroupID field in the LeaveGroup command triggering the response.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.3.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.3.1
          */
         groupId: GroupId;
 
@@ -632,7 +632,7 @@ export declare namespace Groupcast {
          * the maximum constraint. The GroupID field is 0, indicating multiple groups were affected, resulting in
          * ambiguous Endpoints list content.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.3.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.3.2
          */
         endpoints: EndpointNumber[];
     }
@@ -644,7 +644,7 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.7.4
+     * @see {@link MatterSpecification.v16.Core} § 11.27.7.4
      */
     export class UpdateGroupKeyRequest {
         constructor(values?: Partial<UpdateGroupKeyRequest>);
@@ -652,7 +652,7 @@ export declare namespace Groupcast {
         /**
          * This field shall indicate the destination group for which the operational key is being updated.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.4.1
          */
         groupId: GroupId;
 
@@ -668,7 +668,7 @@ export declare namespace Groupcast {
          *
          *   - Key creation count
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.4.2
          */
         keySetId: number;
 
@@ -677,7 +677,7 @@ export declare namespace Groupcast {
          * GroupID (per Operational Group Key Derivation). The derived OperationalGroupKey shall be persistently stored
          * for the lifetime of the group; however, the InputKey itself shall NOT be stored.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.4.3
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.4.3
          */
         key?: Bytes;
     }
@@ -688,7 +688,7 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.7.6
+     * @see {@link MatterSpecification.v16.Core} § 11.27.7.6
      */
     export class GroupcastTestingRequest {
         constructor(values?: Partial<GroupcastTestingRequest>);
@@ -696,7 +696,7 @@ export declare namespace Groupcast {
         /**
          * This field shall identify the type of TestOperation to execute. See Effect on Receipt.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.6.1
          */
         testOperation: GroupcastTesting;
 
@@ -706,7 +706,7 @@ export declare namespace Groupcast {
          *
          * This field is ignored when the TestOperation field has a value of DisableTesting.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.6.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.6.2
          */
         durationSeconds?: number;
     }
@@ -717,7 +717,7 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.7.5
+     * @see {@link MatterSpecification.v16.Core} § 11.27.7.5
      */
     export class ConfigureAuxiliaryAclRequest {
         constructor(values?: Partial<ConfigureAuxiliaryAclRequest>);
@@ -725,7 +725,7 @@ export declare namespace Groupcast {
         /**
          * This field shall indicate the group for which Auxiliary ACL entry generation state will be enabled/disabled.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.5.1
          */
         groupId: GroupId;
 
@@ -736,7 +736,7 @@ export declare namespace Groupcast {
          * referring to each endpoint in the group identified by the given GroupID. Otherwise, if the field is set to
          * false, all previously auto-generated AuxiliaryACL entries for the endpoints in this group shall be removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.7.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.7.5.2
          */
         useAuxiliaryAcl: boolean;
     }
@@ -748,7 +748,7 @@ export declare namespace Groupcast {
      *
      * This event shall contain the following fields:
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.8.1
+     * @see {@link MatterSpecification.v16.Core} § 11.27.8.1
      */
     export class GroupcastTestingEvent {
         constructor(values?: Partial<GroupcastTestingEvent>);
@@ -757,7 +757,7 @@ export declare namespace Groupcast {
          * This field, if present, shall be set to the source IPv6 address obtained from the UDP datagram of the
          * groupcast message.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.1
          */
         sourceIpAddress?: Bytes;
 
@@ -765,7 +765,7 @@ export declare namespace Groupcast {
          * This field, if present, shall be set to the destination IPv6 group address obtained from the UDP datagram of
          * a groupcast message.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.2
          */
         destinationIpAddress?: Bytes;
 
@@ -774,21 +774,21 @@ export declare namespace Groupcast {
          * the initial Group ID that led to InvokeRequest processing, the Group ID from the request, or the Group ID
          * used for message transmission.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.3
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.3
          */
         groupId?: GroupId;
 
         /**
          * This field, if present, shall be set to the concrete path's endpoint ID derived from the processed request.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.4
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.4
          */
         endpointId?: EndpointNumber;
 
         /**
          * This field, if present, shall be set to the concrete path's cluster ID derived from the processed request.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.5
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.5
          */
         clusterId?: ClusterId;
 
@@ -796,7 +796,7 @@ export declare namespace Groupcast {
          * This field, if present, shall be set to the concrete path's element ID (Command ID or Attribute ID) derived
          * from the processed request.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.6
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.6
          */
         elementId?: number;
 
@@ -804,7 +804,7 @@ export declare namespace Groupcast {
          * This field, if present, shall indicate whether the Groupcast sender was allowed to invoke the command by
          * Access Control, in this Node. The value shall be set to true if the request was allowed, and false otherwise.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.7
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.7
          */
         accessAllowed?: boolean;
 
@@ -812,7 +812,7 @@ export declare namespace Groupcast {
          * This field shall indicate the outcome of the groupcast operation or the specific error encountered. The value
          * shall be one of the values defined in GroupcastTestResultEnum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.8.1.8
+         * @see {@link MatterSpecification.v16.Core} § 11.27.8.1.8
          */
         groupcastTestResult: GroupcastTestResult;
 
@@ -820,7 +820,7 @@ export declare namespace Groupcast {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.27.5.1
+     * @see {@link MatterSpecification.v16.Core} § 11.27.5.1
      */
     export enum MulticastAddrPolicy {
         /**
@@ -835,7 +835,7 @@ export declare namespace Groupcast {
          * limits, such as the maximum number of MPL registrations a Border Router can support, a controller SHOULD
          * default to configure all groups to use the AllNodes address.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.1.1
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.1.1
          */
         IanaAddr = 0,
 
@@ -852,7 +852,7 @@ export declare namespace Groupcast {
          * version 2 or earlier of this cluster. Controllers SHOULD limit the number of groups that use this policy
          * within a network environment to account for infrastructure limits mentioned above.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.27.5.1.2
+         * @see {@link MatterSpecification.v16.Core} § 11.27.5.1.2
          */
         PerGroup = 1
     }
@@ -860,7 +860,7 @@ export declare namespace Groupcast {
     /**
      * See the GroupcastTesting command for a description of these operations.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.27.5.2
+     * @see {@link MatterSpecification.v16.Core} § 11.27.5.2
      */
     export enum GroupcastTesting {
         /**
@@ -880,7 +880,7 @@ export declare namespace Groupcast {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.27.5.3
+     * @see {@link MatterSpecification.v16.Core} § 11.27.5.3
      */
     export enum GroupcastTestResult {
         /**

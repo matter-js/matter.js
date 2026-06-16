@@ -15,7 +15,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace are intended to be used to identify sounds or audio context by some detection or
  * sensing implementation.
  *
- * @see {@link MatterSpecification.v151.Namespace} § 27
+ * @see {@link MatterSpecification.v16.Namespace} § 27
  */
 export const IdentifiedSoundTag = SemanticNamespace({
     id: 0x4a,

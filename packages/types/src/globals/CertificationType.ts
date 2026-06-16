@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v151.Core} § 11.23.5.9.1
+ * @see {@link MatterSpecification.v16.Core} § 11.23.5.9.1
  */
 export enum CertificationType {
     /**

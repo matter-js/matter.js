@@ -31,7 +31,7 @@ import { Identity } from "@matter/general";
 /**
  * A Pump Controller device is capable of configuring and controlling a Pump device.
  *
- * @see {@link MatterSpecification.v151.Device} § 6.5
+ * @see {@link MatterSpecification.v16.Device} § 6.5
  */
 export interface PumpControllerDevice extends Identity<typeof PumpControllerDeviceDefinition> {}
 

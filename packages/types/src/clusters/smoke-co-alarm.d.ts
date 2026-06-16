@@ -16,7 +16,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * This cluster provides an interface for observing and managing the state of smoke and CO alarms.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 2.11
+ * @see {@link MatterSpecification.v16.Cluster} § 2.11
  */
 export declare namespace SmokeCoAlarm {
     /**
@@ -30,7 +30,7 @@ export declare namespace SmokeCoAlarm {
     export const name: "SmokeCoAlarm";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 2;
 
@@ -57,7 +57,7 @@ export declare namespace SmokeCoAlarm {
          * Visible expression is typically a LED light pattern. Audible expression is a horn or speaker pattern. Audible
          * expression shall BE suppressed if the DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.1
          */
         expressedState: ExpressedState;
 
@@ -69,7 +69,7 @@ export declare namespace SmokeCoAlarm {
          *
          * If the sensor cannot operate in the set state, the ExpressedState attribute shall be set to Inoperative.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.4
          */
         batteryAlert: AlarmState;
 
@@ -77,7 +77,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates whether the device self-test is currently activated. If the device self-test is activated, this
          * attribute shall be set to True, otherwise it shall be set to False.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.6
          */
         testInProgress: boolean;
 
@@ -88,7 +88,7 @@ export declare namespace SmokeCoAlarm {
          * When this attribute is set to True, and the sensor cannot operate in this state, the ExpressedState attribute
          * shall be set to Inoperative.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.7
          */
         hardwareFaultAlert: boolean;
 
@@ -96,7 +96,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates whether the end-of-service has been triggered at the device. This attribute shall be set to Expired
          * when the device reaches the end-of-service.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.8
          */
         endOfServiceAlert: EndOfService;
 
@@ -104,7 +104,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates the whether the audible expression of the device is currently muted. Audible expression is
          * typically a horn or speaker pattern.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.5
          */
         deviceMuted?: MuteState;
 
@@ -113,7 +113,7 @@ export declare namespace SmokeCoAlarm {
          * interconnected smoke alarm is being triggered, this attribute shall be set to Warning or Critical, otherwise
          * it shall be set to Normal.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.9
          */
         interconnectSmokeAlarm?: AlarmState;
 
@@ -122,7 +122,7 @@ export declare namespace SmokeCoAlarm {
          * interconnected CO alarm is being triggered, this attribute shall be set to Warning or Critical, otherwise it
          * shall be set to Normal.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.10
          */
         interconnectCoAlarm?: AlarmState;
 
@@ -132,12 +132,12 @@ export declare namespace SmokeCoAlarm {
          * the EndOfServiceAlert may be delayed by up to 24 hours after the ExpiryDate. Similarly, clients may delay any
          * actions based on the ExpiryDate by up to 24 hours to best align with the local time zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.13
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.13
          */
         expiryDate?: number;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6
          */
         unmounted?: boolean;
     }
@@ -149,21 +149,21 @@ export declare namespace SmokeCoAlarm {
         /**
          * Indicates whether the device's smoke sensor is currently triggering a smoke alarm.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.2
          */
         smokeState: AlarmState;
 
         /**
          * Indicates the contamination level of the smoke sensor.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.11
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.11
          */
         contaminationState?: ContaminationState;
 
         /**
          * Indicates the sensitivity level of the smoke sensor configured on the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.12
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.12
          */
         smokeSensitivityLevel?: Sensitivity;
     }
@@ -175,7 +175,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * Indicates whether the device's CO sensor is currently triggering a CO alarm.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.3
          */
         coState: AlarmState;
     }
@@ -199,7 +199,7 @@ export declare namespace SmokeCoAlarm {
          * Visible expression is typically a LED light pattern. Audible expression is a horn or speaker pattern. Audible
          * expression shall BE suppressed if the DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.1
          */
         expressedState: ExpressedState;
 
@@ -211,7 +211,7 @@ export declare namespace SmokeCoAlarm {
          *
          * If the sensor cannot operate in the set state, the ExpressedState attribute shall be set to Inoperative.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.4
          */
         batteryAlert: AlarmState;
 
@@ -219,7 +219,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates whether the device self-test is currently activated. If the device self-test is activated, this
          * attribute shall be set to True, otherwise it shall be set to False.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.6
          */
         testInProgress: boolean;
 
@@ -230,7 +230,7 @@ export declare namespace SmokeCoAlarm {
          * When this attribute is set to True, and the sensor cannot operate in this state, the ExpressedState attribute
          * shall be set to Inoperative.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.7
          */
         hardwareFaultAlert: boolean;
 
@@ -238,7 +238,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates whether the end-of-service has been triggered at the device. This attribute shall be set to Expired
          * when the device reaches the end-of-service.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.8
          */
         endOfServiceAlert: EndOfService;
 
@@ -246,7 +246,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates the whether the audible expression of the device is currently muted. Audible expression is
          * typically a horn or speaker pattern.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.5
          */
         deviceMuted: MuteState;
 
@@ -255,7 +255,7 @@ export declare namespace SmokeCoAlarm {
          * interconnected smoke alarm is being triggered, this attribute shall be set to Warning or Critical, otherwise
          * it shall be set to Normal.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.9
          */
         interconnectSmokeAlarm: AlarmState;
 
@@ -264,7 +264,7 @@ export declare namespace SmokeCoAlarm {
          * interconnected CO alarm is being triggered, this attribute shall be set to Warning or Critical, otherwise it
          * shall be set to Normal.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.10
          */
         interconnectCoAlarm: AlarmState;
 
@@ -274,40 +274,40 @@ export declare namespace SmokeCoAlarm {
          * the EndOfServiceAlert may be delayed by up to 24 hours after the ExpiryDate. Similarly, clients may delay any
          * actions based on the ExpiryDate by up to 24 hours to best align with the local time zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.13
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.13
          */
         expiryDate: number;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6
          */
         unmounted: boolean;
 
         /**
          * Indicates whether the device's smoke sensor is currently triggering a smoke alarm.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.2
          */
         smokeState: AlarmState;
 
         /**
          * Indicates the contamination level of the smoke sensor.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.11
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.11
          */
         contaminationState: ContaminationState;
 
         /**
          * Indicates the sensitivity level of the smoke sensor configured on the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.12
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.12
          */
         smokeSensitivityLevel: Sensitivity;
 
         /**
          * Indicates whether the device's CO sensor is currently triggering a CO alarm.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.6.3
          */
         coState: AlarmState;
     }
@@ -328,7 +328,7 @@ export declare namespace SmokeCoAlarm {
          * shall be generated, the TestInProgress attribute shall be set to False and ExpressedState attribute shall be
          * updated to reflect the current state of the server.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.7.1
          */
         selfTestRequest(): MaybePromise;
     }
@@ -345,7 +345,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This event shall be generated when BatteryAlert attribute changes to either Warning or Critical state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.3
          */
         lowBattery: LowBatteryEvent;
 
@@ -353,42 +353,42 @@ export declare namespace SmokeCoAlarm {
          * This event shall be generated when the device detects a hardware fault that leads to setting
          * HardwareFaultAlert to True.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.4
          */
         hardwareFault: void;
 
         /**
          * This event shall be generated when the EndOfServiceAlert is set to Expired.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.5
          */
         endOfService: void;
 
         /**
          * This event shall be generated when the SelfTest completes, and the attribute TestInProgress changes to False.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.6
          */
         selfTestComplete: void;
 
         /**
          * This event shall be generated when ExpressedState attribute returns to Normal state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.11
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.11
          */
         allClear: void;
 
         /**
          * This event shall be generated when the DeviceMuted attribute changes to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.7
          */
         alarmMuted?: void;
 
         /**
          * This event shall be generated when DeviceMuted attribute changes to NotMuted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.8
          */
         muteEnded?: void;
     }
@@ -400,7 +400,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This event shall be generated when SmokeState attribute changes to either Warning or Critical state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.1
          */
         smokeAlarm: SmokeAlarmEvent;
 
@@ -408,7 +408,7 @@ export declare namespace SmokeCoAlarm {
          * This event shall be generated when the device hosting the server receives a smoke alarm from an
          * interconnected sensor.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.9
          */
         interconnectSmokeAlarm?: InterconnectSmokeAlarmEvent;
     }
@@ -420,7 +420,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This event shall be generated when COState attribute changes to either Warning or Critical state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.2
          */
         coAlarm: CoAlarmEvent;
 
@@ -428,7 +428,7 @@ export declare namespace SmokeCoAlarm {
          * This event shall be generated when the device hosting the server receives a CO alarm from an interconnected
          * sensor.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.10
          */
         interconnectCoAlarm?: InterconnectCoAlarmEvent;
     }
@@ -443,7 +443,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This event shall be generated when BatteryAlert attribute changes to either Warning or Critical state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.3
          */
         lowBattery: LowBatteryEvent;
 
@@ -451,49 +451,49 @@ export declare namespace SmokeCoAlarm {
          * This event shall be generated when the device detects a hardware fault that leads to setting
          * HardwareFaultAlert to True.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.4
          */
         hardwareFault: void;
 
         /**
          * This event shall be generated when the EndOfServiceAlert is set to Expired.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.5
          */
         endOfService: void;
 
         /**
          * This event shall be generated when the SelfTest completes, and the attribute TestInProgress changes to False.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.6
          */
         selfTestComplete: void;
 
         /**
          * This event shall be generated when ExpressedState attribute returns to Normal state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.11
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.11
          */
         allClear: void;
 
         /**
          * This event shall be generated when the DeviceMuted attribute changes to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.7
          */
         alarmMuted: void;
 
         /**
          * This event shall be generated when DeviceMuted attribute changes to NotMuted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.8
          */
         muteEnded: void;
 
         /**
          * This event shall be generated when SmokeState attribute changes to either Warning or Critical state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.1
          */
         smokeAlarm: SmokeAlarmEvent;
 
@@ -501,14 +501,14 @@ export declare namespace SmokeCoAlarm {
          * This event shall be generated when the device hosting the server receives a smoke alarm from an
          * interconnected sensor.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.9
          */
         interconnectSmokeAlarm: InterconnectSmokeAlarmEvent;
 
         /**
          * This event shall be generated when COState attribute changes to either Warning or Critical state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.2
          */
         coAlarm: CoAlarmEvent;
 
@@ -516,7 +516,7 @@ export declare namespace SmokeCoAlarm {
          * This event shall be generated when the device hosting the server receives a CO alarm from an interconnected
          * sensor.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.10
          */
         interconnectCoAlarm: InterconnectCoAlarmEvent;
     }
@@ -531,7 +531,7 @@ export declare namespace SmokeCoAlarm {
     /**
      * These are optional features supported by SmokeCoAlarmCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.4
      */
     export enum Feature {
         /**
@@ -550,7 +550,7 @@ export declare namespace SmokeCoAlarm {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3
      */
     export enum ExpressedState {
         /**
@@ -558,7 +558,7 @@ export declare namespace SmokeCoAlarm {
          *
          * This value shall indicate that this alarm is not alarming.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.1
          */
         Normal = 0,
 
@@ -569,7 +569,7 @@ export declare namespace SmokeCoAlarm {
          * value shall indicate that the alarm is currently expressing audible indication of Smoke Alarm unless the
          * DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.2
          */
         SmokeAlarm = 1,
 
@@ -580,7 +580,7 @@ export declare namespace SmokeCoAlarm {
          * shall indicate that the alarm is currently expressing audible indication of CO Alarm unless the DeviceMuted
          * attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.3
          */
         CoAlarm = 2,
 
@@ -591,7 +591,7 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that the alarm is currently expressing audible indication of Critical Low Battery
          * unless the DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.4
          */
         BatteryAlert = 3,
 
@@ -600,7 +600,7 @@ export declare namespace SmokeCoAlarm {
          *
          * This value shall indicate that this alarm is currently expressing visual and audible indication of SelfTest.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.5
          */
         Testing = 4,
 
@@ -611,7 +611,7 @@ export declare namespace SmokeCoAlarm {
          * value shall indicate that the alarm is currently expressing audible indication of Hardware Fault unless the
          * DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.6
          */
         HardwareFault = 5,
 
@@ -622,7 +622,7 @@ export declare namespace SmokeCoAlarm {
          * value shall indicate that the alarm is currently expressing audible indication of End of Service unless the
          * DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.7
          */
         EndOfService = 6,
 
@@ -633,7 +633,7 @@ export declare namespace SmokeCoAlarm {
          * Interconnect. This value shall indicate that the alarm is currently expressing audible indication of Smoke
          * Alarm caused by Interconnect unless the DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.8
          */
         InterconnectSmoke = 7,
 
@@ -644,7 +644,7 @@ export declare namespace SmokeCoAlarm {
          * Interconnect. This value shall indicate that the alarm is currently expressing audible indication of CO Alarm
          * caused by Interconnect unless the DeviceMuted attribute is supported and set to Muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.9
          */
         InterconnectCo = 8,
 
@@ -660,13 +660,13 @@ export declare namespace SmokeCoAlarm {
          *
          *   - the device being unmounted or physically disabled (Unmounted is true).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.3.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.3.10
          */
         Inoperative = 9
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.1
      */
     export enum AlarmState {
         /**
@@ -674,7 +674,7 @@ export declare namespace SmokeCoAlarm {
          *
          * This value shall indicate that this alarm is not alarming.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.1.1
          */
         Normal = 0,
 
@@ -684,7 +684,7 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that this alarm is in a warning state. Alarms in this state SHOULD be subject to
          * being muted via physical interaction.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.1.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.1.2
          */
         Warning = 1,
 
@@ -694,13 +694,13 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that this alarm is in a critical state. Alarms in this state shall NOT be subject
          * to being muted via physical interaction.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.1.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.1.3
          */
         Critical = 2
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.5
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.5
      */
     export enum EndOfService {
         /**
@@ -709,7 +709,7 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that the device has not yet reached its end of service, and does not need to be
          * imminently replaced.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.5.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.5.2
          */
         Normal = 0,
 
@@ -718,13 +718,13 @@ export declare namespace SmokeCoAlarm {
          *
          * This value shall indicate that the device has reached its end of service, and needs to be replaced.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.5.1
          */
         Expired = 1
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.4
      */
     export enum MuteState {
         /**
@@ -732,7 +732,7 @@ export declare namespace SmokeCoAlarm {
          *
          * This value shall indicate that the device is not muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.4.1
          */
         NotMuted = 0,
 
@@ -741,13 +741,13 @@ export declare namespace SmokeCoAlarm {
          *
          * This value shall indicate that the device is muted.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.4.2
          */
         Muted = 1
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.6
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.6
      */
     export enum ContaminationState {
         /**
@@ -756,7 +756,7 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that the smoke sensor has nominal contamination levels, no customer action is
          * required.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.6.1
          */
         Normal = 0,
 
@@ -766,7 +766,7 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that the smoke sensor has detectable contamination levels, but the contamination is
          * too low to cause a visible or audible alarm.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.6.2
          */
         Low = 1,
 
@@ -776,7 +776,7 @@ export declare namespace SmokeCoAlarm {
          * This value shall indicate that the smoke sensor has contamination levels in a warning state. At this level,
          * the contamination may cause a visible or audible alarm. User intervention is suggested.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.6.3
          */
         Warning = 2,
 
@@ -787,13 +787,13 @@ export declare namespace SmokeCoAlarm {
          * the contamination should cause a visible or audible alarm. User intervention is required. Critical
          * contamination of the sensor shall also be reflected as a HardwareFault.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.6.4
          */
         Critical = 3
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.5.2
      */
     export enum Sensitivity {
         /**
@@ -815,7 +815,7 @@ export declare namespace SmokeCoAlarm {
     /**
      * This event shall be generated when BatteryAlert attribute changes to either Warning or Critical state.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.3
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.3
      */
     export class LowBatteryEvent {
         constructor(values?: Partial<LowBatteryEvent>);
@@ -823,7 +823,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This field shall indicate the current value of the BatteryAlert attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.3.1
          */
         alarmSeverityLevel: AlarmState;
     }
@@ -831,7 +831,7 @@ export declare namespace SmokeCoAlarm {
     /**
      * This event shall be generated when SmokeState attribute changes to either Warning or Critical state.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.1
      */
     export class SmokeAlarmEvent {
         constructor(values?: Partial<SmokeAlarmEvent>);
@@ -839,7 +839,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This field shall indicate the current value of the SmokeState attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.1.1
          */
         alarmSeverityLevel: AlarmState;
     }
@@ -848,7 +848,7 @@ export declare namespace SmokeCoAlarm {
      * This event shall be generated when the device hosting the server receives a smoke alarm from an interconnected
      * sensor.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.9
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.9
      */
     export class InterconnectSmokeAlarmEvent {
         constructor(values?: Partial<InterconnectSmokeAlarmEvent>);
@@ -856,7 +856,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This field shall indicate the current value of the InterconnectSmokeAlarm attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.9.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.9.1
          */
         alarmSeverityLevel: AlarmState;
     }
@@ -864,7 +864,7 @@ export declare namespace SmokeCoAlarm {
     /**
      * This event shall be generated when COState attribute changes to either Warning or Critical state.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.2
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.2
      */
     export class CoAlarmEvent {
         constructor(values?: Partial<CoAlarmEvent>);
@@ -872,7 +872,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This field shall indicate the current value of the COState attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.2.1
          */
         alarmSeverityLevel: AlarmState;
     }
@@ -881,7 +881,7 @@ export declare namespace SmokeCoAlarm {
      * This event shall be generated when the device hosting the server receives a CO alarm from an interconnected
      * sensor.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.10
+     * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.10
      */
     export class InterconnectCoAlarmEvent {
         constructor(values?: Partial<InterconnectCoAlarmEvent>);
@@ -889,7 +889,7 @@ export declare namespace SmokeCoAlarm {
         /**
          * This field shall indicate the current value of the InterconnectCOAlarm attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.11.8.10.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.11.8.10.1
          */
         alarmSeverityLevel: AlarmState;
     }

@@ -41,7 +41,7 @@ import { Identity } from "@matter/general";
  * ThermostatDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
  * features your device supports. You can add manually using ThermostatDevice.with().
  *
- * @see {@link MatterSpecification.v151.Device} § 9.1
+ * @see {@link MatterSpecification.v16.Device} § 9.1
  */
 export interface ThermostatDevice extends Identity<typeof ThermostatDeviceDefinition> {}
 

@@ -27,7 +27,7 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * The Access Control Cluster shall be present on the root node endpoint of each Node, and shall NOT be present on any
  * other Endpoint of any Node.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.10
+ * @see {@link MatterSpecification.v16.Core} § 9.10
  */
 export declare namespace AccessControl {
     /**
@@ -41,7 +41,7 @@ export declare namespace AccessControl {
     export const name: "AccessControl";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 3;
 
@@ -70,7 +70,7 @@ export declare namespace AccessControl {
          *
          * Every AccessControlEntryStruct in the ACL attribute shall NOT include the AuxiliaryType field.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.3
          */
         acl: AccessControlEntry[];
 
@@ -82,7 +82,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.5
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.5
          */
         subjectsPerAccessControlEntry: number;
 
@@ -94,7 +94,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.6
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.6
          */
         targetsPerAccessControlEntry: number;
 
@@ -106,7 +106,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.7
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.7
          */
         accessControlEntriesPerFabric: number;
     }
@@ -121,7 +121,7 @@ export declare namespace AccessControl {
          *
          * The Access Control Extension list shall support a single extension entry per supported fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.4
          */
         extension: AccessControlExtension[];
     }
@@ -145,7 +145,7 @@ export declare namespace AccessControl {
          * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.8
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.8
          */
         commissioningArl: CommissioningAccessRestrictionEntry[];
 
@@ -168,7 +168,7 @@ export declare namespace AccessControl {
          * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.9
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.9
          */
         arl: AccessRestrictionEntry[];
     }
@@ -205,7 +205,7 @@ export declare namespace AccessControl {
          * Each feature which would cause entries to appear in this attribute shall individually specify the format of
          * entries that are auto-generated, and under which circumstances they are generated.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.10
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.10
          */
         auxiliaryAcl: AccessControlEntry[];
     }
@@ -231,7 +231,7 @@ export declare namespace AccessControl {
          *
          * Every AccessControlEntryStruct in the ACL attribute shall NOT include the AuxiliaryType field.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.3
          */
         acl: AccessControlEntry[];
 
@@ -243,7 +243,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.5
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.5
          */
         subjectsPerAccessControlEntry: number;
 
@@ -255,7 +255,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.6
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.6
          */
         targetsPerAccessControlEntry: number;
 
@@ -267,7 +267,7 @@ export declare namespace AccessControl {
          * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
          * than the required minimum.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.7
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.7
          */
         accessControlEntriesPerFabric: number;
 
@@ -277,7 +277,7 @@ export declare namespace AccessControl {
          *
          * The Access Control Extension list shall support a single extension entry per supported fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.4
          */
         extension: AccessControlExtension[];
 
@@ -296,7 +296,7 @@ export declare namespace AccessControl {
          * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.8
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.8
          */
         commissioningArl: CommissioningAccessRestrictionEntry[];
 
@@ -319,7 +319,7 @@ export declare namespace AccessControl {
          * See Section 9.10.4.2.1, "Managed Device Feature Usage Restrictions" for limitations on the use of access
          * restrictions.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.9
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.9
          */
         arl: AccessRestrictionEntry[];
 
@@ -351,7 +351,7 @@ export declare namespace AccessControl {
          * Each feature which would cause entries to appear in this attribute shall individually specify the format of
          * entries that are auto-generated, and under which circumstances they are generated.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.6.10
+         * @see {@link MatterSpecification.v16.Core} § 9.10.6.10
          */
         auxiliaryAcl: AccessControlEntry[];
     }
@@ -384,7 +384,7 @@ export declare namespace AccessControl {
          *   order to gain enhanced access. For this reason the device SHOULD perform the Fabric Table Vendor ID
          *   Verification Procedure.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.8.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.8.1
          */
         reviewFabricRestrictions(request: ReviewFabricRestrictionsRequest): MaybePromise<ReviewFabricRestrictionsResponse>;
     }
@@ -408,7 +408,7 @@ export declare namespace AccessControl {
          *
          *   - Each removed entry shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.1
          */
         accessControlEntryChanged: AccessControlEntryChangedEvent;
     }
@@ -427,7 +427,7 @@ export declare namespace AccessControl {
          *
          *   - Each removed extension shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.2
          */
         accessControlExtensionChanged: AccessControlExtensionChangedEvent;
     }
@@ -442,7 +442,7 @@ export declare namespace AccessControl {
          * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client may
          * present to the user in order to help the user locate the user interface for the Managed Device feature.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.3
          */
         fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
     }
@@ -462,7 +462,7 @@ export declare namespace AccessControl {
          *
          * Leaving a Fabric shall NOT generate this event.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.4
          */
         auxiliaryAccessUpdated: AuxiliaryAccessUpdatedEvent;
     }
@@ -484,7 +484,7 @@ export declare namespace AccessControl {
          *
          *   - Each removed entry shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.1
          */
         accessControlEntryChanged: AccessControlEntryChangedEvent;
 
@@ -498,7 +498,7 @@ export declare namespace AccessControl {
          *
          *   - Each removed extension shall generate an event with ChangeType Removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.2
          */
         accessControlExtensionChanged: AccessControlExtensionChangedEvent;
 
@@ -508,7 +508,7 @@ export declare namespace AccessControl {
          * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client may
          * present to the user in order to help the user locate the user interface for the Managed Device feature.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.3
          */
         fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
 
@@ -523,7 +523,7 @@ export declare namespace AccessControl {
          *
          * Leaving a Fabric shall NOT generate this event.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.4
          */
         auxiliaryAccessUpdated: AuxiliaryAccessUpdatedEvent;
     }
@@ -547,7 +547,7 @@ export declare namespace AccessControl {
     /**
      * These are optional features supported by AccessControlCluster.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.4
+     * @see {@link MatterSpecification.v16.Core} § 9.10.4
      */
     export enum Feature {
         /**
@@ -555,7 +555,7 @@ export declare namespace AccessControl {
          *
          * This feature indicates the device supports ACL Extension attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.4.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.4.1
          */
         Extension = "Extension",
 
@@ -606,7 +606,7 @@ export declare namespace AccessControl {
          * See Section 6.6.2, "Access Control Model" for a description of how access control is impacted by the ARL
          * attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.4.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.4.2
          */
         ManagedDevice = "ManagedDevice",
 
@@ -618,13 +618,13 @@ export declare namespace AccessControl {
          * may lead, under some circumstances, to some access being granted via auxiliary means (not explicit ACL
          * attribute list writes) to some subjects by virtue of group membership. See the AuxiliaryACL attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.4.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.4.3
          */
         Auxiliary = "Auxiliary"
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.7
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.7
      */
     export class AccessControlEntry {
         constructor(values?: Partial<AccessControlEntry>);
@@ -670,14 +670,14 @@ export declare namespace AccessControl {
          *   particular device type; a client granted Operate privilege may still be able to perform configuration in
          *   Fan Control Clusters included in other device types on the same Node.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.7.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.7.1
          */
         privilege: AccessControlEntryPrivilege;
 
         /**
          * The AuthMode field shall specify the authentication mode required by this Access Control Entry.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.7.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.7.2
          */
         authMode: AccessControlEntryAuthMode;
 
@@ -691,7 +691,7 @@ export declare namespace AccessControl {
          *
          * Subject ID shall be of type uint64 with semantics depending on the entry's AuthMode as follows:
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.7.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.7.3
          */
         subjects: SubjectId[] | null;
 
@@ -709,7 +709,7 @@ export declare namespace AccessControl {
          *
          * A target grants access based on the presence of fields as follows:
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.7.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.7.4
          */
         targets: AccessControlTarget[] | null;
 
@@ -721,7 +721,7 @@ export declare namespace AccessControl {
          *
          * This field shall NOT be present in entries in the ACL attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.7.5
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.7.5
          */
         auxiliaryType?: AccessControlAuxiliaryType;
 
@@ -729,7 +729,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.8
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.8
      */
     export class AccessControlExtension {
         constructor(values?: Partial<AccessControlExtension>);
@@ -752,7 +752,7 @@ export declare namespace AccessControl {
          *   it. Such a canonical bytestream could be generated by encoding specific entry fields and sub-fields (such
          *   as lists) in specific order and specific format (e.g. TLV).
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.8.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.8.1
          */
         data: Bytes;
 
@@ -762,7 +762,7 @@ export declare namespace AccessControl {
     /**
      * This structure describes a current access restriction when there is no accessing fabric.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.11
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.11
      */
     export class CommissioningAccessRestrictionEntry {
         constructor(values?: Partial<CommissioningAccessRestrictionEntry>);
@@ -771,7 +771,7 @@ export declare namespace AccessControl {
          * This field shall indicate the endpoint having associated access restrictions scoped to the associated fabric
          * of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.11.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.11.1
          */
         endpoint: EndpointNumber;
 
@@ -779,7 +779,7 @@ export declare namespace AccessControl {
          * This field shall indicate the cluster having associated access restrictions under the entry's Endpoint,
          * scoped to the associated fabric of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.11.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.11.2
          */
         cluster: ClusterId;
 
@@ -789,7 +789,7 @@ export declare namespace AccessControl {
          *
          * This list shall NOT be empty.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.11.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.11.3
          */
         restrictions: AccessRestriction[];
     }
@@ -797,7 +797,7 @@ export declare namespace AccessControl {
     /**
      * This structure describes a current access restriction on the fabric.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.10
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.10
      */
     export class AccessRestrictionEntry {
         constructor(values?: Partial<AccessRestrictionEntry>);
@@ -806,7 +806,7 @@ export declare namespace AccessControl {
          * This field shall indicate the endpoint having associated access restrictions scoped to the associated fabric
          * of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.10.1
          */
         endpoint: EndpointNumber;
 
@@ -814,7 +814,7 @@ export declare namespace AccessControl {
          * This field shall indicate the cluster having associated access restrictions under the entry's Endpoint,
          * scoped to the associated fabric of the list containing the entry.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.10.2
          */
         cluster: ClusterId;
 
@@ -824,7 +824,7 @@ export declare namespace AccessControl {
          *
          * This list shall NOT be empty.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.10.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.10.3
          */
         restrictions: AccessRestriction[];
 
@@ -855,7 +855,7 @@ export declare namespace AccessControl {
      *   order to gain enhanced access. For this reason the device SHOULD perform the Fabric Table Vendor ID
      *   Verification Procedure.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.8.1
+     * @see {@link MatterSpecification.v16.Core} § 9.10.8.1
      */
     export class ReviewFabricRestrictionsRequest {
         constructor(values?: Partial<ReviewFabricRestrictionsRequest>);
@@ -864,7 +864,7 @@ export declare namespace AccessControl {
          * When the ARL field is provided, it indicates the specific restrictions that are requested for review. An
          * empty list represents a generic request for review of all restrictions.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.8.1.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.8.1.1
          */
         arl: CommissioningAccessRestrictionEntry[];
     }
@@ -873,7 +873,7 @@ export declare namespace AccessControl {
      * Returns the review token for the request, which can be used to correlate with a FabricRestrictionReviewUpdate
      * event.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.8.2
+     * @see {@link MatterSpecification.v16.Core} § 9.10.8.2
      */
     export class ReviewFabricRestrictionsResponse {
         constructor(values?: Partial<ReviewFabricRestrictionsResponse>);
@@ -882,7 +882,7 @@ export declare namespace AccessControl {
          * This field shall specify a Token that can be used to correlate a ReviewFabricRestrictionsResponse with a
          * FabricRestrictionReviewUpdate event.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.8.2.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.8.2.1
          */
         token: number | bigint;
     }
@@ -897,7 +897,7 @@ export declare namespace AccessControl {
      *
      *   - Each removed entry shall generate an event with ChangeType Removed.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.9.1
+     * @see {@link MatterSpecification.v16.Core} § 9.10.9.1
      */
     export class AccessControlEntryChangedEvent {
         constructor(values?: Partial<AccessControlEntryChangedEvent>);
@@ -908,7 +908,7 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.1.1
          */
         adminNodeId: NodeId | null;
 
@@ -919,14 +919,14 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.1.2
          */
         adminPasscodeId: number | null;
 
         /**
          * The type of change as appropriate.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.1.3
          */
         changeType: ChangeType;
 
@@ -936,7 +936,7 @@ export declare namespace AccessControl {
          * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
          * scarce.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.1.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.1.4
          */
         latestValue: AccessControlEntry | null;
 
@@ -953,7 +953,7 @@ export declare namespace AccessControl {
      *
      *   - Each removed extension shall generate an event with ChangeType Removed.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.9.2
+     * @see {@link MatterSpecification.v16.Core} § 9.10.9.2
      */
     export class AccessControlExtensionChangedEvent {
         constructor(values?: Partial<AccessControlExtensionChangedEvent>);
@@ -964,7 +964,7 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.2.1
          */
         adminNodeId: NodeId | null;
 
@@ -975,14 +975,14 @@ export declare namespace AccessControl {
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.2.2
          */
         adminPasscodeId: number | null;
 
         /**
          * The type of change as appropriate.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.2.3
          */
         changeType: ChangeType;
 
@@ -992,7 +992,7 @@ export declare namespace AccessControl {
          * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
          * scarce.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.2.4
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.2.4
          */
         latestValue: AccessControlExtension | null;
 
@@ -1005,7 +1005,7 @@ export declare namespace AccessControl {
      * ReviewFabricRestrictions command, this event may include additional steps that the client may present to the user
      * in order to help the user locate the user interface for the Managed Device feature.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.9.3
+     * @see {@link MatterSpecification.v16.Core} § 9.10.9.3
      */
     export class FabricRestrictionReviewUpdateEvent {
         constructor(values?: Partial<FabricRestrictionReviewUpdateEvent>);
@@ -1014,7 +1014,7 @@ export declare namespace AccessControl {
          * This field shall indicate the Token that can be used to correlate a ReviewFabricRestrictionsResponse with a
          * FabricRestrictionReviewUpdate event.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.3.1
          */
         token: number | bigint;
 
@@ -1028,7 +1028,7 @@ export declare namespace AccessControl {
          * Examples include "Please try again and immediately access device display for further instructions." or
          * "Please check email associated with your Acme account."
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.3.2
          */
         instruction?: string;
 
@@ -1077,7 +1077,7 @@ export declare namespace AccessControl {
          *     Administrator SHOULD provide details, such as the VID, to the user about the device sending the event so
          *     that the user can make an informed decision about whether to trust the URL.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.3.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.3.3
          */
         arlRequestFlowUrl?: string;
 
@@ -1095,7 +1095,7 @@ export declare namespace AccessControl {
      *
      * Leaving a Fabric shall NOT generate this event.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.9.4
+     * @see {@link MatterSpecification.v16.Core} § 9.10.9.4
      */
     export class AuxiliaryAccessUpdatedEvent {
         constructor(values?: Partial<AuxiliaryAccessUpdatedEvent>);
@@ -1105,7 +1105,7 @@ export declare namespace AccessControl {
          * changes to the AuxiliaryACL. If no information is available, such as when a change is internally initiated,
          * this field shall be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.9.4.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.9.4.1
          */
         adminNodeId: NodeId | null;
 
@@ -1113,7 +1113,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.1
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.1
      */
     export enum ChangeType {
         /**
@@ -1133,7 +1133,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.2
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.2
      */
     export enum AccessControlEntryPrivilege {
         /**
@@ -1151,7 +1151,7 @@ export declare namespace AccessControl {
          *
          * This value implicitly grants View privileges
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.2.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.2.1
          */
         Operate = 3,
 
@@ -1160,7 +1160,7 @@ export declare namespace AccessControl {
          *
          * This value implicitly grants Operate & View privileges
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.2.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.2.2
          */
         Manage = 4,
 
@@ -1169,13 +1169,13 @@ export declare namespace AccessControl {
          *
          * This value implicitly grants Manage, Operate & View privileges
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.2.3
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.2.3
          */
         Administer = 5
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.3
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.3
      */
     export enum AccessRestrictionType {
         /**
@@ -1200,7 +1200,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.4
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.4
      */
     export enum AccessControlEntryAuthMode {
         /**
@@ -1220,7 +1220,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.5
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.5
      */
     export enum AccessControlAuxiliaryType {
         /**
@@ -1235,7 +1235,7 @@ export declare namespace AccessControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.6
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.6
      */
     export class AccessControlTarget {
         constructor(values?: Partial<AccessControlTarget>);
@@ -1248,7 +1248,7 @@ export declare namespace AccessControl {
      * This structure describes an access restriction that would be applied to a specific data model element on a given
      * endpoint/cluster pair (see Section 9.10.5.10, "AccessRestrictionEntryStruct").
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.10.5.9
+     * @see {@link MatterSpecification.v16.Core} § 9.10.5.9
      */
     export class AccessRestriction {
         constructor(values?: Partial<AccessRestriction>);
@@ -1256,7 +1256,7 @@ export declare namespace AccessControl {
         /**
          * This field shall indicate the type of restriction, for example, AttributeAccessForbidden.
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.9.1
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.9.1
          */
         type: AccessRestrictionType;
 
@@ -1271,7 +1271,7 @@ export declare namespace AccessControl {
          * A null value shall indicate the wildcard value for the given value of Type (i.e. all elements associated with
          * the Type under the associated endpoint and cluster for the containing AccessRestrictionEntryStruct).
          *
-         * @see {@link MatterSpecification.v151.Core} § 9.10.5.9.2
+         * @see {@link MatterSpecification.v16.Core} § 9.10.5.9.2
          */
         id: number | null;
     }

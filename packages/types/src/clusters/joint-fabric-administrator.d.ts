@@ -19,7 +19,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  * An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator nodes fulfilling the
  * role of Anchor CA.
  *
- * @see {@link MatterSpecification.v151.Core} § 11.25
+ * @see {@link MatterSpecification.v16.Core} § 11.25
  */
 export declare namespace JointFabricAdministrator {
     /**
@@ -33,7 +33,7 @@ export declare namespace JointFabricAdministrator {
     export const name: "JointFabricAdministrator";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -53,7 +53,7 @@ export declare namespace JointFabricAdministrator {
          * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
          * have the value of null if there is no fabric associated with the JointFabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.25.5.1
          */
         administratorFabricIndex: FabricIndex | null;
     }
@@ -67,7 +67,7 @@ export declare namespace JointFabricAdministrator {
          * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
          * have the value of null if there is no fabric associated with the JointFabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.25.5.1
          */
         administratorFabricIndex: FabricIndex | null;
     }
@@ -80,7 +80,7 @@ export declare namespace JointFabricAdministrator {
          * This command shall be generated during Joint Commissioning Method and subsequently be responded in the form
          * of an ICACCSRResponse command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.1
          */
         icaccsrRequest(): MaybePromise<IcaccsrResponse>;
 
@@ -97,7 +97,7 @@ export declare namespace JointFabricAdministrator {
          *
          * Check ICA Cross Signing for details about the generation of ICACValue.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.3
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.3
          */
         addIcac(request: AddIcacRequest): MaybePromise<IcacResponse>;
 
@@ -113,7 +113,7 @@ export declare namespace JointFabricAdministrator {
          *
          * The parameters for OpenJointCommissioningWindow command are as follows:
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.5
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.5
          */
         openJointCommissioningWindow(request: OpenJointCommissioningWindowRequest): MaybePromise;
 
@@ -121,7 +121,7 @@ export declare namespace JointFabricAdministrator {
          * This command shall be sent by a candidate Joint Fabric Anchor Administrator to the current Joint Fabric
          * Anchor Administrator to request transfer of the Anchor Fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.6
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.6
          */
         transferAnchorRequest(): MaybePromise<TransferAnchorResponse>;
 
@@ -129,7 +129,7 @@ export declare namespace JointFabricAdministrator {
          * This command shall indicate the completion of the transfer of the Anchor Fabric to another Joint Fabric
          * Ecosystem Administrator.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.8
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.8
          */
         transferAnchorComplete(): MaybePromise;
 
@@ -140,7 +140,7 @@ export declare namespace JointFabricAdministrator {
          * This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
          * Cluster.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.9
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.9
          */
         announceJointFabricAdministrator(request: AnnounceJointFabricAdministratorRequest): MaybePromise;
     }
@@ -157,7 +157,7 @@ export declare namespace JointFabricAdministrator {
      *
      * Check ICAC Cross Signing for details about the generation of the ICACCSR.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.6.2
+     * @see {@link MatterSpecification.v16.Core} § 11.25.6.2
      */
     export class IcaccsrResponse {
         constructor(values?: Partial<IcaccsrResponse>);
@@ -167,7 +167,7 @@ export declare namespace JointFabricAdministrator {
          * This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing Request
          * (CSR).
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.2.1
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.2.1
          */
         icaccsr?: Bytes;
     }
@@ -184,7 +184,7 @@ export declare namespace JointFabricAdministrator {
      *
      * Check ICA Cross Signing for details about the generation of ICACValue.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.6.3
+     * @see {@link MatterSpecification.v16.Core} § 11.25.6.3
      */
     export class AddIcacRequest {
         constructor(values?: Partial<AddIcacRequest>);
@@ -192,7 +192,7 @@ export declare namespace JointFabricAdministrator {
         /**
          * This field shall contain an ICAC encoded using Matter Certificate Encoding.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.3.1
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.3.1
          */
         icacValue: Bytes;
     }
@@ -200,7 +200,7 @@ export declare namespace JointFabricAdministrator {
     /**
      * This command shall be generated in response to the AddICAC command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.6.4
+     * @see {@link MatterSpecification.v16.Core} § 11.25.6.4
      */
     export class IcacResponse {
         constructor(values?: Partial<IcacResponse>);
@@ -208,7 +208,7 @@ export declare namespace JointFabricAdministrator {
         /**
          * This field shall contain an ICACResponseStatusEnum value representing the status of the AddICAC operation.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.25.6.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.25.6.4.1
          */
         statusCode: IcacResponseStatus;
     }
@@ -224,7 +224,7 @@ export declare namespace JointFabricAdministrator {
      *
      * The parameters for OpenJointCommissioningWindow command are as follows:
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.6.5
+     * @see {@link MatterSpecification.v16.Core} § 11.25.6.5
      */
     export class OpenJointCommissioningWindowRequest {
         constructor(values?: Partial<OpenJointCommissioningWindowRequest>);
@@ -238,7 +238,7 @@ export declare namespace JointFabricAdministrator {
     /**
      * This command shall be generated in response to the Transfer Anchor Request command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.6.7
+     * @see {@link MatterSpecification.v16.Core} § 11.25.6.7
      */
     export class TransferAnchorResponse {
         constructor(values?: Partial<TransferAnchorResponse>);
@@ -252,7 +252,7 @@ export declare namespace JointFabricAdministrator {
      * This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
      * Cluster.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.6.9
+     * @see {@link MatterSpecification.v16.Core} § 11.25.6.9
      */
     export class AnnounceJointFabricAdministratorRequest {
         constructor(values?: Partial<AnnounceJointFabricAdministratorRequest>);
@@ -262,7 +262,7 @@ export declare namespace JointFabricAdministrator {
     /**
      * This enumeration is used by the AddICAC command to convey the outcome of this cluster's operations.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.4.1
+     * @see {@link MatterSpecification.v16.Core} § 11.25.4.1
      */
     export enum IcacResponseStatus {
         /**
@@ -285,7 +285,7 @@ export declare namespace JointFabricAdministrator {
      * This enumeration is used by the TransferAnchorResponse command to convey the detailed outcome of this cluster's
      * TransferAnchorRequest command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.25.4.2
+     * @see {@link MatterSpecification.v16.Core} § 11.25.4.2
      */
     export enum TransferAnchorResponseStatus {
         /**
@@ -305,7 +305,7 @@ export declare namespace JointFabricAdministrator {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.25.4.3
+     * @see {@link MatterSpecification.v16.Core} § 11.25.4.3
      */
     export enum IcaccsrResponseStatusCode {
         /**

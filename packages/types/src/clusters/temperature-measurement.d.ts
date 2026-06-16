@@ -16,7 +16,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster provides an interface to temperature measurement functionality, including configuration and provision of
  * notifications of temperature measurements.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 2.3
+ * @see {@link MatterSpecification.v16.Cluster} § 2.3
  */
 export declare namespace TemperatureMeasurement {
     /**
@@ -30,7 +30,7 @@ export declare namespace TemperatureMeasurement {
     export const name: "TemperatureMeasurement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 6;
 
@@ -50,7 +50,7 @@ export declare namespace TemperatureMeasurement {
          *
          * The null value indicates that the temperature is unknown.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.1
          */
         measuredValue: number | null;
 
@@ -60,7 +60,7 @@ export declare namespace TemperatureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.2
          */
         minMeasuredValue: number | null;
 
@@ -70,14 +70,14 @@ export declare namespace TemperatureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.4
          */
         tolerance?: number;
     }
@@ -93,7 +93,7 @@ export declare namespace TemperatureMeasurement {
          *
          * The null value indicates that the temperature is unknown.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.1
          */
         measuredValue: number | null;
 
@@ -103,7 +103,7 @@ export declare namespace TemperatureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.2
          */
         minMeasuredValue: number | null;
 
@@ -113,14 +113,14 @@ export declare namespace TemperatureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.3.4.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.4
          */
         tolerance: number;
     }

@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * A Closure Controller is capable of controlling a Closure.
  *
- * @see {@link MatterSpecification.v151.Device} § 8.7
+ * @see {@link MatterSpecification.v16.Device} § 8.7
  */
 export interface ClosureControllerDevice extends Identity<typeof ClosureControllerDeviceDefinition> {}
 

@@ -25,7 +25,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * object identification tag. If a client cannot recognize the specific person/human object identification tag, then,
  * the client SHOULD recognize it either as a person or a human identification tag based on its recognition capability."
  *
- * @see {@link MatterSpecification.v151.Namespace} § 28
+ * @see {@link MatterSpecification.v16.Namespace} § 28
  */
 export const IdentifiedObjectTag = SemanticNamespace({
     id: 0x49,

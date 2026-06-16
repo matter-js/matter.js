@@ -37,7 +37,7 @@ import type { NodeId } from "../datatype/NodeId.js";
  * See Device Type Library document for details of how a Content App, represented as an endpoint on the Video Player
  * device, may implement the cluster server for this cluster to simplify account login for its users.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 6.2
+ * @see {@link MatterSpecification.v16.Cluster} § 6.2
  */
 export declare namespace AccountLogin {
     /**
@@ -51,7 +51,7 @@ export declare namespace AccountLogin {
     export const name: "AccountLogin";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 2;
 
@@ -110,7 +110,7 @@ export declare namespace AccountLogin {
          * successfully mounting a brute force attack. A Content App that supports this command shall ensure that the
          * Temporary Account Identifier used by its clients is not valid for more than 10 minutes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.1
          */
         getSetupPin(request: GetSetupPinRequest): MaybePromise<GetSetupPinResponse>;
 
@@ -152,7 +152,7 @@ export declare namespace AccountLogin {
          * successfully mounting a brute force attack. A Content App that supports this command shall ensure that the
          * Temporary Account Identifier used by its clients is not valid for more than 10 minutes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.3
          */
         login(request: LoginRequest): MaybePromise;
 
@@ -160,7 +160,7 @@ export declare namespace AccountLogin {
          * The purpose of this command is to instruct the Content App to clear the current user account. This command
          * SHOULD be used by clients of a Content App to indicate the end of a user session.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.4
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.4
          */
         logout(request: LogoutRequest): MaybePromise;
     }
@@ -179,7 +179,7 @@ export declare namespace AccountLogin {
          * this event, the Fabric Admin shall remove access to this Content App by the specified Node. If no Node is
          * provided, then the Fabric Admin shall remove access to all non-Admin Nodes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.5.1
          */
         loggedOut?: LoggedOutEvent;
     }
@@ -195,7 +195,7 @@ export declare namespace AccountLogin {
          * this event, the Fabric Admin shall remove access to this Content App by the specified Node. If no Node is
          * provided, then the Fabric Admin shall remove access to all non-Admin Nodes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.5.1
          */
         loggedOut: LoggedOutEvent;
     }
@@ -244,7 +244,7 @@ export declare namespace AccountLogin {
      * mounting a brute force attack. A Content App that supports this command shall ensure that the Temporary Account
      * Identifier used by its clients is not valid for more than 10 minutes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.1
      */
     export class GetSetupPinRequest {
         constructor(values?: Partial<GetSetupPinRequest>);
@@ -253,7 +253,7 @@ export declare namespace AccountLogin {
          * This field shall specify the client's Temporary Account Identifier. The length of this field shall be at
          * least 16 characters to protect the account holder against password guessing attacks.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.1.1
          */
         tempAccountIdentifier: string;
     }
@@ -262,7 +262,7 @@ export declare namespace AccountLogin {
      * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
      * identified in the request does not match the active account of the running Content App.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.2
+     * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.2
      */
     export class GetSetupPinResponse {
         constructor(values?: Partial<GetSetupPinResponse>);
@@ -276,7 +276,7 @@ export declare namespace AccountLogin {
          * > NOTE: Newer cluster clients should be aware that Account Login cluster version 1 specified an 11 digit
          *   minimum length.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.2.1
          */
         setupPin: string;
     }
@@ -319,7 +319,7 @@ export declare namespace AccountLogin {
      * brute force attack. A Content App that supports this command shall ensure that the Temporary Account Identifier
      * used by its clients is not valid for more than 10 minutes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3
+     * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.3
      */
     export class LoginRequest {
         constructor(values?: Partial<LoginRequest>);
@@ -327,7 +327,7 @@ export declare namespace AccountLogin {
         /**
          * This field shall specify the client's temporary account identifier.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.3.1
          */
         tempAccountIdentifier: string;
 
@@ -339,7 +339,7 @@ export declare namespace AccountLogin {
          * > NOTE: Newer cluster clients should be aware that Account Login cluster revision 1 specified an 11 digit
          *   minimum length.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.3.2
          */
         setupPin: string;
 
@@ -347,7 +347,7 @@ export declare namespace AccountLogin {
          * This optional field shall provide the Node ID of the Client. This field can be used by the Content App to
          * keep track of Nodes which currently have access to it.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.3
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.3.3
          */
         node?: NodeId;
     }
@@ -356,7 +356,7 @@ export declare namespace AccountLogin {
      * The purpose of this command is to instruct the Content App to clear the current user account. This command SHOULD
      * be used by clients of a Content App to indicate the end of a user session.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.4
+     * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.4
      */
     export class LogoutRequest {
         constructor(values?: Partial<LogoutRequest>);
@@ -365,7 +365,7 @@ export declare namespace AccountLogin {
          * This optional field shall provide the Node ID of the Client. This field can be used by the Content App to
          * keep track of Nodes which currently have access to it.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.4.4.1
          */
         node?: NodeId;
     }
@@ -375,7 +375,7 @@ export declare namespace AccountLogin {
      * event, the Fabric Admin shall remove access to this Content App by the specified Node. If no Node is provided,
      * then the Fabric Admin shall remove access to all non-Admin Nodes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.2.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.2.5.1
      */
     export class LoggedOutEvent {
         constructor(values?: Partial<LoggedOutEvent>);
@@ -384,7 +384,7 @@ export declare namespace AccountLogin {
          * This field shall provide the Node ID corresponding to the user account that has logged out, if that Node ID
          * is available. If it is NOT available, this field shall NOT be present in the event.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.2.5.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.2.5.1.1
          */
         node?: NodeId;
     }

@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace are intended to be used to identify human activity by some detection or sensing
  * implementation.
  *
- * @see {@link MatterSpecification.v151.Namespace} § 29
+ * @see {@link MatterSpecification.v16.Namespace} § 29
  */
 export const IdentifiedHumanActivityTag = SemanticNamespace({
     id: 0x4b,
