@@ -1880,7 +1880,7 @@ const PEER1_STATE = {
             activeThreshold: 4000,
             dataModelRevision: 19,
             idleInterval: 500,
-            interactionModelRevision: 13,
+            interactionModelRevision: 12,
             maxPathsPerInvoke: 10,
             maxTcpMessageSize: undefined,
             specificationVersion: Specification.SPECIFICATION_VERSION,
