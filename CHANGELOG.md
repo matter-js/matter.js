@@ -21,6 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: Ensures that the negotiated subscription MaxInterval stays at or above the requested MinIntervalFloor when the floor exceeds the 60-minute publisher limit
+    - Fix: Ensures that a repeated atomic-write BeginWrite from the same client on a cluster/endpoint returns INVALID_IN_STATE for any attributes
 
 - @matter/protocol
     - Fix: Ensures that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
