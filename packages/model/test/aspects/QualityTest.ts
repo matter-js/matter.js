@@ -61,12 +61,14 @@ describe("Quality", () => {
         Quality.FlagNames.forEach(flag => {
             const field = Quality.Flag[flag];
 
+            const otherField = field === "reportable" ? "singleton" : "reportable";
+
             it(`preserves ${field} from base through merge`, () => {
                 const base = new Quality({ [field]: true });
-                const other = new Quality({ reportable: true });
+                const other = new Quality({ [otherField]: true });
                 const merged = base.extend(other);
                 expect(merged[field]).equal(true);
-                expect(merged.reportable).equal(true);
+                expect(merged[otherField]).equal(true);
             });
         });
     });
