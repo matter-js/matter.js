@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
 
 - @matter/node
+    - Fix: Reading `CommissioningServer` pairing codes before commissioning is initialized now throws a clear error instead of emitting a placeholder code
     - Fix: Ensures that the negotiated subscription MaxInterval stays at or above the requested MinIntervalFloor when the floor exceeds the 60-minute publisher limit
     - Fix: Ensures that a repeated atomic-write BeginWrite from the same client on a cluster/endpoint returns INVALID_IN_STATE for any attributes
 
@@ -35,6 +36,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Decodes VendorID/ProductID from the "fallback method" (`Mvid:`/`Mpid:` in the commonName) of attestation certificates
 
 - @matter/types
+    - Enhancement: Added `isValidPasscode()`/`assertValidPasscode()` for onboarding passcode validation
+    - Fix: Ensure that passcodes are valid when encoding or decoding pairing codes
     - Fix: Ensures that the most-significant bit of a nullable bitmap is reserved for NULL as defined in the Matter specification
 
 - @project-chip/matter.js
