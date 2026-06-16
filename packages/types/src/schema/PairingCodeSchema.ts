@@ -63,6 +63,14 @@ export const DiscoveryCapabilitiesBitmap = {
      *   one or more fabrics.
      */
     wifiPublicActionFrame: BitFlag(3),
+
+    /**
+     * NFC Transport Layer (NTL)
+     * * Set when device supports the NFC Transport Layer for discovery when not commissioned.
+     * * Not-Set when device does not support the NFC Transport Layer for discovery or is currently commissioned into
+     *   one or more fabrics.
+     */
+    nfc: BitFlag(4),
 };
 export const DiscoveryCapabilitiesSchema = BitmapSchema(DiscoveryCapabilitiesBitmap);
 
