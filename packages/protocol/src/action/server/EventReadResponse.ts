@@ -12,7 +12,7 @@ import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { NumberedOccurrence } from "#events/Occurrence.js";
 import { InternalError, isObject, Logger } from "@matter/general";
-import { DataModelPath, ElementTag, EventModel } from "@matter/model";
+import { AccessLevel, DataModelPath, ElementTag, EventModel } from "@matter/model";
 import {
     EventNumber,
     EventPath,
@@ -185,10 +185,12 @@ export class EventReadResponse<
             limits = event.limits;
         }
 
-        // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
-        // We need some fallback location if cluster is not defined
+        // Order prescribed by core spec 8.4.3.2: a View-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the data.
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            const location = {
+            // We need some fallback location if cluster is not defined
+            const location: AccessControl.Location = {
                 ...(cluster?.location ?? {
                     path: DataModelPath.none,
                     endpoint: endpointId,
@@ -196,19 +198,11 @@ export class EventReadResponse<
                 }),
                 owningFabric: this.session.fabric,
             };
-            const permission = this.session.authorityAt(limits.readLevel, location);
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
+            access = { session: this.session, location };
 
-                case AccessControl.Authority.Unauthorized:
-                    return this.#asStatus(path, Status.UnsupportedAccess);
-
-                case AccessControl.Authority.Restricted:
-                    return this.#asStatus(path, Status.AccessRestricted);
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            const denied = this.#authorize(access.session, path, AccessLevel.View, location);
+            if (denied !== undefined) {
+                return denied;
             }
         }
 
@@ -220,6 +214,13 @@ export class EventReadResponse<
         }
         if (event === undefined || !cluster.type.events[event.id]) {
             return this.#asStatus(path, Status.UnsupportedEvent);
+        }
+
+        if (access !== undefined) {
+            const denied = this.#authorize(access.session, path, limits.readLevel, access.location);
+            if (denied !== undefined) {
+                return denied;
+            }
         }
 
         if (this.#currentEndpoint !== endpoint) {
@@ -351,6 +352,31 @@ export class EventReadResponse<
                 }
             }
             yield this.#asValue(event, tlv);
+        }
+    }
+
+    /**
+     * Validate access at {@link level}.  Returns undefined if granted; otherwise a status report to return.
+     */
+    #authorize(
+        session: AccessControl.RemoteActorSession,
+        path: ReadResult.ConcreteEventPath,
+        level: AccessLevel,
+        location: AccessControl.Location,
+    ) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return undefined;
+
+            case AccessControl.Authority.Unauthorized:
+                return this.#asStatus(path, Status.UnsupportedAccess);
+
+            case AccessControl.Authority.Restricted:
+                return this.#asStatus(path, Status.AccessRestricted);
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
         }
     }
 

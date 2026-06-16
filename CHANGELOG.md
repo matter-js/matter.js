@@ -27,6 +27,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The MRP retransmission interval is no longer capped below the peer's idle interval
     - Fix: The connection fallback address is now compared by value, so a rediscovered last-known address is no longer mistaken for an address change
     - Fix: Ensure that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
+    - Fix: Ensure spec-compliant read/subscribe responses for a model-known but absent high-privilege attribute or event
 
 - @project-chip/matter.js
     - Fix: Ensure that `PairedNode.connect()` reconnects a node that was previously disconnected
