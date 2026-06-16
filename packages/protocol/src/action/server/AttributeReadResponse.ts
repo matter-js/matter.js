@@ -12,7 +12,7 @@ import { AccessControl, hasLocalActor, hasRemoteActor } from "#action/server/Acc
 import { DataResponse, FallbackLimits, WildcardPathFlagsCodec } from "#action/server/DataResponse.js";
 import { Val } from "#action/Val.js";
 import { InternalError, Logger, serialize } from "@matter/general";
-import { AttributeModel, DataModelPath, ElementTag } from "@matter/model";
+import { AccessLevel, AttributeModel, DataModelPath, ElementTag } from "@matter/model";
 import {
     AttributePath,
     ClusterId,
@@ -232,8 +232,10 @@ export class AttributeReadResponse<
             limits = attribute.limits;
         }
 
+        // Order prescribed by core spec 8.4.3.2: a View-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the data.
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
             // We need some fallback location if cluster is not defined
             const location: AccessControl.Location = {
                 ...(cluster?.location ?? {
@@ -243,23 +245,10 @@ export class AttributeReadResponse<
                 }),
                 owningFabric: this.session.fabric,
             };
+            access = { session: this.session, location };
 
-            const permission = this.session.authorityAt(limits.readLevel, location);
-
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
-
-                case AccessControl.Authority.Unauthorized:
-                    this.addStatus(path, Status.UnsupportedAccess);
-                    return;
-
-                case AccessControl.Authority.Restricted:
-                    this.addStatus(path, Status.AccessRestricted);
-                    return;
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            if (!this.#authorize(access.session, path, AccessLevel.View, location)) {
+                return;
             }
         }
 
@@ -277,6 +266,10 @@ export class AttributeReadResponse<
         }
         if (!limits.readable) {
             this.addStatus(path, Status.UnsupportedRead);
+            return;
+        }
+
+        if (access !== undefined && !this.#authorize(access.session, path, limits.readLevel, access.location)) {
             return;
         }
 
@@ -459,6 +452,34 @@ export class AttributeReadResponse<
             this.#chunk.push(report);
         } else {
             this.#chunk = [report];
+        }
+    }
+
+    /**
+     * Validate access at {@link level}.  Returns true if granted; otherwise records the appropriate status and
+     * returns false.
+     */
+    #authorize(
+        session: AccessControl.RemoteActorSession,
+        path: ReadResult.ConcreteAttributePath,
+        level: AccessLevel,
+        location: AccessControl.Location,
+    ) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return true;
+
+            case AccessControl.Authority.Unauthorized:
+                this.addStatus(path, Status.UnsupportedAccess);
+                return false;
+
+            case AccessControl.Authority.Restricted:
+                this.addStatus(path, Status.AccessRestricted);
+                return false;
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
         }
     }
 

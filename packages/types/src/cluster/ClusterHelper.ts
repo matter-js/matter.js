@@ -8,8 +8,7 @@ import { AttributeModel, ClusterModel, CommandModel, EventModel, Matter } from "
 import { ClusterId } from "../datatype/ClusterId.js";
 import { EndpointNumber } from "../datatype/EndpointNumber.js";
 import { NodeId } from "../datatype/NodeId.js";
-import { TlvAttributePath, TlvCommandPath, TlvEventPath } from "../protocol/index.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
+import { AttributePath, CommandPath, EventPath } from "../protocol/index.js";
 
 function toHex(value: number | bigint | undefined) {
     return value === undefined ? "*" : `0x${value.toString(16)}`;
@@ -53,12 +52,7 @@ function resolveElementName(cluster: ClusterModel | undefined, tag: string, elem
     return undefined;
 }
 
-export function resolveAttributeName({
-    nodeId,
-    endpointId,
-    clusterId,
-    attributeId,
-}: TypeFromSchema<typeof TlvAttributePath>) {
+export function resolveAttributeName({ nodeId, endpointId, clusterId, attributeId }: AttributePath) {
     const endpointClusterName = resolveEndpointClusterName(nodeId, endpointId, clusterId);
     if (endpointId === undefined || clusterId === undefined || attributeId === undefined) {
         return `${endpointClusterName}/${toHex(attributeId)}`;
@@ -71,13 +65,7 @@ export function resolveAttributeName({
     return `${endpointClusterName}/${name}(${toHex(attributeId)})`;
 }
 
-export function resolveEventName({
-    nodeId,
-    endpointId,
-    clusterId,
-    eventId,
-    isUrgent,
-}: TypeFromSchema<typeof TlvEventPath>) {
+export function resolveEventName({ nodeId, endpointId, clusterId, eventId, isUrgent }: EventPath) {
     const isUrgentStr = isUrgent ? "!" : "";
     const endpointClusterName = resolveEndpointClusterName(nodeId, endpointId, clusterId);
     if (endpointId === undefined || clusterId === undefined || eventId === undefined) {
@@ -91,7 +79,7 @@ export function resolveEventName({
     return `${isUrgentStr}${endpointClusterName}/${name}(${toHex(eventId)})`;
 }
 
-export function resolveCommandName({ endpointId, clusterId, commandId }: TypeFromSchema<typeof TlvCommandPath>) {
+export function resolveCommandName({ endpointId, clusterId, commandId }: CommandPath) {
     const endpointClusterName = resolveEndpointClusterName(undefined, endpointId, clusterId);
     if (endpointId === undefined || clusterId === undefined || commandId === undefined) {
         return `${endpointClusterName}/${toHex(commandId)}`;

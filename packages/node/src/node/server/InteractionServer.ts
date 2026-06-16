@@ -49,7 +49,9 @@ import {
 } from "@matter/protocol";
 import {
     AttributeData,
+    AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    EventPath,
     GroupId,
     INTERACTION_PROTOCOL_ID,
     InvokeResponseData,
@@ -57,9 +59,7 @@ import {
     Status,
     StatusResponseError,
     TlvAny,
-    TlvAttributePath,
     TlvClusterPath,
-    TlvEventPath,
     TlvInvokeResponseData,
     TlvInvokeResponseForSend,
     TlvSubscribeResponse,
@@ -83,8 +83,8 @@ export interface PeerSubscription {
     peerAddress: PeerAddress;
     minIntervalFloor: Duration;
     maxIntervalCeiling: Duration;
-    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[];
-    eventRequests?: TypeFromSchema<typeof TlvEventPath>[];
+    attributeRequests?: AttributePath[];
+    eventRequests?: EventPath[];
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
@@ -97,10 +97,7 @@ export interface InteractionCounters {
     totalInteractionModelMessagesReceived: number;
 }
 
-function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
-    }
+function validateReadAttributesPath(path: AttributePath) {
     const { clusterId, attributeId } = path;
     if (clusterId === undefined && attributeId !== undefined) {
         if (!GLOBAL_IDS.has(attributeId)) {
@@ -112,14 +109,17 @@ function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath
     }
 }
 
-function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGroupSession = false) {
+function validateReadEventPath(path: EventPath) {
     const { clusterId, eventId } = path;
     if (clusterId === undefined && eventId !== undefined) {
         throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
     }
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
-    }
+}
+
+/** Per Matter §8.4.3.2, Read and Subscribe share one valid-path algorithm. */
+function validateReadPaths(attributeRequests?: AttributePath[], eventRequests?: EventPath[]) {
+    attributeRequests?.forEach(path => validateReadAttributesPath(path));
+    eventRequests?.forEach(path => validateReadEventPath(path));
 }
 
 function clusterPathToId({ nodeId, endpointId, clusterId }: TypeFromSchema<typeof TlvClusterPath>) {
@@ -355,6 +355,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 Status.InvalidAction,
             );
         }
+
+        validateReadPaths(attributeRequests, eventRequests);
 
         const readPathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
         if (readPathsCount > MAX_READ_PATHS) {
@@ -654,9 +656,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        // Validate of the paths before proceeding
-        attributeRequests?.forEach(path => validateReadAttributesPath(path));
-        eventRequests?.forEach(path => validateReadEventPath(path));
+        validateReadPaths(attributeRequests, eventRequests);
 
         if (minIntervalFloorSeconds < 0) {
             throw new StatusResponseError(
