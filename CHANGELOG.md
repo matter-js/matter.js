@@ -16,6 +16,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failed UDP multicast send now evicts and rebuilds the broadcast channel instead of caching a dead socket
     - Fix: SPAKE2+ now samples the ephemeral scalar bounded by the group order `n` instead of the field prime `p`
 
+- @matter/model
+    - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
+
 - @matter/protocol
     - Fix: Ensure that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
     - Adjustment: MRP now selects the active/idle retransmission interval by peer activity for every transmission including the first, instead of forcing the first transmission to the idle interval

@@ -68,6 +68,10 @@ export namespace Specification {
 
     /**
      * Interaction model revision associated with the default revision of Matter.
+     *
+     * Capped at 12 because rev 13's sole delta over 12 is WildcardFilterConfigurationVersion, which spec
+     * §8.2.1.7.1 marks provisional (not certifiable).
+     * TODO: Bump to 13 once that feature becomes certifiable.
      */
-    export const INTERACTION_MODEL_REVISION = 13;
+    export const INTERACTION_MODEL_REVISION = 12;
 }
