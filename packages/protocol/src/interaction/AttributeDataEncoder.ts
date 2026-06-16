@@ -7,10 +7,10 @@ import { Diagnostic, MatterFlowError } from "@matter/general";
 import {
     ArraySchema,
     AttributeId,
+    AttributePath,
     ClusterId,
     EndpointNumber,
     NodeId,
-    TlvAttributePath,
     TlvAttributeReport,
     TlvAttributeReportData,
     TlvDataReport,
@@ -245,10 +245,10 @@ export function compressAttributeDataReportTags(data: AttributeReportPayload[]) 
 
 /** Helper method to compress one path and preserve the state for the next path. */
 function compressPath(
-    path: TypeFromSchema<typeof TlvAttributePath>,
+    path: AttributePath,
     dataVersion: number | undefined,
     lastFullPath: FullAttributePath | undefined,
-): { path: TypeFromSchema<typeof TlvAttributePath>; lastFullPath?: FullAttributePath } {
+): { path: AttributePath; lastFullPath?: FullAttributePath } {
     const { nodeId, endpointId, clusterId, attributeId } = path;
 
     // Should never happen but typing likes it better that way
