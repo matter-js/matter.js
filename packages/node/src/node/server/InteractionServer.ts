@@ -82,10 +82,7 @@ export interface PeerSubscription {
     sendInterval: Duration;
 }
 
-function validateReadAttributesPath(path: AttributePath, isGroupSession = false) {
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
-    }
+function validateReadAttributesPath(path: AttributePath) {
     const { clusterId, attributeId } = path;
     if (clusterId === undefined && attributeId !== undefined) {
         if (!GLOBAL_IDS.has(attributeId)) {
@@ -97,21 +94,14 @@ function validateReadAttributesPath(path: AttributePath, isGroupSession = false)
     }
 }
 
-function validateReadEventPath(path: EventPath, isGroupSession = false) {
+function validateReadEventPath(path: EventPath) {
     const { clusterId, eventId } = path;
     if (clusterId === undefined && eventId !== undefined) {
         throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
     }
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
-    }
 }
 
-/**
- * Single early/upfront valid-path gate shared by Read and Subscribe. Per Matter §8.4.3.2 the path
- * processing is identical for both interaction types, so they validate through one entry point to
- * keep the rules from drifting.
- */
+/** Per Matter §8.4.3.2, Read and Subscribe share one valid-path algorithm. */
 function validateReadPaths(attributeRequests?: AttributePath[], eventRequests?: EventPath[]) {
     attributeRequests?.forEach(path => validateReadAttributesPath(path));
     eventRequests?.forEach(path => validateReadEventPath(path));
