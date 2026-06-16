@@ -21,3 +21,6 @@ export const CRYPTO_AEAD_MIC_LENGTH_BYTES = 16;
 export const CRYPTO_AEAD_NONCE_LENGTH_BYTES = 13;
 /** @see {@link MatterSpecification.v151.Core} § 3.7 */
 export const CRYPTO_PRIVACY_NONCE_LENGTH_BYTES = CRYPTO_AEAD_NONCE_LENGTH_BYTES;
+/** @see {@link MatterSpecification.v10.Core} § 3.9 */
+export const CRYPTO_PBKDF_ITERATIONS_MIN = 1000;
+export const CRYPTO_PBKDF_ITERATIONS_MAX = 100000;

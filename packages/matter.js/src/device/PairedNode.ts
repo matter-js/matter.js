@@ -14,6 +14,7 @@ import {
     camelize,
     Construction,
     Crypto,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Diagnostic,
     Immutable,
     ImplementationError,
@@ -1356,7 +1357,7 @@ export class PairedNode {
         const discriminator = PaseClient.generateRandomDiscriminator(this.#crypto);
         const passcode = PaseClient.generateRandomPasscode(this.#crypto);
         const salt = this.#crypto.randomBytes(32);
-        const iterations = 1_000; // Minimum 1_000, Maximum 100_000
+        const iterations = CRYPTO_PBKDF_ITERATIONS_MIN;
         const pakePasscodeVerifier = await PaseClient.generatePakePasscodeVerifier(this.#crypto, passcode, {
             iterations,
             salt,
