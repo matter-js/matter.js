@@ -6,7 +6,9 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
+import { AccessLevel } from "@matter/model";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
+import { ClusterId, CommandId, EndpointNumber, Status } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -121,6 +123,37 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
     });
 
+    // Spec 8.8.3.2: an Operate-privilege subject may learn element existence, so a model-known but absent
+    // command whose actual invoke privilege exceeds Operate resolves to an existence status (here
+    // UNSUPPORTED_CLUSTER), not UNSUPPORTED_ACCESS (the Operate pass grants before the existence check fires).
+    it("invokes model-known absent high-privilege command as existence status for operate-only subject", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        // Groups.AddGroup (cluster 0x4, command 0x0): invoke privilege Manage, cluster absent on the root node
+        const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+            invokeRequests: [
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(0),
+                        clusterId: ClusterId(0x4),
+                        commandId: CommandId(0x0),
+                    },
+                    commandFields: undefined,
+                },
+            ],
+        });
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 0x4, commandId: 0x0, endpointId: 0 },
+                status: Status.UnsupportedCluster,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+    });
+
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });
 
@@ -130,7 +163,11 @@ function invokeCmd(node: MockServerNode, ...args: Parameters<typeof Invoke>) {
     return invokeCmdRaw(node, request);
 }
 
-async function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) {
+function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) {
+    return invokeCmdRawAs(node, AccessLevel.Operate, data);
+}
+
+async function invokeCmdRawAs(node: MockServerNode, accessLevel: AccessLevel, data: Partial<InvokeRequest>) {
     const request = {
         suppressResponse: false,
         ...data,
@@ -138,7 +175,7 @@ async function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) 
 
     const fabric = await node.addFabric();
     const exchange = await node.createExchange({ fabric });
-    return node.online({ command: true, exchange }, async ({ context }) => {
+    return node.online({ command: true, exchange, accessLevel }, async ({ context }) => {
         const response = new CommandInvokeResponse(node.protocol, context);
         let chunks: InvokeResult.Data[] | undefined;
         for await (const chunk of response.process(request)) {
