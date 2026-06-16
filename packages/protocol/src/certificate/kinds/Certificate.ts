@@ -166,6 +166,23 @@ export abstract class Certificate<CT extends MatterCertificate> {
     }
 }
 
+/**
+ * Extract a VendorID or ProductID encoded via the "fallback method" (Matter spec 6.2.2.2): the
+ * prefix `Mvid:`/`Mpid:` followed by exactly 4 uppercase hexadecimal characters, anywhere within a
+ * `commonName`. Returns the leftmost correctly-encoded value, or `undefined` if the prefix is
+ * absent. Throws if the prefix appears but no correctly-encoded value exists (spec 6.2.2.2.1).
+ */
+export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | "Mpid:"): number | undefined {
+    const match = commonName.match(new RegExp(`${prefix}([0-9A-F]{4})`));
+    if (match !== null) {
+        return parseInt(match[1], 16);
+    }
+    if (commonName.includes(prefix)) {
+        throw new CertificateError(`Malformed ${prefix} VendorID/ProductID fallback encoding in commonName`);
+    }
+    return undefined;
+}
+
 export namespace Certificate {
     /**
      * Create a Certificate Signing Request (CSR) in ASN.1 DER format.
@@ -282,6 +299,21 @@ export namespace Certificate {
                     }
                 }
                 result[field] = value;
+            }
+        }
+
+        // Spec 6.2.2.2: an OID VID/PID anywhere in the field disables fallback parsing for that field.
+        if (result.vendorId === undefined && result.productId === undefined) {
+            const commonName = (result.commonName ?? result.commonNamePs) as string | undefined;
+            if (commonName !== undefined) {
+                const vendorId = parseMatterFallbackVidPid(commonName, "Mvid:");
+                if (vendorId !== undefined) {
+                    result.vendorId = vendorId;
+                }
+                const productId = parseMatterFallbackVidPid(commonName, "Mpid:");
+                if (productId !== undefined) {
+                    result.productId = productId;
+                }
             }
         }
 
@@ -677,8 +709,19 @@ function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertifica
  */
 function astOfDistinguishedName(data: { [field: string]: any }) {
     const ast = {} as { [field: string]: any[] };
+
+    // Spec 6.2.2.2 forbids mixing fallback (Mvid:/Mpid: in commonName) and OID VID/PID in one field.
+    const commonName = (data.commonName ?? data.commonNamePs) as string | undefined;
+    const usesFallbackVidPid =
+        commonName !== undefined &&
+        (parseMatterFallbackVidPid(commonName, "Mvid:") !== undefined ||
+            parseMatterFallbackVidPid(commonName, "Mpid:") !== undefined);
+
     Object.entries(data).forEach(([key, value]) => {
         if (value === undefined) {
+            return;
+        }
+        if (usesFallbackVidPid && (key === "vendorId" || key === "productId")) {
             return;
         }
         switch (key) {
