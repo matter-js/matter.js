@@ -273,6 +273,34 @@ export const TlvUInt64 = new TlvLongNumberSchema(
 // We use internally 32bit here - in fact encoding is done by real value length anyway
 export const TlvEnum = <T>() => TlvUInt32 as TlvSchema<number> as TlvSchema<T>;
 
+/**
+ * TLV wrapper for a bitmap. Tracks the underlying numeric schema and the bit schema so a nullable
+ * variant can reserve the most-significant bit per spec.
+ */
+export class BitmapWrapper<D> extends TlvWrapper<D, number> {
+    constructor(
+        readonly numericSchema: TlvNumericSchema<number>,
+        private readonly bitmapSchema: Schema<D, number>,
+    ) {
+        super(
+            numericSchema,
+            bitmapData => bitmapSchema.encode(bitmapData),
+            value => bitmapSchema.decode(value),
+        );
+    }
+
+    /**
+     * Returns a variant that reserves the most-significant bit (it encodes NULL for nullable
+     * bitmaps, shrinking the usable range).
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.19.1.2
+     */
+    withReservedMsb(): BitmapWrapper<D> {
+        const { baseTypeMax } = this.numericSchema;
+        return new BitmapWrapper(this.numericSchema.bound({ max: Math.floor(baseTypeMax / 2) }), this.bitmapSchema);
+    }
+}
+
 export const TlvBitmap = <T extends BitSchema>(underlyingSchema: TlvNumberSchema, bitSchema: T) => {
     // BitmapSchema supports encoding partial bit schemas but specifies its
     // type as TypeFromBitSchema.  Changing to TypeFromPartialBitSchema there
@@ -284,11 +312,7 @@ export const TlvBitmap = <T extends BitSchema>(underlyingSchema: TlvNumberSchema
     // only used in places where we want to support partial bitmaps.
     const bitmapSchema = BitmapSchema(bitSchema) as Schema<TypeFromPartialBitSchema<T>, number>;
 
-    return new TlvWrapper(
-        underlyingSchema,
-        (bitmapData: TypeFromPartialBitSchema<T>) => bitmapSchema.encode(bitmapData),
-        value => bitmapSchema.decode(value),
-    );
+    return new BitmapWrapper(underlyingSchema, bitmapSchema);
 };
 
 // Relative Number types
