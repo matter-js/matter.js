@@ -597,7 +597,7 @@ export class AccessControlServer extends AccessControlBase {
 
             fabric.accessControl.aclList = [
                 ...deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex),
-                ...(this.state.auxiliaryAcl?.filter(entry => entry.fabricIndex === fabricIndex) ?? []),
+                ...this.#auxiliaryAclFor(fabricIndex),
             ];
         }
     }
@@ -657,6 +657,23 @@ export class AccessControlServer extends AccessControlBase {
         );
     }
 
+    /**
+     * Collect auxiliary ACL entries for a fabric from the registered providers. Reads the provider observable values
+     * directly, which is context-free and therefore safe from reactors that run after an interaction context has
+     * exited — unlike the managed {@link AccessControlServer.State.auxiliaryAcl} state, which throws there.
+     */
+    #auxiliaryAclFor(fabricIndex: FabricIndex) {
+        const entries = new Array<AccessControlTypes.AccessControlEntry>();
+        for (const obs of this.internal.auxiliaryAclProviders) {
+            for (const entry of obs.value ?? []) {
+                if (entry.fabricIndex === fabricIndex) {
+                    entries.push({ ...entry });
+                }
+            }
+        }
+        return entries;
+    }
+
     /** Applies the delayed ACL update for a specific fabric index, if existing */
     #applyDelayedAclUpdateFor(fabricIndex: FabricIndex) {
         const updateDelayed = !!this.internal.aclUpdateDelayed.get(fabricIndex);
@@ -667,7 +684,7 @@ export class AccessControlServer extends AccessControlBase {
         if (updateDelayed && delayedData !== undefined) {
             this.env.get(FabricManager).for(fabricIndex).accessControl.aclList = [
                 ...delayedData,
-                ...(this.state.auxiliaryAcl?.filter(entry => entry.fabricIndex === fabricIndex) ?? []),
+                ...this.#auxiliaryAclFor(fabricIndex),
             ];
         }
     }
