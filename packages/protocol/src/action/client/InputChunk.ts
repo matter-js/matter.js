@@ -46,8 +46,8 @@ interface AttributeDataGroup {
 /**
  * Streaming decode of a {@link DataReport} into a {@link ReadResult.Chunk}.
  *
- * Adjacent same-path `attributeData` entries accumulate for chunked-array reassembly per Matter Core §8.5.6.3.
- * Tag compression resolves against the last fully-qualified path per §10.7.5. When the report ends mid-chunked-array
+ * Adjacent same-path `attributeData` entries accumulate for chunked-array reassembly per Matter Core §10.6.4.3.1.
+ * Tag compression resolves against the last fully-qualified path per §10.6.2.1. When the report ends mid-chunked-array
  * and `moreChunkedMessages` is set, the trailing entries are stashed in `leftoverAttributeReports` for the next
  * report. See #3785 for event-order semantics.
  */
