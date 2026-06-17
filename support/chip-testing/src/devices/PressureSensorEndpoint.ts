@@ -14,7 +14,7 @@ registerDeviceType({
     async create(serverNode: ServerNode, endpoint: EndpointNumber) {
         const ep = new Endpoint(PressureSensorDevice, {
             number: endpoint,
-            pressureMeasurement: { measuredValue: 1000 },
+            pressureMeasurement: { measuredValue: 1000, minMeasuredValue: 0, maxMeasuredValue: 10000 },
         });
         await serverNode.add(ep);
         return { endpoint: ep };

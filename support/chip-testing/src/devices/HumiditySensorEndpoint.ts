@@ -14,7 +14,7 @@ registerDeviceType({
     async create(serverNode: ServerNode, endpoint: EndpointNumber) {
         const ep = new Endpoint(HumiditySensorDevice, {
             number: endpoint,
-            relativeHumidityMeasurement: { measuredValue: 5000 },
+            relativeHumidityMeasurement: { measuredValue: 5000, minMeasuredValue: 0, maxMeasuredValue: 10000 },
         });
         await serverNode.add(ep);
         return { endpoint: ep };
