@@ -49,7 +49,7 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
 
     /**
      * Verify requirements a Matter Root certificate must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v12.Core} §6.5.x
+     * Rules for this are listed in @see {@link MatterSpecification.v16.Core} §6.5.x
      */
     async verify(crypto: Crypto) {
         this.generalVerify();

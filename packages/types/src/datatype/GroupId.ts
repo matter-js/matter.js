@@ -20,7 +20,7 @@ import type { NodeId } from "./NodeId.js";
  * 0x0001 - 0xFEFF: Application Group ID, assigned by fabric Administrator
  * 0xFF00 - 0xFFFF: Universal Group ID range reserved for static multicast and anycast identifiers
  *
- * @see {@link MatterSpecification.v10.Core} § 2.5.4
+ * @see {@link MatterSpecification.v16.Core} § 2.5.4
  */
 export type GroupId = Branded<number, "GroupId">;
 

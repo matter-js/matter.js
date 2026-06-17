@@ -50,7 +50,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
 
     /**
      * Verify requirements a Matter Node Operational certificate must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v12.Core} §6.5.x
+     * Rules for this are listed in @see {@link MatterSpecification.v16.Core} §6.5.x
      */
     async verify(crypto: Crypto, root: Rcac, ica?: Icac) {
         this.generalVerify();

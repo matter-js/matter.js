@@ -9,7 +9,7 @@ import { TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvAttributeReportData } from "./TlvAttributeReportData.js";
 import { TlvAttributeStatus } from "./TlvAttributeStatus.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.5 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.5 */
 
 export const TlvAttributeReport = TlvObject({
     // AttributeReportIB

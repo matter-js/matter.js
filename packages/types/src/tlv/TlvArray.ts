@@ -29,7 +29,7 @@ export type ArrayAsChunked = ArrayChunkData[];
 /**
  * Schema to encode an array or string in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.2 and A.11.4
+ * @see {@link MatterSpecification.v16.Core} § A.11.2 and A.11.4
  */
 export class ArraySchema<T> extends TlvSchema<T[]> {
     constructor(

@@ -15,7 +15,7 @@ import type { SubjectId } from "./SubjectId.js";
  * A Node Identifier (Node ID) is a 64-bit number that uniquely identifies an individual Node or a
  * group of Nodes on a Fabric.
  *
- * @see {@link MatterSpecification.v10.Core} § 2.5.5
+ * @see {@link MatterSpecification.v16.Core} § 2.5.5
  */
 export type NodeId = Branded<bigint, "NodeId">;
 

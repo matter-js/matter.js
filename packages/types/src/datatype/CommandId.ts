@@ -14,7 +14,7 @@ import { Mei } from "./ManufacturerExtensibleIdentifier.js";
 /**
  * A Command ID is a 32 bit number and indicates a command defined in a cluster specification.
  *
- * @see {@link MatterSpecification.v10.Core} § 7.18.2.18
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.34
  */
 export type CommandId = Branded<number, "CommandId">;
 

@@ -16,7 +16,7 @@ import { TlvWrapper } from "../tlv/TlvWrapper.js";
  * a fabric, such as fabric-scoped data model elements, then the fabric-index values SHALL NOT include 0
  * (zero) or null.
  *
- * @see {@link MatterSpecification.v10.Core} § 7.5.2
+ * @see {@link MatterSpecification.v16.Core} § 7.5.2
  */
 export type FabricIndex = Branded<number, "FabricIndex">;
 

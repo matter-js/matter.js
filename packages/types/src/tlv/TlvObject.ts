@@ -59,7 +59,7 @@ export type TypeFromFields<F extends TlvFields> = Merge<
 /**
  * Schema to encode an object in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.5.1 and § A.11.4
+ * @see {@link MatterSpecification.v16.Core} § A.5.1 and § A.11.4
  */
 export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<F>> {
     readonly isFabricScoped: boolean;

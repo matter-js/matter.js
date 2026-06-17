@@ -6,7 +6,7 @@
 
 import { BitFlag } from "../../schema/BitmapSchema.js";
 
-/** @see {@link MatterSpecification.v13.Core} section XXX */
+/** @see {@link MatterSpecification.v16.Core} section 8.9.2.5 */
 
 export const WildcardPathFlagsBitmap = {
     /** Skip the Root Node endpoint (endpoint 0) during wildcard expansion. */

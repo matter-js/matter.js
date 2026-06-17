@@ -55,7 +55,7 @@ const boundCache = new WeakMap<TlvNumericSchema<any>, Map<string, TlvNumericSche
 /**
  * Schema to encode an unsigned integer in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.1
+ * @see {@link MatterSpecification.v16.Core} § A.11.1
  */
 export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
     #min?: T;

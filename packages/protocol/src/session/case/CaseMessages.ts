@@ -24,7 +24,7 @@ export const KDFSR3_INFO = Bytes.fromString("Sigma3");
 export const TBE_DATA2_NONCE = Bytes.fromString("NCASE_Sigma2N");
 export const TBE_DATA3_NONCE = Bytes.fromString("NCASE_Sigma3N");
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvCaseSigma1 = TlvObject({
     initiatorRandom: TlvField(1, TlvByteString.bound({ length: 32 })),
     initiatorSessionId: TlvField(2, TlvUInt16),
@@ -36,7 +36,7 @@ export const TlvCaseSigma1 = TlvObject({
 });
 export type CaseSigma1 = WithDurationSessionParameters<TypeFromSchema<typeof TlvCaseSigma1>, "initiatorSessionParams">;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvCaseSigma2 = TlvObject({
     responderRandom: TlvField(1, TlvByteString.bound({ length: 32 })),
     responderSessionId: TlvField(2, TlvUInt16),
@@ -46,7 +46,7 @@ export const TlvCaseSigma2 = TlvObject({
 });
 export type CaseSigma2 = WithDurationSessionParameters<TypeFromSchema<typeof TlvCaseSigma2>, "responderSessionParams">;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvCaseSigma2Resume = TlvObject({
     resumptionId: TlvField(1, TlvByteString.bound({ length: 16 })),
     resumeMic: TlvField(2, TlvByteString.bound({ length: 16 })),
@@ -58,13 +58,13 @@ export type CaseSigma2Resume = WithDurationSessionParameters<
     "responderSessionParams"
 >;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvCaseSigma3 = TlvObject({
     encrypted: TlvField(1, TlvByteString),
 });
 export type CaseSigma3 = TypeFromSchema<typeof TlvCaseSigma3>;
 
-/** @see {@link MatterSpecification.v10.Core} § 4.13.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvSignedData = TlvObject({
     responderNoc: TlvField(1, TlvByteString),
     responderIcac: TlvOptionalField(2, TlvByteString),
@@ -73,7 +73,7 @@ export const TlvSignedData = TlvObject({
 });
 export type SignedData = TypeFromSchema<typeof TlvSignedData>;
 
-/** @see {@link MatterSpecification.v10.Core} § 4.13.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvEncryptedDataSigma2 = TlvObject({
     responderNoc: TlvField(1, TlvByteString),
     responderIcac: TlvOptionalField(2, TlvByteString),
@@ -82,7 +82,7 @@ export const TlvEncryptedDataSigma2 = TlvObject({
 });
 export type EncryptedDataSigma2 = TypeFromSchema<typeof TlvEncryptedDataSigma2>;
 
-/** @see {@link MatterSpecification.v10.Core} § 4.13.2.3 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.2.3 */
 export const TlvEncryptedDataSigma3 = TlvObject({
     responderNoc: TlvField(1, TlvByteString),
     responderIcac: TlvOptionalField(2, TlvByteString),
