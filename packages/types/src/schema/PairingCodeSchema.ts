@@ -37,7 +37,7 @@ export const MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH = 255;
 /** See {@link MatterSpecification.v16.Core} §5.1.3.2. */
 export const MATTER_QR_CODE_ALL_PAYLOAD_MAX_LENGTH = 4296;
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 38 */
+/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 59 */
 export enum CommissioningFlowType {
     /** When not commissioned, the device always enters commissioning mode upon power-up. */
     Standard = 0,
@@ -49,7 +49,7 @@ export enum CommissioningFlowType {
     Custom = 2,
 }
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 39 */
+/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 60 */
 export const DiscoveryCapabilitiesBitmap = {
     /**
      * BLE
@@ -82,7 +82,7 @@ export const DiscoveryCapabilitiesBitmap = {
 };
 export const DiscoveryCapabilitiesSchema = BitmapSchema(DiscoveryCapabilitiesBitmap);
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 38 */
+/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 59 */
 const QrCodeDataSchema = ByteArrayBitmapSchema({
     version: BitField(0, 3),
     vendorId: BitField(3, 16),
@@ -288,7 +288,7 @@ export type ManualPairingData = {
     productId?: number;
 };
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.4.1 Table 38/39/40 */
+/** See {@link MatterSpecification.v16.Core} § 5.1.4.1 Table 62/63/64 */
 class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
     /** Rejects payloads carrying an invalid passcode per § 5.1.1.6 / § 5.1.7.1. */
     override validate({ passcode }: ManualPairingData): void {
