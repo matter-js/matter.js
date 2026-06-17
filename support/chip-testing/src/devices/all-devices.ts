@@ -9,9 +9,15 @@
 import "./ChimeEndpoint.js";
 import "./ContactSensorEndpoint.js";
 import "./DimmableLightEndpoint.js";
+import "./FlowSensorEndpoint.js";
+import "./HumiditySensorEndpoint.js";
+import "./LightSensorEndpoint.js";
 import "./OccupancySensorEndpoint.js";
 import "./OnOffLightEndpoint.js";
+import "./PressureSensorEndpoint.js";
+import "./RainSensorEndpoint.js";
 import "./SoilSensorEndpoint.js";
 import "./SpeakerEndpoint.js";
 import "./TemperatureSensorEndpoint.js";
+import "./WaterFreezeDetectorEndpoint.js";
 import "./WaterLeakDetectorEndpoint.js";
