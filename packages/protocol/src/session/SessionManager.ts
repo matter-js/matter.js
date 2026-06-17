@@ -147,7 +147,8 @@ const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 
 /**
  * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
- * is persisted this far ahead so an unclean restart never rolls it back (Matter spec §4.6.1.3).
+ * is persisted this far ahead so an unclean restart never rolls it back.
+ * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
  */
 const GROUP_DATA_COUNTER_RESERVE = 1000;
 
@@ -245,7 +246,10 @@ export class SessionManager {
         return this.#context.fabrics.crypto;
     }
 
-    /** The single node-global Group Encrypted Data Message Counter shared by all group sessions (spec §4.6.1.3). */
+    /**
+     * The single node-global Group Encrypted Data Message Counter shared by all group sessions.
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     */
     get groupDataMessageCounter() {
         this.#construction.assert();
         return this.#groupDataMessageCounter;
@@ -812,7 +816,8 @@ export class SessionManager {
     /**
      * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
      * model, seed it above every value any per-key counter could already have used so it never rolls back below a
-     * value already sent with a surviving key (spec §4.6.1.3); then clear the legacy entries.
+     * value already sent with a surviving key; then clear the legacy entries.
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
      */
     async #createGroupDataMessageCounter() {
         const storage = this.#context.storage;

@@ -74,7 +74,8 @@ export abstract class ExchangeProvider {
     abstract readonly maxPathsPerInvoke?: number;
 
     /**
-     * Peer-advertised CapabilityMinima path floors (core §11.1).  Base values are the spec minimums.
+     * Peer-advertised CapabilityMinima path floors.  Base values are the spec minimums.
+     * @see {@link MatterSpecification.v16.Core} § 11.1
      */
     get readPathsSupported(): number {
         return 9;

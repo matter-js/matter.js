@@ -29,8 +29,9 @@ export namespace FabricIndex {
     export const OMIT_FABRIC = -1 as FabricIndex;
 
     /**
-     * True when `value` is a real fabric index in the spec range for fabric-scoped data (1..254 per Matter
-     * §7.5.2).  Excludes the {@link NO_FABRIC} and {@link OMIT_FABRIC} sentinels.
+     * True when `value` is a real fabric index in the spec range for fabric-scoped data (1..254).  Excludes the
+     * {@link NO_FABRIC} and {@link OMIT_FABRIC} sentinels.
+     * @see {@link MatterSpecification.v16.Core} § 7.5.2
      */
     export const isValid = (value: unknown): value is FabricIndex => {
         return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 254;
