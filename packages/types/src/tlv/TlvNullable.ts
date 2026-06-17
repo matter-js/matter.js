@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TlvNumericSchema } from "#tlv/TlvNumber.js";
+import { BitmapWrapper, TlvNumericSchema } from "#tlv/TlvNumber.js";
 import { ArraySchema } from "./TlvArray.js";
 import { TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvEncodingOptions, TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
@@ -40,6 +40,9 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
                     schema = schema.bound({ min: schema.baseTypeMin + BigInt(1), max: schema.max });
                 }
             }
+        } else if (schema instanceof BitmapWrapper) {
+            // Nullable bitmaps reserve the most-significant bit to encode null.
+            schema = schema.withReservedMsb();
         }
         this.schema = schema;
     }

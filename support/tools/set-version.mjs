@@ -21,13 +21,13 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PLACEHOLDER = "0.0.0-git";
 const VERSION_RE = /^(?:\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?|[a-z]+)$/;
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const TARGETS = [
     "packages/main/src/version.ts",

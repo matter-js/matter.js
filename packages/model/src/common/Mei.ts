@@ -8,11 +8,11 @@
  * Base type for semantic identifiers per Matter specification.  Formally a 32-bit unsigned integer with assigned bit
  * functions:
  *
- *     Bits 0-15 are the identifier's scope:
+ *     Bits 31-16 are the identifier's scope:
  *         0x0000: Standard (global) or scoped (within cluster) ID
  *         0x0001 - 0xfff0: Manufacturer code as defined by CSA group
  *         0xfff1 - 0xfff4: Test manufacturer codes
- *     Bits 16-31 are the actual identifier
+ *     Bits 15-0 are the actual identifier
  *
  * For this and following types, the specification defines restrictions that we do not express statically with
  * TypeScript.

@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, deepCopy, ImplementationError, UnexpectedDataError, Verhoeff } from "@matter/general";
+import {
+    Bytes,
+    CRYPTO_PBKDF_ITERATIONS_MAX,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
+    deepCopy,
+    ImplementationError,
+    UnexpectedDataError,
+    Verhoeff,
+} from "@matter/general";
 import { VendorId } from "../datatype/VendorId.js";
 import { TlvAny } from "../tlv/TlvAny.js";
 import { TlvType } from "../tlv/TlvCodec.js";
@@ -93,7 +101,10 @@ export type QrCodeData = TypeFromBitmapSchema<typeof QrCodeDataSchema> & {
 export const QrCodeTlvDataDefaultFields = {
     /** Device Serial # */
     serialNumber: TlvOptionalField(0x00, TlvAny), // can be TlvString with up to 32 bytes or Unsigned Int up to 8 bytes
-    pbkdfIterations: TlvOptionalField(0x01, TlvUInt32.bound({ min: 1000, max: 100_000 })), // Or could also be UInt 16?
+    pbkdfIterations: TlvOptionalField(
+        0x01,
+        TlvUInt32.bound({ min: CRYPTO_PBKDF_ITERATIONS_MIN, max: CRYPTO_PBKDF_ITERATIONS_MAX }),
+    ),
     pbkdfSalt: TlvOptionalField(0x02, TlvByteString.bound({ minLength: 16, maxLength: 32 })),
 
     /**
@@ -109,9 +120,59 @@ export const QrCodeTlvDataDefaultFields = {
     commissioningTimeout: TlvOptionalField(0x04, TlvUInt16),
 };
 
+/**
+ * Inclusive lower bound of the valid passcode range `0x0000001..0x5F5E0FE`.
+ * See {@link MatterSpecification.v13.Core} § 5.1.1.6.
+ */
+export const PASSCODE_MIN = 0x0000001;
+
+/**
+ * Inclusive upper bound of the valid passcode range `0x0000001..0x5F5E0FE`.
+ * See {@link MatterSpecification.v13.Core} § 5.1.1.6.
+ */
+export const PASSCODE_MAX = 0x5f5e0fe;
+
+/**
+ * Trivial/insecure passcodes that SHALL NOT be used for PASE.
+ * See {@link MatterSpecification.v13.Core} § 5.1.7.1.
+ */
+export const INVALID_PASSCODES: readonly number[] = [
+    0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321,
+];
+
+/**
+ * Returns true when the passcode is a valid setup passcode: within the {@link PASSCODE_MIN}..{@link PASSCODE_MAX} range
+ * and not one of the {@link INVALID_PASSCODES}. Mirrors CHIP's `PayloadContents::IsValidSetupPIN`.
+ *
+ * The onboarding codecs round-trip arbitrary 27-bit passcodes; use this to validate a decoded payload at parse time
+ * rather than deferring to the PASE layer. See {@link MatterSpecification.v13.Core} § 5.1.1.6 / § 5.1.7.1.
+ */
+export function isValidPasscode(passcode: number): boolean {
+    return (
+        Number.isInteger(passcode) &&
+        passcode >= PASSCODE_MIN &&
+        passcode <= PASSCODE_MAX &&
+        !INVALID_PASSCODES.includes(passcode)
+    );
+}
+
+/** Throws {@link UnexpectedDataError} when {@link isValidPasscode} returns false. */
+export function assertValidPasscode(passcode: number): void {
+    if (!isValidPasscode(passcode)) {
+        throw new UnexpectedDataError(`Invalid passcode ${passcode}`);
+    }
+}
+
 const PREFIX = "MT:";
 
 class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
+    /** Rejects payloads carrying an invalid passcode per § 5.1.1.6 / § 5.1.7.1. */
+    override validate(payloadData: QrCodeData[]): void {
+        for (const { passcode } of payloadData) {
+            assertValidPasscode(passcode);
+        }
+    }
+
     protected encodeInternal(payloadData: QrCodeData[]): string {
         if (payloadData.length === 0) throw new ImplementationError("Provided Payload data is empty");
         const result =
@@ -221,6 +282,11 @@ export type ManualPairingData = {
 
 /** See {@link MatterSpecification.v10.Core} § 5.1.4.1 Table 38/39/40 */
 class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
+    /** Rejects payloads carrying an invalid passcode per § 5.1.1.6 / § 5.1.7.1. */
+    override validate({ passcode }: ManualPairingData): void {
+        assertValidPasscode(passcode);
+    }
+
     protected encodeInternal({ discriminator, passcode, vendorId, productId }: ManualPairingData): string {
         if (discriminator === undefined) throw new UnexpectedDataError("discriminator is required");
         if (discriminator > 4095) throw new UnexpectedDataError("discriminator value must be less than 4096");

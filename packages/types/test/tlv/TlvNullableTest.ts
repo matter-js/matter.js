@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BitFlag } from "#schema/BitmapSchema.js";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
+import { TlvBitmap, TlvUInt16, TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvString } from "#tlv/TlvString.js";
 import { TlvByteString } from "#tlv/index.js";
 import { Bytes } from "@matter/general";
@@ -92,6 +94,27 @@ describe("TlvNullable", () => {
             const encoded = schemaArray.encode([]);
             const schemaWithConstraint = TlvNullable(TlvArray(TlvString, { minLength: 1 }));
             expect(schemaWithConstraint.decode(encoded)).equal(null);
+        });
+    });
+
+    describe("nullable bitmap reserves the most-significant bit (§7.19.1.2)", () => {
+        const map8 = TlvNullable(TlvBitmap(TlvUInt8, { lsb: BitFlag(0), msb: BitFlag(7) }));
+        const map16 = TlvNullable(TlvBitmap(TlvUInt16, { lsb: BitFlag(0), msb: BitFlag(15) }));
+
+        it("rejects map8 with the reserved MSB set", () => {
+            expect(() => map8.validate({ msb: true })).throw();
+        });
+
+        it("accepts map8 with only lower bits set", () => {
+            expect(() => map8.validate({ lsb: true })).not.throw();
+        });
+
+        it("rejects map16 with the reserved MSB set", () => {
+            expect(() => map16.validate({ msb: true })).throw();
+        });
+
+        it("accepts map16 with only lower bits set", () => {
+            expect(() => map16.validate({ lsb: true })).not.throw();
         });
     });
 });

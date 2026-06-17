@@ -7,8 +7,12 @@
 import {
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
+    INVALID_PASSCODES,
+    isValidPasscode,
     ManualPairingCodeCodec,
     ManualPairingData,
+    PASSCODE_MAX,
+    PASSCODE_MIN,
     QrCodeData,
     QrCodeTlvDataDefaultFields,
     QrPairingCodeCodec,
@@ -59,9 +63,9 @@ const MANUAL_PAIRING_DATA_CODES: Array<MANUAL_PAIRING_DATA_CODE> = [
         data: {
             discriminator: 10,
             shortDiscriminator: 0,
-            passcode: 12345678,
+            passcode: 23456780,
         },
-        code: "0085 260 7537",
+        code: "0112 761 4316",
     },
     {
         data: {
@@ -124,6 +128,24 @@ describe("QrPairingCodeCodec", () => {
             const encoded = QrPairingCodeCodec.encode([shortPasscodeQr]);
             const decoded = QrPairingCodeCodec.decode(encoded);
             expect(decoded[0].passcode).equal(1);
+        });
+    });
+
+    describe("passcode validation", () => {
+        it("rejects encoding an invalid passcode", () => {
+            expect(() => QrPairingCodeCodec.encode([{ ...QR_CODE_DATA, passcode: 12345678 }])).throw(
+                "Invalid passcode 12345678",
+            );
+        });
+
+        it("rejects decoding an invalid passcode", () => {
+            // MT:YNJV7VSC00ANG46Y900 carries passcode 12345678
+            expect(() => QrPairingCodeCodec.decode("MT:YNJV7VSC00ANG46Y900")).throw("Invalid passcode 12345678");
+        });
+
+        it("decodes an invalid passcode when validation is disabled", () => {
+            const decoded = QrPairingCodeCodec.decode("MT:YNJV7VSC00ANG46Y900", false);
+            expect(decoded[0].passcode).equal(12345678);
         });
     });
 
@@ -217,5 +239,48 @@ describe("ManualPairingCodeCodec", () => {
             const decoded = ManualPairingCodeCodec.decode(encoded);
             expect(decoded.passcode).equal(1);
         });
+    });
+
+    describe("passcode validation", () => {
+        it("rejects encoding an invalid passcode", () => {
+            expect(() => ManualPairingCodeCodec.encode({ discriminator: 10, passcode: 12345678 })).throw(
+                "Invalid passcode 12345678",
+            );
+        });
+
+        it("rejects decoding an invalid passcode", () => {
+            // 00852607537 carries passcode 12345678
+            expect(() => ManualPairingCodeCodec.decode("00852607537")).throw("Invalid passcode 12345678");
+        });
+
+        it("decodes an invalid passcode when validation is disabled", () => {
+            const decoded = ManualPairingCodeCodec.decode("00852607537", false);
+            expect(decoded.passcode).equal(12345678);
+        });
+    });
+});
+
+describe("isValidPasscode", () => {
+    it("accepts the range bounds", () => {
+        expect(isValidPasscode(PASSCODE_MIN)).equal(true);
+        expect(isValidPasscode(PASSCODE_MAX)).equal(true);
+        expect(isValidPasscode(20202021)).equal(true);
+    });
+
+    it("rejects out-of-range values", () => {
+        expect(isValidPasscode(PASSCODE_MIN - 1)).equal(false);
+        expect(isValidPasscode(PASSCODE_MAX + 1)).equal(false);
+        expect(isValidPasscode(-1)).equal(false);
+    });
+
+    it("rejects non-integers", () => {
+        expect(isValidPasscode(1.5)).equal(false);
+        expect(isValidPasscode(NaN)).equal(false);
+    });
+
+    it("rejects the invalid-passcode list", () => {
+        for (const passcode of INVALID_PASSCODES) {
+            expect(isValidPasscode(passcode)).equal(false);
+        }
     });
 });

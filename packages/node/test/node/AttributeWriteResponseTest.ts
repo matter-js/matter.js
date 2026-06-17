@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AccessLevel } from "@matter/model";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -84,6 +85,38 @@ describe("AttributeWriteRequest", () => {
                     endpointId: 0,
                 },
                 status: Status.UnsupportedAccess,
+                clusterStatus: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+    });
+
+    // Spec 8.7.3.2: a View-privilege subject may learn element existence, so a model-known but absent
+    // attribute whose actual write privilege exceeds View resolves to UNSUPPORTED_ATTRIBUTE (existence),
+    // not UNSUPPORTED_ACCESS (the View pass grants before the existence check fires).
+    it("writes model-known absent high-privilege attribute as unsupported attribute for view-only subject", async () => {
+        const node = await MockServerNode.createOnline();
+        // BasicInformation.localConfigDisabled (id 0x10): optional (absent here), write privilege Manage
+        const response = await writeAttrAs(
+            node,
+            AccessLevel.View,
+            Write.Attribute({
+                endpoint: node,
+                cluster: BasicInformation,
+                attributes: "localConfigDisabled",
+                value: true,
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "attr-status",
+                path: {
+                    attributeId: 0x10,
+                    clusterId: 40,
+                    endpointId: 0,
+                },
+                status: Status.UnsupportedAttribute,
                 clusterStatus: undefined,
             },
         ]);
@@ -288,6 +321,15 @@ async function writeAttrRaw(node: MockServerNode, data: Partial<WriteRequest>) {
     } as Write;
 
     return node.online({ command: true }, async ({ context }) => {
+        const response = new AttributeWriteResponse(node.protocol, context);
+        return { data: await response.process(request), counts: response.counts };
+    });
+}
+
+async function writeAttrAs(node: MockServerNode, accessLevel: AccessLevel, ...args: Parameters<typeof Write>) {
+    const request = { suppressResponse: false, ...Write(...args) } as Write;
+
+    return node.online({ command: true, accessLevel }, async ({ context }) => {
         const response = new AttributeWriteResponse(node.protocol, context);
         return { data: await response.process(request), counts: response.counts };
     });

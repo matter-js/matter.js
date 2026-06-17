@@ -5,6 +5,7 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { AccessLevel } from "@matter/model";
 import { Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -147,6 +148,42 @@ describe("AttributeReadResponse", () => {
                     path: {
                         attributeId: 15,
                         clusterId: 40,
+                        endpointId: 0,
+                    },
+                    status: Status.UnsupportedAttribute,
+                },
+            ],
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+    });
+
+    // Spec 8.4.3.2 step 1: a View-privilege subject may learn element existence, so a model-known but
+    // absent attribute whose actual read privilege exceeds View resolves to UNSUPPORTED_ATTRIBUTE (existence),
+    // not UNSUPPORTED_ACCESS (the View pass grants before the existence check fires).
+    it("reads model-known absent high-privilege attribute as unsupported attribute for view-only subject", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await readAttrRaw(
+            node,
+            {
+                attributeRequests: [
+                    {
+                        // GeneralCommissioning.TcAcceptedVersion: read privilege Administer, absent when TC feature is off
+                        endpointId: EndpointNumber(0),
+                        clusterId: ClusterId(48),
+                        attributeId: AttributeId(5),
+                    },
+                ],
+            },
+            AccessLevel.View,
+        );
+
+        expect(response.data).deep.equals([
+            [
+                {
+                    kind: "attr-status",
+                    path: {
+                        attributeId: 5,
+                        clusterId: 48,
                         endpointId: 0,
                     },
                     status: Status.UnsupportedAttribute,
