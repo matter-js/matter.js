@@ -14,7 +14,13 @@ registerDeviceType({
     async create(serverNode: ServerNode, endpoint: EndpointNumber) {
         const ep = new Endpoint(LightSensorDevice, {
             number: endpoint,
-            illuminanceMeasurement: { measuredValue: 1000, minMeasuredValue: 1, maxMeasuredValue: 65534 },
+            illuminanceMeasurement: {
+                measuredValue: 1000,
+                minMeasuredValue: 1,
+                maxMeasuredValue: 65534,
+                tolerance: 0,
+                lightSensorType: 0,
+            },
         });
         await serverNode.add(ep);
         return { endpoint: ep };
