@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.3 (2026-06-17)
 
 - @matter/general
     - Fix: `log.level` (e.g. `MATTER_LOG_LEVEL`) now accepts string level names like `info` again, not just numeric values
