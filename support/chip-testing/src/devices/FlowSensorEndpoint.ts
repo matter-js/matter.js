@@ -14,7 +14,7 @@ registerDeviceType({
     async create(serverNode: ServerNode, endpoint: EndpointNumber) {
         const ep = new Endpoint(FlowSensorDevice, {
             number: endpoint,
-            flowMeasurement: { measuredValue: 100 },
+            flowMeasurement: { measuredValue: 100, minMeasuredValue: 0, maxMeasuredValue: 65534 },
         });
         await serverNode.add(ep);
         return { endpoint: ep };
