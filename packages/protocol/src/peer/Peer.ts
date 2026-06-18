@@ -9,7 +9,7 @@ import type { NodeProtocol } from "#action/protocols.js";
 import { DiscoveryData } from "#common/Scanner.js";
 import { getOperationalDeviceQname } from "#mdns/MdnsConsts.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import type { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import type { ExchangeProvider, ReachabilityReason } from "#protocol/ExchangeProvider.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
@@ -142,7 +142,8 @@ export class Peer {
                         }
                     } else {
                         tagUdp(channel.networkAddress);
-                        channel.networkAddressChanged.on(tagUdp);
+                        // MessageChannel.networkAddressChanged survives socket swaps; the transport channel's does not.
+                        session.channel.networkAddressChanged.on(tagUdp);
                     }
                 }
             }
@@ -150,9 +151,8 @@ export class Peer {
             // Remove session and detach listener when destroyed
             session.closing.on(() => {
                 this.#sessions.delete(session);
-                const channel = session.channel.transportChannel;
-                if (isIpNetworkChannel(channel)) {
-                    channel.networkAddressChanged.off(tagUdp);
+                if (isIpNetworkChannel(session.channel.transportChannel)) {
+                    session.channel.networkAddressChanged.off(tagUdp);
                 }
             });
 
@@ -488,10 +488,10 @@ export class Peer {
 
         this.#observers.close();
 
-        // Cancel pending address check
-        this.#addressMonitor?.stop();
-
         this.#abort(new ClosedError("Peer closed"));
+
+        // Stop the address monitor and await any in-flight reachability run (the abort above makes it unwind).
+        await this.#addressMonitor?.close();
 
         for (const session of this.#context.sessions.sessionsFor(this.address)) {
             await session.initiateClose();
@@ -550,6 +550,18 @@ export class Peer {
             );
         }
         return this.#addressMonitor;
+    }
+
+    /**
+     * Verify this peer is reachable, driving recovery via the address monitor.
+     *
+     * Returns `true` if the session is usable afterward, `false` if it was closed.
+     */
+    async verifyReachability(options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        if (!this.hasSession) {
+            return false;
+        }
+        return this.#addressCheck.verifyReachability(options);
     }
 
     #initiateConnection(options?: Peer.ConnectOptions) {
