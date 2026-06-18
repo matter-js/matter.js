@@ -5,6 +5,7 @@
  */
 
 import { Endpoint, ServerNode } from "@matter/main";
+import { IlluminanceMeasurement } from "@matter/main/clusters";
 import { LightSensorDevice } from "@matter/main/devices/light-sensor";
 import { EndpointNumber } from "@matter/main/types";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
@@ -19,7 +20,7 @@ registerDeviceType({
                 minMeasuredValue: 1,
                 maxMeasuredValue: 65534,
                 tolerance: 0,
-                lightSensorType: 0,
+                lightSensorType: IlluminanceMeasurement.LightSensorType.Photodiode,
             },
         });
         await serverNode.add(ep);
