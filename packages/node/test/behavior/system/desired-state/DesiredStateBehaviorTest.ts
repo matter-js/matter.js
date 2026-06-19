@@ -15,7 +15,9 @@ describe("DesiredStateBehavior", () => {
         await endpoint.act(agent => {
             const ds = agent.get(DesiredStateBehavior);
             const events = new Array<ManagedItem>();
-            ds.events.itemChanged.on(item => { events.push(item); });
+            ds.events.itemChanged.on(item => {
+                events.push(item);
+            });
 
             const item = ds.setIntent("acl", "1", { privilege: 5 }, "converge");
 
@@ -57,7 +59,9 @@ describe("DesiredStateBehavior", () => {
             const ds = agent.get(DesiredStateBehavior);
             ds.setIntent("binding", "7", { node: 2 });
             const removed = new Array<string>();
-            ds.events.itemRemoved.on((kind, key) => { removed.push(`${kind}/${key}`); });
+            ds.events.itemRemoved.on((kind, key) => {
+                removed.push(`${kind}/${key}`);
+            });
             ds.dropItem("binding", "7");
             expect(ds.getItem("binding", "7")).equals(undefined);
             expect(removed).deep.equals(["binding/7"]);

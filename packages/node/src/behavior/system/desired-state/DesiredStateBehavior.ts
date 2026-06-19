@@ -10,7 +10,7 @@ import { Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { assertCapacity, CapacityCache } from "./capacity.js";
 import type { CapacityInfo } from "./ItemKind.js";
-import { ItemMode, ItemState, ManagedItem, itemMapKey, newStatus } from "./types.js";
+import { itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
 /**
  * Per-ClientNode store of intended state. Holds {@link ManagedItem}s and an observed device
