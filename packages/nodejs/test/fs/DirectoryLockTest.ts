@@ -111,8 +111,9 @@ describe("DirectoryLock", () => {
         const script = `
             import { createRequire } from "node:module";
             import { dirname, resolve } from "node:path";
+            import { pathToFileURL } from "node:url";
             const mod = resolve(dirname(createRequire(import.meta.url).resolve("@matter/nodejs")), "../esm/fs/lock-utils.js");
-            const { acquireDirectoryLock } = await import(mod);
+            const { acquireDirectoryLock } = await import(pathToFileURL(mod).href);
             await acquireDirectoryLock(process.env.LOCK_DIR, "leaktest");
         `;
 
