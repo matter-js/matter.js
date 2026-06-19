@@ -6,6 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
+import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
@@ -330,7 +331,7 @@ export namespace ClientNode {
     export const RootEndpoint = MutableEndpoint({
         ...Node.CommonRootEndpoint,
         deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
-    }).with(CommissioningClient, NetworkClient);
+    }).with(CommissioningClient, NetworkClient, DesiredStateBehavior);
 
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
 }
