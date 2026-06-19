@@ -105,6 +105,7 @@ export class ServerNodeStore extends NodeStore implements Destructable {
             Diagnostic.dict({
                 location: root?.path ?? "(unknown location)",
                 driver: this.#storageManager?.driverId ?? "unknown",
+                ...(root ? { locks: root.lockCount } : {}),
             }),
         );
     }
