@@ -141,7 +141,6 @@ export class PeerAddressMonitor {
         }
 
         const currentAddress = channel.networkAddress;
-        const currentIp = currentAddress.ip;
         const discoveredAddresses = this.#peer.service.addresses;
 
         if (reason === "session-suspect") {
@@ -192,7 +191,7 @@ export class PeerAddressMonitor {
                 if (abort.aborted) {
                     return false;
                 }
-                if (ipAddress.ip === currentIp) {
+                if (ServerAddress.isEqual(ipAddress, currentAddress)) {
                     continue;
                 }
                 const address: ServerAddressUdp = { ...ipAddress, type: "udp" };
