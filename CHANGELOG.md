@@ -15,6 +15,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Optimization: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
 
+- @project-chip/matter.js
+    - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
+
 ## 0.17.3 (2026-06-17)
 
 - @matter/general
