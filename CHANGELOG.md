@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/nodejs
-    - Fix: Verifies on `process.exit` that all storages were properly closed and remove orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
+    - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
 
 ## 0.17.3 (2026-06-17)
 
