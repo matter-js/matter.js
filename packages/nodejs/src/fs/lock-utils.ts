@@ -87,7 +87,7 @@ export async function acquireDirectoryLock(dirPath: string, dirName: string): Pr
         return async () => {};
     }
 
-    await acquireLock(lockPath, pidPath);
+    await acquireLock(lockPath, pidPath, dirName);
     await writeFile(pidPath, `${process.pid} ${PROCESS_TOKEN}`);
 
     const tracked: ActiveLock = { lockPath, pidPath, name: dirName };
@@ -105,7 +105,7 @@ export async function acquireDirectoryLock(dirPath: string, dirName: string): Pr
     };
 }
 
-async function acquireLock(lockPath: string, pidPath: string) {
+async function acquireLock(lockPath: string, pidPath: string, dirName: string) {
     try {
         const fd = await fsOpen(lockPath, "wx");
         await fd.close();
@@ -116,9 +116,10 @@ async function acquireLock(lockPath: string, pidPath: string) {
 
         // Lock file exists — check if the owning process is still alive
         const info = await readLockInfo(pidPath);
+        const reason = staleReason(info);
 
-        if (isStale(info)) {
-            logger.info("Cleaning stale storage lock");
+        if (reason !== undefined) {
+            logger.info("Cleaning stale storage lock for", dirName, "-", reason);
             await safeUnlink(pidPath);
             await safeUnlink(lockPath);
 
@@ -141,34 +142,30 @@ async function acquireLock(lockPath: string, pidPath: string) {
 }
 
 /**
- * A lock is stale if:
- *
- * - There is no PID file (crash between lock creation and PID write)
- * - The owning process no longer exists
- * - The PID matches ours but the token differs (PID reuse, e.g. Docker container restart)
+ * Returns why a lock is stale, or `undefined` if it is held by a live owner.  The reason is logged so the cause of a
+ * reclaim (and any failure to release) is visible in the storage logs.
  */
-function isStale(info: LockInfo | undefined): boolean {
+function staleReason(info: LockInfo | undefined): string | undefined {
     if (info === undefined) {
-        return true;
+        return "no PID file (owner crashed before writing it)";
     }
 
     if (info.pid === process.pid) {
         // Same PID — check whether it's actually us via the token.  If the token matches, the lock is held by another
         // call site in this process.  If it differs (or is missing from an old-format file), the PID was reused.
-        return info.token !== PROCESS_TOKEN;
+        return info.token !== PROCESS_TOKEN ? `PID ${info.pid} reused (token mismatch)` : undefined;
     }
 
     try {
         process.kill(info.pid, 0);
-        // Process exists and we have permission to signal it — lock is not stale
-        return false;
+        // Process exists and we have permission to signal it (or EPERM below) — lock is not stale
+        return undefined;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ESRCH") {
-            // Process does not exist — lock is stale
-            return true;
+            return `owner process ${info.pid} no longer exists`;
         }
         // EPERM — process exists but we can't signal it — lock is not stale
-        return false;
+        return undefined;
     }
 }
 
