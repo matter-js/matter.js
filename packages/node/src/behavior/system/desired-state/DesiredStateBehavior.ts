@@ -13,8 +13,8 @@ import type { CapacityInfo } from "./ItemKind.js";
 import { itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
 /**
- * Per-ClientNode store of intended state. Holds {@link ManagedItem}s and an observed device
- * capacity cache, both persisted. Passive: it tracks intent and status but performs no network
+ * Per-ClientNode store of intended state. Holds persisted {@link ManagedItem}s and a volatile
+ * observed device capacity cache. Passive: it tracks intent and status but performs no network
  * I/O. The Reconciler (separate package) drives items toward the node.
  */
 export class DesiredStateBehavior extends Behavior {
@@ -29,12 +29,6 @@ export class DesiredStateBehavior extends Behavior {
         children: [
             FieldElement({
                 name: "items",
-                type: "any",
-                quality: "N",
-                default: { type: "properties", properties: {} },
-            }),
-            FieldElement({
-                name: "capacities",
                 type: "any",
                 quality: "N",
                 default: { type: "properties", properties: {} },

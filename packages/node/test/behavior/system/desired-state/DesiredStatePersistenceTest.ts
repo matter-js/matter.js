@@ -32,4 +32,21 @@ describe("DesiredState integration", () => {
         });
         await node2.close();
     });
+
+    it("does NOT persist capacities across a restart", async () => {
+        const environment = new Environment("test");
+        const RootEndpoint = MockServerNode.RootEndpoint.with(DesiredStateBehavior);
+
+        const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "captest" });
+        await node1.act(agent => {
+            agent.get(DesiredStateBehavior).setCapacity("acl", { limit: 4, used: 3 });
+        });
+        await node1.close();
+
+        const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "captest" });
+        await node2.act(agent => {
+            expect(agent.get(DesiredStateBehavior).getCapacity("acl")).equals(undefined);
+        });
+        await node2.close();
+    });
 });
