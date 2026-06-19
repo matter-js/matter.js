@@ -59,8 +59,8 @@ function removeOrphanedLocks() {
         } catch {
             // ignore
         }
-        unlinkSyncSafe(pidPath);
         unlinkSyncSafe(lockPath);
+        unlinkSyncSafe(pidPath);
     }
 }
 
@@ -96,9 +96,11 @@ export async function acquireDirectoryLock(dirPath: string, dirName: string): Pr
     logger.debug("Acquired storage lock for", dirName, "pid", process.pid);
 
     return async () => {
-        activeLocks.delete(tracked);
-        await safeUnlink(pidPath);
+        // Remove the lock (the gate) first: if the second unlink fails, a leftover pid file is harmless (the next
+        // start reacquires and overwrites it), whereas a leftover lock file would force stale detection
         await safeUnlink(lockPath);
+        await safeUnlink(pidPath);
+        activeLocks.delete(tracked);
         logger.debug("Released storage lock for", dirName);
     };
 }
