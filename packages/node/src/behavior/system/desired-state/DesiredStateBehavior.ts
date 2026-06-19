@@ -23,7 +23,6 @@ export class DesiredStateBehavior extends Behavior {
     declare readonly state: DesiredStateBehavior.State;
     declare readonly events: DesiredStateBehavior.Events;
 
-    // Both collections are nonvolatile (quality "N").
     static override readonly schema = new DatatypeModel({
         name: "DesiredState",
         type: "struct",
@@ -114,7 +113,7 @@ export namespace DesiredStateBehavior {
     }
 
     export class Events extends BaseEvents {
-        itemChanged = new Observable<[item: ManagedItem], unknown>();
-        itemRemoved = new Observable<[kind: string, key: string], unknown>();
+        itemChanged = new Observable<[item: ManagedItem]>();
+        itemRemoved = new Observable<[kind: string, key: string]>();
     }
 }
