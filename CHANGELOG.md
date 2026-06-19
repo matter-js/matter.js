@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/nodejs
+    - Fix: Verify on `process.exit` that all storages were properly closed and remove orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
+
 ## 0.17.3 (2026-06-17)
 
 - @matter/general

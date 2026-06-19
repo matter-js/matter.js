@@ -6,6 +6,7 @@
 
 import { Logger, StorageLockError } from "@matter/general";
 import { randomBytes } from "node:crypto";
+import { unlinkSync } from "node:fs";
 import { open as fsOpen, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -23,6 +24,52 @@ const PROCESS_TOKEN = randomBytes(8).toString("hex");
 interface LockInfo {
     pid: number;
     token?: string;
+}
+
+interface ActiveLock {
+    lockPath: string;
+    pidPath: string;
+    name: string;
+}
+
+/**
+ * Locks held by this process that have not yet been released.  A `process.exit` backstop removes the files for any
+ * survivors so a caller that forgets to close storage does not orphan a lock that blocks the next startup.
+ */
+const activeLocks = new Set<ActiveLock>();
+let exitHandlerInstalled = false;
+
+function trackLock(lock: ActiveLock) {
+    activeLocks.add(lock);
+    if (!exitHandlerInstalled) {
+        exitHandlerInstalled = true;
+        // 'exit' is synchronous-only, so cleanup is limited to unlinking the lock files; it cannot flush storage.
+        process.on("exit", removeOrphanedLocks);
+    }
+}
+
+function removeOrphanedLocks() {
+    for (const { lockPath, pidPath, name } of activeLocks) {
+        // Cleanup is the critical action; logging is advisory and must not prevent it if the logger throws
+        try {
+            logger.warn(
+                `Storage "${name}" was not closed before process exit; removing orphaned lock.`,
+                "Please close any opened storage during shutdown.",
+            );
+        } catch {
+            // ignore
+        }
+        unlinkSyncSafe(pidPath);
+        unlinkSyncSafe(lockPath);
+    }
+}
+
+function unlinkSyncSafe(path: string) {
+    try {
+        unlinkSync(path);
+    } catch {
+        // Best-effort cleanup during exit
+    }
 }
 
 /**
@@ -43,9 +90,13 @@ export async function acquireDirectoryLock(dirPath: string, dirName: string): Pr
     await acquireLock(lockPath, pidPath);
     await writeFile(pidPath, `${process.pid} ${PROCESS_TOKEN}`);
 
+    const tracked: ActiveLock = { lockPath, pidPath, name: dirName };
+    trackLock(tracked);
+
     logger.debug("Acquired storage lock for", dirName, "pid", process.pid);
 
     return async () => {
+        activeLocks.delete(tracked);
         await safeUnlink(pidPath);
         await safeUnlink(lockPath);
         logger.debug("Released storage lock for", dirName);
