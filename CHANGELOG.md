@@ -11,8 +11,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/nodejs
+    - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
+
 - @matter/protocol
-    - Optimization: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
 
 - @project-chip/matter.js
