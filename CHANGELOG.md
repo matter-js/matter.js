@@ -31,6 +31,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
 
+- @matter/nodejs
+    - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
+
 - @matter/protocol
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
