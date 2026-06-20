@@ -26,6 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Emit the OccupancySensing `OccupancyChanged` event automatically when the `OccupancyEvent` feature is enabled
     - Feature: Advertise the BasicInformation CapabilityMinima defaults and enforce the read/subscribe path-count ceiling
     - Feature: Added a ConfigurationVersion increment convenience API and reject ConfigurationVersion bumps on bridged devices that do not enable the attribute
+    - Feature: Added a `configurationVersionChanged` endpoint/node lifecycle event that fires when a client peer's ConfigurationVersion changes (BasicInformation on the node, BridgedDeviceBasicInformation on bridged endpoints)
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
