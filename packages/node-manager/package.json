@@ -27,7 +27,8 @@
     },
     "dependencies": {
         "@matter/general": "*",
-        "@matter/node": "*"
+        "@matter/node": "*",
+        "@matter/types": "*"
     },
     "devDependencies": {
         "@matter/testing": "*"
