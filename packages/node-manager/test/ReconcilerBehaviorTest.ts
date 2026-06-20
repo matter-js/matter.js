@@ -12,6 +12,7 @@
 
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
+import { buildVerifyResult } from "#ReconcilerBehavior.js";
 import { ClientNode, ItemKind, ItemKindRegistry, ManagedItem } from "@matter/node";
 
 // ---------------------------------------------------------------------------
@@ -222,5 +223,36 @@ describe("ItemKindRegistry", () => {
     it("require throws for unknown kind", () => {
         const registry = new ItemKindRegistry();
         expect(() => registry.require("unknown")).throws();
+    });
+});
+
+describe("buildVerifyResult", () => {
+    it("marks committed items whose kind.verify returns false as drifted", async () => {
+        const registry = new ItemKindRegistry();
+        registry.register({
+            kind: "fake",
+            priority: 50,
+            async apply() {},
+            async verify(_node, item) {
+                return item.key !== "drifted";
+            },
+        });
+        const items: ManagedItem[] = [
+            { kind: "fake", key: "ok", intent: {}, mode: "converge", status: { state: "committed", updateTimestamp: 0 } },
+            { kind: "fake", key: "drifted", intent: {}, mode: "converge", status: { state: "committed", updateTimestamp: 0 } },
+            { kind: "fake", key: "pendingOne", intent: {}, mode: "converge", status: { state: "pending", updateTimestamp: 0 } },
+        ];
+        const result = await buildVerifyResult(STUB_NODE, items, registry);
+        expect([...result.driftedKeys]).deep.equals(["fake:drifted"]);
+    });
+
+    it("returns empty drift when no kind defines verify", async () => {
+        const registry = new ItemKindRegistry();
+        registry.register(new FakeKind());
+        const items: ManagedItem[] = [
+            { kind: "fake", key: "ok", intent: {}, mode: "converge", status: { state: "committed", updateTimestamp: 0 } },
+        ];
+        const result = await buildVerifyResult(STUB_NODE, items, registry);
+        expect(result.driftedKeys.size).equals(0);
     });
 });

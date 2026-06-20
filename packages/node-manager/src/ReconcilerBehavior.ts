@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AclItemKind } from "#reconcile/AclItemKind.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
-import { planActions, PlannedAction } from "#reconcile/planActions.js";
+import { planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
 import { Duration, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 import {
     Behavior,
@@ -13,6 +14,8 @@ import {
     DesiredStateBehavior,
     ItemKind,
     ItemKindRegistry,
+    itemMapKey,
+    ManagedItem,
     NetworkClient,
     Node,
     ServerNode,
@@ -23,6 +26,27 @@ import { Status } from "@matter/types";
 // Transient JFDS status codes that should be retried rather than permanently dropped.
 function defaultRecoverable(code: number): boolean {
     return code === Status.Timeout || code === Status.Busy;
+}
+
+export async function buildVerifyResult(
+    node: ClientNode,
+    items: readonly ManagedItem[],
+    registry: ItemKindRegistry,
+): Promise<VerifyResult> {
+    const driftedKeys = new Set<string>();
+    for (const item of items) {
+        if (item.status.state !== "committed") {
+            continue;
+        }
+        const kind = registry.get(item.kind);
+        if (kind?.verify === undefined) {
+            continue;
+        }
+        if (!(await kind.verify(node, item))) {
+            driftedKeys.add(itemMapKey(item.kind, item.key));
+        }
+    }
+    return { driftedKeys };
 }
 
 export class ReconcilerBehavior extends Behavior {
@@ -37,6 +61,7 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     override async initialize() {
+        this.internal.registry.register(new AclItemKind());
         this.internal.peerObservers = new Map();
 
         this.internal.settleTimer = Time.getTimer(
@@ -146,6 +171,10 @@ export class ReconcilerBehavior extends Behavior {
         }
     }
 
+    registerItemKind(kind: ItemKind): void {
+        this.internal.registry.register(kind);
+    }
+
     async #runExecutor(peer: ClientNode, planned: PlannedAction[], registry: ItemKindRegistry): Promise<void> {
         const target: ReconcileTarget = {
             node: peer,
@@ -165,8 +194,11 @@ export class ReconcilerBehavior extends Behavior {
         const verify = options?.verify ?? false;
         const items = Object.values(peer.stateOf(DesiredStateBehavior).items);
 
+        const verifyResult = verify ? await buildVerifyResult(peer, items, this.internal.registry) : undefined;
+
         const planned = planActions(items, {
             verify,
+            verifyResult,
             recoverable: item =>
                 this.internal.registry.get(item.kind)?.recoverable?.(item.status.failureCode ?? 0) ??
                 defaultRecoverable(item.status.failureCode ?? 0),
