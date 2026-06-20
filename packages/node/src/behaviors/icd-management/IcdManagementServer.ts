@@ -42,6 +42,14 @@ import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdManagementBehavior } from "./IcdManagementBehavior.js";
 import { IcdModeState } from "./IcdMode.js";
 
+/**
+ * MRP backoff addend applied while operating as an ICD. An ICD in Active Mode polls for the acknowledgement only at
+ * its fast-poll cadence, so the sender pads its retransmission backoff by one such interval. Mirrors the default of
+ * CHIP's `ICDConfigurationData::GetFastPollingInterval()`.
+ * @see {@link MatterSpecification.v151.Core} § 4.12.2.1
+ */
+export const ICD_FAST_POLLING_INTERVAL = Millis(200);
+
 // CIP, LITS, DSLS, and UAT are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`,
 // `this.features.dynamicSitLitSupport`, and `this.features.userActiveModeTrigger` typecheck throughout the shared
 // logic. The exported IcdManagementServer resets to CIP-only via `.with(CIP)`.
@@ -234,6 +242,12 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
     #online() {
         const fabrics = this.env.get(FabricManager);
+
+        // Pad our MRP retransmission backoff by at least one ICD fast-poll interval, mirroring an ICD server. The
+        // network runtime resets localAdditionalMrpDelay from the own-profile margin on every start, so re-apply each
+        // online; take the max so a larger configured margin is never lowered.
+        const sessions = this.env.get(SessionManager);
+        sessions.localAdditionalMrpDelay = Duration.max(sessions.localAdditionalMrpDelay, ICD_FAST_POLLING_INTERVAL);
 
         // One-time setup. online may re-fire across stop/start on the same instance; the counter and its persistence
         // reactor must be created once (and are torn down with the behavior on dispose).

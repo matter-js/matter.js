@@ -737,7 +737,7 @@ describe("IcdClient", () => {
     });
 
     describe("address monitor", () => {
-        it("does not probe or close a sleeping LIT ICD when its address leaves mDNS", async () => {
+        it("adopts a new mDNS address for a sleeping LIT ICD without probing", async () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
             expect(wakefulnessOf(controller, peer1)?.requiresAwait).true;
@@ -752,7 +752,7 @@ describe("IcdClient", () => {
                 result.resolve = false;
             });
 
-            // Past the probe cooldown, so only the ICD guard (not timing) can suppress a probe.
+            // Past the probe cooldown, so only the ICD path (not timing) governs behavior.
             await MockTime.advance(Minutes(3));
 
             // Old address gone, only a new one announced — a sleeping ICD cannot be probed to confirm it.
@@ -762,12 +762,46 @@ describe("IcdClient", () => {
             await MockTime.advance(Seconds(11));
             await MockTime.resolve(Time.sleep("probe window", Seconds(5)));
 
-            // Hands off: no probe issued, the session is NOT torn down (without the guard the failed probe
-            // calls handlePeerLoss and takes the controller offline), and the current address is untouched.
+            // No probe (a failed probe would call handlePeerLoss and take the controller offline), the session
+            // stays up, and the live session channel is moved to the newly announced address on trust.
             expect(probeCalled).false;
             expect(protopeer.hasSession).true;
             expect(controller.lifecycle.isOnline).true;
-            expect(protopeer.descriptor.operationalAddress!.ip).equals(currentAddress!.ip);
+            expect(protopeer.newestSession()?.channel.networkAddress?.ip).equals("abcd::99");
+        });
+
+        it("leaves a sleeping LIT ICD untouched while mDNS still lists its address", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+            expect(wakefulnessOf(controller, peer1)?.requiresAwait).true;
+
+            const protopeer = peer1.env.get(Peer);
+            const currentAddress = protopeer.descriptor.operationalAddress;
+            expect(currentAddress).not.undefined;
+
+            let probeCalled = false;
+            MockTime.interceptOnce(protopeer.interaction!, "probe", async result => {
+                probeCalled = true;
+                result.resolve = false;
+            });
+
+            // A new address appears while the current one is still advertised — nothing to relocate. (Re-add the
+            // current address alongside the new one so a long idle eviction can't make it look gone.)
+            await simulateAddressChange(
+                protopeer,
+                [],
+                [
+                    { ip: currentAddress!.ip, port: currentAddress!.port },
+                    { ip: "abcd::99", port: currentAddress!.port },
+                ],
+            );
+
+            await MockTime.advance(Seconds(11));
+            await MockTime.resolve(Time.sleep("probe window", Seconds(5)));
+
+            expect(probeCalled).false;
+            expect(protopeer.hasSession).true;
+            expect(protopeer.newestSession()?.channel.networkAddress?.ip).equals(currentAddress!.ip);
         });
     });
 });

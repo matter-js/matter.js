@@ -112,11 +112,29 @@ export class PeerAddressMonitor {
             return;
         }
 
-        // A LIT ICD is asleep most of the time and won't answer a probe until it wakes; probing it would fail
-        // and tear down a healthy session. Leave its address untouched — a genuine move is recovered by reconnect
-        // when the next (wake-gated) send exhausts its retries.
+        // A sleeping LIT ICD won't answer a probe, and a failed probe would close a healthy session — so never
+        // probe it. If its address leaves mDNS, adopt a discovered one on trust instead, preferring the session's
+        // IP family since the unreachable family can't be ruled out without a probe.
         // @see {@link MatterSpecification.v151.Core} § 4.12.2.1
         if (this.#peer.fabric.icd?.wakefulnessFor(this.#peer.address.nodeId)?.requiresAwait) {
+            const icdAddress = channel.networkAddress;
+            const discovered = this.#peer.service.addresses;
+            if (!discovered.size || [...discovered].some(addr => ServerAddress.isEqual(addr, icdAddress))) {
+                return;
+            }
+            const candidates = [...discovered];
+            const isIpv6 = (ip: string) => ip.includes(":");
+            const next = candidates.find(addr => isIpv6(addr.ip) === isIpv6(icdAddress.ip)) ?? candidates[0];
+            const adopted: ServerAddressUdp = { ...next, type: "udp" };
+            logger.info(
+                session.via,
+                "Sleeping LIT ICD address",
+                Diagnostic.strong(ServerAddress.urlFor(icdAddress)),
+                "left mDNS, adopting",
+                Diagnostic.strong(ServerAddress.urlFor(adopted)),
+                "on trust (no probe)",
+            );
+            session.channel.networkAddress = adopted;
             return;
         }
 

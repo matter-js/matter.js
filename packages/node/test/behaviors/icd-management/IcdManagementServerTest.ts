@@ -5,7 +5,7 @@
  */
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
-import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
+import { ICD_FAST_POLLING_INTERVAL, IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
 import { Bytes, Crypto, Millis } from "@matter/general";
@@ -182,6 +182,17 @@ describe("IcdManagementServer", () => {
 
             const after = device.stateOf(IcdManagementServer).icdCounter;
             expect(after).equals(before + 1);
+        });
+    });
+
+    describe("MRP fast-poll backoff", () => {
+        it("pads localAdditionalMrpDelay by the ICD fast-poll interval while operating as an ICD", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            expect(device.env.get(SessionManager).localAdditionalMrpDelay).equals(ICD_FAST_POLLING_INTERVAL);
         });
     });
 
