@@ -8,9 +8,9 @@ import { RvcOperationalStateServer } from "#behaviors/rvc-operational-state";
 import { RoboticVacuumCleanerDevice } from "#devices/robotic-vacuum-cleaner";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { NotImplementedError } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 import { RvcRunMode } from "@matter/types/clusters/rvc-run-mode";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const DeviceType = RoboticVacuumCleanerDevice;
 

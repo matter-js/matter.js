@@ -11,10 +11,9 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
 import { ServerNode } from "#index.js";
 import { causedBy, Crypto, Millis, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import { NetworkProfiles, PeerSet, PeerTimingParameters, PeerUnreachableError, SessionManager } from "@matter/protocol";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
 
 describe("ClientTuningTest", () => {
     before(() => {

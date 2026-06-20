@@ -7,7 +7,7 @@
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Environment } from "@matter/general";
 import { UnsupportedCastError } from "@matter/model";
-import { MockServerNode } from "../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 import { MockEndpoint } from "./mock-endpoint.js";
 
 describe("EndpointVariableService", () => {

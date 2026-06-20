@@ -7,11 +7,10 @@
 import { ChannelClient, ChannelServer } from "#behaviors/channel";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { Read, ReadResult } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import { Channel } from "@matter/types/clusters/channel";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 const CHANNEL_COUNT = 50;
 

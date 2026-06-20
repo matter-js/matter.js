@@ -6,8 +6,8 @@
 
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
 import { DataReadQueue, Millis, Seconds } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { MessageExchange, NodeSession } from "@matter/protocol";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("ServerSubscription", () => {
     before(() => {

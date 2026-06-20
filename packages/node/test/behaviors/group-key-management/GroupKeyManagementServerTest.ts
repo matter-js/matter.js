@@ -7,7 +7,7 @@
 import { GroupKeyManagementClient } from "#behaviors/group-key-management";
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
-import { MockSite } from "../../node/mock-site.js";
+import { MockSite } from "@matter/node/testing";
 
 describe("GroupKeyManagementServer", () => {
     before(() => {

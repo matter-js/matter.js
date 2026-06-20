@@ -7,7 +7,7 @@
 import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { Environment } from "@matter/general";
-import { MockServerNode } from "../../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 describe("DesiredState integration", () => {
     it("is mounted on every ClientNode", () => {
