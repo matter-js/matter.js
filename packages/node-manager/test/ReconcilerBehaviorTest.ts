@@ -239,10 +239,26 @@ function gate() {
 describe("refreshCapacities (#3 isolation)", () => {
     it("a capacity() rejection does not abort the loop", async () => {
         const registry = new ItemKindRegistry();
-        registry.register({ kind: "boom", priority: 10, async apply() {}, async capacity() { throw new Error("io"); } });
-        registry.register({ kind: "ok", priority: 20, async apply() {}, async capacity() { return { limit: 4, used: 1 }; } });
+        registry.register({
+            kind: "boom",
+            priority: 10,
+            async apply() {},
+            async capacity() {
+                throw new Error("io");
+            },
+        });
+        registry.register({
+            kind: "ok",
+            priority: 20,
+            async apply() {},
+            async capacity() {
+                return { limit: 4, used: 1 };
+            },
+        });
         const captured: Record<string, { limit: number; used: number }> = {};
-        await refreshCapacities(STUB_NODE, registry, (kind, info) => { captured[kind] = info; });
+        await refreshCapacities(STUB_NODE, registry, (kind, info) => {
+            captured[kind] = info;
+        });
         expect(captured).deep.equals({ ok: { limit: 4, used: 1 } });
     });
 });
@@ -252,15 +268,18 @@ describe("InFlightGuard (#4 coalescing)", () => {
         const guard = new InFlightGuard();
         let runs = 0;
         const g = gate();
-        const run = () => { runs++; return g.promise; };
-        const first = guard.run(run);     // starts pass 1
-        guard.run(run);                   // re-entry during flight -> mark dirty, no new pass yet
-        guard.run(run);                   // still in flight -> still just dirty
+        const run = () => {
+            runs++;
+            return g.promise;
+        };
+        const first = guard.run(run); // starts pass 1
+        void guard.run(run); // re-entry during flight -> mark dirty, no new pass yet
+        void guard.run(run); // still in flight -> still just dirty
         expect(runs).equals(1);
         g.release();
         await first;
         await Promise.resolve();
-        expect(runs).equals(2);           // exactly one coalesced extra pass
+        expect(runs).equals(2); // exactly one coalesced extra pass
     });
 });
 
@@ -285,9 +304,27 @@ describe("buildVerifyResult", () => {
             },
         });
         const items: ManagedItem[] = [
-            { kind: "fake", key: "ok", intent: {}, mode: "converge", status: { state: "committed", updateTimestamp: 0 } },
-            { kind: "fake", key: "drifted", intent: {}, mode: "converge", status: { state: "committed", updateTimestamp: 0 } },
-            { kind: "fake", key: "pendingOne", intent: {}, mode: "converge", status: { state: "pending", updateTimestamp: 0 } },
+            {
+                kind: "fake",
+                key: "ok",
+                intent: {},
+                mode: "converge",
+                status: { state: "committed", updateTimestamp: 0 },
+            },
+            {
+                kind: "fake",
+                key: "drifted",
+                intent: {},
+                mode: "converge",
+                status: { state: "committed", updateTimestamp: 0 },
+            },
+            {
+                kind: "fake",
+                key: "pendingOne",
+                intent: {},
+                mode: "converge",
+                status: { state: "pending", updateTimestamp: 0 },
+            },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);
         expect([...result.driftedKeys]).deep.equals(["fake:drifted"]);
@@ -297,7 +334,13 @@ describe("buildVerifyResult", () => {
         const registry = new ItemKindRegistry();
         registry.register(new FakeKind());
         const items: ManagedItem[] = [
-            { kind: "fake", key: "ok", intent: {}, mode: "converge", status: { state: "committed", updateTimestamp: 0 } },
+            {
+                kind: "fake",
+                key: "ok",
+                intent: {},
+                mode: "converge",
+                status: { state: "committed", updateTimestamp: 0 },
+            },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);
         expect(result.driftedKeys.size).equals(0);
