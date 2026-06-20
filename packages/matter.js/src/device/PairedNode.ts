@@ -514,28 +514,41 @@ export class PairedNode {
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
+        this.#connect(connectOptions).catch(error => logger.warn(this.#peerAddress, `Error connecting to node`, error));
+    }
+
+    async #connect(connectOptions?: CommissioningControllerNodeOptions) {
+        // Per-connect subscription intervals must reach the NetworkClient that drives the subscription; the
+        // create-time path only applies them when passed to getNode()/connectNode().
+        await this.#applyDefaultSubscription(connectOptions);
 
         // disconnect() disables the underlying node; re-enable it so the node restarts and NetworkClient can
         // (re)subscribe.  Without this a connect() after disconnect() is a no-op because isDisabled stays set.
         if (this.#clientNode.stateOf(NetworkClient).isDisabled) {
-            this.#clientNode
-                .enable()
-                .then(() => {
-                    if (this.#options.autoSubscribe === false) {
-                        return this.#initializeWithRead();
-                    }
-                    this.#activateSubscription();
-                })
-                .catch(error => logger.warn(this.#peerAddress, `Error connecting to node`, error));
-            return;
+            await this.#clientNode.enable();
         }
 
         if (this.#options.autoSubscribe === false) {
-            this.#initializeWithRead().catch(error => {
-                logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
-            });
+            await this.#initializeWithRead();
         } else {
             this.#activateSubscription();
+        }
+    }
+
+    /** Push per-connect subscription intervals onto the NetworkClient that drives the sustained subscription. */
+    async #applyDefaultSubscription(connectOptions?: CommissioningControllerNodeOptions) {
+        if (connectOptions === undefined) {
+            return;
+        }
+        const defaultSubscription: Record<string, unknown> = {};
+        if (connectOptions.subscribeMinIntervalFloorSeconds !== undefined) {
+            defaultSubscription.minIntervalFloor = Seconds(connectOptions.subscribeMinIntervalFloorSeconds);
+        }
+        if (connectOptions.subscribeMaxIntervalCeilingSeconds !== undefined) {
+            defaultSubscription.maxIntervalCeiling = Seconds(connectOptions.subscribeMaxIntervalCeilingSeconds);
+        }
+        if (Object.keys(defaultSubscription).length > 0) {
+            await this.#clientNode.set({ network: { defaultSubscription } });
         }
     }
 

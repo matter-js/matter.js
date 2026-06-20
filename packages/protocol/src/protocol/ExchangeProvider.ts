@@ -61,6 +61,9 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
     preferredTransport?: ChannelType;
 }
 
+/** Why a reachability check was requested. Gates entry conditions, not the probe mechanics. */
+export type ReachabilityReason = "address-change" | "session-suspect";
+
 /**
  * Interface for obtaining a message exchange with a specific peer.
  */
@@ -89,6 +92,15 @@ export abstract class ExchangeProvider {
      * The default implementation is a no-op (already connected).
      */
     async connect(_options?: NewExchangeOptions): Promise<void> {}
+
+    /**
+     * Verify the peer is reachable, driving recovery (alternate-address migration or session close).
+     *
+     * The default reports reachable; only peer-backed providers have a reachability authority and override this.
+     */
+    async verifyReachability(_options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        return true;
+    }
 }
 
 /**
