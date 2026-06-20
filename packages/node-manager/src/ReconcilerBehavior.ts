@@ -7,9 +7,10 @@
 import { AclItemKind } from "#reconcile/AclItemKind.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
-import { Duration, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
+import { Duration, Logger, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 import {
     Behavior,
+    CapacityInfo,
     ClientNode,
     DesiredStateBehavior,
     ItemKind,
@@ -23,9 +24,54 @@ import {
 import { SustainedSubscription } from "@matter/protocol";
 import { Status } from "@matter/types";
 
+const logger = Logger.get("Reconciler");
+
 // Transient JFDS status codes that should be retried rather than permanently dropped.
 function defaultRecoverable(code: number): boolean {
     return code === Status.Timeout || code === Status.Busy;
+}
+
+export async function refreshCapacities(
+    node: ClientNode,
+    registry: ItemKindRegistry,
+    setCapacity: (kind: string, info: CapacityInfo) => void,
+): Promise<void> {
+    for (const kind of registry.all()) {
+        if (kind.capacity === undefined) {
+            continue;
+        }
+        try {
+            setCapacity(kind.kind, await kind.capacity(node));
+        } catch (e) {
+            logger.notice(`Capacity refresh for "${kind.kind}" failed, skipping:`, e);
+        }
+    }
+}
+
+/** Serializes reconcile passes per peer and coalesces re-entries into a single follow-up pass. */
+export class InFlightGuard {
+    #running = false;
+    #dirty = false;
+
+    async run(pass: () => Promise<void>): Promise<void> {
+        if (this.#running) {
+            this.#dirty = true;
+            return;
+        }
+        this.#running = true;
+        try {
+            do {
+                this.#dirty = false;
+                await pass();
+            } while (this.#dirty);
+        } finally {
+            this.#running = false;
+        }
+    }
+}
+
+export function shouldStartSweep(internal: { disposed: boolean }): boolean {
+    return !internal.disposed;
 }
 
 export async function buildVerifyResult(
@@ -79,10 +125,16 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     async #afterSettle() {
+        if (this.internal.disposed) {
+            return;
+        }
         for (const peer of this.#rootNode.peers) {
             if (this.#reachable(peer)) {
                 await this.reconcile(peer);
             }
+        }
+        if (!shouldStartSweep(this.internal)) {
+            return;
         }
         this.internal.sweepTimer = Time.getPeriodicTimer(
             "reconciler sweep",
@@ -128,6 +180,7 @@ export class ReconcilerBehavior extends Behavior {
             observers.close();
             this.internal.peerObservers.delete(peer);
         }
+        this.internal.guards.delete(peer);
     }
 
     async #onReachable(peer: ClientNode) {
@@ -136,11 +189,15 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     async #refreshCapacity(peer: ClientNode) {
-        for (const kind of this.internal.registry.all()) {
-            if (kind.capacity !== undefined) {
-                const info = await kind.capacity(peer);
-                await peer.act(agent => agent.get(DesiredStateBehavior).setCapacity(kind.kind, info));
-            }
+        const updates = new Array<[string, CapacityInfo]>();
+        await refreshCapacities(peer, this.internal.registry, (kind, info) => updates.push([kind, info]));
+        if (updates.length > 0) {
+            await peer.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                for (const [kind, info] of updates) {
+                    ds.setCapacity(kind, info);
+                }
+            });
         }
     }
 
@@ -160,15 +217,12 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     async reconcile(peer: ClientNode, options?: { verify?: boolean }): Promise<void> {
-        if (this.internal.inFlight.has(peer)) {
-            return;
+        let guard = this.internal.guards.get(peer);
+        if (guard === undefined) {
+            guard = new InFlightGuard();
+            this.internal.guards.set(peer, guard);
         }
-        this.internal.inFlight.add(peer);
-        try {
-            await this.#reconcileEndpoint(peer, options);
-        } finally {
-            this.internal.inFlight.delete(peer);
-        }
+        await guard.run(() => this.#reconcileEndpoint(peer, options));
     }
 
     registerItemKind(kind: ItemKind): void {
@@ -208,6 +262,7 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     override async [Symbol.asyncDispose]() {
+        this.internal.disposed = true;
         this.internal.settleTimer?.stop();
         this.internal.sweepTimer?.stop();
         for (const observers of this.internal.peerObservers.values()) {
@@ -229,7 +284,8 @@ export namespace ReconcilerBehavior {
         peerObservers!: Map<ClientNode, ObserverGroup>;
         sweepTimer?: Timer;
         settleTimer?: Timer;
-        inFlight = new Set<ClientNode>();
+        guards = new Map<ClientNode, InFlightGuard>();
+        disposed = false;
     }
 
     export class Events extends Behavior.Events {}

@@ -12,7 +12,7 @@
 
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
-import { buildVerifyResult } from "#ReconcilerBehavior.js";
+import { buildVerifyResult, InFlightGuard, refreshCapacities, shouldStartSweep } from "#ReconcilerBehavior.js";
 import { ClientNode, ItemKind, ItemKindRegistry, ManagedItem } from "@matter/node";
 
 // ---------------------------------------------------------------------------
@@ -223,6 +223,53 @@ describe("ItemKindRegistry", () => {
     it("require throws for unknown kind", () => {
         const registry = new ItemKindRegistry();
         expect(() => registry.require("unknown")).throws();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gate helper for concurrency tests.
+// ---------------------------------------------------------------------------
+
+function gate() {
+    let release!: () => void;
+    const promise = new Promise<void>(r => (release = r));
+    return { promise, release };
+}
+
+describe("refreshCapacities (#3 isolation)", () => {
+    it("a capacity() rejection does not abort the loop", async () => {
+        const registry = new ItemKindRegistry();
+        registry.register({ kind: "boom", priority: 10, async apply() {}, async capacity() { throw new Error("io"); } });
+        registry.register({ kind: "ok", priority: 20, async apply() {}, async capacity() { return { limit: 4, used: 1 }; } });
+        const captured: Record<string, { limit: number; used: number }> = {};
+        await refreshCapacities(STUB_NODE, registry, (kind, info) => { captured[kind] = info; });
+        expect(captured).deep.equals({ ok: { limit: 4, used: 1 } });
+    });
+});
+
+describe("InFlightGuard (#4 coalescing)", () => {
+    it("runs exactly one extra pass when re-entered during flight", async () => {
+        const guard = new InFlightGuard();
+        let runs = 0;
+        const g = gate();
+        const run = () => { runs++; return g.promise; };
+        const first = guard.run(run);     // starts pass 1
+        guard.run(run);                   // re-entry during flight -> mark dirty, no new pass yet
+        guard.run(run);                   // still in flight -> still just dirty
+        expect(runs).equals(1);
+        g.release();
+        await first;
+        await Promise.resolve();
+        expect(runs).equals(2);           // exactly one coalesced extra pass
+    });
+});
+
+describe("settle-after-dispose (#5)", () => {
+    it("does not schedule the sweep when disposed during settle", () => {
+        const internal = { disposed: true } as { disposed: boolean; sweepTimer?: unknown };
+        expect(shouldStartSweep(internal)).equals(false);
+        internal.disposed = false;
+        expect(shouldStartSweep(internal)).equals(true);
     });
 });
 
