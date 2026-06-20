@@ -40,11 +40,7 @@ function actionFor(item: ManagedItem, opts: PlanOptions): ReconcileAction {
         case "commitFailed":
             return opts.recoverable(item) ? "retry" : "drop";
         case "committed":
-            if (
-                opts.verify &&
-                item.mode === "maintain" &&
-                opts.verifyResult?.driftedKeys.has(itemMapKey(item.kind, item.key))
-            ) {
+            if (opts.verify && opts.verifyResult?.driftedKeys.has(itemMapKey(item.kind, item.key))) {
                 return "repend";
             }
             return "skip";
