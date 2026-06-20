@@ -5,13 +5,13 @@
  */
 
 import { Diagnostic, LogDestination, Logger, LogLevel } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { FabricManager, TestFabric } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
 import { BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
 import { OnOffLightSwitchDevice } from "../../../src/devices/on-off-light-switch.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("BindingServer", () => {
     it("initialize replays persisted binding entries to the BindingManager", async () => {

@@ -14,10 +14,10 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { Node } from "#node/Node.js";
+import { MockServerNode } from "@matter/node/testing";
 import { ClusterId, DeviceTypeId, EndpointNumber } from "@matter/types";
 import { MockEndpointType } from "../../behavior/mock-behavior.js";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 async function createFamily() {
     const parent = await MockEndpoint.create({

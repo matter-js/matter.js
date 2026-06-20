@@ -5,10 +5,10 @@
  */
 
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("AttributeWriteRequest", () => {
     it("writes concrete attribute", async () => {

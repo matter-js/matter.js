@@ -5,9 +5,8 @@
  */
 
 import { Minutes, MockNetwork, Network, Seconds, ServerAddressIp, Time } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { Peer } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 /**
  * Simulate an address change on the peer's IpService by removing old addresses and adding new ones,

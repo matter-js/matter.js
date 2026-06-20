@@ -10,12 +10,11 @@ import { Endpoint } from "#endpoint/index.js";
 import { ServerNode } from "#index.js";
 import { Bytes, Seconds } from "@matter/general";
 import { AccessLevel, Specification } from "@matter/model";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import { EventReadResponse, Read, ReadResult } from "@matter/protocol";
 import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Messages } from "@matter/types/clusters/messages";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     40: 2,

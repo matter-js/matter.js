@@ -8,11 +8,11 @@ import { ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { CommandInvokeResponse, Fabric, Invoke, InvokeResult } from "@matter/protocol";
 import { FabricIndex, NodeId, Status } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { Thermostat } from "@matter/types/clusters/thermostat";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const PresetsThermostat = ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets"));
 

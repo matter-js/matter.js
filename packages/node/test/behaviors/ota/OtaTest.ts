@@ -15,6 +15,7 @@ import {
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
 import { Bytes, createPromise, Hours, MockFetch, Timestamp } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import {
     BdxProtocol,
     BdxSession,
@@ -26,7 +27,6 @@ import {
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { MockSite } from "../../node/mock-site.js";
 import {
     addTestOtaImage,
     initOtaSite,
