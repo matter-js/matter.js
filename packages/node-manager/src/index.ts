@@ -4,4 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./placeholder.js";
+// Public API is added as it lands; the reconcile engine internals are consumed via #-imports.
+export {};
