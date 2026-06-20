@@ -97,6 +97,7 @@ export async function buildVerifyResult(
 
 export class ReconcilerBehavior extends Behavior {
     static override readonly id = "reconciler";
+    static override readonly early = true;
 
     declare readonly state: ReconcilerBehavior.State;
     declare internal: ReconcilerBehavior.Internal;
