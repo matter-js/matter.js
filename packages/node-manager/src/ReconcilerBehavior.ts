@@ -26,7 +26,6 @@ import { Status } from "@matter/types";
 
 const logger = Logger.get("Reconciler");
 
-// Transient JFDS status codes that should be retried rather than permanently dropped.
 function defaultRecoverable(code: number): boolean {
     return code === Status.Timeout || code === Status.Busy;
 }
@@ -55,6 +54,8 @@ export class InFlightGuard {
 
     async run(pass: () => Promise<void>): Promise<void> {
         if (this.#running) {
+            // A verify intent arriving during a non-verify pass coalesces into it; the lost verify is
+            // recovered by the next verify trigger. Accepted in 2a — no write is lost, no drift masked.
             this.#dirty = true;
             return;
         }
