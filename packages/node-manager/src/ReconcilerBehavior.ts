@@ -17,6 +17,7 @@ import {
     Node,
     ServerNode,
 } from "@matter/node";
+import { SustainedSubscription } from "@matter/protocol";
 import { Status } from "@matter/types";
 
 // Transient JFDS status codes that should be retried rather than permanently dropped.
@@ -77,32 +78,23 @@ export class ReconcilerBehavior extends Behavior {
         const observers = new ObserverGroup();
         this.internal.peerObservers.set(peer, observers);
 
-        observers.on(
-            peer.eventsOf(NetworkClient).subscriptionStatusChanged,
-            this.callback((isActive: boolean) => {
-                if (isActive) {
-                    void this.#onReachable(peer);
-                }
-            }),
-        );
+        observers.on(peer.eventsOf(NetworkClient).subscriptionStatusChanged, (isActive: boolean) => {
+            if (isActive) {
+                void this.#onReachable(peer);
+            }
+        });
 
-        observers.on(
-            peer.eventsOf(DesiredStateBehavior).itemChanged,
-            this.callback(() => {
-                if (this.#reachable(peer)) {
-                    void this.reconcile(peer);
-                }
-            }),
-        );
+        observers.on(peer.eventsOf(DesiredStateBehavior).itemChanged, () => {
+            if (this.#reachable(peer)) {
+                void this.reconcile(peer);
+            }
+        });
 
-        observers.on(
-            peer.lifecycle.softwareVersionChanged,
-            this.callback(() => {
-                if (this.#reachable(peer)) {
-                    void this.#onReachable(peer);
-                }
-            }),
-        );
+        observers.on(peer.lifecycle.softwareVersionChanged, () => {
+            if (this.#reachable(peer)) {
+                void this.#onReachable(peer);
+            }
+        });
     }
 
     #unwirePeer(peer: ClientNode) {
@@ -134,7 +126,12 @@ export class ReconcilerBehavior extends Behavior {
         if (peer.stateOf(NetworkClient).isDisabled) {
             return false;
         }
-        return peer.behaviors.internalsOf(NetworkClient).activeSubscription !== undefined;
+        const sub = peer.behaviors.internalsOf(NetworkClient).activeSubscription;
+        if (sub === undefined) {
+            return false;
+        }
+        // SustainedSubscription reports active only after the subscription is established, not just created.
+        return sub instanceof SustainedSubscription ? sub.active.value : true;
     }
 
     async reconcile(peer: ClientNode, options?: { verify?: boolean }): Promise<void> {
