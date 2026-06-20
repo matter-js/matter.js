@@ -4,5 +4,4 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Public API is added as it lands; the reconcile engine internals are consumed via #-imports.
-export {};
+export * from "./ReconcilerBehavior.js";
