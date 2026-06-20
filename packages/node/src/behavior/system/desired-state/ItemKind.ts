@@ -22,6 +22,14 @@ export interface ItemKind<I = unknown> {
     apply(node: ClientNode, item: ManagedItem<I>): Promise<void>;
     read?(node: ClientNode): Promise<ManagedItem<I>[]>;
     diff?(intent: I, current: I): boolean;
+
+    /**
+     * Report whether the device currently satisfies `item`. `true` = no drift. The engine consults
+     * this on a verify pass to decide which committed items to re-pend. Kinds own the device read
+     * and match; `read`/`diff` remain optional helpers.
+     */
+    verify?(node: ClientNode, item: ManagedItem<I>): Promise<boolean>;
+
     remove?(node: ClientNode, item: ManagedItem<I>): Promise<void>;
     recoverable?(code: number): boolean;
     capacity?(node: ClientNode): Promise<CapacityInfo>;
