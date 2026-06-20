@@ -12,7 +12,6 @@ export const CRYPTO_GROUP_SIZE_BYTES = 32;
 export const CRYPTO_PUBLIC_KEY_SIZE_BYTES = 2 * CRYPTO_GROUP_SIZE_BYTES + 1;
 /** @see {@link MatterSpecification.v16.Core} § 3.3 */
 export const CRYPTO_HASH_LEN_BYTES = 32;
-export const CRYPTO_HASH_BLOCK_LEN_BYTES = 64;
 /** @see {@link MatterSpecification.v16.Core} § 3.6 */
 export const CRYPTO_SYMMETRIC_KEY_LENGTH_BITS = 128;
 export const CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES = 16;
