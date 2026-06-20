@@ -128,6 +128,7 @@ export class ReconcilerBehavior extends Behavior {
         if (this.internal.disposed) {
             return;
         }
+        logger.debug("Reconciler settle elapsed, starting first pass");
         for (const peer of this.#rootNode.peers) {
             if (this.#reachable(peer)) {
                 await this.reconcile(peer);
@@ -157,18 +158,21 @@ export class ReconcilerBehavior extends Behavior {
 
         observers.on(peer.eventsOf(NetworkClient).subscriptionStatusChanged, (isActive: boolean) => {
             if (isActive) {
+                logger.debug(`Trigger subscription-active ${peer.id}`);
                 void this.#onReachable(peer);
             }
         });
 
         observers.on(peer.eventsOf(DesiredStateBehavior).itemChanged, () => {
             if (this.#reachable(peer)) {
+                logger.debug(`Trigger item-changed ${peer.id}`);
                 void this.reconcile(peer);
             }
         });
 
         observers.on(peer.lifecycle.softwareVersionChanged, () => {
             if (this.#reachable(peer)) {
+                logger.debug(`Trigger software-version ${peer.id}`);
                 void this.#onReachable(peer);
             }
         });
@@ -217,6 +221,7 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     async reconcile(peer: ClientNode, options?: { verify?: boolean }): Promise<void> {
+        logger.debug(`Reconcile ${peer.id}${options?.verify ? " (verify)" : ""}`);
         let guard = this.internal.guards.get(peer);
         if (guard === undefined) {
             guard = new InFlightGuard();
