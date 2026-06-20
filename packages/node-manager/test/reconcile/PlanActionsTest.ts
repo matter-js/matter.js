@@ -7,7 +7,12 @@
 import { planActions } from "#reconcile/planActions.js";
 import { ManagedItem, itemMapKey } from "@matter/node";
 
-function item(kind: string, key: string, state: ManagedItem["status"]["state"], mode: ManagedItem["mode"] = "converge"): ManagedItem {
+function item(
+    kind: string,
+    key: string,
+    state: ManagedItem["status"]["state"],
+    mode: ManagedItem["mode"] = "converge",
+): ManagedItem {
     return { kind, key, intent: {}, mode, status: { state, updateTimestamp: 0 } };
 }
 
@@ -16,19 +21,19 @@ const recoverableNone = () => false;
 
 describe("planActions", () => {
     it("maps pending → apply and deletePending → remove", () => {
-        const result = planActions(
-            [item("acl", "1", "pending"), item("acl", "2", "deletePending")],
-            { verify: false, recoverable: recoverableAll },
-        );
+        const result = planActions([item("acl", "1", "pending"), item("acl", "2", "deletePending")], {
+            verify: false,
+            recoverable: recoverableAll,
+        });
         expect(result.map(r => r.action)).deep.equals(["apply", "remove"]);
     });
 
     it("retries recoverable commitFailed and drops unrecoverable", () => {
         const recoverable = (i: ManagedItem) => i.key === "ok";
-        const result = planActions(
-            [item("acl", "ok", "commitFailed"), item("acl", "bad", "commitFailed")],
-            { verify: false, recoverable },
-        );
+        const result = planActions([item("acl", "ok", "commitFailed"), item("acl", "bad", "commitFailed")], {
+            verify: false,
+            recoverable,
+        });
         expect(result.map(r => r.action)).deep.equals(["retry", "drop"]);
     });
 
@@ -44,14 +49,11 @@ describe("planActions", () => {
         const drifted = item("nodeLabel", "0", "committed", "maintain");
         const stable = item("nodeLabel", "1", "committed", "maintain");
         const converged = item("acl", "1", "committed", "converge");
-        const result = planActions(
-            [drifted, stable, converged],
-            {
-                verify: true,
-                verifyResult: { driftedKeys: new Set([itemMapKey("nodeLabel", "0")]) },
-                recoverable: recoverableNone,
-            },
-        );
+        const result = planActions([drifted, stable, converged], {
+            verify: true,
+            verifyResult: { driftedKeys: new Set([itemMapKey("nodeLabel", "0")]) },
+            recoverable: recoverableNone,
+        });
         expect(result.map(r => r.action)).deep.equals(["repend", "skip", "skip"]);
     });
 });

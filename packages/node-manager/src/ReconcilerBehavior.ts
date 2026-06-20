@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
+import { planActions, PlannedAction } from "#reconcile/planActions.js";
 import { Duration, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 import {
     Behavior,
@@ -16,8 +18,6 @@ import {
     ServerNode,
 } from "@matter/node";
 import { Status } from "@matter/types";
-import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
-import { planActions, PlannedAction } from "#reconcile/planActions.js";
 
 // Transient JFDS status codes that should be retried rather than permanently dropped.
 function defaultRecoverable(code: number): boolean {
@@ -153,14 +153,12 @@ export class ReconcilerBehavior extends Behavior {
         const target: ReconcileTarget = {
             node: peer,
             updateStatus(kind, key, state, code) {
-                return Promise.resolve(peer.act(agent =>
-                    agent.get(DesiredStateBehavior).updateStatus(kind, key, state, code),
-                ));
+                return Promise.resolve(
+                    peer.act(agent => agent.get(DesiredStateBehavior).updateStatus(kind, key, state, code)),
+                );
             },
             dropItem(kind, key) {
-                return Promise.resolve(peer.act(agent =>
-                    agent.get(DesiredStateBehavior).dropItem(kind, key),
-                ));
+                return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
             },
         };
         await executeActions(target, planned, registry);

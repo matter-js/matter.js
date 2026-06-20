@@ -16,7 +16,12 @@ import { PlannedAction } from "./planActions.js";
  */
 export interface ReconcileTarget {
     readonly node: ClientNode;
-    updateStatus(kind: string, key: string, state: "committed" | "commitFailed" | "pending", code?: number): Promise<void>;
+    updateStatus(
+        kind: string,
+        key: string,
+        state: "committed" | "commitFailed" | "pending",
+        code?: number,
+    ): Promise<void>;
     dropItem(kind: string, key: string): Promise<void>;
 }
 
