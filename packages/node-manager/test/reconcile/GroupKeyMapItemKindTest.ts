@@ -87,4 +87,11 @@ describe("GroupKeyMapItemKind", () => {
         const { node } = fakePeer([entry(0x101, 3)], 5);
         expect(await kind.capacity(node)).deep.equals({ limit: 5, used: 1 });
     });
+
+    it("apply rejects groupKeySetId 0 (IPK reserved)", async () => {
+        const kind = new GroupKeyMapItemKind();
+        const { node } = fakePeer([]);
+        const ipkItem = item({ groupId: GroupId(0x101), groupKeySetId: 0 });
+        await expect(kind.apply(node, ipkItem)).rejectedWith("groupKeySetId 0");
+    });
 });
