@@ -30,6 +30,10 @@ export function newStatus(state: ItemState, failureCode?: number): StatusEntry {
     return { state, updateTimestamp: Time.nowMs, failureCode };
 }
 
+function escapeKeyPart(part: string): string {
+    return part.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
+}
+
 export function itemMapKey(kind: string, key: string): string {
-    return `${kind}:${key}`;
+    return `${escapeKeyPart(kind)}:${escapeKeyPart(key)}`;
 }
