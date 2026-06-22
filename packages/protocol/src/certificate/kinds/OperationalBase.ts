@@ -15,6 +15,26 @@ const logger = Logger.get("OperationalBaseCertificate");
  * Base class for all operational certificates (RCAC, ICAC, NOC)
  */
 export abstract class OperationalBase<CT extends MatterCertificate> extends Certificate<CT> {
+    /** §6.1.3 caps a Matter operational certificate at 400 bytes (TLV) / 600 bytes (DER). */
+    static readonly MAX_TLV_BYTES = 400;
+    static readonly MAX_DER_BYTES = 600;
+
+    protected static assertTlvSize(tlv: Bytes): void {
+        if (tlv.byteLength > OperationalBase.MAX_TLV_BYTES) {
+            throw new CertificateError(
+                `Matter-TLV operational certificate of ${tlv.byteLength} bytes exceeds the ${OperationalBase.MAX_TLV_BYTES} byte limit.`,
+            );
+        }
+    }
+
+    protected static assertDerSize(der: Bytes): void {
+        if (der.byteLength > OperationalBase.MAX_DER_BYTES) {
+            throw new CertificateError(
+                `DER operational certificate of ${der.byteLength} bytes exceeds the ${OperationalBase.MAX_DER_BYTES} byte limit.`,
+            );
+        }
+    }
+
     constructor(cert: CT | Unsigned<CT>) {
         super(cert);
         this.validateFields();

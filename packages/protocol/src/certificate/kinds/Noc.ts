@@ -15,11 +15,13 @@ import { Rcac } from "./Rcac.js";
 export class Noc extends OperationalBase<OperationalCertificate.Noc> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes) {
+        Noc.assertTlvSize(tlv);
         return new Noc(OperationalCertificate.TlvNoc.decode(tlv));
     }
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes) {
+        Noc.assertDerSize(asn1);
         const cert = Certificate.parseAsn1Certificate(asn1);
         return new Noc(cert as OperationalCertificate.Noc);
     }

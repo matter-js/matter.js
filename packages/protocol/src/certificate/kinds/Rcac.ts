@@ -14,6 +14,7 @@ import { OperationalBase } from "./OperationalBase.js";
 export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Rcac {
+        Rcac.assertTlvSize(tlv);
         return new Rcac(OperationalCertificate.TlvRcac.decode(tlv));
     }
 
@@ -23,6 +24,7 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes): Rcac {
+        Rcac.assertDerSize(asn1);
         const cert = Certificate.parseAsn1Certificate(asn1);
         return new Rcac(cert as OperationalCertificate.Rcac);
     }

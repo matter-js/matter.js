@@ -620,6 +620,22 @@ describe("Certificates", () => {
         });
     });
 
+    describe("operational cert decode size limits (§6.1.3)", () => {
+        it("rejects a Matter-TLV operational cert larger than 400 bytes", () => {
+            const oversized = new Uint8Array(401);
+            expect(() => Noc.fromTlv(oversized)).throw(/400/);
+            expect(() => Rcac.fromTlv(oversized)).throw(/400/);
+            expect(() => Icac.fromTlv(oversized)).throw(/400/);
+        });
+
+        it("rejects a DER operational cert larger than 600 bytes", () => {
+            const oversized = new Uint8Array(601);
+            expect(() => Noc.fromAsn1(oversized)).throw(/600/);
+            expect(() => Rcac.fromAsn1(oversized)).throw(/600/);
+            expect(() => Icac.fromAsn1(oversized)).throw(/600/);
+        });
+    });
+
     describe("getPublicKeyFromCsr", () => {
         it("get the public key from the CSR", async () => {
             const csr = await Certificate.createCertificateSigningRequest(
