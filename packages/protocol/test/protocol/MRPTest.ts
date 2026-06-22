@@ -19,11 +19,16 @@ describe("MRP", () => {
         const ADDITIONAL = Seconds(1.5);
 
         function runtimeRangeFor(baseInterval: number, transmissionNumber: number, additional = 0) {
-            const deterministic =
-                (baseInterval + additional) *
+            // additionalDelay is a flat addend applied after margin/exponent/jitter (CHIP GetBackoff), so it
+            // shifts the whole jitter window by a constant rather than being amplified by the backoff factor.
+            const backoff =
+                baseInterval *
                 MRP.BACKOFF_MARGIN *
                 Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD));
-            return { min: Math.floor(deterministic), max: Math.floor(deterministic * (1 + MRP.BACKOFF_JITTER)) };
+            return {
+                min: Math.floor(backoff) + additional,
+                max: Math.floor(backoff * (1 + MRP.BACKOFF_JITTER)) + additional,
+            };
         }
 
         function expectWithin(value: number, { min, max }: { min: number; max: number }) {
@@ -83,6 +88,26 @@ describe("MRP", () => {
             });
 
             expectWithin(interval, runtimeRangeFor(Millis(500), 0, 0));
+        });
+
+        it("adds additionalDelay as a flat constant, not amplified by the backoff exponent", () => {
+            // Deterministic via the maximum path (no jitter randomness): the addend must contribute exactly
+            // `ADDITIONAL` at every transmission, never `ADDITIONAL` scaled by margin/exponent.
+            for (const transmissionNumber of [0, 1, 4]) {
+                const withDelay = MRP.maxRetransmissionIntervalOf({
+                    transmissionNumber,
+                    sessionParameters,
+                    isPeerActive: true,
+                    additionalDelay: ADDITIONAL,
+                });
+                const withoutDelay = MRP.maxRetransmissionIntervalOf({
+                    transmissionNumber,
+                    sessionParameters,
+                    isPeerActive: true,
+                });
+
+                expect(withDelay - withoutDelay).to.equal(ADDITIONAL);
+            }
         });
     });
 

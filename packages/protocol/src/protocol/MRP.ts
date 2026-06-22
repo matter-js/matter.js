@@ -118,7 +118,7 @@ export namespace MRP {
      * side of the exchange.
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
-     * Otherwise, the caller-supplied `additionalDelay` (default 0) is added to the base interval.
+     * The caller-supplied `additionalDelay` (default 0) is a flat grace added after the backoff calculation.
      *
      * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
      */
@@ -131,18 +131,15 @@ export namespace MRP {
         // Every transmission (including the initial one) selects its interval by PeerActiveMode, re-evaluated
         // per (re)transmission, matching CHIP GetMRPBaseTimeout(). isPeerActive already yields idle for a
         // genuinely quiet peer, so no position-based first-message rule is needed.
-        let baseInterval = isPeerActive ? activeInterval : idleInterval;
-        if (!calculateMaximum) {
-            baseInterval += additionalDelay;
-        }
-        return Millis.floor(
-            Millis(
-                baseInterval *
-                    MRP.BACKOFF_MARGIN *
-                    Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
-                    (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER),
-            ),
-        );
+        const baseInterval = isPeerActive ? activeInterval : idleInterval;
+        const backoff =
+            baseInterval *
+            MRP.BACKOFF_MARGIN *
+            Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
+            (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER);
+        // `additionalDelay` is a flat grace (e.g. an ICD sender's fast-polling interval) added after the
+        // exponential backoff, never multiplied through it — matching CHIP ReliableMessageMgr::GetBackoff.
+        return Millis.floor(Millis(backoff + additionalDelay));
     }
 }
 
