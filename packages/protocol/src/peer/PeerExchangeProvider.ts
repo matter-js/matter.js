@@ -5,7 +5,7 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
+import { ExchangeProvider, NewExchangeOptions, type ReachabilityReason } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
 import { ChannelType, Duration, InternalError } from "@matter/general";
@@ -56,6 +56,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
             requiredTransport: options?.requiredTransport,
             preferredTransport: options?.preferredTransport,
         });
+    }
+
+    override verifyReachability(options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        return this.#peer.verifyReachability(options);
     }
 
     override async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {

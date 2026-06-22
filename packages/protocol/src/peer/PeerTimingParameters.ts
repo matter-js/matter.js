@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, merge as mergeObjects, Millis, Minutes, Seconds } from "@matter/general";
+import { Duration, Hours, merge as mergeObjects, Millis, Minutes, Seconds } from "@matter/general";
 
 /**
  * Parameters that control network timing for Matter sessions controlled by matter.js.
@@ -105,11 +105,11 @@ export interface PeerTimingParameters {
     addressChangeStabilizationDelay: Duration;
 
     /**
-     * Probe cooldown range for address-change probes on the same IP.
+     * Probe cooldown range for address-change probes.
      *
      * When mDNS keeps reporting the session IP as gone but probes succeed, the cooldown grows
      * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  The cooldown
-     * resets when the probed IP changes or a probe fails.
+     * resets on a probe failure or a subscription-liveness scare, not on a mere address change.
      *
      * Probes are also suppressed while the session is actively receiving data — the cooldown
      * is measured from whichever is more recent: the last probe or the last received message.
@@ -183,8 +183,8 @@ export namespace PeerTimingParameters {
         },
         addressChangeStabilizationDelay: Seconds(10),
         addressChangeProbeCooldown: {
-            minimum: Minutes(2),
-            maximum: Minutes(60),
+            minimum: Minutes(10),
+            maximum: Hours(24),
         },
     };
 }

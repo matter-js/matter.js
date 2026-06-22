@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ReachabilityReason } from "#protocol/ExchangeProvider.js";
 import {
+    Abort,
     ChannelType,
     Diagnostic,
     Duration,
@@ -20,6 +22,9 @@ import type { Peer } from "./Peer.js";
 import { PeerUnresponsiveError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("PeerAddressMonitor");
+
+/** A liveness probe does not need the full MRP retransmission budget. */
+const PROBE_MAX_RETRANSMISSIONS = 2;
 
 /**
  * Monitors mDNS-discovered addresses for a peer and probes the current session when the session's IP
@@ -41,12 +46,11 @@ export class PeerAddressMonitor {
     readonly #timer: Timer;
     readonly #cooldownMin: Duration;
     readonly #cooldownMax: Duration;
-    readonly #trackWork: (work: PromiseLike<void>) => void;
-    #probing?: Promise<void>;
+    readonly #trackWork: (work: PromiseLike<unknown>) => void;
+    #probing?: Promise<boolean>;
 
-    // Fibonacci backoff state — resets when probed IP changes
+    // Fibonacci backoff state — grows on each successful probe, resets only on a real reachability scare
     #lastProbeAt?: Timestamp;
-    #lastProbedIp?: string;
     #fibPrev: Duration = 0;
     #fibCurr: Duration = 0;
 
@@ -55,7 +59,7 @@ export class PeerAddressMonitor {
         stabilizationDelay: Duration,
         probeCooldown: { minimum: Duration; maximum: Duration },
         abort: AbortSignal,
-        trackWork: (work: PromiseLike<void>) => void,
+        trackWork: (work: PromiseLike<unknown>) => void,
     ) {
         this.#peer = peer;
         this.#abort = abort;
@@ -63,15 +67,7 @@ export class PeerAddressMonitor {
         this.#cooldownMax = probeCooldown.maximum;
         this.#trackWork = trackWork;
         this.#timer = Time.getTimer("address check stabilization", stabilizationDelay, () => {
-            if (!this.#probing) {
-                this.#probing = this.#check().finally(() => {
-                    this.#probing = undefined;
-
-                    // If address changes arrived during the probe, re-check
-                    this.schedule();
-                });
-                this.#trackWork(this.#probing);
-            }
+            this.#trackWork(this.verifyReachability({ reason: "address-change", abort: this.#abort }));
         });
     }
 
@@ -94,22 +90,54 @@ export class PeerAddressMonitor {
         this.#timer.stop();
     }
 
-    async #check() {
+    /**
+     * Tear down: stop the timer and await any in-flight run so teardown does not race a probe.  The
+     * caller is expected to have aborted the peer first, so the in-flight run unwinds promptly.
+     */
+    async close() {
+        this.#timer.stop();
+        await this.#probing;
+    }
+
+    /**
+     * Verify the peer is reachable, driving recovery.  Coalesces concurrent triggers into one run.
+     *
+     * An `address-change` run probes the current address then walks discovered alternates (migrating in
+     * place on success); a `session-suspect` run only probes the current address and never walks alternates.
+     * Returns `true` if the session is usable afterward (current address answered, or an alternate
+     * answered and the session migrated); `false` if no address answered and the session was closed.
+     */
+    async verifyReachability(options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        if (this.#probing === undefined) {
+            this.#probing = this.#run(options.reason).finally(() => {
+                this.#probing = undefined;
+                // Only an address-change run may have coalesced newer mDNS changes worth re-checking;
+                // a lone session-suspect run must not arm the debounce timer.
+                if (options.reason === "address-change") {
+                    this.schedule();
+                }
+            });
+        }
+
+        const run = this.#probing;
+        // A joiner waits on the shared run but bails on its own abort without cancelling it for others.
+        return options.abort !== undefined && options.abort !== this.#abort
+            ? ((await Abort.race(options.abort, run)) ?? false)
+            : run;
+    }
+
+    async #run(reason: ReachabilityReason): Promise<boolean> {
+        const abort = this.#abort;
         const session = this.#peer.newestSession();
         const interaction = this.#peer.interaction;
         if (!session || !interaction) {
-            return;
+            return false;
         }
 
         const channel = session.channel.transportChannel;
-        if (!isIpNetworkChannel(channel)) {
-            return;
-        }
-
-        // TCP has 1:1 session-connection binding plus OS keep-alive — connection drops evict
-        // the session directly, so probing the address is unnecessary.
-        if (channel.type === ChannelType.TCP) {
-            return;
+        // TCP/non-IP sessions are evicted when their connection drops, so address probing is moot.
+        if (!isIpNetworkChannel(channel) || channel.type === ChannelType.TCP) {
+            return true;
         }
 
         // A sleeping LIT ICD won't answer a probe, and a failed probe would close a healthy session — so never
@@ -139,91 +167,98 @@ export class PeerAddressMonitor {
         }
 
         const currentAddress = channel.networkAddress;
-        const currentIp = currentAddress.ip;
         const discoveredAddresses = this.#peer.service.addresses;
 
-        // If there are no discovered addresses at all, nothing to compare against
-        if (!discoveredAddresses.size) {
-            return;
-        }
-
-        // If the current address is still in the discovered set, all good
-        if (discoveredAddresses.has(currentAddress)) {
-            return;
-        }
-
-        const via = session.via;
-
-        // Reset backoff if the IP we're being asked about differs from last time
-        if (currentIp !== this.#lastProbedIp) {
+        if (reason === "session-suspect") {
+            // A subscription timeout is real evidence of trouble — drop accumulated trust so we probe now.
             this.#resetBackoff();
         }
 
-        // Cooldown: use the more recent of last-probe and last device activity
-        const lastKnownGood = Timestamp(Math.max(this.#lastProbeAt ?? 0, session.activeTimestamp));
-        const cooldown = this.#currentCooldown;
-        if (lastKnownGood > 0 && Timestamp.delta(lastKnownGood) < cooldown) {
-            return;
+        if (reason === "address-change") {
+            // Only probe when the current address dropped out of the discovered set. Match by ip/port:
+            // discovered addresses are channel-agnostic, so `has()` (keyed by URL incl. protocol) would always miss.
+            const stillDiscovered = [...discoveredAddresses].some(addr => ServerAddress.isEqual(addr, currentAddress));
+            if (!discoveredAddresses.size || stillDiscovered) {
+                return true;
+            }
+            const lastKnownGood = Timestamp(Math.max(this.#lastProbeAt ?? 0, session.activeTimestamp));
+            if (lastKnownGood > 0 && Timestamp.delta(lastKnownGood) < this.#currentCooldown) {
+                return true;
+            }
+            logger.info(
+                session.via,
+                "Session address",
+                Diagnostic.strong(ServerAddress.urlFor(currentAddress)),
+                "no longer in mDNS results, probing",
+            );
+            this.#lastProbeAt = Time.nowMs;
         }
 
-        logger.info(
-            via,
-            "Session address",
-            Diagnostic.strong(ServerAddress.urlFor(currentAddress)),
-            "no longer in mDNS results, probing",
-        );
-
-        this.#lastProbeAt = Time.nowMs;
-        this.#lastProbedIp = currentIp;
-
-        // Get probe network profile
         const network = this.#peer.network;
         const probeNetwork = network.probeAddress ?? network;
 
-        // Probe the current address — suppress peer-loss so the session stays alive for follow-up probes
-        if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort, suppressPeerLoss: true })) {
-            this.#advanceBackoff();
-            return;
-        }
-
-        // Current address unreachable — try discovered addresses on the still-alive session.
-        // Probe path is UDP-only (TCP returned above); IpService stores transport-agnostic
-        // ServerAddressIp, so tag each candidate as UDP for the override and channel update.
-        for (const ipAddress of discoveredAddresses) {
-            if (this.#abort.aborted) {
-                return;
+        if (
+            await interaction.probe({
+                network: probeNetwork.id,
+                abort,
+                suppressPeerLoss: true,
+                maxRetransmissions: PROBE_MAX_RETRANSMISSIONS,
+            })
+        ) {
+            if (reason === "address-change") {
+                this.#advanceBackoff();
             }
-            const address: ServerAddressUdp = { ...ipAddress, type: "udp" };
+            return true;
+        }
 
-            if (
-                await interaction.probe({
-                    network: probeNetwork.id,
-                    abort: this.#abort,
-                    addressOverride: address,
-                    suppressPeerLoss: true,
-                })
-            ) {
-                logger.info(
-                    via,
-                    "Discovered address reachable, migrating session to",
-                    Diagnostic.strong(ServerAddress.urlFor(address)),
-                );
-                session.channel.networkAddress = address;
-                interaction.subscriptions.closeForPeer(this.#peer.address);
-                this.#resetBackoff();
-                return;
+        // Only an mDNS address change walks alternates; a session-suspect probe stays on the current address.
+        if (reason === "address-change") {
+            for (const ipAddress of discoveredAddresses) {
+                if (abort.aborted) {
+                    return false;
+                }
+                if (ServerAddress.isEqual(ipAddress, currentAddress)) {
+                    continue;
+                }
+                const address: ServerAddressUdp = { ...ipAddress, type: "udp" };
+                if (
+                    await interaction.probe({
+                        network: probeNetwork.id,
+                        abort,
+                        addressOverride: address,
+                        suppressPeerLoss: true,
+                        maxRetransmissions: PROBE_MAX_RETRANSMISSIONS,
+                    })
+                ) {
+                    logger.info(
+                        session.via,
+                        "Discovered address reachable, migrating session to",
+                        Diagnostic.strong(ServerAddress.urlFor(address)),
+                    );
+                    session.channel.networkAddress = address;
+                    // Subscriptions still target the old address for device->client reports; close them so they
+                    // re-establish and hand the device our new socket.
+                    interaction.subscriptions.closeForPeer(this.#peer.address);
+                    this.#resetBackoff();
+                    return true;
+                }
             }
+            this.#resetBackoff();
         }
 
-        this.#resetBackoff();
-
-        if (this.#abort.aborted) {
-            return;
+        if (abort.aborted) {
+            return false;
         }
 
-        // No address works — close the session so normal reconnection takes over
-        logger.info(via, "All probes failed, closing session");
-        await session.handlePeerLoss({ cause: new PeerUnresponsiveError() });
+        logger.info(session.via, "All probes failed, closing session");
+        try {
+            await session.handlePeerLoss({ cause: new PeerUnresponsiveError() });
+        } catch (error) {
+            // Best-effort recovery: a failure to close the unreachable session must not reject the run
+            // (which teardown awaits) — log and move on.
+            logger.warn(session.via, "Error closing unreachable session", error);
+        }
+        return false;
     }
 
     /** Current cooldown duration based on Fibonacci position. */

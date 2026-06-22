@@ -299,6 +299,7 @@ export class ClientInteraction<
             await messenger.sendReadRequest(Read({ fabricFilter: false }), {
                 abort,
                 suppressPeerLoss: options?.suppressPeerLoss,
+                maxRetransmissions: options?.maxRetransmissions,
             });
             for await (const _report of messenger.readDataReports({ abort }));
             logger.info(
@@ -968,12 +969,11 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
                 read,
-                // TCP has 1:1 session-connection binding plus OS keep-alive — the session is
-                // evicted when the connection drops, so no liveness probe is needed.
                 probe: abort =>
                     this.#exchangeProvider.channelType === ChannelType.TCP
-                        ? Promise.resolve(true)
-                        : this.probe({ abort }),
+                        ? // TCP evicts the session when its connection drops, so no liveness probe is needed.
+                          Promise.resolve(true)
+                        : this.#exchangeProvider.verifyReachability({ reason: "session-suspect", abort }),
                 wakefulness: request.icdWakefulness,
             });
         } else {
@@ -1144,6 +1144,9 @@ export interface ClientProbeOptions {
 
     /** Suppress peer-loss reporting so the session stays alive even if the probe fails. */
     suppressPeerLoss?: boolean;
+
+    /** Cap MRP transmission attempts for this probe (default: MRP.MAX_TRANSMISSIONS). */
+    maxRetransmissions?: number;
 }
 
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {
