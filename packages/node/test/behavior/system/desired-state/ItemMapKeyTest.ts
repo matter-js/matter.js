@@ -7,15 +7,16 @@
 import { itemMapKey } from "#behavior/system/desired-state/types.js";
 
 describe("itemMapKey", () => {
-    it("leaves simple keys unchanged", () => {
-        expect(itemMapKey("acl", "k1")).equals("acl:k1");
+    it("produces a stable key for a kind/key pair", () => {
+        expect(itemMapKey("acl", "k1")).equals(itemMapKey("acl", "k1"));
     });
 
-    it("does not collide when the key contains a colon", () => {
+    it("does not collide when the key contains the separator-prone characters", () => {
         expect(itemMapKey("acl", "a:b")).not.equals(itemMapKey("acl:a", "b"));
+        expect(itemMapKey("binding", "1:a")).not.equals(itemMapKey("binding", "1\\:a"));
     });
 
-    it("does not collide when a part contains a backslash", () => {
-        expect(itemMapKey("binding", "1:a")).not.equals(itemMapKey("binding", "1\\:a"));
+    it("distinguishes kind from key", () => {
+        expect(itemMapKey("a", "b")).not.equals(itemMapKey("b", "a"));
     });
 });

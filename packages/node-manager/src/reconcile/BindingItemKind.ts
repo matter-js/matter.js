@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
 import type { ClientNode, ItemKind, ManagedItem } from "@matter/node";
 import { BindingClient } from "@matter/node/behaviors/binding";
 import { ClusterId, EndpointNumber, FabricIndex, GroupId, NodeId, Status } from "@matter/types";
@@ -49,7 +50,7 @@ export class BindingItemKind implements ItemKind<BindingGrant> {
     async apply(node: ClientNode, item: ManagedItem<BindingGrant>): Promise<void> {
         const { localEndpoint, target } = item.intent;
         if (!node.endpoints.has(localEndpoint)) {
-            throw new Error(`Binding target endpoint ${localEndpoint} not present on peer`);
+            throw new ImplementationError(`Binding target endpoint ${localEndpoint} not present on peer`);
         }
         const current = await this.#readBinding(node, localEndpoint);
         if (current.some(t => targetsEqual(t, target))) {
