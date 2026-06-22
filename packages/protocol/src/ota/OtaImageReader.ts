@@ -10,7 +10,7 @@ import {
     DataReader,
     Endian,
     HashAlgorithm,
-    HashFipsAlgorithmId,
+    hashFipsAlgorithmFromId,
     InternalError,
     Logger,
     MatterError,
@@ -248,7 +248,7 @@ export class OtaImageReader {
             // Else verify the internal payload digest to ensure payload integrity.
             const hashBytes = await this.#crypto.computeHash(
                 payloadIterator(),
-                HashFipsAlgorithmId[imageDigestType] as HashAlgorithm,
+                hashFipsAlgorithmFromId(imageDigestType),
             );
 
             if (readPayloadSize !== BigInt(payloadSize)) {
@@ -300,10 +300,7 @@ export class OtaImageReader {
             }
         };
 
-        const hashBytes = await this.#crypto.computeHash(
-            iterator(),
-            HashFipsAlgorithmId[imageDigestType] as HashAlgorithm,
-        );
+        const hashBytes = await this.#crypto.computeHash(iterator(), hashFipsAlgorithmFromId(imageDigestType));
 
         if (readPayloadSize !== BigInt(payloadSize)) {
             throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);

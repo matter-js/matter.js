@@ -7,6 +7,7 @@
 import type { Environment } from "#environment/Environment.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
+import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "#util/Promises.js";
 import * as mod from "@noble/curves/abstract/modular.js";
@@ -55,6 +56,27 @@ export enum HashFipsAlgorithmId {
     "SHA-512/224" = 10,
     "SHA-512/256" = 11,
     "SHA3-256" = 12,
+}
+
+/** Subset of {@link HashAlgorithm} with an assigned FIPS identifier (e.g. for OTA image digests). */
+export type HashFipsAlgorithm = keyof typeof HashFipsAlgorithmId;
+
+const HASH_FIPS_ALGORITHM_BY_ID = new Map<number, HashFipsAlgorithm>([
+    [HashFipsAlgorithmId["SHA-256"], "SHA-256"],
+    [HashFipsAlgorithmId["SHA-512"], "SHA-512"],
+    [HashFipsAlgorithmId["SHA-384"], "SHA-384"],
+    [HashFipsAlgorithmId["SHA-512/224"], "SHA-512/224"],
+    [HashFipsAlgorithmId["SHA-512/256"], "SHA-512/256"],
+    [HashFipsAlgorithmId["SHA3-256"], "SHA3-256"],
+]);
+
+/** Resolves a {@link HashFipsAlgorithmId} value to its {@link HashFipsAlgorithm} name. */
+export function hashFipsAlgorithmFromId(id: number): HashFipsAlgorithm {
+    const algorithm = HASH_FIPS_ALGORITHM_BY_ID.get(id);
+    if (algorithm === undefined) {
+        throw new ImplementationError(`Unsupported FIPS hash algorithm id: ${id}`);
+    }
+    return algorithm;
 }
 
 const logger = Logger.get("Crypto");
