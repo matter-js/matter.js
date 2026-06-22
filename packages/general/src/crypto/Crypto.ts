@@ -47,7 +47,8 @@ export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
 /**
  * Identifiers from the IANA Named Information (NI) Hash Algorithm Registry (RFC 6920), used as the OTA
  * image digest type (Matter Core §11.21.2.4.9) and the DCL data digest type. Limited to the registry
- * algorithms the Matter crypto primitives can compute.
+ * algorithms the Matter crypto primitives can compute; SHA3-256 availability is backend-dependent (no
+ * browser Web Crypto support).
  */
 export enum HashAlgorithmId {
     "SHA-256" = 1,

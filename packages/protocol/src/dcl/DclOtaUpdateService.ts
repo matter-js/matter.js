@@ -13,7 +13,7 @@ import {
     Crypto,
     Diagnostic,
     Environment,
-    hashAlgorithmFromId,
+    hashAlgorithmForId,
     ImplementationError,
     Logger,
     MatterError,
@@ -364,13 +364,18 @@ export class DclOtaUpdateService {
         const reader = storedBlob.stream().getReader();
 
         // Validate with full checksum if DCL provided one
-        const checksumOptions = updateInfo.otaChecksum
-            ? {
-                  calculateFullChecksum: true,
-                  checksumType: hashAlgorithmFromId(updateInfo.otaChecksumType ?? 1),
-                  expectedChecksum: updateInfo.otaChecksum,
-              }
-            : undefined;
+        let checksumOptions;
+        if (updateInfo.otaChecksum) {
+            const checksumType = hashAlgorithmForId(updateInfo.otaChecksumType ?? 1);
+            if (checksumType === undefined) {
+                throw new OtaUpdateError(`Unsupported OTA checksum type: ${updateInfo.otaChecksumType}`);
+            }
+            checksumOptions = {
+                calculateFullChecksum: true,
+                checksumType,
+                expectedChecksum: updateInfo.otaChecksum,
+            };
+        }
 
         const header = await OtaImageReader.file(reader, this.#crypto, otaFileSize, checksumOptions);
 

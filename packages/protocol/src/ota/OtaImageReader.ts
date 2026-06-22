@@ -9,7 +9,7 @@ import {
     Crypto,
     DataReader,
     Endian,
-    hashAlgorithmFromId,
+    hashAlgorithmForId,
     IdentifiedHashAlgorithm,
     InternalError,
     Logger,
@@ -246,7 +246,11 @@ export class OtaImageReader {
             }
         } else {
             // Else verify the internal payload digest to ensure payload integrity.
-            const hashBytes = await this.#crypto.computeHash(payloadIterator(), hashAlgorithmFromId(imageDigestType));
+            const digestAlgorithm = hashAlgorithmForId(imageDigestType);
+            if (digestAlgorithm === undefined) {
+                throw new OtaImageError(`Unsupported OTA image digest type: ${imageDigestType}`);
+            }
+            const hashBytes = await this.#crypto.computeHash(payloadIterator(), digestAlgorithm);
 
             if (readPayloadSize !== BigInt(payloadSize)) {
                 throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);
@@ -294,7 +298,11 @@ export class OtaImageReader {
             }
         };
 
-        const hashBytes = await this.#crypto.computeHash(iterator(), hashAlgorithmFromId(imageDigestType));
+        const digestAlgorithm = hashAlgorithmForId(imageDigestType);
+        if (digestAlgorithm === undefined) {
+            throw new OtaImageError(`Unsupported OTA image digest type: ${imageDigestType}`);
+        }
+        const hashBytes = await this.#crypto.computeHash(iterator(), digestAlgorithm);
 
         if (readPayloadSize !== BigInt(payloadSize)) {
             throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);
