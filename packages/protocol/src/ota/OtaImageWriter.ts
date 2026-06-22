@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, DataWriter, Endian, HashAlgorithm, HashFipsAlgorithmId } from "@matter/general";
+import { Bytes, Crypto, DataWriter, Endian, HashFipsAlgorithmId } from "@matter/general";
 import { TlvOtaImageHeader } from "./OtaImageHeader.js";
 
 /**
@@ -16,7 +16,7 @@ export interface OtaImageWriterResult {
     /** Checksum of the full file (header + payload), base64 encoded */
     fullFileChecksum: string;
     /** Checksum algorithm type (defaults to SHA-256) */
-    fullFileChecksumType: HashAlgorithm;
+    fullFileChecksumType: keyof typeof HashFipsAlgorithmId;
 }
 
 /**
@@ -49,8 +49,8 @@ export class OtaImageWriter {
             maxApplicableSoftwareVersion?: number;
             releaseNotesUrl?: string;
             payload: Bytes;
-            imageDigestType?: HashAlgorithm;
-            fullFileChecksumType?: HashAlgorithm;
+            imageDigestType?: keyof typeof HashFipsAlgorithmId;
+            fullFileChecksumType?: keyof typeof HashFipsAlgorithmId;
         },
     ): Promise<OtaImageWriterResult> {
         const {
