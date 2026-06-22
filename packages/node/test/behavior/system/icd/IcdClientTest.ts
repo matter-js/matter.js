@@ -768,6 +768,9 @@ describe("IcdClient", () => {
             expect(protopeer.hasSession).true;
             expect(controller.lifecycle.isOnline).true;
             expect(protopeer.newestSession()?.channel.networkAddress?.ip).equals("abcd::99");
+            // The adopted address also propagates to the persisted operational address, so a controller restart
+            // before the ICD next wakes reconnects via the new address rather than the stale one.
+            expect(protopeer.descriptor.operationalAddress?.ip).equals("abcd::99");
         });
 
         it("leaves a sleeping LIT ICD untouched while mDNS still lists its address", async () => {

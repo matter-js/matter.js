@@ -148,7 +148,7 @@ export class PeerAddressMonitor {
             const icdAddress = channel.networkAddress;
             const discovered = this.#peer.service.addresses;
             if (!discovered.size || [...discovered].some(addr => ServerAddress.isEqual(addr, icdAddress))) {
-                return;
+                return true;
             }
             const candidates = [...discovered];
             const isIpv6 = (ip: string) => ip.includes(":");
@@ -163,7 +163,7 @@ export class PeerAddressMonitor {
                 "on trust (no probe)",
             );
             session.channel.networkAddress = adopted;
-            return;
+            return true;
         }
 
         const currentAddress = channel.networkAddress;
