@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
 import type { CapacityInfo, ClientNode, ItemKind, ManagedItem } from "@matter/node";
 import { GroupKeyManagementClient } from "@matter/node/behaviors/group-key-management";
 import { FabricIndex, GroupId, Status } from "@matter/types";
@@ -42,6 +43,11 @@ export class GroupKeyMapItemKind implements ItemKind<GroupKeyMapGrant> {
 
     async apply(node: ClientNode, item: ManagedItem<GroupKeyMapGrant>): Promise<void> {
         const { groupId, groupKeySetId } = item.intent;
+        if (groupKeySetId === 0) {
+            throw new ImplementationError(
+                "groupKeySetId 0 is the IPK and is managed by commissioning, not the reconciler",
+            );
+        }
         const current = await this.#read(node);
         if (current.some(e => e.groupId === groupId && e.groupKeySetId === groupKeySetId)) {
             return;
