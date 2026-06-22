@@ -445,6 +445,47 @@ describe("ServerNode", () => {
         await node.close();
     });
 
+    it("sanitizes orphaned fabric-scoped data at startup", async () => {
+        const environment = new Environment("test");
+        const service = environment.get(StorageService);
+
+        // Configure storage that survives node replacement
+        const storage = new StorageManager(new MemoryStorageDriver());
+        storage.close = () => {};
+        await storage.initialize();
+        service.open = () => Promise.resolve(storage);
+
+        // Commission a single fabric, then inject an ACL entry referencing a fabric that does not exist and persist it
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.start();
+            await commissioning.commission(node);
+
+            const acl = node.state.accessControl.acl;
+            expect(acl.length).equals(1);
+            expect(acl[0].fabricIndex).equals(FabricIndex(1));
+
+            await node.set({
+                accessControl: { acl: [...acl, { ...acl[0], fabricIndex: FabricIndex(2) }] },
+            });
+            expect(node.state.accessControl.acl.length).equals(2);
+
+            await node.close();
+        }
+
+        // Reopen: startup sanitization must strip the orphaned fabric-2 entry without requiring an active endpoint
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.start();
+
+            const acl = node.state.accessControl.acl;
+            expect(acl.filter(({ fabricIndex }) => fabricIndex === 2).length).equals(0);
+            expect(acl.filter(({ fabricIndex }) => fabricIndex === 1).length).equals(1);
+
+            await node.close();
+        }
+    });
+
     it("properly deploys aggregator", async () => {
         const aggregator = new Endpoint(AggregatorEndpoint);
 
