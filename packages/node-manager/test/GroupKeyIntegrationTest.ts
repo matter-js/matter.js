@@ -73,8 +73,8 @@ describe("GroupKey reconcile integration (single peer)", () => {
             "committed",
         );
 
-        // Drain ~5 s of virtual time so #onReachable's verify (keySetReadAllIndices is an INVOKE, slow under
-        // MRP backoff) finishes while the keyset is still present, leaving the guard free below.
+        // Drain ~5 s of virtual time so the subscription-active verify pass (keySetReadAllIndices is an
+        // INVOKE, slow under MRP backoff) finishes while the keyset is still present, before we mutate below.
         for (let i = 0; i < 50; i++) {
             await MockTime.advance(100);
             await MockTime.macrotask;

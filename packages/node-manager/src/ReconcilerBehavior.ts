@@ -206,8 +206,9 @@ export class ReconcilerBehavior extends Behavior {
             observers.close();
             this.internal.peerObservers.delete(peer);
         }
-        this.internal.pending.delete(peer);
         await this.internal.locks.get(peer)?.close();
+        // Re-delete after the close await in case anything scheduled into the closing window.
+        this.internal.pending.delete(peer);
         this.internal.locks.delete(peer);
     }
 

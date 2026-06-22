@@ -6,7 +6,7 @@
 
 import { ManagedItem, itemMapKey } from "@matter/node";
 
-export type ReconcileAction = "apply" | "remove" | "retry" | "drop" | "repend" | "skip";
+export type ReconcileAction = "apply" | "remove" | "retry" | "drop" | "skip";
 
 export interface VerifyResult {
     driftedKeys: ReadonlySet<string>;
