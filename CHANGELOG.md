@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Enhancement: Avoid a duplicate in-memory copy of cached peer cluster values while a behavior is active
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
 
 - @matter/nodejs
