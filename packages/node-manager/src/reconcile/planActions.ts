@@ -40,8 +40,10 @@ function actionFor(item: ManagedItem, opts: PlanOptions): ReconcileAction {
         case "commitFailed":
             return opts.recoverable(item) ? "retry" : "drop";
         case "committed":
+            // A verify pass that finds drift re-applies in the same pass, so reconcile(verify) converges
+            // deterministically without depending on a follow-up trigger.
             if (opts.verify && opts.verifyResult?.driftedKeys.has(itemMapKey(item.kind, item.key))) {
-                return "repend";
+                return "apply";
             }
             return "skip";
     }

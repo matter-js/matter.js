@@ -165,7 +165,7 @@ describe("executeActions (executor)", () => {
         expect(target.items[id]?.status.state).equals("committed");
     });
 
-    it("repend resets a drifted committed+maintain item to pending", async () => {
+    it("verify re-applies a drifted committed item in the same pass", async () => {
         const fake = new FakeKind();
         const registry = new ItemKindRegistry();
         registry.register(fake);
@@ -187,7 +187,8 @@ describe("executeActions (executor)", () => {
         });
         await executeActions(target, planned, registry);
 
-        expect(target.items[id]?.status.state).equals("pending");
+        expect(fake.applied).deep.equals(["drift1"]);
+        expect(target.items[id]?.status.state).equals("committed");
     });
 
     it("skip leaves a committed item unchanged", async () => {
