@@ -68,10 +68,6 @@ export async function executeActions(
                 }
                 break;
 
-            case "repend":
-                await target.updateStatus(item.kind, item.key, "pending");
-                break;
-
             case "drop":
                 await target.dropItem(item.kind, item.key);
                 break;
