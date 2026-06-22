@@ -164,24 +164,28 @@ export class ReconcilerBehavior extends Behavior {
 
         observers.on(peer.eventsOf(NetworkClient).subscriptionStatusChanged, (isActive: boolean) => {
             if (isActive) {
-                logger.debug(`Trigger subscription-active ${peer.id}`);
-                void this.#onReachable(peer);
+                this.#fireTrigger(this.#onReachable(peer), `subscription-active ${peer.id}`);
             }
         });
 
         observers.on(peer.eventsOf(DesiredStateBehavior).itemChanged, () => {
             if (this.#reachable(peer)) {
-                logger.debug(`Trigger item-changed ${peer.id}`);
-                void this.reconcile(peer);
+                this.#fireTrigger(this.reconcile(peer), `item-changed ${peer.id}`);
             }
         });
 
         observers.on(peer.lifecycle.softwareVersionChanged, () => {
             if (this.#reachable(peer)) {
-                logger.debug(`Trigger software-version ${peer.id}`);
-                void this.#onReachable(peer);
+                this.#fireTrigger(this.#onReachable(peer), `software-version ${peer.id}`);
             }
         });
+    }
+
+    // Triggers fire from synchronous observer callbacks, so the reconcile runs detached. Catch here so a
+    // rejection (e.g. a peer torn down mid-pass) is logged rather than surfacing as an unhandled rejection.
+    #fireTrigger(work: Promise<unknown>, context: string) {
+        logger.debug(`Reconcile trigger ${context}`);
+        work.catch(error => logger.debug(`Reconcile trigger (${context}) failed:`, error));
     }
 
     #unwirePeer(peer: ClientNode) {
