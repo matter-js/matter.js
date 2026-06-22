@@ -122,13 +122,14 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
 
         if (this.consumer) {
             await this.consumer.integrateExternalChange(values);
-        } else {
-            if (!this.initialValues) {
-                this.initialValues = {};
-            }
-            const valuesStruct = Object.fromEntries(values) as Val.Struct;
-            Object.assign(this.initialValues, valuesStruct);
         }
+
+        // Keep initialValues current even while a consumer owns the datasource so a later behavior rebuild
+        // (e.g. a featureMap change replacing the cluster) seeds from fresh data, not the stale bind-time snapshot.
+        if (!this.initialValues) {
+            this.initialValues = {};
+        }
+        Object.assign(this.initialValues, Object.fromEntries(values));
     }
 
     /**
