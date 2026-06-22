@@ -13,4 +13,5 @@ export const PRIORITY_BANDS = {
     group: 20,
     membership: 30,
     acl: 40,
+    binding: 45,
 } as const;
