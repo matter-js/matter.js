@@ -10,7 +10,7 @@ import { GroupKeyItemKind } from "#reconcile/GroupKeyItemKind.js";
 import { GroupKeyMapItemKind } from "#reconcile/GroupKeyMapItemKind.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
-import { Duration, Logger, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
+import { Duration, Logger, Minutes, Mutex, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 import {
     Behavior,
     CapacityInfo,
@@ -50,28 +50,10 @@ export async function refreshCapacities(
     }
 }
 
-/** Serializes reconcile passes per peer and coalesces re-entries into a single follow-up pass. */
-export class InFlightGuard {
-    #running = false;
-    #dirty = false;
-
-    async run(pass: () => Promise<void>): Promise<void> {
-        if (this.#running) {
-            // A verify intent arriving during a non-verify pass coalesces into it; the lost verify is
-            // recovered by the next verify trigger. Accepted in 2a — no write is lost, no drift masked.
-            this.#dirty = true;
-            return;
-        }
-        this.#running = true;
-        try {
-            do {
-                this.#dirty = false;
-                await pass();
-            } while (this.#dirty);
-        } finally {
-            this.#running = false;
-        }
-    }
+/** A coalesced reconcile request for a peer. `verify`/`refreshCapacity` OR-merge across requests. */
+interface PendingPass {
+    verify: boolean;
+    refreshCapacity: boolean;
 }
 
 export function shouldStartSweep(internal: { disposed: boolean }): boolean {
@@ -166,42 +148,67 @@ export class ReconcilerBehavior extends Behavior {
 
         observers.on(peer.eventsOf(NetworkClient).subscriptionStatusChanged, (isActive: boolean) => {
             if (isActive) {
-                this.#fireTrigger(this.#onReachable(peer), `subscription-active ${peer.id}`);
+                this.#schedule(peer, { verify: true, refreshCapacity: true });
             }
         });
 
         observers.on(peer.eventsOf(DesiredStateBehavior).itemChanged, () => {
             if (this.#reachable(peer)) {
-                this.#fireTrigger(this.reconcile(peer), `item-changed ${peer.id}`);
+                this.#schedule(peer, { verify: false, refreshCapacity: false });
             }
         });
 
         observers.on(peer.lifecycle.softwareVersionChanged, () => {
             if (this.#reachable(peer)) {
-                this.#fireTrigger(this.#onReachable(peer), `software-version ${peer.id}`);
+                this.#schedule(peer, { verify: true, refreshCapacity: true });
             }
         });
     }
 
-    // Triggers fire from synchronous observer callbacks, so the reconcile runs detached. Catch here so a
-    // rejection (e.g. a peer torn down mid-pass) is logged rather than surfacing as an unhandled rejection.
-    #fireTrigger(work: Promise<unknown>, context: string) {
-        logger.debug(`Reconcile trigger ${context}`);
-        work.catch(error => logger.debug(`Reconcile trigger (${context}) failed:`, error));
+    #mutexFor(peer: ClientNode): Mutex {
+        let mutex = this.internal.locks.get(peer);
+        if (mutex === undefined) {
+            mutex = new Mutex(this);
+            this.internal.locks.set(peer, mutex);
+        }
+        return mutex;
     }
 
-    #unwirePeer(peer: ClientNode) {
+    // Synchronous: triggers enqueue a coalesced reconcile request on the peer's node-level mutex. A request
+    // arriving while a pass runs merges into one follow-up pass. The mutex owns and serializes the work and
+    // logs task rejections, so nothing is voided or swallowed silently.
+    #schedule(peer: ClientNode, pass: PendingPass) {
+        const pending = this.internal.pending.get(peer);
+        if (pending !== undefined) {
+            pending.verify ||= pass.verify;
+            pending.refreshCapacity ||= pass.refreshCapacity;
+            return;
+        }
+        this.internal.pending.set(peer, { ...pass });
+        this.#mutexFor(peer).run(() => this.#drainPending(peer));
+    }
+
+    async #drainPending(peer: ClientNode) {
+        const pass = this.internal.pending.get(peer);
+        this.internal.pending.delete(peer);
+        if (pass === undefined) {
+            return;
+        }
+        if (pass.refreshCapacity) {
+            await this.#refreshCapacity(peer);
+        }
+        await this.#reconcileEndpoint(peer, { verify: pass.verify });
+    }
+
+    async #unwirePeer(peer: ClientNode) {
         const observers = this.internal.peerObservers.get(peer);
         if (observers !== undefined) {
             observers.close();
             this.internal.peerObservers.delete(peer);
         }
-        this.internal.guards.delete(peer);
-    }
-
-    async #onReachable(peer: ClientNode) {
-        await this.#refreshCapacity(peer);
-        await this.reconcile(peer, { verify: true });
+        this.internal.pending.delete(peer);
+        await this.internal.locks.get(peer)?.close();
+        this.internal.locks.delete(peer);
     }
 
     async #refreshCapacity(peer: ClientNode) {
@@ -234,12 +241,8 @@ export class ReconcilerBehavior extends Behavior {
 
     async reconcile(peer: ClientNode, options?: { verify?: boolean }): Promise<void> {
         logger.debug(`Reconcile ${peer.id}${options?.verify ? " (verify)" : ""}`);
-        let guard = this.internal.guards.get(peer);
-        if (guard === undefined) {
-            guard = new InFlightGuard();
-            this.internal.guards.set(peer, guard);
-        }
-        await guard.run(() => this.#reconcileEndpoint(peer, options));
+        // Serialize on the peer's node-level mutex so an explicit reconcile never overlaps a triggered pass.
+        await this.#mutexFor(peer).produce(() => this.#reconcileEndpoint(peer, options));
     }
 
     registerItemKind(kind: ItemKind): void {
@@ -286,6 +289,9 @@ export class ReconcilerBehavior extends Behavior {
             observers.close();
         }
         this.internal.peerObservers.clear();
+        this.internal.pending.clear();
+        await Promise.all([...this.internal.locks.values()].map(mutex => mutex.close()));
+        this.internal.locks.clear();
         await super[Symbol.asyncDispose]?.();
     }
 }
@@ -301,7 +307,8 @@ export namespace ReconcilerBehavior {
         peerObservers!: Map<ClientNode, ObserverGroup>;
         sweepTimer?: Timer;
         settleTimer?: Timer;
-        guards = new Map<ClientNode, InFlightGuard>();
+        locks = new Map<ClientNode, Mutex>();
+        pending = new Map<ClientNode, PendingPass>();
         disposed = false;
     }
 

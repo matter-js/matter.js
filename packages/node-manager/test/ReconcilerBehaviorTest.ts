@@ -12,7 +12,7 @@
 
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
-import { buildVerifyResult, InFlightGuard, refreshCapacities, shouldStartSweep } from "#ReconcilerBehavior.js";
+import { buildVerifyResult, refreshCapacities, shouldStartSweep } from "#ReconcilerBehavior.js";
 import { ClientNode, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
 
 // ---------------------------------------------------------------------------
@@ -231,12 +231,6 @@ describe("ItemKindRegistry", () => {
 // Gate helper for concurrency tests.
 // ---------------------------------------------------------------------------
 
-function gate() {
-    let release!: () => void;
-    const promise = new Promise<void>(r => (release = r));
-    return { promise, release };
-}
-
 describe("refreshCapacities (#3 isolation)", () => {
     it("a capacity() rejection does not abort the loop", async () => {
         const registry = new ItemKindRegistry();
@@ -261,26 +255,6 @@ describe("refreshCapacities (#3 isolation)", () => {
             captured[kind] = info;
         });
         expect(captured).deep.equals({ ok: { limit: 4, used: 1 } });
-    });
-});
-
-describe("InFlightGuard (#4 coalescing)", () => {
-    it("runs exactly one extra pass when re-entered during flight", async () => {
-        const guard = new InFlightGuard();
-        let runs = 0;
-        const g = gate();
-        const run = () => {
-            runs++;
-            return g.promise;
-        };
-        const first = guard.run(run); // starts pass 1
-        void guard.run(run); // re-entry during flight -> mark dirty, no new pass yet
-        void guard.run(run); // still in flight -> still just dirty
-        expect(runs).equals(1);
-        g.release();
-        await first;
-        await Promise.resolve();
-        expect(runs).equals(2); // exactly one coalesced extra pass
     });
 });
 
