@@ -501,9 +501,8 @@ export class ClientStructure {
 
         // Generate a behavior if enough information is available
         if (cluster.behavior === undefined) {
-            if (cluster.store.initialValues) {
-                const values = cluster.store.initialValues;
-
+            const values = cluster.store.currentValues;
+            if (values) {
                 const clusterRevision = getStoreValue(values, ClusterRevision.id, "clusterRevision");
                 const features = getStoreValue(values, FeatureMap.id, "featureMap");
                 const attributeList = getStoreValue(values, AttributeList.id, "attributeList");
@@ -579,7 +578,7 @@ export class ClientStructure {
             if (cluster.behavior && endpoint.behaviors.isActive(cluster.behavior.id)) {
                 attrs = endpoint.stateOf(cluster.behavior);
             } else {
-                attrs = cluster.store.initialValues ?? {};
+                attrs = cluster.store.currentValues ?? {};
             }
             this.#synchronizeDescriptor(structure, attrs);
         }

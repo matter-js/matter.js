@@ -52,7 +52,18 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         this.#consumer = consumer;
         if (consumer !== undefined) {
             this.#reclaimed = false;
+
+            // Consumer owns the values while attached; drop our seed copy so we don't shadow it.
+            this.initialValues = undefined;
         }
+    }
+
+    /**
+     * Current values, preferring the live consumer over the seed snapshot, so cluster structure can rebuild from
+     * up-to-date data while a behavior is active.
+     */
+    get currentValues(): Val.Struct | undefined {
+        return this.#consumer && !this.#reclaimed ? this.#consumer.snapshot() : this.initialValues;
     }
 
     async set(transaction: Transaction, values: Val.Struct) {
@@ -126,8 +137,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             if (!this.initialValues) {
                 this.initialValues = {};
             }
-            const valuesStruct = Object.fromEntries(values) as Val.Struct;
-            Object.assign(this.initialValues, valuesStruct);
+            Object.assign(this.initialValues, Object.fromEntries(values));
         }
     }
 
