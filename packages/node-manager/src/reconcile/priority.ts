@@ -5,8 +5,8 @@
  */
 
 /**
- * ItemKind priority bands. Lower applies first, higher applies last (reverse on delete). ACLs go
- * last so subjects/keysets/groups they reference already exist. Dependent kinds slot in at 2b.
+ * ItemKind priority bands. Lower applies first, higher applies last (reverse on delete). Bindings
+ * go last: they depend on the ACLs, keysets, and groups they reference already being in place.
  */
 export const PRIORITY_BANDS = {
     keyset: 10,
