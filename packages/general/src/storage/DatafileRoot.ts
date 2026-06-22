@@ -41,6 +41,14 @@ export class DatafileRoot extends DataNamespace {
     }
 
     /**
+     * Number of outstanding {@link DatafileRoot.Lock} references.  Surfaced for diagnostics so an unbalanced
+     * acquire/release shows up in storage open/close logs.
+     */
+    get lockCount(): number {
+        return this.#refs;
+    }
+
+    /**
      * Acquire a reference-counted lock.  The physical directory lock is acquired on the first call and released when
      * the last {@link DatafileRoot.Lock} closes.
      */
