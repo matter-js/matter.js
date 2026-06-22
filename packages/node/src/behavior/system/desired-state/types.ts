@@ -30,6 +30,7 @@ export function newStatus(state: ItemState, failureCode?: number): StatusEntry {
     return { state, updateTimestamp: Time.nowMs, failureCode };
 }
 
+// Escape the separator so a `:` inside `key` cannot collide with another (kind, key) pair.
 function escapeKeyPart(part: string): string {
     return part.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
 }
