@@ -1372,6 +1372,14 @@ describe("ClientNode", () => {
             positionAwareTilt: true,
         });
 
+        // featuresOf reflects the installed behavior's schema, so a stale rebuild seeded from the bind-time
+        // snapshot would still report the old Lift-only feature set here even though the featureMap value updated.
+        const features = clientEp1.featuresOf(WindowCoveringClient);
+        expect(features.lift).equals(true);
+        expect(features.positionAwareLift).equals(true);
+        expect(features.tilt).equals(true);
+        expect(features.positionAwareTilt).equals(true);
+
         sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
         await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLiftPercent100ths: 1200 });
 

@@ -116,7 +116,7 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         if (agent.env.has(FabricManager)) {
             const fabricIndices = agent.env.get(FabricManager).fabrics.map(fabric => fabric.fabricIndex);
             if (fabricIndices.length > 0) {
-                return limitEndpointAttributeDataToAllowedFabrics(agent.endpoint, fabricIndices);
+                return limitEndpointAttributeDataToAllowedFabrics(agent, fabricIndices);
             }
         }
     }
