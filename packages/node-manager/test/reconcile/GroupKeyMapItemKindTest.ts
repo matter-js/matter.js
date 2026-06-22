@@ -34,7 +34,13 @@ function fakePeer(initial: Entry[], limit = 5) {
 const grant: GroupKeyMapGrant = { groupId: GroupId(0x101), groupKeySetId: 3 };
 
 function item(g: GroupKeyMapGrant): ManagedItem<GroupKeyMapGrant> {
-    return { kind: "groupKeyMap", key: String(g.groupId), intent: g, mode: "converge", status: { state: "pending", updateTimestamp: 0 } };
+    return {
+        kind: "groupKeyMap",
+        key: String(g.groupId),
+        intent: g,
+        mode: "converge",
+        status: { state: "pending", updateTimestamp: 0 },
+    };
 }
 
 function entry(groupId: number, keySetId: number): Entry {
