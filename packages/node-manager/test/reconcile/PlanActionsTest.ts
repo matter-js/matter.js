@@ -45,7 +45,7 @@ describe("planActions", () => {
         expect(result.map(r => r.action)).deep.equals(["skip", "skip"]);
     });
 
-    it("repends committed+maintain items that drifted on a verify pass", () => {
+    it("re-applies committed+maintain items that drifted on a verify pass", () => {
         const drifted = item("nodeLabel", "0", "committed", "maintain");
         const stable = item("nodeLabel", "1", "committed", "maintain");
         const converged = item("acl", "1", "committed", "converge");
@@ -54,10 +54,10 @@ describe("planActions", () => {
             verifyResult: { driftedKeys: new Set([itemMapKey("nodeLabel", "0")]) },
             recoverable: recoverableNone,
         });
-        expect(result.map(r => r.action)).deep.equals(["repend", "skip", "skip"]);
+        expect(result.map(r => r.action)).deep.equals(["apply", "skip", "skip"]);
     });
 
-    it("repends a committed+converge item that drifted on a verify pass", () => {
+    it("re-applies a committed+converge item that drifted on a verify pass", () => {
         const drifted = item("acl", "1", "committed", "converge");
         const stable = item("acl", "2", "committed", "converge");
         const result = planActions([drifted, stable], {
@@ -65,6 +65,6 @@ describe("planActions", () => {
             verifyResult: { driftedKeys: new Set([itemMapKey("acl", "1")]) },
             recoverable: recoverableNone,
         });
-        expect(result.map(r => r.action)).deep.equals(["repend", "skip"]);
+        expect(result.map(r => r.action)).deep.equals(["apply", "skip"]);
     });
 });
