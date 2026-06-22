@@ -9,7 +9,7 @@ import {
     Crypto,
     DataReader,
     Endian,
-    HashAlgorithm,
+    HashFipsAlgorithm,
     hashFipsAlgorithmFromId,
     InternalError,
     Logger,
@@ -36,7 +36,7 @@ export class OtaImageReader {
     #headerSize?: number;
     #headerData?: OtaImageHeader;
     #fullFileChecksum?: string;
-    #fullFileChecksumType: HashAlgorithm = "SHA-256";
+    #fullFileChecksumType: HashFipsAlgorithm = "SHA-256";
 
     /** Read only the OTA image header from the stream and returns the  parsed header data. */
     static async header(streamReader: ReadableStreamDefaultReader<Bytes>) {
@@ -56,8 +56,8 @@ export class OtaImageReader {
         options?: {
             /** Calculate full file checksum to validate the full checksum against DCL information (default: true) */
             calculateFullChecksum?: boolean;
-            /** Expected checksum type for the full checksum (default: HashAlgorithm.SHA256) */
-            checksumType?: HashAlgorithm;
+            /** Expected checksum type for the full checksum (default: SHA-256) */
+            checksumType?: HashFipsAlgorithm;
             /** Expected full file checksum to validate against, usually provided by the DCL */
             expectedChecksum?: string;
         },
@@ -276,9 +276,6 @@ export class OtaImageReader {
         }
 
         const { imageDigestType, imageDigest, payloadSize } = this.#headerData;
-        if (imageDigestType !== 1) {
-            throw new InternalError(`Unsupported image digest type ${imageDigestType}`);
-        }
 
         let readPayloadSize = 0n;
 

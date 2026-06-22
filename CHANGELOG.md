@@ -24,7 +24,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are now derived as 160-bit SHA-1 as required by the Matter specification
     - Fix: Operational certificates exceeding the size limits (400 bytes TLV / 600 bytes DER) are now rejected when decoding
-    - Fix: Ensure the OTA image digest algorithm is validated when reading an image, rejecting unknown identifiers
+    - Fix: Validate the OTA image digest algorithm when reading an image (rejecting unknown identifiers) and support all FIPS digest algorithms consistently across the read and extract paths
 
 - @project-chip/matter.js
     - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
