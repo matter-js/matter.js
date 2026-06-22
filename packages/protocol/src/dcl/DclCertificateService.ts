@@ -5,6 +5,7 @@
  */
 
 import {
+    asError,
     AsyncCache,
     Bytes,
     Construction,
@@ -19,8 +20,7 @@ import {
     EcdsaSignature,
     Environment,
     Github,
-    HashAlgorithm,
-    HashFipsAlgorithmId,
+    hashAlgorithmForId,
     Hours,
     Logger,
     Pem,
@@ -31,7 +31,6 @@ import {
     StorageService,
     Time,
     Timer,
-    asError,
 } from "@matter/general";
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
@@ -1113,7 +1112,7 @@ export class DclCertificateService {
             }
         }
         if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
-            const algorithm = HashFipsAlgorithmId[point.dataDigestType] as HashAlgorithm | undefined;
+            const algorithm = hashAlgorithmForId(point.dataDigestType);
             if (algorithm !== undefined) {
                 const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes, algorithm));
                 if (actualDigest !== point.dataDigest) {

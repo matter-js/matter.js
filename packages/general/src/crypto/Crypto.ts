@@ -30,12 +30,7 @@ export const CRYPTO_EC_KEY_BYTES = 32;
 export const CRYPTO_AUTH_TAG_LENGTH = 16;
 export const CRYPTO_SYMMETRIC_KEY_LENGTH = 16;
 
-/**
- * Hash algorithms identified by IANA Hash Function identifiers.
- * Based on FIPS 180-4 Section 6.2 and FIPS 202.
- *
- * The enum values are the FIPS-defined algorithm IDs.
- */
+/** Hash algorithm names supported by the Matter crypto primitives. */
 export type HashAlgorithm = "SHA-1" | "SHA-256" | "SHA-512" | "SHA-384" | "SHA-512/224" | "SHA-512/256" | "SHA3-256";
 
 export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
@@ -49,32 +44,38 @@ export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
     "SHA3-256": 32,
 };
 
-export enum HashFipsAlgorithmId {
+/**
+ * Identifiers from the IANA Named Information (NI) Hash Algorithm Registry (RFC 6920), used as the OTA
+ * image digest type (Matter Core §11.21.2.4.9) and the DCL data digest type. Limited to the registry
+ * algorithms the Matter crypto primitives can compute.
+ */
+export enum HashAlgorithmId {
     "SHA-256" = 1,
-    "SHA-512" = 7,
-    "SHA-384" = 8,
-    "SHA-512/224" = 10,
-    "SHA-512/256" = 11,
-    "SHA3-256" = 12,
+    "SHA-384" = 7,
+    "SHA-512" = 8,
+    "SHA3-256" = 10,
 }
 
-/** Subset of {@link HashAlgorithm} with an assigned FIPS identifier (e.g. for OTA image digests). */
-export type HashFipsAlgorithm = keyof typeof HashFipsAlgorithmId;
+/** Subset of {@link HashAlgorithm} that has an IANA NI registry identifier (see {@link HashAlgorithmId}). */
+export type IdentifiedHashAlgorithm = keyof typeof HashAlgorithmId;
 
-const HASH_FIPS_ALGORITHM_BY_ID = new Map<number, HashFipsAlgorithm>([
-    [HashFipsAlgorithmId["SHA-256"], "SHA-256"],
-    [HashFipsAlgorithmId["SHA-512"], "SHA-512"],
-    [HashFipsAlgorithmId["SHA-384"], "SHA-384"],
-    [HashFipsAlgorithmId["SHA-512/224"], "SHA-512/224"],
-    [HashFipsAlgorithmId["SHA-512/256"], "SHA-512/256"],
-    [HashFipsAlgorithmId["SHA3-256"], "SHA3-256"],
+const HASH_ALGORITHM_BY_ID = new Map<number, IdentifiedHashAlgorithm>([
+    [HashAlgorithmId["SHA-256"], "SHA-256"],
+    [HashAlgorithmId["SHA-384"], "SHA-384"],
+    [HashAlgorithmId["SHA-512"], "SHA-512"],
+    [HashAlgorithmId["SHA3-256"], "SHA3-256"],
 ]);
 
-/** Resolves a {@link HashFipsAlgorithmId} value to its {@link HashFipsAlgorithm} name. */
-export function hashFipsAlgorithmFromId(id: number): HashFipsAlgorithm {
-    const algorithm = HASH_FIPS_ALGORITHM_BY_ID.get(id);
+/** Resolves an IANA NI registry identifier to its {@link IdentifiedHashAlgorithm} name, or undefined if unsupported. */
+export function hashAlgorithmForId(id: number): IdentifiedHashAlgorithm | undefined {
+    return HASH_ALGORITHM_BY_ID.get(id);
+}
+
+/** As {@link hashAlgorithmForId}, but throws for unsupported identifiers. */
+export function hashAlgorithmFromId(id: number): IdentifiedHashAlgorithm {
+    const algorithm = hashAlgorithmForId(id);
     if (algorithm === undefined) {
-        throw new ImplementationError(`Unsupported FIPS hash algorithm id: ${id}`);
+        throw new ImplementationError(`Unsupported hash algorithm identifier: ${id}`);
     }
     return algorithm;
 }

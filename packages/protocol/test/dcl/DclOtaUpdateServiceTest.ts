@@ -17,7 +17,7 @@ import {
     DataWriter,
     Endian,
     Environment,
-    HashFipsAlgorithmId,
+    HashAlgorithmId,
     MockFetch,
     MockStorageService,
     StandardCrypto,
@@ -763,7 +763,7 @@ describe("DclOtaUpdateService", () => {
             const metadata = createVersionMetadata(3, true, true, {
                 otaFileSize: otaImage.byteLength,
                 otaChecksum: otaResult.fullFileChecksum,
-                otaChecksumType: HashFipsAlgorithmId[otaResult.fullFileChecksumType],
+                otaChecksumType: HashAlgorithmId[otaResult.fullFileChecksumType],
             });
 
             // Mock version check

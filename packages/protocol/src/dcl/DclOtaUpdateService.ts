@@ -13,7 +13,7 @@ import {
     Crypto,
     Diagnostic,
     Environment,
-    hashFipsAlgorithmFromId,
+    hashAlgorithmFromId,
     ImplementationError,
     Logger,
     MatterError,
@@ -367,7 +367,7 @@ export class DclOtaUpdateService {
         const checksumOptions = updateInfo.otaChecksum
             ? {
                   calculateFullChecksum: true,
-                  checksumType: hashFipsAlgorithmFromId(updateInfo.otaChecksumType ?? 1),
+                  checksumType: hashAlgorithmFromId(updateInfo.otaChecksumType ?? 1),
                   expectedChecksum: updateInfo.otaChecksum,
               }
             : undefined;

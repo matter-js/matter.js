@@ -12,7 +12,13 @@
  * * NodeJsCryptoTest.ts also implements some of these tests
  */
 
-import { HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm } from "#crypto/index.js";
+import {
+    HASH_ALGORITHM_OUTPUT_LENGTHS,
+    HashAlgorithm,
+    hashAlgorithmForId,
+    hashAlgorithmFromId,
+    HashAlgorithmId,
+} from "#crypto/index.js";
 import { Key, PrivateKey, PublicKey } from "#crypto/Key.js";
 import { StandardCrypto } from "#crypto/StandardCrypto.js";
 import { b$, Bytes } from "#util/Bytes.js";
@@ -114,6 +120,29 @@ describe("StandardCrypto", () => {
             const digest = Bytes.of(await crypto.computeHash(Bytes.fromString("abc"), "SHA-1"));
             expect(digest.byteLength).equal(20);
             expect(Bytes.toHex(digest)).equal("a9993e364706816aba3e25717850c26c9cd0d89d");
+        });
+    });
+
+    describe("IANA NI hash algorithm registry", () => {
+        it("maps algorithms to their RFC 6920 registry identifiers", () => {
+            expect(HashAlgorithmId["SHA-256"]).equal(1);
+            expect(HashAlgorithmId["SHA-384"]).equal(7);
+            expect(HashAlgorithmId["SHA-512"]).equal(8);
+        });
+
+        it("resolves registry identifiers back to algorithm names", () => {
+            expect(hashAlgorithmForId(1)).equal("SHA-256");
+            expect(hashAlgorithmForId(7)).equal("SHA-384");
+            expect(hashAlgorithmForId(8)).equal("SHA-512");
+        });
+
+        it("returns undefined for unsupported identifiers", () => {
+            expect(hashAlgorithmForId(99)).equal(undefined);
+            expect(hashAlgorithmForId(2)).equal(undefined);
+        });
+
+        it("throws for unsupported identifiers via hashAlgorithmFromId", () => {
+            expect(() => hashAlgorithmFromId(99)).throw(/Unsupported hash algorithm identifier/);
         });
     });
 
