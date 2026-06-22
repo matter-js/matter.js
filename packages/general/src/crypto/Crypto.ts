@@ -35,9 +35,18 @@ export const CRYPTO_SYMMETRIC_KEY_LENGTH = 16;
  *
  * The enum values are the FIPS-defined algorithm IDs.
  */
-export type HashAlgorithm = "SHA-256" | "SHA-512" | "SHA-384" | "SHA-512/224" | "SHA-512/256" | "SHA3-256";
+export type HashAlgorithm =
+    | "SHA-1"
+    | "SHA-256"
+    | "SHA-512"
+    | "SHA-384"
+    | "SHA-512/224"
+    | "SHA-512/256"
+    | "SHA3-256";
 
 export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
+    // SHA-1 is permitted ONLY for RFC 5280 key identifiers (SKI/AKI), never for signatures.
+    "SHA-1": 20,
     "SHA-256": 32,
     "SHA-512": 64,
     "SHA-384": 48,

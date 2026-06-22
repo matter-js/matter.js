@@ -109,6 +109,14 @@ describe("StandardCrypto", () => {
         expect(secret1.byteLength).equals(32);
     });
 
+    describe("computeHash SHA-1", () => {
+        it("produces the 20-byte RFC 5280 method-1 digest", async () => {
+            const digest = Bytes.of(await crypto.computeHash(Bytes.fromString("abc"), "SHA-1"));
+            expect(digest.byteLength).equal(20);
+            expect(Bytes.toHex(digest)).equal("a9993e364706816aba3e25717850c26c9cd0d89d");
+        });
+    });
+
     describe("Hash Algorithms", () => {
         const testData = b$`48656c6c6f20576f726c64`; // "Hello World"
         const testData2 = b$`54657374204461746121`; // "Test Data!"
