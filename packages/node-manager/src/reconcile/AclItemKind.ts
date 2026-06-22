@@ -4,14 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AccessControlClient } from "@matter/node/behaviors/access-control";
 import type { CapacityInfo, ClientNode, ItemKind, ManagedItem } from "@matter/node";
+import { AccessControlClient } from "@matter/node/behaviors/access-control";
 import { FabricIndex, Status } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { AclGrant, coversGrant, grantsEqual } from "./acl-coverage.js";
 import { PRIORITY_BANDS } from "./priority.js";
 
 type Entry = AccessControl.AccessControlEntry;
+
+// AccessControl §9.10: AccessControlEntriesPerFabric SHALL be ≥ 4. Assume this floor if the device
+// limit is momentarily unread, so pre-flight admission stays meaningful instead of failing open.
+const ACL_ENTRIES_PER_FABRIC_MIN = 4;
 
 function toGrant(entry: Entry): AclGrant {
     return { privilege: entry.privilege, authMode: entry.authMode, subjects: entry.subjects, targets: entry.targets };
@@ -72,7 +76,7 @@ export class AclItemKind implements ItemKind<AclGrant> {
             "acl",
             "accessControlEntriesPerFabric",
         ] as const);
-        return { limit: accessControlEntriesPerFabric ?? Number.MAX_SAFE_INTEGER, used: (acl ?? []).length };
+        return { limit: accessControlEntriesPerFabric ?? ACL_ENTRIES_PER_FABRIC_MIN, used: (acl ?? []).length };
     }
 
     recoverable(code: number): boolean {
