@@ -16,8 +16,8 @@ const { Case } = AccessControl.AccessControlEntryAuthMode;
 type Entry = AccessControl.AccessControlEntry;
 
 // Fake peer: an in-memory fabric-scoped ACL list reachable via getStateOf/setStateOf(AccessControlClient).
-function fakePeer(initial: Entry[]) {
-    const store = { acl: [...initial], accessControlEntriesPerFabric: 4 };
+function fakePeer(initial: Entry[], limit: number | undefined = 4) {
+    const store = { acl: [...initial], accessControlEntriesPerFabric: limit };
     const node = {
         async getStateOf(_behavior: unknown, fields?: string[]) {
             if (fields === undefined) {
@@ -47,7 +47,13 @@ function adminEntry(): Entry {
 }
 
 function item(grant: AclGrant): ManagedItem<AclGrant> {
-    return { kind: "acl", key: "k1", intent: grant, mode: "converge", status: { state: "pending", updateTimestamp: 0 } };
+    return {
+        kind: "acl",
+        key: "k1",
+        intent: grant,
+        mode: "converge",
+        status: { state: "pending", updateTimestamp: 0 },
+    };
 }
 
 const desired: AclGrant = { privilege: Operate, authMode: Case, subjects: [SubjectId(0x55n)], targets: null };
@@ -64,7 +70,13 @@ describe("AclItemKind", () => {
 
     it("apply is a no-op when a broader foreign entry already covers the grant", async () => {
         const kind = new AclItemKind();
-        const broad: Entry = { privilege: Administer, authMode: Case, subjects: null, targets: null, fabricIndex: FabricIndex(1) };
+        const broad: Entry = {
+            privilege: Administer,
+            authMode: Case,
+            subjects: null,
+            targets: null,
+            fabricIndex: FabricIndex(1),
+        };
         const { node, store } = fakePeer([broad]);
         await kind.apply(node, item(desired));
         expect(store.acl.length).equals(1);
@@ -91,6 +103,12 @@ describe("AclItemKind", () => {
     it("capacity reports limit and used", async () => {
         const kind = new AclItemKind();
         const { node } = fakePeer([adminEntry()]);
+        expect(await kind.capacity(node)).deep.equals({ limit: 4, used: 1 });
+    });
+
+    it("capacity falls back to the spec minimum when the device limit is unread", async () => {
+        const kind = new AclItemKind();
+        const { node } = fakePeer([adminEntry()], undefined);
         expect(await kind.capacity(node)).deep.equals({ limit: 4, used: 1 });
     });
 });
