@@ -243,11 +243,10 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     #online() {
         const fabrics = this.env.get(FabricManager);
 
-        // Pad our MRP retransmission backoff by at least one ICD fast-poll interval, mirroring an ICD server. The
-        // network runtime resets localAdditionalMrpDelay from the own-profile margin on every start, so re-apply each
-        // online; take the max so a larger configured margin is never lowered.
-        const sessions = this.env.get(SessionManager);
-        sessions.localAdditionalMrpDelay = Duration.max(sessions.localAdditionalMrpDelay, ICD_FAST_POLLING_INTERVAL);
+        // Pad our MRP retransmission backoff by one ICD fast-poll interval, mirroring an ICD server. CHIP adds this
+        // as a fixed term after the exponential backoff, so it uses the dedicated fixed pad rather than the amplified
+        // network margin.
+        this.env.get(SessionManager).localFixedMrpBackoff = ICD_FAST_POLLING_INTERVAL;
 
         // One-time setup. online may re-fire across stop/start on the same instance; the counter and its persistence
         // reactor must be created once (and are torn down with the behavior on dispose).

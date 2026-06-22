@@ -186,13 +186,13 @@ describe("IcdManagementServer", () => {
     });
 
     describe("MRP fast-poll backoff", () => {
-        it("pads localAdditionalMrpDelay by the ICD fast-poll interval while operating as an ICD", async () => {
+        it("pads localFixedMrpBackoff by the ICD fast-poll interval while operating as an ICD", async () => {
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair({
                 device: { type: RootWithIcd },
             });
 
-            expect(device.env.get(SessionManager).localAdditionalMrpDelay).equals(ICD_FAST_POLLING_INTERVAL);
+            expect(device.env.get(SessionManager).localFixedMrpBackoff).equals(ICD_FAST_POLLING_INTERVAL);
         });
     });
 

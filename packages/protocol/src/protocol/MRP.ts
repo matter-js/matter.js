@@ -99,8 +99,16 @@ export namespace MRP {
         /**
          * Additive margin applied to the base interval on real (non-maximum) sends.  Supplied by the
          * caller from the combined peer/own network-profile policy; 0 means the bare spec interval.
+         * Because it joins the base interval, it is amplified by the exponential backoff factor.
          */
         additionalDelay?: Duration;
+
+        /**
+         * Fixed sender-side pad added to the final backoff on real (non-maximum) sends, after margin,
+         * exponent and jitter — so it is *not* amplified.  Used for an ICD sender's fast-polling interval
+         * grace (CHIP {@link ReliableMessageMgr::GetBackoff}); 0 means no pad.
+         */
+        fixedBackoff?: Duration;
     }
 
     /**
@@ -118,12 +126,19 @@ export namespace MRP {
      * side of the exchange.
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
-     * The caller-supplied `additionalDelay` (default 0) is a flat grace added after the backoff calculation.
+     * On real sends `additionalDelay` (default 0) joins the base interval (so it is amplified) and
+     * `fixedBackoff` (default 0) is added to the final backoff (so it is not).
      *
      * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
      */
     export function retransmissionIntervalOf(
-        { transmissionNumber, sessionParameters, isPeerActive, additionalDelay = Millis(0) }: RetryDelayInputs,
+        {
+            transmissionNumber,
+            sessionParameters,
+            isPeerActive,
+            additionalDelay = Millis(0),
+            fixedBackoff = Millis(0),
+        }: RetryDelayInputs,
         calculateMaximum = false,
     ) {
         const { activeInterval, idleInterval } = sessionParameters;
@@ -131,15 +146,21 @@ export namespace MRP {
         // Every transmission (including the initial one) selects its interval by PeerActiveMode, re-evaluated
         // per (re)transmission, matching CHIP GetMRPBaseTimeout(). isPeerActive already yields idle for a
         // genuinely quiet peer, so no position-based first-message rule is needed.
-        const baseInterval = isPeerActive ? activeInterval : idleInterval;
-        const backoff =
+        let baseInterval = isPeerActive ? activeInterval : idleInterval;
+        if (!calculateMaximum) {
+            baseInterval += additionalDelay;
+        }
+        let backoff =
             baseInterval *
             MRP.BACKOFF_MARGIN *
             Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
             (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER);
-        // `additionalDelay` is a flat grace (e.g. an ICD sender's fast-polling interval) added after the
-        // exponential backoff, never multiplied through it — matching CHIP ReliableMessageMgr::GetBackoff.
-        return Millis.floor(Millis(backoff + additionalDelay));
+        if (!calculateMaximum) {
+            // Added after the exponential backoff so the pad is not amplified — mirrors CHIP
+            // ReliableMessageMgr::GetBackoff adding the ICD fast-polling interval to mrpBackoffTime.
+            backoff += fixedBackoff;
+        }
+        return Millis.floor(Millis(backoff));
     }
 }
 

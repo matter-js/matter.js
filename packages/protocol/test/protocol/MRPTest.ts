@@ -18,16 +18,18 @@ describe("MRP", () => {
 
         const ADDITIONAL = Seconds(1.5);
 
-        function runtimeRangeFor(baseInterval: number, transmissionNumber: number, additional = 0) {
-            // additionalDelay is a flat addend applied after margin/exponent/jitter (CHIP GetBackoff), so it
-            // shifts the whole jitter window by a constant rather than being amplified by the backoff factor.
-            const backoff =
-                baseInterval *
+        const FIXED = Seconds(0.2);
+
+        function runtimeRangeFor(baseInterval: number, transmissionNumber: number, additional = 0, fixed = 0) {
+            // additionalDelay joins the base interval and is therefore amplified by margin/exponent; fixed is a flat
+            // pad added after the backoff (the jitter window shifts by a constant, it is not scaled).
+            const amplified =
+                (baseInterval + additional) *
                 MRP.BACKOFF_MARGIN *
                 Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD));
             return {
-                min: Math.floor(backoff) + additional,
-                max: Math.floor(backoff * (1 + MRP.BACKOFF_JITTER)) + additional,
+                min: Math.floor(amplified) + fixed,
+                max: Math.floor(amplified * (1 + MRP.BACKOFF_JITTER)) + fixed,
             };
         }
 
@@ -90,24 +92,31 @@ describe("MRP", () => {
             expectWithin(interval, runtimeRangeFor(Millis(500), 0, 0));
         });
 
-        it("adds additionalDelay as a flat constant, not amplified by the backoff exponent", () => {
-            // Deterministic via the maximum path (no jitter randomness): the addend must contribute exactly
-            // `ADDITIONAL` at every transmission, never `ADDITIONAL` scaled by margin/exponent.
+        it("adds fixedBackoff as a flat pad after the backoff, not amplified by the exponent", () => {
+            // The fixed pad must shift the window by a constant at every transmission, never scaled by the
+            // exponent — contrast additionalDelay above, which is amplified because it joins the base interval.
             for (const transmissionNumber of [0, 1, 4]) {
-                const withDelay = MRP.maxRetransmissionIntervalOf({
+                const interval = MRP.retransmissionIntervalOf({
                     transmissionNumber,
                     sessionParameters,
                     isPeerActive: true,
-                    additionalDelay: ADDITIONAL,
-                });
-                const withoutDelay = MRP.maxRetransmissionIntervalOf({
-                    transmissionNumber,
-                    sessionParameters,
-                    isPeerActive: true,
+                    fixedBackoff: FIXED,
                 });
 
-                expect(withDelay - withoutDelay).to.equal(ADDITIONAL);
+                expectWithin(interval, runtimeRangeFor(Millis(500), transmissionNumber, 0, FIXED));
             }
+        });
+
+        it("applies additionalDelay (amplified) and fixedBackoff (flat) independently", () => {
+            const interval = MRP.retransmissionIntervalOf({
+                transmissionNumber: 2,
+                sessionParameters,
+                isPeerActive: true,
+                additionalDelay: ADDITIONAL,
+                fixedBackoff: FIXED,
+            });
+
+            expectWithin(interval, runtimeRangeFor(Millis(500), 2, ADDITIONAL, FIXED));
         });
     });
 
