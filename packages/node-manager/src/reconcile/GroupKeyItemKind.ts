@@ -45,9 +45,11 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
         await this.#commands(node).keySetRemove({ groupKeySetId: item.intent.groupKeySetId });
     }
 
-    // No capacity(): the key-set count is only readable via the KeySetReadAllIndices command, and a
-    // commandsOf() call during capacity refresh rejects asynchronously after refreshCapacities' try/catch
-    // has returned (unhandled rejection). Re-add only once refreshCapacities guards deferred command rejections.
+    async capacity(node: ClientNode) {
+        const { maxGroupKeysPerFabric } = await node.getStateOf(GroupKeyManagementClient, ["maxGroupKeysPerFabric"]);
+        const { groupKeySetIDs } = await this.#commands(node).keySetReadAllIndices();
+        return { limit: maxGroupKeysPerFabric ?? 3, used: groupKeySetIDs.length };
+    }
 
     recoverable(code: number): boolean {
         return code === Status.Timeout || code === Status.Busy;
