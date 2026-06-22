@@ -13,7 +13,7 @@
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
 import { buildVerifyResult, InFlightGuard, refreshCapacities, shouldStartSweep } from "#ReconcilerBehavior.js";
-import { ClientNode, ItemKind, ItemKindRegistry, ManagedItem } from "@matter/node";
+import { ClientNode, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
 
 // ---------------------------------------------------------------------------
 // Synthetic ItemKind for executor tests.
@@ -182,7 +182,7 @@ describe("executeActions (executor)", () => {
 
         const planned = planActions(Object.values(target.items), {
             verify: true,
-            verifyResult: { driftedKeys: new Set([id]) },
+            verifyResult: { driftedKeys: new Set([itemMapKey("fake", "drift1")]) },
             recoverable: () => false,
         });
         await executeActions(target, planned, registry);
@@ -327,7 +327,7 @@ describe("buildVerifyResult", () => {
             },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);
-        expect([...result.driftedKeys]).deep.equals(["fake:drifted"]);
+        expect([...result.driftedKeys]).deep.equals([itemMapKey("fake", "drifted")]);
     });
 
     it("returns empty drift when no kind defines verify", async () => {

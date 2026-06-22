@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { DesiredStateBehavior } from "@matter/node";
+import { DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { BindingServer } from "@matter/node/behaviors/binding";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
@@ -36,7 +36,7 @@ describe("Binding reconcile integration (single peer)", () => {
 
         const deviceEp = device.endpoints.for(LOCAL_EP);
         expect(deviceEp.stateOf(BindingServer).binding.some(t => t.node === NodeId(0x99n))).equals(true);
-        expect(peer.stateOf(DesiredStateBehavior).items["binding:k1"]?.status.state).equals("committed");
+        expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("binding", "k1")]?.status.state).equals("committed");
 
         await MockTime.resolve(
             deviceEp.act("drop-our-binding", agent => {

@@ -30,11 +30,9 @@ export function newStatus(state: ItemState, failureCode?: number): StatusEntry {
     return { state, updateTimestamp: Time.nowMs, failureCode };
 }
 
-// Escape the separator so a `:` inside `key` cannot collide with another (kind, key) pair.
-function escapeKeyPart(part: string): string {
-    return part.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
-}
+// ASCII Unit Separator: never present in identifier/number keys, so kind and key join unambiguously.
+const ITEM_KEY_SEPARATOR = "\u001f";
 
 export function itemMapKey(kind: string, key: string): string {
-    return `${escapeKeyPart(kind)}:${escapeKeyPart(key)}`;
+    return `${kind}${ITEM_KEY_SEPARATOR}${key}`;
 }

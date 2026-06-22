@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { AclCapacityExceededError, DesiredStateBehavior } from "@matter/node";
+import { AclCapacityExceededError, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { AccessControlServer } from "@matter/node/behaviors/access-control";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { SubjectId } from "@matter/types";
@@ -39,7 +39,7 @@ describe("Reconciler integration (single peer)", () => {
         const acl = device.state.accessControl.acl;
         expect(acl.some(e => e.subjects?.[0] === SUBJECT && e.privilege === Operate)).equals(true);
         expect(acl.some(e => e.privilege === Administer)).equals(true);
-        const item = peer.stateOf(DesiredStateBehavior).items["acl:k1"];
+        const item = peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "k1")];
         expect(item?.status.state).equals("committed");
     });
 
@@ -51,12 +51,14 @@ describe("Reconciler integration (single peer)", () => {
         await MockTime.resolve(device.stop(), { macrotasks: true });
 
         await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("acl", "k1", grant, "converge"));
-        expect(peer.stateOf(DesiredStateBehavior).items["acl:k1"]?.status.state).equals("pending");
+        expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "k1")]?.status.state).equals("pending");
 
         await MockTime.resolve(device.start(), { macrotasks: true });
         const peerAgain = await subscribedPeer(controller, "peer1");
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peerAgain)));
-        expect(peerAgain.stateOf(DesiredStateBehavior).items["acl:k1"]?.status.state).equals("committed");
+        expect(peerAgain.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "k1")]?.status.state).equals(
+            "committed",
+        );
     });
 
     it("rejects admission when the device ACL is full", async () => {
@@ -83,7 +85,7 @@ describe("Reconciler integration (single peer)", () => {
 
         await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("acl", "k1", grant, "converge"));
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
-        expect(peer.stateOf(DesiredStateBehavior).items["acl:k1"]?.status.state).equals("committed");
+        expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "k1")]?.status.state).equals("committed");
 
         await MockTime.resolve(
             device.act("drop-our-acl", agent => {
