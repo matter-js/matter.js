@@ -33,6 +33,7 @@ import {
     Millis,
     ObserverGroup,
     QuietObservable,
+    Seconds,
     ServerAddressIp,
     Time,
     Timestamp,
@@ -48,6 +49,13 @@ import { PeerTimingParameters } from "./PeerTimingParameters.js";
 import type { PhysicalDeviceProperties } from "./PhysicalDeviceProperties.js";
 
 const logger = Logger.get("Peer");
+
+/**
+ * Floor for the MRP idle retransmission interval when a peer operates as a LIT ICD. A LIT ICD omits SII from its
+ * mDNS advertisement (§ 9.15.1.6.2), so the controller would otherwise fall back to the 500ms idle default and
+ * retransmit far too aggressively at a sleeping peer. Mirrors CHIP's `minimumLITBackoffInterval`.
+ */
+export const LIT_MIN_IDLE_INTERVAL = Seconds(5);
 
 /**
  * A node on a fabric we are a member of.
@@ -248,7 +256,7 @@ export class Peer {
         const dd = this.descriptor.discoveryData;
         const descriptorParams = this.#descriptor.sessionParameters;
 
-        return SessionParameters({
+        const parameters = SessionParameters({
             dataModelRevision: bi?.dataModelRevision,
             maxPathsPerInvoke: bi?.maxPathsPerInvoke,
             idleInterval: dd?.SII,
@@ -259,6 +267,18 @@ export class Peer {
             // before the other; take the newer so a stale descriptor value cannot mask a fresher BasicInformation read.
             specificationVersion: Math.max(bi?.specificationVersion ?? 0, descriptorParams?.specificationVersion ?? 0),
         });
+
+        // Only when the peer advertised no SII: a LIT ICD omits it, so the merged value is the 500ms default (or a
+        // negotiated value) which is too aggressive for a sleeper. An advertised SII is honored as-is.
+        if (
+            this.#physicalProperties?.isLongIdleTimeOperating &&
+            dd?.SII === undefined &&
+            parameters.idleInterval < LIT_MIN_IDLE_INTERVAL
+        ) {
+            parameters.idleInterval = LIT_MIN_IDLE_INTERVAL;
+        }
+
+        return parameters;
     }
 
     get network() {
