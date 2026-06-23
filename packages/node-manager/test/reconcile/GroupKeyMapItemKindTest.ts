@@ -27,6 +27,9 @@ function fakePeer(initial: Entry[], limit = 5) {
         async setStateOf(_behavior: unknown, values: { groupKeyMap: Entry[] }) {
             store.groupKeyMap = values.groupKeyMap.map(e => ({ ...e, fabricIndex: FabricIndex(1) }));
         },
+        stateOf() {
+            return { ...store };
+        },
     } as unknown as ClientNode;
     return { node, store };
 }

@@ -45,11 +45,8 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
         await this.#commands(node).keySetRemove({ groupKeySetId: item.intent.groupKeySetId });
     }
 
-    async capacity(node: ClientNode) {
-        const { maxGroupKeysPerFabric } = await node.getStateOf(GroupKeyManagementClient, ["maxGroupKeysPerFabric"]);
-        const { groupKeySetIDs } = await this.#commands(node).keySetReadAllIndices();
-        return { limit: maxGroupKeysPerFabric ?? 3, used: groupKeySetIDs.length };
-    }
+    // No capacity(): the key-set count has no subscribed attribute (only the KeySetReadAllIndices command),
+    // and capacity must not live-read. The device's KeySetWrite RESOURCE_EXHAUSTED is the over-capacity gate.
 
     recoverable(code: number): boolean {
         return code === Status.Timeout || code === Status.Busy;

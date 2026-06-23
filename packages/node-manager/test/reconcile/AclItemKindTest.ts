@@ -32,6 +32,9 @@ function fakePeer(initial: Entry[], limit: number | undefined = 4) {
         async setStateOf(_behavior: unknown, values: { acl: Entry[] }) {
             store.acl = values.acl.map(e => ({ ...e, fabricIndex: FabricIndex(1) }));
         },
+        stateOf() {
+            return { ...store };
+        },
     } as unknown as ClientNode;
     return { node, store };
 }

@@ -73,10 +73,8 @@ export class GroupKeyMapItemKind implements ItemKind<GroupKeyMapGrant> {
     }
 
     async capacity(node: ClientNode): Promise<CapacityInfo> {
-        const { groupKeyMap, maxGroupsPerFabric } = await node.getStateOf(GroupKeyManagementClient, [
-            "groupKeyMap",
-            "maxGroupsPerFabric",
-        ]);
+        // Capacity reads the subscription-cached state — no live device read just to count.
+        const { groupKeyMap, maxGroupsPerFabric } = node.stateOf(GroupKeyManagementClient);
         return { limit: maxGroupsPerFabric ?? MIN_GROUPS_PER_FABRIC, used: (groupKeyMap ?? []).length };
     }
 

@@ -24,8 +24,8 @@ function keySet(id: number): GroupKeyGrant {
     };
 }
 
-// Fake peer: in-memory keyset ids reachable via commandsOf, plus maxGroupKeysPerFabric via getStateOf.
-function fakePeer(initialIds: number[], limit = 5) {
+// Fake peer: in-memory keyset ids reachable via commandsOf.
+function fakePeer(initialIds: number[]) {
     const ids = new Set(initialIds);
     const calls = { wrote: new Array<number>(), removed: new Array<number>() };
     const node = {
@@ -43,17 +43,6 @@ function fakePeer(initialIds: number[], limit = 5) {
                     return { groupKeySetIDs: [...ids] };
                 },
             };
-        },
-        async getStateOf(_behavior: unknown, fields?: string[]) {
-            const store: Record<string, unknown> = { maxGroupKeysPerFabric: limit };
-            if (fields === undefined) {
-                return store;
-            }
-            const out: Record<string, unknown> = {};
-            for (const f of fields) {
-                out[f] = store[f];
-            }
-            return out;
         },
     } as unknown as ClientNode;
     return { node, ids, calls };
@@ -90,12 +79,6 @@ describe("GroupKeyItemKind", () => {
         await kind.remove(node, item(keySet(3)));
         expect(calls.removed).deep.equals([3]);
         expect(ids.has(3)).equals(false);
-    });
-
-    it("capacity reports limit and used", async () => {
-        const kind = new GroupKeyItemKind();
-        const { node } = fakePeer([3, 7], 5);
-        expect(await kind.capacity(node)).deep.equals({ limit: 5, used: 2 });
     });
 
     it("apply rejects the IPK key set id 0", async () => {
