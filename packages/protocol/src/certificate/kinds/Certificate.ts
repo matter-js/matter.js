@@ -30,7 +30,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { assertCertificateDerSize, Unsigned } from "./common.js";
+import { assertCertificateDerSize, MAX_DER_CERTIFICATE_SIZE, Unsigned } from "./common.js";
 import {
     FabricId_Matter,
     FirmwareSigningId_Matter,
@@ -513,6 +513,12 @@ export namespace Certificate {
         encodedCert: Bytes,
         requiredExtensions = REQUIRED_EXTENSIONS,
     ): MatterCertificate {
+        if (encodedCert.byteLength > MAX_DER_CERTIFICATE_SIZE) {
+            throw new CertificateError(
+                `DER certificate of ${encodedCert.byteLength} bytes exceeds the ${MAX_DER_CERTIFICATE_SIZE} byte limit.`,
+            );
+        }
+
         const { _elements: rootElements } = DerCodec.decode(encodedCert);
 
         if (!rootElements || rootElements.length !== 3) {

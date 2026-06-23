@@ -7,7 +7,6 @@
 import type { Environment } from "#environment/Environment.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
-import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "#util/Promises.js";
 import * as mod from "@noble/curves/abstract/modular.js";
@@ -70,15 +69,6 @@ const HASH_ALGORITHM_BY_ID = new Map<number, IdentifiedHashAlgorithm>([
 /** Resolves an IANA NI registry identifier to its {@link IdentifiedHashAlgorithm} name, or undefined if unsupported. */
 export function hashAlgorithmForId(id: number): IdentifiedHashAlgorithm | undefined {
     return HASH_ALGORITHM_BY_ID.get(id);
-}
-
-/** As {@link hashAlgorithmForId}, but throws for unsupported identifiers. */
-export function hashAlgorithmFromId(id: number): IdentifiedHashAlgorithm {
-    const algorithm = hashAlgorithmForId(id);
-    if (algorithm === undefined) {
-        throw new ImplementationError(`Unsupported hash algorithm identifier: ${id}`);
-    }
-    return algorithm;
 }
 
 const logger = Logger.get("Crypto");

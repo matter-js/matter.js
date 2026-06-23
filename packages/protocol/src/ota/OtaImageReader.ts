@@ -25,6 +25,19 @@ export class OtaImageError extends MatterError {
     }
 }
 
+/** Computes a digest, surfacing a backend that cannot compute the algorithm as an {@link OtaImageError}. */
+async function computeOtaDigest(
+    crypto: Crypto,
+    data: Parameters<Crypto["computeHash"]>[0],
+    algorithm: IdentifiedHashAlgorithm,
+): Promise<Bytes> {
+    try {
+        return Bytes.of(await crypto.computeHash(data, algorithm));
+    } catch (cause) {
+        throw new OtaImageError(`Cannot compute ${algorithm} OTA digest`, { cause });
+    }
+}
+
 /**
  * Reader for OTA image files in Matter/DCL format.
  * Supports reading header information, validating payload digest, and extracting payload data.
@@ -234,11 +247,12 @@ export class OtaImageReader {
             // When downloading: compute full file checksum (header + payload) to verify download integrity.
             // The internal payload digest will be verified later during usage and should be included by checking the
             // outer checksum.
-            const fullChecksum = await this.#crypto.computeHash(
+            const fullChecksum = await computeOtaDigest(
+                this.#crypto,
                 payloadIterator(headerBytes),
                 this.#fullFileChecksumType,
             );
-            this.#fullFileChecksum = Bytes.toBase64(Bytes.of(fullChecksum));
+            this.#fullFileChecksum = Bytes.toBase64(fullChecksum);
 
             // Verify payload size
             if (readPayloadSize !== BigInt(payloadSize)) {
@@ -250,7 +264,7 @@ export class OtaImageReader {
             if (digestAlgorithm === undefined) {
                 throw new OtaImageError(`Unsupported OTA image digest type: ${imageDigestType}`);
             }
-            const hashBytes = await this.#crypto.computeHash(payloadIterator(), digestAlgorithm);
+            const hashBytes = await computeOtaDigest(this.#crypto, payloadIterator(), digestAlgorithm);
 
             if (readPayloadSize !== BigInt(payloadSize)) {
                 throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);
@@ -302,7 +316,7 @@ export class OtaImageReader {
         if (digestAlgorithm === undefined) {
             throw new OtaImageError(`Unsupported OTA image digest type: ${imageDigestType}`);
         }
-        const hashBytes = await this.#crypto.computeHash(iterator(), digestAlgorithm);
+        const hashBytes = await computeOtaDigest(this.#crypto, iterator(), digestAlgorithm);
 
         if (readPayloadSize !== BigInt(payloadSize)) {
             throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);

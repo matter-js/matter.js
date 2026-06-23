@@ -12,13 +12,7 @@
  * * NodeJsCryptoTest.ts also implements some of these tests
  */
 
-import {
-    HASH_ALGORITHM_OUTPUT_LENGTHS,
-    HashAlgorithm,
-    hashAlgorithmForId,
-    hashAlgorithmFromId,
-    HashAlgorithmId,
-} from "#crypto/index.js";
+import { HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm, hashAlgorithmForId, HashAlgorithmId } from "#crypto/index.js";
 import { Key, PrivateKey, PublicKey } from "#crypto/Key.js";
 import { StandardCrypto } from "#crypto/StandardCrypto.js";
 import { b$, Bytes } from "#util/Bytes.js";
@@ -139,10 +133,6 @@ describe("StandardCrypto", () => {
         it("returns undefined for unsupported identifiers", () => {
             expect(hashAlgorithmForId(99)).equal(undefined);
             expect(hashAlgorithmForId(2)).equal(undefined);
-        });
-
-        it("throws for unsupported identifiers via hashAlgorithmFromId", () => {
-            expect(() => hashAlgorithmFromId(99)).throw(/Unsupported hash algorithm identifier/);
         });
     });
 

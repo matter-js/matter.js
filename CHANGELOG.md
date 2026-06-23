@@ -23,7 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
-    - Fix: Operational certificates are rejected on decode when exceeding the size limits (400 bytes TLV / 600 bytes DER)
+    - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
     - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
 
 - @project-chip/matter.js
