@@ -8,6 +8,7 @@ import { AclItemKind } from "#reconcile/AclItemKind.js";
 import { BindingItemKind } from "#reconcile/BindingItemKind.js";
 import { GroupKeyItemKind } from "#reconcile/GroupKeyItemKind.js";
 import { GroupKeyMapItemKind } from "#reconcile/GroupKeyMapItemKind.js";
+import { GroupMembershipItemKind } from "#reconcile/GroupMembershipItemKind.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
 import { Duration, Logger, Minutes, Mutex, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
@@ -96,6 +97,7 @@ export class ReconcilerBehavior extends Behavior {
     override async initialize() {
         this.internal.registry.register(new GroupKeyItemKind());
         this.internal.registry.register(new GroupKeyMapItemKind());
+        this.internal.registry.register(new GroupMembershipItemKind());
         this.internal.registry.register(new AclItemKind());
         this.internal.registry.register(new BindingItemKind());
         this.internal.peerObservers = new Map();
