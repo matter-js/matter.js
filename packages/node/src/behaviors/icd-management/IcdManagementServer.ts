@@ -5,6 +5,7 @@
  */
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
+import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import {
     Bytes,
@@ -13,6 +14,7 @@ import {
     Duration,
     ImplementationError,
     isIPv6,
+    Logger,
     Millis,
     Observable,
     Seconds,
@@ -49,6 +51,8 @@ import { IcdModeState } from "./IcdMode.js";
  * @see {@link MatterSpecification.v151.Core} § 4.12.2.1
  */
 export const ICD_FAST_POLLING_INTERVAL = Millis(200);
+
+const logger = Logger.get("IcdManagement");
 
 // CIP, LITS, DSLS, and UAT are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`,
 // `this.features.dynamicSitLitSupport`, and `this.features.userActiveModeTrigger` typecheck throughout the shared
@@ -224,6 +228,14 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         // Seed before the network runtime brings up the DeviceAdvertiser and publishes the first operational
         // announcement, so the ICD DNS-SD TXT key is present from that first announce.
         this.#installIcdAdvertisement();
+
+        // An ICD does not persist/re-establish subscriptions: controllers re-subscribe via Check-In. Must run before
+        // any online reactor so CommissioningServer skips its reestablish pass.
+        const subscriptions = this.agent.get(SubscriptionsServer);
+        if (subscriptions.state.persistenceEnabled) {
+            logger.info("Disabling subscription persistence because this node operates as an ICD");
+            subscriptions.state.persistenceEnabled = false;
+        }
 
         this.reactTo((this.endpoint.lifecycle as NodeLifecycle).online, this.#online);
     }

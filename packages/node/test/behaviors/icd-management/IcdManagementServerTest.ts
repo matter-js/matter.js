@@ -5,6 +5,7 @@
  */
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
+import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { ICD_FAST_POLLING_INTERVAL, IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ServerNode } from "#node/index.js";
@@ -193,6 +194,17 @@ describe("IcdManagementServer", () => {
             });
 
             expect(device.env.get(SessionManager).localFixedMrpBackoff).equals(ICD_FAST_POLLING_INTERVAL);
+        });
+    });
+
+    describe("subscription persistence", () => {
+        it("disables subscription persistence on an ICD node", async () => {
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            expect(device.stateOf(SubscriptionsServer).persistenceEnabled).equals(false);
         });
     });
 
