@@ -72,10 +72,8 @@ export class AclItemKind implements ItemKind<AclGrant> {
     }
 
     async capacity(node: ClientNode): Promise<CapacityInfo> {
-        const { acl, accessControlEntriesPerFabric } = await node.getStateOf(AccessControlClient, [
-            "acl",
-            "accessControlEntriesPerFabric",
-        ] as const);
+        // Capacity reads the subscription-cached state — no live device read just to count.
+        const { acl, accessControlEntriesPerFabric } = node.stateOf(AccessControlClient);
         return { limit: accessControlEntriesPerFabric ?? ACL_ENTRIES_PER_FABRIC_MIN, used: (acl ?? []).length };
     }
 
