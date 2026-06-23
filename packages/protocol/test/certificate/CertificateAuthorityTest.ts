@@ -238,6 +238,47 @@ describe("CertificateAuthority", () => {
         });
     });
 
+    describe("SKI derivation", () => {
+        it("derives root SKI as 160-bit SHA-1 of the public key (RFC 5280 method-1)", async () => {
+            const ca = await CertificateAuthority.create(crypto);
+            const rcac = Rcac.fromTlv(ca.rootCert);
+            const ski = rcac.cert.extensions.subjectKeyIdentifier;
+
+            expect(ski.byteLength).equal(20);
+
+            const expected = Bytes.of(await crypto.computeHash(rcac.cert.ellipticCurvePublicKey, "SHA-1"));
+            expect(Bytes.toHex(ski)).equal(Bytes.toHex(expected));
+            expect(Bytes.toHex(rcac.cert.extensions.authorityKeyIdentifier!)).equal(Bytes.toHex(ski));
+        });
+
+        it("derives ICAC SKI as 160-bit SHA-1 of the public key", async () => {
+            const ca = await CertificateAuthority.create(crypto, true);
+            const icac = Icac.fromTlv(ca.icacCert!);
+            const ski = icac.cert.extensions.subjectKeyIdentifier;
+
+            expect(ski.byteLength).equal(20);
+
+            const expected = Bytes.of(await crypto.computeHash(icac.cert.ellipticCurvePublicKey, "SHA-1"));
+            expect(Bytes.toHex(ski)).equal(Bytes.toHex(expected));
+        });
+
+        it("derives NOC SKI as 160-bit SHA-1 of the public key", async () => {
+            const ca = await CertificateAuthority.create(crypto);
+            const keyPair = await crypto.createKeyPair();
+            const noc = Noc.fromTlv(await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n)));
+            const ski = noc.cert.extensions.subjectKeyIdentifier!;
+
+            expect(ski.byteLength).equal(20);
+
+            const expected = Bytes.of(await crypto.computeHash(noc.cert.ellipticCurvePublicKey, "SHA-1"));
+            expect(Bytes.toHex(ski)).equal(Bytes.toHex(expected));
+            const rcac = Rcac.fromTlv(ca.rootCert);
+            expect(Bytes.toHex(noc.cert.extensions.authorityKeyIdentifier!)).equal(
+                Bytes.toHex(rcac.cert.extensions.subjectKeyIdentifier),
+            );
+        });
+    });
+
     describe("NOC generation with CATs", () => {
         it("generates NOC with CASE Authenticated Tags", async () => {
             const ca = await CertificateAuthority.create(crypto, true);

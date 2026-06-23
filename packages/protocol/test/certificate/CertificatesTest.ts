@@ -14,6 +14,7 @@ import { Certificate, parseMatterFallbackVidPid } from "#certificate/kinds/Certi
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
+import { Vvsc } from "#certificate/kinds/Vvsc.js";
 import {
     Bytes,
     CertificateError,
@@ -617,6 +618,26 @@ describe("Certificates", () => {
             expect(Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase()).to.equal(
                 "62B177DEFD5A9CC35D9190A0E0F5F4E9ECE84BE1",
             );
+        });
+    });
+
+    describe("operational cert decode size limits (§6.1.3)", () => {
+        it("rejects a Matter-TLV operational cert larger than 400 bytes", () => {
+            const oversized = new Uint8Array(401);
+            expect(() => Noc.fromTlv(oversized)).throw(/400/);
+            expect(() => Rcac.fromTlv(oversized)).throw(/400/);
+            expect(() => Icac.fromTlv(oversized)).throw(/400/);
+            expect(() => Vvsc.fromTlv(oversized)).throw(/400/);
+        });
+
+        it("rejects a DER certificate larger than 600 bytes (NOC and DAC chains)", () => {
+            const oversized = new Uint8Array(601);
+            expect(() => Noc.fromAsn1(oversized)).throw(/600/);
+            expect(() => Rcac.fromAsn1(oversized)).throw(/600/);
+            expect(() => Icac.fromAsn1(oversized)).throw(/600/);
+            expect(() => Paa.fromAsn1(oversized)).throw(/600/);
+            expect(() => Pai.fromAsn1(oversized)).throw(/600/);
+            expect(() => Dac.fromAsn1(oversized)).throw(/600/);
         });
     });
 

@@ -11,8 +11,10 @@ import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
     Bytes,
+    ImplementationError,
     Key,
     MemoryStorageDriver,
+    Millis,
     PrivateKey,
     StandardCrypto,
     StorageContext,
@@ -293,6 +295,42 @@ describe("SessionManager", () => {
             fabric.groups.removeGroupKeySet(1);
             const after = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             expect(after).greaterThan(before);
+        });
+    });
+
+    describe("active threshold validation", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("rejects a local active threshold over 65535 milliseconds on construction", () => {
+            expect(() => newManager({ activeThreshold: Millis(65536) })).throws(
+                ImplementationError,
+                "Active Threshold",
+            );
+        });
+
+        it("rejects a local active threshold over 65535 milliseconds via the setter", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { activeThreshold: Millis(65536) })).throws(
+                ImplementationError,
+                "Active Threshold",
+            );
+        });
+
+        it("accepts a local active threshold of exactly 65535 milliseconds", async () => {
+            const sessionManager = newManager({ activeThreshold: Millis(65535) });
+            await sessionManager.construction.ready;
+
+            expect(sessionManager.sessionParameters.activeThreshold).equal(Millis(65535));
         });
     });
 });
