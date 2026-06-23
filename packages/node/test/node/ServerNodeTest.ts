@@ -634,6 +634,44 @@ describe("ServerNode", () => {
         }
     });
 
+    it("restores persisted attribute values after restart", async () => {
+        const environment = new Environment("test");
+        const service = environment.get(StorageService);
+
+        // Configure storage that will survive node replacement
+        const storage = new StorageManager(new MemoryStorageDriver());
+        storage.close = () => {};
+        await storage.initialize();
+        service.open = () => Promise.resolve(storage);
+
+        const colorControl = {
+            colorMode: 0,
+            colorTempPhysicalMinMireds: 1,
+            colorTempPhysicalMaxMireds: 65279,
+            startUpColorTemperatureMireds: 1,
+            coupleColorTempToLevelMinMireds: 1,
+        };
+
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.construction.ready;
+            const endpoint = await node.add(ExtendedColorLightDevice, { id: "foo", number: 1, colorControl });
+            await endpoint.set({ colorControl: { currentX: 12 } });
+            await node.close();
+        }
+
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.construction.ready;
+            const endpoint = await node.add(ExtendedColorLightDevice, { id: "foo", number: 1, colorControl });
+
+            // The datasource drops its store seed after construction; the persisted value must still load.
+            expect(endpoint.state.colorControl.currentX).equals(12);
+
+            await node.close();
+        }
+    });
+
     describe("initializes protocol", () => {
         it("with part at startup", async () => {
             const node = new MockServerNode({ parts: [OnOffLightDevice] });

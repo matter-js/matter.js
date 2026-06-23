@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
-    - Enhancement: Avoid a duplicate in-memory copy of cached peer cluster values while a behavior is active
+    - Enhancement: Free a behavior's persisted seed values from memory once the datasource has loaded them
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: Ensure to always sanitize fabric-scoped attribute data (e.g. stale AccessControl ACL entries) at node startup
 
