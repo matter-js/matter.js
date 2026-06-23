@@ -5,7 +5,7 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { ServerAddressUdp } from "@matter/general";
+import { Hours, Millis, ServerAddressUdp } from "@matter/general";
 import { CommissionableDevice } from "@matter/protocol";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
@@ -103,6 +103,39 @@ describe("RemoteDescriptor", () => {
             expect(back.deviceIdentifier).equals("minimal");
             expect(back.D).equals(1000);
             expect(back.CM).equals(1);
+        });
+    });
+
+    describe("session interval cap handling", () => {
+        function longWith(idleInterval?: number, activeInterval?: number): RemoteDescriptor.Long {
+            return { sessionParameters: { idleInterval, activeInterval } } as RemoteDescriptor.Long;
+        }
+
+        it("keeps a higher session-derived interval when the advertisement is at the 1-hour cap", () => {
+            const long = longWith(Hours(2), Hours(2));
+
+            RemoteDescriptor.toLongForm({ SII: Hours.one, SAI: Hours.one }, long);
+
+            expect(long.sessionParameters?.idleInterval).equals(Hours(2));
+            expect(long.sessionParameters?.activeInterval).equals(Hours(2));
+        });
+
+        it("applies an advertised interval below the cap even over a higher value", () => {
+            const long = longWith(Hours(2), Hours(2));
+
+            RemoteDescriptor.toLongForm({ SII: Millis(1800000), SAI: Millis(1800000) }, long);
+
+            expect(long.sessionParameters?.idleInterval).equals(Millis(1800000));
+            expect(long.sessionParameters?.activeInterval).equals(Millis(1800000));
+        });
+
+        it("applies a capped advertisement when no higher value is on record", () => {
+            const long = longWith();
+
+            RemoteDescriptor.toLongForm({ SII: Hours.one, SAI: Hours.one }, long);
+
+            expect(long.sessionParameters?.idleInterval).equals(Hours.one);
+            expect(long.sessionParameters?.activeInterval).equals(Hours.one);
         });
     });
 });

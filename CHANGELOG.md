@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: Free a behavior's persisted seed values from memory once the datasource has loaded them
+    - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: Ensure to always sanitize fabric-scoped attribute data (e.g. stale AccessControl ACL entries) at node startup
 
@@ -21,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
     - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
