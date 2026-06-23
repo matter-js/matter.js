@@ -56,8 +56,11 @@ export namespace SessionIntervals {
      */
     export const maxAdvertisedInterval = Hours.one;
 
-    /** Maximum SAT the DNS-SD operational advertisement may carry (SAT is a uint16 millisecond value). */
-    export const maxAdvertisedActiveThreshold = Millis(65535);
+    /**
+     * Maximum Session Active Threshold. Unlike SII/SAI this bound applies everywhere: SAT is a uint16 millisecond
+     * value both in the DNS-SD advertisement and in the CASE/PASE session-parameter struct.
+     */
+    export const maxActiveThreshold = Millis(65535);
 
     /**
      * Resolve intervals for DNS-SD advertisement, clamping each to its spec maximum. Out-of-range values are reduced to
@@ -67,20 +70,22 @@ export namespace SessionIntervals {
         const resolved = SessionIntervals(intervals);
 
         if (resolved.idleInterval > maxAdvertisedInterval) {
-            logger.info(`Capping advertised Session Idle Interval ${Duration.format(resolved.idleInterval)} to 1 hour`);
+            logger.info(
+                `Capping advertised Session Idle Interval ${Duration.format(resolved.idleInterval)} to ${Duration.format(maxAdvertisedInterval)}`,
+            );
             resolved.idleInterval = maxAdvertisedInterval;
         }
         if (resolved.activeInterval > maxAdvertisedInterval) {
             logger.info(
-                `Capping advertised Session Active Interval ${Duration.format(resolved.activeInterval)} to 1 hour`,
+                `Capping advertised Session Active Interval ${Duration.format(resolved.activeInterval)} to ${Duration.format(maxAdvertisedInterval)}`,
             );
             resolved.activeInterval = maxAdvertisedInterval;
         }
-        if (resolved.activeThreshold > maxAdvertisedActiveThreshold) {
+        if (resolved.activeThreshold > maxActiveThreshold) {
             logger.info(
-                `Capping advertised Session Active Threshold ${Duration.format(resolved.activeThreshold)} to 65535ms`,
+                `Capping advertised Session Active Threshold ${Duration.format(resolved.activeThreshold)} to ${Duration.format(maxActiveThreshold)}`,
             );
-            resolved.activeThreshold = maxAdvertisedActiveThreshold;
+            resolved.activeThreshold = maxActiveThreshold;
         }
 
         return resolved;
