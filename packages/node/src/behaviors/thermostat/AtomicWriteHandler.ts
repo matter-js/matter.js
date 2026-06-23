@@ -419,9 +419,9 @@ export class AtomicWriteHandler {
             throw new StatusResponse.InvalidInStateError("There is no atomic write in progress for this peer");
         }
         if (!PeerAddress.is(attrWriteState.peerAddress, peerAddress)) {
-            throw new StatusResponse.InvalidInStateError(
-                "Attribute is part of an atomic write in progress for a different peer",
-            );
+            // CHIP and TC_TSTAT_4_2 require BUSY here, not the §7.15.3 INVALID_IN_STATE, when another peer holds the
+            // atomic write (INVALID_IN_STATE is reserved for when no atomic write is open on the attribute)
+            throw new StatusResponse.BusyError("Attribute is part of an atomic write in progress for a different peer");
         }
         return attrWriteState;
     }

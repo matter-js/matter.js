@@ -187,7 +187,9 @@ describe("AtomicWriteHandler", () => {
         await node.close();
     });
 
-    it("rejects a write to an attribute held by a different peer with INVALID_IN_STATE (§7.15.3)", async () => {
+    // §7.15.3 mandates INVALID_IN_STATE, but CHIP and TC_TSTAT_4_2 step 15 expect BUSY when another peer holds the
+    // atomic write; we match CHIP for certification (see the spec-enhancement tracking the §7.15.3 rewording)
+    it("rejects a write to an attribute held by a different peer with BUSY", async () => {
         const { node, fabric, device } = await createNode();
 
         const first = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]), NodeId(1));
@@ -198,7 +200,7 @@ describe("AtomicWriteHandler", () => {
             {
                 kind: "attr-status",
                 path: { attributeId: PRESETS_ATTRIBUTE, clusterId: Thermostat.id, endpointId: 1, listIndex: undefined },
-                status: Status.InvalidInState,
+                status: Status.Busy,
                 clusterStatus: undefined,
             },
         ]);
