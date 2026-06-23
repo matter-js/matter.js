@@ -459,5 +459,75 @@ describe("SustainedSubscription", () => {
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
+
+        it("recreates the subscription immediately on a LIT->SIT runtime flip", async () => {
+            const wakefulness = litWakefulness();
+
+            let subscribeCount = 0;
+            let closedCount = 0;
+            let probeCount = 0;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                probe: async () => {
+                    probeCount++;
+                    return true;
+                },
+                subscribe: async () => {
+                    subscribeCount++;
+                    return fakePeerSub(() => closedCount++);
+                },
+            });
+
+            wakefulness.noteSignal(); // wake -> first subscribe
+            await flush();
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(true);
+
+            // A LIT->SIT flip force-wakes the peer, so the recreate closes the current subscription and re-subscribes
+            // straight away for the new mode. The session is untouched, so no probe.
+            wakefulness.requiresAwait = false;
+            await flush();
+            expect(closedCount).equal(1);
+            expect(subscribeCount).equal(2);
+            expect(probeCount).equal(0);
+            expect(subscription.active.value).equal(true);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("recreates after the next check-in on a SIT->LIT runtime flip", async () => {
+            const wakefulness = new IcdPeerWakefulness();
+            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            // requiresAwait defaults to false -> starts as a SIT peer (always awake).
+
+            let subscribeCount = 0;
+            let closedCount = 0;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => {
+                    subscribeCount++;
+                    return fakePeerSub(() => closedCount++);
+                },
+            });
+
+            await flush();
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(true);
+
+            // A SIT->LIT flip tears down the current subscription and parks until the peer's next Check-In.
+            wakefulness.requiresAwait = true;
+            await flush();
+            expect(closedCount).equal(1);
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(false);
+
+            wakefulness.noteSignal();
+            await flush();
+            expect(subscribeCount).equal(2);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
     });
 });

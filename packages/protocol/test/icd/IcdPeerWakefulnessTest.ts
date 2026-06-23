@@ -74,6 +74,22 @@ describe("IcdPeerWakefulness", () => {
         expect(w.available.value).equals(true);
     });
 
+    it("operatingModeChanged emits the new value on each requiresAwait flip, not on a no-op set", async () => {
+        const w = new IcdPeerWakefulness();
+        const seen = new Array<boolean>();
+        w.operatingModeChanged.on(value => {
+            seen.push(value);
+        });
+
+        w.requiresAwait = false; // no-op (already false)
+        w.requiresAwait = true; // SIT -> LIT
+        w.requiresAwait = true; // no-op
+        w.requiresAwait = false; // LIT -> SIT
+        await MockTime.yield();
+
+        expect(seen).deep.equals([true, false]);
+    });
+
     it("close() releases a consumer parked on the awake edge", async () => {
         const w = lit();
         let released = false;

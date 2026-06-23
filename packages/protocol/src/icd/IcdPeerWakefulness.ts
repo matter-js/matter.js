@@ -27,6 +27,7 @@ export class IcdPeerWakefulness {
 
     readonly #awake = AsyncObservableValue(true);
     readonly #available = AsyncObservableValue(true);
+    readonly #operatingModeChanged = AsyncObservableValue(false);
 
     #requiresAwait = false;
     #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
@@ -45,6 +46,15 @@ export class IcdPeerWakefulness {
     /** Emits when reachability state changes. `.value` reads the current boolean. */
     get available() {
         return this.#available;
+    }
+
+    /**
+     * Emits the new {@link requiresAwait} value when the peer's operating mode flips (SIT⇄LIT) at runtime. A
+     * sustained subscription recreates itself on this edge so the underlying Matter subscription is renegotiated for
+     * the new mode rather than carried over.
+     */
+    get operatingModeChanged() {
+        return this.#operatingModeChanged;
     }
 
     get requiresAwait() {
@@ -66,6 +76,7 @@ export class IcdPeerWakefulness {
             this.#awake.emit(true);
             this.#available.emit(true);
         }
+        this.#operatingModeChanged.emit(value);
     }
 
     setTimings(timings: { activeModeThreshold?: Duration; idleModeDuration?: Duration }) {

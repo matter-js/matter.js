@@ -40,8 +40,9 @@ const logger = Logger.get("ClientSubscription");
  *
  * When a peer is a LIT (Long Idle Time) ICD operating in await mode, the subscription instead parks on the peer's wake
  * signal (driven by Check-In messages) and (re)subscribes only when the peer becomes awake.  Wakefulness is read live
- * via the {@link SustainedSubscription.Configuration#wakefulness} provider, so a peer registered after construction or
- * flipped SIT⇄LIT at runtime is honored on the loop's next iteration.
+ * via the {@link SustainedSubscription.Configuration#wakefulness} provider, so a peer registered after construction is
+ * honored on the loop's next iteration.  A runtime SIT⇄LIT operating-mode flip recreates the subscription so its
+ * intervals are renegotiated for the new mode.
  *
  * TODO - need to make underlying exchange provider abortable and work out how the retry schedule at this level
  *   interacts with the MDNS and secure protocol retries.  Will require some refactoring at lower levels.  Leaving
@@ -244,7 +245,9 @@ export class SustainedSubscription extends ClientSubscription {
                     break;
                 }
 
-                await this.abort.race(closed);
+                // A runtime operating-mode flip recreates the subscription so its intervals are renegotiated for the
+                // new mode; a SIT→LIT peer then parks for its next Check-In at the loop head before re-subscribing.
+                const modeFlipped = await this.#awaitClosedOrModeFlip(closed);
 
                 // On loss, an await-mode LIT peer's reachability is governed by the availability observer (a peer
                 // still within its window stays active), so we do not emit here; everything else becomes inactive.
@@ -258,7 +261,23 @@ export class SustainedSubscription extends ClientSubscription {
                     break;
                 }
 
-                logger.info(`Replacing subscription to ${this.peer} due to timeout`);
+                if (modeFlipped) {
+                    const subscription = this.#subscription;
+                    this.#subscription = undefined;
+                    this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
+                    // We tear this down deliberately; the CASE session is untouched, so keep it trusted and
+                    // re-subscribe without a probe. Detach the closed callback so its async fire cannot route this
+                    // deliberate close back through the loss handler and flip sessionTrusted.
+                    request.closed = undefined;
+                    sessionTrusted = true;
+                    if (subscription !== undefined) {
+                        await subscription.close();
+                    }
+                    logger.info(`Recreating subscription to ${this.peer} after ICD operating mode change`);
+                    continue;
+                }
+
+                logger.info(`Replacing subscription to ${this.peer} after loss`);
             }
         } finally {
             this.#unobserveAvailability();
@@ -300,6 +319,37 @@ export class SustainedSubscription extends ClientSubscription {
         }
         this.#availability.wakefulness.available.off(this.#availability.observer);
         this.#availability = undefined;
+    }
+
+    /**
+     * Wait until the active subscription closes or the peer flips operating mode (SIT⇄LIT) at runtime, whichever
+     * comes first, or until we abort.  Returns true only when a mode flip won the race, signalling the caller to
+     * recreate the subscription for the new mode.
+     */
+    async #awaitClosedOrModeFlip(closed: Promise<void>): Promise<boolean> {
+        const wakefulness = this.#wakefulness?.();
+        if (wakefulness === undefined) {
+            await this.abort.race(closed);
+            return false;
+        }
+
+        let flipped = false;
+        let observer: Observer<[boolean]> | undefined;
+        const flip = new Promise<void>(resolve => {
+            observer = () => {
+                flipped = true;
+                resolve();
+            };
+            wakefulness.operatingModeChanged.on(observer);
+        });
+        try {
+            await this.abort.race(Promise.race([closed, flip]));
+        } finally {
+            if (observer !== undefined) {
+                wakefulness.operatingModeChanged.off(observer);
+            }
+        }
+        return flipped && !this.abort.aborted;
     }
 
     /**
