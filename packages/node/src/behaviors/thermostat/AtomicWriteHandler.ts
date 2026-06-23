@@ -143,6 +143,7 @@ export class AtomicWriteHandler {
             );
             this.#pendingWrites.add(state);
             state.closed.on(() => void this.#pendingWrites.delete(state));
+            state.start();
             logger.debug("Added atomic write state:", state);
             return state;
         }
@@ -187,10 +188,8 @@ export class AtomicWriteHandler {
         const attributeStatus = request.attributeRequests.map(attr => {
             let statusCode = Status.Success;
             const attributeModel = cluster.schema.conformant.attributes(attr);
-            if (!attributeModel?.quality.atomic) {
-                statusCode = Status.InvalidAction;
-            } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
-                statusCode = Status.Busy;
+            if (attributeModel === undefined) {
+                statusCode = Status.InvalidCommand;
             } else {
                 const { writeLevel } = cluster.supervisor.get(attributeModel).access.limits;
                 const location = {
@@ -201,6 +200,10 @@ export class AtomicWriteHandler {
                 };
                 if (context.authorityAt(writeLevel, location) !== AccessControl.Authority.Granted) {
                     statusCode = Status.UnsupportedAccess;
+                } else if (!attributeModel.quality.atomic) {
+                    statusCode = Status.InvalidCommand;
+                } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
+                    statusCode = Status.Busy;
                 }
             }
 
@@ -416,7 +419,9 @@ export class AtomicWriteHandler {
             throw new StatusResponse.InvalidInStateError("There is no atomic write in progress for this peer");
         }
         if (!PeerAddress.is(attrWriteState.peerAddress, peerAddress)) {
-            throw new StatusResponse.BusyError("Attribute is part of an atomic write in progress for a different peer");
+            throw new StatusResponse.InvalidInStateError(
+                "Attribute is part of an atomic write in progress for a different peer",
+            );
         }
         return attrWriteState;
     }

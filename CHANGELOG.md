@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Fix: Aligned Thermostat atomic-write handling with the Matter specification
     - Enhancement: Free a behavior's persisted seed values from memory once the datasource has loaded them
     - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
