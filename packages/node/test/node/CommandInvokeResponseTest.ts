@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
+import { OnOffClient } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { AccessLevel } from "@matter/model";
@@ -170,6 +172,74 @@ describe("CommandInvokeResponse", () => {
             },
         ]);
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+    });
+
+    // §8.8.2.3: an invoke path must indicate a server cluster, so a client cluster must yield UNSUPPORTED_CLUSTER.
+    // Covered for both ways a client cluster can be added.
+    it("does not invoke a command on a client cluster declared via withClientClusters", async () => {
+        const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint.withClientClusters(OnOffClient));
+        try {
+            const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+                invokeRequests: [
+                    {
+                        commandPath: {
+                            endpointId: EndpointNumber(0),
+                            clusterId: ClusterId(6),
+                            commandId: CommandId(1),
+                        },
+                        commandFields: undefined,
+                    },
+                ],
+            });
+
+            expect(response.data).deep.equals([
+                {
+                    kind: "cmd-status",
+                    path: { clusterId: 6, commandId: 1, endpointId: 0 },
+                    status: Status.UnsupportedCluster,
+                    clusterStatus: undefined,
+                    commandRef: undefined,
+                },
+            ]);
+            expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+        } finally {
+            await node.close();
+        }
+    });
+
+    // `require` injects the client behavior as a backing, which previously made it invocable.
+    it("does not invoke a command on a client cluster added via require", async () => {
+        const node = await MockServerNode.createOnline();
+        try {
+            // Fresh instance so the require does not mutate the shared OnOffClient singleton.
+            node.behaviors.require(ClientBehavior(OnOff));
+
+            const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+                invokeRequests: [
+                    {
+                        commandPath: {
+                            endpointId: EndpointNumber(0),
+                            clusterId: ClusterId(6),
+                            commandId: CommandId(1),
+                        },
+                        commandFields: undefined,
+                    },
+                ],
+            });
+
+            expect(response.data).deep.equals([
+                {
+                    kind: "cmd-status",
+                    path: { clusterId: 6, commandId: 1, endpointId: 0 },
+                    status: Status.UnsupportedCluster,
+                    clusterStatus: undefined,
+                    commandRef: undefined,
+                },
+            ]);
+            expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+        } finally {
+            await node.close();
+        }
     });
 
     // An existing command denied at the actual-privilege ACL pass (after the Operate gate and existence checks)
