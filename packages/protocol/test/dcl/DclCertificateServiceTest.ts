@@ -12,7 +12,11 @@ import {
     Bytes,
     Crypto,
     Days,
+    Diagnostic,
     Environment,
+    LogFormat,
+    Logger,
+    LogLevel,
     Minutes,
     MockFetch,
     MockStorageService,
@@ -1944,6 +1948,93 @@ describe("DclCertificateService", () => {
                 expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })?.isProduction).to.be
                     .false;
             });
+        });
+    });
+
+    describe("GitHub rate-limit logging", () => {
+        async function captureLogs(fn: () => Promise<unknown>) {
+            const dest = Logger.destinations.default;
+            const { format, write } = dest;
+            const captured = new Array<{ level: LogLevel; message: string }>();
+            try {
+                dest.format = LogFormat.formats.plain;
+                dest.write = (message: string, { level }: Diagnostic.Message) => {
+                    captured.push({ level, message });
+                };
+                await fn();
+                return captured;
+            } finally {
+                dest.format = format;
+                dest.write = write;
+            }
+        }
+
+        // Empty DCL responses so the cached set is controlled solely by the test, with GitHub rate-limited (403).
+        function mockDclWithGithubRateLimited() {
+            const emptyRootList = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("api.github.com", {}, { status: 403 });
+            fetchMock.install();
+        }
+
+        it("logs the GitHub fetch failure at info when no test certificate is cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("logs the GitHub fetch failure at debug when a test certificate is already cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA");
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.DEBUG);
+
+            await service.close();
+        });
+
+        it("logs the GitHub fetch failure at info when only a production certificate is cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: true });
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("skips the remaining GitHub fetches for the run after a rate-limit response", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            // The PAA listing rate-limits, so the CD signer listing is skipped: a single GitHub call for the run.
+            const githubCalls = fetchMock.getCallLog().filter(call => call.url.includes("api.github.com"));
+            expect(githubCalls.length).to.equal(1);
+
+            // A later run is not blocked; it retries GitHub from scratch.
+            fetchMock.clearCallLog();
+            await service.update(true);
+            expect(fetchMock.getCallLog().filter(call => call.url.includes("api.github.com")).length).to.equal(1);
+
+            await service.close();
         });
     });
 });

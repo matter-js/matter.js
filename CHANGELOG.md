@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Free a behavior's persisted seed values from memory once the datasource has loaded them
     - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
+    - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
     - Fix: Ensure to always sanitize fabric-scoped attribute data (e.g. stale AccessControl ACL entries) at node startup
     - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
 
@@ -24,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
     - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
     - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
@@ -31,6 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
     - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
     - Fix: A stray StatusReport arriving as an exchange's initial message (e.g. a retransmitted CASE/PASE completion) is now ignored instead of logging an "Unhandled error"
+    - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
 
 - @project-chip/matter.js
     - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
