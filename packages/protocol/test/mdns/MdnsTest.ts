@@ -587,6 +587,14 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             recordClass: 1,
                             recordType: 12,
                             ttl: Seconds(120),
+                            value: "8080808080808080._matterd._udp.local",
+                        },
+                        {
+                            flushCache: false,
+                            name: "_services._dns-sd._udp.local",
+                            recordClass: 1,
+                            recordType: 12,
+                            ttl: Seconds(120),
                             value: "_V1._sub._matterd._udp.local",
                         },
                         {
@@ -855,6 +863,14 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                         {
                             flushCache: false,
                             name: "_matterd._udp.local",
+                            recordClass: 1,
+                            recordType: 12,
+                            ttl: Seconds(120),
+                            value: "8080808080808080._matterd._udp.local",
+                        },
+                        {
+                            flushCache: false,
+                            name: "_services._dns-sd._udp.local",
                             recordClass: 1,
                             recordType: 12,
                             ttl: Seconds(120),

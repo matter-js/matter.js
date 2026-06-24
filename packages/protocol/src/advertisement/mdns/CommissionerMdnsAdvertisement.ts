@@ -37,7 +37,8 @@ export class CommissionerMdnsAdvertisement extends MdnsAdvertisement<ServiceDesc
 
         const records = [
             PtrRecord(SERVICE_DISCOVERY_QNAME, MATTER_COMMISSIONER_SERVICE_QNAME),
-            PtrRecord(MATTER_COMMISSIONER_SERVICE_QNAME, vendorQname),
+            PtrRecord(MATTER_COMMISSIONER_SERVICE_QNAME, this.qname),
+            PtrRecord(SERVICE_DISCOVERY_QNAME, vendorQname),
             PtrRecord(vendorQname, this.qname),
         ];
 
