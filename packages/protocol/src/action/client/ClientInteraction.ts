@@ -419,9 +419,6 @@ export class ClientInteraction<
             abort,
         });
         if (!request.suppressResponse) {
-            // Per spec §8.8.3.3: a CommandDataIB that matches no command we sent is discarded rather than treated as
-            // fatal; a CommandStatusIB is always passed up; and a request command with no corresponding response
-            // entry is reported as NO_COMMAND_RESPONSE.
             const chunk = new Array<InvokeResult.DecodedData>();
 
             for (const response of result?.invokeResponses ?? []) {
