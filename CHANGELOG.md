@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: Ensure to always sanitize fabric-scoped attribute data (e.g. stale AccessControl ACL entries) at node startup
     - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
+    - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
 
 - @matter/nodejs
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
