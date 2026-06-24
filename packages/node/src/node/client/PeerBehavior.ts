@@ -417,6 +417,12 @@ function maybeOverrideSupport<T extends AttributeModel | CommandModel | EventMod
         return;
     }
 
+    // Global attributes are injected into cluster members independent of conformance (see Scope.injectGlobalAttributes),
+    // so a support override would push a second, undeconflictable definition.  Their support is never in question.
+    if (AttributeModel.isGlobal(element)) {
+        return;
+    }
+
     const isSupported = supported === true || supported.has(element.id);
     const applicability = element.effectiveConformance.applicabilityFor(standardCluster);
     if (!isSupported) {
