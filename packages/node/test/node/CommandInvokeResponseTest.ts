@@ -68,7 +68,10 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 0, success: 2, existent: 2 });
     });
 
-    it("invokes existing endpoint wildcard commands with suppressed response", async () => {
+    // process() is now suppress-agnostic: it always produces the results and SuppressResponse is applied by the
+    // messaging layer (so it can honor the §8.8.3.2.1 force-send-on-CommandDataIB clause). The produced data is
+    // therefore identical to the non-suppressed case.
+    it("produces results regardless of suppressResponse", async () => {
         const device = new Endpoint(OnOffLightDevice);
         const node = await MockServerNode.createOnline(undefined, { device });
         await node.add(new Endpoint(OnOffLightDevice));
@@ -82,7 +85,22 @@ describe("CommandInvokeResponse", () => {
             ],
         });
 
-        expect(response.data).deep.equals(undefined);
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 1 },
+                status: 0,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 2 },
+                status: 0,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
         expect(response.counts).deep.equals({ status: 0, success: 2, existent: 2 });
     });
 
