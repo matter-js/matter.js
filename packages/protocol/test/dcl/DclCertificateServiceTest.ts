@@ -1968,62 +1968,70 @@ describe("DclCertificateService", () => {
             }
         }
 
+        // Empty DCL responses so the cached set is controlled solely by the test, with GitHub rate-limited (403).
         function mockDclWithGithubRateLimited() {
-            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
-            fetchMock.addResponse(
-                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
-                mockDclCertificateNoVID,
-            );
-            fetchMock.addResponse(
-                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
-                mockDclCertificateFFF1,
-            );
-            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
+            const emptyRootList = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
             fetchMock.addResponse("api.github.com", {}, { status: 403 });
             fetchMock.install();
         }
 
-        it("logs the CD signer fetch failure at info when no signer is cached", async () => {
+        it("logs the GitHub fetch failure at info when no test certificate is cached", async () => {
             mockDclWithGithubRateLimited();
 
             const service = new DclCertificateService(environment, { fetchTestCertificates: true });
             await service.construction;
 
             const logs = await captureLogs(() => service.update(true));
-            const entry = logs.find(log => log.message.includes("Failed to fetch CD signer certificates from GitHub"));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
             expect(entry?.level).to.equal(LogLevel.INFO);
 
             await service.close();
         });
 
-        it("logs the CD signer fetch failure at debug when a test signer is already cached", async () => {
+        it("logs the GitHub fetch failure at debug when a test certificate is already cached", async () => {
             mockDclWithGithubRateLimited();
 
             const service = new DclCertificateService(environment, { fetchTestCertificates: true });
             await service.construction;
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA");
 
             const logs = await captureLogs(() => service.update(true));
-            const entry = logs.find(log => log.message.includes("Failed to fetch CD signer certificates from GitHub"));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
             expect(entry?.level).to.equal(LogLevel.DEBUG);
 
             await service.close();
         });
 
-        it("logs the CD signer fetch failure at info when only a production signer is cached", async () => {
+        it("logs the GitHub fetch failure at info when only a production certificate is cached", async () => {
             mockDclWithGithubRateLimited();
 
             const service = new DclCertificateService(environment, { fetchTestCertificates: true });
             await service.construction;
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner", {
-                isProduction: true,
-            });
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: true });
 
             const logs = await captureLogs(() => service.update(true));
-            const entry = logs.find(log => log.message.includes("Failed to fetch CD signer certificates from GitHub"));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
             expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("skips the remaining GitHub fetches for the run after a rate-limit response", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            // The PAA listing rate-limits, so the CD signer listing is skipped: a single GitHub call for the run.
+            const githubCalls = fetchMock.getCallLog().filter(call => call.url.includes("api.github.com"));
+            expect(githubCalls.length).to.equal(1);
+
+            // A later run is not blocked; it retries GitHub from scratch.
+            fetchMock.clearCallLog();
+            await service.update(true);
+            expect(fetchMock.getCallLog().filter(call => call.url.includes("api.github.com")).length).to.equal(1);
 
             await service.close();
         });

@@ -56,6 +56,7 @@ export class DclCertificateService {
     #storage?: StorageContext;
     #certificateIndex = new Map<string, DclCertificateService.CertificateMetadata>();
     #updateTimer?: Timer;
+    #githubRateLimited = false;
     #closed = false;
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
@@ -618,6 +619,7 @@ export class DclCertificateService {
         }
 
         const initialSize = this.#certificateIndex.size;
+        this.#githubRateLimited = false;
 
         // Always fetch production certificates from DCL
         await this.#fetchDclCertificates(storage, true, force);
@@ -776,13 +778,15 @@ export class DclCertificateService {
     /**
      * Log a GitHub fetch failure. GitHub only serves test certificates, so a rate-limit error is only debug-worthy
      * once we already hold test certificates of the affected kind: the cached data remains usable, making the failed
-     * refresh not actionable for the operator.
+     * refresh not actionable for the operator. A rate-limit response also flags the rest of the current fetch run to
+     * skip GitHub rather than repeating the same failing request.
      */
     #logGithubFetchFailure(message: string, error: unknown, kind: DclCertificateService.CertificateKind) {
-        const level =
-            error instanceof Github.HttpError && error.isRateLimit && this.#hasTestCertificatesOfKind(kind)
-                ? LogLevel.DEBUG
-                : LogLevel.INFO;
+        const rateLimited = error instanceof Github.HttpError && error.isRateLimit;
+        if (rateLimited) {
+            this.#githubRateLimited = true;
+        }
+        const level = rateLimited && this.#hasTestCertificatesOfKind(kind) ? LogLevel.DEBUG : LogLevel.INFO;
         logger.log(level, message, Diagnostic.errorMessage(asError(error)));
     }
 
@@ -790,6 +794,10 @@ export class DclCertificateService {
      * Fetch development certificates from GitHub repository.
      */
     async #fetchGitHubCertificates(storage: StorageContext, force: boolean) {
+        if (this.#githubRateLimited) {
+            logger.debug("Skipping GitHub certificate fetch, GitHub is rate-limiting this run");
+            return;
+        }
         try {
             logger.debug("Fetching development certificates from GitHub");
 
@@ -821,6 +829,10 @@ export class DclCertificateService {
      * Stores each as a CDSigner entry with isProduction=false (user may promote via addCertificate).
      */
     async #fetchGitHubCdSignerCertificates(storage: StorageContext, force: boolean) {
+        if (this.#githubRateLimited) {
+            logger.debug("Skipping GitHub CD signer fetch, GitHub is rate-limiting this run");
+            return;
+        }
         try {
             logger.debug("Fetching CD signer certificates from GitHub");
 
