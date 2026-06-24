@@ -247,6 +247,7 @@ export class CommandInvokeResponse<
         if (access !== undefined) {
             const denial = this.#authorize(access.session, limits.writeLevel, access.location);
             if (denial !== undefined) {
+                this.#errorCount++;
                 return this.#addStatus(path, commandRef, denial);
             }
         }
