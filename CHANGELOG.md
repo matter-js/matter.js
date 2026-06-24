@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
     - Fix: Ensure to always sanitize fabric-scoped attribute data (e.g. stale AccessControl ACL entries) at node startup
+    - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
 
 - @matter/nodejs
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
