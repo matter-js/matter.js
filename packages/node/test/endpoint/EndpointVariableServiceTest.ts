@@ -5,9 +5,21 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { Environment } from "@matter/general";
+import { Diagnostic, Environment, LogDestination, Logger, LogLevel } from "@matter/general";
 import { MockServerNode } from "../node/mock-server-node.js";
 import { MockEndpoint } from "./mock-endpoint.js";
+
+function captureBehaviorWarnings() {
+    const warnings = new Array<string>();
+    Logger.destinations.capture = LogDestination({
+        add(message: Diagnostic.Message) {
+            if (message.facility === "Behaviors" && message.level >= LogLevel.WARN) {
+                warnings.push(String(message.values[0]));
+            }
+        },
+    });
+    return warnings;
+}
 
 describe("EndpointVariableService", () => {
     describe("root endpoint", () => {
@@ -45,8 +57,14 @@ describe("EndpointVariableService", () => {
                 MATTER_NODES_NODE0_BASICINFORMATION_VENDORSPECIES: "Frog",
                 MATTER_NODES_NODE0_BASICINFORMATION_VENDORNAME: "Foopers",
             });
-            const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment });
-            expect(node.state.basicInformation.vendorName).equals("Foopers");
+            const warnings = captureBehaviorWarnings();
+            try {
+                const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment });
+                expect(node.state.basicInformation.vendorName).equals("Foopers");
+                expect(warnings.some(w => w.toLowerCase().includes("vendorspecies"))).true;
+            } finally {
+                delete Logger.destinations.capture;
+            }
         });
     });
 
@@ -94,8 +112,14 @@ describe("EndpointVariableService", () => {
             const environment = new Environment("test");
             environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_PARTS_PART0_ONOFF_ONTIME: "Fred" });
 
-            const endpoint = await MockEndpoint.create(OnOffLightDevice, { environment });
-            expect(endpoint.state.onOff.onTime).equals(0);
+            const warnings = captureBehaviorWarnings();
+            try {
+                const endpoint = await MockEndpoint.create(OnOffLightDevice, { environment });
+                expect(endpoint.state.onOff.onTime).equals(0);
+                expect(warnings.some(w => w.toLowerCase().includes("ontime"))).true;
+            } finally {
+                delete Logger.destinations.capture;
+            }
         });
     });
 });

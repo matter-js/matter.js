@@ -646,13 +646,13 @@ export class Behaviors {
         if (variableService) {
             const vars = variableService.forBehaviorInstance(this.#endpoint, type);
             if (vars !== undefined) {
-                for (const key in vars) {
+                for (const [key, value] of Object.entries(vars)) {
                     try {
-                        defaults = { ...defaults, ...(type.supervisor.cast({ [key]: vars[key] }) as Val.Struct) };
+                        Object.assign((defaults ??= {}), type.supervisor.cast({ [key]: value }) as Val.Struct);
                     } catch (e) {
                         UnexpectedDataError.accept(e);
                         logger.warn(
-                            `Ignoring environment configuration ${type.id}.${key}:`,
+                            `Ignoring environment configuration for ${this.#endpoint}.${type.id}.${key}:`,
                             Diagnostic.errorMessage(e),
                         );
                     }
