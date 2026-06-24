@@ -6,7 +6,6 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Environment } from "@matter/general";
-import { UnsupportedCastError } from "@matter/model";
 import { MockServerNode } from "../node/mock-server-node.js";
 import { MockEndpoint } from "./mock-endpoint.js";
 
@@ -40,12 +39,14 @@ describe("EndpointVariableService", () => {
             expect(node.state.basicInformation.vendorName).equals("Foopers");
         });
 
-        it("rejects unknown property", async () => {
+        it("ignores unknown property but applies valid siblings", async () => {
             const environment = new Environment("test");
-            environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_BASICINFORMATION_VENDORSPECIES: "Frog" });
-            await expect(MockServerNode.create(MockServerNode.RootEndpoint, { environment })).rejectedWith(
-                UnsupportedCastError,
-            );
+            environment.vars.addUnixEnvStyle({
+                MATTER_NODES_NODE0_BASICINFORMATION_VENDORSPECIES: "Frog",
+                MATTER_NODES_NODE0_BASICINFORMATION_VENDORNAME: "Foopers",
+            });
+            const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment });
+            expect(node.state.basicInformation.vendorName).equals("Foopers");
         });
     });
 
@@ -89,11 +90,12 @@ describe("EndpointVariableService", () => {
             expect(endpoint.state.onOff.onTime).equals(10);
         });
 
-        it("rejects invalid property", async () => {
+        it("ignores property with unconvertible value", async () => {
             const environment = new Environment("test");
             environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_PARTS_PART0_ONOFF_ONTIME: "Fred" });
 
-            await expect(MockEndpoint.create(OnOffLightDevice, { environment })).rejectedWith(UnsupportedCastError);
+            const endpoint = await MockEndpoint.create(OnOffLightDevice, { environment });
+            expect(endpoint.state.onOff.onTime).equals(0);
         });
     });
 });
