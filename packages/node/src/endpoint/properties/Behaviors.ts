@@ -651,7 +651,7 @@ export class Behaviors {
                         Object.assign((defaults ??= {}), type.supervisor.cast({ [key]: value }) as Val.Struct);
                     } catch (e) {
                         UnexpectedDataError.accept(e);
-                        logger.warn(
+                        logger.error(
                             `Ignoring environment configuration for ${this.#endpoint}.${type.id}.${key}:`,
                             Diagnostic.errorMessage(e),
                         );
