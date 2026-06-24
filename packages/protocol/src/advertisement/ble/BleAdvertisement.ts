@@ -32,7 +32,7 @@ export class BleAdvertisement extends Advertisement<ServiceDescription.Commissio
             config: { earlyInterval, lateInterval, extendedInterval },
         } = this.advertiser;
 
-        let aad = this.advertiser.config.aad;
+        let aad = this.isPrivacyMasked ? undefined : this.advertiser.config.aad;
 
         let timeout = this.advertiser.config.timeout;
 
