@@ -189,6 +189,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             let advertiser = advertisers[port];
             if (advertiser === undefined) {
                 advertiser = advertisers[port] = new MdnsAdvertiser(crypto, server, { port, omitPrivateDetails });
+            } else {
+                expect(advertiser.omitPrivateDetails).equals(omitPrivateDetails);
             }
             return advertiser;
         }
