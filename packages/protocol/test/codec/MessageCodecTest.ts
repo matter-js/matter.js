@@ -233,6 +233,24 @@ describe("MessageCodec", () => {
             expect(result).deep.equal(ENCODED_2);
         });
 
+        it("writes vendor id before protocol id and round-trips (§4.4.3.4)", () => {
+            const message = {
+                ...DECODED,
+                payloadHeader: { ...DECODED.payloadHeader, protocolId: 0xfff11234 },
+            } as Message;
+
+            const { applicationPayload } = MessageCodec.encodePayload(message);
+
+            // flags[0] type[1] exchangeId[2..3] vendorId[4..5] protocolId[6..7], all little-endian.
+            // Vendor id has its high bit set to also guard decode against sign-extension.
+            expect(Bytes.toHex(Bytes.of(applicationPayload).slice(4, 8))).equals("f1ff3412");
+
+            const decoded = MessageCodec.decodePayload(
+                MessageCodec.decodePacket(MessageCodec.encodePacket(MessageCodec.encodePayload(message))),
+            );
+            expect(decoded.payloadHeader.protocolId).equals(0xfff11234);
+        });
+
         it("throws when encoding a message with securityExtensions data", () => {
             expect(() =>
                 MessageCodec.encodePayload({
