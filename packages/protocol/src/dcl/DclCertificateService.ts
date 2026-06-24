@@ -23,6 +23,7 @@ import {
     hashAlgorithmForId,
     Hours,
     Logger,
+    LogLevel,
     Pem,
     PublicKey,
     Seconds,
@@ -763,6 +764,28 @@ export class DclCertificateService {
         }
     }
 
+    #hasTestCertificatesOfKind(kind: DclCertificateService.CertificateKind) {
+        for (const metadata of this.#certificateIndex.values()) {
+            if (!metadata.isProduction && (metadata.kind ?? "PAA") === kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Log a GitHub fetch failure. GitHub only serves test certificates, so a rate-limit error is only debug-worthy
+     * once we already hold test certificates of the affected kind: the cached data remains usable, making the failed
+     * refresh not actionable for the operator.
+     */
+    #logGithubFetchFailure(message: string, error: unknown, kind: DclCertificateService.CertificateKind) {
+        const level =
+            error instanceof Github.HttpError && error.isRateLimit && this.#hasTestCertificatesOfKind(kind)
+                ? LogLevel.DEBUG
+                : LogLevel.INFO;
+        logger.log(level, message, Diagnostic.errorMessage(asError(error)));
+    }
+
     /**
      * Fetch development certificates from GitHub repository.
      */
@@ -789,7 +812,7 @@ export class DclCertificateService {
                 await this.#fetchGitHubCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch certificates from GitHub", Diagnostic.errorMessage(asError(error)));
+            this.#logGithubFetchFailure("Failed to fetch certificates from GitHub", error, "PAA");
         }
     }
 
@@ -816,7 +839,7 @@ export class DclCertificateService {
                 await this.#fetchGitHubCdSignerCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch CD signer certificates from GitHub", Diagnostic.errorMessage(asError(error)));
+            this.#logGithubFetchFailure("Failed to fetch CD signer certificates from GitHub", error, "CDSigner");
         }
     }
 
