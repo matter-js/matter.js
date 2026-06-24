@@ -185,16 +185,16 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             await broadcastListener.close();
         });
 
-        function getAdvertiser(port = PORT) {
+        function getAdvertiser(port = PORT, omitPrivateDetails = false) {
             let advertiser = advertisers[port];
             if (advertiser === undefined) {
-                advertiser = advertisers[port] = new MdnsAdvertiser(crypto, server, { port });
+                advertiser = advertisers[port] = new MdnsAdvertiser(crypto, server, { port, omitPrivateDetails });
             }
             return advertiser;
         }
 
-        function advertise(service: ServiceDescription, port = PORT) {
-            const ad = getAdvertiser(port).advertise({ ...service, port }, "startup")!;
+        function advertise(service: ServiceDescription, port = PORT, omitPrivateDetails = false) {
+            const ad = getAdvertiser(port, omitPrivateDetails).advertise({ ...service, port }, "startup")!;
             expect(ad).not.undefined;
         }
 
@@ -600,6 +600,83 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                         {
                             flushCache: false,
                             name: "_V1._sub._matterd._udp.local",
+                            recordClass: 1,
+                            recordType: 12,
+                            ttl: Seconds(120),
+                            value: "8080808080808080._matterd._udp.local",
+                        },
+                        {
+                            flushCache: false,
+                            name: "_services._dns-sd._udp.local",
+                            recordClass: 1,
+                            recordType: 12,
+                            ttl: Seconds(120),
+                            value: "_T1._sub._matterd._udp.local",
+                        },
+                        {
+                            flushCache: false,
+                            name: "_T1._sub._matterd._udp.local",
+                            recordClass: 1,
+                            recordType: 12,
+                            ttl: Seconds(120),
+                            value: "8080808080808080._matterd._udp.local",
+                        },
+                    ],
+                    authorities: [],
+                    messageType: 0x8400,
+                    queries: [],
+                    transactionId: 0,
+                });
+
+                // And expire the announcement
+                await close();
+            });
+
+            it("it omits vendor details from commissioner broadcasts when privacy masked", async () => {
+                const announcement = waitForMessage();
+
+                advertise(
+                    ServiceDescription.Commissioner({
+                        name: "Test Commissioner",
+                        deviceType: 1,
+                        vendorId: VendorId(1),
+                        productId: 0x8000,
+                    }),
+                    PORT,
+                    true,
+                );
+
+                expectMessage(await announcement, {
+                    additionalRecords: [],
+                    answers: [
+                        {
+                            flushCache: false,
+                            name: "8080808080808080._matterd._udp.local",
+                            recordClass: 1,
+                            recordType: 33,
+                            ttl: Seconds(120),
+                            value: { port: PORT, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
+                        },
+                        {
+                            flushCache: false,
+                            name: "8080808080808080._matterd._udp.local",
+                            recordClass: 1,
+                            recordType: 16,
+                            ttl: Seconds(120),
+                            value: ["DT=1", "DN=Test Commissioner"],
+                        },
+                        ...IPDnsRecords,
+                        {
+                            flushCache: false,
+                            name: "_services._dns-sd._udp.local",
+                            recordClass: 1,
+                            recordType: 12,
+                            ttl: Seconds(120),
+                            value: "_matterd._udp.local",
+                        },
+                        {
+                            flushCache: false,
+                            name: "_matterd._udp.local",
                             recordClass: 1,
                             recordType: 12,
                             ttl: Seconds(120),

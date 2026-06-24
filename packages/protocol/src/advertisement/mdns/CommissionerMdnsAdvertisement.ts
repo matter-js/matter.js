@@ -33,14 +33,16 @@ export class CommissionerMdnsAdvertisement extends MdnsAdvertisement<ServiceDesc
     override get ptrRecords() {
         const { deviceType, vendorId } = this.description;
 
-        const vendorQname = `_V${vendorId}._sub.${MATTER_COMMISSIONER_SERVICE_QNAME}`;
-
         const records = [
             PtrRecord(SERVICE_DISCOVERY_QNAME, MATTER_COMMISSIONER_SERVICE_QNAME),
             PtrRecord(MATTER_COMMISSIONER_SERVICE_QNAME, this.qname),
-            PtrRecord(SERVICE_DISCOVERY_QNAME, vendorQname),
-            PtrRecord(vendorQname, this.qname),
         ];
+
+        if (!this.isPrivacyMasked) {
+            const vendorQname = `_V${vendorId}._sub.${MATTER_COMMISSIONER_SERVICE_QNAME}`;
+
+            records.push(PtrRecord(SERVICE_DISCOVERY_QNAME, vendorQname), PtrRecord(vendorQname, this.qname));
+        }
 
         if (deviceType !== undefined) {
             const deviceTypeQname = `_T${deviceType}._sub.${MATTER_COMMISSIONER_SERVICE_QNAME}`;
