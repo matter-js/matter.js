@@ -1954,7 +1954,7 @@ describe("DclCertificateService", () => {
     describe("GitHub rate-limit logging", () => {
         async function captureLogs(fn: () => Promise<unknown>) {
             const dest = Logger.destinations.default;
-            const original = { ...dest };
+            const { format, write } = dest;
             const captured = new Array<{ level: LogLevel; message: string }>();
             try {
                 dest.format = LogFormat.formats.plain;
@@ -1964,7 +1964,8 @@ describe("DclCertificateService", () => {
                 await fn();
                 return captured;
             } finally {
-                Object.assign(dest, original);
+                dest.format = format;
+                dest.write = write;
             }
         }
 
