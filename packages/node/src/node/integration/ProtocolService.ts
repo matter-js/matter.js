@@ -6,6 +6,7 @@
 
 import type { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
@@ -90,6 +91,11 @@ export class ProtocolService {
     addCluster(backing: BehaviorBacking) {
         const { schema } = backing.type;
         if (schema?.tag !== ElementTag.Cluster || schema.id === undefined) {
+            return;
+        }
+
+        // Client clusters are not server-facing and must not be exposed to incoming interactions.
+        if (isClientBehavior(backing.type)) {
             return;
         }
 
