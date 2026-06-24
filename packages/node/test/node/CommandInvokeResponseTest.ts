@@ -172,6 +172,38 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
     });
 
+    // An existing command denied at the actual-privilege ACL pass (after the Operate gate and existence checks)
+    // must count toward `existent` — the element exists, access was merely denied. Groups.AddGroup (cluster 0x4,
+    // command 0x0) is present on the on/off light and requires Manage, so an Operate-only subject reaches and fails
+    // the actual-privilege pass.
+    it("counts an existing command denied at the actual-privilege ACL pass as existent", async () => {
+        const device = new Endpoint(OnOffLightDevice);
+        const node = await MockServerNode.createOnline(undefined, { device });
+        const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+            invokeRequests: [
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(0x4),
+                        commandId: CommandId(0x0),
+                    },
+                    commandFields: undefined,
+                },
+            ],
+        });
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 0x4, commandId: 0x0, endpointId: 1 },
+                status: Status.UnsupportedAccess,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });
 
@@ -185,15 +217,15 @@ function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) {
     return invokeCmdRawAs(node, AccessLevel.Operate, data);
 }
 
+// No exchange is supplied so the mock builds a session whose privilege is actually capped at {@link accessLevel};
+// supplying a fabric exchange would instead grant the subject full access regardless of accessLevel.
 async function invokeCmdRawAs(node: MockServerNode, accessLevel: AccessLevel, data: Partial<InvokeRequest>) {
     const request = {
         suppressResponse: false,
         ...data,
     } as Invoke;
 
-    const fabric = await node.addFabric();
-    const exchange = await node.createExchange({ fabric });
-    return node.online({ command: true, exchange, accessLevel }, async ({ context }) => {
+    return node.online({ command: true, accessLevel }, async ({ context }) => {
         const response = new CommandInvokeResponse(node.protocol, context);
         let chunks: InvokeResult.Data[] | undefined;
         for await (const chunk of response.process(request)) {
