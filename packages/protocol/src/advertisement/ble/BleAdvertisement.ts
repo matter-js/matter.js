@@ -49,7 +49,7 @@ export class BleAdvertisement extends Advertisement<ServiceDescription.Commissio
         try {
             for (const { sleepTime, broadcastInterval } of intervals) {
                 // Recreate advertisement data for an extended announcement
-                if (!isExtended && this.isPrivacyMasked) {
+                if (!isExtended && this.isExtendedAnnouncement) {
                     isExtended = true;
                     advertisementData = this.#encodedAdvertisement;
                     aad = undefined;
@@ -73,13 +73,13 @@ export class BleAdvertisement extends Advertisement<ServiceDescription.Commissio
 
     get #encodedAdvertisement() {
         const { discriminator, vendorId, productId } = this.description;
-        const { isPrivacyMasked: isExtendedAnnouncement } = this;
+        const { isPrivacyMasked, isExtendedAnnouncement } = this;
 
         return BtpCodec.encodeBleAdvertisementData(
             discriminator,
-            isExtendedAnnouncement ? 0 : vendorId,
-            isExtendedAnnouncement ? 0 : productId,
-            !isExtendedAnnouncement && !!this.advertiser.config.aad?.byteLength,
+            isPrivacyMasked ? 0 : vendorId,
+            isPrivacyMasked ? 0 : productId,
+            !isPrivacyMasked && !!this.advertiser.config.aad?.byteLength,
             isExtendedAnnouncement,
         );
     }
