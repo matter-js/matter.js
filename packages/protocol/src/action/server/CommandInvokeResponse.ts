@@ -249,6 +249,10 @@ export class CommandInvokeResponse<
         if (access !== undefined) {
             const denial = this.#authorize(access.session, limits.writeLevel, access.location);
             if (denial !== undefined) {
+                // The command exists (existence checks passed above); a denial here is an existent-but-unauthorized
+                // outcome, so it counts toward `existent`. The earlier Operate-gate denial and the existence
+                // statuses do not, as they precede or signal non-existence.
+                this.#errorCount++;
                 return this.#addStatus(path, commandRef, denial);
             }
         }
