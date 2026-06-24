@@ -5,6 +5,7 @@
  */
 
 import { Duration } from "#time/index.js";
+import { MatterError } from "../MatterError.js";
 import { Bytes } from "./Bytes.js";
 
 type Entry = {
@@ -22,6 +23,21 @@ export namespace Github {
     export interface FetchOptions {
         /** Timeout in milliseconds for GitHub API requests */
         timeout?: Duration;
+    }
+
+    /** Error thrown when a GitHub request returns a non-200 status. */
+    export class HttpError extends MatterError {
+        constructor(
+            message: string,
+            readonly statusCode: number,
+        ) {
+            super(message);
+        }
+
+        /** True for the statuses GitHub uses to signal rate limiting. */
+        get isRateLimit() {
+            return this.statusCode === 403 || this.statusCode === 429;
+        }
     }
 
     export class Directory {
@@ -118,7 +134,7 @@ export namespace Github {
 
             const result = await fetch(url, fetchOptions);
             if (result.status !== 200) {
-                throw new Error(`HTTP error ${result.statusText} (${result.status}) from ${url}`);
+                throw new HttpError(`HTTP error ${result.statusText} (${result.status}) from ${url}`, result.status);
             }
 
             return result;
