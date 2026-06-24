@@ -75,8 +75,9 @@ const logger = Logger.get("ProtocolService");
  *
  * This service maintains an optimized {@link NodeProtocol} that maps to the state of a {@link Node}.
  *
- * The protocol view only contains endpoints and clusters with active backings.  {@link Behaviors} conveys backing
- * state via the public interface.
+ * The protocol view only contains endpoints and server clusters with active backings; client clusters are excluded
+ * as they are not part of the node's server-facing data model.  {@link Behaviors} conveys backing state via the
+ * public interface.
  */
 export class ProtocolService {
     readonly #state: NodeState;
