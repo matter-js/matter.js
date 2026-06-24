@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
     - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
     - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
@@ -32,7 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
     - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
     - Fix: A stray StatusReport arriving as an exchange's initial message (e.g. a retransmitted CASE/PASE completion) is now ignored instead of logging an "Unhandled error"
-    - Enhancement: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
+    - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
 
 - @project-chip/matter.js
     - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them

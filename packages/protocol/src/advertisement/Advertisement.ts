@@ -175,20 +175,19 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     protected async onClose() {}
 
     /**
+     * Indicates the advertisement has entered the extended-announcement period per core spec 5.4.2.5.
+     */
+    protected get isExtendedAnnouncement() {
+        return this.duration >= STANDARD_COMMISSIONING_TIMEOUT;
+    }
+
+    /**
      * Indicates that broadcasts should omit private details.
+     *
+     * True during the extended-announcement period or when forced via {@link Advertisement.Options.omitPrivateDetails}.
      */
     protected get isPrivacyMasked() {
-        // Private broadcast configured explicitly
-        if (this.options.omitPrivateDetails) {
-            return true;
-        }
-
-        // Extended announcement
-        if (this.duration >= STANDARD_COMMISSIONING_TIMEOUT) {
-            return true;
-        }
-
-        return false;
+        return !!this.options.omitPrivateDetails || this.isExtendedAnnouncement;
     }
 
     /**
