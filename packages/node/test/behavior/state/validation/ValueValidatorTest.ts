@@ -16,6 +16,7 @@ import {
 } from "@matter/model";
 import {
     ConformanceError,
+    ConstraintError,
     DatatypeError,
     EnumValueConformanceError,
     IntegerRangeError,
@@ -122,6 +123,12 @@ describe("ValueValidator", () => {
         const intValidator = RootSupervisor.for(intSchema).validate!;
         const intPath = { path: new DataModelPath(intSchema.path) };
 
+        // Bounded integer: a value within the type but outside the schema constraint raises a ConstraintError (distinct
+        // from the IntegerRangeError raised by a type-width overflow); both must stay local.
+        const boundedIntSchema = new FieldModel({ name: "foo", type: "uint8", constraint: "0 to 10" });
+        const boundedIntValidator = RootSupervisor.for(boundedIntSchema).validate!;
+        const boundedIntPath = { path: new DataModelPath(boundedIntSchema.path) };
+
         const server = {} as ValueSupervisor.Session;
         const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
 
@@ -162,6 +169,10 @@ describe("ValueValidator", () => {
 
         it("still rejects a value-range constraint on a client peer write", () => {
             expect(() => intValidator(0x1ff, peer, intPath)).throws(IntegerRangeError);
+        });
+
+        it("still rejects a schema-constraint violation on a client peer write", () => {
+            expect(() => boundedIntValidator(20, peer, boundedIntPath)).throws(ConstraintError);
         });
 
         it("rejects a feature-disallowed attribute on a server write", () => {
