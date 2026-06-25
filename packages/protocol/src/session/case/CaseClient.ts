@@ -80,8 +80,11 @@ export class CaseClient {
                 validateSessionParameters,
             );
         } catch (error) {
+            // Skip when a sent message is still unacked: the peer never acknowledged our prior message, so the send
+            // would only fail with a flow error.
             if (
                 !localAbort.aborted &&
+                !exchange.hasUnackedMessage &&
                 !causedBy(error, NetworkError, TransientPeerCommunicationError, RetransmissionLimitReachedError)
             ) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
