@@ -28,7 +28,7 @@ export interface GateControl {
  * TaskContext bound to a running task. Records created items into the task's addLog so cancel can revert them.
  * Peers are resolved through an injected resolver so the manager controls peer lookup.
  */
-export class TaskContextImpl implements TaskContext {
+export class RunningTaskContext implements TaskContext {
     constructor(
         protected readonly task: Task,
         protected readonly peerResolver: (peerId: string) => ClientNode | undefined,

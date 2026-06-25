@@ -6,8 +6,8 @@
 
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { Task } from "./Task.js";
-import { TaskContext, TaskPhase } from "./types.js";
+import { Task } from "../Task.js";
+import { TaskContext, TaskPhase } from "../types.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
 

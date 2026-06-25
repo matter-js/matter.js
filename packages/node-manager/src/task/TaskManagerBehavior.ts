@@ -8,10 +8,10 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./AddNodeToGroup.js";
 import { TaskCancelledSignal, TaskSuspendedSignal } from "./errors.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
+import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { Task, TaskPersistence } from "./Task.js";
-import { GateControl, TaskContextImpl } from "./TaskContextImpl.js";
 import { TaskCtor, TaskRegistry } from "./TaskRegistry.js";
 import { TaskState, TaskStatus } from "./types.js";
 
@@ -250,7 +250,7 @@ export class TaskManagerBehavior extends Behavior {
         }
     }
 
-    #contextFor(task: Task, reconciler: ReconcilerBehavior): TaskContextImpl {
+    #contextFor(task: Task, reconciler: ReconcilerBehavior): RunningTaskContext {
         const setState = (state: TaskState) => {
             // Terminal states are owned by #drive; gates only flip between running/parked.
             if (
@@ -262,7 +262,13 @@ export class TaskManagerBehavior extends Behavior {
             task.progress.state = state;
             this.#mutex.run(() => this.#persist(task));
         };
-        return new TaskContextImpl(task, id => this.resolvePeerNode(id), reconciler, setState, this.#gateFor(task.id));
+        return new RunningTaskContext(
+            task,
+            id => this.resolvePeerNode(id),
+            reconciler,
+            setState,
+            this.#gateFor(task.id),
+        );
     }
 
     /** Per-task gate control: cancel/shutdown set `aborted`; `onAbort` wakes a parked gate to observe it. */

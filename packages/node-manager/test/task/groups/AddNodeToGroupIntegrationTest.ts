@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
