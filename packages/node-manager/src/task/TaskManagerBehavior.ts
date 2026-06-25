@@ -55,23 +55,17 @@ export class TaskManagerBehavior extends Behavior {
         this.internal.registry.register(type, ctor);
     }
 
-    run(type: string, params: unknown, opts?: { externalId?: string }): Promise<TaskHandle> {
+    run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
         const id = this.internal.registry.idFor(type, params);
         const existing = this.internal.live.get(id);
         if (existing !== undefined) {
-            // Already running or finished; return current handle. The task's act transaction is independent of ours.
-            return Promise.resolve(this.#handle(existing));
+            return this.#handle(existing);
         }
         const task = this.internal.registry.create(type, id, params, { externalId: opts?.externalId });
         this.internal.live.set(id, task);
-        // T1 (caller's act) stays Shared and never writes state.tasks; T2 (each #persist act) can independently
-        // acquire the tasks resource lock without conflict. Returning the drive promise lets callers await completion.
-        const drivePromise = this.#drive(task);
+        const drivePromise = this.#drive(task).finally(() => this.internal.driving.delete(id));
         this.internal.driving.set(id, drivePromise);
-        return drivePromise.then(
-            () => this.#handle(task),
-            () => this.#handle(task),
-        );
+        return this.#handle(task);
     }
 
     get(idOrExternalId: string): TaskHandle | undefined {
