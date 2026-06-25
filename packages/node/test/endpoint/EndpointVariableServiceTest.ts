@@ -5,10 +5,21 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { Environment } from "@matter/general";
-import { UnsupportedCastError } from "@matter/model";
+import { Diagnostic, Environment, LogDestination, Logger, LogLevel } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { MockEndpoint } from "./mock-endpoint.js";
+
+function captureBehaviorErrors() {
+    const errors = new Array<string>();
+    Logger.destinations.capture = LogDestination({
+        add(message: Diagnostic.Message) {
+            if (message.facility === "Behaviors" && message.level >= LogLevel.ERROR) {
+                errors.push(String(message.values[0]));
+            }
+        },
+    });
+    return errors;
+}
 
 describe("EndpointVariableService", () => {
     describe("root endpoint", () => {
@@ -40,12 +51,20 @@ describe("EndpointVariableService", () => {
             expect(node.state.basicInformation.vendorName).equals("Foopers");
         });
 
-        it("rejects unknown property", async () => {
+        it("ignores unknown property but applies valid siblings", async () => {
             const environment = new Environment("test");
-            environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_BASICINFORMATION_VENDORSPECIES: "Frog" });
-            await expect(MockServerNode.create(MockServerNode.RootEndpoint, { environment })).rejectedWith(
-                UnsupportedCastError,
-            );
+            environment.vars.addUnixEnvStyle({
+                MATTER_NODES_NODE0_BASICINFORMATION_VENDORSPECIES: "Frog",
+                MATTER_NODES_NODE0_BASICINFORMATION_VENDORNAME: "Foopers",
+            });
+            const errors = captureBehaviorErrors();
+            try {
+                const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment });
+                expect(node.state.basicInformation.vendorName).equals("Foopers");
+                expect(errors.some(e => e.toLowerCase().includes("vendorspecies"))).true;
+            } finally {
+                delete Logger.destinations.capture;
+            }
         });
     });
 
@@ -89,11 +108,18 @@ describe("EndpointVariableService", () => {
             expect(endpoint.state.onOff.onTime).equals(10);
         });
 
-        it("rejects invalid property", async () => {
+        it("ignores property with unconvertible value", async () => {
             const environment = new Environment("test");
             environment.vars.addUnixEnvStyle({ MATTER_NODES_NODE0_PARTS_PART0_ONOFF_ONTIME: "Fred" });
 
-            await expect(MockEndpoint.create(OnOffLightDevice, { environment })).rejectedWith(UnsupportedCastError);
+            const errors = captureBehaviorErrors();
+            try {
+                const endpoint = await MockEndpoint.create(OnOffLightDevice, { environment });
+                expect(endpoint.state.onOff.onTime).equals(0);
+                expect(errors.some(e => e.toLowerCase().includes("ontime"))).true;
+            } finally {
+                delete Logger.destinations.capture;
+            }
         });
     });
 });

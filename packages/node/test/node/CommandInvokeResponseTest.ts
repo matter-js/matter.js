@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
+import { OnOffClient } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { AccessLevel } from "@matter/model";
@@ -68,7 +70,10 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 0, success: 2, existent: 2 });
     });
 
-    it("invokes existing endpoint wildcard commands with suppressed response", async () => {
+    // process() is now suppress-agnostic: it always produces the results and SuppressResponse is applied by the
+    // messaging layer (so it can honor the §8.8.3.2.1 force-send-on-CommandDataIB clause). The produced data is
+    // therefore identical to the non-suppressed case.
+    it("produces results regardless of suppressResponse", async () => {
         const device = new Endpoint(OnOffLightDevice);
         const node = await MockServerNode.createOnline(undefined, { device });
         await node.add(new Endpoint(OnOffLightDevice));
@@ -82,7 +87,22 @@ describe("CommandInvokeResponse", () => {
             ],
         });
 
-        expect(response.data).deep.equals(undefined);
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 1 },
+                status: 0,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 2 },
+                status: 0,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
         expect(response.counts).deep.equals({ status: 0, success: 2, existent: 2 });
     });
 
@@ -154,6 +174,106 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
     });
 
+    // §8.8.2.3: an invoke path must indicate a server cluster, so a client cluster must yield UNSUPPORTED_CLUSTER.
+    // Covered for both ways a client cluster can be added.
+    it("does not invoke a command on a client cluster declared via withClientClusters", async () => {
+        const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint.withClientClusters(OnOffClient));
+        try {
+            const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+                invokeRequests: [
+                    {
+                        commandPath: {
+                            endpointId: EndpointNumber(0),
+                            clusterId: ClusterId(6),
+                            commandId: CommandId(1),
+                        },
+                        commandFields: undefined,
+                    },
+                ],
+            });
+
+            expect(response.data).deep.equals([
+                {
+                    kind: "cmd-status",
+                    path: { clusterId: 6, commandId: 1, endpointId: 0 },
+                    status: Status.UnsupportedCluster,
+                    clusterStatus: undefined,
+                    commandRef: undefined,
+                },
+            ]);
+            expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+        } finally {
+            await node.close();
+        }
+    });
+
+    // `require` injects the client behavior as a backing, which previously made it invocable.
+    it("does not invoke a command on a client cluster added via require", async () => {
+        const node = await MockServerNode.createOnline();
+        try {
+            // Fresh instance so the require does not mutate the shared OnOffClient singleton.
+            node.behaviors.require(ClientBehavior(OnOff));
+
+            const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+                invokeRequests: [
+                    {
+                        commandPath: {
+                            endpointId: EndpointNumber(0),
+                            clusterId: ClusterId(6),
+                            commandId: CommandId(1),
+                        },
+                        commandFields: undefined,
+                    },
+                ],
+            });
+
+            expect(response.data).deep.equals([
+                {
+                    kind: "cmd-status",
+                    path: { clusterId: 6, commandId: 1, endpointId: 0 },
+                    status: Status.UnsupportedCluster,
+                    clusterStatus: undefined,
+                    commandRef: undefined,
+                },
+            ]);
+            expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+        } finally {
+            await node.close();
+        }
+    });
+
+    // An existing command denied at the actual-privilege ACL pass (after the Operate gate and existence checks)
+    // must count toward `existent` — the element exists, access was merely denied. Groups.AddGroup (cluster 0x4,
+    // command 0x0) is present on the on/off light and requires Manage, so an Operate-only subject reaches and fails
+    // the actual-privilege pass.
+    it("counts an existing command denied at the actual-privilege ACL pass as existent", async () => {
+        const device = new Endpoint(OnOffLightDevice);
+        const node = await MockServerNode.createOnline(undefined, { device });
+        const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
+            invokeRequests: [
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(0x4),
+                        commandId: CommandId(0x0),
+                    },
+                    commandFields: undefined,
+                },
+            ],
+        });
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 0x4, commandId: 0x0, endpointId: 1 },
+                status: Status.UnsupportedAccess,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });
 
@@ -167,15 +287,15 @@ function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) {
     return invokeCmdRawAs(node, AccessLevel.Operate, data);
 }
 
+// No exchange is supplied so the mock builds a session whose privilege is actually capped at {@link accessLevel};
+// supplying a fabric exchange would instead grant the subject full access regardless of accessLevel.
 async function invokeCmdRawAs(node: MockServerNode, accessLevel: AccessLevel, data: Partial<InvokeRequest>) {
     const request = {
         suppressResponse: false,
         ...data,
     } as Invoke;
 
-    const fabric = await node.addFabric();
-    const exchange = await node.createExchange({ fabric });
-    return node.online({ command: true, exchange, accessLevel }, async ({ context }) => {
+    return node.online({ command: true, accessLevel }, async ({ context }) => {
         const response = new CommandInvokeResponse(node.protocol, context);
         let chunks: InvokeResult.Data[] | undefined;
         for await (const chunk of response.process(request)) {

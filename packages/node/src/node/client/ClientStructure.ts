@@ -460,11 +460,14 @@ export class ClientStructure {
 
         if (cluster.behavior && attrs.values.has(AttributeList.id)) {
             const attributeList = attrs.values.get(AttributeList.id);
+            // A non-empty AttributeList is authoritative: rebuilding on any difference honors both added and removed
+            // attributes.  An empty list is ignored here so it doesn't churn against the received-attribute fallback.
             if (
                 Array.isArray(attributeList) &&
+                attributeList.length &&
                 !isDeepEqual(
                     cluster.attributes,
-                    attributeList.sort((a, b) => a - b),
+                    [...attributeList].sort((a, b) => a - b),
                 )
             ) {
                 cluster.behavior = undefined;
@@ -477,7 +480,7 @@ export class ClientStructure {
                 Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
                     cluster.commands,
-                    acceptedCommands.sort((a, b) => a - b),
+                    [...acceptedCommands].sort((a, b) => a - b),
                 )
             ) {
                 cluster.behavior = undefined;
@@ -517,10 +520,20 @@ export class ClientStructure {
                     cluster.features = features as FeatureBitmap;
                 }
 
-                if (Array.isArray(attributeList)) {
+                if (Array.isArray(attributeList) && attributeList.length) {
                     cluster.attributes = (attributeList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
                         (a, b) => a - b,
                     );
+                } else {
+                    // Some devices report an empty (or omit the) AttributeList despite returning attribute data.  Fall
+                    // back to the attribute IDs we actually received so the discovered schema reflects the device
+                    // rather than "supports nothing", which would mark mandatory globals unsupported.
+                    const received = Object.keys(values)
+                        .map(Number)
+                        .filter(id => Number.isInteger(id) && id >= 0) as AttributeId[];
+                    if (received.length) {
+                        cluster.attributes = received.sort((a, b) => a - b);
+                    }
                 }
 
                 if (Array.isArray(commandList)) {

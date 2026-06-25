@@ -8,6 +8,7 @@ import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueModel } from "@matter/model";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { astToFunction } from "./conformance-compiler.js";
+import { forwardValidationToPeer } from "./peer-forwarding.js";
 
 /**
  * Creates a function that validates a field based on its conformance definition.
@@ -36,7 +37,15 @@ export function createConformanceValidator(
         }
 
         if (cfg?.conformance !== false) {
-            validate?.(value, session, location);
+            try {
+                validate?.(value, session, location);
+            } catch (e) {
+                // For peer writes a forwarded conformance failure must still fall through to datatype validation below,
+                // so a wrong-typed value cannot slip onto the wire.
+                if (!forwardValidationToPeer(session, e)) {
+                    throw e;
+                }
+            }
         }
 
         if (value !== undefined) {

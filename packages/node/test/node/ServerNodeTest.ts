@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
@@ -12,7 +13,7 @@ import { LightSensorDevice } from "#devices/light-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { EndpointPartsError } from "#endpoint/errors.js";
+import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
@@ -24,6 +25,7 @@ import {
     DnsMessage,
     DnsRecordType,
     Environment,
+    InternalError,
     isObject,
     MemoryStorageDriver,
     MockCrypto,
@@ -33,7 +35,7 @@ import {
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { AccessLevel, BasicInformation, ElementTag, FeatureMap, UnsupportedCastError } from "@matter/model";
+import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, MockServerNode, testFactoryReset } from "@matter/node/testing";
 import {
     AttestationCertificateManager,
@@ -48,6 +50,17 @@ import { BasicInformation as BasicInformationCluster } from "@matter/types/clust
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 
 const commissioning = CommissioningHelper();
+
+const CRASH_MESSAGE = "Intentional behavior crash";
+
+class CrashingServer extends Behavior {
+    static override readonly id = "crashing";
+    static override readonly early = true;
+
+    override initialize() {
+        throw new InternalError(CRASH_MESSAGE);
+    }
+}
 
 describe("ServerNode", () => {
     beforeEach(() => {
@@ -515,31 +528,25 @@ describe("ServerNode", () => {
     });
 
     describe("crashes gracefully", () => {
-        const badNodeEnv = new Environment("test");
-        badNodeEnv.vars.set("behaviors.basicInformation.vendorId", "not a number");
-
-        const badEndpointEnv = new Environment("test");
-        badEndpointEnv.vars.set("behaviors.illuminancemeasurement.diet", "duck food");
+        const CrashingRoot = MockServerNode.RootEndpoint.with(CrashingServer);
+        const CrashingDevice = LightSensorDevice.with(CrashingServer);
 
         describe("during behavior error on creation", () => {
             it("from root behavior error", async () => {
-                await expect(
-                    MockServerNode.create(MockServerNode.RootEndpoint, { environment: badNodeEnv }),
-                ).rejectedWith(UnsupportedCastError);
+                await expect(MockServerNode.create(CrashingRoot)).rejectedWith(EndpointBehaviorsError);
             });
 
             it("from behavior error on child during node create", async () => {
                 await expect(
                     MockServerNode.create(MockServerNode.RootEndpoint, {
-                        environment: badEndpointEnv,
-                        parts: [new Endpoint(LightSensorDevice)],
+                        parts: [new Endpoint(CrashingDevice)],
                     }),
                 ).rejectedWith(EndpointPartsError);
             });
 
             it("from behavior on child after node create", async () => {
-                const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment: badEndpointEnv });
-                await expect(node.add(new Endpoint(LightSensorDevice))).rejectedWith(UnsupportedCastError);
+                const node = await MockServerNode.create(MockServerNode.RootEndpoint);
+                await expect(node.add(new Endpoint(CrashingDevice))).rejectedWith(EndpointBehaviorsError);
             });
         });
 
@@ -547,34 +554,28 @@ describe("ServerNode", () => {
             it("from root behavior error", async () => {
                 await expect(
                     MockServerNode.createOnline({
-                        type: MockServerNode.RootEndpoint,
-                        environment: badNodeEnv,
+                        type: CrashingRoot,
                         device: undefined,
                     }),
-                ).rejectedWith(UnsupportedCastError, 'Cannot convert "not a number" to an integer');
+                ).rejectedWith(EndpointBehaviorsError);
             });
 
             it("from behavior error on child during startup", async () => {
                 await expect(
                     MockServerNode.createOnline({
                         type: MockServerNode.RootEndpoint,
-                        environment: badEndpointEnv,
                         id: "foo",
-                        device: LightSensorDevice,
+                        device: CrashingDevice,
                     }),
-                ).rejectedWith(UnsupportedCastError, 'Property "diet" is unsupported');
+                ).rejectedWith(EndpointBehaviorsError);
             });
 
             it("from behavior error on child added after startup", async () => {
                 const node = await MockServerNode.createOnline({
                     type: MockServerNode.RootEndpoint,
-                    environment: badEndpointEnv,
                     device: undefined,
                 });
-                await expect(node.add(LightSensorDevice)).rejectedWith(
-                    UnsupportedCastError,
-                    'Property "diet" is unsupported',
-                );
+                await expect(node.add(CrashingDevice)).rejectedWith(EndpointBehaviorsError);
             });
         });
     });

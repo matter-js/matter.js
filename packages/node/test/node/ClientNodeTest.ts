@@ -52,6 +52,7 @@ import {
     FabricManager,
     PeerSet,
     Val,
+    ValidateError,
 } from "@matter/protocol";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -822,6 +823,37 @@ describe("ClientNode", () => {
             expect(caught).instanceOf(StatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
             expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+    });
+
+    describe("forwards a model-invalid write so the peer device adjudicates", () => {
+        // A value the local model rejects on conformance/spec grounds (here an enum value not defined in the model) is
+        // forwarded to the peer rather than rejected during local validation.  The device declines it via its own
+        // validation, the rejection surfaces to the caller as the device's status, and the local cache is rolled back.
+
+        it("device rejects the value and the local cache is compensated", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+            const before = ep1Server.state.onOff.startUpOnOff;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(OnOffClient, { startUpOnOff: 99 as OnOff.StartUpOnOff }),
+            );
+
+            // The rejection is the device's write-response status, not a local ValidateError, proving the value was
+            // forwarded to the device rather than rejected during local validation (which would throw before any
+            // exchange and never contact the device).
+            expect(caught).instanceOf(StatusResponseError);
+            expect(caught).not.instanceOf(ValidateError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+
+            // The device did not apply the value and the local cache was rolled back to match.
+            expect(ep1Server.state.onOff.startUpOnOff).equals(before);
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
         });
     });
 
