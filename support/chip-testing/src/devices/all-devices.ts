@@ -14,6 +14,7 @@ import "./HumiditySensorEndpoint.js";
 import "./LightSensorEndpoint.js";
 import "./OccupancySensorEndpoint.js";
 import "./OnOffLightEndpoint.js";
+import "./OnOffPlugInUnitEndpoint.js";
 import "./PressureSensorEndpoint.js";
 import "./RainSensorEndpoint.js";
 import "./SoilSensorEndpoint.js";
