@@ -276,6 +276,16 @@ describe("QrPairingCodeCodec", () => {
                 );
             });
 
+            it("rejects a non-context-specific top-level tag", () => {
+                // 154400000118 = structure with a common-profile-16 tag; 15040118 = structure with an anonymous member
+                expect(() => QrPairingCodeCodec.decodeTlvData(Bytes.fromHex("154400000118"))).throw(
+                    "must use context-specific tags",
+                );
+                expect(() => QrPairingCodeCodec.decodeTlvData(Bytes.fromHex("15040118"))).throw(
+                    "must use context-specific tags",
+                );
+            });
+
             it("accepts a manufacturer-specific tag in range 0x80-0xFF", () => {
                 const mfgSchema = TlvObject({ vendor: TlvField(0x80, TlvUInt8) });
                 const bytes = Bytes.fromHex("1524800718");

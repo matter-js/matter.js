@@ -186,10 +186,17 @@ function assertValidOnboardingTlvTags(data: Bytes): void {
             depth--;
             continue;
         }
-        if (depth === 1 && tag?.id !== undefined && tag.id > 0x04 && tag.id < 0x80) {
-            throw new UnexpectedDataError(
-                `Reserved onboarding payload TLV tag 0x${tag.id.toString(16).padStart(2, "0").toUpperCase()}: manufacturer-specific tags must use 0x80–0xFF`,
-            );
+        if (depth === 1) {
+            if (tag?.profile !== undefined || tag?.id === undefined) {
+                throw new UnexpectedDataError(
+                    "Onboarding payload top-level TLV elements must use context-specific tags",
+                );
+            }
+            if (tag.id > 0x04 && tag.id < 0x80) {
+                throw new UnexpectedDataError(
+                    `Reserved onboarding payload TLV tag 0x${tag.id.toString(16).padStart(2, "0").toUpperCase()}: manufacturer-specific tags must use 0x80–0xFF`,
+                );
+            }
         }
         if (
             typeLength.type === TlvType.Structure ||
