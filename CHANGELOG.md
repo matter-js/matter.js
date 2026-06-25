@@ -23,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
     - Fix: Aligned Thermostat atomic-write handling with the Matter specification
     - Fix: Ensures that client clusters are never exposed to incoming interactions
+    - Fix: The generated manual pairing code now reflects the configured commissioning flow, including Vendor ID and Product ID for non-Standard flows
     - Fix: Ensures that a rejected SetRegulatoryConfig leaves BasicInformation.location unchanged, instead of writing the country code before validating the regulatory config
 
 - @matter/nodejs
@@ -45,6 +46,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation
+    - Fix: Onboarding-payload version is validated on decode — a reserved QR version (≠ 0) or manual pairing code first digit (≥ 8) is rejected instead of being mis-parsed
+    - Fix: The manual pairing code codec now requires Vendor ID and Product ID for non-Standard commissioning flows
+    - Fix: The onboarding-payload TLV codec rejects reserved tags (0x05–0x7F; manufacturer-specific tags must use 0x80–0xFF) and requires the PBKDF iteration count and salt to be both present or both absent
 
 - @project-chip/matter.js
     - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
