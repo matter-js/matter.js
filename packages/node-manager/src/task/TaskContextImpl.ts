@@ -156,8 +156,12 @@ export class TaskContextImpl implements TaskContext {
     }
 
     async #evaluate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<boolean> {
+        // Reconcile is not reachability-guarded and would throw on an unreachable peer. Skip it for such peers
+        // so the gate parks (predicate left unsatisfied) and waits for the reachability-change wake.
         for (const node of nodes) {
-            await this.reconciler.reconcile(node, { verify: true });
+            if (this.#reachable(node)) {
+                await this.reconciler.reconcile(node, { verify: true });
+            }
         }
         const items = nodes.flatMap(node => Object.values(node.stateOf(DesiredStateBehavior).items));
         return until(items);
