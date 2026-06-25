@@ -16,3 +16,9 @@ export class TaskFailedError extends TaskError {}
 
 /** A cancel could not revert the task's changes (reserved; not reachable by AddNodeToGroup). */
 export class TaskCancelFailedError extends TaskError {}
+
+/** Internal signal a running gate throws when cancel is requested, so #drive stops cleanly (not "failed"). */
+export class TaskCancelledSignal extends TaskError {}
+
+/** Internal signal a running gate throws on shutdown so #drive stops without a state change (resume later). */
+export class TaskSuspendedSignal extends TaskError {}
