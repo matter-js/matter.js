@@ -165,10 +165,49 @@ export function assertValidPasscode(passcode: number): void {
 
 const PREFIX = "MT:";
 
+/**
+ * Asserts the PBKDF parameter set is both-or-neither per § 5.1.5 Table 63 note `*`: the iteration count (tag 0x01) and
+ * salt (tag 0x02) are present together or not at all.
+ */
+function assertPbkdfBothOrNeither(data: { pbkdfIterations?: unknown; pbkdfSalt?: unknown }): void {
+    if ((data.pbkdfIterations === undefined) !== (data.pbkdfSalt === undefined)) {
+        throw new UnexpectedDataError("PBKDF iteration count and salt must both be present or both absent");
+    }
+}
+
+/**
+ * Asserts every top-level onboarding-payload TLV tag is either a Matter-common tag (0x00–0x04) or a
+ * manufacturer-specific tag (0x80–0xFF); tags 0x05–0x7F are reserved. See § 5.1.5.1 and Table 63.
+ */
+function assertValidOnboardingTlvTags(data: Bytes): void {
+    let depth = 0;
+    for (const { tag, typeLength } of TlvAny.decode(data)) {
+        if (typeLength.type === TlvType.EndOfContainer) {
+            depth--;
+            continue;
+        }
+        if (depth === 1 && tag?.id !== undefined && tag.id > 0x04 && tag.id < 0x80) {
+            throw new UnexpectedDataError(
+                `Reserved onboarding payload TLV tag 0x${tag.id.toString(16).padStart(2, "0").toUpperCase()}: manufacturer-specific tags must use 0x80–0xFF`,
+            );
+        }
+        if (
+            typeLength.type === TlvType.Structure ||
+            typeLength.type === TlvType.Array ||
+            typeLength.type === TlvType.List
+        ) {
+            depth++;
+        }
+    }
+}
+
 class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
-    /** Rejects payloads carrying an invalid passcode per § 5.1.1.6 / § 5.1.7.1. */
+    /** Rejects reserved versions (§ 5.1.3.1) and invalid passcodes (§ 5.1.1.6 / § 5.1.7.1). */
     override validate(payloadData: QrCodeData[]): void {
-        for (const { passcode } of payloadData) {
+        for (const { version, passcode } of payloadData) {
+            if (version !== 0) {
+                throw new UnexpectedDataError(`Unsupported onboarding payload version ${version}`);
+            }
             assertValidPasscode(passcode);
         }
     }
@@ -223,7 +262,9 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
      * @param schema The schema to use for decoding the TLV data, by default a schema with the QrCodeTlvDataDefaultFields is used
      */
     decodeTlvData(data: Bytes, schema: TlvSchema<any> = TlvObject(QrCodeTlvDataDefaultFields)) {
+        assertValidOnboardingTlvTags(data);
         const decoded = schema.decode(data);
+        assertPbkdfBothOrNeither(decoded);
         if (decoded.serialNumber !== undefined) {
             if (
                 !Array.isArray(decoded.serialNumber) ||
@@ -253,6 +294,7 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
      * @param schema The schema to use for encoding the TLV data, by default a schema with the QrCodeTlvDataDefaultFields is used
      */
     encodeTlvData(data: Record<string, any>, schema: TlvSchema<any> = TlvObject(QrCodeTlvDataDefaultFields)) {
+        assertPbkdfBothOrNeither(data);
         const dataToEncode = deepCopy(data);
         if ("serialNumber" in dataToEncode && dataToEncode.serialNumber !== undefined) {
             switch (typeof dataToEncode.serialNumber) {
@@ -266,7 +308,9 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
                     throw new ImplementationError("Invalid serial number data");
             }
         }
-        return schema.encode(dataToEncode);
+        const encoded = schema.encode(dataToEncode);
+        assertValidOnboardingTlvTags(encoded);
+        return encoded;
     }
 }
 
@@ -278,13 +322,29 @@ export type ManualPairingData = {
     passcode: number;
     vendorId?: VendorId;
     productId?: number;
+
+    /**
+     * Commissioning flow type. When set to anything other than {@link CommissioningFlowType.Standard}, Vendor ID and
+     * Product ID SHALL be present. See {@link MatterSpecification.v13.Core} § 5.1.4.1.2.
+     */
+    flowType?: CommissioningFlowType;
 };
 
 /** See {@link MatterSpecification.v10.Core} § 5.1.4.1 Table 38/39/40 */
 class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
-    /** Rejects payloads carrying an invalid passcode per § 5.1.1.6 / § 5.1.7.1. */
-    override validate({ passcode }: ManualPairingData): void {
+    /**
+     * Rejects an invalid passcode (§ 5.1.1.6 / § 5.1.7.1) and a non-standard commissioning flow missing VID/PID
+     * (§ 5.1.4.1.2).
+     */
+    override validate({ passcode, flowType, vendorId, productId }: ManualPairingData): void {
         assertValidPasscode(passcode);
+        if (
+            flowType !== undefined &&
+            flowType !== CommissioningFlowType.Standard &&
+            (vendorId === undefined || productId === undefined)
+        ) {
+            throw new UnexpectedDataError("Vendor ID and Product ID are required for non-standard commissioning flows");
+        }
     }
 
     protected encodeInternal({ discriminator, passcode, vendorId, productId }: ManualPairingData): string {
@@ -307,6 +367,10 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         encoded = encoded.replace(/\D/g, ""); // we SHALL be robust against other characters
         if (encoded.length !== 11 && encoded.length !== 21) {
             throw new UnexpectedDataError("Invalid pairing code");
+        }
+        // First digit 8 or 9 cannot occur in a v1 code and marks a future format. See § 5.1.4.1.2.
+        if (parseInt(encoded[0]) >= 8) {
+            throw new UnexpectedDataError(`Unsupported onboarding payload version (first digit ${encoded[0]})`);
         }
         if (new Verhoeff().computeChecksum(encoded.slice(0, -1)) !== parseInt(encoded.slice(-1))) {
             throw new UnexpectedDataError("Invalid checksum");
