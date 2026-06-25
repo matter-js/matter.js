@@ -8,6 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
+import { AddNodeToGroup } from "./AddNodeToGroup.js";
 import { TaskCancelledSignal, TaskSuspendedSignal } from "./errors.js";
 import { Task, TaskPersistence } from "./Task.js";
 import { GateControl, TaskContextImpl } from "./TaskContextImpl.js";
@@ -54,13 +55,24 @@ export class TaskManagerBehavior extends Behavior {
         this.internal.live = new Map();
         this.internal.gates = new Map();
         this.#registerBuiltins();
+        // Driving acts on the node, so the resume pass must wait until the node is online.
+        if (this.#rootNode.lifecycle.isOnline) {
+            this.#resumePersisted();
+        } else {
+            this.reactTo(this.#rootNode.lifecycle.online, this.#resumePersisted);
+        }
+    }
+
+    #resumePersisted(): void {
         for (const type of new Set(Object.values(this.state.tasks).map(p => p.type))) {
             this.#resumeType(type);
         }
     }
 
-    /** Built-in task types registered before the resume pass. Task 4 fills this with AddNodeToGroup. */
-    protected registerBuiltins(): void {}
+    /** Built-in task types registered before the resume pass. */
+    protected registerBuiltins(): void {
+        this.internal.registry.register("addNodeToGroup", AddNodeToGroup);
+    }
 
     #registerBuiltins(): void {
         this.registerBuiltins();

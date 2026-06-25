@@ -5,6 +5,7 @@
  */
 
 export * from "./ReconcilerBehavior.js";
+export * from "./task/AddNodeToGroup.js";
 export * from "./task/errors.js";
 export * from "./task/Task.js";
 export * from "./task/TaskManagerBehavior.js";
