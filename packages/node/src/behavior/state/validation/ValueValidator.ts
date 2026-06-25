@@ -223,13 +223,9 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
     return (value, _session, location) => {
         assertObject(value, location);
 
-        if (definedMask !== undefined) {
-            const encoded = (value as Record<symbol, unknown>)[BitmapEncodedValue];
-            if (typeof encoded === "number" && (encoded & ~definedMask) >>> 0 !== 0) {
-                throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
-            }
-        }
-
+        // Structural per-field checks run before the reserved-bit check below: the latter is CONSTRAINT_ERROR-coded and
+        // therefore forwarded for peer writes, so it must come last or a forwarded reserved-bit failure would skip the
+        // structural validation that must always fail fast.
         for (const key in value) {
             const field = fields[key];
             const subpath = location.path.at(key);
@@ -251,6 +247,13 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
                 if (fieldValue > field.max) {
                     throw new DatatypeError(subpath, "in range of bit field", fieldValue);
                 }
+            }
+        }
+
+        if (definedMask !== undefined) {
+            const encoded = (value as Record<symbol, unknown>)[BitmapEncodedValue];
+            if (typeof encoded === "number" && (encoded & ~definedMask) >>> 0 !== 0) {
+                throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
             }
         }
     };

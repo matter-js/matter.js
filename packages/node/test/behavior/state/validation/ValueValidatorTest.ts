@@ -149,6 +149,13 @@ describe("ValueValidator", () => {
             expect(() => bitmapValidator(reservedBitmap(), peer, bitmapPath)).not.throws();
         });
 
+        it("still rejects a structurally invalid bitmap field even alongside reserved bits on a peer write", () => {
+            // multiA spans bits 0-2 (max 7); 99 is out of range.  A forwarded reserved-bit failure must not skip this.
+            const value: Val.Struct = { multiA: 99, multiB: 0 };
+            Object.defineProperty(value, BitmapEncodedValue, { value: 0b1000_0000 });
+            expect(() => bitmapValidator(value, peer, bitmapPath)).throws(DatatypeError, "in range of bit field");
+        });
+
         it("still rejects a wrong-datatype value on a client peer write", () => {
             expect(() => intValidator("nope", peer, intPath)).throws(DatatypeError);
         });
