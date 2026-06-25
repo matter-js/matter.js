@@ -7,7 +7,7 @@
 import { Task } from "#task/Task.js";
 import { TaskPhase } from "#task/types.js";
 import { Observable } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, ItemState, ManagedItem, itemMapKey } from "@matter/node";
+import { ClientNode, DesiredStateBehavior, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 
 /** A synthetic task whose phases are supplied inline; for unit-testing the manager/driver. */
 export class SyntheticTask extends Task<{ tag: string }> {
@@ -60,6 +60,37 @@ export class FakePeer {
         this.itemChanged.emit(item);
     }
 
+    /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
+    readonly removeOrder = new Array<string>();
+
+    /** DesiredStateBehavior.setIntent stand-in: upsert a pending item. */
+    setIntent(kind: string, key: string, _intent: unknown, _mode: ItemMode = "converge") {
+        if (this.items[itemMapKey(kind, key)] === undefined) {
+            this.addItem(kind, key, "pending");
+        }
+    }
+
+    /** DesiredStateBehavior.removeIntent stand-in: flag deletePending, then drop on the next reconcile. */
+    removeIntent(kind: string, key: string) {
+        const item = this.items[itemMapKey(kind, key)];
+        if (item === undefined) {
+            return;
+        }
+        this.removeOrder.push(itemMapKey(kind, key));
+        item.status = { ...item.status, state: "deletePending" };
+        this.itemChanged.emit(item);
+    }
+
+    /** Fake Endpoint.act: synchronously runs the callback with a fake agent exposing DesiredStateBehavior. */
+    act<T>(fn: (agent: { get(type: unknown): unknown }) => T): T {
+        const desired = {
+            setIntent: (kind: string, key: string, intent: unknown, mode?: ItemMode) =>
+                this.setIntent(kind, key, intent, mode),
+            removeIntent: (kind: string, key: string) => this.removeIntent(kind, key),
+        };
+        return fn({ get: (type: unknown) => (type === DesiredStateBehavior ? desired : undefined) });
+    }
+
     /** Mark a key as present on the device, so the next verify-reconcile commits it. */
     markHas(kind: string, key: string) {
         this.has.add(itemMapKey(kind, key));
@@ -77,9 +108,12 @@ export class FakePeer {
         if (!options?.verify || !this.#subscribed) {
             return;
         }
-        for (const item of Object.values((node as unknown as FakePeer).items)) {
+        const items = (node as unknown as FakePeer).items;
+        for (const item of Object.values(items)) {
             if (item.status.state === "pending" && this.has.has(itemMapKey(item.kind, item.key))) {
                 item.status = { ...item.status, state: "committed" };
+            } else if (item.status.state === "deletePending") {
+                delete items[itemMapKey(item.kind, item.key)];
             }
         }
     }

@@ -8,7 +8,6 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Task } from "#task/Task.js";
 import { TaskContextImpl } from "#task/TaskContextImpl.js";
 import { TaskState } from "#task/types.js";
-import { ServerNode } from "@matter/node";
 import { FakePeer } from "./helpers.js";
 
 class GateTask extends Task {
@@ -25,12 +24,7 @@ function makeContext(peer: FakePeer) {
         task.progress.state = s;
         states.push(s);
     };
-    const ctx = new TaskContextImpl(
-        task,
-        undefined as unknown as ServerNode,
-        peer as unknown as ReconcilerBehavior,
-        setState,
-    );
+    const ctx = new TaskContextImpl(task, () => peer.asNode(), peer as unknown as ReconcilerBehavior, setState);
     return { task, ctx, states };
 }
 

@@ -19,6 +19,10 @@ export class TaskRegistry {
         this.#ctors.set(type, ctor);
     }
 
+    has(type: string): boolean {
+        return this.#ctors.has(type);
+    }
+
     idFor(type: string, params: unknown): string {
         return this.#ctorFor(type).idFor(params);
     }
