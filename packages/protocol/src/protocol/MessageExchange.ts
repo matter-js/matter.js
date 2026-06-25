@@ -350,6 +350,15 @@ export class MessageExchange {
         return this.#retransmissionCounter;
     }
 
+    /**
+     * True while a message we sent still awaits peer acknowledgement.  The exchange cannot send a new message in this
+     * state, so best-effort status reports (e.g. PASE/CASE InvalidParam on failure) must be skipped: the peer never
+     * acked our prior message, so the send would only fail with a flow error.
+     */
+    get hasUnackedMessage() {
+        return this.#sentMessageToAck !== undefined;
+    }
+
     get channel() {
         if (this.#channel === undefined) {
             this.#channel = this.session.channel;
