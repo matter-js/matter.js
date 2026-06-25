@@ -6,6 +6,8 @@
 
 import { Task } from "#task/Task.js";
 import { TaskPhase } from "#task/types.js";
+import { Observable } from "@matter/general";
+import { ClientNode, DesiredStateBehavior, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 
 /** A synthetic task whose phases are supplied inline; for unit-testing the manager/driver. */
 export class SyntheticTask extends Task<{ tag: string }> {
@@ -16,5 +18,91 @@ export class SyntheticTask extends Task<{ tag: string }> {
     }
     static override idFor(params: { tag: string }) {
         return `synthetic:${params.tag}`;
+    }
+}
+
+/**
+ * In-memory peer for unit-testing the convergence gates. Exposes only the surface the gate reads:
+ * `DesiredStateBehavior` items + `itemChanged`, `NetworkClient` subscription status, and the reachability
+ * source of truth (`behaviors.internalsOf(NetworkClient).activeSubscription`). The fake doubles as the
+ * reconciler: `reconcile(node, {verify})` flips the peer's items to `committed` for keys the device "has".
+ */
+export class FakePeer {
+    readonly items: Record<string, ManagedItem> = {};
+    readonly has = new Set<string>();
+    readonly itemChanged = new Observable<[item: ManagedItem]>();
+    readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
+    #subscribed = true;
+    reconciles = 0;
+
+    constructor(readonly id: string) {}
+
+    /** A real (non-Sustained) subscription instance reads as active; undefined reads as unreachable. */
+    get #activeSubscription() {
+        return this.#subscribed ? {} : undefined;
+    }
+
+    setReachable(reachable: boolean) {
+        this.#subscribed = reachable;
+        this.subscriptionStatusChanged.emit(reachable);
+    }
+
+    /** Add a desired item in a given state and announce the change, as DesiredStateBehavior would. */
+    addItem(kind: string, key: string, state: ItemState = "pending") {
+        const item: ManagedItem = {
+            kind,
+            key,
+            intent: {},
+            mode: "converge",
+            status: { state, updateTimestamp: 0 },
+        };
+        this.items[itemMapKey(kind, key)] = item;
+        this.itemChanged.emit(item);
+    }
+
+    /** Mark a key as present on the device, so the next verify-reconcile commits it. */
+    markHas(kind: string, key: string) {
+        this.has.add(itemMapKey(kind, key));
+    }
+
+    setState(kind: string, key: string, state: ItemState) {
+        const item = this.items[itemMapKey(kind, key)];
+        item.status = { ...item.status, state };
+        this.itemChanged.emit(item);
+    }
+
+    /** Fake ReconcilerBehavior.reconcile: on verify, commit pending items the device "has" while reachable. */
+    async reconcile(node: ClientNode, options?: { verify?: boolean }) {
+        this.reconciles++;
+        if (!options?.verify || !this.#subscribed) {
+            return;
+        }
+        for (const item of Object.values((node as unknown as FakePeer).items)) {
+            if (item.status.state === "pending" && this.has.has(itemMapKey(item.kind, item.key))) {
+                item.status = { ...item.status, state: "committed" };
+            }
+        }
+    }
+
+    eventsOf(type: unknown): unknown {
+        return type === DesiredStateBehavior
+            ? { itemChanged: this.itemChanged }
+            : { subscriptionStatusChanged: this.subscriptionStatusChanged };
+    }
+
+    stateOf(type: unknown): unknown {
+        return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: false };
+    }
+
+    get behaviors() {
+        const activeSubscription = this.#activeSubscription;
+        return {
+            has: () => true,
+            internalsOf: () => ({ activeSubscription }),
+        };
+    }
+
+    asNode(): ClientNode {
+        return this as unknown as ClientNode;
     }
 }

@@ -5,13 +5,13 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { Logger } from "@matter/general";
+import { Logger, Mutex } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Behavior, Node, ServerNode } from "@matter/node";
 import { Task, TaskPersistence } from "./Task.js";
 import { TaskContextImpl } from "./TaskContextImpl.js";
 import { TaskCtor, TaskRegistry } from "./TaskRegistry.js";
-import { TaskStatus } from "./types.js";
+import { TaskState, TaskStatus } from "./types.js";
 
 const logger = Logger.get("TaskManager");
 
@@ -49,6 +49,13 @@ export class TaskManagerBehavior extends Behavior {
 
     get #rootNode(): ServerNode {
         return Node.forEndpoint(this.endpoint) as ServerNode;
+    }
+
+    get #mutex(): Mutex {
+        if (this.internal.persistMutex === undefined) {
+            this.internal.persistMutex = new Mutex(this);
+        }
+        return this.internal.persistMutex;
     }
 
     register(type: string, ctor: TaskCtor): void {
@@ -100,7 +107,7 @@ export class TaskManagerBehavior extends Behavior {
             await this.#persist(task);
             while (task.progress.phaseIndex < task.phases.length && task.progress.state === "running") {
                 const phase = task.phases[task.progress.phaseIndex];
-                const ctx = new TaskContextImpl(task, this.#rootNode);
+                const ctx = await this.endpoint.act(agent => this.#contextFor(task, agent.get(ReconcilerBehavior)));
                 await phase.run(ctx);
                 task.progress.phaseIndex += 1;
                 await this.#persist(task);
@@ -112,9 +119,29 @@ export class TaskManagerBehavior extends Behavior {
         } catch (e) {
             task.progress.state = "failed";
             task.error = e instanceof Error ? e.message : String(e);
-            await this.#persist(task);
             logger.error(`Task ${task.id} failed`, e);
+            // A failing persist here must not re-reject the (otherwise handled) drive promise.
+            try {
+                await this.#persist(task);
+            } catch (persistError) {
+                logger.error(`Task ${task.id}: failed to persist failure state`, persistError);
+            }
         }
+    }
+
+    #contextFor(task: Task, reconciler: ReconcilerBehavior): TaskContextImpl {
+        const setState = (state: TaskState) => {
+            // Terminal states are owned by #drive; gates only flip between running/parked.
+            if (
+                task.progress.state === state ||
+                (task.progress.state !== "running" && task.progress.state !== "parked")
+            ) {
+                return;
+            }
+            task.progress.state = state;
+            this.#mutex.run(() => this.#persist(task));
+        };
+        return new TaskContextImpl(task, this.#rootNode, reconciler, setState);
     }
 
     async #persist(task: Task): Promise<void> {
@@ -127,6 +154,7 @@ export class TaskManagerBehavior extends Behavior {
 
     override async [Symbol.asyncDispose]() {
         await Promise.allSettled([...this.internal.driving.values()]);
+        await this.internal.persistMutex?.close();
         await super[Symbol.asyncDispose]?.();
     }
 }
@@ -140,6 +168,7 @@ export namespace TaskManagerBehavior {
         registry!: TaskRegistry;
         live!: Map<string, Task>;
         driving = new Map<string, Promise<void>>();
+        persistMutex?: Mutex;
     }
 
     export class Events extends Behavior.Events {}
