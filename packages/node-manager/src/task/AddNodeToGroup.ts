@@ -9,6 +9,8 @@ import { GroupKeyManagement } from "@matter/types/clusters/group-key-management"
 import { Task } from "./Task.js";
 import { TaskContext, TaskPhase } from "./types.js";
 
+export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
+
 export interface AddNodeToGroupParams {
     peerId: string;
     endpoint: number;
@@ -26,10 +28,10 @@ export interface AddNodeToGroupParams {
  * all three committing; the keyset(10) < group(20) < membership(30) priority bands order the apply.
  */
 export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
-    readonly type = "addNodeToGroup";
+    readonly type = ADD_NODE_TO_GROUP_TYPE;
 
     static override idFor(params: AddNodeToGroupParams): string {
-        return `addNodeToGroup:${params.peerId}:${params.groupId}`;
+        return `${ADD_NODE_TO_GROUP_TYPE}:${params.peerId}:${params.groupId}`;
     }
 
     get phases(): TaskPhase[] {

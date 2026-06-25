@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AddNodeToGroupParams } from "#task/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroupParams } from "#task/AddNodeToGroup.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
@@ -32,7 +32,7 @@ const PARAMS: AddNodeToGroupParams = {
     epochStartTime0: 946684800000001n, // must be > IPK_DEFAULT_EPOCH_START_TIME
 };
 
-const TASK_ID = `addNodeToGroup:peer1:${0x101}`;
+const TASK_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}`;
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 

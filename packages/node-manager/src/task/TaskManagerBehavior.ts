@@ -8,7 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
-import { AddNodeToGroup } from "./AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./AddNodeToGroup.js";
 import { TaskCancelledSignal, TaskSuspendedSignal } from "./errors.js";
 import { Task, TaskPersistence } from "./Task.js";
 import { GateControl, TaskContextImpl } from "./TaskContextImpl.js";
@@ -71,7 +71,7 @@ export class TaskManagerBehavior extends Behavior {
 
     /** Built-in task types registered before the resume pass. */
     protected registerBuiltins(): void {
-        this.internal.registry.register("addNodeToGroup", AddNodeToGroup);
+        this.internal.registry.register(ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup);
     }
 
     #registerBuiltins(): void {
@@ -164,6 +164,9 @@ export class TaskManagerBehavior extends Behavior {
     /**
      * Cancel a task: stop forward driving and best-effort revert its add-log in reverse order. An offline peer
      * parks the revert (best-effort, not a failure); a terminal revert error yields `cancelFailed`.
+     *
+     * If a peer is permanently offline during revert, cancel parks and the awaiting caller has no independent
+     * abort — it is released only on node dispose. Reserved follow-up.
      */
     async cancel(idOrExternalId: string): Promise<void> {
         const task = this.#find(idOrExternalId);
