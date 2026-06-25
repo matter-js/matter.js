@@ -184,6 +184,7 @@ export class TaskManagerBehavior extends Behavior {
                 ),
             );
             task.progress.state = "cancelled";
+            task.error = undefined;
         } catch (e) {
             task.progress.state = "cancelFailed";
             task.error = e instanceof Error ? e.message : String(e);
