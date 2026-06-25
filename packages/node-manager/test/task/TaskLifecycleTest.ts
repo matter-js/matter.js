@@ -214,6 +214,7 @@ describe("Task lifecycle", () => {
 
             const status = await node.act(a => a.get(TestTaskManager).get("synthetic:inflight")?.status);
             expect(status?.state).equals("cancelled");
+            expect(status?.error).equals(undefined);
             await node.close();
         });
     });
