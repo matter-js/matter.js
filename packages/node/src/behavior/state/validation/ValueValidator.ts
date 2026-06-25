@@ -32,10 +32,9 @@ import { forwardValidationToPeer } from "./peer-forwarding.js";
 const logger = Logger.get("ValueValidator");
 
 /**
- * Wrap a datatype validator so that writes to peer (client) nodes forward CONSTRAINT_ERROR-coded datatype violations
- * (reserved bitmap bits, undefined enum values) to the device rather than rejecting locally.  Value-range and structural
- * datatype errors still throw.  Conformance violations are forwarded separately in {@link createConformanceValidator} so
- * that datatype validation still runs after a forwarded conformance failure.  Server (non-peer) writes are unaffected.
+ * Wrap a datatype validator so peer (client) writes forward datatype violations the device may still accept (see
+ * {@link forwardValidationToPeer}).  Conformance violations are forwarded separately in {@link createConformanceValidator}
+ * so that datatype validation still runs after a forwarded conformance failure.
  */
 function forwardableForClientPeer(inner: ValueSupervisor.Validate): ValueSupervisor.Validate {
     return (value, session, location) => {

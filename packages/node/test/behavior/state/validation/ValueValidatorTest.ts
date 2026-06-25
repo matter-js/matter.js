@@ -14,7 +14,14 @@ import {
     FieldElement as Field,
     FieldModel,
 } from "@matter/model";
-import { ConformanceError, DatatypeError, EnumValueConformanceError, IntegerRangeError, Val } from "@matter/protocol";
+import {
+    ConformanceError,
+    DatatypeError,
+    EnumValueConformanceError,
+    IntegerRangeError,
+    UnknownEnumValueError,
+    Val,
+} from "@matter/protocol";
 import { BitmapEncodedValue } from "@matter/types";
 
 describe("ValueValidator", () => {
@@ -124,6 +131,14 @@ describe("ValueValidator", () => {
 
         it("forwards a feature-gated enum value on a client peer write", () => {
             expect(() => enumValidator({ test: 4 }, peer, enumPath)).not.throws();
+        });
+
+        it("rejects an undefined enum value on a server write", () => {
+            expect(() => enumValidator({ test: 99 }, server, enumPath)).throws(UnknownEnumValueError);
+        });
+
+        it("forwards an undefined enum value on a client peer write", () => {
+            expect(() => enumValidator({ test: 99 }, peer, enumPath)).not.throws();
         });
 
         it("rejects reserved bitmap bits on a server write", () => {
