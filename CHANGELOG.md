@@ -12,14 +12,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
-    - Fix: Aligned Thermostat atomic-write handling with the Matter specification
     - Enhancement: Free a behavior's persisted seed values from memory once the datasource has loaded them
+    - Adjustment: Reject an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
     - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensures that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
     - Fix: Ensures that fabric-scoped attribute data (e.g. stale AccessControl ACL entries) is always sanitized at node startup
     - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
     - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
+    - Fix: Aligned Thermostat atomic-write handling with the Matter specification
     - Fix: Ensures that client clusters are never exposed to incoming interactions
 
 - @matter/nodejs
