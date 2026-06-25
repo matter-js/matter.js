@@ -27,8 +27,26 @@ import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
 import { isFabricIndexSentinel } from "./FabricIndexSentinel.js";
 import { ValidationLocation } from "./location.js";
+import { forwardValidationToPeer } from "./peer-forwarding.js";
 
 const logger = Logger.get("ValueValidator");
+
+/**
+ * Wrap a datatype validator so peer (client) writes forward datatype violations the device may still accept (see
+ * {@link forwardValidationToPeer}).  Conformance violations are forwarded separately in {@link createConformanceValidator}
+ * so that datatype validation still runs after a forwarded conformance failure.
+ */
+function forwardableForClientPeer(inner: ValueSupervisor.Validate): ValueSupervisor.Validate {
+    return (value, session, location) => {
+        try {
+            inner(value, session, location);
+        } catch (e) {
+            if (!forwardValidationToPeer(session, e)) {
+                throw e;
+            }
+        }
+    };
+}
 
 /**
  * Generate a function that performs data validation.
@@ -38,7 +56,7 @@ const logger = Logger.get("ValueValidator");
  */
 export function ValueValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     if (schema instanceof ClusterModel) {
-        return createStructValidator(schema, supervisor);
+        return forwardableForClientPeer(createStructValidator(schema, supervisor));
     }
 
     let validator: ValueSupervisor.Validate | undefined;
@@ -108,6 +126,8 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
     }
 
     validator = createNullValidator(schema, validator);
+
+    validator = validator && forwardableForClientPeer(validator);
 
     validator = createConformanceValidator(schema, supervisor, validator);
 
@@ -203,13 +223,9 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
     return (value, _session, location) => {
         assertObject(value, location);
 
-        if (definedMask !== undefined) {
-            const encoded = (value as Record<symbol, unknown>)[BitmapEncodedValue];
-            if (typeof encoded === "number" && (encoded & ~definedMask) >>> 0 !== 0) {
-                throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
-            }
-        }
-
+        // Structural per-field checks run before the reserved-bit check below: the latter is CONSTRAINT_ERROR-coded and
+        // therefore forwarded for peer writes, so it must come last or a forwarded reserved-bit failure would skip the
+        // structural validation that must always fail fast.
         for (const key in value) {
             const field = fields[key];
             const subpath = location.path.at(key);
@@ -231,6 +247,13 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
                 if (fieldValue > field.max) {
                     throw new DatatypeError(subpath, "in range of bit field", fieldValue);
                 }
+            }
+        }
+
+        if (definedMask !== undefined) {
+            const encoded = (value as Record<symbol, unknown>)[BitmapEncodedValue];
+            if (typeof encoded === "number" && (encoded & ~definedMask) >>> 0 !== 0) {
+                throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
             }
         }
     };
