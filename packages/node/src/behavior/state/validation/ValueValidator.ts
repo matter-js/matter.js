@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, InternalError, Logger } from "@matter/general";
+import { camelize, Diagnostic, InternalError, Logger } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
 import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
@@ -31,6 +31,31 @@ import { ValidationLocation } from "./location.js";
 const logger = Logger.get("ValueValidator");
 
 /**
+ * Wrap a validator so that writes to peer (client) nodes forward conformance violations to the device rather than
+ * rejecting locally.  The peer is the authority on what it accepts; a non-conformant FeatureMap (e.g. a fan that
+ * supports Auto without advertising the AUT feature) must not block an otherwise-valid write.  Value-range constraints
+ * and structural datatype errors still throw because they are caller bugs or cannot be encoded for the wire.  Server
+ * (non-peer) writes are unaffected.
+ */
+function forwardableForClientPeer(inner: ValueSupervisor.Validate): ValueSupervisor.Validate {
+    return (value, session, location) => {
+        try {
+            inner(value, session, location);
+        } catch (e) {
+            const forwardable =
+                e instanceof ConformanceError || (e instanceof DatatypeError && e.code === Status.ConstraintError);
+            if (session.clientPeerContext === undefined || !forwardable) {
+                throw e;
+            }
+            logger.notice(
+                "Forwarding non-conformant write to peer; the device may reject it:",
+                Diagnostic.errorMessage(e),
+            );
+        }
+    };
+}
+
+/**
  * Generate a function that performs data validation.
  *
  * @param schema the schema against which we validate
@@ -38,7 +63,7 @@ const logger = Logger.get("ValueValidator");
  */
 export function ValueValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     if (schema instanceof ClusterModel) {
-        return createStructValidator(schema, supervisor);
+        return forwardableForClientPeer(createStructValidator(schema, supervisor));
     }
 
     let validator: ValueSupervisor.Validate | undefined;
@@ -111,7 +136,7 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
 
     validator = createConformanceValidator(schema, supervisor, validator);
 
-    return validator;
+    return validator && forwardableForClientPeer(validator);
 }
 
 function createNullValidator(

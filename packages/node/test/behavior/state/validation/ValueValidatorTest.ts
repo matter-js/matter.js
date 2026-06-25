@@ -6,8 +6,15 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { AttributeModel, DataModelPath, FieldElement as Field, FieldModel } from "@matter/model";
-import { DatatypeError, IntegerRangeError, Val } from "@matter/protocol";
+import {
+    AttributeModel,
+    ClusterModel,
+    DataModelPath,
+    FeatureMap,
+    FieldElement as Field,
+    FieldModel,
+} from "@matter/model";
+import { DatatypeError, EnumValueConformanceError, IntegerRangeError, Val } from "@matter/protocol";
 import { BitmapEncodedValue } from "@matter/types";
 
 describe("ValueValidator", () => {
@@ -57,6 +64,71 @@ describe("ValueValidator", () => {
                     path: new DataModelPath(schema.path),
                 }),
             ).not.throws();
+        });
+    });
+
+    describe("client peer leniency", () => {
+        // Enum value gated by an unsupported feature, mirroring FanControl FanMode=Auto(5) with conformance "AUT"
+        // when the peer reports FeatureMap=0 (the SwitchBot air purifier case).
+        const featureMap = FeatureMap.clone();
+        featureMap.children = [new FieldModel({ name: "FT", title: "Feature", constraint: "0" })];
+        const enumCluster = new ClusterModel({
+            name: "Test",
+            children: [
+                featureMap,
+                new AttributeModel(
+                    { id: 0, name: "Test", type: "enum8" },
+                    Field({ id: 1, name: "plain" }),
+                    Field({ id: 4, name: "ifFeature", conformance: "FT" }),
+                ),
+            ],
+        });
+        const enumValidator = RootSupervisor.for(enumCluster).get(enumCluster).validate!;
+        const enumPath = { path: new DataModelPath(enumCluster.path) };
+
+        // Bitmap with a reserved gap (bit 3) and reserved high bit (bit 7).
+        const bitmapSchema = new AttributeModel(
+            { id: 1, name: "TestBitmap", type: "map8" },
+            Field({ name: "multiA", constraint: "0 to 2" }),
+            Field({ name: "multiB", constraint: "4 to 6" }),
+        );
+        const bitmapValidator = RootSupervisor.for(bitmapSchema).validate!;
+        const bitmapPath = { path: new DataModelPath(bitmapSchema.path) };
+        function reservedBitmap() {
+            const value: Val.Struct = { multiA: 0, multiB: 0 };
+            Object.defineProperty(value, BitmapEncodedValue, { value: 0b1000_0000 });
+            return value;
+        }
+
+        const intSchema = new FieldModel({ name: "foo", type: "uint8" });
+        const intValidator = RootSupervisor.for(intSchema).validate!;
+        const intPath = { path: new DataModelPath(intSchema.path) };
+
+        const server = {} as ValueSupervisor.Session;
+        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
+
+        it("rejects a feature-gated enum value on a server write", () => {
+            expect(() => enumValidator({ test: 4 }, server, enumPath)).throws(EnumValueConformanceError);
+        });
+
+        it("forwards a feature-gated enum value on a client peer write", () => {
+            expect(() => enumValidator({ test: 4 }, peer, enumPath)).not.throws();
+        });
+
+        it("rejects reserved bitmap bits on a server write", () => {
+            expect(() => bitmapValidator(reservedBitmap(), server, bitmapPath)).throws(DatatypeError);
+        });
+
+        it("forwards reserved bitmap bits on a client peer write", () => {
+            expect(() => bitmapValidator(reservedBitmap(), peer, bitmapPath)).not.throws();
+        });
+
+        it("still rejects a wrong-datatype value on a client peer write", () => {
+            expect(() => intValidator("nope", peer, intPath)).throws(DatatypeError);
+        });
+
+        it("still rejects a value-range constraint on a client peer write", () => {
+            expect(() => intValidator(0x1ff, peer, intPath)).throws(IntegerRangeError);
         });
     });
 });

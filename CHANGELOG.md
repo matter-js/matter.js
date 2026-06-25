@@ -21,6 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
     - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
     - Fix: Ensures that client clusters are never exposed to incoming interactions
+    - Fix: A controller write to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides (e.g. setting FanMode.Auto on a fan that omits the AUT feature), while value-range and datatype errors still fail fast
 
 - @matter/nodejs
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
