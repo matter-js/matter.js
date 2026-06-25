@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Diagnostic, InternalError, Logger } from "@matter/general";
+import { camelize, InternalError, Logger } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
 import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
@@ -27,30 +27,24 @@ import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
 import { isFabricIndexSentinel } from "./FabricIndexSentinel.js";
 import { ValidationLocation } from "./location.js";
+import { forwardValidationToPeer } from "./peer-forwarding.js";
 
 const logger = Logger.get("ValueValidator");
 
 /**
- * Wrap a validator so that writes to peer (client) nodes forward conformance violations to the device rather than
- * rejecting locally.  The peer is the authority on what it accepts; a non-conformant FeatureMap (e.g. a fan that
- * supports Auto without advertising the AUT feature) must not block an otherwise-valid write.  Value-range constraints
- * and structural datatype errors still throw because they are caller bugs or cannot be encoded for the wire.  Server
- * (non-peer) writes are unaffected.
+ * Wrap a datatype validator so that writes to peer (client) nodes forward CONSTRAINT_ERROR-coded datatype violations
+ * (reserved bitmap bits, undefined enum values) to the device rather than rejecting locally.  Value-range and structural
+ * datatype errors still throw.  Conformance violations are forwarded separately in {@link createConformanceValidator} so
+ * that datatype validation still runs after a forwarded conformance failure.  Server (non-peer) writes are unaffected.
  */
 function forwardableForClientPeer(inner: ValueSupervisor.Validate): ValueSupervisor.Validate {
     return (value, session, location) => {
         try {
             inner(value, session, location);
         } catch (e) {
-            const forwardable =
-                e instanceof ConformanceError || (e instanceof DatatypeError && e.code === Status.ConstraintError);
-            if (session.clientPeerContext === undefined || !forwardable) {
+            if (!forwardValidationToPeer(session, e)) {
                 throw e;
             }
-            logger.notice(
-                "Forwarding non-conformant write to peer; the device may reject it:",
-                Diagnostic.errorMessage(e),
-            );
         }
     };
 }
@@ -134,9 +128,11 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
 
     validator = createNullValidator(schema, validator);
 
+    validator = validator && forwardableForClientPeer(validator);
+
     validator = createConformanceValidator(schema, supervisor, validator);
 
-    return validator && forwardableForClientPeer(validator);
+    return validator;
 }
 
 function createNullValidator(

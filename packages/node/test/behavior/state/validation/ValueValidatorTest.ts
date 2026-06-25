@@ -14,7 +14,7 @@ import {
     FieldElement as Field,
     FieldModel,
 } from "@matter/model";
-import { DatatypeError, EnumValueConformanceError, IntegerRangeError, Val } from "@matter/protocol";
+import { ConformanceError, DatatypeError, EnumValueConformanceError, IntegerRangeError, Val } from "@matter/protocol";
 import { BitmapEncodedValue } from "@matter/types";
 
 describe("ValueValidator", () => {
@@ -86,6 +86,17 @@ describe("ValueValidator", () => {
         const enumValidator = RootSupervisor.for(enumCluster).get(enumCluster).validate!;
         const enumPath = { path: new DataModelPath(enumCluster.path) };
 
+        // Attribute whose presence is gated by an unsupported feature, so writing it at all is non-conformant.  Used to
+        // prove datatype validation still runs after a forwarded conformance failure.
+        const gatedFeatureMap = FeatureMap.clone();
+        gatedFeatureMap.children = [new FieldModel({ name: "FT", title: "Feature", constraint: "0" })];
+        const gatedCluster = new ClusterModel({
+            name: "Test",
+            children: [gatedFeatureMap, new AttributeModel({ id: 0, name: "Gated", type: "uint8", conformance: "FT" })],
+        });
+        const gatedValidator = RootSupervisor.for(gatedCluster).get(gatedCluster).validate!;
+        const gatedPath = { path: new DataModelPath(gatedCluster.path) };
+
         // Bitmap with a reserved gap (bit 3) and reserved high bit (bit 7).
         const bitmapSchema = new AttributeModel(
             { id: 1, name: "TestBitmap", type: "map8" },
@@ -129,6 +140,18 @@ describe("ValueValidator", () => {
 
         it("still rejects a value-range constraint on a client peer write", () => {
             expect(() => intValidator(0x1ff, peer, intPath)).throws(IntegerRangeError);
+        });
+
+        it("rejects a feature-disallowed attribute on a server write", () => {
+            expect(() => gatedValidator({ gated: 5 }, server, gatedPath)).throws(ConformanceError);
+        });
+
+        it("forwards a feature-disallowed attribute with a valid value on a client peer write", () => {
+            expect(() => gatedValidator({ gated: 5 }, peer, gatedPath)).not.throws();
+        });
+
+        it("still validates datatype when a forwarded conformance failure would otherwise skip it", () => {
+            expect(() => gatedValidator({ gated: "nope" }, peer, gatedPath)).throws(DatatypeError);
         });
     });
 });
