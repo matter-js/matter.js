@@ -42,6 +42,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: An invoke client now reports `NoCommandResponse` for sent commands that receive no response, and discards unexpected/unmatched response entries instead of throwing
     - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
     - Fix: Fixes encoding and decoding of a message payload header carrying a vendor Protocol ID
+    - Fix: Does not send error status messages when the message before was never delivered for PASE/CASE
 
 - @matter/types
     - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation

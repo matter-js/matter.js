@@ -17,6 +17,7 @@ describe("PasePairing", () => {
             const server = new PaseServer({} as any, 0n, new Uint8Array());
             let closed = false;
             const messenger = {
+                exchange: { hasUnackedMessage: false },
                 sendError: () =>
                     Promise.reject(
                         new MatterFlowError("The previous message has not been acked yet, cannot send a new message"),
@@ -29,6 +30,28 @@ describe("PasePairing", () => {
 
             await server.cancelPairing(messenger as any);
 
+            expect(closed).true;
+        });
+
+        it("does not attempt to send the error status report when a sent message is still unacked", async () => {
+            const server = new PaseServer({} as any, 0n, new Uint8Array());
+            let sendErrorCalled = false;
+            let closed = false;
+            const messenger = {
+                exchange: { hasUnackedMessage: true },
+                sendError: () => {
+                    sendErrorCalled = true;
+                    return Promise.resolve();
+                },
+                close: () => {
+                    closed = true;
+                    return Promise.resolve();
+                },
+            };
+
+            await server.cancelPairing(messenger as any);
+
+            expect(sendErrorCalled).false;
             expect(closed).true;
         });
     });
