@@ -464,7 +464,7 @@ export class ClientStructure {
             return;
         }
 
-        logger.warn(
+        logger.info(
             `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from descriptor server list but peer` +
                 " sent attribute data for it; keeping cluster",
         );
