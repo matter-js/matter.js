@@ -36,6 +36,8 @@ const TEST_DEFINITIONS = [
     "AB.a+",
     "AB.a2",
     "AB.a2+",
+    "AB.a2-",
+    "AB.a-",
     "AB == 2",
     "Mom",
     "[AB].a",
@@ -97,6 +99,43 @@ describe("Conformance", () => {
             const conformance = new Conformance("%");
             expect(conformance.errors?.length).equal(1);
             expect(conformance.toString()).equal("");
+        });
+    });
+
+    describe("invalid choice/optionality constructs", () => {
+        // §7.3.14: range-form choice and mixed +/- modifiers are not valid grammar; §7.3.4: an optional group may not
+        // be combined with other terms via operators (partial optionality).  These must be rejected, not mis-parsed.
+        function expectErrorCode(definition: string, code: string) {
+            const conformance = new Conformance(definition);
+            expect(conformance.errors?.map(e => e.code)).contains(code);
+        }
+
+        it("rejects range-form choice aN-M", () => {
+            expectErrorCode("O.a2-4", "INVALID_CHOICE");
+        });
+
+        it("rejects range-form choice aN+M", () => {
+            expectErrorCode("O.a2+4", "INVALID_CHOICE");
+        });
+
+        it("rejects range-form choice aN-M without explicit first number", () => {
+            expectErrorCode("O.a-4", "INVALID_CHOICE");
+        });
+
+        it("rejects mixed +/- choice modifiers", () => {
+            expectErrorCode("AB.a2+-", "INVALID_CHOICE");
+        });
+
+        it("rejects mixed -/+ choice modifiers", () => {
+            expectErrorCode("AB.a2-+", "INVALID_CHOICE");
+        });
+
+        it("rejects partial optionality [AA] & BB", () => {
+            expectErrorCode("[AA] & BB", "INVALID_OPTIONALITY");
+        });
+
+        it("rejects partial optionality [AA] | BB", () => {
+            expectErrorCode("[AA] | BB", "INVALID_OPTIONALITY");
         });
     });
 

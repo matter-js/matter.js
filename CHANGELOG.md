@@ -38,7 +38,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
     - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
     - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
-    - Fix: Fabric-sensitive events are now always filtered to the accessing fabric on read and subscribe, regardless of the FabricFiltered flag
+    - Fix: Fabric-sensitive events are now always filtered to the accessing fabric on read and subscribe
     - Fix: A stray StatusReport arriving as an exchange's initial message (e.g. a retransmitted CASE/PASE completion) is now ignored instead of logging an "Unhandled error"
     - Fix: An invoke client now reports `NoCommandResponse` for sent commands that receive no response, and discards unexpected/unmatched response entries instead of throwing
     - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
@@ -66,6 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
+    - Fix: The conformance parser now rejects invalid choice and optionality constructs instead of mis-parsing them
 
 - @matter/node
     - Fix: Reading `CommissioningServer` pairing codes before commissioning is initialized now throws a clear error instead of emitting a placeholder code
