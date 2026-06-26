@@ -5,12 +5,12 @@
  */
 
 import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
-import { OnOffClient } from "#behaviors/on-off";
+import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { AccessLevel } from "@matter/model";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
-import { ClusterId, CommandId, EndpointNumber, Status } from "@matter/types";
+import { ClusterId, CommandId, EndpointNumber, Status, StatusResponseError } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -272,6 +272,36 @@ describe("CommandInvokeResponse", () => {
             },
         ]);
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
+    // Spec 1.6 §7.10.7: a cluster-specific status accompanies an outer status of SUCCESS or FAILURE only. A handler
+    // throwing a non-Failure outer code alongside a clusterCode must be clamped to FAILURE on the wire.
+    it("clamps the outer status to FAILURE when a handler reports a cluster-specific status", async () => {
+        class ClusterErrorOnOffServer extends OnOffServer {
+            override on() {
+                throw new StatusResponseError("boom", Status.ConstraintError, 0x42);
+            }
+        }
+        const device = new Endpoint(OnOffLightDevice.with(ClusterErrorOnOffServer));
+        const node = await MockServerNode.createOnline(undefined, { device });
+        const response = await invokeCmd(
+            node,
+            Invoke.ConcreteCommandRequest({
+                endpoint: device,
+                cluster: OnOff,
+                command: "on",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: 6, commandId: 1, endpointId: 1 },
+                status: Status.Failure,
+                clusterStatus: 0x42,
+                commandRef: undefined,
+            },
+        ]);
     });
 
     // TODO - more tests and Migrate some from InteractionProtocolTest

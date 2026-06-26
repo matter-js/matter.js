@@ -8,8 +8,24 @@ import {
     AttributeReportPayload,
     chunkAttributePayload,
     compressAttributeDataReportTags,
+    encodeAttributePayload,
+    encodeEventPayload,
 } from "#interaction/AttributeDataEncoder.js";
-import { AttributeId, ClusterId, EndpointNumber, TlvArray, TlvClusterId, TlvString, TlvUInt8 } from "@matter/types";
+import { MatterFlowError } from "@matter/general";
+import {
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    EventId,
+    EventNumber,
+    Priority,
+    Status,
+    TlvArray,
+    TlvClusterId,
+    TlvEventReport,
+    TlvString,
+    TlvUInt8,
+} from "@matter/types";
 
 describe("AttributeDataEncoder", () => {
     describe("tag compression for attribute DataReport payloads", () => {
@@ -264,6 +280,83 @@ describe("AttributeDataEncoder", () => {
                     },
                 },
             ]);
+        });
+    });
+
+    describe("spec §8.9 encoder field guarantees", () => {
+        it("strips isUrgent from EventData paths (§8.9.3.4)", () => {
+            const encoded = encodeEventPayload({
+                hasFabricSensitiveData: false,
+                eventData: {
+                    path: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(0x28),
+                        eventId: EventId(0),
+                        isUrgent: true,
+                    },
+                    eventNumber: EventNumber(1),
+                    priority: Priority.Info,
+                    epochTimestamp: 12345,
+                    tlv: TlvUInt8,
+                    payload: 5,
+                },
+            });
+
+            const decoded = TlvEventReport.decodeTlv(encoded);
+            expect(decoded.eventData?.path.isUrgent).equals(undefined);
+        });
+
+        it("rejects an EventReport carrying both data and status (§8.9.3.5)", () => {
+            expect(() =>
+                encodeEventPayload({
+                    hasFabricSensitiveData: false,
+                    eventData: {
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(0x28), eventId: EventId(0) },
+                        eventNumber: EventNumber(1),
+                        priority: Priority.Info,
+                        epochTimestamp: 12345,
+                        tlv: TlvUInt8,
+                        payload: 5,
+                    },
+                    eventStatus: {
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(0x28), eventId: EventId(0) },
+                        status: { status: Status.Failure },
+                    },
+                }),
+            ).throws(MatterFlowError);
+        });
+
+        it("rejects an AttributeReport carrying both data and status (§8.9.2.9)", () => {
+            expect(() =>
+                encodeAttributePayload({
+                    hasFabricSensitiveData: false,
+                    attributeData: {
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x28),
+                            attributeId: AttributeId(2),
+                        },
+                        tlv: TlvUInt8,
+                        payload: 1,
+                    },
+                    attributeStatus: {
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x28),
+                            attributeId: AttributeId(2),
+                        },
+                        status: { status: Status.Failure },
+                    },
+                }),
+            ).throws(MatterFlowError);
+        });
+
+        it("rejects an EventReport carrying neither data nor status (§8.9.3.5)", () => {
+            expect(() => encodeEventPayload({ hasFabricSensitiveData: false })).throws(MatterFlowError);
+        });
+
+        it("rejects an AttributeReport carrying neither data nor status (§8.9.2.9)", () => {
+            expect(() => encodeAttributePayload({ hasFabricSensitiveData: false })).throws(MatterFlowError);
         });
     });
 });

@@ -8,6 +8,7 @@ import { MalformedRequestError } from "#action/request/MalformedRequestError.js"
 import { Write } from "#action/request/Write.js";
 import { Seconds } from "@matter/general";
 import { AttributeId, ClusterId, EndpointNumber, TlvString, TlvUInt8 } from "@matter/types";
+import { OnOff } from "@matter/types/clusters/on-off";
 
 describe("Write", () => {
     describe("basic write requests", () => {
@@ -198,6 +199,41 @@ describe("Write", () => {
 
             expect(request.writeRequests[0].dataVersion).equal(100);
             expect(request.writeRequests[1].dataVersion).equal(200);
+        });
+
+        it("keeps data version on a concrete reified write path", () => {
+            const request = Write(
+                Write.Attribute({
+                    endpoint: EndpointNumber(1),
+                    cluster: OnOff,
+                    attributes: "onOff",
+                    value: true,
+                    version: 7,
+                }),
+            );
+
+            expect(request.writeRequests[0].path.endpointId).equal(1);
+            expect(request.writeRequests[0].dataVersion).equal(7);
+        });
+
+        it("rejects a data version on a wildcard-endpoint write path (§8.9.2.8.1)", () => {
+            expect(() =>
+                Write(Write.Attribute({ cluster: OnOff, attributes: "onOff", value: true, version: 7 })),
+            ).throws(MalformedRequestError, "must target a concrete endpoint");
+        });
+
+        it("rejects a data version on a wildcard-endpoint raw write request (§8.9.2.8.1)", () => {
+            expect(() =>
+                Write({
+                    writes: [
+                        {
+                            path: { clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                            data: TlvUInt8.encodeTlv(1),
+                            dataVersion: 7,
+                        },
+                    ],
+                }),
+            ).throws(MalformedRequestError, "must target a concrete endpoint");
         });
     });
 
