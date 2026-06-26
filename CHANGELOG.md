@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensures that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
+    - Fix: A client cluster the peer still serves data for but omits from its descriptor server list is no longer dropped when subsequent endpoint data is processed
     - Fix: Ensures that fabric-scoped attribute data (e.g. stale AccessControl ACL entries) is always sanitized at node startup
     - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
     - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
