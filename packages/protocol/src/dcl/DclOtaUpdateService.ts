@@ -8,6 +8,7 @@ import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import { DclErrorCodes } from "#dcl/DclRestApiTypes.js";
 import {
+    asError,
     BlobStorageDriver,
     Construction,
     Crypto,
@@ -488,7 +489,10 @@ export class DclOtaUpdateService {
                     logger.info(`Existing OTA image validated successfully`, Diagnostic.dict(diagnosticInfo));
                     return fileDesignator;
                 } catch (error) {
-                    logger.info(`Existing OTA image validation failed, Re-downloading ...`, error);
+                    logger.info(
+                        `Existing OTA image validation failed, Re-downloading ...`,
+                        Diagnostic.errorMessage(asError(error)),
+                    );
                 }
             }
 
@@ -940,7 +944,7 @@ export class DclOtaUpdateService {
                 size: blob.size,
             };
         } catch (error) {
-            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, error);
+            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, Diagnostic.errorMessage(asError(error)));
         }
     }
 
