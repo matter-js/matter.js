@@ -4,7 +4,9 @@
     "extends": "../../../tsc/tsconfig.lib.json",
     "compilerOptions": {
         "allowJs": true,
-        "types": []
+        "types": [
+            "@matter/testing"
+        ]
     },
     "references": [
         {

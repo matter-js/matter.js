@@ -12,6 +12,7 @@ import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnosti
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { Observable } from "@matter/general";
 import { Specification } from "@matter/model";
+import { MockServerNode, interaction } from "@matter/node/testing";
 import {
     BaseDataReport,
     DataReportPayload,
@@ -59,8 +60,6 @@ import { AdministratorCommissioning } from "@matter/types/clusters/administrator
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 import { createDummyMessageExchange } from "./InteractionTestUtils.js";
 
 const TlvStartUpEvent = TlvOfModel(BasicInformation.events.startUp);

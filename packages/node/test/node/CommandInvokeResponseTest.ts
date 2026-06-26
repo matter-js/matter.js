@@ -9,10 +9,10 @@ import { OnOffClient } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
 import { ClusterId, CommandId, EndpointNumber, Status } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {
     it("invoke concrete command", async () => {

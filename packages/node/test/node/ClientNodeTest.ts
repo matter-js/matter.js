@@ -44,6 +44,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { Specification } from "@matter/model";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     CommissioningError,
     ControllerCommissioner,
@@ -58,8 +59,6 @@ import { AccessControl } from "@matter/types/clusters/access-control";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 describe("ClientNode", () => {
     before(() => {
@@ -2104,6 +2103,10 @@ const PEER1_STATE = {
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
+    },
+    desiredState: {
+        items: {},
+        capacities: {},
     },
 };
 

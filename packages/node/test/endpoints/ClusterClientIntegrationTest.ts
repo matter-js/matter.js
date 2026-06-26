@@ -10,11 +10,11 @@ import { DimmerSwitchDevice } from "#devices/dimmer-switch";
 import { DoorbellDevice } from "#devices/doorbell";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
+import { MockSite } from "@matter/node/testing";
 import { Read, ReadResult } from "@matter/protocol";
 import { ClusterId, EndpointNumber } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { Identify } from "@matter/types/clusters/identify";
-import { MockSite } from "../node/mock-site.js";
 
 async function readDescriptorAttribute(
     peer: { interaction: { read(req: Read): AsyncIterable<ReadResult.Chunk> } },

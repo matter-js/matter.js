@@ -7,8 +7,7 @@
 import { OnOffClient } from "#behaviors/on-off";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { Crypto, deepCopy, MockCrypto, Seconds } from "@matter/general";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 describe("ClientCacheBuffer", () => {
     before(() => {

@@ -5,7 +5,7 @@
  */
 
 import { Environment } from "@matter/general";
-import { MockServerNode } from "./mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 // Plugins use dynamic module loading which is not available in web builds
 if (typeof window === "undefined") {

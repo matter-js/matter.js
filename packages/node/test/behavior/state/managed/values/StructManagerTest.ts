@@ -10,9 +10,9 @@ import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "@matter/general";
 import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } from "@matter/model";
+import { MockExchange } from "@matter/node/testing";
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
-import { MockExchange } from "../../../../node/mock-exchange.js";
 import { aclEndpoint, TestStruct } from "./value-utils.js";
 
 export type Nested = {

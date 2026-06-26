@@ -398,10 +398,10 @@ export namespace interaction {
 
 export async function subscribedPeer(controller: ServerNode, id: string) {
     const peer = controller.peers.get(id);
-    expect(peer).not.undefined;
+    expect(peer).to.not.equal(undefined);
 
     const subscription = peer!.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
-    expect(subscription).not.undefined;
+    expect(subscription).to.not.equal(undefined);
 
     await MockTime.resolve(subscription.active);
 

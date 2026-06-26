@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { AsyncObservable, Bytes, DataReadQueue, Lifetime, MAX_UDP_MESSAGE_SIZE } from "@matter/general";
+import { MockServerNode, interaction } from "@matter/node/testing";
 import {
     ExchangeSendOptions,
     MATTER_MESSAGE_OVERHEAD,
@@ -13,8 +14,6 @@ import {
     SecureSession,
     SessionManager,
 } from "@matter/protocol";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 
 // TODO Sync with mock-exchange.ts
 export class DummyMessageExchange {
