@@ -61,6 +61,13 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         interactionModelRevision = Specification.INTERACTION_MODEL_REVISION,
     } = options;
 
+    for (const { path, dataVersion } of writeRequests) {
+        // Spec 1.6 §8.9.2.8.1: DataVersion SHALL NOT accompany a group or wildcard write path.
+        if (dataVersion !== undefined && path.endpointId === undefined) {
+            throw new MalformedRequestError(`Write action with a DataVersion must target a concrete endpoint`);
+        }
+    }
+
     let chunked = false;
 
     const result = {
@@ -117,6 +124,11 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         }
 
         const { endpoint, value, version: dataVersion } = data;
+
+        // Spec 1.6 §8.9.2.8.1: DataVersion SHALL NOT accompany a group or wildcard write path.
+        if (dataVersion !== undefined && endpoint === undefined) {
+            throw new MalformedRequestError(`Write action with a DataVersion must target a concrete endpoint`);
+        }
 
         // Configure base AttributePath
         const prototype: Omit<AttributeData, "data"> = {
