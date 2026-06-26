@@ -44,7 +44,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes encoding and decoding of a message payload header carrying a vendor Protocol ID
     - Fix: Does not send error status messages when the message before was never delivered for PASE/CASE
     - Fix: Clamps the outer interaction-model status to SUCCESS/FAILURE when a cluster-specific status is present
-    - Fix: Prevents the encoder emitting illegal report/path field combinations per spec §8.9
+    - Fix: Rejects a DataVersion on a group or wildcard write path
+    - Fix: Ensures that DataReports always contain data or a status for attributes and never the IsUrgent flag in event data 
 
 - @matter/types
     - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation
