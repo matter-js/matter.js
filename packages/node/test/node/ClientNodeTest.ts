@@ -23,10 +23,13 @@ import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import {
     b$,
     Bytes,
@@ -43,18 +46,37 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { Specification } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterRevision,
+    FeatureMap,
+    GeneratedCommandList,
+    Specification,
+} from "@matter/model";
 import {
     CommissioningError,
     ControllerCommissioner,
     FabricAuthority,
     FabricManager,
     PeerSet,
+    Read,
+    ReadResult,
     Val,
     ValidateError,
 } from "@matter/protocol";
-import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
+import {
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    FabricIndex,
+    NodeId,
+    Status,
+    StatusResponseError,
+    TlvAny,
+} from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -1868,6 +1890,142 @@ describe("ClientNode", () => {
 
             expect(() => peer1.state.commissioning).not.throws();
             expect(peer1.state.commissioning).to.be.undefined;
+        });
+    });
+
+    describe("Schrödinger's cluster", () => {
+        // A manufacturer-specific cluster the peer serves attribute data for but omits from its descriptor serverList.
+        const NEO = 0x125dfc11 as ClusterId;
+        const EP1 = EndpointNumber(1);
+
+        // EP1's real serverList from EP1_STATE (identify, groups, onOff, scenesManagement, descriptor) - notably
+        // without NEO.
+        const EP1_SERVER_LIST = [3, 4, 6, 0x62, 0x1d];
+
+        function attr(clusterId: ClusterId, attributeId: number, value: unknown, version: number): ReadResult.Report {
+            return {
+                kind: "attr-value",
+                path: { endpointId: EP1, clusterId, attributeId: attributeId as AttributeId },
+                value,
+                version,
+                tlv: TlvAny,
+            };
+        }
+
+        function neoReports(version: number): ReadResult.Report[] {
+            return [
+                attr(NEO, ClusterRevision.id, 1, version),
+                attr(NEO, FeatureMap.id, {}, version),
+                attr(
+                    NEO,
+                    AttributeList.id,
+                    [
+                        0,
+                        GeneratedCommandList.id,
+                        AcceptedCommandList.id,
+                        AttributeList.id,
+                        FeatureMap.id,
+                        ClusterRevision.id,
+                    ],
+                    version,
+                ),
+                attr(NEO, AcceptedCommandList.id, [], version),
+                attr(NEO, GeneratedCommandList.id, [], version),
+                attr(NEO, 0, 1234, version),
+            ];
+        }
+
+        function descriptorServerListReport(version: number): ReadResult.Report[] {
+            return [attr(Descriptor.id, Descriptor.attributes.serverList.id, EP1_SERVER_LIST, version)];
+        }
+
+        async function* readResult(...chunks: ReadResult.Report[][]): ReadResult {
+            for (const chunk of chunks) {
+                yield chunk;
+            }
+        }
+
+        async function drain(updates: AsyncGenerator<unknown>) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            for await (const _ of updates) {
+            }
+        }
+
+        it("survives a re-interview where the descriptor precedes the absent cluster's data", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoBehaviorId = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                      )?.id;
+            };
+
+            // *** ESTABLISH SCHRÖDINGER STATE ***
+
+            // First interaction delivers data for NEO while the descriptor omits it.  Because NEO isn't yet an active
+            // behavior, it is kept (matches the startup loadCache path).
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+
+            expect(neoBehaviorId(), "NEO should be active after the initial interaction").not.undefined;
+
+            // *** RE-INTERVIEW ***
+
+            // Full wildcard read where the descriptor chunk (serverList without NEO) arrives before NEO's attribute
+            // data.  NEO must survive because the peer still serves its data.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11), neoReports(11))));
+
+            expect(neoBehaviorId(), "NEO must survive a re-interview that serves its data").not.undefined;
+        });
+
+        it("erases persisted storage when the peer genuinely drops the cluster", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const buffer = controller.env.get(ClientCacheBuffer);
+
+            const neoStorageKeys = () =>
+                Object.keys(site.storageFor("controller1")).filter(key => key.includes(NEO.toString()));
+
+            const neoActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                    )
+                );
+            };
+
+            // *** ESTABLISH AND PERSIST NEO ***
+
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+            await MockTime.resolve(buffer.flush());
+            expect(neoActive(), "NEO should be active").true;
+            expect(neoStorageKeys(), "NEO data should be persisted").not.empty;
+
+            // *** PEER DROPS NEO ***
+
+            // The descriptor still omits NEO and no attribute data is served this interaction, so NEO is genuinely
+            // gone and must be removed from both memory and storage.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
+            await MockTime.resolve(buffer.flush());
+
+            expect(neoActive(), "NEO behavior should be dropped").false;
+            expect(neoStorageKeys(), "NEO storage should be erased").empty;
         });
     });
 });
