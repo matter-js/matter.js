@@ -38,7 +38,7 @@ ModelValidator.validators[AttributeElement.Tag] = class AttributeValidator exten
                 return;
 
             case Metatype.integer:
-                if (primitive.name.startsWith("uint") && (primitive.byteSize ?? 0) <= 4) {
+                if (primitive.name.startsWith("uint") && primitive.byteSize !== undefined && primitive.byteSize <= 4) {
                     return;
                 }
                 break;
