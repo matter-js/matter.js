@@ -44,6 +44,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
     - Fix: Fixes encoding and decoding of a message payload header carrying a vendor Protocol ID
     - Fix: Does not send error status messages when the message before was never delivered for PASE/CASE
+    - Fix: Clamps the outer interaction-model status to SUCCESS/FAILURE when a cluster-specific status is present
+    - Fix: Rejects a DataVersion on a group or wildcard write path
+    - Fix: Ensures that DataReports always contain data or a status for attributes and never the IsUrgent flag in event data 
 
 - @matter/types
     - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation
