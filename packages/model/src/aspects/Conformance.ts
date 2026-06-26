@@ -677,15 +677,15 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
 
         // A choice carries at most one "+" or "-" modifier; both together, or repeated, is invalid grammar (§7.3.14)
         if (atOperator("+") || atOperator("-")) {
-            conformance.error("INVALID_CHOICE", 'Choice modifier may be "+" or "-" but not both');
+            conformance.error("INVALID_CHOICE", 'Choice may have at most one "+" or "-" modifier');
             while (atOperator("+") || atOperator("-")) {
                 tokens.next();
             }
         }
 
-        // A bare number trailing the choice is an unsupported range form such as "a2-4" (§7.3.14)
+        // A bare number trailing the choice is an invalid range form such as "a2-4" or "a2+4" (§7.3.14)
         if (tokens.token?.type === "value") {
-            conformance.error("INVALID_CHOICE", 'Range-form choice (e.g. "a2-4") is not supported');
+            conformance.error("INVALID_CHOICE", 'Invalid range-form choice (e.g. "a2-4" or "a2+4")');
             tokens.next();
         }
 
