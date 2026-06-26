@@ -76,6 +76,7 @@ export class ClientStructure {
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
     #pendingStructureEvents = Array<PendingEvent>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
+    #clustersWithDataThisInteraction = new Set<ClusterStructure>();
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #commandFactory?: ClusterBehaviorType.CommandFactory;
@@ -212,6 +213,10 @@ export class ClientStructure {
      * Update the node structure by applying attribute changes from a Matter protocol interaction.
      */
     async *mutate(request: Read, changes: ReadResult) {
+        // Track which clusters the peer sends data for so a descriptor omitting them doesn't delete them.  Reset at the
+        // start so a prior interaction that threw mid-stream can't leave stale entries blocking a legitimate deletion.
+        this.#clustersWithDataThisInteraction.clear();
+
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
@@ -280,6 +285,8 @@ export class ClientStructure {
      * Values are keyed by property name (not attribute ID).
      */
     async applyWireChanges(changes: StateStream.WireChange[]) {
+        this.#clustersWithDataThisInteraction.clear();
+
         for (const change of changes) {
             switch (change.kind) {
                 case "update": {
@@ -292,6 +299,9 @@ export class ClientStructure {
                     if (typeof change.version === "number") {
                         values.set(DatasourceCache.VERSION_KEY, change.version);
                     }
+
+                    this.#clustersWithDataThisInteraction.add(cluster);
+                    this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
                     await cluster.store.externalSet(values);
                     this.#synchronizeCluster(endpoint, cluster);
@@ -444,6 +454,24 @@ export class ClientStructure {
     }
 
     /**
+     * Cancel a deletion scheduled for a cluster the peer is still sending data for.
+     *
+     * A peer that omits a cluster from its descriptor server list but continues to report the cluster's attributes is
+     * buggy, but we tolerate it by keeping the cluster — aka "Schrödinger's cluster".
+     */
+    #preserveAbsentCluster(endpoint: Endpoint, cluster: ClusterStructure) {
+        if (!cluster.pendingDelete) {
+            return;
+        }
+
+        logger.warn(
+            `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from descriptor server list but peer` +
+                " sent attribute data for it; keeping cluster",
+        );
+        delete cluster.pendingDelete;
+    }
+
+    /**
      * Apply new attribute values for a specific endpoint / cluster.
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
@@ -451,6 +479,12 @@ export class ClientStructure {
     async #updateCluster(attrs: AttributeUpdates) {
         const endpoint = this.#endpointFor(attrs.endpointId);
         const cluster = this.#clusterFor(endpoint, attrs.clusterId);
+
+        // Receiving attribute data for a cluster is authoritative evidence the peer still has it, even when its
+        // descriptor server list omits it.  Record this and cancel any deletion already scheduled by a descriptor
+        // processed earlier in this same interaction — "Schrödinger's cluster".
+        this.#clustersWithDataThisInteraction.add(cluster);
+        this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
         if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
             if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
@@ -565,15 +599,7 @@ export class ClientStructure {
 
                 if (endpoint.lifecycle.isInstalled) {
                     cluster.pendingBehavior = behaviorType;
-                    if (cluster.pendingDelete) {
-                        // Peer sent data for a cluster absent from its descriptor server list; the device is buggy, but
-                        // we tolerate it by cancelling the pending deletion, aka "Schrödinger's cluster".
-                        logger.warn(
-                            `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from` +
-                                " descriptor server list but peer sent attribute data for it; keeping cluster",
-                        );
-                        delete cluster.pendingDelete;
-                    }
+                    this.#preserveAbsentCluster(endpoint, cluster);
                     this.#scheduleStructureChange(
                         structure,
                         endpoint.behaviors.supported[behaviorType.id] ? "rebuild" : "install",
@@ -659,10 +685,14 @@ export class ClientStructure {
                 let anyPendingDelete = false;
                 for (const id of currentlySupported) {
                     const clusterStructure = this.#clusterFor(structure, id);
-                    // Only delete it when peer did not sent attribute data for this cluster in the same interaction
+                    // Only delete it when peer did not send attribute data for this cluster in the same interaction
                     // despite it not being in the server list; a device is buggy but we tolerate it by skipping the
-                    // deletion, aka "Schrödinger's cluster"
-                    if (!clusterStructure.pendingBehavior) {
+                    // deletion, aka "Schrödinger's cluster".  Data arriving later in the interaction cancels the
+                    // deletion via #preserveAbsentCluster; data already seen is skipped here.
+                    if (
+                        !clusterStructure.pendingBehavior &&
+                        !this.#clustersWithDataThisInteraction.has(clusterStructure)
+                    ) {
                         clusterStructure.pendingDelete = true;
                         anyPendingDelete = true;
                     }
