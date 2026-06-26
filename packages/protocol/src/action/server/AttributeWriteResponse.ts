@@ -379,6 +379,11 @@ export class AttributeWriteResponse<
      * Add a status value.
      */
     #asStatus(path: WriteResult.ConcreteAttributePath, status: Status, clusterStatus?: number) {
+        // Spec 1.6 §7.10.7: when a cluster-specific status is present the outer IM status SHALL be SUCCESS or FAILURE.
+        if (clusterStatus !== undefined && status !== Status.Success) {
+            status = Status.Failure;
+        }
+
         if (status !== Status.Success) {
             logger.debug(
                 () =>
