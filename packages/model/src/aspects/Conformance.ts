@@ -517,8 +517,12 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
                     "INVALID_OPTIONALITY",
                     "Optional group cannot be combined with other terms; bracket the entire expression instead",
                 );
-                while (tokens.token && !atOperator(",")) {
+
+                // Discard only the rest of this binary expression (operator + right-hand operands) so any following
+                // top-level term remains available to parse
+                while (tokens.token && Parser.BinaryOperators.has(tokens.token.type)) {
                     tokens.next();
+                    parseAtomicExpression();
                 }
             }
 

@@ -137,6 +137,12 @@ describe("Conformance", () => {
         it("rejects partial optionality [AA] | BB", () => {
             expectErrorCode("[AA] | BB", "INVALID_OPTIONALITY");
         });
+
+        it("recovers a following top-level term after partial optionality", () => {
+            const conformance = new Conformance("[AA] & BB, CC");
+            expect(conformance.errors?.map(e => e.code)).contains("INVALID_OPTIONALITY");
+            expect(`${conformance}`).contains("CC");
+        });
     });
 
     describe("enum value resolution in == expressions", () => {
