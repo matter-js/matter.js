@@ -63,11 +63,18 @@ export class FakePeer {
     /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
     readonly removeOrder = new Array<string>();
 
-    /** DesiredStateBehavior.setIntent stand-in: upsert a pending item. */
-    setIntent(kind: string, key: string, _intent: unknown, _mode: ItemMode = "converge") {
-        if (this.items[itemMapKey(kind, key)] === undefined) {
-            this.addItem(kind, key, "pending");
-        }
+    // Stores real intent+mode (not a placeholder) so the context's prior-capture reads true values.
+    setIntent(kind: string, key: string, intent: unknown = {}, mode: ItemMode = "converge") {
+        const existing = this.items[itemMapKey(kind, key)];
+        const item: ManagedItem = {
+            kind,
+            key,
+            intent,
+            mode,
+            status: existing?.status ?? { state: "pending", updateTimestamp: 0 },
+        };
+        this.items[itemMapKey(kind, key)] = item;
+        this.itemChanged.emit(item);
     }
 
     /** DesiredStateBehavior.removeIntent stand-in: flag deletePending, then drop on the next reconcile. */
@@ -116,6 +123,11 @@ export class FakePeer {
                 delete items[itemMapKey(item.kind, item.key)];
             }
         }
+    }
+
+    /** Reconciler stand-in: no kind has dependents by default (tests override per case). */
+    itemKind(_kind: string): unknown {
+        return undefined;
     }
 
     eventsOf(type: unknown): unknown {

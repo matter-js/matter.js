@@ -6,6 +6,7 @@
 
 import { ImplementationError } from "@matter/general";
 import type { CapacityInfo, ClientNode, ItemKind, ManagedItem } from "@matter/node";
+import { DesiredStateBehavior } from "@matter/node";
 import { GroupKeyManagementClient } from "@matter/node/behaviors/group-key-management";
 import { FabricIndex, GroupId, Status } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
@@ -70,6 +71,16 @@ export class GroupKeyMapItemKind implements ItemKind<GroupKeyMapGrant> {
             return;
         }
         await this.#write(node, kept);
+    }
+
+    isReferenced(node: ClientNode, key: string): boolean {
+        const groupId = Number(key);
+        return Object.values(node.stateOf(DesiredStateBehavior).items).some(
+            item =>
+                item.kind === "endpointGroupMembership" &&
+                item.status.state !== "deletePending" &&
+                Number((item.intent as { groupId: number }).groupId) === groupId,
+        );
     }
 
     async capacity(node: ClientNode): Promise<CapacityInfo> {

@@ -6,6 +6,7 @@
 
 import { ImplementationError } from "@matter/general";
 import type { ClientNode, ItemKind, ManagedItem } from "@matter/node";
+import { DesiredStateBehavior } from "@matter/node";
 import { GroupKeyManagementClient } from "@matter/node/behaviors/group-key-management";
 import { Status } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
@@ -14,10 +15,11 @@ import { PRIORITY_BANDS } from "./priority.js";
 export type GroupKeyGrant = GroupKeyManagement.GroupKeySet;
 
 /**
- * The `groupKey` ItemKind: provisions group key sets via GroupKeyManagement commands. Always writes
- * on apply (KeySetWrite is an idempotent overwrite and key material cannot be read back to compare);
- * verify confirms presence only — KeySetRead returns epoch keys as null, so key material is
- * unverifiable. Epoch-key rotation is driven by the intent changing, not by verify.
+ * The `groupKey` ItemKind: provisions group key sets via GroupKeyManagement commands. Apply is
+ * create-if-absent: skips KeySetWrite when the id is already present because key material is
+ * unreadable and a re-apply would clobber a richer set with our minimal one. Verify confirms
+ * presence only — KeySetRead returns epoch keys as null, so key material is unverifiable.
+ * Epoch-key rotation is driven by the intent changing, not by verify.
  */
 export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
     readonly kind = "groupKey";
@@ -33,7 +35,12 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
                 "groupKeySetId 0 is the IPK and is managed by commissioning, not the reconciler",
             );
         }
-        await this.#commands(node).keySetWrite({ groupKeySet: item.intent });
+        const commands = this.#commands(node);
+        const { groupKeySetIDs } = await commands.keySetReadAllIndices();
+        if (groupKeySetIDs.includes(item.intent.groupKeySetId)) {
+            return;
+        }
+        await commands.keySetWrite({ groupKeySet: item.intent });
     }
 
     async verify(node: ClientNode, item: ManagedItem<GroupKeyGrant>): Promise<boolean> {
@@ -43,6 +50,16 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
 
     async remove(node: ClientNode, item: ManagedItem<GroupKeyGrant>): Promise<void> {
         await this.#commands(node).keySetRemove({ groupKeySetId: item.intent.groupKeySetId });
+    }
+
+    isReferenced(node: ClientNode, key: string): boolean {
+        const keySetId = Number(key);
+        return Object.values(node.stateOf(DesiredStateBehavior).items).some(
+            item =>
+                item.kind === "groupKeyMap" &&
+                item.status.state !== "deletePending" &&
+                (item.intent as { groupKeySetId: number }).groupKeySetId === keySetId,
+        );
     }
 
     // No capacity(): the key-set count has no subscribed attribute (only the KeySetReadAllIndices command),

@@ -25,7 +25,7 @@ export interface GateControl {
 }
 
 /**
- * TaskContext bound to a running task. Records created items into the task's addLog so cancel can revert them.
+ * TaskContext bound to a running task. Records pre-mutation state into the task's changeSet so cancel can revert.
  * Peers are resolved through an injected resolver so the manager controls peer lookup.
  */
 export class RunningTaskContext implements TaskContext {
@@ -45,19 +45,41 @@ export class RunningTaskContext implements TaskContext {
         return peer;
     }
 
+    tryResolvePeer(peerId: string): ClientNode | undefined {
+        return this.peerResolver(peerId);
+    }
+
     async setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode: ItemMode = "converge") {
+        this.#record(peer, kind, key);
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).setIntent(kind, key, intent, mode);
         });
-        if (!this.task.addLog.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
-            this.task.addLog.push({ peerId: peer.id, kind, key });
-        }
     }
 
     async removeIntent(peer: ClientNode, kind: string, key: string) {
+        this.#record(peer, kind, key);
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).removeIntent(kind, key);
         });
+    }
+
+    // First touch wins: records the pre-task state so a revert restores that, not an intermediate touch.
+    #record(peer: ClientNode, kind: string, key: string) {
+        if (this.task.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
+            return;
+        }
+        const existing = peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
+        const prior = existing === undefined ? undefined : { intent: existing.intent, mode: existing.mode };
+        this.task.changeSet.push({ peerId: peer.id, kind, key, prior });
+    }
+
+    async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
+        if (this.reconciler.itemKind(kind)?.isReferenced?.(peer, key)) {
+            logger.debug(`Task ${this.task.id}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
+            return false;
+        }
+        await this.removeIntent(peer, kind, key);
+        return true;
     }
 
     async awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void> {
@@ -156,12 +178,12 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async #evaluate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<boolean> {
-        // Reconcile is not reachability-guarded and would throw on an unreachable peer. Skip it for such peers
-        // so the gate parks (predicate left unsatisfied) and waits for the reachability-change wake.
+        // A gate resolves only on freshly verified state, never on trust-stored committed items.
+        if (nodes.some(node => !this.#reachable(node))) {
+            return false;
+        }
         for (const node of nodes) {
-            if (this.#reachable(node)) {
-                await this.reconciler.reconcile(node, { verify: true });
-            }
+            await this.reconciler.reconcile(node, { verify: true });
         }
         const items = nodes.flatMap(node => Object.values(node.stateOf(DesiredStateBehavior).items));
         return until(items);
@@ -169,6 +191,10 @@ export class RunningTaskContext implements TaskContext {
 
     #classify(nodes: ClientNode[]) {
         this.setState(nodes.some(node => !this.#reachable(node)) ? "parked" : "running");
+    }
+
+    itemAbsent(peer: ClientNode, kind: string, key: string): boolean {
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)] === undefined;
     }
 
     #itemState(peer: ClientNode, kind: string, key: string) {

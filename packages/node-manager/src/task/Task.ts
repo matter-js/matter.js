@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { AddLogEntry, TaskPhase, TaskState, TaskStatus } from "./types.js";
+import { ChangeEntry, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
     type: string;
@@ -13,8 +13,10 @@ export interface TaskPersistence {
     phaseIndex: number;
     state: TaskState;
     externalId?: string;
-    addLog: AddLogEntry[];
+    changeSet: ChangeEntry[];
     error?: string;
+    revertTaskId?: string;
+    revertOf?: string;
 }
 
 export abstract class Task<P = unknown> {
@@ -25,16 +27,20 @@ export abstract class Task<P = unknown> {
     readonly params: P;
     readonly externalId?: string;
     progress: { phaseIndex: number; state: TaskState };
-    addLog: AddLogEntry[];
+    changeSet: ChangeEntry[];
     error?: string;
+    revertTaskId?: string;
+    revertOf?: string;
 
     constructor(id: string, params: P, persisted?: Partial<TaskPersistence>) {
         this.id = id;
         this.params = params;
         this.externalId = persisted?.externalId;
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
-        this.addLog = persisted?.addLog ?? new Array<AddLogEntry>();
+        this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
+        this.revertTaskId = persisted?.revertTaskId;
+        this.revertOf = persisted?.revertOf;
     }
 
     get status(): TaskStatus {
@@ -44,6 +50,8 @@ export abstract class Task<P = unknown> {
             phaseIndex: this.progress.phaseIndex,
             externalId: this.externalId,
             error: this.error,
+            revertTaskId: this.revertTaskId,
+            revertOf: this.revertOf,
         };
     }
 
@@ -59,8 +67,10 @@ export abstract class Task<P = unknown> {
             phaseIndex: this.progress.phaseIndex,
             state: this.progress.state,
             externalId: this.externalId,
-            addLog: this.addLog,
+            changeSet: this.changeSet,
             error: this.error,
+            revertTaskId: this.revertTaskId,
+            revertOf: this.revertOf,
         };
     }
 }

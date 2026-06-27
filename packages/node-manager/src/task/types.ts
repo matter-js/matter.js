@@ -6,7 +6,7 @@
 
 import type { ClientNode, ItemMode, ManagedItem } from "@matter/node";
 
-export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled" | "cancelFailed";
+export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled";
 
 export interface TaskStatus {
     type: string;
@@ -14,12 +14,15 @@ export interface TaskStatus {
     phaseIndex: number;
     externalId?: string;
     error?: string;
+    revertTaskId?: string;
+    revertOf?: string;
 }
 
-export interface AddLogEntry {
+export interface ChangeEntry {
     peerId: string;
     kind: string;
     key: string;
+    prior?: { intent: unknown; mode: ItemMode };
 }
 
 export interface TaskPhase {
@@ -29,8 +32,11 @@ export interface TaskPhase {
 
 export interface TaskContext {
     resolvePeer(peerId: string): ClientNode;
+    tryResolvePeer(peerId: string): ClientNode | undefined;
     setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode?: ItemMode): Promise<void>;
     removeIntent(peer: ClientNode, kind: string, key: string): Promise<void>;
+    removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean>;
     awaitGate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<void>;
     awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void>;
+    itemAbsent(peer: ClientNode, kind: string, key: string): boolean;
 }

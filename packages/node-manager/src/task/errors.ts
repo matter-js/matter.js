@@ -11,11 +11,8 @@ export class TaskError extends MatterError {}
 /** A task referenced a peer that is not commissioned / not present. */
 export class TaskPeerUnavailableError extends TaskError {}
 
-/** A task's forward work failed terminally (no auto-rollback in this increment). */
+/** A task's forward work failed terminally; the manager spawns a revert task to roll back its changeSet. */
 export class TaskFailedError extends TaskError {}
-
-/** A cancel could not revert the task's changes (reserved; not reachable by AddNodeToGroup). */
-export class TaskCancelFailedError extends TaskError {}
 
 /** Internal signal a running gate throws when cancel is requested, so #drive stops cleanly (not "failed"). */
 export class TaskCancelledSignal extends TaskError {}

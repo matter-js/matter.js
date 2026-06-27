@@ -252,6 +252,10 @@ export class ReconcilerBehavior extends Behavior {
         this.internal.registry.register(kind);
     }
 
+    itemKind(kind: string): ItemKind | undefined {
+        return this.internal.registry.get(kind);
+    }
+
     async #runExecutor(peer: ClientNode, planned: PlannedAction[], registry: ItemKindRegistry): Promise<void> {
         const target: ReconcileTarget = {
             node: peer,
@@ -262,6 +266,9 @@ export class ReconcilerBehavior extends Behavior {
             },
             dropItem(kind, key) {
                 return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
+            },
+            currentState(kind, key) {
+                return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)]?.status.state;
             },
         };
         await executeActions(target, planned, registry);
