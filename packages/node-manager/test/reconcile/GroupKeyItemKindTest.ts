@@ -116,32 +116,16 @@ function mapItem(groupId: number, groupKeySetId: number, state: ItemState = "com
 }
 
 describe("GroupKeyItemKind.apply create-if-absent", () => {
-    function commandsNode(present: number[]) {
-        const calls = { write: 0 };
-        const node = {
-            commandsOf: () => ({
-                keySetReadAllIndices: async () => ({ groupKeySetIDs: present }),
-                keySetWrite: async () => {
-                    calls.write++;
-                },
-            }),
-        } as unknown as ClientNode;
-        return { node, calls };
-    }
-    function gkItem(id: number): ManagedItem<GroupKeyGrant> {
-        return item(keySet(id));
-    }
-
     it("writes when the key set is absent", async () => {
-        const { node, calls } = commandsNode([]);
-        await new GroupKeyItemKind().apply(node, gkItem(42));
-        expect(calls.write).equals(1);
+        const { node, calls } = fakePeer([]);
+        await new GroupKeyItemKind().apply(node, item(keySet(42)));
+        expect(calls.wrote).deep.equals([42]);
     });
 
     it("skips the write when the key set already exists", async () => {
-        const { node, calls } = commandsNode([42]);
-        await new GroupKeyItemKind().apply(node, gkItem(42));
-        expect(calls.write).equals(0);
+        const { node, calls } = fakePeer([42]);
+        await new GroupKeyItemKind().apply(node, item(keySet(42)));
+        expect(calls.wrote).deep.equals([]);
     });
 });
 

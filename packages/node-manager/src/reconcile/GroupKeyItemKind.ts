@@ -36,8 +36,6 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
             );
         }
         const commands = this.#commands(node);
-        // Create-if-absent: never overwrite an existing key set (key material is unreadable, so a re-apply
-        // would clobber a richer set with our minimal one). Updates/rotation are the dedicated ipk task.
         const { groupKeySetIDs } = await commands.keySetReadAllIndices();
         if (groupKeySetIDs.includes(item.intent.groupKeySetId)) {
             return;
