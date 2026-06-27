@@ -5,7 +5,7 @@
  */
 
 import type { ClientNode } from "@matter/node";
-import { ItemKindRegistry, ManagedItem } from "@matter/node";
+import { ItemKindRegistry, ItemState, ManagedItem } from "@matter/node";
 import { PlannedAction } from "./planActions.js";
 
 /**
@@ -23,6 +23,8 @@ export interface ReconcileTarget {
         code?: number,
     ): Promise<void>;
     dropItem(kind: string, key: string): Promise<void>;
+    /** Live item state, re-read after a slow apply to detect a concurrent delete. */
+    currentState(kind: string, key: string): ItemState | undefined;
 }
 
 /**
@@ -51,8 +53,16 @@ export async function executeActions(
                     if (kind !== undefined) {
                         await kind.apply(target.node, item);
                     }
+                    // A revert that flipped the intent to delete during this apply must win: a status
+                    // write here would resurrect the item the revert is trying to remove.
+                    if (target.currentState(item.kind, item.key) === "deletePending") {
+                        break;
+                    }
                     await target.updateStatus(item.kind, item.key, "committed");
                 } catch (e) {
+                    if (target.currentState(item.kind, item.key) === "deletePending") {
+                        break;
+                    }
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
                 break;
@@ -62,8 +72,16 @@ export async function executeActions(
                     if (kind?.remove !== undefined) {
                         await kind.remove(target.node, item);
                     }
+                    // A re-add that flipped the intent back during this remove must win: dropping here
+                    // would discard the freshly re-applied intent.
+                    if (target.currentState(item.kind, item.key) !== "deletePending") {
+                        break;
+                    }
                     await target.dropItem(item.kind, item.key);
                 } catch (e) {
+                    if (target.currentState(item.kind, item.key) !== "deletePending") {
+                        break;
+                    }
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
                 break;
