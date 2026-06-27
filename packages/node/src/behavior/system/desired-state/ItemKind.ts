@@ -33,6 +33,12 @@ export interface ItemKind<I = unknown> {
     remove?(node: ClientNode, item: ManagedItem<I>): Promise<void>;
     recoverable?(code: number): boolean;
     capacity?(node: ClientNode): Promise<CapacityInfo>;
+
+    /**
+     * Report whether another live desired-state intent still depends on the `(kind, key)` entry, so a
+     * shared entry is not deleted while referenced. Unimplemented ⇒ no dependents ⇒ always removable.
+     */
+    isReferenced?(node: ClientNode, key: string): boolean;
 }
 
 export class ItemKindRegistry {
