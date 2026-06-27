@@ -72,12 +72,14 @@ describe("NodeJsCrypto", () => {
         it("signs data with known sec1 key", () => {
             const result = cryptoNode.signEcdsa(Key({ sec1: SEC1_KEY }), ENCRYPTED_DATA);
 
-            const privateKeyObject = crypto.createPrivateKey({
-                key: Buffer.from(Bytes.of(SEC1_KEY)),
-                format: "der",
-                type: "sec1",
-            });
-            const publicKey = crypto.createPublicKey(privateKeyObject).export({ format: "der", type: "spki" });
+            const privateKeyPem = crypto
+                .createPrivateKey({
+                    key: Buffer.from(Bytes.of(SEC1_KEY)),
+                    format: "der",
+                    type: "sec1",
+                })
+                .export({ format: "pem", type: "sec1" });
+            const publicKey = crypto.createPublicKey(privateKeyPem).export({ format: "der", type: "spki" });
 
             cryptoNode.verifyEcdsa(Key({ spki: Bytes.of(publicKey) }), ENCRYPTED_DATA, result);
         });

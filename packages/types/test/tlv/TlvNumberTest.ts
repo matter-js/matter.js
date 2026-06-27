@@ -6,6 +6,7 @@
 
 import { ValidationError } from "#common/ValidationError.js";
 import { TlvAny } from "#tlv/TlvAny.js";
+import { ArraySchema } from "#tlv/TlvArray.js";
 import {
     MATTER_EPOCH_OFFSET_S,
     MATTER_EPOCH_OFFSET_US,
@@ -14,11 +15,14 @@ import {
     TlvEpochUs,
     TlvFloat,
     TlvInt64,
+    TlvInt8,
     TlvNumberSchema,
     TlvNumericSchema,
     TlvUInt32,
     TlvUInt64,
+    TlvUInt8,
 } from "#tlv/TlvNumber.js";
+import { TlvByteArrayReader, TlvSchema } from "#tlv/TlvSchema.js";
 import { Bytes } from "@matter/general";
 
 type CodecVectorNumber<I, E> = {
@@ -181,6 +185,51 @@ describe("TlvNumber", () => {
             expect(() => TlvEpochUs.encode(nowUs - MATTER_EPOCH_OFFSET_US)).throw(
                 "Do not convert Epoch-values yourself, use TlvEpochUs directly with unix epoch values.",
             );
+        });
+    });
+
+    describe("relaxNumberTypeChecks", () => {
+        function decode(schema: TlvSchema<any>, hex: string, relaxNumberTypeChecks = false) {
+            return schema.decodeTlvInternal(new TlvByteArrayReader(Bytes.fromHex(hex), { relaxNumberTypeChecks }))
+                .value;
+        }
+
+        it("accepts a signed-encoded positive value for an unsigned schema when relaxed", () => {
+            expect(decode(TlvUInt8, "0005", true)).equal(5);
+        });
+
+        it("rejects a signed-encoded value for an unsigned schema by default", () => {
+            expect(() => decode(TlvUInt8, "0005")).throw("Unexpected type 0, was expecting 4.");
+        });
+
+        it("rejects a signed-encoded negative value for an unsigned schema even when relaxed", () => {
+            expect(() => decode(TlvUInt8, "00ff", true)).throw(ValidationError);
+        });
+
+        it("accepts an unsigned-encoded in-range value for a signed schema when relaxed", () => {
+            expect(decode(TlvInt8, "0405", true)).equal(5);
+        });
+
+        it("rejects an unsigned-encoded out-of-range value for a signed schema even when relaxed", () => {
+            expect(() => decode(TlvInt8, "04c8", true)).throw(ValidationError);
+        });
+
+        it("rejects a float-encoded value for an integer schema even when relaxed", () => {
+            expect(() => decode(TlvUInt8, "0a0892cc45", true)).throw("Unexpected type 10, was expecting 4.");
+        });
+
+        it("accepts a signed-encoded enum value when relaxed", () => {
+            expect(decode(TlvUInt32, "0005", true)).equal(5);
+        });
+
+        it("threads relax options through chunked array element decode", () => {
+            const arr = new ArraySchema(TlvUInt8);
+            const chunks = () => [
+                { listIndex: undefined, element: arr.encodeTlv([]) },
+                { listIndex: null, element: TlvInt8.encodeTlv(5) },
+            ];
+            expect(() => arr.decodeFromChunkedArray(chunks())).throw("Unexpected type 0, was expecting 4.");
+            expect(arr.decodeFromChunkedArray(chunks(), undefined, { relaxNumberTypeChecks: true })).deep.equal([5]);
         });
     });
 });

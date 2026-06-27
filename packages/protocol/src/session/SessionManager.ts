@@ -23,6 +23,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    ImplementationError,
     InternalError,
     Lifecycle,
     Logger,
@@ -46,10 +47,23 @@ import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCoun
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
 import type { Session } from "./Session.js";
+import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
 
 const logger = Logger.get("SessionManager");
+
+/**
+ * Reject a locally-configured Session Active Threshold that cannot be encoded: SAT is a uint16 millisecond value on the
+ * wire. SII/SAI are uint32 and intentionally not bounded here.
+ */
+function assertActiveThreshold(activeThreshold: Duration) {
+    if (activeThreshold > SessionIntervals.maxActiveThreshold) {
+        throw new ImplementationError(
+            `Session Active Threshold ${activeThreshold}ms exceeds the maximum of ${SessionIntervals.maxActiveThreshold}ms`,
+        );
+    }
+}
 
 /** Resumption record without a fabric reference but relevant lookup data used internally in SessionManager */
 interface InternalResumptionRecord {
@@ -179,6 +193,7 @@ export class SessionManager {
             fabrics: { crypto },
         } = context;
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
+        assertActiveThreshold(this.#sessionParameters.activeThreshold);
         this.#nextSessionId = crypto.randomUint16;
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
@@ -272,6 +287,9 @@ export class SessionManager {
      * sessions.
      */
     set sessionParameters(parameters: Partial<SessionParameters>) {
+        if (parameters.activeThreshold !== undefined) {
+            assertActiveThreshold(parameters.activeThreshold);
+        }
         this.#sessionParameters = {
             ...this.#sessionParameters,
             ...parameters,

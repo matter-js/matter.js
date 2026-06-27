@@ -351,6 +351,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.persistentFields = options.supervisor.persistentKeys(options.primaryKey);
 
         this.#configureExternalChanges();
+
+        // Seed consumed into #values; release the store's copy (client stores already drop theirs on consumer attach).
+        if (this.store) {
+            this.store.initialValues = undefined;
+        }
     }
 
     // -- Datasource interface --

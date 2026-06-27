@@ -375,7 +375,7 @@ export class MessageCodec {
         const messageType = reader.readUInt8(); // Protocol Opcode
         const exchangeId = reader.readUInt16();
         const vendorId = hasVendorId ? reader.readUInt16() : COMMON_VENDOR_ID;
-        const protocolId = (vendorId << 16) | reader.readUInt16();
+        const protocolId = vendorId * 0x10000 + reader.readUInt16();
         const ackedMessageId = isAckMessage ? reader.readUInt32() : undefined;
 
         return {
@@ -433,7 +433,7 @@ export class MessageCodec {
         ackedMessageId: ackedMessageCounter,
     }: PayloadHeader) {
         const writer = new DataWriter(Endian.Little);
-        const vendorId = (protocolId & 0xffff0000) >> 16;
+        const vendorId = (protocolId & 0xffff0000) >>> 16;
         const flags =
             (isInitiatorMessage ? PayloadHeaderFlag.IsInitiatorMessage : 0) |
             (ackedMessageCounter !== undefined ? PayloadHeaderFlag.IsAckMessage : 0) |
@@ -444,10 +444,9 @@ export class MessageCodec {
         writer.writeUInt8(messageType);
         writer.writeUInt16(exchangeId);
         if (vendorId !== COMMON_VENDOR_ID) {
-            writer.writeUInt32(protocolId);
-        } else {
-            writer.writeUInt16(protocolId);
+            writer.writeUInt16(vendorId);
         }
+        writer.writeUInt16(protocolId & 0xffff);
         if (ackedMessageCounter !== undefined) writer.writeUInt32(ackedMessageCounter);
         return writer.toByteArray();
     }

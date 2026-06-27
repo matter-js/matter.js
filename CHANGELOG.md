@@ -11,16 +11,54 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, cutting CPU on busy networks
+
 - @matter/node
-    - Enhancement: Avoid a duplicate in-memory copy of cached peer cluster values while a behavior is active
-    - Fix: Ensure that a peer's FeatureMap change rebuilds the affected client cluster behavior
+    - Enhancement: Frees a behavior's persisted seed values from memory once the datasource has loaded them
+    - Adjustment: Rejects an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
+    - Adjustment: A client write to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
+    - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
+    - Fix: Ensures that a peer's FeatureMap change rebuilds the affected client cluster behavior
+    - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
+    - Fix: A client cluster the peer still serves data for but omits from its descriptor server list is no longer dropped when subsequent endpoint data is processed
+    - Fix: Ensures that fabric-scoped attribute data (e.g. stale AccessControl ACL entries) is always sanitized at node startup
+    - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
+    - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
+    - Fix: Aligned Thermostat atomic-write handling with the Matter specification
+    - Fix: Ensures that client clusters are never exposed to incoming interactions
+    - Fix: The generated manual pairing code now reflects the configured commissioning flow, including Vendor ID and Product ID for non-Standard flows
+    - Fix: Ensures that a rejected SetRegulatoryConfig leaves BasicInformation.location unchanged, instead of writing the country code before validating the regulatory config
 
 - @matter/nodejs
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
 
 - @matter/protocol
-    - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Enhancement: Incoming read/subscription data reports now tolerate signed/unsigned integer encoding mismatches within defined bounds. Such cases are still non-compliant and are logged
+    - Enhancement: The mDNS responder and scanners declare the service types and hostnames they care about so the socket can pre-filter irrelevant traffic before decoding
+    - Enhancement: Unified peer device-probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
+    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
+    - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
+    - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
+    - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
+    - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
+    - Fix: Fabric-sensitive events are now always filtered to the accessing fabric on read and subscribe
+    - Fix: A stray StatusReport arriving as an exchange's initial message (e.g. a retransmitted CASE/PASE completion) is now ignored instead of logging an "Unhandled error"
+    - Fix: An invoke client now reports `NoCommandResponse` for sent commands that receive no response, and discards unexpected/unmatched response entries instead of throwing
+    - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
+    - Fix: Fixes encoding and decoding of a message payload header carrying a vendor Protocol ID
+    - Fix: Does not send error status messages when the message before was never delivered for PASE/CASE
+    - Fix: Clamps the outer interaction-model status to SUCCESS/FAILURE when a cluster-specific status is present
+    - Fix: Rejects a DataVersion on a group or wildcard write path
+    - Fix: Ensures that DataReports always contain data or a status for attributes and never the IsUrgent flag in event data 
+
+- @matter/types
+    - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation
+    - Fix: Onboarding-payload version is validated on decode — a reserved QR version (≠ 0) or manual pairing code first digit (≥ 8) is rejected instead of being mis-parsed
+    - Fix: The manual pairing code codec now requires Vendor ID and Product ID for non-Standard commissioning flows
+    - Fix: The onboarding-payload TLV codec rejects reserved tags (0x05–0x7F; manufacturer-specific tags must use 0x80–0xFF) and requires the PBKDF iteration count and salt to be both present or both absent
 
 - @project-chip/matter.js
     - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
@@ -34,6 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
+    - Fix: The conformance parser now rejects invalid choice and optionality constructs instead of mis-parsing them
 
 - @matter/node
     - Fix: Reading `CommissioningServer` pairing codes before commissioning is initialized now throws a clear error instead of emitting a placeholder code

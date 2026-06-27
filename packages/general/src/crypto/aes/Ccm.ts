@@ -230,7 +230,7 @@ export function Ccm(key: Bytes) {
         mic.words[3] ^= tempBlock1.words[3];
 
         // Process the data
-        for (let i = 0; i < ptLength; ) {
+        for (let i = 0; i < ptLength;) {
             ctrBlock.words[3]++;
 
             // Convert input block to platform-endian words

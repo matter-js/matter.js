@@ -20,8 +20,11 @@ import { Bytes } from "#util/Bytes.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { AsyncObservable, BasicObservable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
+import { MdnsRelevanceFilter } from "./MdnsRelevanceFilter.js";
 
 const logger = Logger.get("MdnsListener");
+
+const DNS_HEADER_SIZE = 12;
 
 /**
  * Manages the UDP socket for other components that implement MDNS logic.
@@ -34,6 +37,7 @@ export class MdnsSocket {
         error => logger.error("Unhandled error in MDNS listener", error),
         true,
     );
+    readonly #relevance = new MdnsRelevanceFilter();
 
     static async create(
         network: Network,
@@ -72,6 +76,27 @@ export class MdnsSocket {
 
     get receipt() {
         return this.#receipt;
+    }
+
+    /**
+     * Declare the DNS names an owner cares about so irrelevant packets are dropped before the expensive full decode.
+     * See {@link MdnsRelevanceFilter}; pass `"all"` when interest cannot be enumerated. For interest that changes one
+     * name at a time, prefer {@link addRelevantName} / {@link removeRelevantName}.
+     */
+    registerRelevantNames(owner: string, names: Iterable<string> | "all") {
+        this.#relevance.registerRelevantNames(owner, names);
+    }
+
+    addRelevantName(owner: string, name: string) {
+        this.#relevance.addRelevantName(owner, name);
+    }
+
+    removeRelevantName(owner: string, name: string) {
+        this.#relevance.removeRelevantName(owner, name);
+    }
+
+    unregisterRelevantNames(owner: string) {
+        this.#relevance.unregisterRelevantNames(owner);
     }
 
     async send(message: Partial<DnsMessage> & { messageType: DnsMessageType }, intf?: string, unicastDest?: string) {
@@ -185,8 +210,6 @@ export class MdnsSocket {
             return [[]];
         }
 
-        // DNS header is 12 bytes
-        const DNS_HEADER_SIZE = 12;
         const chunks: DnsMessage["queries"][] = [];
         let currentChunk: DnsMessage["queries"] = [];
         let currentChunkSize = DNS_HEADER_SIZE;
@@ -229,6 +252,11 @@ export class MdnsSocket {
     #handleMessage(bytes: Bytes, sourceIp: string, sourceIntf: string) {
         // Ignore if closed
         if (this.#isClosed) {
+            return;
+        }
+
+        // Drop traffic no subscriber cares about before paying for a full decode
+        if (!this.#relevance.isRelevant(bytes)) {
             return;
         }
 

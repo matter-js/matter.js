@@ -316,14 +316,7 @@ export function* loadClusters(clusters: SpecReference): Generator<ClusterReferen
 
     function defineElement(
         name:
-            | "ids"
-            | "features"
-            | "attributes"
-            | "commands"
-            | "events"
-            | "revisions"
-            | "classifications"
-            | "statusCodes",
+            "ids" | "features" | "attributes" | "commands" | "events" | "revisions" | "classifications" | "statusCodes",
         ref: SpecReference,
     ) {
         if (definition?.type !== "cluster") {

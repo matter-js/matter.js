@@ -47,7 +47,7 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     constructor(advertiser: MdnsAdvertiser, qname: string, description: T) {
         description = {
             ...description,
-            ...SessionIntervals(description),
+            ...SessionIntervals.forAdvertisement(description),
         };
         super(advertiser, `mdns:${qname}`, description, { omitPrivateDetails: advertiser.omitPrivateDetails });
         this.qname = qname;

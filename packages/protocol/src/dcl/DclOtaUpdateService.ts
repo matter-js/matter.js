@@ -8,13 +8,13 @@ import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import { DclErrorCodes } from "#dcl/DclRestApiTypes.js";
 import {
+    asError,
     BlobStorageDriver,
     Construction,
     Crypto,
     Diagnostic,
     Environment,
-    HashAlgorithm,
-    HashFipsAlgorithmId,
+    hashAlgorithmForId,
     ImplementationError,
     Logger,
     MatterError,
@@ -365,13 +365,18 @@ export class DclOtaUpdateService {
         const reader = storedBlob.stream().getReader();
 
         // Validate with full checksum if DCL provided one
-        const checksumOptions = updateInfo.otaChecksum
-            ? {
-                  calculateFullChecksum: true,
-                  checksumType: HashFipsAlgorithmId[updateInfo.otaChecksumType ?? 1] as HashAlgorithm,
-                  expectedChecksum: updateInfo.otaChecksum,
-              }
-            : undefined;
+        let checksumOptions;
+        if (updateInfo.otaChecksum) {
+            const checksumType = hashAlgorithmForId(updateInfo.otaChecksumType ?? 1);
+            if (checksumType === undefined) {
+                throw new OtaUpdateError(`Unsupported OTA checksum type: ${updateInfo.otaChecksumType}`);
+            }
+            checksumOptions = {
+                calculateFullChecksum: true,
+                checksumType,
+                expectedChecksum: updateInfo.otaChecksum,
+            };
+        }
 
         const header = await OtaImageReader.file(reader, this.#crypto, otaFileSize, checksumOptions);
 
@@ -484,7 +489,10 @@ export class DclOtaUpdateService {
                     logger.info(`Existing OTA image validated successfully`, Diagnostic.dict(diagnosticInfo));
                     return fileDesignator;
                 } catch (error) {
-                    logger.info(`Existing OTA image validation failed, Re-downloading ...`, error);
+                    logger.info(
+                        `Existing OTA image validation failed, Re-downloading ...`,
+                        Diagnostic.errorMessage(asError(error)),
+                    );
                 }
             }
 
@@ -936,7 +944,7 @@ export class DclOtaUpdateService {
                 size: blob.size,
             };
         } catch (error) {
-            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, error);
+            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, Diagnostic.errorMessage(asError(error)));
         }
     }
 

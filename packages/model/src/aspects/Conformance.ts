@@ -509,6 +509,23 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
                 conformance.error("UNTERMINATED_CONFORMANCE_OPTIONAL", "Unterminated optional conformance group");
             }
             expr = parseChoice(expr);
+
+            // An optional group may stand alone or carry a choice suffix, but combining it with other terms via a
+            // binary operator (e.g. "[AA] & BB") is partial optionality and is invalid (§7.3.4)
+            if (tokens.token && Parser.BinaryOperators.has(tokens.token.type)) {
+                conformance.error(
+                    "INVALID_OPTIONALITY",
+                    "Optional group cannot be combined with other terms; bracket the entire expression instead",
+                );
+
+                // Discard only the rest of this binary expression (operator + right-hand operands) so any following
+                // top-level term remains available to parse
+                while (tokens.token && Parser.BinaryOperators.has(tokens.token.type)) {
+                    tokens.next();
+                    parseAtomicExpression();
+                }
+            }
+
             otherwise.push(expr);
         } else {
             const expr = parseExpression();
@@ -649,12 +666,26 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
         }
 
         const choice: Conformance.Ast.Choice = { name, expr, num };
+
         if (atOperator("+")) {
             choice.orMore = true;
             tokens.next();
-        }
-        if (atOperator("-")) {
+        } else if (atOperator("-")) {
             choice.orLess = true;
+            tokens.next();
+        }
+
+        // A choice carries at most one "+" or "-" modifier; both together, or repeated, is invalid grammar (§7.3.14)
+        if (atOperator("+") || atOperator("-")) {
+            conformance.error("INVALID_CHOICE", 'Choice may have at most one "+" or "-" modifier');
+            while (atOperator("+") || atOperator("-")) {
+                tokens.next();
+            }
+        }
+
+        // A bare number trailing the choice is an invalid range form such as "a2-4" or "a2+4" (§7.3.14)
+        if (tokens.token?.type === "value") {
+            conformance.error("INVALID_CHOICE", 'Invalid range-form choice (e.g. "a2-4" or "a2+4")');
             tokens.next();
         }
 

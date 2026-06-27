@@ -11,5 +11,6 @@ export * from "./DnssdSolicitor.js";
 export * from "./IpService.js";
 export * from "./IpServiceResolution.js";
 export * from "./IpServiceStatus.js";
+export * from "./MdnsRelevanceFilter.js";
 export * from "./MdnsSocket.js";
 export * from "./ServiceDiscovery.js";

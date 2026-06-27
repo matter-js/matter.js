@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
@@ -12,7 +13,7 @@ import { LightSensorDevice } from "#devices/light-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { EndpointPartsError } from "#endpoint/errors.js";
+import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
@@ -24,6 +25,7 @@ import {
     DnsMessage,
     DnsRecordType,
     Environment,
+    InternalError,
     isObject,
     MemoryStorageDriver,
     MockCrypto,
@@ -33,7 +35,7 @@ import {
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { AccessLevel, BasicInformation, ElementTag, FeatureMap, UnsupportedCastError } from "@matter/model";
+import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
     AttestationCertificateManager,
     CertificationDeclaration,
@@ -49,6 +51,17 @@ import { MockServerNode } from "./mock-server-node.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
 const commissioning = CommissioningHelper();
+
+const CRASH_MESSAGE = "Intentional behavior crash";
+
+class CrashingServer extends Behavior {
+    static override readonly id = "crashing";
+    static override readonly early = true;
+
+    override initialize() {
+        throw new InternalError(CRASH_MESSAGE);
+    }
+}
 
 describe("ServerNode", () => {
     beforeEach(() => {
@@ -445,6 +458,47 @@ describe("ServerNode", () => {
         await node.close();
     });
 
+    it("sanitizes orphaned fabric-scoped data at startup", async () => {
+        const environment = new Environment("test");
+        const service = environment.get(StorageService);
+
+        // Configure storage that survives node replacement
+        const storage = new StorageManager(new MemoryStorageDriver());
+        storage.close = () => {};
+        await storage.initialize();
+        service.open = () => Promise.resolve(storage);
+
+        // Commission a single fabric, then inject an ACL entry referencing a fabric that does not exist and persist it
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.start();
+            await commissioning.commission(node);
+
+            const acl = node.state.accessControl.acl;
+            expect(acl.length).equals(1);
+            expect(acl[0].fabricIndex).equals(FabricIndex(1));
+
+            await node.set({
+                accessControl: { acl: [...acl, { ...acl[0], fabricIndex: FabricIndex(2) }] },
+            });
+            expect(node.state.accessControl.acl.length).equals(2);
+
+            await node.close();
+        }
+
+        // Reopen: startup sanitization must strip the orphaned fabric-2 entry without requiring an active endpoint
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.start();
+
+            const acl = node.state.accessControl.acl;
+            expect(acl.filter(({ fabricIndex }) => fabricIndex === 2).length).equals(0);
+            expect(acl.filter(({ fabricIndex }) => fabricIndex === 1).length).equals(1);
+
+            await node.close();
+        }
+    });
+
     it("properly deploys aggregator", async () => {
         const aggregator = new Endpoint(AggregatorEndpoint);
 
@@ -475,31 +529,25 @@ describe("ServerNode", () => {
     });
 
     describe("crashes gracefully", () => {
-        const badNodeEnv = new Environment("test");
-        badNodeEnv.vars.set("behaviors.basicInformation.vendorId", "not a number");
-
-        const badEndpointEnv = new Environment("test");
-        badEndpointEnv.vars.set("behaviors.illuminancemeasurement.diet", "duck food");
+        const CrashingRoot = MockServerNode.RootEndpoint.with(CrashingServer);
+        const CrashingDevice = LightSensorDevice.with(CrashingServer);
 
         describe("during behavior error on creation", () => {
             it("from root behavior error", async () => {
-                await expect(
-                    MockServerNode.create(MockServerNode.RootEndpoint, { environment: badNodeEnv }),
-                ).rejectedWith(UnsupportedCastError);
+                await expect(MockServerNode.create(CrashingRoot)).rejectedWith(EndpointBehaviorsError);
             });
 
             it("from behavior error on child during node create", async () => {
                 await expect(
                     MockServerNode.create(MockServerNode.RootEndpoint, {
-                        environment: badEndpointEnv,
-                        parts: [new Endpoint(LightSensorDevice)],
+                        parts: [new Endpoint(CrashingDevice)],
                     }),
                 ).rejectedWith(EndpointPartsError);
             });
 
             it("from behavior on child after node create", async () => {
-                const node = await MockServerNode.create(MockServerNode.RootEndpoint, { environment: badEndpointEnv });
-                await expect(node.add(new Endpoint(LightSensorDevice))).rejectedWith(UnsupportedCastError);
+                const node = await MockServerNode.create(MockServerNode.RootEndpoint);
+                await expect(node.add(new Endpoint(CrashingDevice))).rejectedWith(EndpointBehaviorsError);
             });
         });
 
@@ -507,34 +555,28 @@ describe("ServerNode", () => {
             it("from root behavior error", async () => {
                 await expect(
                     MockServerNode.createOnline({
-                        type: MockServerNode.RootEndpoint,
-                        environment: badNodeEnv,
+                        type: CrashingRoot,
                         device: undefined,
                     }),
-                ).rejectedWith(UnsupportedCastError, 'Cannot convert "not a number" to an integer');
+                ).rejectedWith(EndpointBehaviorsError);
             });
 
             it("from behavior error on child during startup", async () => {
                 await expect(
                     MockServerNode.createOnline({
                         type: MockServerNode.RootEndpoint,
-                        environment: badEndpointEnv,
                         id: "foo",
-                        device: LightSensorDevice,
+                        device: CrashingDevice,
                     }),
-                ).rejectedWith(UnsupportedCastError, 'Property "diet" is unsupported');
+                ).rejectedWith(EndpointBehaviorsError);
             });
 
             it("from behavior error on child added after startup", async () => {
                 const node = await MockServerNode.createOnline({
                     type: MockServerNode.RootEndpoint,
-                    environment: badEndpointEnv,
                     device: undefined,
                 });
-                await expect(node.add(LightSensorDevice)).rejectedWith(
-                    UnsupportedCastError,
-                    'Property "diet" is unsupported',
-                );
+                await expect(node.add(CrashingDevice)).rejectedWith(EndpointBehaviorsError);
             });
         });
     });
@@ -588,6 +630,44 @@ describe("ServerNode", () => {
                     coupleColorTempToLevelMinMireds: 1,
                 },
             });
+
+            await node.close();
+        }
+    });
+
+    it("restores persisted attribute values after restart", async () => {
+        const environment = new Environment("test");
+        const service = environment.get(StorageService);
+
+        // Configure storage that will survive node replacement
+        const storage = new StorageManager(new MemoryStorageDriver());
+        storage.close = () => {};
+        await storage.initialize();
+        service.open = () => Promise.resolve(storage);
+
+        const colorControl = {
+            colorMode: 0,
+            colorTempPhysicalMinMireds: 1,
+            colorTempPhysicalMaxMireds: 65279,
+            startUpColorTemperatureMireds: 1,
+            coupleColorTempToLevelMinMireds: 1,
+        };
+
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.construction.ready;
+            const endpoint = await node.add(ExtendedColorLightDevice, { id: "foo", number: 1, colorControl });
+            await endpoint.set({ colorControl: { currentX: 12 } });
+            await node.close();
+        }
+
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.construction.ready;
+            const endpoint = await node.add(ExtendedColorLightDevice, { id: "foo", number: 1, colorControl });
+
+            // The datasource drops its store seed after construction; the persisted value must still load.
+            expect(endpoint.state.colorControl.currentX).equals(12);
 
             await node.close();
         }

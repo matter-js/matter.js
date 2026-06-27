@@ -18,6 +18,7 @@ import {
     TlvAttributeReport,
     TlvBoolean,
     TlvEventData,
+    TlvInt32,
     TlvOfModel,
     TlvUInt32,
     TlvVoid,
@@ -533,6 +534,32 @@ describe("InputChunk", () => {
 
             const chunks = await collect(report);
             expect(chunks.map(c => c.kind)).deep.equal(["attr-value", "event-value"]);
+        });
+    });
+
+    describe("relaxed integer type checks", () => {
+        // dataModelRevision is an unsigned attribute; encode its value as a signed integer to mimic a non-compliant
+        // device. Data report decode tolerates the mismatch so the entry is not dropped.
+        it("decodes a signed-encoded value for an unsigned attribute", async () => {
+            const report = buildReport({
+                attributeReports: [
+                    {
+                        attributeData: {
+                            path: {
+                                endpointId: EndpointNumber(0),
+                                clusterId: ClusterId(BasicInformation.id),
+                                attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+                            },
+                            dataVersion: 1,
+                            data: TlvInt32.encodeTlv(17),
+                        },
+                    },
+                ],
+            });
+
+            const chunks = await collect(report);
+            expect(chunks.length).equal(1);
+            expect((chunks[0] as ReadResult.AttributeValue).value).equal(17);
         });
     });
 });

@@ -251,9 +251,7 @@ export namespace Scope {
      * Determines how to apply conformance when selecting members.
      */
     export type ConformanceMode =
-        | typeof IgnoreConformance
-        | typeof DeconflictedConformance
-        | typeof ConformantConformance;
+        typeof IgnoreConformance | typeof DeconflictedConformance | typeof ConformantConformance;
 
     export interface MemberOptions {
         /**

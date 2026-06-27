@@ -381,6 +381,11 @@ export namespace CommissioningServer {
                         manualPairingCode: ManualPairingCodeCodec.encode({
                             discriminator: comm.discriminator,
                             passcode: comm.passcode,
+                            flowType: comm.flowType,
+                            // § 5.1.4.1.2: a non-standard flow SHALL carry VID/PID in the manual code.
+                            ...(comm.flowType !== CommissioningFlowType.Standard
+                                ? { vendorId: bi.vendorId, productId: bi.productId }
+                                : {}),
                         }),
                         qrPairingCode,
                     };

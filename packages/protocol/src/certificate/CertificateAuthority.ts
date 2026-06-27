@@ -126,10 +126,7 @@ export class CertificateAuthority {
             }
 
             this.#rootKeyPair = await this.#crypto.createKeyPair();
-            this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeHash(this.#rootKeyPair.publicKey)).slice(
-                0,
-                20,
-            );
+            this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeHash(this.#rootKeyPair.publicKey, "SHA-1"));
             this.#rootCertBytes = await this.#generateRootCert();
 
             if (requireIcac) {
@@ -213,7 +210,7 @@ export class CertificateAuthority {
     async #generateIcacProps(): Promise<IcacProps> {
         const certId = this.#nextCertificateId++;
         const keyPair = await this.#crypto.createKeyPair();
-        const keyIdentifier = Bytes.of(await this.#crypto.computeHash(keyPair.publicKey)).slice(0, 20);
+        const keyIdentifier = Bytes.of(await this.#crypto.computeHash(keyPair.publicKey, "SHA-1"));
 
         const now = Time.now;
         const cert = new Icac({
@@ -273,7 +270,7 @@ export class CertificateAuthority {
                     digitalSignature: true,
                 },
                 extendedKeyUsage: [2, 1],
-                subjectKeyIdentifier: Bytes.of(await this.#crypto.computeHash(publicKey)).slice(0, 20),
+                subjectKeyIdentifier: Bytes.of(await this.#crypto.computeHash(publicKey, "SHA-1")),
                 authorityKeyIdentifier: authorityKeyId,
             },
         });

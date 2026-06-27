@@ -27,6 +27,7 @@ import {
     Logger,
     MaybePromise,
     Transaction,
+    UnexpectedDataError,
 } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { ClusterTypeProtocol, Val } from "@matter/protocol";
@@ -639,12 +640,23 @@ export class Behaviors {
             }
         }
 
-        // Set defaults from environmental configuration
+        // Set defaults from environmental configuration.  Cast each property individually so one misconfigured value
+        // is logged and skipped rather than crashing initialization and discarding its valid siblings.
         const { variableService } = this.#endpoint.env.get(EndpointInitializer);
         if (variableService) {
             const vars = variableService.forBehaviorInstance(this.#endpoint, type);
             if (vars !== undefined) {
-                defaults = { ...defaults, ...(type.supervisor.cast(vars) as Val.Struct) };
+                for (const [key, value] of Object.entries(vars)) {
+                    try {
+                        Object.assign((defaults ??= {}), type.supervisor.cast({ [key]: value }) as Val.Struct);
+                    } catch (e) {
+                        UnexpectedDataError.accept(e);
+                        logger.error(
+                            `Ignoring environment configuration for ${this.#endpoint}.${type.id}.${key}:`,
+                            Diagnostic.errorMessage(e),
+                        );
+                    }
+                }
             }
         }
 

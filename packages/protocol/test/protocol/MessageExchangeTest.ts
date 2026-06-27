@@ -58,6 +58,7 @@ function fakeInboundMessage(overrides?: {
     protocolId?: number;
     messageType?: number;
     payload?: Bytes;
+    ackedMessageId?: number;
 }): Message {
     return {
         packetHeader: { messageId: overrides?.messageId ?? 1 },
@@ -67,7 +68,7 @@ function fakeInboundMessage(overrides?: {
             exchangeId: 1,
             isInitiatorMessage: false,
             requiresAck: false,
-            ackedMessageId: undefined,
+            ackedMessageId: overrides?.ackedMessageId,
         },
         payload: overrides?.payload ?? Bytes.empty,
     } as unknown as Message;
@@ -117,6 +118,41 @@ describe("MessageExchange", () => {
 
                 expect(peerLostCalled.value).to.be.false;
             });
+        });
+    });
+
+    describe("hasUnackedMessage", () => {
+        before(() => MockTime.enable());
+
+        it("is false before any send", () => {
+            const { exchange } = createExchange(new ProtocolMocks.NodeSession());
+            expect(exchange.hasUnackedMessage).to.be.false;
+        });
+
+        it("is true while a sent message awaits ack and clears once acked", async () => {
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false; // engage MRP so the send awaits an ack
+            const session = new ProtocolMocks.NodeSession({ channel });
+            let sentMessageId: number | undefined;
+            const realSend = session.channel.send.bind(session.channel);
+            (session.channel as any).send = async (...args: Parameters<typeof realSend>) => {
+                sentMessageId ??= args[0].packetHeader.messageId;
+                return realSend(...args);
+            };
+            const { exchange } = createExchange(session);
+
+            const sendPromise = exchange.send(1, Bytes.empty, { requiresAck: true });
+            // Let the send progress past the async message counter into the await-ack state
+            for (let i = 0; i < 10 && !exchange.hasUnackedMessage; i++) {
+                await MockTime.yield3();
+            }
+
+            expect(exchange.hasUnackedMessage).to.be.true;
+
+            await exchange.onMessageReceived(fakeInboundMessage({ messageId: 2, ackedMessageId: sentMessageId }));
+            await sendPromise;
+
+            expect(exchange.hasUnackedMessage).to.be.false;
         });
     });
 

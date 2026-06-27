@@ -61,7 +61,7 @@ export class CommandInvokeResponse<
         this.#fabricIndex = session.fabric ?? FabricIndex.NO_FABRIC;
     }
 
-    async *process<T extends Invoke>({ invokeRequests, suppressResponse }: T): InvokeResult {
+    async *process<T extends Invoke>({ invokeRequests }: T): InvokeResult {
         using _invoking = this.join("invoking");
         const multipleInvokes = invokeRequests.length > 1;
 
@@ -94,16 +94,14 @@ export class CommandInvokeResponse<
         if (this.#invokers) {
             for (const invoker of this.#invokers) {
                 for await (const chunk of invoker.apply(this)) {
-                    if (!suppressResponse) {
-                        yield chunk;
-                    }
+                    yield chunk;
                 }
             }
         }
 
         // We emit chunks lazily when the endpoint changes so there may be one remaining chunk.  There may also be a
         // chunk with errors even if there are no data producers
-        if (!suppressResponse && this.#chunk !== undefined) {
+        if (this.#chunk !== undefined) {
             yield this.#chunk;
         }
     }
@@ -249,6 +247,7 @@ export class CommandInvokeResponse<
         if (access !== undefined) {
             const denial = this.#authorize(access.session, limits.writeLevel, access.location);
             if (denial !== undefined) {
+                this.#errorCount++;
                 return this.#addStatus(path, commandRef, denial);
             }
         }
@@ -407,6 +406,11 @@ export class CommandInvokeResponse<
         status: Status,
         clusterStatus?: number,
     ) {
+        // Spec 1.6 §7.10.7: when a cluster-specific status is present the outer IM status SHALL be SUCCESS or FAILURE.
+        if (clusterStatus !== undefined && status !== Status.Success) {
+            status = Status.Failure;
+        }
+
         if (status !== Status.Success) {
             logger.info(
                 () =>

@@ -22,7 +22,7 @@ import { MessageExchange } from "../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../protocol/ProtocolHandler.js";
 import { CaseServer } from "../session/case/CaseServer.js";
 import { MaximumPasePairingErrorsReachedError, PaseServer } from "../session/pase/PaseServer.js";
-import { ChannelStatusResponseError, SecureChannelMessenger } from "./SecureChannelMessenger.js";
+import { SecureChannelMessenger } from "./SecureChannelMessenger.js";
 import { SecureChannelStatusMessage } from "./SecureChannelStatusMessageSchema.js";
 
 const logger = Logger.get("SecureChannelProtocol");
@@ -64,22 +64,16 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
             );
         }
 
-        const { generalStatus, protocolId, protocolStatus } = SecureChannelStatusMessage.decode(payload);
-        if (generalStatus !== GeneralStatusCode.Success) {
-            throw new ChannelStatusResponseError(
-                `Received general error status (${protocolId})`,
-                generalStatus,
-                protocolStatus,
-            );
-        }
+        const { generalStatus, protocolStatus } = SecureChannelStatusMessage.decode(payload);
 
-        // CloseSession is the only case where a StatusReport comes as initial message
-        if (protocolStatus !== SecureChannelStatusCode.CloseSession) {
-            throw new ChannelStatusResponseError(
-                `Received general success status, but protocol status is not CloseSession`,
-                generalStatus,
-                protocolStatus,
+        // Only CloseSession is expected as an initial StatusReport; anything else is a stray peer retransmit.
+        if (generalStatus !== GeneralStatusCode.Success || protocolStatus !== SecureChannelStatusCode.CloseSession) {
+            logger.debug(
+                exchange.via,
+                `Ignoring unexpected initial StatusReport (general: ${generalStatus}, protocol: ${protocolStatus})`,
             );
+            await exchange.close();
+            return;
         }
 
         const { session } = exchange;
