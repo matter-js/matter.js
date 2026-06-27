@@ -10,6 +10,7 @@ import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
 import { TaskCancelledSignal, TaskSuspendedSignal } from "./errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
+import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { Task, TaskPersistence } from "./Task.js";
 import { TaskCtor, TaskRegistry } from "./TaskRegistry.js";
@@ -72,6 +73,7 @@ export class TaskManagerBehavior extends Behavior {
     /** Built-in task types registered before the resume pass. */
     protected registerBuiltins(): void {
         this.internal.registry.register(ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup);
+        this.internal.registry.register(REVERT_TYPE, Revert);
     }
 
     #registerBuiltins(): void {

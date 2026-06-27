@@ -193,6 +193,10 @@ export class RunningTaskContext implements TaskContext {
         this.setState(nodes.some(node => !this.#reachable(node)) ? "parked" : "running");
     }
 
+    itemAbsent(peer: ClientNode, kind: string, key: string): boolean {
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)] === undefined;
+    }
+
     #itemState(peer: ClientNode, kind: string, key: string) {
         return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)]?.status.state;
     }

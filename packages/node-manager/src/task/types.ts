@@ -36,4 +36,5 @@ export interface TaskContext {
     removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean>;
     awaitGate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<void>;
     awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void>;
+    itemAbsent(peer: ClientNode, kind: string, key: string): boolean;
 }
