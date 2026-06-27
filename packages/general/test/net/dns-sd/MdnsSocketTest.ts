@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DnsCodec, DnsMessageType, MAX_MDNS_MESSAGE_SIZE, MdnsSocket, PtrRecord, Seconds } from "#index.js";
+import {
+    AAAARecord,
+    Bytes,
+    DnsCodec,
+    DnsMessage,
+    DnsMessageType,
+    MAX_MDNS_MESSAGE_SIZE,
+    MdnsSocket,
+    PtrRecord,
+    Seconds,
+} from "#index.js";
 import {
     closeTestEnv,
     collectSentMessages,
@@ -507,6 +517,197 @@ describe("MdnsSocket", () => {
             await env.peerChannel.close();
             await env.network.close();
             await env.peerNetwork.close();
+        });
+    });
+
+    describe("relevance pre-filter", () => {
+        let env: TestEnv;
+
+        beforeEach(async () => {
+            env = await createTestEnv({ enableIpv4: true });
+        });
+
+        afterEach(async () => {
+            await closeTestEnv(env);
+        });
+
+        // Subscribe, then send messages expected to be dropped followed by a sentinel expected to pass.  Delivery is
+        // ordered, so the first receipt is the sentinel iff every prior message was filtered before decode.
+        function firstReceiptAfter(
+            dropped: (Partial<DnsMessage> & { messageType: DnsMessageType })[],
+            sentinel: Partial<DnsMessage> & { messageType: DnsMessageType },
+        ) {
+            const receiptPromise = waitForReceipt(env.socket);
+            return (async () => {
+                for (const message of dropped) {
+                    await sendFromPeer(env, completeDnsMessage(message));
+                }
+                await sendFromPeer(env, completeDnsMessage(sentinel));
+                return receiptPromise;
+            })();
+        }
+
+        it("accepts everything when no names are registered", async () => {
+            const receiptPromise = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            const received = await receiptPromise;
+            expect(received.queries[0].name).to.equal("_googlecast._tcp.local");
+        });
+
+        it("keeps a registered service-type query and drops unrelated traffic", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+            const received = await firstReceiptAfter(
+                [createQuery("_googlecast._tcp.local"), createQuery("_spotify-connect._tcp.local")],
+                createQuery("_matter._tcp.local"),
+            );
+            expect(received.queries[0].name).to.equal("_matter._tcp.local");
+        });
+
+        it("matches case-insensitively", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+            const receiptPromise = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_MATTER._TCP.LOCAL")));
+            const received = await receiptPromise;
+            expect(received.queries[0].name.toLowerCase()).to.equal("_matter._tcp.local");
+        });
+
+        it("keeps subtype and operational-instance names (derive the service-type label)", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+
+            const subtype = await (async () => {
+                const receiptPromise = waitForReceipt(env.socket);
+                await sendFromPeer(env, completeDnsMessage(createQuery("_IC1AEBF9B24C32F45._sub._matter._tcp.local")));
+                return receiptPromise;
+            })();
+            expect(subtype.queries[0].name).to.equal("_IC1AEBF9B24C32F45._sub._matter._tcp.local");
+
+            const instance = await (async () => {
+                const receiptPromise = waitForReceipt(env.socket);
+                await sendFromPeer(
+                    env,
+                    completeDnsMessage(createQuery("89612D9C3604BB09-3DB2B46355FE8C6B._matter._tcp.local")),
+                );
+                return receiptPromise;
+            })();
+            expect(instance.queries[0].name).to.equal("89612D9C3604BB09-3DB2B46355FE8C6B._matter._tcp.local");
+        });
+
+        it("keeps an A/AAAA answer for a tracked hostname carrying no service text (trap #1)", async () => {
+            env.socket.registerRelevantNames("dnssd", ["_matter._tcp.local", "68ec8a0d7fe80000.local"]);
+            const receiptPromise = waitForReceipt(env.socket);
+            await sendFromPeer(
+                env,
+                completeDnsMessage(createResponse([AAAARecord("68EC8A0D7FE80000.local", "abcd::42")])),
+            );
+            const received = await receiptPromise;
+            expect(received.answers).to.have.length(1);
+            expect(received.answers[0].name).to.equal("68EC8A0D7FE80000.local");
+        });
+
+        it("drops an A/AAAA answer for an untracked hostname", async () => {
+            env.socket.registerRelevantNames("dnssd", ["_matter._tcp.local", "68ec8a0d7fe80000.local"]);
+            const received = await firstReceiptAfter(
+                [createResponse([AAAARecord("ffffffffffffffff.local", "abcd::99")])],
+                createQuery("_matter._tcp.local"),
+            );
+            expect(received.queries[0].name).to.equal("_matter._tcp.local");
+        });
+
+        it("follows compression pointers to a footprint reachable only via the pointer", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+
+            // Two answers: #1 is a TXT whose name (x.local) carries no footprint but whose RDATA happens to contain the
+            // literal labels "_matter._tcp.local" (starting at offset 31); #2's name is a compression pointer to that
+            // RDATA. The only literal "_matter" lives in RDATA the matcher skips, so it is found solely by following
+            // the pointer in #2's name.
+            // prettier-ignore
+            const raw = Uint8Array.from([
+                0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, // header: response, 2 answers
+                0x01, 0x78, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, // #1 name "x.local"
+                0x00, 0x10, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x14, // TXT, IN, ttl, rdlength=20
+                0x07, 0x5f, 0x6d, 0x61, 0x74, 0x74, 0x65, 0x72, // RDATA @31: "_matter"
+                0x04, 0x5f, 0x74, 0x63, 0x70, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, // "_tcp" "local" \0
+                0xc0, 0x1f, // #2 name: pointer -> offset 31
+                0x00, 0x1c, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x10, // AAAA, IN, ttl, rdlength=16
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // AAAA RDATA (::)
+            ]);
+
+            const receiptPromise = waitForReceipt(env.socket);
+            await env.peerChannel.send(MdnsSocket.BROADCAST_IPV4, MdnsSocket.BROADCAST_PORT, raw);
+            const received = await receiptPromise;
+            expect(received.answers).to.have.length(2);
+        });
+
+        it('disables filtering when an owner registers "all"', async () => {
+            env.socket.registerRelevantNames("responder", ["_matter._tcp.local"]);
+            env.socket.registerRelevantNames("generic", "all");
+            const receiptPromise = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            const received = await receiptPromise;
+            expect(received.queries[0].name).to.equal("_googlecast._tcp.local");
+        });
+
+        it("reverts to accept-all after the last owner unregisters", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+            env.socket.unregisterRelevantNames("test");
+            const receiptPromise = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            const received = await receiptPromise;
+            expect(received.queries[0].name).to.equal("_googlecast._tcp.local");
+        });
+
+        it("unions footprints across owners", async () => {
+            env.socket.registerRelevantNames("a", ["_matter._tcp.local"]);
+            env.socket.registerRelevantNames("b", ["68ec8a0d7fe80000.local"]);
+
+            const hostHit = await (async () => {
+                const receiptPromise = waitForReceipt(env.socket);
+                await sendFromPeer(
+                    env,
+                    completeDnsMessage(createResponse([AAAARecord("68EC8A0D7FE80000.local", "abcd::42")])),
+                );
+                return receiptPromise;
+            })();
+            expect(hostHit.answers[0].name).to.equal("68EC8A0D7FE80000.local");
+
+            const serviceHit = await firstReceiptAfter(
+                [createQuery("_googlecast._tcp.local")],
+                createQuery("_matter._tcp.local"),
+            );
+            expect(serviceHit.queries[0].name).to.equal("_matter._tcp.local");
+        });
+
+        it("adds and removes a tracked name incrementally", async () => {
+            env.socket.registerRelevantNames("filters", ["_matter._tcp.local"]);
+            env.socket.addRelevantName("tracked", "68ec8a0d7fe80000.local");
+
+            const kept = await (async () => {
+                const receiptPromise = waitForReceipt(env.socket);
+                await sendFromPeer(
+                    env,
+                    completeDnsMessage(createResponse([AAAARecord("68EC8A0D7FE80000.local", "abcd::42")])),
+                );
+                return receiptPromise;
+            })();
+            expect(kept.answers[0].name).to.equal("68EC8A0D7FE80000.local");
+
+            env.socket.removeRelevantName("tracked", "68ec8a0d7fe80000.local");
+            const received = await firstReceiptAfter(
+                [createResponse([AAAARecord("68EC8A0D7FE80000.local", "abcd::99")])],
+                createQuery("_matter._tcp.local"),
+            );
+            expect(received.queries[0].name).to.equal("_matter._tcp.local");
+        });
+
+        it("keeps a footprint shared by owners until the last releases it (refcount)", async () => {
+            env.socket.registerRelevantNames("a", ["_matter._tcp.local"]);
+            env.socket.registerRelevantNames("b", ["_matter._tcp.local"]);
+            env.socket.unregisterRelevantNames("a");
+
+            const receiptPromise = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_matter._tcp.local")));
+            const received = await receiptPromise;
+            expect(received.queries[0].name).to.equal("_matter._tcp.local");
         });
     });
 

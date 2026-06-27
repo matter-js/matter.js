@@ -29,6 +29,8 @@ import {
 
 const logger = Logger.get("MdnsServer");
 
+const RESPONDER_NAMES_OWNER = "mdns-responder";
+
 /** RFC 6762 §7.3 - Window for duplicate question suppression (999ms per python-zeroconf) */
 export const QUESTION_SUPPRESSION_WINDOW = Millis(999);
 
@@ -54,10 +56,15 @@ export class MdnsServer {
                 }
             }
 
+            this.#registerResponderNames(ownedNames);
+
             return { byService, ownedNames };
         },
         Minutes(15) /* matches maximum standard commissioning window time */,
     );
+    // Union of advertised names across interfaces, fed to the socket so it keeps queries for our records (notably
+    // bare-hostname A/AAAA queries, which carry no service-type label) before decoding.  Reset when records change.
+    readonly #responderNames = new Set<string>();
     readonly #recordLastSentAsMulticastAnswer = new Map<string, number>();
     readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
     /** RFC 6762 §7.3 - Tracks recently answered queries for duplicate suppression */
@@ -253,20 +260,38 @@ export class MdnsServer {
 
     async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
         this.#recordsGenerator.set(service, generator);
-        await this.#records.clear();
-        this.#recordLastSentAsMulticastAnswer.clear();
-        this.#recentlyAnsweredQueries.clear();
+        await this.#resetServices();
     }
 
     async #resetServices() {
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
+        // Reset the accumulator but leave the prior footprints registered until the cache rebuilds and replaces them:
+        // an empty registration here would open a window where queries for our own hostname get dropped, while stale
+        // footprints only ever cause a harmless extra decode.
+        this.#responderNames.clear();
+    }
+
+    // Accumulate the union of advertised names across interfaces; re-register only when it grows.  Stale entries from a
+    // vanished interface are at worst extra keeps and are cleared on the next #resetServices.
+    #registerResponderNames(ownedNames: Iterable<string>) {
+        let changed = false;
+        for (const name of ownedNames) {
+            if (!this.#responderNames.has(name)) {
+                this.#responderNames.add(name);
+                changed = true;
+            }
+        }
+        if (changed) {
+            this.#socket.registerRelevantNames(RESPONDER_NAMES_OWNER, this.#responderNames);
+        }
     }
 
     async close() {
         using _closing = this.#lifetime.closing();
         this.#observers.close();
+        this.#socket.unregisterRelevantNames(RESPONDER_NAMES_OWNER);
         await this.#records.close();
         for (const { timer } of this.#truncatedQueryCache.values()) {
             timer.stop();
