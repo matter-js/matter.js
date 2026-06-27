@@ -247,9 +247,13 @@ export class AtomicWriteHandler {
         //  older values. We need to tweak the state for a complete solution. But ok for now!
         endpoint
             .eventsOf(cluster.id)
-            [
-                `${attributeName}$AtomicChanging`
-            ]?.emit(value, state.pendingAttributeValues[attribute] !== undefined ? state.pendingAttributeValues[attribute] : state.initialValues[attribute], context);
+            [`${attributeName}$AtomicChanging`]?.emit(
+                value,
+                state.pendingAttributeValues[attribute] !== undefined
+                    ? state.pendingAttributeValues[attribute]
+                    : state.initialValues[attribute],
+                context,
+            );
         state.pendingAttributeValues[attribute] = value;
         logger.debug("Atomic write state after current write:", state);
     }

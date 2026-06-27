@@ -11,11 +11,7 @@ import { RemoteResponse } from "./RemoteResponse.js";
  * The intermediate version of a {@link RemoteResponse}, transformed before transmission.
  */
 export type LocalResponse =
-    | RemoteResponse.OK
-    | RemoteResponse.Change
-    | LocalResponse.Value
-    | LocalResponse.Subscription
-    | LocalResponse.Error;
+    RemoteResponse.OK | RemoteResponse.Change | LocalResponse.Value | LocalResponse.Subscription | LocalResponse.Error;
 
 export namespace LocalResponse {
     export interface Value extends RemoteResponse.Base {

@@ -13,9 +13,7 @@ import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { CommissioningMode } from "./CommissioningMode.js";
 
 export type ServiceDescription =
-    | ServiceDescription.Operational
-    | ServiceDescription.Commissionable
-    | ServiceDescription.Commissioner;
+    ServiceDescription.Operational | ServiceDescription.Commissionable | ServiceDescription.Commissioner;
 
 export namespace ServiceDescription {
     export function isCommissioning(description: ServiceDescription): description is Commissionable | Commissioner {

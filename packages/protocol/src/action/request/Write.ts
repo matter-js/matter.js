@@ -198,8 +198,7 @@ export namespace Write {
      * Selects attributes to Write.  Limits fields to legal permutations per the Matter specification.
      */
     export type Attribute<C extends Specifier.Cluster = Specifier.Cluster> = (
-        | Attribute.Concrete<C>
-        | Attribute.WildcardEndpoint<C>
+        Attribute.Concrete<C> | Attribute.WildcardEndpoint<C>
     ) & {
         kind: "attribute";
         value: any;
