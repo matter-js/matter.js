@@ -16,10 +16,11 @@ export interface TaskStatus {
     error?: string;
 }
 
-export interface AddLogEntry {
+export interface ChangeEntry {
     peerId: string;
     kind: string;
     key: string;
+    prior?: { intent: unknown; mode: ItemMode };
 }
 
 export interface TaskPhase {

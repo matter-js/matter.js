@@ -25,7 +25,7 @@ export interface GateControl {
 }
 
 /**
- * TaskContext bound to a running task. Records created items into the task's addLog so cancel can revert them.
+ * TaskContext bound to a running task. Records pre-mutation state into the task's changeSet so cancel can revert.
  * Peers are resolved through an injected resolver so the manager controls peer lookup.
  */
 export class RunningTaskContext implements TaskContext {
@@ -50,18 +50,27 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode: ItemMode = "converge") {
+        this.#record(peer, kind, key);
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).setIntent(kind, key, intent, mode);
         });
-        if (!this.task.addLog.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
-            this.task.addLog.push({ peerId: peer.id, kind, key });
-        }
     }
 
     async removeIntent(peer: ClientNode, kind: string, key: string) {
+        this.#record(peer, kind, key);
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).removeIntent(kind, key);
         });
+    }
+
+    /** Record the pre-mutation state of a (peer, kind, key) triple on first touch; first-touch-wins. */
+    #record(peer: ClientNode, kind: string, key: string) {
+        if (this.task.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
+            return;
+        }
+        const existing = peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
+        const prior = existing === undefined ? undefined : { intent: existing.intent, mode: existing.mode };
+        this.task.changeSet.push({ peerId: peer.id, kind, key, prior });
     }
 
     async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
