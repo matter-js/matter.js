@@ -267,6 +267,9 @@ export class ReconcilerBehavior extends Behavior {
             dropItem(kind, key) {
                 return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
             },
+            currentState(kind, key) {
+                return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)]?.status.state;
+            },
         };
         await executeActions(target, planned, registry);
     }
