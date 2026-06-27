@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Enhancement: Inbound mDNS packets are dropped before a full decoding when none of the names any subscriber registered appear in them, cutting CPU on busy networks
+
 - @matter/node
     - Enhancement: Frees a behavior's persisted seed values from memory once the datasource has loaded them
     - Adjustment: Rejects an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
@@ -31,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
 
 - @matter/protocol
+    - Enhancement: The mDNS responder and scanners declare the service types and hostnames they care about so the socket can pre-filter irrelevant traffic before decoding
     - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
     - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
