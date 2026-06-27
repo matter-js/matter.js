@@ -7,7 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
+import { Agent, Behavior, ClientNode, Node, ServerNode } from "@matter/node";
 import { TaskCancelledSignal, TaskSuspendedSignal } from "./errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
@@ -16,12 +16,7 @@ import { Task, TaskPersistence } from "./Task.js";
 import { TaskCtor, TaskRegistry } from "./TaskRegistry.js";
 import { TaskState, TaskStatus } from "./types.js";
 
-const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>([
-    "completed",
-    "failed",
-    "cancelled",
-    "cancelFailed",
-]);
+const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled"]);
 
 const logger = Logger.get("TaskManager");
 
@@ -164,51 +159,45 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
-     * Cancel a task: stop forward driving and best-effort revert its changeSet in reverse order. An offline peer
-     * parks the revert (best-effort, not a failure); a terminal revert error yields `cancelFailed`.
-     *
-     * If a peer is permanently offline during revert, cancel parks and the awaiting caller has no independent
-     * abort — it is released only on node dispose. Reserved follow-up.
+     * Cancel a task: stop forward driving, then spawn a revert task that rolls back the changeSet as an ordinary
+     * task (parks on offline peers, resumes after restart). Returns the revert handle, or `undefined` if there
+     * was nothing to revert. Does not await the revert — the caller observes it via the returned handle.
      */
-    async cancel(idOrExternalId: string): Promise<void> {
+    async cancel(idOrExternalId: string): Promise<TaskHandle | undefined> {
         const task = this.#find(idOrExternalId);
-        // A completed/running/parked task is still revertible; only an already-cancelled task is a no-op.
-        if (task === undefined || task.progress.state === "cancelled" || task.progress.state === "cancelFailed") {
-            return;
+        if (task === undefined || task.progress.state === "cancelled") {
+            return task?.revertTaskId === undefined ? undefined : this.get(task.revertTaskId);
         }
 
-        // Abort any in-flight gate and wait for forward driving to settle so revert does not race it.
+        // Stop forward driving so the changeset is final before we revert it.
         this.#abortGate(task.id, new TaskCancelledSignal(`Task ${task.id} cancelled`));
         await this.internal.driving.get(task.id);
+        this.internal.gates.delete(task.id);
 
-        // Clear the abort so the revert gate below is not itself short-circuited by the cancel signal.
-        this.internal.gates.delete(task.id);
-        const ctx = await this.endpoint.act(agent => this.#contextFor(task, this.taskReconciler(agent)));
-        try {
-            const reverted = new Array<{ peer: ClientNode; kind: string; key: string }>();
-            for (const entry of [...task.changeSet].reverse()) {
-                const peer = this.resolvePeerNode(entry.peerId);
-                if (peer === undefined) {
-                    continue;
-                }
-                await ctx.removeIntent(peer, entry.kind, entry.key);
-                reverted.push({ peer, kind: entry.kind, key: entry.key });
-            }
-            const peers = [...new Set(reverted.map(r => r.peer))];
-            await ctx.awaitGate(peers, () =>
-                reverted.every(
-                    r => r.peer.stateOf(DesiredStateBehavior).items[itemMapKey(r.kind, r.key)] === undefined,
-                ),
-            );
+        // running/parked → cancelled; an already-terminal (completed/failed) task keeps its truthful state.
+        if (task.progress.state === "running" || task.progress.state === "parked") {
             task.progress.state = "cancelled";
-            task.error = undefined;
-        } catch (e) {
-            task.progress.state = "cancelFailed";
-            task.error = e instanceof Error ? e.message : String(e);
-            logger.error(`Task ${task.id}: cancel revert failed`, e);
         }
-        this.internal.gates.delete(task.id);
+        const handle = this.#spawnRevert(task);
         await this.#persist(task);
+        return handle;
+    }
+
+    /** Spawn (or reuse) the revert task for `task`, linking both directions. Returns undefined if no changeSet. */
+    #spawnRevert(task: Task): TaskHandle | undefined {
+        if (task.revertTaskId !== undefined) {
+            return this.get(task.revertTaskId);
+        }
+        if (task.changeSet.length === 0) {
+            return undefined;
+        }
+        const handle = this.run(REVERT_TYPE, { originalId: task.id, entries: task.changeSet });
+        const revert = this.internal.live.get(handle.id);
+        if (revert !== undefined) {
+            revert.revertOf = task.id;
+        }
+        task.revertTaskId = handle.id;
+        return handle;
     }
 
     #abortGate(id: string, reason: unknown): void {
@@ -243,6 +232,7 @@ export class TaskManagerBehavior extends Behavior {
             task.progress.state = "failed";
             task.error = e instanceof Error ? e.message : String(e);
             logger.error(`Task ${task.id} failed`, e);
+            this.#spawnRevert(task);
             // A failing persist here must not re-reject the (otherwise handled) drive promise.
             try {
                 await this.#persist(task);
@@ -262,7 +252,7 @@ export class TaskManagerBehavior extends Behavior {
                 return;
             }
             task.progress.state = state;
-            this.#mutex.run(() => this.#persist(task));
+            this.#mutex.run(() => this.#writeRecord(task));
         };
         return new RunningTaskContext(
             task,
@@ -299,7 +289,13 @@ export class TaskManagerBehavior extends Behavior {
         return this.#rootNode.peers.get(peerId);
     }
 
+    // Serialized through the mutex: a spawned revert drives (and persists) concurrently with the original's
+    // own persist, so direct concurrent state writes would conflict on the synchronous transaction lock.
     async #persist(task: Task): Promise<void> {
+        await this.#mutex.produce(() => this.#writeRecord(task));
+    }
+
+    async #writeRecord(task: Task): Promise<void> {
         const record = task.toPersistence();
         await this.endpoint.act(agent => {
             const self = agent.get(TaskManagerBehavior);

@@ -15,6 +15,8 @@ export interface TaskPersistence {
     externalId?: string;
     changeSet: ChangeEntry[];
     error?: string;
+    revertTaskId?: string;
+    revertOf?: string;
 }
 
 export abstract class Task<P = unknown> {
@@ -27,6 +29,8 @@ export abstract class Task<P = unknown> {
     progress: { phaseIndex: number; state: TaskState };
     changeSet: ChangeEntry[];
     error?: string;
+    revertTaskId?: string;
+    revertOf?: string;
 
     constructor(id: string, params: P, persisted?: Partial<TaskPersistence>) {
         this.id = id;
@@ -35,6 +39,8 @@ export abstract class Task<P = unknown> {
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
+        this.revertTaskId = persisted?.revertTaskId;
+        this.revertOf = persisted?.revertOf;
     }
 
     get status(): TaskStatus {
@@ -44,6 +50,8 @@ export abstract class Task<P = unknown> {
             phaseIndex: this.progress.phaseIndex,
             externalId: this.externalId,
             error: this.error,
+            revertTaskId: this.revertTaskId,
+            revertOf: this.revertOf,
         };
     }
 
@@ -61,6 +69,8 @@ export abstract class Task<P = unknown> {
             externalId: this.externalId,
             changeSet: this.changeSet,
             error: this.error,
+            revertTaskId: this.revertTaskId,
+            revertOf: this.revertOf,
         };
     }
 }

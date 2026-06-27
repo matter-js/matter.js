@@ -6,7 +6,7 @@
 
 import type { ClientNode, ItemMode, ManagedItem } from "@matter/node";
 
-export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled" | "cancelFailed";
+export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled";
 
 export interface TaskStatus {
     type: string;
@@ -14,6 +14,8 @@ export interface TaskStatus {
     phaseIndex: number;
     externalId?: string;
     error?: string;
+    revertTaskId?: string;
+    revertOf?: string;
 }
 
 export interface ChangeEntry {
