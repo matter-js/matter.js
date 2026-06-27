@@ -17,6 +17,7 @@ import {
     TlvAttributeData,
     TlvAttributeReport,
     TlvAttributeStatus,
+    TlvDecodingOptions,
     TlvOfModel,
     TlvSchema,
     TlvType,
@@ -293,6 +294,7 @@ export function decodeListAttributeValueWithSchema<T>(
     schema: ArraySchema<T>,
     values: TypeFromSchema<typeof TlvAttributeData>[],
     currentValue?: T[],
+    options?: TlvDecodingOptions,
 ): T[] | undefined {
     // Return contained multiple tlv values as an array
     if (!(schema instanceof ArraySchema)) {
@@ -301,6 +303,7 @@ export function decodeListAttributeValueWithSchema<T>(
     return schema.decodeFromChunkedArray(
         values.map(({ data, path: { listIndex } }) => ({ listIndex, element: data })),
         currentValue,
+        options,
     );
 }
 
@@ -309,6 +312,7 @@ export function decodeAttributeValueWithSchema<T>(
     schema: TlvSchema<T>,
     values: TypeFromSchema<typeof TlvAttributeData>[],
     defaultValue?: T,
+    options?: TlvDecodingOptions,
 ): T | undefined {
     // No values, so use default value if available
     if (!values.length) {
@@ -322,12 +326,12 @@ export function decodeAttributeValueWithSchema<T>(
 
     // We got multiple values, so assume duplicates of the same attribute
     if (schema instanceof ArraySchema) {
-        return decodeListAttributeValueWithSchema<T>(schema, values, defaultValue as T[]) as T;
+        return decodeListAttributeValueWithSchema<T>(schema, values, defaultValue as T[], options) as T;
     }
 
     // The value was returned as one Tlv value, so decode it normally
     if (values.length === 1 && values[0].path.listIndex === undefined) {
-        return schema.decodeTlv(values[0].data);
+        return schema.decodeTlv(values[0].data, options);
     }
 
     // We got multiple entries but it is no array, so validate that no array action entries are there, this would be invalid
@@ -336,7 +340,7 @@ export function decodeAttributeValueWithSchema<T>(
     }
     // Sort values by highest dataVersion first
     const bestDataVersionValue = values.sort(({ dataVersion: a }, { dataVersion: b }) => (b ?? 0) - (a ?? 0));
-    return schema.decodeTlv(bestDataVersionValue[0].data);
+    return schema.decodeTlv(bestDataVersionValue[0].data, options);
 }
 
 /** Decodes the data for one unknown attribute via the AnySchema including array un-chunking. */

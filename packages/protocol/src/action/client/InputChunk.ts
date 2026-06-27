@@ -20,6 +20,7 @@ import {
     TlvAttributeData,
     TlvAttributeReport,
     TlvAttributeStatus,
+    TlvDecodingOptions,
     TlvEventData,
     TlvEventStatus,
     TlvOfModel,
@@ -28,6 +29,12 @@ import {
 } from "@matter/types";
 
 const logger = Logger.get("InputChunk");
+
+/**
+ * Decode options for incoming data reports. Integer signed/unsigned mismatches from non-compliant devices are tolerated
+ * here (and only here) so a single malformed value does not drop the whole report; the value is still range-validated.
+ */
+const DATA_REPORT_DECODE_OPTIONS: TlvDecodingOptions = { relaxNumberTypeChecks: true };
 
 interface ResolvedAttributePath {
     nodeId?: NodeId;
@@ -197,7 +204,7 @@ function decodeAttributeGroup(
             value =
                 schema === undefined
                     ? decodeUnknownAttributeValue(entries)
-                    : decodeAttributeValueWithSchema(schema, entries);
+                    : decodeAttributeValueWithSchema(schema, entries, undefined, DATA_REPORT_DECODE_OPTIONS);
         }
         return {
             kind: "attr-value",
@@ -273,7 +280,7 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
             value = data === undefined ? undefined : decodeUnknownEventValue(data);
         } else {
             const schema = TlvOfModel(eventModel);
-            value = data === undefined ? undefined : schema.decodeTlv(data);
+            value = data === undefined ? undefined : schema.decodeTlv(data, DATA_REPORT_DECODE_OPTIONS);
         }
 
         // `timestamp` is a lossy convenience: callers needing the specific wire variant read the explicit field below.
