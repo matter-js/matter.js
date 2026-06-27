@@ -6,7 +6,7 @@
 
 import { GroupKeyGrant, GroupKeyItemKind } from "#reconcile/GroupKeyItemKind.js";
 import { ImplementationError } from "@matter/general";
-import { ClientNode, ManagedItem } from "@matter/node";
+import { ClientNode, DesiredStateBehavior, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
@@ -91,5 +91,46 @@ describe("GroupKeyItemKind", () => {
             err = e;
         }
         expect(err).instanceOf(ImplementationError);
+    });
+});
+
+/** Node stub exposing only the desired-state item map that isReferenced scans. */
+function nodeWithItems(items: ManagedItem[]): ClientNode {
+    const map: Record<string, ManagedItem> = {};
+    for (const i of items) {
+        map[itemMapKey(i.kind, i.key)] = i;
+    }
+    return {
+        stateOf: (type: unknown) => (type === DesiredStateBehavior ? { items: map } : {}),
+    } as unknown as ClientNode;
+}
+
+function mapItem(groupId: number, groupKeySetId: number, state: ItemState = "committed"): ManagedItem {
+    return {
+        kind: "groupKeyMap",
+        key: String(groupId),
+        intent: { groupId, groupKeySetId },
+        mode: "converge",
+        status: { state, updateTimestamp: 0 },
+    };
+}
+
+describe("GroupKeyItemKind.isReferenced", () => {
+    it("is referenced while a live groupKeyMap points at the key set", () => {
+        const kind = new GroupKeyItemKind();
+        const node = nodeWithItems([mapItem(0x101, 42)]);
+        expect(kind.isReferenced(node, "42")).equals(true);
+    });
+
+    it("is not referenced when no map points at the key set", () => {
+        const kind = new GroupKeyItemKind();
+        const node = nodeWithItems([mapItem(0x101, 7)]);
+        expect(kind.isReferenced(node, "42")).equals(false);
+    });
+
+    it("ignores a deletePending map (not a live reference)", () => {
+        const kind = new GroupKeyItemKind();
+        const node = nodeWithItems([mapItem(0x101, 42, "deletePending")]);
+        expect(kind.isReferenced(node, "42")).equals(false);
     });
 });

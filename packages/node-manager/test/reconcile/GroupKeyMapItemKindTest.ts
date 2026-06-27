@@ -5,7 +5,7 @@
  */
 
 import { GroupKeyMapGrant, GroupKeyMapItemKind } from "#reconcile/GroupKeyMapItemKind.js";
-import { ClientNode, ManagedItem } from "@matter/node";
+import { ClientNode, DesiredStateBehavior, ManagedItem, itemMapKey } from "@matter/node";
 import { FabricIndex, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
@@ -102,5 +102,30 @@ describe("GroupKeyMapItemKind", () => {
         const { node } = fakePeer([]);
         const ipkItem = item({ groupId: GroupId(0x101), groupKeySetId: 0 });
         await expect(kind.apply(node, ipkItem)).rejectedWith("groupKeySetId 0");
+    });
+});
+
+describe("GroupKeyMapItemKind.isReferenced", () => {
+    function membershipItem(groupId: number, state = "committed" as const) {
+        return {
+            kind: "endpointGroupMembership",
+            key: `${groupId}:1`,
+            intent: { localEndpoint: 1, groupId },
+            mode: "converge" as const,
+            status: { state, updateTimestamp: 0 },
+        };
+    }
+    function node(items: unknown[]) {
+        const map: Record<string, unknown> = {};
+        for (const i of items as { kind: string; key: string }[]) {
+            map[itemMapKey(i.kind, i.key)] = i;
+        }
+        return { stateOf: (t: unknown) => (t === DesiredStateBehavior ? { items: map } : {}) } as unknown as ClientNode;
+    }
+    it("is referenced while a live membership names the group", () => {
+        expect(new GroupKeyMapItemKind().isReferenced(node([membershipItem(0x101)]), "257")).equals(true);
+    });
+    it("is not referenced when no membership names the group", () => {
+        expect(new GroupKeyMapItemKind().isReferenced(node([membershipItem(0x200)]), "257")).equals(false);
     });
 });
