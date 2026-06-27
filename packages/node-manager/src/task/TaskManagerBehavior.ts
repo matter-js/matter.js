@@ -185,6 +185,10 @@ export class TaskManagerBehavior extends Behavior {
 
     /** Spawn (or reuse) the revert task for `task`, linking both directions. Returns undefined if no changeSet. */
     #spawnRevert(task: Task): TaskHandle | undefined {
+        // A failed revert surfaces as `failed` for operator attention; reverting a revert would recurse unbounded.
+        if (task.type === REVERT_TYPE) {
+            return undefined;
+        }
         if (task.revertTaskId !== undefined) {
             return this.get(task.revertTaskId);
         }

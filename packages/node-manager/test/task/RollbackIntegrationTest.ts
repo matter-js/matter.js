@@ -67,4 +67,43 @@ describe("auto-rollback", () => {
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
         await node.close();
     });
+
+    it("does not spawn a revert-of-revert when the revert itself fails terminally", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("rp");
+        TestTaskManager.peers.set("rp", peer);
+        TestTaskManager.reconcilerPeer = peer;
+        SyntheticTask.phasesByTag["boom2"] = [
+            {
+                name: "set-then-fail",
+                run: async ctx => {
+                    const p = ctx.resolvePeer("rp");
+                    await ctx.setIntent(p, "groupKey", "99", { a: 1 });
+                    throw new TaskFailedError("boom2");
+                },
+            },
+        ];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "rb2" });
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+
+        // The revert's forward work (awaitGate -> verify-reconcile over its deletePending intent) rejects.
+        const realReconcile = peer.reconcile.bind(peer);
+        peer.reconcile = async (n, options) => {
+            if (Object.values(peer.items).some(i => i.status.state === "deletePending")) {
+                throw new TaskFailedError("revert boom");
+            }
+            return realReconcile(n, options);
+        };
+
+        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "boom2" }));
+
+        await awaitState(node, "synthetic:boom2", "failed");
+        const original = node.stateOf(TestTaskManager).tasks["synthetic:boom2"];
+        expect(original.revertTaskId).equals("revert:synthetic:boom2");
+
+        await awaitState(node, "revert:synthetic:boom2", "failed");
+        expect(node.stateOf(TestTaskManager).tasks["revert:revert:synthetic:boom2"]).equals(undefined);
+        await node.close();
+    });
 });
