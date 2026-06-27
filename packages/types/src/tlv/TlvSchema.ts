@@ -23,6 +23,16 @@ export type TlvEncodingOptions = {
     allowMissingFieldsForNonFabricFilteredRead?: boolean;
 };
 
+export type TlvDecodingOptions = {
+    /**
+     * Relax signed/unsigned integer type checking during decode. When set, an integer encoded with the "wrong"
+     * signedness — a signed element for an unsigned schema or vice-versa — is accepted as long as the decoded value
+     * satisfies the schema's numeric bounds. Mirrors the wire-driven decode of CHIP's generic/controller path and
+     * tolerates non-compliant devices. Off by default (strict per spec).
+     */
+    relaxNumberTypeChecks?: boolean;
+};
+
 export abstract class TlvSchema<T> extends Schema<T> implements TlvSchema<T> {
     /**
      * Reverse-maps this TLV schema to model element fields.
@@ -52,8 +62,8 @@ export abstract class TlvSchema<T> extends Schema<T> implements TlvSchema<T> {
         return writer.toTlvArray();
     }
 
-    decodeTlv(encoded: TlvStream): T {
-        return this.decodeTlvInternal(new TlvArrayReader(encoded)).value;
+    decodeTlv(encoded: TlvStream, options?: TlvDecodingOptions): T {
+        return this.decodeTlvInternal(new TlvArrayReader(encoded, options)).value;
     }
 
     decodeTlvInternal(reader: TlvReader): { value: T; tag?: TlvTag } {
@@ -117,7 +127,10 @@ export class TlvArrayWriter implements TlvWriter {
 export class TlvArrayReader implements TlvReader {
     private index = -1;
 
-    constructor(private readonly tlvElements: TlvElement<any>[]) {}
+    constructor(
+        private readonly tlvElements: TlvElement<any>[],
+        readonly options?: TlvDecodingOptions,
+    ) {}
 
     readTagType() {
         this.index++;
@@ -133,6 +146,8 @@ export class TlvArrayReader implements TlvReader {
 export type TypeFromSchema<S extends TlvSchema<any>> = S extends TlvSchema<infer T> ? T : never;
 
 export interface TlvReader {
+    readonly options?: TlvDecodingOptions;
+
     readTagType(): { tag?: TlvTag; typeLength: TlvTypeLength };
 
     readPrimitive<T extends TlvTypeLength, V = TlvToPrimitive[T["type"]]>(typeLength: T): V;
@@ -163,7 +178,10 @@ export class TlvByteArrayWriter implements TlvWriter {
 export class TlvByteArrayReader implements TlvReader {
     private readonly reader: DataReader<Endian.Little>;
 
-    constructor(byteArray: Bytes) {
+    constructor(
+        byteArray: Bytes,
+        readonly options?: TlvDecodingOptions,
+    ) {
         this.reader = new DataReader(byteArray, Endian.Little);
     }
 

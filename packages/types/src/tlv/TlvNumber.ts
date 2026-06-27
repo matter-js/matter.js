@@ -18,6 +18,7 @@ import {
     INT8_MAX,
     INT8_MIN,
     ImplementationError,
+    Logger,
     Seconds,
     UINT16_MAX,
     UINT24_MAX,
@@ -35,6 +36,10 @@ import { Schema } from "../schema/Schema.js";
 import { TlvCodec, TlvLength, TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
 import { TlvWrapper } from "./TlvWrapper.js";
+
+const logger = Logger.get("TlvCodec");
+
+const isIntegerType = (type: TlvType) => type === TlvType.SignedInt || type === TlvType.UnsignedInt;
 
 const numericTypeByMax = new Map<number | bigint, string>([
     [UINT8_MAX, "uint8"],
@@ -116,8 +121,23 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
     }
 
     override decodeTlvInternalValue(reader: TlvReader, typeLength: TlvTypeLength): T {
-        if (typeLength.type !== this.type)
-            throw new UnexpectedDataError(`Unexpected type ${typeLength.type}, was expecting ${this.type}.`);
+        if (typeLength.type !== this.type) {
+            if (
+                !reader.options?.relaxNumberTypeChecks ||
+                !isIntegerType(this.type) ||
+                !isIntegerType(typeLength.type)
+            ) {
+                throw new UnexpectedDataError(`Unexpected type ${typeLength.type}, was expecting ${this.type}.`);
+            }
+            // Tolerate signed/unsigned mismatch from non-compliant devices; the boundary check below rejects values
+            // that do not fit the schema (e.g. a negative value for an unsigned field).
+            const value = reader.readPrimitive<TlvTypeLength, T>(typeLength);
+            this.validateBoundaries(value);
+            logger.info(
+                `Relaxed integer decode: accepted ${TlvType[typeLength.type]} for ${TlvType[this.type]} schema (value ${value}). Still non-compliant, report to vendor.`,
+            );
+            return value;
+        }
         return reader.readPrimitive(typeLength);
     }
 
