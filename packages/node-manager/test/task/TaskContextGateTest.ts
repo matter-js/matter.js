@@ -83,8 +83,8 @@ describe("TaskContext gates", () => {
 
     it("does not resolve on cached committed state while a node is unreachable", async () => {
         const peer = new FakePeer("p1");
-        peer.addItem("groupMembership", "1", "committed"); // cached committed, but...
-        peer.setReachable(false); // ...node is offline, so the gate must park, not resolve
+        peer.addItem("groupMembership", "1", "committed");
+        peer.setReachable(false);
         const { ctx, task } = makeContext(peer);
 
         let settled = false;
