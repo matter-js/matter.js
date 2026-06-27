@@ -63,7 +63,7 @@ export class RunningTaskContext implements TaskContext {
         });
     }
 
-    /** Record the pre-mutation state of a (peer, kind, key) triple on first touch; first-touch-wins. */
+    // First touch wins: records the pre-task state so a revert restores that, not an intermediate touch.
     #record(peer: ClientNode, kind: string, key: string) {
         if (this.task.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
             return;

@@ -63,7 +63,7 @@ export class FakePeer {
     /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
     readonly removeOrder = new Array<string>();
 
-    /** DesiredStateBehavior.setIntent stand-in: upsert with real intent and mode so prior-capture can read them. */
+    // Stores real intent+mode (not a placeholder) so the context's prior-capture reads true values.
     setIntent(kind: string, key: string, intent: unknown = {}, mode: ItemMode = "converge") {
         const existing = this.items[itemMapKey(kind, key)];
         const item: ManagedItem = {
