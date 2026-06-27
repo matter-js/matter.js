@@ -45,6 +45,10 @@ export class RunningTaskContext implements TaskContext {
         return peer;
     }
 
+    tryResolvePeer(peerId: string): ClientNode | undefined {
+        return this.peerResolver(peerId);
+    }
+
     async setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode: ItemMode = "converge") {
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).setIntent(kind, key, intent, mode);
@@ -58,6 +62,15 @@ export class RunningTaskContext implements TaskContext {
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).removeIntent(kind, key);
         });
+    }
+
+    async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
+        if (this.reconciler.itemKind(kind)?.isReferenced?.(peer, key)) {
+            logger.debug(`Task ${this.task.id}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
+            return false;
+        }
+        await this.removeIntent(peer, kind, key);
+        return true;
     }
 
     async awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void> {
