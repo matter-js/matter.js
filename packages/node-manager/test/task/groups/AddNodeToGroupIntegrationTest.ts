@@ -120,19 +120,23 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         await awaitState(controller, TASK_ID, "completed");
         expect(isMember(device)).equals(true);
 
-        await MockTime.resolve(
+        const handle = await MockTime.resolve(
             controller.act(agent => agent.get(TaskManagerBehavior).cancel(TASK_ID)),
             {
                 macrotasks: true,
             },
         );
+        expect(handle?.id).equals(`revert:${TASK_ID}`);
+        await awaitState(controller, `revert:${TASK_ID}`, "completed");
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", String(GROUP))).equals(undefined);
         expect(isMember(device)).equals(false);
+        // Cancelling an already-completed task spawns the revert but leaves the original's truthful state.
         const status = await controller.act(agent => agent.get(TaskManagerBehavior).get(TASK_ID)?.status);
-        expect(status?.state).equals("cancelled");
+        expect(status?.state).equals("completed");
+        expect(status?.revertTaskId).equals(`revert:${TASK_ID}`);
     });
 
     it("resumes a parked task across a controller restart", async () => {

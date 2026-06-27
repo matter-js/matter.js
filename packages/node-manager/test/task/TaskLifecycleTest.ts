@@ -152,7 +152,7 @@ describe("Task lifecycle", () => {
     });
 
     describe("cancel", () => {
-        it("reverts created items in reverse order and ends cancelled", async () => {
+        it("cancelling a completed task spawns a revert that removes items in reverse order", async () => {
             const environment = new Environment("test");
             const peer = new FakePeer("cp");
             TestTaskManager.peers.set("cp", peer);
@@ -176,8 +176,9 @@ describe("Task lifecycle", () => {
             await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "cancel" }));
             await awaitState(node, "synthetic:cancel", "completed");
 
-            const cancelDone = node.act(a => a.get(TestTaskManager).cancel("synthetic:cancel"));
-            await MockTime.resolve(cancelDone);
+            const handle = await node.act(a => a.get(TestTaskManager).cancel("synthetic:cancel"));
+            expect(handle?.id).equals("revert:synthetic:cancel");
+            await awaitState(node, "revert:synthetic:cancel", "completed");
 
             // Items are removed in REVERSE add order (B added last → reverted first).
             expect(peer.removeOrder).deep.equals([
@@ -186,8 +187,10 @@ describe("Task lifecycle", () => {
             ]);
             expect(peer.items[itemMapKey("groupMembership", "A")]).equals(undefined);
             expect(peer.items[itemMapKey("groupMembership", "B")]).equals(undefined);
+            // Cancelling an already-completed task spawns the revert but leaves the original's truthful state.
             const status = await node.act(a => a.get(TestTaskManager).get("synthetic:cancel")?.status);
-            expect(status?.state).equals("cancelled");
+            expect(status?.state).equals("completed");
+            expect(status?.revertTaskId).equals("revert:synthetic:cancel");
             await node.close();
         });
 
@@ -209,12 +212,15 @@ describe("Task lifecycle", () => {
             }
             expect(peer.items[itemMapKey("groupMembership", "X")]?.status.state).equals("pending");
 
-            const cancelDone = node.act(a => a.get(TestTaskManager).cancel("synthetic:inflight"));
-            await MockTime.resolve(cancelDone);
+            const handle = await node.act(a => a.get(TestTaskManager).cancel("synthetic:inflight"));
+            expect(handle?.id).equals("revert:synthetic:inflight");
 
             const status = await node.act(a => a.get(TestTaskManager).get("synthetic:inflight")?.status);
             expect(status?.state).equals("cancelled");
             expect(status?.error).equals(undefined);
+
+            await awaitState(node, "revert:synthetic:inflight", "completed");
+            expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
             await node.close();
         });
     });
