@@ -162,7 +162,7 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
-     * Cancel a task: stop forward driving and best-effort revert its add-log in reverse order. An offline peer
+     * Cancel a task: stop forward driving and best-effort revert its changeSet in reverse order. An offline peer
      * parks the revert (best-effort, not a failure); a terminal revert error yields `cancelFailed`.
      *
      * If a peer is permanently offline during revert, cancel parks and the awaiting caller has no independent
@@ -184,7 +184,7 @@ export class TaskManagerBehavior extends Behavior {
         const ctx = await this.endpoint.act(agent => this.#contextFor(task, this.taskReconciler(agent)));
         try {
             const reverted = new Array<{ peer: ClientNode; kind: string; key: string }>();
-            for (const entry of [...task.addLog].reverse()) {
+            for (const entry of [...task.changeSet].reverse()) {
                 const peer = this.resolvePeerNode(entry.peerId);
                 if (peer === undefined) {
                     continue;

@@ -63,11 +63,18 @@ export class FakePeer {
     /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
     readonly removeOrder = new Array<string>();
 
-    /** DesiredStateBehavior.setIntent stand-in: upsert a pending item. */
-    setIntent(kind: string, key: string, _intent: unknown, _mode: ItemMode = "converge") {
-        if (this.items[itemMapKey(kind, key)] === undefined) {
-            this.addItem(kind, key, "pending");
-        }
+    /** DesiredStateBehavior.setIntent stand-in: upsert with real intent and mode so prior-capture can read them. */
+    setIntent(kind: string, key: string, intent: unknown = {}, mode: ItemMode = "converge") {
+        const existing = this.items[itemMapKey(kind, key)];
+        const item: ManagedItem = {
+            kind,
+            key,
+            intent,
+            mode,
+            status: existing?.status ?? { state: "pending", updateTimestamp: 0 },
+        };
+        this.items[itemMapKey(kind, key)] = item;
+        this.itemChanged.emit(item);
     }
 
     /** DesiredStateBehavior.removeIntent stand-in: flag deletePending, then drop on the next reconcile. */

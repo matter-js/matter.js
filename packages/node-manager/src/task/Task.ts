@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { AddLogEntry, TaskPhase, TaskState, TaskStatus } from "./types.js";
+import { ChangeEntry, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
     type: string;
@@ -13,7 +13,7 @@ export interface TaskPersistence {
     phaseIndex: number;
     state: TaskState;
     externalId?: string;
-    addLog: AddLogEntry[];
+    changeSet: ChangeEntry[];
     error?: string;
 }
 
@@ -25,7 +25,7 @@ export abstract class Task<P = unknown> {
     readonly params: P;
     readonly externalId?: string;
     progress: { phaseIndex: number; state: TaskState };
-    addLog: AddLogEntry[];
+    changeSet: ChangeEntry[];
     error?: string;
 
     constructor(id: string, params: P, persisted?: Partial<TaskPersistence>) {
@@ -33,7 +33,7 @@ export abstract class Task<P = unknown> {
         this.params = params;
         this.externalId = persisted?.externalId;
         this.progress = { phaseIndex: persisted?.phaseIndex ?? 0, state: persisted?.state ?? "running" };
-        this.addLog = persisted?.addLog ?? new Array<AddLogEntry>();
+        this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
         this.error = persisted?.error;
     }
 
@@ -59,7 +59,7 @@ export abstract class Task<P = unknown> {
             phaseIndex: this.progress.phaseIndex,
             state: this.progress.state,
             externalId: this.externalId,
-            addLog: this.addLog,
+            changeSet: this.changeSet,
             error: this.error,
         };
     }
