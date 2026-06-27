@@ -15,10 +15,11 @@ import { PRIORITY_BANDS } from "./priority.js";
 export type GroupKeyGrant = GroupKeyManagement.GroupKeySet;
 
 /**
- * The `groupKey` ItemKind: provisions group key sets via GroupKeyManagement commands. Always writes
- * on apply (KeySetWrite is an idempotent overwrite and key material cannot be read back to compare);
- * verify confirms presence only — KeySetRead returns epoch keys as null, so key material is
- * unverifiable. Epoch-key rotation is driven by the intent changing, not by verify.
+ * The `groupKey` ItemKind: provisions group key sets via GroupKeyManagement commands. Apply is
+ * create-if-absent: skips KeySetWrite when the id is already present because key material is
+ * unreadable and a re-apply would clobber a richer set with our minimal one. Verify confirms
+ * presence only — KeySetRead returns epoch keys as null, so key material is unverifiable.
+ * Epoch-key rotation is driven by the intent changing, not by verify.
  */
 export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
     readonly kind = "groupKey";
@@ -34,7 +35,14 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
                 "groupKeySetId 0 is the IPK and is managed by commissioning, not the reconciler",
             );
         }
-        await this.#commands(node).keySetWrite({ groupKeySet: item.intent });
+        const commands = this.#commands(node);
+        // Create-if-absent: never overwrite an existing key set (key material is unreadable, so a re-apply
+        // would clobber a richer set with our minimal one). Updates/rotation are the dedicated ipk task.
+        const { groupKeySetIDs } = await commands.keySetReadAllIndices();
+        if (groupKeySetIDs.includes(item.intent.groupKeySetId)) {
+            return;
+        }
+        await commands.keySetWrite({ groupKeySet: item.intent });
     }
 
     async verify(node: ClientNode, item: ManagedItem<GroupKeyGrant>): Promise<boolean> {
