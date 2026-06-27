@@ -208,12 +208,17 @@ export class MdnsRelevanceFilter {
                     if (sequenceEnd < 0) {
                         sequenceEnd = cursor + 2;
                     }
-                    // RFC 1035 §4.1.4: pointers reference a prior position; anything else is malformed or a loop
-                    if (pointer >= cursor || ++hops > MAX_NAME_POINTERS) {
+                    // RFC 1035 §4.1.4: pointers reference a prior name (offset >= header); anything pointing into the
+                    // header, forward, or looping is malformed — defer to the decoder
+                    if (pointer < DNS_HEADER_SIZE || pointer >= cursor || ++hops > MAX_NAME_POINTERS) {
                         return true;
                     }
                     cursor = pointer;
                     continue;
+                }
+                // Reserved label types (top bits 0b01 / 0b10) are not valid in a name here — defer to the decoder
+                if ((labelLength & 0xc0) !== 0) {
+                    return true;
                 }
                 cursor++;
                 if (cursor + labelLength > length) {
@@ -226,12 +231,18 @@ export class MdnsRelevanceFilter {
             }
             offset = sequenceEnd;
             if (record < questionCount) {
+                if (offset + 4 > length) {
+                    return true;
+                }
                 offset += 4; // QTYPE + QCLASS
             } else {
                 if (offset + 10 > length) {
                     return true;
                 }
                 const rdlength = (bytes[offset + 8] << 8) | bytes[offset + 9];
+                if (offset + 10 + rdlength > length) {
+                    return true;
+                }
                 offset += 10 + rdlength; // TYPE + CLASS + TTL + RDLENGTH + RDATA
             }
         }

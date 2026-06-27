@@ -312,5 +312,45 @@ describe("MdnsRelevanceFilter", () => {
             ]);
             expect(filter.isRelevant(raw)).true;
         });
+
+        it("keeps a packet using a reserved label type (top bits 0b01/0b10)", () => {
+            // header: 1 answer; first name octet 0x40 is a reserved label type
+            // prettier-ignore
+            const raw = Uint8Array.from([
+                0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+                0x40, 0x01, 0x02,
+            ]);
+            expect(filter.isRelevant(raw)).true;
+        });
+
+        it("keeps a packet whose name pointer targets the header", () => {
+            // name is a compression pointer to offset 5 (inside the 12-byte header) — illegal
+            // prettier-ignore
+            const raw = Uint8Array.from([
+                0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+                0xc0, 0x05, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00,
+            ]);
+            expect(filter.isRelevant(raw)).true;
+        });
+
+        it("keeps a question packet truncated before QTYPE/QCLASS", () => {
+            // query, qd=1, root name (single 0x00) and nothing after it
+            // prettier-ignore
+            const raw = Uint8Array.from([
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ]);
+            expect(filter.isRelevant(raw)).true;
+        });
+
+        it("keeps a record whose RDLENGTH runs past the end", () => {
+            // response, 1 answer "x.local" A record claiming rdlength=255 with no RDATA present
+            // prettier-ignore
+            const raw = Uint8Array.from([
+                0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+                0x01, 0x78, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00, // "x.local"
+                0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0xff, // A, IN, ttl, rdlength=255
+            ]);
+            expect(filter.isRelevant(raw)).true;
+        });
     });
 });
