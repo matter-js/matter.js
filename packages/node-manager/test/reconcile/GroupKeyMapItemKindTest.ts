@@ -106,7 +106,7 @@ describe("GroupKeyMapItemKind", () => {
 });
 
 describe("GroupKeyMapItemKind.isReferenced", () => {
-    function membershipItem(groupId: number, state = "committed" as const) {
+    function membershipItem(groupId: number, state: "committed" | "deletePending" = "committed") {
         return {
             kind: "endpointGroupMembership",
             key: `${groupId}:1`,
@@ -127,5 +127,10 @@ describe("GroupKeyMapItemKind.isReferenced", () => {
     });
     it("is not referenced when no membership names the group", () => {
         expect(new GroupKeyMapItemKind().isReferenced(node([membershipItem(0x200)]), "257")).equals(false);
+    });
+    it("ignores a deletePending membership (not a live reference)", () => {
+        expect(new GroupKeyMapItemKind().isReferenced(node([membershipItem(0x101, "deletePending")]), "257")).equals(
+            false,
+        );
     });
 });
