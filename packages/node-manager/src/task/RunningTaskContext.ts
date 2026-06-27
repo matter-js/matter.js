@@ -178,7 +178,7 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async #evaluate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<boolean> {
-        // A gate resolves only on freshly verified state; an unreachable node cannot be re-verified.
+        // A gate resolves only on freshly verified state, never on trust-stored committed items.
         if (nodes.some(node => !this.#reachable(node))) {
             return false;
         }
