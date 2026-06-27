@@ -32,7 +32,8 @@ const logger = Logger.get("InputChunk");
 
 /**
  * Decode options for incoming data reports. Integer signed/unsigned mismatches from non-compliant devices are tolerated
- * here (and only here) so a single malformed value does not drop the whole report; the value is still range-validated.
+ * here (and only here) so a single malformed value does not cause the affected attribute/event entry to be dropped; the
+ * value is still range-validated.
  */
 const DATA_REPORT_DECODE_OPTIONS: TlvDecodingOptions = { relaxNumberTypeChecks: true };
 
