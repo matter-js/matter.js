@@ -80,4 +80,24 @@ describe("TaskContext gates", () => {
         expect(states).contains("running");
         expect(task.progress.state).equals("running");
     });
+
+    it("does not resolve on cached committed state while a node is unreachable", async () => {
+        const peer = new FakePeer("p1");
+        peer.addItem("groupMembership", "1", "committed"); // cached committed, but...
+        peer.setReachable(false); // ...node is offline, so the gate must park, not resolve
+        const { ctx, task } = makeContext(peer);
+
+        let settled = false;
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: "groupMembership", key: "1" }]).then(() => {
+            settled = true;
+        });
+
+        await MockTime.resolve(Promise.resolve());
+        expect(settled).equals(false);
+        expect(task.progress.state).equals("parked");
+
+        peer.setReachable(true);
+        await MockTime.resolve(gate);
+        expect(settled).equals(true);
+    });
 });
