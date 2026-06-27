@@ -252,7 +252,6 @@ export class ReconcilerBehavior extends Behavior {
         this.internal.registry.register(kind);
     }
 
-    /** Look up a registered ItemKind (e.g. for a task's shared-entry reference check). */
     itemKind(kind: string): ItemKind | undefined {
         return this.internal.registry.get(kind);
     }
