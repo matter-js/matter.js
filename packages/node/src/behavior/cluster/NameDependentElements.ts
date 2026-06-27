@@ -98,9 +98,7 @@ export namespace NameDependentElements {
      * conformance chains like `"Resume, O"` — here the fallback is {@link Conformance.Applicability.Optional}.
      */
     export type Fallback =
-        | Conformance.Applicability.None
-        | Conformance.Applicability.Optional
-        | Conformance.Applicability.Mandatory;
+        Conformance.Applicability.None | Conformance.Applicability.Optional | Conformance.Applicability.Mandatory;
 }
 
 // --- Pass 1: Classification ---

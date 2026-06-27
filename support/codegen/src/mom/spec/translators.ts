@@ -50,7 +50,7 @@ export const ConstraintStr = (text: string) => {
     }
 
     const parts = [...match];
-    for (let i = 0; i < parts.length; ) {
+    for (let i = 0; i < parts.length;) {
         // Skip parts that may legally stand alone or do not end with an identifier
         const part = parts[i];
         if (!part.match(/[a-z_]+$/i) || Constraint.keywords.has(part.replace(/^.*[^a-z_]/i, ""))) {

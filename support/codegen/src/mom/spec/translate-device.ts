@@ -394,8 +394,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
         elementType: string,
     ) {
         let cluster = composingType.children?.find(c => (c as RequirementElement).id === clusterid) as
-            | RequirementElement
-            | undefined;
+            RequirementElement | undefined;
         if (!cluster) {
             cluster = RequirementElement({
                 id: clusterid,

@@ -166,7 +166,7 @@ export namespace Bytes {
         const view = Bytes.dataViewOf(bytes);
         let result = 0n;
         const length = view.byteLength;
-        for (let i = 0; i < length; ) {
+        for (let i = 0; i < length;) {
             const remaining = length - i;
             if (remaining >= 8) {
                 result = (result << 64n) + view.getBigUint64(i);

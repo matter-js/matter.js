@@ -45,9 +45,7 @@ export namespace Specification {
      * Matter specification version.
      */
     export type Revision =
-        | `${number}.${number}`
-        | `${number}.${number}.${number}`
-        | `${number}.${number}.${number}.${number}`;
+        `${number}.${number}` | `${number}.${number}.${number}` | `${number}.${number}.${number}.${number}`;
 
     /**
      * Compare two specification revisions.

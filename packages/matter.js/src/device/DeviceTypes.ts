@@ -54,10 +54,10 @@ export enum DeviceClasses {
     Multiple = "Multiple",
 
     /** The endpoint is an Initiator for Zigbee EZ-Mode Finding & Binding. */
-    "EZInitiator" = "EZ-Initiator",
+    EZInitiator = "EZ-Initiator",
 
     /** The endpoint is a Target for Zigbee EZ-Mode Finding & Binding. */
-    "EZTarget" = "EZ-Target",
+    EZTarget = "EZ-Target",
 
     /**
      * The endpoint represents a Bridged Device, for which information about the state of
