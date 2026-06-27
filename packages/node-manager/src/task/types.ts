@@ -29,8 +29,10 @@ export interface TaskPhase {
 
 export interface TaskContext {
     resolvePeer(peerId: string): ClientNode;
+    tryResolvePeer(peerId: string): ClientNode | undefined;
     setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode?: ItemMode): Promise<void>;
     removeIntent(peer: ClientNode, kind: string, key: string): Promise<void>;
+    removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean>;
     awaitGate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<void>;
     awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void>;
 }

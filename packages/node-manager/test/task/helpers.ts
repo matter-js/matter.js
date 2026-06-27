@@ -118,6 +118,11 @@ export class FakePeer {
         }
     }
 
+    /** Reconciler stand-in: no kind has dependents by default (tests override per case). */
+    itemKind(_kind: string): unknown {
+        return undefined;
+    }
+
     eventsOf(type: unknown): unknown {
         return type === DesiredStateBehavior
             ? { itemChanged: this.itemChanged }
