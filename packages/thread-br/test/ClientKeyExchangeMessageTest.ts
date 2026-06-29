@@ -6,13 +6,12 @@
 
 import { Bytes } from "@matter/main";
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
 import { ClientKeyExchangeMessage } from "../src/dtls/handshake/ClientKeyExchangeMessage.js";
 import { ServerHelloDoneMessage } from "../src/dtls/handshake/ServerHelloDoneMessage.js";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const PACKAGE_ROOT = process.cwd();
 const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
 
 interface MbedTlsVectors {

@@ -6,12 +6,11 @@
 
 import { Bytes } from "@matter/main";
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { normalizeKeys } from "../src/otbr-rest/caseNormalizer.js";
 import { __testables, translateNodeJson } from "../src/otbr-rest/translation.js";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
 
 const RAW_DIAGNOSTICS: unknown = JSON.parse(readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8"));

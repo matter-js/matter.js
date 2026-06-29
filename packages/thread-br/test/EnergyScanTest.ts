@@ -9,6 +9,7 @@ import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
 import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
+import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
 import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
@@ -227,7 +228,6 @@ describe("OtbrRestClient.getEnergyScanTask", () => {
             return new Response(null, { status: 204 });
         });
         try {
-            const { OtbrRestClient } = await import("../src/otbr-rest/OtbrRestClient.js");
             const client = new OtbrRestClient({ host: "br.example" });
             await client.getEnergyScanTask({ action: "getEnergyScanTask" });
             expect(capturedUrl).to.equal("http://br.example:8081/api/actions");
@@ -243,7 +243,6 @@ describe("OtbrRestClient.getEnergyScanTask", () => {
     it("throws OtbrRestError(rest_protocol) on non-2xx", async () => {
         const restore = installFetch(async () => new Response("nope", { status: 500 }));
         try {
-            const { OtbrRestClient } = await import("../src/otbr-rest/OtbrRestClient.js");
             const client = new OtbrRestClient({ host: "br.example" });
             try {
                 await client.getEnergyScanTask({ action: "getEnergyScanTask" });
@@ -263,7 +262,6 @@ describe("OtbrRestClient.getEnergyScanTask", () => {
             throw new TypeError("fetch failed");
         });
         try {
-            const { OtbrRestClient } = await import("../src/otbr-rest/OtbrRestClient.js");
             const client = new OtbrRestClient({ host: "br.example" });
             try {
                 await client.getEnergyScanTask({ action: "getEnergyScanTask" });

@@ -11,7 +11,7 @@ import type { Commissioner } from "../src/commissioner/Commissioner.js";
 import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
 import type { OtbrRestCapability } from "../src/otbr-rest/OtbrRestCapability.js";
-import type { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
+import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestDiagnosticSource } from "../src/otbr-rest/OtbrRestDiagnosticSource.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
 import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
@@ -257,7 +257,6 @@ describe("OtbrRestDiagnosticSource.resetCounters", () => {
             return new Response(null, { status: 204 });
         });
         try {
-            const { OtbrRestClient } = await import("../src/otbr-rest/OtbrRestClient.js");
             const client = new OtbrRestClient({ host: "br.example" });
             await client.resetDiagnosticCounters({ action: "resetNetworkDiagCounterTask" });
             expect(capturedUrl).to.equal("http://br.example:8081/api/actions");
@@ -274,7 +273,6 @@ describe("OtbrRestDiagnosticSource.resetCounters", () => {
     it("OtbrRestClient.resetDiagnosticCounters throws OtbrRestError(rest_protocol) on non-2xx", async () => {
         const restore = installFetch(async () => new Response("nope", { status: 500 }));
         try {
-            const { OtbrRestClient } = await import("../src/otbr-rest/OtbrRestClient.js");
             const client = new OtbrRestClient({ host: "br.example" });
             try {
                 await client.resetDiagnosticCounters({ action: "resetNetworkDiagCounterTask" });
@@ -294,7 +292,6 @@ describe("OtbrRestDiagnosticSource.resetCounters", () => {
             throw new TypeError("fetch failed");
         });
         try {
-            const { OtbrRestClient } = await import("../src/otbr-rest/OtbrRestClient.js");
             const client = new OtbrRestClient({ host: "br.example" });
             try {
                 await client.resetDiagnosticCounters({ action: "resetNetworkDiagCounterTask" });
