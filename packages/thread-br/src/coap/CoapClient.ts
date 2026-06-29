@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/general";
+import { Logger, Millis, Time, Timer } from "@matter/general";
 import type { DtlsSocket } from "../dtls/socket/DtlsSocket.js";
 import { CoapMessage } from "./CoapMessage.js";
 
@@ -139,17 +139,17 @@ export class CoapClient {
         const encoded = CoapMessage.encode(msg);
 
         return new Promise<CoapMessage>((resolve, reject) => {
-            let retransmitTimer: ReturnType<typeof setTimeout> | undefined;
-            let separateTimer: ReturnType<typeof setTimeout> | undefined;
+            let retransmitTimer: Timer | undefined;
+            let separateTimer: Timer | undefined;
             let attempt = 0;
 
             const cleanup = (): void => {
                 if (retransmitTimer !== undefined) {
-                    clearTimeout(retransmitTimer);
+                    retransmitTimer.stop();
                     retransmitTimer = undefined;
                 }
                 if (separateTimer !== undefined) {
-                    clearTimeout(separateTimer);
+                    separateTimer.stop();
                     separateTimer = undefined;
                 }
                 this.#pendingByMsgId.delete(msg.messageId);
@@ -170,18 +170,22 @@ export class CoapClient {
                     // Stop retransmitting; the BR has accepted the request and will deliver
                     // the response in a separate CON/NON message with the same token.
                     if (retransmitTimer !== undefined) {
-                        clearTimeout(retransmitTimer);
+                        retransmitTimer.stop();
                         retransmitTimer = undefined;
                     }
                     this.#pendingByMsgId.delete(msg.messageId);
-                    separateTimer = setTimeout(() => {
-                        state.reject(new CoapTimeoutError(msg.messageId));
-                    }, this.#separateResponseTimeoutMs);
+                    separateTimer = Time.getTimer(
+                        "coap-separate-response",
+                        Millis(this.#separateResponseTimeoutMs),
+                        () => {
+                            state.reject(new CoapTimeoutError(msg.messageId));
+                        },
+                    ).start();
                 },
             };
 
             const scheduleRetransmit = (delayMs: number): void => {
-                retransmitTimer = setTimeout(() => {
+                retransmitTimer = Time.getTimer("coap-retransmit", Millis(Math.round(delayMs)), () => {
                     retransmitTimer = undefined;
                     if (!this.#pendingByMsgId.has(msg.messageId)) return;
                     if (attempt >= MAX_RETRANSMIT) {
@@ -191,7 +195,7 @@ export class CoapClient {
                     attempt++;
                     void this.#socket.send(encoded).catch(() => {});
                     scheduleRetransmit(Math.min(delayMs * 2, this.#ackTimeoutMs * 2 ** MAX_RETRANSMIT));
-                }, delayMs);
+                }).start();
             };
 
             this.#pendingByMsgId.set(msg.messageId, state);

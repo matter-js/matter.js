@@ -61,6 +61,8 @@ function makeAck(req: CoapMessage, payload?: Uint8Array): CoapMessage {
 }
 
 describe("CoapClient", () => {
+    before(MockTime.enable);
+
     it("sends a CON request and resolves when ACK arrives", async () => {
         const socket = new MockSocket();
         const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
@@ -101,7 +103,16 @@ describe("CoapClient", () => {
             }
         };
 
-        const response = await client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
+        const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
+
+        // Yield so the initial socket.send() and its .then() (which arms the retransmit timer) complete.
+        await MockTime.yield();
+        // Advance past the max initial delay (ackTimeoutMs * RFC_ACK_RANDOM_FACTOR = 20 * 1.5 = 30ms) to fire the timer.
+        await MockTime.advance(30);
+        // Yield so the timer callback's socket.send() resolves and the recv loop processes the ACK.
+        await MockTime.yield();
+
+        const response = await reqPromise;
 
         expect(sendCount).to.be.greaterThanOrEqual(2);
         expect(response.code).to.equal("2.04");
@@ -113,8 +124,18 @@ describe("CoapClient", () => {
         const socket = new MockSocket();
         const client = new CoapClient(socket, { ackTimeoutMs: 5 });
 
+        const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
+
+        // Yield so the initial send and its .then() run, arming the first retransmit timer.
+        await MockTime.yield();
+        // Advance enough to fire all 5 timer callbacks (4 retransmits + final reject).
+        // Max total time: 7.5 + 15 + 30 + 60 + 80 = 192.5ms (ackTimeoutMs=5, cap=5*2^4=80).
+        await MockTime.advance(200);
+        // Yield so any pending microtasks (socket.send in timer callbacks) settle.
+        await MockTime.yield();
+
         try {
-            await client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
+            await reqPromise;
             expect.fail("expected CoapTimeoutError");
         } catch (err) {
             expect(err).to.be.instanceOf(CoapTimeoutError);
@@ -166,7 +187,7 @@ describe("CoapClient", () => {
         };
         socket.deliverMessage(inbound);
 
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
 
         expect(received).to.have.length(1);
         expect(received[0].payload).to.deep.equal(new Uint8Array([0xaa, 0xbb]));
@@ -193,7 +214,7 @@ describe("CoapClient", () => {
         };
         socket.deliverMessage(inbound);
 
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
 
         expect(called).to.equal(false);
 
@@ -223,7 +244,7 @@ describe("CoapClient", () => {
         };
         socket.deliverMessage(inbound);
 
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
 
         expect(countA).to.equal(1);
         expect(countB).to.equal(1);
@@ -250,12 +271,12 @@ describe("CoapClient", () => {
         });
 
         socket.deliverMessage(makeInbound(0x4444));
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
         expect(count).to.equal(1);
 
         unsubscribe();
         socket.deliverMessage(makeInbound(0x4445));
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
         expect(count).to.equal(1);
 
         await client.close();
@@ -283,10 +304,10 @@ describe("CoapClient", () => {
         });
 
         socket.deliverMessage(makeInbound(0x5555));
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
 
         socket.deliverMessage(makeInbound(0x5556));
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
 
         expect(secondCount).to.equal(2);
 
@@ -316,8 +337,8 @@ describe("CoapClient", () => {
             payload: new Uint8Array(),
         });
 
-        // Yield so #dispatchInbound runs.
-        await new Promise(r => setTimeout(r, 5));
+        // Yield so #dispatchInbound runs and onEmptyAck arms the separate-response timer.
+        await MockTime.yield();
 
         // Separate response: CON with same token but new messageId.
         const responsePayload = new Uint8Array([0xaa, 0xbb, 0xcc]);
@@ -334,7 +355,7 @@ describe("CoapClient", () => {
         expect(response.payload).to.deep.equal(responsePayload);
 
         // Verify we sent an ACK for the inbound CON.
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         const ackSent = socket.sent.slice(1).map(b => CoapMessage.decode(b));
         const matchingAck = ackSent.find(m => m.type === "ACK" && m.messageId === 0xfa11);
         expect(matchingAck).to.exist;
@@ -361,7 +382,7 @@ describe("CoapClient", () => {
             payload: new Uint8Array(),
         });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
 
         socket.deliverMessage({
             type: "NON",
@@ -375,7 +396,7 @@ describe("CoapClient", () => {
         expect(response.code).to.equal("2.04");
         expect(response.type).to.equal("NON");
         // No new sends after the NON response (NON does not require ACK).
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         expect(socket.sent.length).to.equal(sentCount);
 
         await client.close();
@@ -397,6 +418,11 @@ describe("CoapClient", () => {
             token: new Uint8Array(),
             payload: new Uint8Array(),
         });
+
+        // Yield so #dispatchInbound runs and the separate-response timer is armed.
+        await MockTime.yield();
+        // Advance past the separate-response timeout (30ms) to fire the rejection timer.
+        await MockTime.advance(30);
 
         try {
             await reqPromise;
@@ -427,7 +453,9 @@ describe("CoapClient", () => {
         };
         socket.deliverMessage(inbound);
 
-        await new Promise(r => setTimeout(r, 10));
+        // CON path: recv loop → sendEmptyAck (one extra await) → dispatchToListeners.
+        await MockTime.yield3();
+        await MockTime.yield3();
 
         expect(received).to.have.length(1);
         const ackSent = socket.sent.map(b => CoapMessage.decode(b));
@@ -464,7 +492,7 @@ describe("CoapClient", () => {
             payload: new Uint8Array(),
         };
         socket2.deliverMessage(inbound);
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield3();
 
         expect(count).to.equal(1);
 
