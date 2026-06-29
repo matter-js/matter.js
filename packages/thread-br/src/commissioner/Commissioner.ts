@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Millis, Time, type Timer } from "@matter/general";
+import { Logger, MatterError, Millis, Time, TimeoutError, type Timer } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
@@ -14,7 +14,7 @@ import { LeadPet } from "./LeadPet.js";
 const logger = Logger.get("Commissioner");
 
 /** Thrown by {@link Commissioner.petition} when the Border Router explicitly rejects the petition. */
-export class CommissionerRejectedError extends Error {
+export class CommissionerRejectedError extends MatterError {
     constructor() {
         super("Commissioner petition rejected by Border Router");
         this.name = "CommissionerRejectedError";
@@ -22,7 +22,7 @@ export class CommissionerRejectedError extends Error {
 }
 
 /** Thrown by {@link Commissioner.petition} when the petition is still pending after one retry. */
-export class CommissionerTimeoutError extends Error {
+export class CommissionerTimeoutError extends TimeoutError {
     constructor() {
         super("Commissioner petition timed out (still pending after retry)");
         this.name = "CommissionerTimeoutError";

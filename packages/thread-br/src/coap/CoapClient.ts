@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Millis, Time, Timer } from "@matter/general";
+import { Logger, Millis, Time, TimeoutError, Timer } from "@matter/general";
 import type { DtlsSocket } from "../dtls/socket/DtlsSocket.js";
 import { CoapMessage } from "./CoapMessage.js";
 
@@ -13,7 +13,7 @@ const logger = Logger.get("CoapClient");
 /** Thrown when a CON request exhausts MAX_RETRANSMIT without receiving an ACK,
  *  or when an empty ACK is received but no separate response arrives within
  *  {@link SEPARATE_RESPONSE_TIMEOUT_MS}. */
-export class CoapTimeoutError extends Error {
+export class CoapTimeoutError extends TimeoutError {
     constructor(messageId: number) {
         super(`CoAP CON messageId=${messageId} timed out after MAX_RETRANSMIT`);
         this.name = "CoapTimeoutError";
