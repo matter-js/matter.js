@@ -248,7 +248,7 @@ export namespace CommissioningConnection {
         externalAbort?: AbortSignal;
 
         /**
-         * Delay between consecutive PASE attempt starts.  Defaults to the internal 5s production value.
+         * Delay between consecutive PASE attempt starts.  Defaults to the internal 15s production value.
          * Exposed primarily for tests that need to disable or shorten the stagger; production callers
          * should not override this.
          */
