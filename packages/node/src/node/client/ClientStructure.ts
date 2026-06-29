@@ -253,47 +253,50 @@ export class ClientStructure {
 
         // Apply changes
         const scope = ReadScope(request);
-        for await (const chunk of changes) {
-            const chunkData = new Array<ReadResult.Report>();
-            for await (const change of chunk) {
-                chunkData.push(change);
-                switch (change.kind) {
-                    case "attr-value":
-                        currentUpdates = this.#mutateAttribute(change, scope, currentUpdates, q);
-                        break;
+        try {
+            for await (const chunk of changes) {
+                const chunkData = new Array<ReadResult.Report>();
+                for await (const change of chunk) {
+                    chunkData.push(change);
+                    switch (change.kind) {
+                        case "attr-value":
+                            currentUpdates = this.#mutateAttribute(change, scope, currentUpdates, q);
+                            break;
 
-                    case "event-value":
-                        this.#emitEvent(change, q);
-                        break;
+                        case "event-value":
+                            this.#emitEvent(change, q);
+                            break;
 
-                    case "attr-status":
-                    case "event-status":
-                        logger.debug(
-                            "Received status for",
-                            change.kind === "attr-status" ? "attribute" : "event",
-                            Diagnostic.strong(Diagnostic.dict(change.path)),
-                            `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
-                        );
-                        break;
+                        case "attr-status":
+                        case "event-status":
+                            logger.debug(
+                                "Received status for",
+                                change.kind === "attr-status" ? "attribute" : "event",
+                                Diagnostic.strong(Diagnostic.dict(change.path)),
+                                `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
+                            );
+                            break;
+                    }
+
+                    if (pendingJobs > MAX_PENDING_JOBS) {
+                        await queue;
+                    }
                 }
 
-                if (pendingJobs > MAX_PENDING_JOBS) {
-                    await queue;
-                }
+                yield chunkData;
             }
 
-            yield chunkData;
+            // The last cluster still needs its changes applied
+            if (currentUpdates) {
+                const toFlush = currentUpdates;
+                q.enqueue(() => this.#updateCluster(toFlush));
+            }
+        } finally {
+            // Drain deferred jobs on every exit path (normal completion, consumer break/throw, or a `changes`
+            // error) so no enqueued persist/emit work runs detached after the interaction ends.  Structural changes
+            // below read #pendingChanges, which the drained #updateCluster jobs populate.
+            await queue;
         }
-
-        // The last cluster still needs its changes applied
-        if (currentUpdates) {
-            const toFlush = currentUpdates;
-            q.enqueue(() => this.#updateCluster(toFlush));
-        }
-
-        // Drain all deferred attribute/event jobs before structural changes, which read #pendingChanges
-        // populated by #updateCluster.
-        await queue;
 
         if (jobErrors.length) {
             logger.warn(`${jobErrors.length} deferred data report job(s) failed during interaction`);
