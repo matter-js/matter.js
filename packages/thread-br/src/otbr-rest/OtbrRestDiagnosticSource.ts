@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Observable } from "@matter/main";
+import { Bytes, Logger, Observable } from "@matter/general";
 import type { DiagnosticResponse } from "../diagnostic/DiagnosticResponse.js";
-import { DEFAULT_RESET_TLV_TYPES } from "../diagnostic/DiagnosticSource.js";
 import type { DiagnosticSource, QueryMulticastHandle, QueryMulticastOptions } from "../diagnostic/DiagnosticSource.js";
+import { DEFAULT_RESET_TLV_TYPES } from "../diagnostic/DiagnosticSource.js";
 import type { OtbrRestCapability } from "./OtbrRestCapability.js";
 import type { OtbrRestClient } from "./OtbrRestClient.js";
 import { OtbrRestError } from "./OtbrRestError.js";

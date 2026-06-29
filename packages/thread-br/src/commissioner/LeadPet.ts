@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes } from "@matter/general";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
 

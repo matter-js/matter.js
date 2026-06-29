@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Observable } from "@matter/main";
+import type { Observable } from "@matter/general";
 import { NetworkDiagTlvType } from "../tlv/networkDiagTlvTypes.js";
 import type { DiagnosticResponse } from "./DiagnosticResponse.js";
 

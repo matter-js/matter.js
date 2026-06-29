@@ -9,13 +9,13 @@
  * read-only network diagnostics (MeshCoP/CoAP over DTLS-EC-JPAKE, and OTBR REST).
  * See the package README for a consumer getting-started.
  */
-export type { BorderRouterEntry } from "./discovery/index.js";
 export { BorderRouterRegistry } from "./discovery/index.js";
+export type { BorderRouterEntry } from "./discovery/index.js";
 
 export { MeshCopTlvType, MeshCopTlvTypeName, OperationalDataset, SecurityPolicy } from "./dataset/index.js";
 
-export type { ThreadNetworkCredentials } from "./credentials/index.js";
 export { ThreadCredentialsRegistry } from "./credentials/index.js";
+export type { ThreadNetworkCredentials } from "./credentials/index.js";
 
 export { NetworkDiagTlvType, NetworkDiagTlvTypeName } from "./tlv/networkDiagTlvTypes.js";
 
@@ -27,6 +27,7 @@ export {
 } from "./util/meshLocalAddr.js";
 
 // Diagnostics: the source abstraction, response shape, and its structured sub-types.
+export { DefaultTlvSet, MeshCopDiagnosticSource, connectMeshcop } from "./diagnostic/index.js";
 export type {
     ConnectMeshcopOpts,
     DiagnosticResponse,
@@ -39,7 +40,6 @@ export type {
     QueryMulticastHandle,
     QueryMulticastOptions,
 } from "./diagnostic/index.js";
-export { connectMeshcop, DefaultTlvSet, MeshCopDiagnosticSource } from "./diagnostic/index.js";
 
 // DiagnosticResponse field types, so consumers can name them without deep imports.
 export type {
@@ -56,14 +56,15 @@ export type {
 
 export { Pskc } from "./crypto/index.js";
 
-export type { DtlsBackend, DtlsConnectOpts, DtlsSocket } from "./dtls/socket/index.js";
 export { createDtlsBackend } from "./dtls/socket/index.js";
+export type { DtlsBackend, DtlsConnectOpts, DtlsSocket } from "./dtls/socket/index.js";
 
-export type { CommissionerOpts } from "./commissioner/index.js";
 export { Commissioner, CommissionerRejectedError, CommissionerTimeoutError } from "./commissioner/index.js";
+export type { CommissionerOpts } from "./commissioner/index.js";
 
 export { CoapTimeoutError } from "./coap/index.js";
 
+export { OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestError, OtbrRestProbe } from "./otbr-rest/index.js";
 export type {
     OtbrDatasetHex,
     OtbrLeaderData,
@@ -73,7 +74,6 @@ export type {
     OtbrRestErrorCode,
     OtbrRestErrorOptions,
 } from "./otbr-rest/index.js";
-export { OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestError, OtbrRestProbe } from "./otbr-rest/index.js";
 
-export { decodeStateBitmap, ExtPanIdLockManager, rankBrs, selectBr, selectSource } from "./selection/index.js";
+export { ExtPanIdLockManager, decodeStateBitmap, rankBrs, selectBr, selectSource } from "./selection/index.js";
 export type { DecodedStateBitmap, SelectSourceOpts } from "./selection/index.js";

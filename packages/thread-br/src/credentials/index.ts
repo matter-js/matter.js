@@ -4,5 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type { ThreadNetworkCredentials } from "./ThreadNetworkCredentials.js";
 export { ThreadCredentialsRegistry } from "./ThreadCredentialsRegistry.js";
+export type { ThreadNetworkCredentials } from "./ThreadNetworkCredentials.js";

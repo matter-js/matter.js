@@ -10,7 +10,7 @@
  * package-private.
  */
 
-export type { DtlsSocket } from "./DtlsSocket.js";
+export { createDtlsBackend, type CreateDtlsBackendOpts, type DtlsBackendKind } from "./createDtlsBackend.js";
 export type { DtlsBackend } from "./DtlsBackend.js";
 export type { DtlsConnectOpts } from "./DtlsConnectOpts.js";
-export { createDtlsBackend, type CreateDtlsBackendOpts, type DtlsBackendKind } from "./createDtlsBackend.js";
+export type { DtlsSocket } from "./DtlsSocket.js";

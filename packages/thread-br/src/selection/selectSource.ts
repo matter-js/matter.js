@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes } from "@matter/general";
 import type { ThreadCredentialsRegistry } from "../credentials/ThreadCredentialsRegistry.js";
 import type { ThreadNetworkCredentials } from "../credentials/ThreadNetworkCredentials.js";
 import type { DiagnosticSource } from "../diagnostic/DiagnosticSource.js";

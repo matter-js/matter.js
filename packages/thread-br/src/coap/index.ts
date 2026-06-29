@@ -4,5 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type { CoapType, CoapMessage } from "./CoapMessage.js";
 export { CoapClient, CoapTimeoutError } from "./CoapClient.js";
+export type { CoapMessage, CoapType } from "./CoapMessage.js";

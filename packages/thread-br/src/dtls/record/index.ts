@@ -19,8 +19,8 @@ export {
     DTLS_HEADER_LEN,
     DTLS_MAX_FRAGMENT_LEN,
     DtlsRecord,
-    type DtlsRecordCipherState,
     DtlsReplayError,
+    type DtlsRecordCipherState,
 } from "./DtlsRecord.js";
 // AesCcm8 is intentionally NOT exported — keep the AEAD primitive internal so the
 // only path to it is through DtlsRecord.encode/decode under a DtlsCipherState.

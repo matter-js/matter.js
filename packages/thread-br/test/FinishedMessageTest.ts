@@ -5,7 +5,7 @@
  */
 
 import { Bytes } from "@matter/main";
-import { ChangeCipherSpec, CHANGE_CIPHER_SPEC_BODY } from "../src/dtls/handshake/ChangeCipherSpec.js";
+import { CHANGE_CIPHER_SPEC_BODY, ChangeCipherSpec } from "../src/dtls/handshake/ChangeCipherSpec.js";
 import { FINISHED_VERIFY_DATA_LEN, FinishedMessage } from "../src/dtls/handshake/FinishedMessage.js";
 
 describe("FinishedMessage", () => {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger } from "@matter/main";
+import { Bytes, Logger } from "@matter/general";
 import type { OtbrRestCapability } from "./OtbrRestCapability.js";
 import { OtbrRestClient } from "./OtbrRestClient.js";
 import { OtbrRestError } from "./OtbrRestError.js";

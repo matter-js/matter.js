@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/main";
+import { Logger } from "@matter/general";
 import type { DtlsSocket } from "../dtls/socket/DtlsSocket.js";
 import { CoapMessage } from "./CoapMessage.js";
 

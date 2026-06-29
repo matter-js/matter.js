@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes } from "@matter/general";
 
 /**
  * Per-extPanId FIFO mutex for diagnostic flows.

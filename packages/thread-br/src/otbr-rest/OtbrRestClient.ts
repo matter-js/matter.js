@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes } from "@matter/general";
 import { normalizeKeys } from "./caseNormalizer.js";
 import { OtbrRestError } from "./OtbrRestError.js";
 

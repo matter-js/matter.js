@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/main";
+import { Logger } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";

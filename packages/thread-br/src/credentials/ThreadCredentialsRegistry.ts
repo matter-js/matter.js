@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Observable } from "@matter/main";
+import { Bytes, Observable } from "@matter/general";
 import type { OperationalDataset } from "../dataset/OperationalDataset.js";
 import type { ThreadNetworkCredentials } from "./ThreadNetworkCredentials.js";
 

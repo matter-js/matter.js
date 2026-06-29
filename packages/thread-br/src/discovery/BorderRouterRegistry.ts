@@ -12,8 +12,8 @@ import {
     Logger,
     Observable,
     type SrvRecordValue,
-} from "@matter/main";
-import { MdnsService } from "@matter/main/protocol";
+} from "@matter/general";
+import { MdnsService } from "@matter/protocol";
 import type { BorderRouterEntry } from "./BorderRouterEntry.js";
 import type { DiscoveredObserver, DnssdNameLike, DnssdNamesLike, NameObserver } from "./DnssdLikeTypes.js";
 

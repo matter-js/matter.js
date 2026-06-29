@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Observable } from "@matter/main";
+import { Bytes, Logger, Observable } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { CoapMessage } from "../coap/CoapMessage.js";
 import type { Commissioner } from "../commissioner/Commissioner.js";
@@ -51,8 +51,8 @@ import {
     formatIp6,
 } from "../util/meshLocalAddr.js";
 import type { DiagnosticResponse } from "./DiagnosticResponse.js";
-import { DEFAULT_RESET_TLV_TYPES } from "./DiagnosticSource.js";
 import type { DiagnosticSource, QueryMulticastHandle, QueryMulticastOptions } from "./DiagnosticSource.js";
+import { DEFAULT_RESET_TLV_TYPES } from "./DiagnosticSource.js";
 
 const logger = Logger.get("MeshCopDiagnosticSource");
 

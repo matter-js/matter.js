@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes } from "@matter/general";
 import type { DiagnosticResponse } from "../diagnostic/DiagnosticResponse.js";
 import type { ChildTableEntry } from "../tlv/diag/ChildTable.js";
 import type { Connectivity, ParentPriority } from "../tlv/diag/Connectivity.js";

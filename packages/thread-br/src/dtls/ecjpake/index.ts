@@ -23,7 +23,7 @@
  * Internal to `dtls/`; not re-exported from the package public API surface.
  */
 
-export type { EcJpakeKeyKP } from "./EcJpakeRound.js";
 export { ECJPAKE_ID_CLIENT, ECJPAKE_ID_SERVER, EcJpakeRound } from "./EcJpakeRound.js";
-export type { SchnorrZkp as SchnorrZkpType } from "./SchnorrZkp.js";
+export type { EcJpakeKeyKP } from "./EcJpakeRound.js";
 export { SchnorrZkp } from "./SchnorrZkp.js";
+export type { SchnorrZkp as SchnorrZkpType } from "./SchnorrZkp.js";

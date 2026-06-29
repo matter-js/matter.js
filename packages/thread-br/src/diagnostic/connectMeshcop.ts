@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/main";
+import { Logger } from "@matter/general";
 import { CoapClient } from "../coap/CoapClient.js";
 import { Commissioner } from "../commissioner/Commissioner.js";
 import type { ThreadNetworkCredentials } from "../credentials/ThreadNetworkCredentials.js";
