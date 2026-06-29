@@ -15,6 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, cutting CPU on busy networks
 
 - @matter/node
+    - Enhancement: Optimizes incoming DataReport processing
     - Enhancement: Frees a behavior's persisted seed values from memory once the datasource has loaded them
     - Adjustment: Rejects an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
     - Adjustment: A client write to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
