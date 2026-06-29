@@ -84,41 +84,45 @@ function* emitAttributes(
     let group: AttributeDataGroup | undefined;
 
     for (const entry of attrs) {
-        if (entry.attributeData !== undefined) {
-            const data = entry.attributeData;
-            const resolved = resolvePath(data.path, lastPath);
-            if (
-                data.path.enableTagCompression &&
-                data.dataVersion === undefined &&
-                lastPath?.dataVersion !== undefined
-            ) {
-                data.dataVersion = lastPath.dataVersion;
+        try {
+            if (entry.attributeData !== undefined) {
+                const data = entry.attributeData;
+                const resolved = resolvePath(data.path, lastPath);
+                if (
+                    data.path.enableTagCompression &&
+                    data.dataVersion === undefined &&
+                    lastPath?.dataVersion !== undefined
+                ) {
+                    data.dataVersion = lastPath.dataVersion;
+                }
+                if (!data.path.enableTagCompression) {
+                    lastPath = { ...resolved, dataVersion: data.dataVersion };
+                }
+                if (group !== undefined && !samePath(group.path, resolved)) {
+                    yield* flushDataGroup(group);
+                    group = undefined;
+                }
+                if (group === undefined) {
+                    group = { path: resolved, dataVersion: data.dataVersion, entries: [data] };
+                } else {
+                    group.entries.push(data);
+                    if (group.dataVersion === undefined) group.dataVersion = data.dataVersion;
+                }
+            } else if (entry.attributeStatus !== undefined) {
+                const statusSrc = entry.attributeStatus;
+                const resolved = resolvePath(statusSrc.path, lastPath);
+                if (!statusSrc.path.enableTagCompression) {
+                    lastPath = { ...resolved, dataVersion: lastPath?.dataVersion };
+                }
+                if (group !== undefined) {
+                    yield* flushDataGroup(group);
+                    group = undefined;
+                }
+                yield buildAttrStatus(resolved, statusSrc);
             }
-            if (!data.path.enableTagCompression) {
-                lastPath = { ...resolved, dataVersion: data.dataVersion };
-            }
-            if (group !== undefined && !samePath(group.path, resolved)) {
-                yield* flushDataGroup(group);
-                group = undefined;
-            }
-            if (group === undefined) {
-                group = { path: resolved, dataVersion: data.dataVersion, entries: [data] };
-            } else {
-                group.entries.push(data);
-                if (group.dataVersion === undefined) group.dataVersion = data.dataVersion;
-            }
-        } else if (entry.attributeStatus !== undefined) {
-            const statusSrc = entry.attributeStatus;
-            const resolved = resolvePath(statusSrc.path, lastPath);
-            // Status entry has no dataVersion of its own; preserve whatever the previous data entry installed.
-            if (!statusSrc.path.enableTagCompression) {
-                lastPath = { ...resolved, dataVersion: lastPath?.dataVersion };
-            }
-            if (group !== undefined) {
-                yield* flushDataGroup(group);
-                group = undefined;
-            }
-            yield buildAttrStatus(resolved, statusSrc);
+        } catch (error) {
+            UnexpectedDataError.accept(error);
+            logger.warn("Skipping malformed attribute report entry:", Diagnostic.errorMessage(error));
         }
     }
 
@@ -219,7 +223,8 @@ function decodeAttributeGroup(
         // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
-            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${error.message}`,
+            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}:`,
+            Diagnostic.errorMessage(error),
         );
         return undefined;
     }
@@ -243,12 +248,17 @@ function* emitEvents(input: DataReport): Generator<ReadResult.EventValue | ReadR
     if (events === undefined || events.length === 0) return;
 
     for (const entry of events) {
-        if (entry.eventData !== undefined) {
-            const value = decodeEventValue(entry.eventData);
-            if (value !== undefined) yield value;
-        } else if (entry.eventStatus !== undefined) {
-            const status = buildEventStatus(entry.eventStatus);
-            if (status !== undefined) yield status;
+        try {
+            if (entry.eventData !== undefined) {
+                const value = decodeEventValue(entry.eventData);
+                if (value !== undefined) yield value;
+            } else if (entry.eventStatus !== undefined) {
+                const status = buildEventStatus(entry.eventStatus);
+                if (status !== undefined) yield status;
+            }
+        } catch (error) {
+            UnexpectedDataError.accept(error);
+            logger.warn("Skipping malformed event report entry:", Diagnostic.errorMessage(error));
         }
     }
 }
@@ -304,7 +314,8 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
         // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
-            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}: ${error.message}`,
+            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}:`,
+            Diagnostic.errorMessage(error),
         );
         return undefined;
     }
