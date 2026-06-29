@@ -229,7 +229,7 @@ export class ClientStructure {
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
-        // Serial FIFO for deferred persist/emit so Status.Success is not gated on store I/O.
+        // Serial FIFO for deferred persist/emit so Status.Success is not gated on internal and consumer data processing.
         // Ordering is preserved by insertion order; the Mutex runs one job at a time.
         const queue = new Mutex(this);
         const jobErrors = new Array<unknown>();
