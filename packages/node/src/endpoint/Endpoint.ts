@@ -1336,7 +1336,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     get #diagnosticProps() {
         const type = this.type;
         return {
-            "endpoint#": this.#number ? this.number : "(unassigned)",
+            "endpoint#": typeof this.#number === "number" ? this.number : "(unassigned)",
             type: `${type.name} (${
                 type.deviceType === EndpointType.UNKNOWN_DEVICE_TYPE
                     ? "unknown"
