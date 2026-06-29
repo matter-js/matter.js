@@ -263,7 +263,7 @@ export class ClientStructure {
                         break;
 
                     case "event-value":
-                        this.#emitEvent(change, currentUpdates, q);
+                        this.#emitEvent(change, q);
                         break;
 
                     case "attr-status":
@@ -463,27 +463,22 @@ export class ClientStructure {
         return currentUpdates;
     }
 
-    #emitEvent(
-        occurrence: ReadResult.EventValue,
-        currentUpdates: AttributeUpdates | undefined,
-        q: MutateContext,
-    ): void {
+    #emitEvent(occurrence: ReadResult.EventValue, q: MutateContext): void {
         const emitter = this.eventEmitter;
         if (!emitter) {
             return;
         }
 
-        const { endpointId, clusterId } = occurrence.path;
+        const { endpointId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
         // Delay emission until end-of-interaction (after persist + structural changes) when this endpoint received
-        // attribute data this interaction, is the cluster currently being accumulated, has a pending structural
-        // change, or is not yet installed — events must not arrive before the endpoint exists.
+        // attribute data this interaction, has a pending structural change, or is not yet installed — events must not
+        // arrive before the endpoint exists or before its own attribute state is applied.
         if (
             endpoint === undefined ||
             !endpoint.endpoint.lifecycle.isInstalled ||
             q.endpointsWithData.has(endpointId) ||
-            (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
             this.#pendingChanges?.has(endpoint)
         ) {
             this.#delayedClusterEvents.push(occurrence);
