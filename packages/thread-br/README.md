@@ -1,10 +1,10 @@
-# Open Home Foundation Matter(.js) Server - Thread Border Router
+# @matter/thread-br - Thread Border Router communication for Matter.js
 
-![Matter Logo](https://github.com/matter-js/matterjs-server/raw/main/docs/matter_logo.svg)
+Thread Border Router support for matter.js: mDNS BR discovery, dataset codec, MeshCoP/CoAP/DTLS-EC-JPAKE diagnostic queries, and OpenThread Border Router (OTBR) REST adapter.
 
-Thread Border Router communication for the [OHF Matter Server](https://github.com/matter-js/matterjs-server/blob/main/README.md): mDNS BR discovery, dataset codec, MeshCoP/CoAP/DTLS-EC-JPAKE diagnostic queries, and OpenThread Border Router (OTBR) REST adapter.
+For more information about matter.js, see the [matter.js README](../../README.md).
 
-This package is consumed internally by `@matter-server/ws-controller` to feed Thread BR-perspective routing, link-quality, child-table, and vendor data into the Matter Server dashboard for the entire Thread mesh — including non-Matter nodes.
+It provides Thread BR-perspective routing, link-quality, child-table, and vendor data for an entire Thread mesh — including non-Matter nodes.
 
 ## Using this package
 
@@ -12,7 +12,7 @@ This package is consumed internally by `@matter-server/ws-controller` to feed Th
 
 ```ts
 import { Environment } from "@matter/main";
-import { BorderRouterRegistry } from "@matter-server/thread-br";
+import { BorderRouterRegistry } from "@matter/thread-br";
 
 const registry = new BorderRouterRegistry(Environment.default);
 await registry.start();
@@ -23,7 +23,7 @@ registry.events.added.on(br => console.log(br.networkName, br.extAddressHex, br.
 ### Decode a Thread Operational Dataset
 
 ```ts
-import { OperationalDataset } from "@matter-server/thread-br";
+import { OperationalDataset } from "@matter/thread-br";
 
 const ds = OperationalDataset.decode("0e08...");   // hex from `ot-ctl dataset active -x`
 console.log(ds.networkName, ds.channel);
@@ -40,7 +40,7 @@ Two paths, picked per Border Router:
   up by extended PAN ID from a `ThreadCredentialsRegistry`.
 
 ```ts
-import { DefaultTlvSet, OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestProbe } from "@matter-server/thread-br";
+import { DefaultTlvSet, OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestProbe } from "@matter/thread-br";
 
 const cap = await OtbrRestProbe.probe(host, 8081, 1500);
 if (cap) {
@@ -125,7 +125,7 @@ Look for an entry like `*:49191` or `*:49xxx` — that's the MeshCoP port.
 
 ```bash
 cd <repo-root>
-npm run build -w @matter-server/thread-br
+npm run build -w @matter/thread-br
 
 cd packages/thread-br
 PSKC=$(npm run --silent example -- examples/extract-pskc.ts <dataset-hex> 2>/dev/null)
@@ -162,6 +162,4 @@ sudo kill $TCPDUMP_PID
 
 Open `/tmp/dtls.pcap` in Wireshark. Without the Thread / MeshCoP dissector you still see DTLS 1.2 record headers, fragment offsets, and epoch transitions, which is enough to locate where client and server diverge.
 
-The Open Home Foundation Matter Server software component is a project of the [Open Home Foundation](https://www.openhomefoundation.org/).
-
-Please refer to https://github.com/matter-js/matterjs-server/blob/main/README.md for more information.
+For more information about matter.js, see the [matter.js README](../../README.md).
