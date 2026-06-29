@@ -185,7 +185,7 @@ export class SoftwareUpdateManager extends Behavior {
         if (!ownFabric) {
             // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
             logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
-            fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
+            this.reactTo(fabricAuthority.fabricAdded, this.#nodeOnline, { once: true });
             return;
         }
         this.internal.announcements = new OtaAnnouncements(this.endpoint, ownFabric);
