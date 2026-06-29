@@ -22,6 +22,7 @@ import {
     Lifecycle,
     Logger,
     MaybePromise,
+    Mutex,
     Observable,
 } from "@matter/general";
 import {
@@ -43,6 +44,14 @@ import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
 
 const logger = Logger.get("ClientStructure");
+
+/** Max deferred persist/emit jobs allowed in flight before the decode loop applies back-pressure. */
+export const MAX_PENDING_JOBS = 100;
+
+interface MutateContext {
+    enqueue(job: () => Promise<void>): void;
+    endpointsWithData: Set<EndpointNumber>;
+}
 
 const DESCRIPTOR_ID = Descriptor.id;
 const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.attributes.deviceTypeList.id;
@@ -220,6 +229,28 @@ export class ClientStructure {
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
+        // Serial FIFO for deferred persist/emit so Status.Success is not gated on store I/O.
+        // Ordering is preserved by insertion order; the Mutex runs one job at a time.
+        const queue = new Mutex(this);
+        const jobErrors = new Array<unknown>();
+        let pendingJobs = 0;
+        const q: MutateContext = {
+            endpointsWithData: new Set<EndpointNumber>(),
+            enqueue: job => {
+                pendingJobs++;
+                queue.run(async () => {
+                    try {
+                        await job();
+                    } catch (error) {
+                        jobErrors.push(error);
+                        logger.warn("Deferred data report job failed:", error);
+                    } finally {
+                        pendingJobs--;
+                    }
+                });
+            },
+        };
+
         // Apply changes
         const scope = ReadScope(request);
         for await (const chunk of changes) {
@@ -228,11 +259,11 @@ export class ClientStructure {
                 chunkData.push(change);
                 switch (change.kind) {
                     case "attr-value":
-                        currentUpdates = await this.#mutateAttribute(change, scope, currentUpdates);
+                        currentUpdates = this.#mutateAttribute(change, scope, currentUpdates, q);
                         break;
 
                     case "event-value":
-                        await this.#emitEvent(change, currentUpdates);
+                        this.#emitEvent(change, currentUpdates, q);
                         break;
 
                     case "attr-status":
@@ -245,6 +276,10 @@ export class ClientStructure {
                         );
                         break;
                 }
+
+                if (pendingJobs > MAX_PENDING_JOBS) {
+                    await queue;
+                }
             }
 
             yield chunkData;
@@ -252,7 +287,16 @@ export class ClientStructure {
 
         // The last cluster still needs its changes applied
         if (currentUpdates) {
-            await this.#updateCluster(currentUpdates);
+            const toFlush = currentUpdates;
+            q.enqueue(() => this.#updateCluster(toFlush));
+        }
+
+        // Drain all deferred attribute/event jobs before structural changes, which read #pendingChanges
+        // populated by #updateCluster.
+        await queue;
+
+        if (jobErrors.length) {
+            logger.warn(`${jobErrors.length} deferred data report job(s) failed during interaction`);
         }
 
         // We don't apply structural changes until we've processed all attribute data if a.) listeners might otherwise
@@ -375,11 +419,12 @@ export class ClientStructure {
         return this.#subscribedFabricFiltered;
     }
 
-    async #mutateAttribute(
+    #mutateAttribute(
         change: ReadResult.AttributeValue,
         scope: ReadScope,
         currentUpdates: undefined | AttributeUpdates,
-    ) {
+        q: MutateContext,
+    ): AttributeUpdates | undefined {
         // We only store values when an initial subscription is defined and the fabric filter matches
         if (this.subscribedFabricFiltered !== scope.isFabricFiltered) {
             return currentUpdates;
@@ -387,10 +432,14 @@ export class ClientStructure {
 
         const { endpointId, clusterId, attributeId } = change.path;
 
-        // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update
-        // set
+        // Record synchronously so #emitEvent can classify events against data touched this interaction,
+        // independent of the now-deferred #pendingChanges population.
+        q.endpointsWithData.add(endpointId);
+
+        // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update set
         if (currentUpdates && (currentUpdates.endpointId !== endpointId || currentUpdates.clusterId !== clusterId)) {
-            await this.#updateCluster(currentUpdates);
+            const toFlush = currentUpdates;
+            q.enqueue(() => this.#updateCluster(toFlush));
             currentUpdates = undefined;
         }
 
@@ -414,22 +463,30 @@ export class ClientStructure {
         return currentUpdates;
     }
 
-    async #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
-        if (!this.eventEmitter) {
+    #emitEvent(
+        occurrence: ReadResult.EventValue,
+        currentUpdates: AttributeUpdates | undefined,
+        q: MutateContext,
+    ): void {
+        const emitter = this.eventEmitter;
+        if (!emitter) {
             return;
         }
 
         const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
-        // If we are building updates on the current cluster or endpoint has pending changes, delay event emission
+        // Delay emission until end-of-interaction (after persist + structural changes) when this endpoint received
+        // attribute data this interaction, is the cluster currently being accumulated, or has a pending structural
+        // change.  This keeps events ordered after consistent state without depending on the deferred #pendingChanges.
         if (
+            q.endpointsWithData.has(endpointId) ||
             (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
             (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
         ) {
             this.#delayedClusterEvents.push(occurrence);
         } else {
-            await this.eventEmitter(occurrence);
+            q.enqueue(() => Promise.resolve(emitter(occurrence)));
         }
     }
 
