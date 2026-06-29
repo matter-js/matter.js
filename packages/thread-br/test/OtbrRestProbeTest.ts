@@ -28,6 +28,8 @@ function installFetch(handler: FetchHandler): () => void {
 }
 
 describe("OtbrRestProbe", () => {
+    before(MockTime.enable);
+
     it("returns capability with keyFormat=camel when /api/actions returns 200", async () => {
         const restore = installFetch(async url => {
             if (url.endsWith("/api/actions")) return new Response("[]", { status: 200 });
@@ -142,7 +144,9 @@ describe("OtbrRestProbe", () => {
             });
         });
         try {
-            const cap = await OtbrRestProbe.probe("br.example", 8081, 20);
+            const probePromise = OtbrRestProbe.probe("br.example", 8081, 20);
+            await MockTime.advance(20);
+            const cap = await probePromise;
             expect(cap).to.be.null;
         } finally {
             restore();

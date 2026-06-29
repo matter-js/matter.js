@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger } from "@matter/general";
+import { Bytes, Logger, Millis, Time, Timer } from "@matter/general";
 import type { OtbrRestCapability } from "./OtbrRestCapability.js";
 import { OtbrRestClient } from "./OtbrRestClient.js";
 import { OtbrRestError } from "./OtbrRestError.js";
@@ -64,7 +64,7 @@ export class OtbrRestProbe {
 
 async function detectCase(baseUrl: string, timeoutMs: number): Promise<"camel" | "pascal" | null> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer: Timer = Time.getTimer("otbr-probe-timeout", Millis(timeoutMs), () => controller.abort()).start();
     try {
         const response = await fetch(`${baseUrl}/api/actions`, {
             method: "GET",
@@ -80,6 +80,6 @@ async function detectCase(baseUrl: string, timeoutMs: number): Promise<"camel" |
         logger.debug(`probe of ${baseUrl} rejected: /api/actions ${message}`);
         return null;
     } finally {
-        clearTimeout(timer);
+        timer.stop();
     }
 }

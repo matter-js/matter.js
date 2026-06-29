@@ -32,6 +32,8 @@ function installFetch(handler: FetchHandler): () => void {
 }
 
 describe("OtbrRestClient", () => {
+    before(MockTime.enable);
+
     it("getNode parses /node fixture into typed object with hex bytes", async () => {
         const restore = installFetch(async url => {
             expect(url).to.equal("http://br.example:8081/node");
@@ -160,8 +162,10 @@ describe("OtbrRestClient", () => {
         });
         try {
             const client = new OtbrRestClient({ host: "br.example", timeoutMs: 20 });
+            const getNodePromise = client.getNode();
+            await MockTime.advance(20);
             try {
-                await client.getNode();
+                await getNodePromise;
                 expect.fail("expected OtbrRestError");
             } catch (err) {
                 expect(err).to.be.instanceOf(OtbrRestError);

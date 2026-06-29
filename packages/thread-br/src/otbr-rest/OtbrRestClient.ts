@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/general";
+import { Bytes, Millis, Time, Timer } from "@matter/general";
 import { normalizeKeys } from "./caseNormalizer.js";
 import { OtbrRestError } from "./OtbrRestError.js";
 
@@ -224,7 +224,9 @@ export class OtbrRestClient {
     async #postActions(body: Record<string, unknown>): Promise<void> {
         const url = `${this.#baseUrl}/api/actions`;
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
+        const timer: Timer = Time.getTimer("otbr-post-actions-timeout", Millis(this.#timeoutMs), () =>
+            controller.abort(),
+        ).start();
         let response: Response;
         try {
             response = await fetch(url, {
@@ -239,7 +241,7 @@ export class OtbrRestClient {
                 cause: err instanceof Error ? err : undefined,
             });
         } finally {
-            clearTimeout(timer);
+            timer.stop();
         }
         if (!response.ok) {
             throw new OtbrRestError("rest_protocol", `POST /api/actions returned ${response.status}`, {
@@ -284,7 +286,9 @@ export class OtbrRestClient {
     async #doFetch(path: string, accept: string): Promise<Response> {
         const url = `${this.#baseUrl}${path}`;
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
+        const timer: Timer = Time.getTimer("otbr-fetch-timeout", Millis(this.#timeoutMs), () =>
+            controller.abort(),
+        ).start();
         try {
             return await fetch(url, {
                 method: "GET",
@@ -297,7 +301,7 @@ export class OtbrRestClient {
                 cause: err instanceof Error ? err : undefined,
             });
         } finally {
-            clearTimeout(timer);
+            timer.stop();
         }
     }
 }
