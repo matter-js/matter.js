@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Observable } from "@matter/general";
+import { Bytes, Logger, Millis, Observable, Time, Timer } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { CoapMessage } from "../coap/CoapMessage.js";
 import type { Commissioner } from "../commissioner/Commissioner.js";
@@ -179,11 +179,11 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 }
             });
 
-            const timer = setTimeout(() => {
+            const timer = Time.getTimer("meshcop-unicast-timeout", Millis(DEFAULT_UNICAST_TIMEOUT_MS), () => {
                 rejectResponse(
                     new Error(`MeshCopDiagnosticSource: unicast diagnostic to ${formatIp6(targetAddr)} timed out`),
                 );
-            }, DEFAULT_UNICAST_TIMEOUT_MS);
+            }).start();
 
             try {
                 // ProxyTx is fire-and-forget: the Border Agent forwards the inner
@@ -197,7 +197,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 });
                 return await responsePromise;
             } finally {
-                clearTimeout(timer);
+                timer.stop();
                 unsubscribe();
             }
         });
@@ -212,8 +212,8 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         let nodeCount = 0;
         let closed = false;
         let unsubscribe: (() => void) | undefined;
-        let windowTimer: NodeJS.Timeout | undefined;
-        let fillTimers: NodeJS.Timeout[] = [];
+        let windowTimer: Timer | undefined;
+        let fillTimers: Timer[] = [];
         let resolveTeardown!: () => void;
         // teardownPromise gates the inner withSession callback: when it resolves
         // (via teardown()), the callback returns and Commissioner.release() runs.
@@ -225,10 +225,10 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             if (closed) return;
             closed = true;
             if (windowTimer !== undefined) {
-                clearTimeout(windowTimer);
+                windowTimer.stop();
                 windowTimer = undefined;
             }
-            for (const t of fillTimers) clearTimeout(t);
+            for (const t of fillTimers) t.stop();
             fillTimers = [];
             unsubscribe?.();
             logger.debug(
@@ -278,7 +278,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 // Start the collection window before sending: ProxyTx is fire-and-forget
                 // (the Border Agent never answers c/ut), so gating the window on the send
                 // completing would leave it unbounded.
-                windowTimer = setTimeout(teardown, windowMs);
+                windowTimer = Time.getTimer("meshcop-query-window", Millis(windowMs), teardown).start();
 
                 const token = this.#freshToken();
                 const innerBytes = this.#encodeInnerDiag("NON", DIAG_QUERY_URI, opts.tlvTypes, token);
@@ -320,8 +320,16 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         }
                     };
                     fillTimers = [
-                        setTimeout(sendUnicastFill, Math.floor(windowMs / 2)),
-                        setTimeout(sendUnicastFill, Math.max(0, windowMs - 2_000)),
+                        Time.getTimer(
+                            "meshcop-unicast-fill",
+                            Millis(Math.floor(windowMs / 2)),
+                            sendUnicastFill,
+                        ).start(),
+                        Time.getTimer(
+                            "meshcop-unicast-fill",
+                            Millis(Math.max(0, windowMs - 2_000)),
+                            sendUnicastFill,
+                        ).start(),
                     ];
                 } else {
                     logger.debug("[ThreadDiag] unicast-fill skipped: no mesh-local prefix");
@@ -399,9 +407,9 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 }
             });
 
-            const timer = setTimeout(() => {
+            const timer = Time.getTimer("energy-scan-timeout", Millis(DEFAULT_SCAN_TIMEOUT_MS), () => {
                 rejectReport(new Error("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
-            }, DEFAULT_SCAN_TIMEOUT_MS);
+            }).start();
 
             try {
                 await this.#coap.request({
@@ -412,7 +420,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 });
                 return await reportPromise;
             } finally {
-                clearTimeout(timer);
+                timer.stop();
                 unsubscribe();
             }
         });
@@ -449,9 +457,9 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             });
 
             // No conflict = no c/pc arrives; resolve undefined after timeout.
-            const timer = setTimeout(() => {
+            const timer = Time.getTimer("panid-query-timeout", Millis(DEFAULT_SCAN_TIMEOUT_MS), () => {
                 resolveReport(undefined);
-            }, DEFAULT_SCAN_TIMEOUT_MS);
+            }).start();
 
             try {
                 await this.#coap.request({
@@ -462,7 +470,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 });
                 return await reportPromise;
             } finally {
-                clearTimeout(timer);
+                timer.stop();
                 unsubscribe();
             }
         });

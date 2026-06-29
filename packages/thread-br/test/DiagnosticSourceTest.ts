@@ -107,6 +107,8 @@ async function collect(
 }
 
 describe("MeshCopDiagnosticSource", () => {
+    before(MockTime.enable);
+
     it("kind is 'meshcop'", () => {
         const source = new MeshCopDiagnosticSource(mockCommissioner(), {
             request: async () => ackMessage(),
@@ -271,12 +273,12 @@ describe("MeshCopDiagnosticSource", () => {
             responses.push(n);
         });
 
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield();
         expect(urHandler).to.not.be.undefined;
         urHandler!(buildProxyRxReply(new Uint8Array([1, 2, 3, 4]), ansA, deriveMeshLocalAddress(ML_PREFIX, 0x0400)));
         urHandler!(buildProxyRxReply(new Uint8Array([5, 6, 7, 8]), ansB, deriveMeshLocalAddress(ML_PREFIX, 0x0800)));
 
-        await handle.done;
+        await Promise.all([MockTime.advance(50), handle.done]);
         expect(responses).to.have.length(2);
         expect(responses[0].extMacAddress).to.deep.equal(extMacA);
         expect(responses[1].extMacAddress).to.deep.equal(extMacB);
@@ -304,7 +306,7 @@ describe("MeshCopDiagnosticSource", () => {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 10,
         });
-        await handle.done;
+        await Promise.all([MockTime.advance(10), handle.done]);
 
         expect(events).to.deep.equal(["listen", "request"]);
         expect(listenedPaths.map(p => p.join("/"))).to.deep.equal(["c/ur"]);
@@ -325,7 +327,7 @@ describe("MeshCopDiagnosticSource", () => {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS, NetworkDiagTlvType.ADDRESS16],
             windowMs: 10,
         });
-        await handle.done;
+        await Promise.all([MockTime.advance(10), handle.done]);
 
         const { inner, targetAddr } = unwrapProxyTx(capturedPayload!);
         expect(inner.type).to.equal("NON");
@@ -356,9 +358,9 @@ describe("MeshCopDiagnosticSource", () => {
             windowMs: 30,
         });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         urHandler!(buildProxyRxReply(new Uint8Array([1, 2, 3, 4]), ans, sourceAddr, "CON", 0x55aa));
-        await handle.done;
+        await Promise.all([MockTime.advance(30), handle.done]);
 
         const ackSends = requests
             .filter(r => r.uriPath.join("/") === "c/ut")
@@ -394,9 +396,9 @@ describe("MeshCopDiagnosticSource", () => {
             windowMs: 30,
         });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         urHandler!(buildProxyRxReply(new Uint8Array([1, 2, 3, 4]), ans, deriveMeshLocalAddress(ML_PREFIX, 0x0400)));
-        await handle.done;
+        await Promise.all([MockTime.advance(30), handle.done]);
 
         const ackSends = requests
             .filter(r => r.uriPath.join("/") === "c/ut")
@@ -412,7 +414,8 @@ describe("MeshCopDiagnosticSource", () => {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 10,
         });
-        expect(await collect(handle)).to.have.length(0);
+        const [results] = await Promise.all([collect(handle), MockTime.advance(10)]);
+        expect(results).to.have.length(0);
     });
 
     it("queryMulticast drops c/ur replies whose inner diagnostic payload is empty", async () => {
@@ -430,7 +433,7 @@ describe("MeshCopDiagnosticSource", () => {
             windowMs: 30,
         });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         urHandler!(
             buildProxyRxReply(
                 new Uint8Array([1, 2, 3, 4]),
@@ -439,7 +442,8 @@ describe("MeshCopDiagnosticSource", () => {
             ),
         );
 
-        expect(await collect(handle)).to.have.length(0);
+        const [results] = await Promise.all([collect(handle), MockTime.advance(30)]);
+        expect(results).to.have.length(0);
     });
 
     it("queryMulticast surfaces decode failures on onError and continues running", async () => {
@@ -462,7 +466,7 @@ describe("MeshCopDiagnosticSource", () => {
             errors.push(e);
         });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         // Truncated inner diag TLV: type=0, length=8, but only 2 bytes follow.
         urHandler!(
             buildProxyRxReply(
@@ -472,7 +476,8 @@ describe("MeshCopDiagnosticSource", () => {
             ),
         );
 
-        expect(await collect(handle)).to.have.length(0);
+        const [results] = await Promise.all([collect(handle), MockTime.advance(30)]);
+        expect(results).to.have.length(0);
         expect(errors.length).to.be.greaterThan(0);
     });
 
@@ -489,7 +494,7 @@ describe("MeshCopDiagnosticSource", () => {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 10,
         });
-        await handle.done;
+        await Promise.all([MockTime.advance(10), handle.done]);
         expect(unsubCalled).to.equal(true);
     });
 
@@ -504,7 +509,7 @@ describe("MeshCopDiagnosticSource", () => {
         const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", { tlvTypes: [], windowMs: 10_000 });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         await handle.close();
         expect(unsubCalled).to.equal(true);
     });
@@ -542,7 +547,7 @@ describe("MeshCopDiagnosticSource", () => {
             tlvTypes: [NetworkDiagTlvType.ADDRESS16, NetworkDiagTlvType.ROUTE64],
             windowMs: 80,
         });
-        await new Promise(r => setTimeout(r, 10));
+        await MockTime.yield();
         // responder rloc16 0x1400 (routerId 5) references routerId 29 (rloc16 0x7400) which never answers
         urHandler!(
             buildProxyRxReply(
@@ -551,7 +556,7 @@ describe("MeshCopDiagnosticSource", () => {
                 deriveMeshLocalAddress(ML_PREFIX, 0x1400),
             ),
         );
-        await handle.done;
+        await Promise.all([MockTime.advance(80), handle.done]);
         const want = deriveMeshLocalAddress(ML_PREFIX, (29 << 10) & 0xffff);
         expect(proxyTxTargets.some(t => t.length === want.length && t.every((b, i) => b === want[i]))).to.equal(true);
     });

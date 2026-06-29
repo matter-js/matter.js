@@ -54,6 +54,8 @@ function buildPanIdConflict(conflictChannelMask: number, panId: number): CoapMes
 }
 
 describe("MeshCopDiagnosticSource.panIdQuery", () => {
+    before(MockTime.enable);
+
     it("sends c/pq with CHANNEL_MASK and PAN_ID TLVs encoded correctly", async () => {
         let capturedPayload: Uint8Array | undefined;
         let pcHandler: ((msg: CoapMessage) => void) | undefined;
@@ -115,8 +117,6 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
     });
 
     it("returns undefined when no c/pc arrives within the timeout", async () => {
-        // The timeout is 30s which is too slow for a unit test — we verify the
-        // structural precondition: c/pc listener is registered before the request.
         let registered = false;
         const coap: CoapLike = {
             listen: uriPath => {
@@ -127,9 +127,12 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
         };
 
         const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
-        void source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800 });
-        await new Promise(r => setTimeout(r, 10));
+        const queryPromise = source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800 });
+        await MockTime.yield();
         expect(registered).to.equal(true);
+        await MockTime.advance(30_000);
+        const result = await queryPromise;
+        expect(result).to.be.undefined;
     });
 
     it("resolves the conflict when c/pc arrives asynchronously after the request", async () => {
@@ -146,7 +149,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
         const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
         const conflictPromise = source.panIdQuery({ panId: 0x5555, channelMask: 0x00007800 });
 
-        await new Promise(r => setTimeout(r, 5));
+        await MockTime.yield();
         if (pcHandler !== undefined) {
             pcHandler(buildPanIdConflict(0x00001000, 0x5555));
         }

@@ -62,6 +62,8 @@ function installFetch(handler: FetchHandler): () => void {
 const TEST_OPTS = { channelMask: 0x07fff800, count: 3, period: 128, scanDuration: 16 };
 
 describe("MeshCopDiagnosticSource.energyScan", () => {
+    before(MockTime.enable);
+
     it("sends c/es with the four MeshCoP TLVs encoded correctly", async () => {
         const requests = new Array<RequestOpts>();
         let erHandler: ((msg: CoapMessage) => void) | undefined;
