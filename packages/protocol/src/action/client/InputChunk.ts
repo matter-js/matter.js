@@ -122,7 +122,7 @@ function* emitAttributes(
             }
         } catch (error) {
             UnexpectedDataError.accept(error);
-            logger.warn(`Skipping malformed attribute report entry: ${error.message}`);
+            logger.warn("Skipping malformed attribute report entry:", Diagnostic.errorMessage(error));
         }
     }
 
@@ -223,7 +223,8 @@ function decodeAttributeGroup(
         // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
-            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${error.message}`,
+            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}:`,
+            Diagnostic.errorMessage(error),
         );
         return undefined;
     }
@@ -257,7 +258,7 @@ function* emitEvents(input: DataReport): Generator<ReadResult.EventValue | ReadR
             }
         } catch (error) {
             UnexpectedDataError.accept(error);
-            logger.warn(`Skipping malformed event report entry: ${error.message}`);
+            logger.warn("Skipping malformed event report entry:", Diagnostic.errorMessage(error));
         }
     }
 }
@@ -313,7 +314,8 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
         // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
-            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}: ${error.message}`,
+            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}:`,
+            Diagnostic.errorMessage(error),
         );
         return undefined;
     }
