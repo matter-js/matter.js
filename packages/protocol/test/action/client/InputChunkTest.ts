@@ -399,7 +399,6 @@ describe("InputChunk", () => {
                 attributeReports: [
                     {
                         attributeData: {
-                            // enableTagCompression with no preceding fully-qualified path is malformed
                             path: {
                                 enableTagCompression: true,
                                 attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
@@ -436,7 +435,6 @@ describe("InputChunk", () => {
                 attributeReports: [
                     {
                         attributeData: {
-                            // tag compression disabled but clusterId missing -> incomplete path
                             path: {
                                 endpointId: EndpointNumber(0),
                                 attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
@@ -583,7 +581,6 @@ describe("InputChunk", () => {
                 eventReports: [
                     {
                         eventData: {
-                            // clusterId missing -> invalid event path
                             path: { endpointId: EndpointNumber(0), eventId: startUp },
                             eventNumber: EventNumber(1),
                             priority: 1,

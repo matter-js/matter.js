@@ -46,7 +46,7 @@ import { PeerBehavior } from "./PeerBehavior.js";
 const logger = Logger.get("ClientStructure");
 
 /** Max deferred persist/emit jobs allowed in flight before the decode loop applies back-pressure. */
-export const MAX_PENDING_JOBS = 100;
+const MAX_PENDING_JOBS = 100;
 
 interface MutateContext {
     enqueue(job: () => Promise<void>): void;
@@ -477,12 +477,14 @@ export class ClientStructure {
 
         const endpoint = this.#endpoints.get(endpointId);
         // Delay emission until end-of-interaction (after persist + structural changes) when this endpoint received
-        // attribute data this interaction, is the cluster currently being accumulated, or has a pending structural
-        // change.  This keeps events ordered after consistent state without depending on the deferred #pendingChanges.
+        // attribute data this interaction, is the cluster currently being accumulated, has a pending structural
+        // change, or is not yet installed — events must not arrive before the endpoint exists.
         if (
+            endpoint === undefined ||
+            !endpoint.endpoint.lifecycle.isInstalled ||
             q.endpointsWithData.has(endpointId) ||
             (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
-            (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
+            this.#pendingChanges?.has(endpoint)
         ) {
             this.#delayedClusterEvents.push(occurrence);
         } else {
