@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis, Time, type Timer } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { randomBytes } from "node:crypto";
 import { type Socket, createSocket } from "node:dgram";
@@ -24,16 +25,11 @@ const DEFAULT_MTU = 1280;
 const N = p256.Point.Fn.ORDER;
 
 /**
- * Optional hooks injected by tests so the socket runs against fake timers /
- * a fake `dgram.Socket`. The defaults wire to Node globals.
+ * Optional hooks injected by tests so the socket runs against a fake `dgram.Socket`.
  */
 export interface NobleDtlsSocketHooks {
     /** Inject a pre-built UDP socket (skips internal `dgram.createSocket`). */
     createUdpSocket?: (type: "udp4" | "udp6") => Socket;
-    /** Override `setTimeout` (used for retransmit and connect-deadline timers). */
-    setTimeoutImpl?: (cb: () => void, ms: number) => unknown;
-    /** Override `clearTimeout`. */
-    clearTimeoutImpl?: (handle: unknown) => void;
 }
 
 const ALERT_LEVEL_WARNING = 1;
@@ -99,7 +95,7 @@ export class NobleDtlsSocket implements DtlsSocket {
     #lastError: Error | undefined;
 
     /** Connect-deadline timer handle. */
-    #connectDeadline: unknown;
+    #connectDeadline: Timer | undefined;
 
     /** Decrypted application-data plaintexts waiting for a recv() caller. */
     readonly #recvQueue = new Array<Uint8Array>();
@@ -162,28 +158,21 @@ export class NobleDtlsSocket implements DtlsSocket {
         const client = new DtlsClient(clientCfg);
         this.#client = client;
 
-        const setTimeoutImpl = this.#hooks.setTimeoutImpl ?? ((cb, ms) => setTimeout(cb, ms));
-        const clearTimeoutImpl =
-            this.#hooks.clearTimeoutImpl ?? (handle => clearTimeout(handle as ReturnType<typeof setTimeout>));
-
         this.#retransmit = new DtlsRetransmitTimer({
             initialMs: clientCfg.initialRetransmitMs ?? DEFAULT_INITIAL_RETRANSMIT_MS,
             maxMs: clientCfg.maxRetransmitMs ?? DEFAULT_MAX_RETRANSMIT_MS,
             maxRetransmits: this.#opts.maxRetransmits ?? DEFAULT_MAX_RETRANSMITS,
             onRetransmit: () => this.#onRetransmit(),
             onGiveUp: () => this.#fail(new Error("NobleDtlsSocket: handshake gave up after max retransmits")),
-            setTimeoutImpl: (cb, ms) => ({ _opaque: setTimeoutImpl(cb, ms) }),
-            clearTimeoutImpl: handle => clearTimeoutImpl(handle._opaque),
         });
 
         const connectPromise = new Promise<void>((resolve, reject) => {
             this.#onConnect = { resolve, reject };
         });
         const connectTimeoutMs = this.#opts.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-        this.#connectDeadline = setTimeoutImpl(
-            () => this.#fail(new Error(`NobleDtlsSocket: connect timed out after ${connectTimeoutMs}ms`)),
-            connectTimeoutMs,
-        );
+        this.#connectDeadline = Time.getTimer("dtls-connect-deadline", Millis(connectTimeoutMs), () =>
+            this.#fail(new Error(`NobleDtlsSocket: connect timed out after ${connectTimeoutMs}ms`)),
+        ).start();
 
         // Drive the first flight.
         try {
@@ -197,10 +186,8 @@ export class NobleDtlsSocket implements DtlsSocket {
         try {
             await connectPromise;
         } finally {
-            if (this.#connectDeadline !== undefined) {
-                clearTimeoutImpl(this.#connectDeadline);
-                this.#connectDeadline = undefined;
-            }
+            this.#connectDeadline?.stop();
+            this.#connectDeadline = undefined;
         }
     }
 

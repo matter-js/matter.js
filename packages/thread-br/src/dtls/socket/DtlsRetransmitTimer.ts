@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis, Time, type Timer } from "@matter/general";
+
 /**
  * Per-flight DTLS 1.2 retransmit timer (RFC 6347 §4.2.4).
  *
@@ -13,17 +15,8 @@
  * stops and `onGiveUp` is invoked instead. `cancel()` (e.g. when the next
  * inbound flight implicitly acknowledges the previous one) is idempotent.
  *
- * Tests inject `setTimeoutImpl`/`clearTimeoutImpl` for determinism; production
- * uses Node's globals.
+ * Tests use MockTime to control timer advancement deterministically.
  */
-export interface DtlsRetransmitTimerHandle {
-    /** Opaque per-implementation handle (Node `Timeout`, browser number, etc.). */
-    readonly _opaque: unknown;
-}
-
-export type DtlsSetTimeoutFn = (callback: () => void, ms: number) => DtlsRetransmitTimerHandle;
-export type DtlsClearTimeoutFn = (handle: DtlsRetransmitTimerHandle) => void;
-
 export interface DtlsRetransmitTimerOpts {
     /** Initial delay before the first retransmit fires. */
     initialMs: number;
@@ -35,20 +28,7 @@ export interface DtlsRetransmitTimerOpts {
     onRetransmit: () => void;
     /** Fired once after `maxRetransmits` attempts have elapsed without acknowledgement. */
     onGiveUp: () => void;
-    /** Override for tests. Defaults to the global `setTimeout`. */
-    setTimeoutImpl?: DtlsSetTimeoutFn;
-    /** Override for tests. Defaults to the global `clearTimeout`. */
-    clearTimeoutImpl?: DtlsClearTimeoutFn;
 }
-
-const defaultSetTimeout: DtlsSetTimeoutFn = (cb, ms) => {
-    const id = setTimeout(cb, ms);
-    return { _opaque: id };
-};
-
-const defaultClearTimeout: DtlsClearTimeoutFn = handle => {
-    clearTimeout(handle._opaque as ReturnType<typeof setTimeout>);
-};
 
 export class DtlsRetransmitTimer {
     readonly #initialMs: number;
@@ -56,10 +36,8 @@ export class DtlsRetransmitTimer {
     readonly #maxRetransmits: number;
     readonly #onRetransmit: () => void;
     readonly #onGiveUp: () => void;
-    readonly #setTimeoutImpl: DtlsSetTimeoutFn;
-    readonly #clearTimeoutImpl: DtlsClearTimeoutFn;
 
-    #handle: DtlsRetransmitTimerHandle | undefined;
+    #timer: Timer | undefined;
     #attempt = 0;
     #nextDelayMs: number;
 
@@ -78,8 +56,6 @@ export class DtlsRetransmitTimer {
         this.#maxRetransmits = opts.maxRetransmits;
         this.#onRetransmit = opts.onRetransmit;
         this.#onGiveUp = opts.onGiveUp;
-        this.#setTimeoutImpl = opts.setTimeoutImpl ?? defaultSetTimeout;
-        this.#clearTimeoutImpl = opts.clearTimeoutImpl ?? defaultClearTimeout;
         this.#nextDelayMs = opts.initialMs;
     }
 
@@ -96,14 +72,12 @@ export class DtlsRetransmitTimer {
 
     /** Cancel any pending timer. Safe to call when not armed. */
     cancel(): void {
-        if (this.#handle !== undefined) {
-            this.#clearTimeoutImpl(this.#handle);
-            this.#handle = undefined;
-        }
+        this.#timer?.stop();
+        this.#timer = undefined;
     }
 
     isArmed(): boolean {
-        return this.#handle !== undefined;
+        return this.#timer !== undefined;
     }
 
     /** Visible for tests — current attempt count (0 before the first fire). */
@@ -113,8 +87,8 @@ export class DtlsRetransmitTimer {
 
     #schedule(): void {
         const delay = this.#nextDelayMs;
-        this.#handle = this.#setTimeoutImpl(() => {
-            this.#handle = undefined;
+        this.#timer = Time.getTimer("dtls-retransmit", Millis(delay), () => {
+            this.#timer = undefined;
             this.#attempt += 1;
             if (this.#attempt > this.#maxRetransmits) {
                 this.#onGiveUp();
@@ -124,6 +98,6 @@ export class DtlsRetransmitTimer {
             // RFC 6347 §4.2.4 — double the next interval, capped at maxMs.
             this.#nextDelayMs = Math.min(this.#nextDelayMs * 2, this.#maxMs);
             this.#schedule();
-        }, delay);
+        }).start();
     }
 }

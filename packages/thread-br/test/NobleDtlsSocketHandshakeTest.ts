@@ -590,6 +590,8 @@ class UdpMirrorServer {
 const DEFAULT_PASSWORD = Bytes.of(Bytes.fromHex("4a3070000000000a"));
 
 describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
+    before(MockTime.enable);
+
     it("completes a cookie-exchange handshake against a UDP mirror server", async () => {
         const server = new UdpMirrorServer({ password: DEFAULT_PASSWORD });
         const { address, port } = await server.bound;
@@ -670,23 +672,26 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
             type: "udp4",
             random: makeFixedRandom(0xa3),
             ephemeralScalar: makeScalarStream(0xc0den),
-            // Tiny intervals keep the test fast: 10ms -> 20ms. With 2 retransmits
-            // total elapsed before give-up is ~70ms.
+            // initialMs=10, maxMs=20, maxRetransmits=2:
+            //   10ms → retransmit #1, 20ms → retransmit #2, 20ms → give-up (attempt 3 > 2).
             initialRetransmitMs: 10,
             maxRetransmitMs: 20,
             maxRetransmits: 2,
             connectTimeoutMs: 1000,
         });
         let threw = false;
-        try {
-            await socket.connect();
-        } catch (e) {
+        const connectPromise = socket.connect().catch(e => {
             threw = true;
             expect((e as Error).message).to.match(/gave up|timed out/);
-        } finally {
-            await socket.close();
-            await new Promise<void>(r => sink.close(() => r()));
-        }
+        });
+        // Wait for the UDP bind macrotask so the retransmit timer is armed before we advance.
+        // 10ms → retransmit #1, 20ms → retransmit #2, 20ms → give-up (attempt 3 > maxRetransmits=2).
+        await MockTime.macrotask;
+        await MockTime.macrotask;
+        await MockTime.advance(10 + 20 + 20 + 1);
+        await connectPromise;
+        await socket.close();
+        await new Promise<void>(r => sink.close(() => r()));
         expect(threw).to.equal(true);
     });
 });
