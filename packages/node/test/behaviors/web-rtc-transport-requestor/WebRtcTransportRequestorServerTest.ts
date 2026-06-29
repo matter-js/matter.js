@@ -380,6 +380,7 @@ describe("WebRtcTransportRequestorServer", () => {
             await addFabricToNode(node);
 
             const cameraEndpoint = node.parts.get("camera-controller");
+            // Re-running initialize() re-invokes #nodeOnline with the fabric present, exercising the ACL-dedup path.
             await cameraEndpoint!.act(agent => agent.get(WebRtcTransportRequestorServer).initialize());
 
             const acl = node.stateOf(AccessControlServer).acl;

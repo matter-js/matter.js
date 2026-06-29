@@ -39,7 +39,7 @@ const logger = Logger.get("WebRtcTransportRequestorServer");
  * access to this cluster, so the peer can reach the signaling commands without further configuration.
  */
 export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBehavior {
-    declare events: WebRtcTransportRequestorServer.Events;
+    declare readonly events: WebRtcTransportRequestorServer.Events;
 
     override async initialize() {
         const node = Node.forEndpoint(this.endpoint) as ServerNode;
@@ -114,7 +114,10 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
 
     /** Stop tracking a session, e.g. after you tear down the stream locally. No-op if the id is unknown. */
     removeSession(id: number): void {
-        this.state.currentSessions = this.state.currentSessions.filter(s => s.id !== id);
+        const sessions = this.state.currentSessions;
+        if (sessions.some(s => s.id === id)) {
+            this.state.currentSessions = sessions.filter(s => s.id !== id);
+        }
     }
 
     /**
@@ -122,7 +125,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      * `offer` event.
      */
     override async offer(request: WebRtcTransportRequestor.OfferRequest): Promise<void> {
-        logger.info(`incoming Offer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
+        logger.debug(`incoming Offer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
         const session = this.#findSessionStrict(request.webRtcSessionId);
         this.events.offer.emit(session, request);
     }
@@ -132,7 +135,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      * `answer` event.
      */
     override async answer(request: WebRtcTransportRequestor.AnswerRequest): Promise<void> {
-        logger.info(`incoming Answer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
+        logger.debug(`incoming Answer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
         const session = this.#findSessionStrict(request.webRtcSessionId);
         this.events.answer.emit(session, request.sdp);
     }
@@ -141,7 +144,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      *  `iceCandidates` event.
      */
     override async iceCandidates(request: WebRtcTransportRequestor.IceCandidatesRequest): Promise<void> {
-        logger.info(
+        logger.debug(
             `incoming ICECandidates webRtcSessionId=${request.webRtcSessionId} count=${request.iceCandidates.length}`,
         );
         if (request.iceCandidates.length === 0) {
@@ -155,7 +158,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      * {@link WebRtcTransportRequestorServer.Events} `end` event.
      */
     override async end(request: WebRtcTransportRequestor.EndRequest): Promise<void> {
-        logger.info(`incoming End webRtcSessionId=${request.webRtcSessionId} reason=${request.reason}`);
+        logger.debug(`incoming End webRtcSessionId=${request.webRtcSessionId} reason=${request.reason}`);
         const session = this.#findSessionStrict(request.webRtcSessionId);
         this.removeSession(request.webRtcSessionId);
         this.events.end.emit(session, request.reason);
