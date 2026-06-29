@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/general";
+import { Logger, Millis, Time, type Timer } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
@@ -92,7 +92,7 @@ export class Commissioner {
         }
 
         // pending: wait and retry once
-        await new Promise<void>(r => setTimeout(r, this.#pendingRetryDelayMs));
+        await Time.sleep("commissioner-pending-retry", Millis(this.#pendingRetryDelayMs));
 
         const retryResponse = await this.#coap.request({
             type: "CON",
@@ -183,16 +183,20 @@ export class Commissioner {
      */
     async withSession<T>(fn: (sessionId: number) => Promise<T>): Promise<T> {
         const sessionId = await this.petition();
-        const kaInterval = setInterval(() => {
-            void this.keepAlive(sessionId).catch(err => {
-                logger.warn("Commissioner keep-alive error:", err);
-            });
-        }, Commissioner.#KA_INTERVAL_MS);
+        const kaInterval: Timer = Time.getPeriodicTimer(
+            "commissioner-keepalive",
+            Millis(Commissioner.#KA_INTERVAL_MS),
+            () => {
+                void this.keepAlive(sessionId).catch(err => {
+                    logger.warn("Commissioner keep-alive error:", err);
+                });
+            },
+        ).start();
 
         try {
             return await fn(sessionId);
         } finally {
-            clearInterval(kaInterval);
+            kaInterval.stop();
             await this.release(sessionId);
         }
     }

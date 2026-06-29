@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Millis, Time } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import type { CoapMessage } from "../src/coap/CoapMessage.js";
 import { Commissioner, CommissionerRejectedError, CommissionerTimeoutError } from "../src/commissioner/Commissioner.js";
@@ -52,6 +53,8 @@ function makeQueuedCoap(queue: Array<CoapMessage | Error>): CoapClient {
 
 describe("Commissioner", () => {
     describe("petition", () => {
+        before(MockTime.enable);
+
         it("resolves with sessionId on accept response", async () => {
             const queue: Array<CoapMessage | Error> = [ackMessage(buildPetitionResponse(STATE_ACCEPT, 42))];
             const coap = makeQueuedCoap(queue);
@@ -78,7 +81,10 @@ describe("Commissioner", () => {
             ];
             const coap = makeQueuedCoap(queue);
             const commissioner = new Commissioner(coap, { pendingRetryDelayMs: 0 });
-            const sessionId = await commissioner.petition();
+            const p = commissioner.petition();
+            await MockTime.yield();
+            await MockTime.advance(0);
+            const sessionId = await p;
             expect(sessionId).to.equal(99);
         });
 
@@ -89,8 +95,11 @@ describe("Commissioner", () => {
             ];
             const coap = makeQueuedCoap(queue);
             const commissioner = new Commissioner(coap, { pendingRetryDelayMs: 0 });
+            const p = commissioner.petition();
+            await MockTime.yield();
+            await MockTime.advance(0);
             try {
-                await commissioner.petition();
+                await p;
                 expect.fail("expected CommissionerRejectedError");
             } catch (err) {
                 expect(err).to.be.instanceOf(CommissionerRejectedError);
@@ -104,8 +113,11 @@ describe("Commissioner", () => {
             ];
             const coap = makeQueuedCoap(queue);
             const commissioner = new Commissioner(coap, { pendingRetryDelayMs: 0 });
+            const p = commissioner.petition();
+            await MockTime.yield();
+            await MockTime.advance(0);
             try {
-                await commissioner.petition();
+                await p;
                 expect.fail("expected CommissionerTimeoutError");
             } catch (err) {
                 expect(err).to.be.instanceOf(CommissionerTimeoutError);
@@ -114,6 +126,8 @@ describe("Commissioner", () => {
     });
 
     describe("withSession", () => {
+        before(MockTime.enable);
+
         it("calls petition then fn then release in order", async () => {
             const order = new Array<string>();
 
@@ -164,10 +178,9 @@ describe("Commissioner", () => {
 
         it("keep-alive fires during the session", async () => {
             let kaCount = 0;
+            const KA_INTERVAL_FOR_TEST = 20;
 
             class FastKaCommissioner extends Commissioner {
-                static readonly KA_INTERVAL_FOR_TEST = 20;
-
                 override async petition(): Promise<number> {
                     return 5;
                 }
@@ -178,27 +191,28 @@ describe("Commissioner", () => {
 
                 override async withSession<T>(fn: (sessionId: number) => Promise<T>): Promise<T> {
                     const sessionId = await this.petition();
-                    const kaInterval = setInterval(() => {
-                        void this.keepAlive(sessionId);
-                    }, FastKaCommissioner.KA_INTERVAL_FOR_TEST);
+                    const kaInterval = Time.getPeriodicTimer(
+                        "commissioner-keepalive-test",
+                        Millis(KA_INTERVAL_FOR_TEST),
+                        () => {
+                            void this.keepAlive(sessionId);
+                        },
+                    ).start();
                     try {
                         return await fn(sessionId);
                     } finally {
-                        clearInterval(kaInterval);
+                        kaInterval.stop();
                         await this.release(sessionId);
                     }
                 }
             }
 
-            await new FastKaCommissioner({} as CoapClient).withSession(
-                async () =>
-                    new Promise<void>(r =>
-                        setTimeout(
-                            r,
-                            FastKaCommissioner.KA_INTERVAL_FOR_TEST * 3 + FastKaCommissioner.KA_INTERVAL_FOR_TEST / 2,
-                        ),
-                    ),
-            );
+            const sessionDurationMs = KA_INTERVAL_FOR_TEST * 3 + Math.floor(KA_INTERVAL_FOR_TEST / 2);
+            const sessionPromise = new FastKaCommissioner({} as CoapClient).withSession(async () => {
+                await MockTime.advance(sessionDurationMs);
+            });
+
+            await sessionPromise;
 
             expect(kaCount).to.be.greaterThanOrEqual(2);
         });
