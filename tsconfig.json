@@ -35,6 +35,9 @@
             "path": "packages/main"
         },
         {
+            "path": "packages/thread-br"
+        },
+        {
             "path": "packages/nodejs-shell"
         },
         {

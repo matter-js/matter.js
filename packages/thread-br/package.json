@@ -1,0 +1,74 @@
+{
+    "name": "@matter/thread-br",
+    "version": "0.0.0-git",
+    "description": "Thread Border Router discovery, dataset codec, and MeshCoP/OTBR diagnostics for Matter.js",
+    "keywords": [
+        "iot",
+        "home automation",
+        "matter",
+        "thread",
+        "border router",
+        "meshcop"
+    ],
+    "license": "Apache-2.0",
+    "author": "matter.js authors",
+    "bugs": {
+        "url": "https://github.com/matter-js/matter.js/issues"
+    },
+    "homepage": "https://github.com/matter-js/matter.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/matter-js/matter.js.git"
+    },
+    "scripts": {
+        "clean": "nacho-build clean",
+        "build": "nacho-build",
+        "build-clean": "nacho-build --clean",
+        "test": "matter-test -w",
+        "coverage": "c8 matter-test esm"
+    },
+    "dependencies": {
+        "@matter/general": "*",
+        "@matter/protocol": "*",
+        "@noble/curves": "^2.2.0",
+        "coap-packet": "^1.1.1"
+    },
+    "devDependencies": {
+        "@matter/testing": "*"
+    },
+    "files": [
+        "dist/**/*",
+        "src/**/*",
+        "LICENSE",
+        "README.md"
+    ],
+    "type": "module",
+    "main": "dist/cjs/index.js",
+    "module": "dist/esm/index.js",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
+        }
+    },
+    "imports": {
+        "#*": "./src/*"
+    },
+    "types": "dist/esm/index.d.ts",
+    "typesVersions": {
+        "*": {
+            ".": [
+                "/dist/cjs/index.d.ts"
+            ]
+        }
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
