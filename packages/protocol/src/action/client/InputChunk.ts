@@ -8,7 +8,15 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { decodeAttributeValueWithSchema, decodeUnknownAttributeValue } from "#interaction/AttributeDataDecoder.js";
 import { decodeUnknownEventValue } from "#interaction/EventDataDecoder.js";
 import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
-import { ClusterModel, Matter } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterModel,
+    ClusterRevision,
+    EventList,
+    GeneratedCommandList,
+    Matter,
+} from "@matter/model";
 import {
     AttributeId,
     ClusterId,
@@ -43,14 +51,29 @@ const DATA_REPORT_DECODE_OPTIONS: TlvDecodingOptions = { relaxNumberTypeChecks: 
 const clusterModelCache = new Map<number, ClusterModel>();
 const attributeSchemaCache = new Map<number, Map<number, TlvSchema<unknown>>>();
 const eventSchemaCache = new Map<number, Map<number, TlvSchema<unknown>>>();
-// Cluster-independent resolutions only — cluster-specialized schemas (e.g. FeatureMap) stay in attributeSchemaCache.
-const globalAttributeSchemaCache = new Map<number, TlvSchema<unknown>>();
 
 function schemaOfModel(model: Parameters<typeof TlvOfModel>[0]): TlvSchema<unknown> | undefined {
     try {
         return TlvOfModel(model);
     } catch {
         return undefined; // modeled but has no schema (e.g. deprecated global) — decode as unknown
+    }
+}
+
+// Global attributes decode the same for every cluster, so resolve them once.  FeatureMap is excluded — its schema is
+// cluster-specialized (bits named per cluster), so it must resolve against the cluster (see attributeSchemaOf).
+const globalAttributeSchemas = new Map<number, TlvSchema<unknown>>();
+for (const id of [
+    ClusterRevision.id,
+    AttributeList.id,
+    EventList.id,
+    AcceptedCommandList.id,
+    GeneratedCommandList.id,
+]) {
+    const model = Matter.attributes(id);
+    const schema = model === undefined ? undefined : schemaOfModel(model);
+    if (schema !== undefined) {
+        globalAttributeSchemas.set(id, schema);
     }
 }
 
@@ -81,33 +104,26 @@ function cacheSchema(
 }
 
 function attributeSchemaOf(clusterId: number, attributeId: number): TlvSchema<unknown> | undefined {
-    const clusterModel = clusterModelOf(clusterId);
-    if (clusterModel !== undefined) {
-        const cached = attributeSchemaCache.get(clusterId)?.get(attributeId);
-        if (cached !== undefined) {
-            return cached;
-        }
-        const attributeModel = clusterModel.attributes(attributeId);
-        if (attributeModel !== undefined) {
-            const schema = schemaOfModel(attributeModel);
-            if (schema !== undefined) {
-                cacheSchema(attributeSchemaCache, clusterId, attributeId, schema);
-            }
-            return schema;
-        }
+    const global = globalAttributeSchemas.get(attributeId);
+    if (global !== undefined) {
+        return global;
     }
 
-    const cachedGlobal = globalAttributeSchemaCache.get(attributeId);
-    if (cachedGlobal !== undefined) {
-        return cachedGlobal;
-    }
-    const globalModel = Matter.attributes(attributeId);
-    if (globalModel === undefined) {
+    const clusterModel = clusterModelOf(clusterId);
+    if (clusterModel === undefined) {
         return undefined;
     }
-    const schema = schemaOfModel(globalModel);
+    const cached = attributeSchemaCache.get(clusterId)?.get(attributeId);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const attributeModel = clusterModel.attributes(attributeId);
+    if (attributeModel === undefined) {
+        return undefined;
+    }
+    const schema = schemaOfModel(attributeModel);
     if (schema !== undefined) {
-        globalAttributeSchemaCache.set(attributeId, schema);
+        cacheSchema(attributeSchemaCache, clusterId, attributeId, schema);
     }
     return schema;
 }
