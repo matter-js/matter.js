@@ -364,13 +364,15 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
 
     try {
         const schema = eventSchemaOf(clusterId, eventId);
+        if (schema === undefined) {
+            logger.debug(
+                `Decode unknown event ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)} via the AnySchema.`,
+            );
+        }
         let value: unknown;
         if (data === undefined) {
             value = undefined;
         } else if (schema === undefined) {
-            logger.debug(
-                `Decode unknown event ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)} via the AnySchema.`,
-            );
             value = decodeUnknownEventValue(data);
         } else {
             value = schema.decodeTlv(data, DATA_REPORT_DECODE_OPTIONS);
