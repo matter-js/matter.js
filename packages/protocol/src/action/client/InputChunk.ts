@@ -14,6 +14,7 @@ import {
     ClusterModel,
     ClusterRevision,
     EventList,
+    FeatureMap,
     GeneratedCommandList,
     Matter,
 } from "@matter/model";
@@ -54,11 +55,12 @@ function schemaOfModel(model: Parameters<typeof TlvOfModel>[0]): TlvSchema<unkno
     }
 }
 
-// Global attributes decode the same for every cluster, so resolve them once.  FeatureMap is excluded — its schema is
-// cluster-specialized (bits named per cluster), so it resolves against the cluster like any other attribute.
+// Global attributes resolved generically (cluster-independent). Used to decode globals on an unknown cluster — including
+// FeatureMap, which decodes to a bitmap object via its generic schema there (no cluster to name its bits).
 const globalAttributeSchemas = new Map<number, TlvSchema<unknown>>();
 for (const id of [
     ClusterRevision.id,
+    FeatureMap.id,
     AttributeList.id,
     EventList.id,
     AcceptedCommandList.id,
@@ -70,6 +72,11 @@ for (const id of [
         globalAttributeSchemas.set(id, schema);
     }
 }
+
+// Seeded into each known cluster's attribute cache. FeatureMap is excluded — its schema is cluster-specialized (bits
+// named per cluster), so a known cluster resolves it per-cluster on demand rather than from the generic schema.
+const seededGlobalAttributeSchemas = new Map(globalAttributeSchemas);
+seededGlobalAttributeSchemas.delete(FeatureMap.id);
 
 interface ClusterSchemaCache {
     model: ClusterModel;
@@ -89,7 +96,7 @@ function clusterCacheOf(clusterId: number): ClusterSchemaCache | undefined {
             return undefined;
         }
         // New cluster: pre-fill its attributes with the shared global schemas, then resolve the rest on demand.
-        cache = { model, attributes: new Map(globalAttributeSchemas), events: new Map() };
+        cache = { model, attributes: new Map(seededGlobalAttributeSchemas), events: new Map() };
         clusterCache.set(clusterId, cache);
     }
     return cache;
