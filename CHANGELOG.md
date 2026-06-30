@@ -36,6 +36,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
 
 - @matter/protocol
+    - Enhancement: Caches attribute/event schema resolution while decoding incoming data reports to reduce decode time
     - Enhancement: Incoming read/subscription data reports now tolerate signed/unsigned integer encoding mismatches within defined bounds. Such cases are still non-compliant and are logged
     - Enhancement: The mDNS responder and scanners declare the service types and hostnames they care about so the socket can pre-filter irrelevant traffic before decoding
     - Enhancement: Unified peer device-probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
