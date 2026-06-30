@@ -46,12 +46,6 @@ const logger = Logger.get("InputChunk");
  */
 const DATA_REPORT_DECODE_OPTIONS: TlvDecodingOptions = { relaxNumberTypeChecks: true };
 
-// Resolved schemas cached across reports. Report paths come from untrusted peers, so only positive resolutions of
-// known model elements are cached — caching unknowns would let bogus IDs grow these maps without bound.
-const clusterModelCache = new Map<number, ClusterModel>();
-const attributeSchemaCache = new Map<number, Map<number, TlvSchema<unknown>>>();
-const eventSchemaCache = new Map<number, Map<number, TlvSchema<unknown>>>();
-
 function schemaOfModel(model: Parameters<typeof TlvOfModel>[0]): TlvSchema<unknown> | undefined {
     try {
         return TlvOfModel(model);
@@ -61,7 +55,7 @@ function schemaOfModel(model: Parameters<typeof TlvOfModel>[0]): TlvSchema<unkno
 }
 
 // Global attributes decode the same for every cluster, so resolve them once.  FeatureMap is excluded — its schema is
-// cluster-specialized (bits named per cluster), so it must resolve against the cluster (see attributeSchemaOf).
+// cluster-specialized (bits named per cluster), so it resolves against the cluster like any other attribute.
 const globalAttributeSchemas = new Map<number, TlvSchema<unknown>>();
 for (const id of [
     ClusterRevision.id,
@@ -77,68 +71,65 @@ for (const id of [
     }
 }
 
-function clusterModelOf(clusterId: number): ClusterModel | undefined {
-    let model = clusterModelCache.get(clusterId);
-    if (model === undefined) {
-        model = Matter.clusters(clusterId);
+interface ClusterSchemaCache {
+    model: ClusterModel;
+    attributes: Map<number, TlvSchema<unknown>>;
+    events: Map<number, TlvSchema<unknown>>;
+}
+
+// Resolved schemas cached across reports, per known cluster. Report paths come from untrusted peers, so unknown
+// clusters and unresolved elements are never cached — keeping these maps bounded by the (immutable) standard model.
+const clusterCache = new Map<number, ClusterSchemaCache>();
+
+function clusterCacheOf(clusterId: number): ClusterSchemaCache | undefined {
+    let cache = clusterCache.get(clusterId);
+    if (cache === undefined) {
+        const model = Matter.clusters(clusterId);
         if (model === undefined) {
             return undefined;
         }
-        clusterModelCache.set(clusterId, model);
+        // New cluster: pre-fill its attributes with the shared global schemas, then resolve the rest on demand.
+        cache = { model, attributes: new Map(globalAttributeSchemas), events: new Map() };
+        clusterCache.set(clusterId, cache);
     }
-    return model;
-}
-
-function cacheSchema(
-    cache: Map<number, Map<number, TlvSchema<unknown>>>,
-    clusterId: number,
-    elementId: number,
-    schema: TlvSchema<unknown>,
-) {
-    let byElement = cache.get(clusterId);
-    if (byElement === undefined) {
-        byElement = new Map();
-        cache.set(clusterId, byElement);
-    }
-    byElement.set(elementId, schema);
+    return cache;
 }
 
 function attributeSchemaOf(clusterId: number, attributeId: number): TlvSchema<unknown> | undefined {
-    const global = globalAttributeSchemas.get(attributeId);
-    if (global !== undefined) {
-        return global;
-    }
-
-    const clusterModel = clusterModelOf(clusterId);
-    if (clusterModel === undefined) {
+    const cache = clusterCacheOf(clusterId);
+    if (cache === undefined) {
         return undefined;
     }
-    const cached = attributeSchemaCache.get(clusterId)?.get(attributeId);
+    const cached = cache.attributes.get(attributeId);
     if (cached !== undefined) {
         return cached;
     }
-    const attributeModel = clusterModel.attributes(attributeId);
+    const attributeModel = cache.model.attributes(attributeId);
     if (attributeModel === undefined) {
         return undefined;
     }
     const schema = schemaOfModel(attributeModel);
     if (schema !== undefined) {
-        cacheSchema(attributeSchemaCache, clusterId, attributeId, schema);
+        cache.attributes.set(attributeId, schema);
     }
     return schema;
 }
 
 function eventSchemaOf(clusterId: number, eventId: number): TlvSchema<unknown> | undefined {
-    const cached = eventSchemaCache.get(clusterId)?.get(eventId);
+    const cache = clusterCacheOf(clusterId);
+    if (cache === undefined) {
+        return undefined;
+    }
+    const cached = cache.events.get(eventId);
     if (cached !== undefined) {
         return cached;
     }
-    const eventModel = clusterModelOf(clusterId)?.events(eventId);
+    const eventModel = cache.model.events(eventId);
     if (eventModel === undefined) {
         return undefined;
     }
     const schema = TlvOfModel(eventModel);
-    cacheSchema(eventSchemaCache, clusterId, eventId, schema);
+    cache.events.set(eventId, schema);
     return schema;
 }
 
