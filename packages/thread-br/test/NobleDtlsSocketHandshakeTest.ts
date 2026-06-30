@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes, Environment, MockNetwork, Network, NetworkSimulator, type UdpSocket } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
-import { type Socket, createSocket } from "node:dgram";
 import { EcJpakePms } from "../src/dtls/ecjpake/EcJpakePms.js";
 import {
     ECJPAKE_ID_CLIENT,
@@ -32,6 +31,9 @@ import { NobleDtlsSocket } from "../src/dtls/socket/NobleDtlsSocket.js";
 
 const N = p256.Point.Fn.ORDER;
 
+const CLIENT_IP = "10.10.10.1";
+const SERVER_IP = "10.10.10.2";
+
 function bigintFromBE(bytes: Uint8Array): bigint {
     let v = 0n;
     for (const byte of bytes) {
@@ -53,6 +55,13 @@ function makeScalarStream(seed: bigint): () => bigint {
     };
 }
 
+/** Build an {@link Environment} whose {@link Network} is a {@link MockNetwork} bound to `ip` on `simulator`. */
+function mockEnvironment(simulator: NetworkSimulator, mac: string, ip: string): Environment {
+    const environment = new Environment("test", Environment.default);
+    environment.set(Network, new MockNetwork(simulator, mac, [ip]));
+    return environment;
+}
+
 interface InboundRecordView {
     type: ContentType;
     epoch: number;
@@ -61,10 +70,10 @@ interface InboundRecordView {
 }
 
 /**
- * UDP-bound mirror server. Same handshake oracle as DtlsClientTest's
- * MirrorServer but driven through a real `dgram.Socket` so we exercise the
- * NobleDtlsSocket transport path end-to-end. Listens on an OS-assigned port
- * on 127.0.0.1.
+ * Mock-network mirror server. Same handshake oracle as DtlsClientTest's
+ * MirrorServer but driven through a matter.js {@link UdpSocket} so we exercise
+ * the NobleDtlsSocket transport path end-to-end. Listens on an OS-assigned port
+ * on its {@link MockNetwork} host.
  */
 class UdpMirrorServer {
     readonly #password: bigint;
@@ -86,10 +95,7 @@ class UdpMirrorServer {
     #peerAddress: string | undefined;
     #peerPort: number | undefined;
 
-    readonly #udp: Socket;
-
-    /** Resolves once the bound port is known. */
-    readonly bound: Promise<{ address: string; port: number }>;
+    readonly #udp: UdpSocket;
 
     /**
      * Plaintexts decoded from epoch-1 application_data records. Tests inspect this
@@ -97,37 +103,40 @@ class UdpMirrorServer {
      */
     readonly receivedAppData = new Array<Uint8Array>();
 
-    constructor(args: { password: Uint8Array; cookie?: Uint8Array; scalarSeed?: bigint; serverRandomFill?: number }) {
+    private constructor(
+        udp: UdpSocket,
+        args: { password: Uint8Array; cookie?: Uint8Array; scalarSeed?: bigint; serverRandomFill?: number },
+    ) {
         this.#password = bigintFromBE(args.password);
         this.#cookie = args.cookie ?? Bytes.of(Bytes.fromHex("aa55cc33"));
         this.#scalars = makeScalarStream(args.scalarSeed ?? 0xfeedfacecafebaben);
         this.#serverRandom = new Uint8Array(32).fill(args.serverRandomFill ?? 0xb0);
-        this.#udp = createSocket({ type: "udp4" });
-        this.#udp.on("message", (msg, rinfo) => {
-            this.#peerAddress = rinfo.address;
-            this.#peerPort = rinfo.port;
-            try {
-                this.#handleDatagram(new Uint8Array(msg.buffer, msg.byteOffset, msg.byteLength));
-            } catch (e) {
-                // Re-emit as error so test sees it.
-                this.#udp.emit("error", e instanceof Error ? e : new Error(String(e)));
-            }
+        this.#udp = udp;
+        this.#udp.onData((_netInterface, peerAddress, peerPort, msg) => {
+            this.#peerAddress = peerAddress;
+            this.#peerPort = peerPort;
+            this.#handleDatagram(Bytes.of(msg));
         });
-        this.bound = new Promise((resolve, reject) => {
-            this.#udp.once("error", reject);
-            this.#udp.bind(0, "127.0.0.1", () => {
-                const a = this.#udp.address();
-                resolve({ address: a.address, port: a.port });
-            });
-        });
+    }
+
+    static async create(
+        network: Network,
+        args: { password: Uint8Array; cookie?: Uint8Array; scalarSeed?: bigint; serverRandomFill?: number },
+    ): Promise<UdpMirrorServer> {
+        const udp = await network.createUdpSocket({ type: "udp4", listeningPort: 0 });
+        return new UdpMirrorServer(udp, args);
+    }
+
+    get port(): number {
+        return this.#udp.port;
     }
 
     async close(): Promise<void> {
-        await new Promise<void>(resolve => this.#udp.close(() => resolve()));
+        await this.#udp.close();
     }
 
     /** Send an encrypted application_data record to the peer (post-handshake). */
-    sendAppData(plaintext: Uint8Array): void {
+    async sendAppData(plaintext: Uint8Array): Promise<void> {
         const cipherState = this.#cipherState;
         if (cipherState === undefined || !this.#seenClientFinished) {
             throw new Error("UdpMirrorServer: cannot sendAppData before handshake completes");
@@ -145,7 +154,7 @@ class UdpMirrorServer {
             },
             cipherState,
         );
-        this.#udp.send(record, this.#peerPort, this.#peerAddress);
+        await this.#udp.send(this.#peerAddress, this.#peerPort, record);
     }
 
     #handleDatagram(bytes: Uint8Array): void {
@@ -176,7 +185,7 @@ class UdpMirrorServer {
             out.set(r, off);
             off += r.length;
         }
-        this.#udp.send(out, this.#peerPort, this.#peerAddress);
+        void this.#udp.send(this.#peerAddress, this.#peerPort, out);
     }
 
     #splitRecords(bytes: Uint8Array): InboundRecordView[] {
@@ -593,17 +602,19 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
     before(MockTime.enable);
 
     it("completes a cookie-exchange handshake against a UDP mirror server", async () => {
-        const server = new UdpMirrorServer({ password: DEFAULT_PASSWORD });
-        const { address, port } = await server.bound;
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
+        const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
 
         const socket = new NobleDtlsSocket({
-            address,
-            port,
+            address: SERVER_IP,
+            port: server.port,
             password: DEFAULT_PASSWORD,
             type: "udp4",
             random: makeFixedRandom(0xa1),
             ephemeralScalar: makeScalarStream(0x1234567890abcdefn),
             connectTimeoutMs: 5000,
+            environment: mockEnvironment(simulator, "00:11:22:33:44:01", CLIENT_IP),
         });
         try {
             await socket.connect();
@@ -615,17 +626,19 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
     });
 
     it("round-trips application data after handshake completes", async () => {
-        const server = new UdpMirrorServer({ password: DEFAULT_PASSWORD });
-        const { address, port } = await server.bound;
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
+        const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
 
         const socket = new NobleDtlsSocket({
-            address,
-            port,
+            address: SERVER_IP,
+            port: server.port,
             password: DEFAULT_PASSWORD,
             type: "udp4",
             random: makeFixedRandom(0xa2),
             ephemeralScalar: makeScalarStream(0xbeefn),
             connectTimeoutMs: 5000,
+            environment: mockEnvironment(simulator, "00:11:22:33:44:01", CLIENT_IP),
         });
         try {
             await socket.connect();
@@ -633,19 +646,13 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
             const sent = Bytes.of(Bytes.fromHex("48656c6c6f20436f4150"));
             await socket.send(sent);
 
-            // Wait for the server to receive (poll briefly — no synchronous handle).
-            const start = Date.now();
-            while (server.receivedAppData.length === 0) {
-                if (Date.now() - start > 2000) {
-                    throw new Error("server did not receive app data within 2s");
-                }
-                await new Promise(r => setTimeout(r, 10));
-            }
+            // The mock network delivers the datagram synchronously within the send macrotask.
+            await MockTime.macrotasks;
             expect(Bytes.toHex(server.receivedAppData[0])).to.equal(Bytes.toHex(sent));
 
             // Server -> client direction.
             const reply = Bytes.of(Bytes.fromHex("776f726c64"));
-            server.sendAppData(reply);
+            await server.sendAppData(reply);
             const got = await socket.recv();
             expect(Bytes.toHex(got)).to.equal(Bytes.toHex(reply));
         } finally {
@@ -655,19 +662,13 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
     });
 
     it("rejects connect() when the server never responds (handshake give-up)", async () => {
-        // Bind a port so the address is reachable, but never answer datagrams.
-        const sink = createSocket({ type: "udp4" });
-        const sinkAddr = await new Promise<{ address: string; port: number }>((resolve, reject) => {
-            sink.once("error", reject);
-            sink.bind(0, "127.0.0.1", () => {
-                const a = sink.address();
-                resolve({ address: a.address, port: a.port });
-            });
-        });
+        const simulator = new NetworkSimulator();
+        // A reachable address with no socket listening on the port: the mock network drops the datagrams.
+        new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
 
         const socket = new NobleDtlsSocket({
-            address: sinkAddr.address,
-            port: sinkAddr.port,
+            address: SERVER_IP,
+            port: 49191,
             password: DEFAULT_PASSWORD,
             type: "udp4",
             random: makeFixedRandom(0xa3),
@@ -678,20 +679,20 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
             maxRetransmitMs: 20,
             maxRetransmits: 2,
             connectTimeoutMs: 1000,
+            environment: mockEnvironment(simulator, "00:11:22:33:44:01", CLIENT_IP),
         });
         let threw = false;
         const connectPromise = socket.connect().catch(e => {
             threw = true;
             expect((e as Error).message).to.match(/gave up|timed out/);
         });
-        // Wait for the UDP bind macrotask so the retransmit timer is armed before we advance.
+        // Wait for the send macrotask so the retransmit timer is armed before we advance.
         // 10ms → retransmit #1, 20ms → retransmit #2, 20ms → give-up (attempt 3 > maxRetransmits=2).
         await MockTime.macrotask;
         await MockTime.macrotask;
         await MockTime.advance(10 + 20 + 20 + 1);
         await connectPromise;
         await socket.close();
-        await new Promise<void>(r => sink.close(() => r()));
         expect(threw).to.equal(true);
     });
 });

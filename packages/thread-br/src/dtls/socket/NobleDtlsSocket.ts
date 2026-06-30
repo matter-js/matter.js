@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Time, type Timer } from "@matter/general";
+import { Bytes, Environment, Millis, Network, Time, type Timer, type UdpSocket } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { randomBytes } from "node:crypto";
-import { type Socket, createSocket } from "node:dgram";
 import { DtlsClient, type DtlsClientConfig } from "../handshake/DtlsClient.js";
 import { ContentType } from "../record/ContentType.js";
 import { type DtlsCipherState } from "../record/DtlsCipherState.js";
@@ -23,14 +22,6 @@ const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_MTU = 1280;
 
 const N = p256.Point.Fn.ORDER;
-
-/**
- * Optional hooks injected by tests so the socket runs against a fake `dgram.Socket`.
- */
-export interface NobleDtlsSocketHooks {
-    /** Inject a pre-built UDP socket (skips internal `dgram.createSocket`). */
-    createUdpSocket?: (type: "udp4" | "udp6") => Socket;
-}
 
 const ALERT_LEVEL_WARNING = 1;
 const ALERT_DESC_CLOSE_NOTIFY = 0;
@@ -70,9 +61,9 @@ function defaultEphemeralScalar(): bigint {
 
 /**
  * UDP-bound DTLS 1.2 + EC-JPAKE client. Drives a {@link DtlsClient} state machine
- * over a Node `dgram.Socket`, applies RFC 6347 §4.2.4 retransmit on the handshake
- * flights, then exposes a plaintext `send`/`recv` surface for application data
- * (CoAP in Phase 4).
+ * over a matter.js {@link UdpSocket}, applies RFC 6347 §4.2.4 retransmit on the
+ * handshake flights, then exposes a plaintext `send`/`recv` surface for
+ * application data (CoAP in Phase 4).
  *
  * Lifecycle: caller constructs with {@link DtlsConnectOpts}, awaits
  * {@link connect()} (which throws on handshake failure / timeout / give-up),
@@ -81,10 +72,9 @@ function defaultEphemeralScalar(): bigint {
  */
 export class NobleDtlsSocket implements DtlsSocket {
     readonly #opts: DtlsConnectOpts;
-    readonly #hooks: NobleDtlsSocketHooks;
     readonly #udpType: "udp4" | "udp6";
 
-    #udp: Socket | undefined;
+    #udp: UdpSocket | undefined;
     #client: DtlsClient | undefined;
     #retransmit: DtlsRetransmitTimer | undefined;
 
@@ -113,9 +103,8 @@ export class NobleDtlsSocket implements DtlsSocket {
           }
         | undefined;
 
-    constructor(opts: DtlsConnectOpts, hooks: NobleDtlsSocketHooks = {}) {
+    constructor(opts: DtlsConnectOpts) {
         this.#opts = opts;
-        this.#hooks = hooks;
         this.#udpType = inferUdpType(opts.address, opts.type);
     }
 
@@ -131,21 +120,10 @@ export class NobleDtlsSocket implements DtlsSocket {
             throw new Error("NobleDtlsSocket.connect: closed");
         }
 
-        const udp = this.#hooks.createUdpSocket
-            ? this.#hooks.createUdpSocket(this.#udpType)
-            : createSocket({ type: this.#udpType, reuseAddr: false });
+        const network = (this.#opts.environment ?? Environment.default).get(Network);
+        const udp = await network.createUdpSocket({ type: this.#udpType, listeningPort: 0 });
         this.#udp = udp;
-        udp.on("message", msg => this.#onDatagram(msg));
-        udp.on("error", err => this.#fail(err instanceof Error ? err : new Error(String(err))));
-
-        await new Promise<void>((resolve, reject) => {
-            const onError = (err: Error) => reject(err);
-            udp.once("error", onError);
-            udp.bind(0, () => {
-                udp.removeListener("error", onError);
-                resolve();
-            });
-        });
+        udp.onData((_netInterface, _peerAddress, _peerPort, data) => this.#onDatagram(Bytes.of(data)));
 
         const clientCfg: DtlsClientConfig = {
             password: this.#opts.password,
@@ -257,9 +235,7 @@ export class NobleDtlsSocket implements DtlsSocket {
             this.#retransmit.cancel();
         }
         if (udp !== undefined) {
-            await new Promise<void>(resolve => {
-                udp.close(() => resolve());
-            }).catch(() => {});
+            await udp.close().catch(() => {});
         }
         // Reject any waiters.
         const closeError = this.#lastError ?? new Error("NobleDtlsSocket: closed");
@@ -286,14 +262,11 @@ export class NobleDtlsSocket implements DtlsSocket {
         if (this.#closed) {
             return;
         }
-        // Node's `dgram` emits Buffer, which extends Uint8Array — narrow to a clean
-        // Uint8Array view so the record codec sees no Buffer-specific allocator.
-        const view = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         try {
             if (this.#connected) {
-                this.#handleAppDatagram(view);
+                this.#handleAppDatagram(bytes);
             } else {
-                this.#handleHandshakeDatagram(view);
+                this.#handleHandshakeDatagram(bytes);
             }
         } catch (e) {
             this.#fail(e instanceof Error ? e : new Error(String(e)));
@@ -413,21 +386,12 @@ export class NobleDtlsSocket implements DtlsSocket {
             datagrams.push(concatBuffers(acc));
         }
         for (const dg of datagrams) {
-            // Errors propagate via the socket's `error` event handler.
             void this.#sendDatagram(udp, dg).catch(e => this.#fail(e instanceof Error ? e : new Error(String(e))));
         }
     }
 
-    async #sendDatagram(udp: Socket, bytes: Uint8Array): Promise<void> {
-        await new Promise<void>((resolve, reject) => {
-            udp.send(bytes, this.#opts.port, this.#opts.address, err => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve();
-                }
-            });
-        });
+    async #sendDatagram(udp: UdpSocket, bytes: Uint8Array): Promise<void> {
+        await udp.send(this.#opts.address, this.#opts.port, bytes);
     }
 
     #fail(error: Error): void {

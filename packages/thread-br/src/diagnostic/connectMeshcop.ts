@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/general";
+import { type Environment, Logger } from "@matter/general";
 import { CoapClient } from "../coap/CoapClient.js";
 import { Commissioner } from "../commissioner/Commissioner.js";
 import type { ThreadNetworkCredentials } from "../credentials/ThreadNetworkCredentials.js";
@@ -25,6 +25,8 @@ export interface ConnectMeshcopOpts {
     port?: number;
     /** DTLS backend kind. Defaults to `"noble"`. */
     backendKind?: DtlsBackendKind;
+    /** Environment providing the {@link Network} for the DTLS UDP transport. Defaults to `Environment.default`. */
+    environment?: Environment;
     /** @internal — for testing. Override the default backend factory. */
     makeBackend?: () => DtlsBackend;
 }
@@ -58,6 +60,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
         port,
         password: opts.creds.pskc,
         type: address.includes(":") ? "udp6" : "udp4",
+        environment: opts.environment,
     });
     logger.debug(`[ThreadDiag] DTLS handshake OK ${address}:${port} duration=${Date.now() - dtlsStart}ms`);
 

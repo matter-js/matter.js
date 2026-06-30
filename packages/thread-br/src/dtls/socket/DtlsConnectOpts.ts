@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Environment } from "@matter/general";
+
 /**
  * Connection parameters consumed by {@link DtlsBackend.connect}. The `random` and
  * `ephemeralScalar` overrides exist for deterministic tests; production callers
@@ -42,4 +44,7 @@ export interface DtlsConnectOpts {
 
     /** Override `ephemeralScalar()` for deterministic testing. Production: CSPRNG-backed. */
     ephemeralScalar?: () => bigint;
+
+    /** Environment providing the {@link Network} used for the UDP transport. Defaults to `Environment.default`. */
+    environment?: Environment;
 }
