@@ -38,66 +38,92 @@ const logger = Logger.get("InputChunk");
  */
 const DATA_REPORT_DECODE_OPTIONS: TlvDecodingOptions = { relaxNumberTypeChecks: true };
 
-/**
- * Resolved attribute/event schemas, cached across all reports for the process lifetime.
- *
- * Resolving a schema means traversing the standard Matter model (`Matter.clusters(id)`, `.attributes(id)`), which is
- * expensive and, per attribute/event of every incoming report, dominates decode cost — far more than the TLV decode
- * itself. The standard model is immutable at runtime, so a (clusterId, elementId) → schema mapping never changes. A
- * cached `undefined` is a negative result meaning "decode via the Any schema".
- */
-const attributeSchemaCache = new Map<number, Map<number, TlvSchema<unknown> | undefined>>();
-const eventSchemaCache = new Map<number, Map<number, TlvSchema<unknown> | undefined>>();
-const clusterModelCache = new Map<number, ClusterModel | undefined>();
+// Resolved schemas cached across reports. Report paths come from untrusted peers, so only positive resolutions of
+// known model elements are cached — caching unknowns would let bogus IDs grow these maps without bound.
+const clusterModelCache = new Map<number, ClusterModel>();
+const attributeSchemaCache = new Map<number, Map<number, TlvSchema<unknown>>>();
+const eventSchemaCache = new Map<number, Map<number, TlvSchema<unknown>>>();
+// Cluster-independent resolutions only — cluster-specialized schemas (e.g. FeatureMap) stay in attributeSchemaCache.
+const globalAttributeSchemaCache = new Map<number, TlvSchema<unknown>>();
+
+function schemaOfModel(model: Parameters<typeof TlvOfModel>[0]): TlvSchema<unknown> | undefined {
+    try {
+        return TlvOfModel(model);
+    } catch {
+        return undefined; // modeled but has no schema (e.g. deprecated global) — decode as unknown
+    }
+}
 
 function clusterModelOf(clusterId: number): ClusterModel | undefined {
-    if (clusterModelCache.has(clusterId)) {
-        return clusterModelCache.get(clusterId);
+    let model = clusterModelCache.get(clusterId);
+    if (model === undefined) {
+        model = Matter.clusters(clusterId);
+        if (model === undefined) {
+            return undefined;
+        }
+        clusterModelCache.set(clusterId, model);
     }
-    const model = Matter.clusters(clusterId);
-    clusterModelCache.set(clusterId, model);
     return model;
 }
 
-function cachedSchema(
-    cache: Map<number, Map<number, TlvSchema<unknown> | undefined>>,
+function cacheSchema(
+    cache: Map<number, Map<number, TlvSchema<unknown>>>,
     clusterId: number,
     elementId: number,
-    resolve: () => TlvSchema<unknown> | undefined,
-): TlvSchema<unknown> | undefined {
+    schema: TlvSchema<unknown>,
+) {
     let byElement = cache.get(clusterId);
     if (byElement === undefined) {
         byElement = new Map();
         cache.set(clusterId, byElement);
     }
-    if (byElement.has(elementId)) {
-        return byElement.get(elementId);
-    }
-    const schema = resolve();
     byElement.set(elementId, schema);
+}
+
+function attributeSchemaOf(clusterId: number, attributeId: number): TlvSchema<unknown> | undefined {
+    const clusterModel = clusterModelOf(clusterId);
+    if (clusterModel !== undefined) {
+        const cached = attributeSchemaCache.get(clusterId)?.get(attributeId);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const attributeModel = clusterModel.attributes(attributeId);
+        if (attributeModel !== undefined) {
+            const schema = schemaOfModel(attributeModel);
+            if (schema !== undefined) {
+                cacheSchema(attributeSchemaCache, clusterId, attributeId, schema);
+            }
+            return schema;
+        }
+    }
+
+    const cachedGlobal = globalAttributeSchemaCache.get(attributeId);
+    if (cachedGlobal !== undefined) {
+        return cachedGlobal;
+    }
+    const globalModel = Matter.attributes(attributeId);
+    if (globalModel === undefined) {
+        return undefined;
+    }
+    const schema = schemaOfModel(globalModel);
+    if (schema !== undefined) {
+        globalAttributeSchemaCache.set(attributeId, schema);
+    }
     return schema;
 }
 
-function attributeSchemaOf(clusterId: number, attributeId: number) {
-    return cachedSchema(attributeSchemaCache, clusterId, attributeId, () => {
-        const attributeModel = clusterModelOf(clusterId)?.attributes(attributeId) ?? Matter.attributes(attributeId);
-        if (attributeModel === undefined) {
-            return undefined;
-        }
-        try {
-            return TlvOfModel(attributeModel);
-        } catch {
-            // Attribute is known but has no schema (e.g. deprecated global attributes) — decode as unknown
-            return undefined;
-        }
-    });
-}
-
-function eventSchemaOf(clusterId: number, eventId: number) {
-    return cachedSchema(eventSchemaCache, clusterId, eventId, () => {
-        const eventModel = clusterModelOf(clusterId)?.events(eventId);
-        return eventModel === undefined ? undefined : TlvOfModel(eventModel);
-    });
+function eventSchemaOf(clusterId: number, eventId: number): TlvSchema<unknown> | undefined {
+    const cached = eventSchemaCache.get(clusterId)?.get(eventId);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const eventModel = clusterModelOf(clusterId)?.events(eventId);
+    if (eventModel === undefined) {
+        return undefined;
+    }
+    const schema = TlvOfModel(eventModel);
+    cacheSchema(eventSchemaCache, clusterId, eventId, schema);
+    return schema;
 }
 
 interface ResolvedAttributePath {
@@ -330,12 +356,17 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
 
     try {
         const schema = eventSchemaOf(clusterId, eventId);
-        const value =
-            data === undefined
-                ? undefined
-                : schema === undefined
-                  ? decodeUnknownEventValue(data)
-                  : schema.decodeTlv(data, DATA_REPORT_DECODE_OPTIONS);
+        let value: unknown;
+        if (data === undefined) {
+            value = undefined;
+        } else if (schema === undefined) {
+            logger.debug(
+                `Decode unknown event ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)} via the AnySchema.`,
+            );
+            value = decodeUnknownEventValue(data);
+        } else {
+            value = schema.decodeTlv(data, DATA_REPORT_DECODE_OPTIONS);
+        }
 
         // `timestamp` is a lossy convenience: callers needing the specific wire variant read the explicit field below.
         const timestamp = Number(epochTimestamp ?? systemTimestamp ?? deltaEpochTimestamp ?? deltaSystemTimestamp ?? 0);
