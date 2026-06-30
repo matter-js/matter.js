@@ -98,7 +98,8 @@ function clusterCacheOf(clusterId: number): ClusterSchemaCache | undefined {
 function attributeSchemaOf(clusterId: number, attributeId: number): TlvSchema<unknown> | undefined {
     const cache = clusterCacheOf(clusterId);
     if (cache === undefined) {
-        return undefined;
+        // Unknown cluster (e.g. vendor): still decode standard global attributes with their cluster-independent schema.
+        return globalAttributeSchemas.get(attributeId);
     }
     const cached = cache.attributes.get(attributeId);
     if (cached !== undefined) {
