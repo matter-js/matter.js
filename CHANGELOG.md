@@ -40,7 +40,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Incoming read/subscription data reports now tolerate signed/unsigned integer encoding mismatches within defined bounds. Such cases are still non-compliant and are logged
     - Enhancement: Unified peer device-probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
-    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD like in Chip SDK
+    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD like in CHIP SDK
     - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
