@@ -26,7 +26,7 @@ export namespace MRP {
     /** The number of retransmissions before transitioning from linear to exponential backoff. */
     export const BACKOFF_THRESHOLD = 1;
 
-    /** @see {@link MatterSpecification.v12.Core}, section 4.11.8 */
+    /** @see {@link MatterSpecification.v16.Core}, section 4.12.8 */
     export const STANDALONE_ACK_TIMEOUT = Millis(200);
 
     /**
@@ -120,7 +120,7 @@ export namespace MRP {
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
      * Otherwise, the caller-supplied `additionalDelay` (default 0) is added to the base interval.
      *
-     * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
+     * @see {@link MatterSpecification.v16.Core}, section 4.12.2.1
      */
     export function retransmissionIntervalOf(
         { transmissionNumber, sessionParameters, isPeerActive, additionalDelay = Millis(0) }: RetryDelayInputs,

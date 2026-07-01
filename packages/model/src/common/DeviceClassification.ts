@@ -7,7 +7,7 @@
 /**
  * Device type classification.  This is the Matter "device type classification".
  *
- * @see {@link MatterSpecification.v13.Core} § 7.15.3
+ * @see {@link MatterSpecification.v16.Core} § 7.16.3
  */
 export enum DeviceClassification {
     /**
@@ -17,33 +17,33 @@ export enum DeviceClassification {
     Base = "base",
 
     /**
-     * @see {@link MatterSpecification.v13.Core} § 7.15.3.1
+     * @see {@link MatterSpecification.v16.Core} § 7.16.3.1
      */
     Utility = "utility",
 
     /**
-     * @see {@link MatterSpecification.v13.Core} § 7.15.3.2
+     * @see {@link MatterSpecification.v16.Core} § 7.16.3.2
      */
     Application = "application",
 
     /**
      * A subset of type {@link Application}.
      *
-     * @see {@link MatterSpecification.v13.Core} § 7.15.3.3
+     * @see {@link MatterSpecification.v16.Core} § 7.16.3.3
      */
     Simple = "simple",
 
     /**
      * A subset of type {@link Application}.
      *
-     * @see {@link MatterSpecification.v13.Core} § 7.15.3.4
+     * @see {@link MatterSpecification.v16.Core} § 7.16.3.4
      */
     Dynamic = "dynamic",
 
     /**
      * A subset of type {@link Utility}.  Not officially a device type but described in the same section.
      *
-     * @see {@link MatterSpecification.v13.Core} § 7.15.3.5
+     * @see {@link MatterSpecification.v16.Core} § 7.16.3.5
      */
     Node = "node",
 }

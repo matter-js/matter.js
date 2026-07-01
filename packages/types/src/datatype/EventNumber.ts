@@ -12,7 +12,7 @@ import { TlvWrapper } from "../tlv/TlvWrapper.js";
  * An "event number" is an increasing 64-bit unsigned integer assigned to
  * cluster events.
  *
- * @see {@link MatterSpecification.v11.Core} § 7.14.2.1
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.39
  */
 export type EventNumber = Branded<bigint, "EventNumber">;
 

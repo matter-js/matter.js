@@ -44,7 +44,7 @@ function uInt16To4Chars(value: number) {
 
 /**
  * Matter specific ASN.1 OIDs
- * @see {@link MatterSpecification.v12.Core} Appendix E
+ * @see {@link MatterSpecification.v16.Core} Appendix E
  */
 
 /**

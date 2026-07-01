@@ -19,7 +19,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v151.Core} § 7.19.2.46
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.46
  */
 export const TlvSemtag = TlvObject({
     /**
@@ -33,7 +33,7 @@ export const TlvSemtag = TlvObject({
      *
      * If MfgCode is NULL, the NamespaceID field shall indicate a standard namespace.
      *
-     * @see {@link MatterSpecification.v151.Core} § 7.19.2.46.1
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2.46.1
      */
     mfgCode: TlvField(0, TlvNullable(TlvVendorId)),
 
@@ -43,7 +43,7 @@ export const TlvSemtag = TlvObject({
      * The common and device-specific semantic tag namespaces are listed in
      * [[StandardNamespaces]](#ref_StandardNamespaces).
      *
-     * @see {@link MatterSpecification.v151.Core} § 7.19.2.46.2
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2.46.2
      */
     namespaceId: TlvField(1, TlvEnum<Namespace>()),
 
@@ -53,7 +53,7 @@ export const TlvSemtag = TlvObject({
      * A device may expose tags from the common or device-specific namespaces and from manufacturer-specific namespaces
      * in a single Section 9.5.6.5, "TagList".
      *
-     * @see {@link MatterSpecification.v151.Core} § 7.19.2.46.3
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2.46.3
      */
     tag: TlvField(2, TlvUInt8),
 
@@ -66,7 +66,7 @@ export const TlvSemtag = TlvObject({
      * "room" in a location namespace, would require the a label string to qualify the type of room, such as "1", "2b",
      * "Bathroom", etc.
      *
-     * @see {@link MatterSpecification.v151.Core} § 7.19.2.46.4
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2.46.4
      */
     label: TlvOptionalField(3, TlvNullable(TlvString.bound({ maxLength: 64 })))
 });
@@ -76,6 +76,6 @@ export const TlvSemtag = TlvObject({
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v151.Core} § 7.19.2.46
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.46
  */
 export interface Semtag extends TypeFromSchema<typeof TlvSemtag> {}

@@ -16,7 +16,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * Attributes and commands for turning devices on and off.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 1.5
+ * @see {@link MatterSpecification.v16.Cluster} § 1.5
  */
 export declare namespace OnOff {
     /**
@@ -30,7 +30,7 @@ export declare namespace OnOff {
     export const name: "OnOff";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 6;
 
@@ -49,7 +49,7 @@ export declare namespace OnOff {
          * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on, in
          * these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.2
          */
         onOff: boolean;
     }
@@ -74,17 +74,20 @@ export declare namespace OnOff {
          *
          * This attribute is set to FALSE after reception of a OffWithEffect command.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.3
          */
         globalSceneControl: boolean;
 
         /**
          * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
-         * automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute can be
-         * written at any time, but writing a value only has effect when in the Timed On state. See OnWithTimedOff for
-         * more details.
+         * automatically transitioning to the Off state when using the OnWithTimedOff command.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.4
+         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         *
+         * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
+         * OnWithTimedOff for more details.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.4
          */
         onTime: number;
 
@@ -92,11 +95,15 @@ export declare namespace OnOff {
          * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
          * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
          * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
-         * back on). This attribute can be written at any time, but writing a value only has an effect when in the Timed
-         * On state followed by a transition to the Delayed Off state, or in the Delayed Off state. See OnWithTimedOff
-         * for more details.
+         * back on).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.5
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state
+         * followed by a transition to the Delayed Off state, or in the Delayed Off state.
+         *
+         * While in the Off state after a Timed On state, this attribute shall be decremented every 1/10^th second until
+         * it reaches 0. See OnWithTimedOff for more details.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.5
          */
         offWaitTime: number;
 
@@ -108,7 +115,7 @@ export declare namespace OnOff {
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute shall
          * return to its value prior to the restart.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.6
          */
         startUpOnOff: StartUpOnOff | null;
     }
@@ -124,7 +131,7 @@ export declare namespace OnOff {
          * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on, in
          * these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.2
          */
         onOff: boolean;
 
@@ -144,17 +151,20 @@ export declare namespace OnOff {
          *
          * This attribute is set to FALSE after reception of a OffWithEffect command.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.3
          */
         globalSceneControl: boolean;
 
         /**
          * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
-         * automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute can be
-         * written at any time, but writing a value only has effect when in the Timed On state. See OnWithTimedOff for
-         * more details.
+         * automatically transitioning to the Off state when using the OnWithTimedOff command.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.4
+         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         *
+         * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
+         * OnWithTimedOff for more details.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.4
          */
         onTime: number;
 
@@ -162,11 +172,15 @@ export declare namespace OnOff {
          * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
          * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
          * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
-         * back on). This attribute can be written at any time, but writing a value only has an effect when in the Timed
-         * On state followed by a transition to the Delayed Off state, or in the Delayed Off state. See OnWithTimedOff
-         * for more details.
+         * back on).
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.5
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state
+         * followed by a transition to the Delayed Off state, or in the Delayed Off state.
+         *
+         * While in the Off state after a Timed On state, this attribute shall be decremented every 1/10^th second until
+         * it reaches 0. See OnWithTimedOff for more details.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.5
          */
         offWaitTime: number;
 
@@ -178,7 +192,7 @@ export declare namespace OnOff {
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute shall
          * return to its value prior to the restart.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.6
          */
         startUpOnOff: StartUpOnOff | null;
     }
@@ -190,7 +204,7 @@ export declare namespace OnOff {
         /**
          * This command allows devices to be turned off.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.1
          */
         off(): MaybePromise;
     }
@@ -202,14 +216,14 @@ export declare namespace OnOff {
         /**
          * The OffWithEffect command allows devices to be turned off using enhanced ways of fading.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.4
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.4
          */
         offWithEffect(request: OffWithEffectRequest): MaybePromise;
 
         /**
          * This command allows the recall of the settings when the device was turned off.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.5
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.5
          */
         onWithRecallGlobalScene(): MaybePromise;
 
@@ -219,7 +233,7 @@ export declare namespace OnOff {
          * prevented from turning the devices back on. Further OnWithTimedOff commands received while the server is
          * turned on, will update the period that the device is turned on.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.6
          */
         onWithTimedOff(request: OnWithTimedOffRequest): MaybePromise;
     }
@@ -231,14 +245,14 @@ export declare namespace OnOff {
         /**
          * This command allows devices to be turned on.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.2
          */
         on(): MaybePromise;
 
         /**
          * This command allows devices to be toggled.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.3
          */
         toggle(): MaybePromise;
     }
@@ -262,7 +276,7 @@ export declare namespace OnOff {
     /**
      * These are optional features supported by OnOffCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.4
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.4
      */
     export enum Feature {
         /**
@@ -276,7 +290,7 @@ export declare namespace OnOff {
          * On receipt of a Level Control cluster command that causes the OnOff attribute to be set to TRUE, if the value
          * of the OnTime attribute is equal to 0, the server shall set the OffWaitTime attribute to 0.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.4.1
          */
         Lighting = "Lighting",
 
@@ -312,7 +326,7 @@ export declare namespace OnOff {
          * null on "dead front" behavior due to an Off command being received, this change shall be processed for
          * reporting and subscriptions.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.4.2
          */
         DeadFrontBehavior = "DeadFrontBehavior",
 
@@ -326,13 +340,13 @@ export declare namespace OnOff {
          * this cluster but cannot be turned on via commands received by an instance of this cluster due to regulatory
          * requirements.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.4.3
          */
         OffOnly = "OffOnly"
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.5.2
      */
     export enum StartUpOnOff {
         /**
@@ -355,7 +369,7 @@ export declare namespace OnOff {
     /**
      * The OffWithEffect command allows devices to be turned off using enhanced ways of fading.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.4
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.4
      */
     export class OffWithEffectRequest {
         constructor(values?: Partial<OffWithEffectRequest>);
@@ -364,7 +378,7 @@ export declare namespace OnOff {
          * This field specifies the fading effect to use when turning the device off. This field shall contain one of
          * the non-reserved values listed in EffectIdentifierEnum.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.4.1
          */
         effectIdentifier: EffectIdentifier;
 
@@ -374,7 +388,7 @@ export declare namespace OnOff {
          * is dependent on the value of the EffectIdentifier field and shall contain one of the non-reserved values
          * listed in either DelayedAllOffEffectVariantEnum or DyingLightEffectVariantEnum.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.4.2
          */
         effectVariant: number;
     }
@@ -385,7 +399,7 @@ export declare namespace OnOff {
      * from turning the devices back on. Further OnWithTimedOff commands received while the server is turned on, will
      * update the period that the device is turned on.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.6
      */
     export class OnWithTimedOffRequest {
         constructor(values?: Partial<OnWithTimedOffRequest>);
@@ -393,27 +407,27 @@ export declare namespace OnOff {
         /**
          * This field contains information on how the server is to be operated.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.6.1
          */
         onOffControl: OnOffControl;
 
         /**
          * This field is used to adjust the value of the OnTime attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.6.2
          */
         onTime: number;
 
         /**
          * This field is used to adjust the value of the OffWaitTime attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.5.7.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.5.7.6.3
          */
         offWaitTime: number;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.5.1
      */
     export class OnOffControl {
         constructor(values?: Partial<OnOffControl> | number);
@@ -425,7 +439,7 @@ export declare namespace OnOff {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.3
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.5.3
      */
     export enum EffectIdentifier {
         /**
@@ -440,7 +454,7 @@ export declare namespace OnOff {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.4
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.5.4
      */
     export enum DelayedAllOffEffectVariant {
         /**
@@ -460,7 +474,7 @@ export declare namespace OnOff {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.5.5.5
+     * @see {@link MatterSpecification.v16.Cluster} § 1.5.5.5
      */
     export enum DyingLightEffectVariant {
         /**

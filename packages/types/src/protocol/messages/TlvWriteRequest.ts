@@ -11,7 +11,7 @@ import { TlvUInt8 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvAttributeData } from "../types/TlvAttributeData.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.7.6 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.7.6 */
 
 export const TlvWriteRequest = TlvObject({
     /** Do not send a response to this action. */

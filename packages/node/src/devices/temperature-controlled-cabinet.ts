@@ -19,6 +19,9 @@ import { OvenModeServer as BaseOvenModeServer } from "../behaviors/oven-mode/Ove
 import {
     OvenCavityOperationalStateServer as BaseOvenCavityOperationalStateServer
 } from "../behaviors/oven-cavity-operational-state/OvenCavityOperationalStateServer.js";
+import {
+    TemperatureAlarmServer as BaseTemperatureAlarmServer
+} from "../behaviors/temperature-alarm/TemperatureAlarmServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -33,7 +36,7 @@ import { Identity } from "@matter/general";
  * because you must select the features your device supports. You can add manually using
  * TemperatureControlledCabinetDevice.with().
  *
- * @see {@link MatterSpecification.v151.Device} § 13.4
+ * @see {@link MatterSpecification.v16.Device} § 13.4
  */
 export interface TemperatureControlledCabinetDevice extends Identity<typeof TemperatureControlledCabinetDeviceDefinition> {}
 
@@ -76,6 +79,13 @@ export namespace TemperatureControlledCabinetRequirements {
         .alter({ events: { operationCompletion: { optional: false } } });
 
     /**
+     * The TemperatureAlarm cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link TemperatureAlarmServer} for convenience.
+     */
+    export const TemperatureAlarmServer = BaseTemperatureAlarmServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
@@ -85,7 +95,8 @@ export namespace TemperatureControlledCabinetRequirements {
             TemperatureMeasurement: TemperatureMeasurementServer,
             RefrigeratorAndTemperatureControlledCabinetMode: RefrigeratorAndTemperatureControlledCabinetModeServer,
             OvenMode: OvenModeServer,
-            OvenCavityOperationalState: OvenCavityOperationalStateServer
+            OvenCavityOperationalState: OvenCavityOperationalStateServer,
+            TemperatureAlarm: TemperatureAlarmServer
         }
     };
 }
@@ -93,7 +104,7 @@ export namespace TemperatureControlledCabinetRequirements {
 export const TemperatureControlledCabinetDeviceDefinition = MutableEndpoint({
     name: "TemperatureControlledCabinet",
     deviceType: 0x71,
-    deviceRevision: 5,
+    deviceRevision: 6,
     requirements: TemperatureControlledCabinetRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -131,10 +131,24 @@ export class AttributeReadResponse<
     }
 
     /**
+     * Read the node's current BasicInformation ConfigurationVersion (endpoint 0, cluster 0x28, attribute 0x18), or
+     * undefined when the attribute is not present.
+     */
+    #currentConfigurationVersion(): number | undefined {
+        const endpoint = this.node[0];
+        const cluster = endpoint?.[0x28];
+        if (cluster === undefined) {
+            return undefined;
+        }
+        return cluster.readState(this.session)[0x18] as number | undefined;
+    }
+
+    /**
      * Validate a wildcard path and update internal state.
      */
     protected addWildcard(path: AttributePath) {
-        const { nodeId, endpointId, clusterId, attributeId, wildcardPathFlags } = path;
+        const { nodeId, endpointId, clusterId, attributeId, wildcardPathFlags, wildcardFilterConfigurationVersion } =
+            path;
 
         if (clusterId === undefined && attributeId !== undefined && !GlobalAttrIds.has(attributeId)) {
             throw new StatusResponseError(
@@ -147,7 +161,21 @@ export class AttributeReadResponse<
             return;
         }
 
-        const wpf = wildcardPathFlags ? WildcardPathFlagsCodec.encode(wildcardPathFlags) : 0;
+        let wpf = wildcardPathFlags ? WildcardPathFlagsCodec.encode(wildcardPathFlags) : 0;
+
+        // WildcardPathFlags only suppress paths while the client's WildcardFilterConfigurationVersion is current.  Once
+        // the node's ConfigurationVersion has advanced past it the configuration changed, so the flags no longer apply
+        // and all paths are reported.  An omitted filter (or 0xFFFFFFFF) is treated as the current version.
+        if (
+            wpf !== 0 &&
+            wildcardFilterConfigurationVersion !== undefined &&
+            wildcardFilterConfigurationVersion !== 0xffffffff
+        ) {
+            const current = this.#currentConfigurationVersion();
+            if (current !== undefined && wildcardFilterConfigurationVersion < current) {
+                wpf = 0;
+            }
+        }
 
         if (endpointId === undefined) {
             this.#addProducer(function* (this: AttributeReadResponse) {

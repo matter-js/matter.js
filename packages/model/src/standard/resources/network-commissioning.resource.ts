@@ -155,8 +155,12 @@ Resource.add({
                 "\n" +
                 "This attribute is primarily used to determine the most important general capabilities of the Thread " +
                 "interface associated with the cluster instance, as opposed to the current runtime dynamic " +
-                "configuration. Note that most run-time details of the actual Thread interface are found in the " +
-                "Thread Network Diagnostics cluster, if supported."
+                "configuration." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: Most run-time details of the actual Thread interface are found in the Thread Network " +
+                "Diagnostics cluster, if supported."
         },
 
         {
@@ -319,11 +323,10 @@ Resource.add({
                 "initiator." +
                 "\n" +
                 "The Credentials associated with the network are not readable after execution of this command, as " +
-                "they do not appear in the Section 11.9.6.2, \"Networks\" attribute, for security reasons." +
+                "they do not appear in the Networks attribute, for security reasons." +
                 "\n" +
-                "If this command contains a ClientIdentifier, and the Section 11.9.6.2, \"Networks\" list does not " +
-                "contain an entry with a matching ClientIdentifier, then this command shall fail with a status of " +
-                "NOT_FOUND." +
+                "If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a " +
+                "matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND." +
                 "\n" +
                 "See Section 11.9.7.5, \"Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork\" for " +
                 "behavior of addition/update.",
@@ -331,7 +334,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "Ssid", xref: "core§11.9.7.3.1",
-                    details: "This field shall contain the SSID to which to attempt connection. Specific BSSID selection is not " +
+                    details: "This field shall indicate the SSID to which to attempt connection. Specific BSSID selection is not " +
                         "supported by this cluster."
                 },
 
@@ -368,9 +371,11 @@ Resource.add({
                         "presence of both WPA2 and WPA security type within the result set, WPA2 shall be considered more " +
                         "secure." +
                         "\n" +
-                        "Note that it may occur that a station cannot connect to a particular access point with higher " +
-                        "security and selects a lower security connectivity type if the link quality is deemed to be too low " +
-                        "to achieve successful operation, or if all retry attempts fail."
+                        "> [!NOTE]" +
+                        "\n" +
+                        "> NOTE: It might occur that a station cannot connect to a particular access point with higher " +
+                        "security and selects a lower security connectivity type if the link quality is deemed to be too " +
+                        "low to achieve successful operation, or if all retry attempts fail."
                 },
 
                 {
@@ -405,8 +410,8 @@ Resource.add({
                 {
                     tag: "field", name: "OperationalDataset", xref: "core§11.9.7.4.1",
 
-                    details: "The OperationalDataset field shall contain the Thread Network Parameters, including channel, PAN ID, " +
-                        "and Extended PAN ID." +
+                    details: "This field shall indicate the Thread Network Parameters, including channel, PAN ID, and Extended PAN " +
+                        "ID." +
                         "\n" +
                         "The encoding for the OperationalDataset field is defined in the Thread specification." +
                         "\n" +
@@ -444,7 +449,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "NetworkId", xref: "core§11.9.7.6.1",
-                    details: "This field shall contain the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for " +
+                    details: "This field shall indicate the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for " +
                         "Thread."
                 },
                 {
@@ -475,8 +480,8 @@ Resource.add({
                 {
                     tag: "field", name: "NetworkingStatus", xref: "core§11.9.7.7.1",
 
-                    details: "The NetworkingStatus field shall indicate the status of the last operation attempting to modify the " +
-                        "Networks attribute configuration, taking one of these values:" +
+                    details: "This field shall indicate the status of the last operation attempting to modify the Networks " +
+                        "attribute configuration, taking one of these values:" +
                         "\n" +
                         "  - Success: Operation succeeded." +
                         "\n" +
@@ -496,7 +501,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "NetworkIndex", xref: "core§11.9.7.7.3",
-                    details: "This field shall contain the 0-based index of the entry in the Networks attribute that was last " +
+                    details: "This field shall indicate the 0-based index of the entry in the Networks attribute that was last " +
                         "added, updated or removed successfully by the associated request command."
                 }
             ]
@@ -591,7 +596,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "NetworkId", xref: "core§11.9.7.8.1",
-                    details: "This field shall contain the NetworkID for the entry used to configure the connection: the SSID for " +
+                    details: "This field shall indicate the NetworkID for the entry used to configure the connection: the SSID for " +
                         "Wi-Fi and XPAN ID for Thread."
                 },
                 {
@@ -620,8 +625,7 @@ Resource.add({
                 {
                     tag: "field", name: "NetworkingStatus", xref: "core§11.9.7.9.1",
 
-                    details: "The NetworkingStatus field shall indicate the status of the last connection attempt, taking one of " +
-                        "these values:" +
+                    details: "This field shall indicate the status of the last connection attempt, taking one of these values:" +
                         "\n" +
                         "  - Success: Connection succeeded." +
                         "\n" +
@@ -649,7 +653,9 @@ Resource.add({
                 {
                     tag: "field", name: "ErrorValue", xref: "core§11.9.7.9.3",
 
-                    details: "  - ErrorValue interpretation for Wi-Fi association errors:" +
+                    details: "This field shall indicate the status of the associated request command." +
+                        "\n" +
+                        "  - ErrorValue interpretation for Wi-Fi association errors:" +
                         "\n" +
                         "  - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
                         "the Status Code value that was present in the last frame related to association where Status " +
@@ -682,12 +688,12 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "NetworkId", xref: "core§11.9.7.10.1",
-                    details: "This field shall contain the NetworkID for the entry to reorder: the SSID for Wi-Fi and XPAN ID for " +
+                    details: "This field shall indicate the NetworkID for the entry to reorder: the SSID for Wi-Fi and XPAN ID for " +
                         "Thread."
                 },
                 {
                     tag: "field", name: "NetworkIndex", xref: "core§11.9.7.10.2",
-                    details: "This field shall contain the 0-based index of the new desired position of the entry in the Networks " +
+                    details: "This field shall indicate the 0-based index of the new desired position of the entry in the Networks " +
                         "attribute."
                 },
                 {

@@ -77,6 +77,17 @@ export abstract class ExchangeProvider {
     abstract readonly maxPathsPerInvoke?: number;
 
     /**
+     * Peer-advertised CapabilityMinima path floors.  Base values are the spec minimums.
+     * @see {@link MatterSpecification.v16.Core} § 11.1
+     */
+    get readPathsSupported(): number {
+        return 9;
+    }
+    get subscribePathsSupported(): number {
+        return 3;
+    }
+
+    /**
      * Dedicated secure session backing this provider, if any.
      *
      * Providers that multiplex sessions (e.g. {@link PeerExchangeProvider}) return `undefined`.

@@ -218,7 +218,7 @@ export class MessageChannel implements Channel<Message> {
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
      *
-     * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
+     * @see {@link MatterSpecification.v16.Core}, section 4.12.2.1
      */
     getMrpResubmissionBackOffTime(
         retransmissionCount: number,

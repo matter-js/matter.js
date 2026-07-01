@@ -73,7 +73,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "IcdCounter", xref: "core§9.16.6.5",
-            details: "This attribute returns the value of the ICD Counter."
+            details: "Indicates the value of the ICD Counter. The ICD Counter is used as the Check-In Counter to encrypt " +
+                "the check-in message for this client."
         },
         {
             tag: "attribute", name: "ClientsSupportedPerFabric", xref: "core§9.16.6.6",

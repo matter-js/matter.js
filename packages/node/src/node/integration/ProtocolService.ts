@@ -464,7 +464,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                 }
 
                 if (id & 0xffff0000) {
-                    wildcardPathFlags |= WildcardPathFlags.skipGlobalAttributes;
+                    wildcardPathFlags |= WildcardPathFlags.skipCustomElements;
                 }
                 if (quality.fixed) {
                     wildcardPathFlags |= WildcardPathFlags.skipFixedAttributes;

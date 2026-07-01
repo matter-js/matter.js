@@ -32,6 +32,20 @@ import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionManager } from "./SessionManager.js";
 
+/** Thrown by {@link GroupSession.decode} when no installed key can be a candidate for the received group message. */
+export class GroupSessionNoKeyError extends MatterFlowError {
+    constructor(message = "No key candidate found for group session decryption") {
+        super(message);
+    }
+}
+
+/** Thrown by {@link GroupSession.decode} when decryption failed with all candidate keys. */
+export class GroupSessionDecodeError extends MatterFlowError {
+    constructor(message = "Failed to decode group message with any key candidate") {
+        super(message);
+    }
+}
+
 const logger = Logger.get("SecureGroupSession");
 
 /** Secure Group session instance */
@@ -41,6 +55,7 @@ export class GroupSession extends SecureSession {
     readonly #peerNodeId: NodeId;
     readonly #operationalGroupKey: Bytes;
     readonly #operationalPrivacyKey?: Bytes;
+    readonly #multicastAddress: string;
     readonly supportsMRP = false;
     readonly closingAfterExchangeFinished = false; // Group sessions do not close after exchange finished, they are long-lived
 
@@ -55,6 +70,7 @@ export class GroupSession extends SecureSession {
             id,
             peerNodeId,
             keySetId,
+            multicastAddress,
             messageCounter,
         } = config;
         super({
@@ -68,11 +84,17 @@ export class GroupSession extends SecureSession {
         this.keySetId = keySetId;
         this.#operationalGroupKey = operationalGroupKey;
         this.#operationalPrivacyKey = operationalPrivacyKey;
+        this.#multicastAddress = multicastAddress;
 
         manager?.registerGroupSession(this);
         fabric.addSession(this);
 
         logger.debug(this.via, `Created secure GROUP session for fabric index ${fabric.fabricIndex}`);
+    }
+
+    /** IPv6 multicast destination address this group session sends to. */
+    get multicastAddress(): string {
+        return this.#multicastAddress;
     }
 
     /**
@@ -113,6 +135,7 @@ export class GroupSession extends SecureSession {
             peerNodeId: groupNodeId,
             operationalGroupKey,
             operationalPrivacyKey: Bytes.of(await MessagePrivacy.deriveKey(fabric.crypto, operationalGroupKey)),
+            multicastAddress,
             messageCounter,
         });
     }
@@ -263,7 +286,7 @@ export class GroupSession extends SecureSession {
             }
         }
         if (keys.length === 0) {
-            throw new MatterFlowError("No key candidate found for group session decryption.");
+            throw new GroupSessionNoKeyError();
         }
 
         const messageFlags = Bytes.of(aad)[0];
@@ -330,7 +353,7 @@ export class GroupSession extends SecureSession {
             }
         }
         if (!found || !message || !key || keySetId === undefined || !fabric || sourceNodeId === undefined) {
-            throw new MatterFlowError("Failed to decode group message with any key candidate.");
+            throw new GroupSessionDecodeError();
         }
 
         if (message.payloadHeader.hasSecuredExtension) {
@@ -356,6 +379,7 @@ export namespace GroupSession {
         peerNodeId: NodeId; //The Target Group Node Id
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
         operationalPrivacyKey?: Bytes;
+        multicastAddress: string; // IPv6 multicast destination address this session sends to.
         messageCounter: MessageCounter;
     }
 

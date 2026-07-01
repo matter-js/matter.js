@@ -10,7 +10,7 @@ import { BitFlag, BitmapSchema } from "../schema/BitmapSchema.js";
 
 /**
  * Bitmap for the Enhanced Setup Flow Options field in DeviceModelDclSchema.
- * @see {@link MatterSpecification.v141.Core} § 11.23.6.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.6.
  */
 export const EnhancedSetupFlowOptionsBitmap = {
     /**
@@ -42,7 +42,7 @@ export const EnhancedSetupFlowOptionsSchema = BitmapSchema(EnhancedSetupFlowOpti
 
 /**
  * DeviceModel Schema
- * @see {@link MatterSpecification.v141.Core} § 11.23.6.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.6.
  * DCL endpoint:
  *   * /dcl/model/models
  *   * /dcl/model/models/{vid}

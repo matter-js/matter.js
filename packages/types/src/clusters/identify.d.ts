@@ -25,7 +25,7 @@ import type { MaybePromise } from "@matter/general";
  * > For Example: Two endpoints on a single node, one a temperature sensor, and one a humidity sensor, may both share
  *   the same cluster instance and therefore identification state (e.g. single LED on the node).
  *
- * @see {@link MatterSpecification.v151.Cluster} § 1.2
+ * @see {@link MatterSpecification.v16.Cluster} § 1.2
  */
 export declare namespace Identify {
     /**
@@ -39,7 +39,7 @@ export declare namespace Identify {
     export const name: "Identify";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 6;
 
@@ -75,7 +75,7 @@ export declare namespace Identify {
          * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
          * reporting of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.5.1
          */
         identifyTime: number;
 
@@ -86,7 +86,7 @@ export declare namespace Identify {
          * if the device is capable of presenting its identification state using one of the other methods defined in
          * IdentifyTypeEnum.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.5.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.5.2
          */
         identifyType: IdentifyType;
     }
@@ -116,7 +116,7 @@ export declare namespace Identify {
          * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
          * reporting of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.5.1
          */
         identifyTime: number;
 
@@ -127,7 +127,7 @@ export declare namespace Identify {
          * if the device is capable of presenting its identification state using one of the other methods defined in
          * IdentifyTypeEnum.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.5.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.5.2
          */
         identifyType: IdentifyType;
     }
@@ -139,7 +139,7 @@ export declare namespace Identify {
         /**
          * This command starts or stops the receiving device identifying itself.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.6.1
          */
         identify(request: IdentifyRequest): MaybePromise;
 
@@ -150,7 +150,7 @@ export declare namespace Identify {
          * themselves are entirely up to the implementer to use whenever a visual feedback is useful but it is not the
          * same as and does not replace the identify mechanism used during commissioning.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.6.2
          */
         triggerEffect(request: TriggerEffectRequest): MaybePromise;
     }
@@ -163,7 +163,7 @@ export declare namespace Identify {
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.2.4.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.2.4.1
      */
     export enum IdentifyType {
         /**
@@ -198,7 +198,7 @@ export declare namespace Identify {
     /**
      * This command starts or stops the receiving device identifying itself.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.2.6.1
      */
     export class IdentifyRequest {
         constructor(values?: Partial<IdentifyRequest>);
@@ -212,7 +212,7 @@ export declare namespace Identify {
      * entirely up to the implementer to use whenever a visual feedback is useful but it is not the same as and does not
      * replace the identify mechanism used during commissioning.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.2.6.2
      */
     export class TriggerEffectRequest {
         constructor(values?: Partial<TriggerEffectRequest>);
@@ -224,7 +224,7 @@ export declare namespace Identify {
          * All values of the EffectIdentifierEnum shall be supported. Implementors may deviate from the example light
          * effects in EffectIdentifierEnum, but they SHOULD indicate during testing how they handle each effect.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.6.2.1
          */
         effectIdentifier: EffectIdentifier;
 
@@ -233,13 +233,13 @@ export declare namespace Identify {
          * triggered. If a device does not support the given variant, it shall use the default variant. This field shall
          * contain one of the values in EffectVariantEnum.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.2.6.2.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.2.6.2.2
          */
         effectVariant: EffectVariant;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.2.4.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.2.4.2
      */
     export enum EffectIdentifier {
         /**
@@ -276,7 +276,7 @@ export declare namespace Identify {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 1.2.4.3
+     * @see {@link MatterSpecification.v16.Cluster} § 1.2.4.3
      */
     export enum EffectVariant {
         /**

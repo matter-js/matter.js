@@ -18,14 +18,15 @@ import {
 
 export const BooleanStateConfiguration = Cluster(
     { name: "BooleanStateConfiguration", id: 0x80, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "VIS", conformance: "O", constraint: "0", title: "Visual" }),
         Field({ name: "AUD", conformance: "O", constraint: "1", title: "Audible" }),
         Field({ name: "SPRS", conformance: "[VIS | AUD]", constraint: "2", title: "AlarmSuppress" }),
-        Field({ name: "SENSLVL", conformance: "O", constraint: "3", title: "SensitivityLevel" })
+        Field({ name: "SENSLVL", conformance: "O", constraint: "3", title: "SensitivityLevel" }),
+        Field({ name: "FAULTEV", conformance: "[Rev >= v2]", constraint: "4", title: "FaultEvents" })
     ),
 
     Attribute({
@@ -57,7 +58,7 @@ export const BooleanStateConfiguration = Cluster(
         Field({ name: "AlarmsSuppressed", id: 0x1, type: "AlarmModeBitmap", conformance: "SPRS" })
     ),
     Event(
-        { name: "SensorFault", id: 0x1, access: "V", conformance: "O", priority: "info" },
+        { name: "SensorFault", id: 0x1, access: "V", conformance: "FAULTEV, O", priority: "info" },
         Field({ name: "SensorFault", id: 0x0, type: "SensorFaultBitmap", conformance: "M" })
     ),
     Command(

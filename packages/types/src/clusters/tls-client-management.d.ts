@@ -25,7 +25,7 @@ import type { Status } from "../globals/Status.js";
  * This cluster shall be present on the root node endpoint when required by a device type, may be present on that
  * endpoint otherwise, and shall NOT be present on any other Endpoint of any Node.
  *
- * @see {@link MatterSpecification.v151.Core} § 14.5
+ * @see {@link MatterSpecification.v16.Core} § 14.5
  */
 export declare namespace TlsClientManagement {
     /**
@@ -39,7 +39,7 @@ export declare namespace TlsClientManagement {
     export const name: "TlsClientManagement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -57,7 +57,7 @@ export declare namespace TlsClientManagement {
         /**
          * Indicates the maximum number of per fabric TLSEndpoints that can be installed on this Node.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.6.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.6.1
          */
         maxProvisioned: number;
 
@@ -65,7 +65,7 @@ export declare namespace TlsClientManagement {
          * Indicates a list of currently provisioned TLS Endpoints on this Node. The maximum length of this list when
          * read will be the value of MaxProvisioned.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.6.2
+         * @see {@link MatterSpecification.v16.Core} § 14.5.6.2
          */
         provisionedEndpoints: TlsEndpoint[];
     }
@@ -77,7 +77,7 @@ export declare namespace TlsClientManagement {
         /**
          * Indicates the maximum number of per fabric TLSEndpoints that can be installed on this Node.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.6.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.6.1
          */
         maxProvisioned: number;
 
@@ -85,7 +85,7 @@ export declare namespace TlsClientManagement {
          * Indicates a list of currently provisioned TLS Endpoints on this Node. The maximum length of this list when
          * read will be the value of MaxProvisioned.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.6.2
+         * @see {@link MatterSpecification.v16.Core} § 14.5.6.2
          */
         provisionedEndpoints: TlsEndpoint[];
     }
@@ -97,7 +97,7 @@ export declare namespace TlsClientManagement {
         /**
          * This command is used to provision a TLS Endpoint for the provided Hostname / Port combination.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.1
          */
         provisionEndpoint(request: ProvisionEndpointRequest): MaybePromise<ProvisionEndpointResponse>;
 
@@ -106,7 +106,7 @@ export declare namespace TlsClientManagement {
          *
          * This command shall return the TLSEndpointStruct for the passed in EndpointID.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.3
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.3
          */
         findEndpoint(request: FindEndpointRequest): MaybePromise<FindEndpointResponse>;
 
@@ -115,7 +115,7 @@ export declare namespace TlsClientManagement {
          *
          * This command shall be generated to request the Node remove any TLS Endpoint.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.5
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.5
          */
         removeEndpoint(request: RemoveEndpointRequest): MaybePromise;
     }
@@ -130,7 +130,7 @@ export declare namespace TlsClientManagement {
     /**
      * This struct encodes details about a TLS Endpoint.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.4.2
+     * @see {@link MatterSpecification.v16.Core} § 14.5.4.2
      */
     export class TlsEndpoint {
         constructor(values?: Partial<TlsEndpoint>);
@@ -138,28 +138,28 @@ export declare namespace TlsClientManagement {
         /**
          * This field shall represent the unique TLS Endpoint ID.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.4.2.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.4.2.1
          */
         endpointId: number;
 
         /**
          * This field shall represent a TLS Hostname.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.4.2.2
+         * @see {@link MatterSpecification.v16.Core} § 14.5.4.2.2
          */
         hostname: Bytes;
 
         /**
          * This field shall represent a TLS Port Number.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.4.2.3
+         * @see {@link MatterSpecification.v16.Core} § 14.5.4.2.3
          */
         port: number;
 
         /**
          * This field shall be a TLSCAID representing the associated Certificate Authority ID.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.4.2.4
+         * @see {@link MatterSpecification.v16.Core} § 14.5.4.2.4
          */
         caid: number;
 
@@ -167,7 +167,7 @@ export declare namespace TlsClientManagement {
          * This field shall be a TLSCCDID representing the associated Client Certificate Details ID. A NULL value means
          * no client certificate is used with this endpoint.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.4.2.5
+         * @see {@link MatterSpecification.v16.Core} § 14.5.4.2.5
          */
         ccdid: number | null;
 
@@ -176,7 +176,7 @@ export declare namespace TlsClientManagement {
          * node shall recompute this field to reflect the correct value at runtime (e.g., when restored from a persisted
          * value after a reboot).
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.4.2.6
+         * @see {@link MatterSpecification.v16.Core} § 14.5.4.2.6
          */
         referenceCount: number;
 
@@ -186,7 +186,7 @@ export declare namespace TlsClientManagement {
     /**
      * This command is used to provision a TLS Endpoint for the provided Hostname / Port combination.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.7.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.7.1
      */
     export class ProvisionEndpointRequest {
         constructor(values?: Partial<ProvisionEndpointRequest>);
@@ -194,21 +194,21 @@ export declare namespace TlsClientManagement {
         /**
          * This field shall represent a TLS Hostname.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.1.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.1.1
          */
         hostname: Bytes;
 
         /**
          * This field shall represent a TLS Port Number.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.1.2
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.1.2
          */
         port: number;
 
         /**
          * This field shall be the TLSCAID used to associate the TLSRCAC with this endpoint.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.1.3
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.1.3
          */
         caid: number;
 
@@ -216,7 +216,7 @@ export declare namespace TlsClientManagement {
          * This field shall be the TLSCCDID used to associate the Client Certificate Details with this endpoint. A NULL
          * value means no client certificate is associated.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.1.4
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.1.4
          */
         ccdid: number | null;
 
@@ -224,7 +224,7 @@ export declare namespace TlsClientManagement {
          * This field shall represent the unique TLS Endpoint. A NULL value causes a new endpoint to be created and a
          * non-NULL value allows for updating an existing endpoint.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.1.5
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.1.5
          */
         endpointId: number | null;
     }
@@ -232,7 +232,7 @@ export declare namespace TlsClientManagement {
     /**
      * This command is used to report the result of the ProvisionEndpoint command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.7.2
+     * @see {@link MatterSpecification.v16.Core} § 14.5.7.2
      */
     export class ProvisionEndpointResponse {
         constructor(values?: Partial<ProvisionEndpointResponse>);
@@ -240,7 +240,7 @@ export declare namespace TlsClientManagement {
         /**
          * This field shall be the TLS Endpoint ID created or updated by the ProvisionEndpoint command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.2.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.2.1
          */
         endpointId: number;
     }
@@ -250,7 +250,7 @@ export declare namespace TlsClientManagement {
      *
      * This command shall return the TLSEndpointStruct for the passed in EndpointID.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.7.3
+     * @see {@link MatterSpecification.v16.Core} § 14.5.7.3
      */
     export class FindEndpointRequest {
         constructor(values?: Partial<FindEndpointRequest>);
@@ -258,7 +258,7 @@ export declare namespace TlsClientManagement {
         /**
          * This field shall be the TLS Endpoint ID being looked up.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.3.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.3.1
          */
         endpointId: number;
     }
@@ -266,7 +266,7 @@ export declare namespace TlsClientManagement {
     /**
      * This command is used to report the result of the FindEndpoint command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.7.4
+     * @see {@link MatterSpecification.v16.Core} § 14.5.7.4
      */
     export class FindEndpointResponse {
         constructor(values?: Partial<FindEndpointResponse>);
@@ -274,7 +274,7 @@ export declare namespace TlsClientManagement {
         /**
          * The field shall be a TLSEndpointStruct containing the requested entry.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.4.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.4.1
          */
         endpoint: TlsEndpoint;
     }
@@ -284,7 +284,7 @@ export declare namespace TlsClientManagement {
      *
      * This command shall be generated to request the Node remove any TLS Endpoint.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.7.5
+     * @see {@link MatterSpecification.v16.Core} § 14.5.7.5
      */
     export class RemoveEndpointRequest {
         constructor(values?: Partial<RemoveEndpointRequest>);
@@ -292,13 +292,13 @@ export declare namespace TlsClientManagement {
         /**
          * This field shall represent the unique TLSEndpointID of the TLS Endpoint to remove.
          *
-         * @see {@link MatterSpecification.v151.Core} § 14.5.7.5.1
+         * @see {@link MatterSpecification.v16.Core} § 14.5.7.5.1
          */
         endpointId: number;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 14.5.5.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.5.1
      */
     export enum StatusCode {
         /**
@@ -330,7 +330,7 @@ export declare namespace TlsClientManagement {
     /**
      * Thrown for cluster status code {@link StatusCode.EndpointAlreadyInstalled}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.5.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.5.1
      */
     export class EndpointAlreadyInstalledError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -339,7 +339,7 @@ export declare namespace TlsClientManagement {
     /**
      * Thrown for cluster status code {@link StatusCode.RootCertificateNotFound}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.5.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.5.1
      */
     export class RootCertificateNotFoundError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -348,7 +348,7 @@ export declare namespace TlsClientManagement {
     /**
      * Thrown for cluster status code {@link StatusCode.ClientCertificateNotFound}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.5.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.5.1
      */
     export class ClientCertificateNotFoundError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -357,7 +357,7 @@ export declare namespace TlsClientManagement {
     /**
      * Thrown for cluster status code {@link StatusCode.EndpointInUse}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.5.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.5.1
      */
     export class EndpointInUseError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -366,7 +366,7 @@ export declare namespace TlsClientManagement {
     /**
      * Thrown for cluster status code {@link StatusCode.InvalidTime}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 14.5.5.1
+     * @see {@link MatterSpecification.v16.Core} § 14.5.5.1
      */
     export class InvalidTimeError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)

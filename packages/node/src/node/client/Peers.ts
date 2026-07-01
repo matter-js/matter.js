@@ -15,6 +15,7 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
+import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
@@ -85,6 +86,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+        this.clusterInstalled(BridgedDeviceBasicInformationClient).on(
+            this.#instrumentBridgedConfigurationVersion.bind(this),
+        );
 
         const lifecycle = owner.lifecycle;
         lifecycle.online.on(this.#nodeOnline.bind(this));
@@ -478,6 +482,17 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
+        node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
+    }
+
+    /**
+     * Bridged endpoints carry their own `ConfigurationVersion` on `BridgedDeviceBasicInformation`; surface its changes
+     * through the same endpoint lifecycle event used for the node's `BasicInformation`.
+     */
+    #instrumentBridgedConfigurationVersion(endpoint: Endpoint, type: typeof BridgedDeviceBasicInformationClient) {
+        endpoint
+            .eventsOf(type)
+            .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {

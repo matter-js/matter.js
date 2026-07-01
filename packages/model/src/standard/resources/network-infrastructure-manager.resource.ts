@@ -24,12 +24,12 @@ Resource.add({
         "A Network Infrastructure Manager device may be managed by a service associated with the device " +
         "vendor, for example, an Internet Service Provider. Sometimes this managing service will have " +
         "policies that require the use of the Managed Device feature of the Access Control Cluster (see " +
-        "Section 15.3.5.1, \"ManagedAclAllowed Condition\"). Consequently, Commissioners of this device type " +
+        "Section 15.3.4.1, \"ManagedAclAllowed Condition\"). Consequently, Commissioners of this device type " +
         "should be aware of this feature and its use.",
 
     children: [
         {
-            tag: "requirement", name: "ManagedAclAllowed", xref: "device§15.3.5.1",
+            tag: "requirement", name: "ManagedAclAllowed", xref: "device§15.3.4.1",
 
             details: "A Network Infrastructure Manager device may utilize the ManagedAclAllowed condition to allow the " +
                 "Managed Device (MNGD) feature flag of the Access Control Cluster on the device's Root Node endpoint " +
@@ -46,9 +46,15 @@ Resource.add({
                 "Network Infrastructure Manager device type."
         },
 
-        { tag: "requirement", name: "ThreadNetworkDiagnostics", xref: "device§15.3.4" },
-        { tag: "requirement", name: "WiFiNetworkManagement", xref: "device§15.3.4" },
-        { tag: "requirement", name: "ThreadBorderRouterManagement", xref: "device§15.3.4" },
-        { tag: "requirement", name: "ThreadNetworkDirectory", xref: "device§15.3.4" }
+        { tag: "requirement", name: "Ip", xref: "device§15.3.4" },
+        { tag: "requirement", name: "IPv4", xref: "device§15.3.4" },
+        { tag: "requirement", name: "IPv6", xref: "device§15.3.4" },
+        { tag: "requirement", name: "Ethernet", xref: "device§15.3.4" },
+        { tag: "requirement", name: "WiFi", xref: "device§15.3.4" },
+        { tag: "requirement", name: "Thread", xref: "device§15.3.4" },
+        { tag: "requirement", name: "ThreadNetworkDiagnostics", xref: "device§15.3.5" },
+        { tag: "requirement", name: "WiFiNetworkManagement", xref: "device§15.3.5" },
+        { tag: "requirement", name: "ThreadBorderRouterManagement", xref: "device§15.3.5" },
+        { tag: "requirement", name: "ThreadNetworkDirectory", xref: "device§15.3.5" }
     ]
 });

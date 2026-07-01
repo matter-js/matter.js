@@ -8,7 +8,7 @@ import { VendorId } from "../datatype/VendorId.js";
 
 /**
  * Vendor Schema
- * @see {@link MatterSpecification.v141.Core} § 11.23.3.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.3.
  * DCL Endpoint: /dcl/vendorinfo/vendors or /dcl/vendorinfo/vendors/{vendorID}
  */
 export interface VendorDclSchema {

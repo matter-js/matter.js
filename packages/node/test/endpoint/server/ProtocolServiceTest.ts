@@ -12,6 +12,7 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { MaybePromise } from "@matter/general";
 import {
     AcceptedCommandList,
+    AttributeElement,
     ClusterModel,
     CommandElement,
     EventList,
@@ -23,6 +24,7 @@ import {
 import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
+    BitmapSchema,
     ClusterId,
     ClusterType,
     CommandId,
@@ -41,6 +43,7 @@ import {
     TlvSubjectId,
     TlvUInt8,
     TypeFromSchema,
+    WildcardPathFlagsBitmap,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -144,22 +147,33 @@ describe("ProtocolServiceTest", () => {
         });
 
         expect(node.state.accessControl.acl).deep.equals([
-            { privilege: 5, authMode: 2, subjects: null, targets: null, fabricIndex: 1 },
-            { privilege: 5, authMode: 2, subjects: null, targets: null, fabricIndex: 2 },
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 1 },
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 2 },
         ]);
 
         const fabric1Acls = await readAcls(node, fabric1, true);
 
-        expect(fabric1Acls).deep.equals([{ privilege: 5, authMode: 2, subjects: null, targets: null, fabricIndex: 1 }]);
+        expect(fabric1Acls).deep.equals([
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 1 },
+        ]);
 
         const fabric2Acls = await readAcls(node, fabric2, true);
-        expect(fabric2Acls).deep.equals([{ privilege: 5, authMode: 2, subjects: null, targets: null, fabricIndex: 2 }]);
+        expect(fabric2Acls).deep.equals([
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 2 },
+        ]);
 
         const allAclsReadAsFabric1 = await readAcls(node, fabric1, false);
 
         expect(allAclsReadAsFabric1).deep.equals([
-            { privilege: 5, authMode: 2, subjects: null, targets: null, fabricIndex: 1 },
-            { privilege: undefined, authMode: undefined, subjects: undefined, targets: undefined, fabricIndex: 2 },
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 1 },
+            {
+                privilege: undefined,
+                authMode: undefined,
+                subjects: undefined,
+                targets: undefined,
+                auxiliaryType: undefined,
+                fabricIndex: 2,
+            },
         ]);
 
         const fabric1Nocs = await readNocs(node, fabric1, true);
@@ -359,6 +373,43 @@ describe("ProtocolServiceTest", () => {
         const eventListModel = onOffSchema.attributes.find(m => m.id === EventList.id);
         expect(eventListModel, "EventList should be present as unfiltered member").to.exist;
         expect(eventListModel!.isDeprecated, "EventList should be deprecated").to.be.true;
+
+        await node.close();
+    });
+
+    it("tags manufacturer-specific attributes in a standard cluster with skipCustomElements", async () => {
+        const meiAttributeId = AttributeId(0xfff1_0001);
+
+        // Standard-range cluster id so the cluster itself is not flagged as custom; the MEI prefix lives only on the
+        // attribute id, exercising the per-attribute branch of WildcardSkipCustomElements (core spec § 8.2.1.7.1).
+        const schema = new ClusterModel({
+            id: 0x1234,
+            name: "MeiAttrCluster",
+            revision: 1,
+            children: [
+                AttributeElement({ id: 0, name: "Standard", type: "uint8", conformance: "M", default: 0 }),
+                AttributeElement({ id: meiAttributeId, name: "Custom", type: "uint8", conformance: "M", default: 0 }),
+            ],
+        });
+
+        const ClusterType_ = ClusterType(schema) as ClusterType.Concrete;
+        const Behavior = ClusterBehavior.for(ClusterType_);
+        const Device = MutableEndpoint({ name: "MeiAttrDevice", deviceType: 0xfff1_fc02, deviceRevision: 1 });
+        const node = await MockServerNode.createOnline(undefined, { device: Device.with(Behavior) });
+
+        let attr: { wildcardPathFlags: number } | undefined;
+        for (const ep of node.protocol) {
+            const cluster = ep[ClusterId(0x1234)];
+            if (cluster) {
+                attr = cluster.type.attributes[meiAttributeId];
+                break;
+            }
+        }
+
+        expect(attr, "MEI attribute should be present in protocol").to.exist;
+        const flags = BitmapSchema(WildcardPathFlagsBitmap).decode(attr!.wildcardPathFlags);
+        expect(flags.skipCustomElements, "MEI attribute must be flagged skipCustomElements").to.be.true;
+        expect(flags.skipGlobalAttributes, "MEI attribute must not be flagged skipGlobalAttributes").to.be.false;
 
         await node.close();
     });

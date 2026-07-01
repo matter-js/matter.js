@@ -185,7 +185,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         // Initialize fabric scene info field to match to the current state of the scene table
         this.#initializeFabricSceneInfo(fabricManager);
 
-        // When a fabric git removed we need to check if the active scene is considered from that fabric
+        // When a fabric got removed, we need to check if the active scene is considered from that fabric
         // Data cleanup happens automatically
         this.reactTo(fabricManager.events.deleting, this.#handleDeleteFabric);
     }
