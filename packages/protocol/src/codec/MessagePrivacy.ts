@@ -14,7 +14,10 @@ import {
     MaybePromise,
 } from "@matter/general";
 
-/** HKDF info string for deriving a privacy key from an encryption key (Matter spec §4.9.1). */
+/**
+ * HKDF info string for deriving a privacy key from an encryption key.
+ * @see {@link MatterSpecification.v16.Core} § 4.9.1
+ */
 const PRIVACY_KEY_INFO = Bytes.fromString("PrivacyKey");
 
 const NONCE_SESSION_ID_LENGTH = 2;
@@ -22,7 +25,8 @@ const NONCE_MIC_LENGTH = CRYPTO_PRIVACY_NONCE_LENGTH_BYTES - NONCE_SESSION_ID_LE
 const NONCE_MIC_OFFSET = CRYPTO_AEAD_MIC_LENGTH_BYTES - NONCE_MIC_LENGTH;
 
 /**
- * Matter message privacy (spec §4.9): obfuscation of the packet header for privacy-enhanced messages.
+ * Matter message privacy: obfuscation of the packet header for privacy-enhanced messages.
+ * @see {@link MatterSpecification.v16.Core} § 4.9
  */
 export namespace MessagePrivacy {
     /** Derive a privacy key from an encryption key: HKDF(key, salt=[], info="PrivacyKey", 16). */

@@ -11,8 +11,7 @@ import {
     ClusterElement as Cluster,
     AttributeElement as Attribute,
     FieldElement as Field,
-    CommandElement as Command,
-    DatatypeElement as Datatype
+    CommandElement as Command
 } from "../../elements/index.js";
 
 export const WebRtcTransportProvider = Cluster(
@@ -48,7 +47,6 @@ export const WebRtcTransportProvider = Cluster(
         ),
         Field({ name: "IceTransportPolicy", id: 0x5, type: "string", conformance: "O", constraint: "max 16" }),
         Field({ name: "MetadataEnabled", id: 0x6, type: "bool", conformance: "METADATA" }),
-        Field({ name: "SFrameConfig", id: 0x7, type: "SFrameStruct", conformance: "P, O" }),
         Field(
             { name: "VideoStreams", id: 0x8, type: "list", conformance: "[Rev >= v2].b+, O", constraint: "1 to 16" },
             Field({ name: "entry", type: "CameraAvStreamManagement.VideoStreamID" })
@@ -99,7 +97,6 @@ export const WebRtcTransportProvider = Cluster(
         ),
         Field({ name: "IceTransportPolicy", id: 0x7, type: "string", conformance: "O", constraint: "max 16" }),
         Field({ name: "MetadataEnabled", id: 0x8, type: "bool", conformance: "METADATA & WebRTCSessionID == null" }),
-        Field({ name: "SFrameConfig", id: 0x9, type: "SFrameStruct", conformance: "P, O" }),
 
         Field(
             {
@@ -159,13 +156,6 @@ export const WebRtcTransportProvider = Cluster(
         },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
         Field({ name: "Reason", id: 0x1, type: "WebRtcTransportDefinitions.WebRTCEndReasonEnum", conformance: "M" })
-    ),
-
-    Datatype(
-        { name: "SFrameStruct", type: "struct" },
-        Field({ name: "CipherSuite", id: 0x0, type: "uint16", conformance: "M", constraint: "min 1" }),
-        Field({ name: "BaseKey", id: 0x1, type: "octstr", conformance: "M", constraint: "max 128" }),
-        Field({ name: "Kid", id: 0x2, type: "octstr", conformance: "M", constraint: "2 to 8" })
     )
 );
 

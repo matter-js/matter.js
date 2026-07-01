@@ -326,11 +326,18 @@ Resource.add({
             details: "This attribute indicates the currently selected AGC (Automatic Gain Control) mode for the " +
                 "microphone. A value of TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled."
         },
+
         {
             tag: "attribute", name: "ImageRotation", xref: "cluster§11.2.7.35",
+
             details: "This attribute indicates the amount of clockwise rotation in degrees that the image has been " +
-                "subjected to."
+                "subjected to." +
+                "\n" +
+                "This attribute may be present if the underlying hardware allows for arbitrary angle rotation within " +
+                "the full 360 degree range. If this attribute is not present, then discrete angle rotation may be " +
+                "supported via the ImageRotationDiscreteAngles. A value of 0 means no rotation has been applied."
         },
+
         {
             tag: "attribute", name: "ImageFlipHorizontal", xref: "cluster§11.2.7.36",
             details: "This attribute indicates whether the image has been flipped horizontally or not. A value of TRUE " +
@@ -362,6 +369,15 @@ Resource.add({
         {
             tag: "attribute", name: "StatusLightBrightness", xref: "cluster§11.2.7.41",
             details: "This attribute indicates the brightness level of the status light."
+        },
+
+        {
+            tag: "attribute", name: "ImageRotationDiscreteAngles", xref: "cluster§11.2.7.42",
+            details: "This attribute indicates the amount of clockwise rotation in specific angles of 0, 90, 180, and 270 " +
+                "degrees. This attribute is used by cameras that do not have the capability of full arbitrary " +
+                "rotation angles that can be set via the ImageRotation attribute. Note that the ImageFlipHorizontal " +
+                "and the ImageFlipVertical attributes only allow for a lateral inversion or mirror reflection of the " +
+                "image along the horizontal and/or vertical axes. A value of 0 means no rotation has been applied."
         },
 
         {

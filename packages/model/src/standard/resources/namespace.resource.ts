@@ -182,6 +182,43 @@ Resource.add({
             tag: "field", name: "ClosureCabinet",
             details: "The tags contained in this namespace are restricted for use in the closure domain and shall NOT be " +
                 "used in any other domain or context."
+        },
+
+        {
+            tag: "field", name: "IdentifiedObject",
+
+            details: "This section contains the standard semantic tag namespace for identifiable objects to be exposed by " +
+                "some detection or sensing implementation." +
+                "\n" +
+                "Thus, the tags contained in this namespace are intended to be used to identify a specific detected " +
+                "object for a common use." +
+                "\n" +
+                "Regarding pet object identification, if an implementation enables a further specific pet " +
+                "identification such as a \"Dog\" or a \"Cat\", then the specific pet object identification tag shall be " +
+                "used instead of a generalized \"Pet\" object identification tag. If a client cannot recognize the " +
+                "specific pet identification tag, then, the client SHOULD recognize it either as a pet or an animal " +
+                "identification tag based on its recognition capability." +
+                "\n" +
+                "Similarly, if an implementation enables a further specific person/human identification such as an " +
+                "\"Adult\" or a \"Child\", then the specific person/human object identification tag shall be used instead " +
+                "of a generalized \"Person\" object identification tag. If a client cannot recognize the specific " +
+                "person/human object identification tag, then, the client SHOULD recognize it either as a person or a " +
+                "human identification tag based on its recognition capability.\""
+        },
+
+        {
+            tag: "field", name: "IdentifiedSound",
+            details: "This section contains the standard semantic tag namespace for identified sounds or audio context as " +
+                "a part of the semantic tag feature." +
+                "\n" +
+                "The tags contained in this namespace are intended to be used to identify sounds or audio context by " +
+                "some detection or sensing implementation."
+        },
+
+        {
+            tag: "field", name: "IdentifiedHumanActivity",
+            details: "The tags contained in this namespace are intended to be used to identify human activity by some " +
+                "detection or sensing implementation."
         }
     ]
 });

@@ -16,7 +16,6 @@ export const ClosureControllerDt = DeviceType(
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 574, revision: 1 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster" }),
-    Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "ClosureControl", id: 0x104, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "ClosureDimension", id: 0x105, conformance: "O", element: "clientCluster" })
 );

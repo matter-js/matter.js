@@ -11,11 +11,11 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "GroupKeyManagement", pics: "GRPKEY", xref: "core§11.2",
 
-    details: "The Group Key Management cluster manages group keys for the node. The cluster is scoped to the node " +
-        "and is a singleton for the node. This cluster maintains a list of groups supported by the node. Each " +
-        "group list entry supports a single group, with a single group ID and single group key. Duplicate " +
-        "groups are not allowed in the list. Additions or removal of a group entry are performed via " +
-        "modifications of the list. Such modifications require Administer privilege." +
+    details: "The Group Key Management cluster manages shared symmetric keys for the node. The cluster is scoped " +
+        "to the node and is a singleton for the node. This cluster maintains a list of groups supported by " +
+        "the node. Each group list entry supports a single group, with a single group ID and single group " +
+        "key. Duplicate groups are not allowed in the list. Additions or removal of a group entry are " +
+        "performed via modifications of the list. Such modifications require Administer privilege." +
         "\n" +
         "Each group entry includes a membership list of zero of more endpoints that are members of the group " +
         "on the node. Modification of this membership list is done via the Groups cluster, which is scoped to " +
@@ -25,21 +25,67 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "FeatureMap", xref: "core§11.2.4",
+
             children: [
-                { tag: "field", name: "CS", details: "The ability to support CacheAndSync security policy and MCSP." }
+                {
+                    tag: "field", name: "CS", xref: "core§11.2.4.1",
+                    details: "The CacheAndSync security policy has been provisional since Matter v1.0."
+                },
+
+                {
+                    tag: "field", name: "GCAST", xref: "core§11.2.4.2",
+
+                    details: "When set, group management and group key mapping is done using the Section 11.27, \"Groupcast " +
+                        "Cluster\"." +
+                        "\n" +
+                        "If the Groupcast cluster is present on the Root Node endpoint, then this feature bit shall be set." +
+                        "\n" +
+                        "When this feature map bit is set, this cluster SHOULD be used solely for key management as the " +
+                        "Groupcast cluster offers more direct and long-term supported methods of managing group key mapping."
+                }
             ]
         },
 
         {
             tag: "attribute", name: "GroupKeyMap", xref: "core§11.2.6.1",
-            details: "This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with " +
+
+            details: "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
+                "accessing Fabric:" +
+                "\n" +
+                "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
+                "\n" +
+                "  - This attribute shall be empty." +
+                "\n" +
+                "  - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code." +
+                "\n" +
+                "  - Otherwise (Groupcast is not adopted or the entry is missing):" +
+                "\n" +
+                "  - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's " +
+                "Membership attribute (one mapping per group per fabric)." +
+                "\n" +
+                "  - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership " +
+                "attribute (by GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for " +
+                "a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute " +
+                "for a given fabric, then the Groupcast cluster's membership attribute shall use placeholder " +
+                "value 65535 for the KeySetID. While this KeySetID is technically valid, administrators SHOULD " +
+                "avoid allocating it for actual usage to avoid value aliasing for this field." +
+                "\n" +
+                "This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with " +
                 "a particular group key set."
         },
 
         {
             tag: "attribute", name: "GroupTable", xref: "core§11.2.6.2",
 
-            details: "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
+            details: "If the GCAST feature is set in the FeatureMap:" +
+                "\n" +
+                "  - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the " +
+                "GroupcastAdopted field set to true, then this field shall be empty." +
+                "\n" +
+                "  - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast " +
+                "cluster's Membership attribute (one mapping per group per fabric)." +
+                "\n" +
+                "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
                 "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
                 "The content of this attribute reflects data managed via the Groups cluster (see " +
                 "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
@@ -52,11 +98,16 @@ Resource.add({
 
         {
             tag: "attribute", name: "MaxGroupsPerFabric", xref: "core§11.2.6.3",
-            details: "Indicates the maximum number of groups that this node supports per fabric. The value of this " +
-                "attribute shall be set to be no less than the required minimum supported groups as specified in " +
-                "Section 2.11.1.2, \"Group Limits\". The length of the GroupKeyMap and GroupTable list attributes shall " +
-                "NOT exceed the value of the MaxGroupsPerFabric attribute multiplied by the number of supported " +
-                "fabrics."
+
+            details: "If the Groupcast support is enabled (GCAST feature is set), this shall be set to 0 indicating group " +
+                "management is done using the Groupcast cluster and not the legacy Groups cluster." +
+                "\n" +
+                "Indicates the maximum number of legacy groups that this node supports per fabric. For legacy usage, " +
+                "the value of this attribute shall be set to be no less than the required minimum supported groups as " +
+                "specified in Section 2.11.1.2, \"Group Limits\"." +
+                "\n" +
+                "The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the " +
+                "MaxGroupsPerFabric attribute multiplied by the number of supported fabrics."
         },
 
         {
@@ -64,6 +115,20 @@ Resource.add({
             details: "Indicates the maximum number of group key sets this node supports per fabric. The value of this " +
                 "attribute shall be set according to the minimum number of group key sets to support as specified in " +
                 "Section 2.11.1.2, \"Group Limits\"."
+        },
+
+        {
+            tag: "attribute", name: "GroupcastAdoption", xref: "core§11.2.6.5",
+
+            details: "Indicates whether the accessing fabric claims to have migrated to Groupcast." +
+                "\n" +
+                "When a Fabric's entry has the GroupcastAdopted field set to true, the behavior of the GroupKeyMap " +
+                "and GroupTable attributes will change (see description of respective attributes)." +
+                "\n" +
+                "There shall NOT be more than 1 entry per fabric in this attribute." +
+                "\n" +
+                "If a Fabric has not yet written an entry for themselves, the server shall act as if that Fabric had " +
+                "written an entry with GroupcastAdopted set to false, even if not present in the list."
         },
 
         {
@@ -177,9 +242,10 @@ Resource.add({
 
                 {
                     tag: "field", name: "EpochKey0", xref: "core§11.2.5.4.3",
-                    details: "This field, if not null, shall be the root credential used in the derivation of an operational group " +
-                        "key for epoch slot 0 of the given group key set. If EpochKey0 is not null, EpochStartTime0 shall NOT " +
-                        "be null."
+                    details: "This field, if not null, shall be the InputKey used in the derivation of an OperationalGroupKey for " +
+                        "epoch slot 0 of the given group key set. The derived OperationalGroupKey shall be persistently " +
+                        "stored for the lifetime of the derived key; however, the InputKey itself shall NOT be stored. If " +
+                        "EpochKey0 is not null, EpochStartTime0 shall NOT be null."
                 },
 
                 {
@@ -190,9 +256,10 @@ Resource.add({
 
                 {
                     tag: "field", name: "EpochKey1", xref: "core§11.2.5.4.5",
-                    details: "This field, if not null, shall be the root credential used in the derivation of an operational group " +
-                        "key for epoch slot 1 of the given group key set. If EpochKey1 is not null, EpochStartTime1 shall NOT " +
-                        "be null."
+                    details: "This field, if not null, shall be the InputKey used in the derivation of an OperationalGroupKey for " +
+                        "epoch slot 1 of the given group key set. The derived OperationalGroupKey shall be persistently " +
+                        "stored for the lifetime of the derived key; however, the InputKey itself shall NOT be stored. If " +
+                        "EpochKey1 is not null, EpochStartTime1 shall NOT be null."
                 },
 
                 {
@@ -203,33 +270,23 @@ Resource.add({
 
                 {
                     tag: "field", name: "EpochKey2", xref: "core§11.2.5.4.7",
-                    details: "This field, if not null, shall be the root credential used in the derivation of an operational group " +
-                        "key for epoch slot 2 of the given group key set. If EpochKey2 is not null, EpochStartTime2 shall NOT " +
-                        "be null."
+
+                    details: "If the GCAST feature bit is set in the FeatureMap, this field shall be null, unless the " +
+                        "GroupKeySetId is 0 (the Identity Protection Key)." +
+                        "\n" +
+                        "This field, if not null, shall be the InputKey used in the derivation of an OperationalGroupKey for " +
+                        "epoch slot 2 of the given group key set. The derived OperationalGroupKey shall be persistently " +
+                        "stored for the lifetime of the derived key; however, the InputKey itself shall NOT be stored. If " +
+                        "EpochKey2 is not null, EpochStartTime2 shall NOT be null."
                 },
 
                 {
                     tag: "field", name: "EpochStartTime2", xref: "core§11.2.5.4.8",
-                    details: "This field, if not null, shall define when EpochKey2 becomes valid as specified by Section 4.17.3, " +
+                    details: "If the GCAST feature bit is set in the FeatureMap, this field shall be null, unless the " +
+                        "GroupKeySetId is 0 (the Identity Protection Key)." +
+                        "\n" +
+                        "This field, if not null, shall define when EpochKey2 becomes valid as specified by Section 4.17.3, " +
                         "\"Epoch Keys\". Units are absolute UTC time in microseconds encoded using the epoch-us representation."
-                },
-
-                {
-                    tag: "field", name: "GroupKeyMulticastPolicy", xref: "core§11.2.5.4.9",
-
-                    details: "This field specifies how the IPv6 Multicast Address shall be formed for groups using this " +
-                        "operational group key set." +
-                        "\n" +
-                        "The PerGroupID method maximizes filtering of multicast messages, so that receiving nodes receive " +
-                        "only multicast messages for groups to which they are subscribed." +
-                        "\n" +
-                        "The AllNodes method minimizes the number of multicast addresses to which a receiver node needs to " +
-                        "subscribe." +
-                        "\n" +
-                        "> [!NOTE]" +
-                        "\n" +
-                        "> NOTE: Support for GroupKeyMulticastPolicy is provisional. Correct default behavior is that implied " +
-                        "by value PerGroupID."
                 }
             ]
         },
@@ -253,6 +310,14 @@ Resource.add({
                         "given GroupId on any Endpoint via the Groups cluster."
                 }
             ]
+        },
+
+        {
+            tag: "datatype", name: "GroupcastAdoptionStruct", xref: "core§11.2.5.6",
+            children: [{
+                tag: "field", name: "GroupcastAdopted", xref: "core§11.2.5.6.1",
+                details: "This field shall indicate whether Groupcast was adopted by the associated Fabric's administrators."
+            }]
         }
     ]
 });

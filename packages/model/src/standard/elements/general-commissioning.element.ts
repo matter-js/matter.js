@@ -56,7 +56,9 @@ export const GeneralCommissioning = Cluster(
         name: "NetworkRecoveryReason", id: 0xb, type: "NetworkRecoveryReasonEnum", access: "R M",
         conformance: "P, NR", default: null, quality: "X"
     }),
-    Attribute({ name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "P, O", default: false }),
+    Attribute(
+        { name: "IsCommissioningWithoutPower", id: 0xc, type: "bool", access: "R V", conformance: "O", default: false }
+    ),
 
     Command(
         {
@@ -133,9 +135,9 @@ export const GeneralCommissioning = Cluster(
 
     Datatype(
         { name: "NetworkRecoveryReasonEnum", type: "enum8" },
-        Field({ name: "Unspecified", id: 0x0, conformance: "M" }),
-        Field({ name: "Auth", id: 0x1, conformance: "M" }),
-        Field({ name: "Visibility", id: 0x2, conformance: "M" })
+        Field({ name: "Unspecified", id: 0x0, conformance: "P, M" }),
+        Field({ name: "Auth", id: 0x1, conformance: "P, M" }),
+        Field({ name: "Visibility", id: 0x2, conformance: "P, M" })
     ),
 
     Datatype(

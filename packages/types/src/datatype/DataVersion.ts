@@ -12,7 +12,7 @@ import { TlvWrapper } from "../tlv/TlvWrapper.js";
  * A "data version" is an unsigned 32-bit integer that identifies a specific
  * version of cluster attribute data.
  *
- * @see {@link MatterSpecification.v11.Core} § 7.18.2.26
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.38
  */
 export type DataVersion = Branded<number, "DataVersion">;
 

@@ -366,7 +366,7 @@ export class ControllerCommissioningFlow {
                     /**
                      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
                      * timeout within 60 seconds of the completion of a PASE session establishment, using the ArmFailSafe
-                     * command (see Section 11.9.6.2, “ArmFailSafe Command”)
+                     * command (see Section 11.10.7.2, “ArmFailSafe Command”)
                      */
                     const timeLeft = Timespan(Time.nowMs, this.#currentFailSafeEndTime).duration;
                     if (timeLeft < this.#defaultFailSafeTime / 2) {
@@ -488,7 +488,7 @@ export class ControllerCommissioningFlow {
 
     /**
      * Initialize commissioning steps and add them in the default order as defined by
-     * @see {@link MatterSpecification.v13.Core} § 5.5
+     * @see {@link MatterSpecification.v16.Core} § 5.5
      */
     #initializeCommissioningSteps() {
         this.commissioningSteps.push({
@@ -793,9 +793,9 @@ export class ControllerCommissioningFlow {
      * Step 7
      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
      * timeout within 60 seconds of the completion of a PASE session establishment, using the
-     * ArmFailSafe command (see Section 11.10.6.2, “ArmFailSafe Command”). A Commissioner MAY
+     * ArmFailSafe command (see Section 11.10.7.2, “ArmFailSafe Command”). A Commissioner MAY
      * collect device information including guidance on the fail-safe value from the Commissionee by
-     * reading BasicCommissioningInfo attribute (see Section 11.10.5.2, “BasicCommissioningInfo
+     * reading BasicCommissioningInfo attribute (see Section 11.10.6.2, “BasicCommissioningInfo
      * Attribute”) before invoking the ArmFailSafe command.
      */
     async #armFailsafe(time?: Duration) {
@@ -1377,7 +1377,7 @@ export class ControllerCommissioningFlow {
     /**
      * Step 13-2 (we do as 99 at the end because)
      * The Administrator having established a CASE session with the Commissionee over the operational network in the
-     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.9.6.6,
+     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.10.7.6,
      * “CommissioningComplete Command”). A success response after invocation of the CommissioningComplete command ends
      * the commissioning process.
      */
@@ -1431,14 +1431,14 @@ export class ControllerCommissioningFlow {
     /**
      * Step 16-17
      * 16: If the Commissionee both supports it and requires it, the Commissioner SHALL configure the operational network
-     *     at the Commissionee using commands such as AddOrUpdateWiFiNetwork (see Section 11.8.7.3, “AddOrUpdateWiFiNetwork
-     *     Command”) and AddOrUpdateThreadNetwork (see Section 11.8.7.4, “AddOrUpdateThreadNetwork Command”).
+     *     at the Commissionee using commands such as AddOrUpdateWiFiNetwork (see Section 11.9.7.3, “AddOrUpdateWiFiNetwork
+     *     Command”) and AddOrUpdateThreadNetwork (see Section 11.9.7.4, “AddOrUpdateThreadNetwork Command”).
      *     A Commissionee requires network commissioning if it is not already on the desired operational network.
      *     A Commissionee supports network commissioning if it has any NetworkCommissioning cluster instances.
      *     A Commissioner MAY learn about the networks visible to the Commissionee using ScanNetworks command
-     *     (see Section 11.8.7.1, “ScanNetworks Command”).
+     *     (see Section 11.9.7.1, “ScanNetworks Command”).
      * 17: The Commissioner SHALL trigger the Commissionee to connect to the operational network using ConnectNetwork
-     *     command (see Section 11.8.7.9, “ConnectNetwork Command”) unless the Commissionee is already on the desired
+     *     command (see Section 11.9.7.8, “ConnectNetwork Command”) unless the Commissionee is already on the desired
      *     operational network.
      */
     async #validateNetwork() {
@@ -1853,7 +1853,7 @@ export class ControllerCommissioningFlow {
      * 18: Finalization of the Commissioning process begins. An Administrator configured in the ACL of the Commissionee
      *     by the Commissioner SHALL use Operational Discovery to discover the Commissionee. This Administrator MAY be
      *     the Commissioner itself, or another Node to which the Commissioner has delegated the task.
-     * 19: The Administrator SHALL open a CASE (see Section 4.13.2, “Certificate Authenticated Session Establishment
+     * 19: The Administrator SHALL open a CASE (see Section 4.14.2, “Certificate Authenticated Session Establishment
      *     (CASE)”) session with the Commissionee over the operational network.
      */
     async #reconnectWithDevice() {
@@ -1913,7 +1913,7 @@ export class ControllerCommissioningFlow {
     /**
      * Step 20
      * The Administrator having established a CASE session with the Commissionee over the operational network in the
-     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.9.6.6,
+     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.10.7.6,
      * “CommissioningComplete Command”). A success response after invocation of the CommissioningComplete command ends
      * the commissioning process.
      */

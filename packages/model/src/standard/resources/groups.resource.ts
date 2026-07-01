@@ -11,7 +11,16 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "Groups", pics: "G", xref: "cluster§1.3",
 
-    details: "The Groups cluster manages, per endpoint, the content of the node-wide Group Table that is part of " +
+    details: "> [!NOTE]" +
+        "\n" +
+        "> NOTE: Starting with the release of Matter when the Groupcast Cluster becomes certifiable, that " +
+        "cluster supersedes this Groups Cluster. Groups created on devices prior to that Matter release " +
+        "remain operational via the PerGroup feature in the Groupcast Cluster. All new group management " +
+        "operations SHOULD be performed through the Groupcast Cluster. Device types with existing mandatory " +
+        "conformance to the Groups Cluster shall retain Groups server cluster support for backward " +
+        "compatibility." +
+        "\n" +
+        "The Groups cluster manages, per endpoint, the content of the node-wide Group Table that is part of " +
         "the underlying interaction layer." +
         "\n" +
         "In a network supporting fabrics, group IDs referenced by attributes or other elements of this " +

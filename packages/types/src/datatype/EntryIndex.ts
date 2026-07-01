@@ -12,7 +12,7 @@ import { TlvWrapper } from "../tlv/TlvWrapper.js";
  * An "entry index" is a 16-bit unsigned integer that identifies a specific
  * entry in a list.
  *
- * @see {@link MatterSpecification.v11.Core} § 7.18.2.23
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.37
  */
 export type EntryIndex = Branded<number, "EntryIndex">;
 

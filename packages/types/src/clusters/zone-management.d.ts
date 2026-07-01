@@ -20,7 +20,7 @@ import type { MaybePromise } from "@matter/general";
  * This cluster also defines a Trigger, which is a set of conditions and timing that apply to a Zone and allow for
  * events to be generated or the triggering state to be used by other clusters such as Push AV Stream Transport Cluster.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 2.14
+ * @see {@link MatterSpecification.v16.Cluster} § 2.14
  */
 export declare namespace ZoneManagement {
     /**
@@ -34,7 +34,7 @@ export declare namespace ZoneManagement {
     export const name: "ZoneManagement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -54,7 +54,7 @@ export declare namespace ZoneManagement {
          * the number of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is
          * manufacturer-defined.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.2
          */
         maxZones: number;
 
@@ -62,7 +62,7 @@ export declare namespace ZoneManagement {
          * This attribute shall specify all currently defined zones as a list of ZoneInformationStruct. Use the commands
          * from this cluster to add, update or remove entries.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.3
          */
         zones: ZoneInformation[];
 
@@ -71,7 +71,7 @@ export declare namespace ZoneManagement {
          * ZoneStopped events and shall be a list of ZoneTriggerControlStruct. To add an entry use
          * CreateOrUpdateTrigger. To remove an entry use RemoveTrigger.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.4
          */
         triggers: ZoneTriggerControl[];
 
@@ -83,7 +83,7 @@ export declare namespace ZoneManagement {
          * Implementations require two to ten levels of sensitivity control in order to ensure that there is some
          * user-level customization of the Trigger.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.5
          */
         sensitivityMax: number;
     }
@@ -96,7 +96,7 @@ export declare namespace ZoneManagement {
          * This attribute shall specify the maximum number of user-defined zones that can be supported by the Node. This
          * value is manufacturer-defined.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.1
          */
         maxUserDefinedZones: number;
     }
@@ -110,7 +110,7 @@ export declare namespace ZoneManagement {
          * PerZoneSensitivity features is not supported. The higher the value the more sensitive the detection. The
          * actual meaning of the values is implementation specific.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.6
          */
         sensitivity: number;
     }
@@ -124,7 +124,7 @@ export declare namespace ZoneManagement {
          * cluster is on the same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the
          * value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.7
          */
         twoDCartesianMax: TwoDCartesianVertex;
     }
@@ -141,7 +141,7 @@ export declare namespace ZoneManagement {
          * the number of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is
          * manufacturer-defined.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.2
          */
         maxZones: number;
 
@@ -149,7 +149,7 @@ export declare namespace ZoneManagement {
          * This attribute shall specify all currently defined zones as a list of ZoneInformationStruct. Use the commands
          * from this cluster to add, update or remove entries.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.3
          */
         zones: ZoneInformation[];
 
@@ -158,7 +158,7 @@ export declare namespace ZoneManagement {
          * ZoneStopped events and shall be a list of ZoneTriggerControlStruct. To add an entry use
          * CreateOrUpdateTrigger. To remove an entry use RemoveTrigger.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.4
          */
         triggers: ZoneTriggerControl[];
 
@@ -170,7 +170,7 @@ export declare namespace ZoneManagement {
          * Implementations require two to ten levels of sensitivity control in order to ensure that there is some
          * user-level customization of the Trigger.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.5
          */
         sensitivityMax: number;
 
@@ -178,7 +178,7 @@ export declare namespace ZoneManagement {
          * This attribute shall specify the maximum number of user-defined zones that can be supported by the Node. This
          * value is manufacturer-defined.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.1
          */
         maxUserDefinedZones: number;
 
@@ -187,7 +187,7 @@ export declare namespace ZoneManagement {
          * PerZoneSensitivity features is not supported. The higher the value the more sensitive the detection. The
          * actual meaning of the values is implementation specific.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.6
          */
         sensitivity: number;
 
@@ -196,7 +196,7 @@ export declare namespace ZoneManagement {
          * cluster is on the same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the
          * value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.6.7
          */
         twoDCartesianMax: TwoDCartesianVertex;
     }
@@ -208,14 +208,14 @@ export declare namespace ZoneManagement {
         /**
          * This command is used to create or update a Trigger for the specified motion Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.5
          */
         createOrUpdateTrigger(request: CreateOrUpdateTriggerRequest): MaybePromise;
 
         /**
          * This command shall remove the Trigger for the provided ZoneID.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.6
          */
         removeTrigger(request: RemoveTriggerRequest): MaybePromise;
     }
@@ -227,7 +227,7 @@ export declare namespace ZoneManagement {
         /**
          * This command shall remove the user-defined Zone indicated by ZoneID.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.4
          */
         removeZone(request: RemoveZoneRequest): MaybePromise;
     }
@@ -240,14 +240,14 @@ export declare namespace ZoneManagement {
         /**
          * This command shall create and store a TwoD Cartesian Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.1
          */
         createTwoDCartesianZone(request: CreateTwoDCartesianZoneRequest): MaybePromise<CreateTwoDCartesianZoneResponse>;
 
         /**
          * The UpdateTwoDCartesianZone shall update a stored TwoD Cartesian Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.3
          */
         updateTwoDCartesianZone(request: UpdateTwoDCartesianZoneRequest): MaybePromise;
     }
@@ -268,7 +268,7 @@ export declare namespace ZoneManagement {
         /**
          * This event shall be generated when a Zone is first triggered.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.1
          */
         zoneTriggered: ZoneTriggeredEvent;
 
@@ -277,7 +277,7 @@ export declare namespace ZoneManagement {
          * TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger value, as
          * described in Section 2.14.5.9, "ZoneTriggerControlStruct".
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.2
          */
         zoneStopped: ZoneStoppedEvent;
     }
@@ -292,7 +292,7 @@ export declare namespace ZoneManagement {
         /**
          * This event shall be generated when a Zone is first triggered.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.1
          */
         zoneTriggered: ZoneTriggeredEvent;
 
@@ -301,7 +301,7 @@ export declare namespace ZoneManagement {
          * TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger value, as
          * described in Section 2.14.5.9, "ZoneTriggerControlStruct".
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.2
          */
         zoneStopped: ZoneStoppedEvent;
     }
@@ -322,7 +322,7 @@ export declare namespace ZoneManagement {
     /**
      * These are optional features supported by ZoneManagementCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.4
      */
     export enum Feature {
         /**
@@ -337,7 +337,7 @@ export declare namespace ZoneManagement {
          * The origin (0,0) shall be located at the top left of the Cartesian plane, with positive X and Y values moving
          * right and down across the Cartesian plane respectively.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.4.1
          */
         TwoDimensionalCartesianZone = "TwoDimensionalCartesianZone",
 
@@ -348,7 +348,7 @@ export declare namespace ZoneManagement {
          * value for the sensitivity of that zone to trigger events. If not supported, only the Sensitivity Attribute
          * shall be used.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.4.2
          */
         PerZoneSensitivity = "PerZoneSensitivity",
 
@@ -357,7 +357,7 @@ export declare namespace ZoneManagement {
          *
          * When this feature is supported, the device allows for creating and managing user defined zones via commands.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.4.3
          */
         UserDefined = "UserDefined",
 
@@ -367,7 +367,7 @@ export declare namespace ZoneManagement {
          * When this feature is supported, the device allows for creating and managing user defined Focus Value zones
          * via commands.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.4.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.4.4
          */
         FocusZones = "FocusZones"
     }
@@ -376,7 +376,7 @@ export declare namespace ZoneManagement {
      * This struct is used to encode basic information about a Zone without containing the specifics of how the zone is
      * defined.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.8
      */
     export class ZoneInformation {
         constructor(values?: Partial<ZoneInformation>);
@@ -384,28 +384,28 @@ export declare namespace ZoneManagement {
         /**
          * This field shall indicate the unique ZoneID of the Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.8.1
          */
         zoneId: number;
 
         /**
          * This field shall indicate the zone type which defines the Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.8.2
          */
         zoneType: ZoneType;
 
         /**
          * This field shall indicate the source of the Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.8.3
          */
         zoneSource: ZoneSource;
 
         /**
          * This field shall indicate the detailed information for the TwoDCartesianZone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.8.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.8.4
          */
         twoDCartesianZone?: TwoDCartesianZone;
     }
@@ -442,7 +442,7 @@ export declare namespace ZoneManagement {
      * Once a ZoneStopped event has been generated, the Node shall stop detecting the triggering activity for the period
      * of the BlindDuration value.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9
      */
     export class ZoneTriggerControl {
         constructor(values?: Partial<ZoneTriggerControl>);
@@ -450,7 +450,7 @@ export declare namespace ZoneManagement {
         /**
          * This field shall indicate the unique ZoneID of the Zone this Trigger applies to.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9.1
          */
         zoneId: number;
 
@@ -458,7 +458,7 @@ export declare namespace ZoneManagement {
          * This field shall indicate the initial duration in seconds after triggering activity is first detected before
          * the Node could generate a ZoneStopped event.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9.2
          */
         initialDuration: number;
 
@@ -466,7 +466,7 @@ export declare namespace ZoneManagement {
          * This field shall indicate the duration in seconds that the TriggerDetectedDuration value is to be extended by
          * if the triggering activity is still detected during this period.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9.3
          */
         augmentationDuration: number;
 
@@ -474,7 +474,7 @@ export declare namespace ZoneManagement {
          * This field shall indicate the maximum duration in seconds after the initial triggering activity detection
          * that additional triggering activity will be detected.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9.4
          */
         maxDuration: number;
 
@@ -482,7 +482,7 @@ export declare namespace ZoneManagement {
          * This field shall indicate the duration in seconds after a ZoneStopped event is generated that the Node shall
          * NOT generate any ZoneTriggered events.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.5
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9.5
          */
         blindDuration: number;
 
@@ -491,7 +491,7 @@ export declare namespace ZoneManagement {
          * higher the value, the more sensitive the detection. The actual meaning of the values is
          * implementation-specific.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.9.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.9.6
          */
         sensitivity?: number;
     }
@@ -499,7 +499,7 @@ export declare namespace ZoneManagement {
     /**
      * This struct is used to encode a point on the 2 Dimensional Cartesian Plane for the TwoDCartesianZone feature.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.6
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.6
      */
     export class TwoDCartesianVertex {
         constructor(values?: Partial<TwoDCartesianVertex>);
@@ -507,14 +507,14 @@ export declare namespace ZoneManagement {
         /**
          * This field shall represent the position of the vertex along the horizontal (x) axis.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.6.1
          */
         x: number;
 
         /**
          * This field shall represent the position of the vertex along the vertical (y) axis.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.6.2
          */
         y: number;
     }
@@ -522,7 +522,7 @@ export declare namespace ZoneManagement {
     /**
      * This command is used to create or update a Trigger for the specified motion Zone.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.5
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.5
      */
     export class CreateOrUpdateTriggerRequest {
         constructor(values?: Partial<CreateOrUpdateTriggerRequest>);
@@ -531,7 +531,7 @@ export declare namespace ZoneManagement {
          * This field shall be a ZoneTriggerControlStruct representing all information required to define the Trigger
          * conditions.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.5.1
          */
         trigger: ZoneTriggerControl;
     }
@@ -539,7 +539,7 @@ export declare namespace ZoneManagement {
     /**
      * This command shall remove the Trigger for the provided ZoneID.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.6
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.6
      */
     export class RemoveTriggerRequest {
         constructor(values?: Partial<RemoveTriggerRequest>);
@@ -547,7 +547,7 @@ export declare namespace ZoneManagement {
         /**
          * The ZoneID field shall be a ZoneID of the Zone Trigger to be removed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.6.1
          */
         zoneId: number;
     }
@@ -555,7 +555,7 @@ export declare namespace ZoneManagement {
     /**
      * This command shall remove the user-defined Zone indicated by ZoneID.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.4
      */
     export class RemoveZoneRequest {
         constructor(values?: Partial<RemoveZoneRequest>);
@@ -563,7 +563,7 @@ export declare namespace ZoneManagement {
         /**
          * The ZoneID field shall be a ZoneID of the Zone to be removed.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.4.1
          */
         zoneId: number;
     }
@@ -571,7 +571,7 @@ export declare namespace ZoneManagement {
     /**
      * This command shall create and store a TwoD Cartesian Zone.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.1
      */
     export class CreateTwoDCartesianZoneRequest {
         constructor(values?: Partial<CreateTwoDCartesianZoneRequest>);
@@ -580,7 +580,7 @@ export declare namespace ZoneManagement {
          * The Zone field shall be a TwoDCartesianZoneStruct representing all information required to define the TwoD
          * Cartesian Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.1.1
          */
         zone: TwoDCartesianZone;
     }
@@ -588,7 +588,7 @@ export declare namespace ZoneManagement {
     /**
      * This command shall be generated in response to a CreateTwoDCartesianZone command.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.2
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.2
      */
     export class CreateTwoDCartesianZoneResponse {
         constructor(values?: Partial<CreateTwoDCartesianZoneResponse>);
@@ -596,7 +596,7 @@ export declare namespace ZoneManagement {
         /**
          * The ZoneID field shall be an unsigned 16 bit integer representing the unique ZoneID.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.2.1
          */
         zoneId: number;
     }
@@ -604,7 +604,7 @@ export declare namespace ZoneManagement {
     /**
      * The UpdateTwoDCartesianZone shall update a stored TwoD Cartesian Zone.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.3
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.3
      */
     export class UpdateTwoDCartesianZoneRequest {
         constructor(values?: Partial<UpdateTwoDCartesianZoneRequest>);
@@ -612,14 +612,14 @@ export declare namespace ZoneManagement {
         /**
          * The ZoneID field shall be a ZoneID of the Zone to be updated.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.3.1
          */
         zoneId: number;
 
         /**
          * The Zone field shall be a TwoDCartesianZoneStruct representing updated Zone information.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.7.3.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.7.3.2
          */
         zone: TwoDCartesianZone;
     }
@@ -627,7 +627,7 @@ export declare namespace ZoneManagement {
     /**
      * This event shall be generated when a Zone is first triggered.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.1
      */
     export class ZoneTriggeredEvent {
         constructor(values?: Partial<ZoneTriggeredEvent>);
@@ -635,14 +635,14 @@ export declare namespace ZoneManagement {
         /**
          * This field shall contain the ZoneID of the Zone that triggered.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.1.1
          */
         zone: number;
 
         /**
          * This field shall indicate why the zone was triggered.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.1.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.1.2
          */
         reason: ZoneEventTriggeredReason;
     }
@@ -652,7 +652,7 @@ export declare namespace ZoneManagement {
      * TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger value, as
      * described in Section 2.14.5.9, "ZoneTriggerControlStruct".
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.2
      */
     export class ZoneStoppedEvent {
         constructor(values?: Partial<ZoneStoppedEvent>);
@@ -660,20 +660,20 @@ export declare namespace ZoneManagement {
         /**
          * This field shall contain the ZoneID of the Zone that stopped.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.2.1
          */
         zone: number;
 
         /**
          * This field shall indicate why the zone stopped triggering.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.8.2.2
          */
         reason: ZoneEventStoppedReason;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.1
      */
     export enum ZoneType {
         /**
@@ -685,7 +685,7 @@ export declare namespace ZoneManagement {
     /**
      * This data type is derived from enum8, and is used to indicate intended Zone usage.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.2
      */
     export enum ZoneUse {
         /**
@@ -693,7 +693,7 @@ export declare namespace ZoneManagement {
          *
          * This value indicates the Zone is intended to be used for motion detection
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.2.1
          */
         Motion = 0,
 
@@ -703,7 +703,7 @@ export declare namespace ZoneManagement {
          * This value indicates the Zone is intended to be used for privacy blocking. All pixels within Privacy Zones
          * shall be replaced with black.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.2.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.2.2
          */
         Privacy = 1,
 
@@ -713,13 +713,13 @@ export declare namespace ZoneManagement {
          * This value indicates the Zone is intended to be a focal point for quality or analysis. Implementations may
          * increase encoding quality within this type of Zone at the expense of other areas.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.2.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.2.3
          */
         Focus = 2
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.3
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.3
      */
     export enum ZoneSource {
         /**
@@ -728,7 +728,7 @@ export declare namespace ZoneManagement {
          * This value indicates the Zone is built-in and provided by the manufacturer of the device. Zones of this type
          * can't be created or modified using commands in this cluster.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.3.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.3.1
          */
         Mfg = 0,
 
@@ -738,13 +738,13 @@ export declare namespace ZoneManagement {
          * This value indicates the Zone was defined and created by a user. Zones of this type can be created, modified
          * or deleted using commands in this cluster.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.3.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.3.2
          */
         User = 1
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.4
      */
     export enum ZoneEventTriggeredReason {
         /**
@@ -754,7 +754,7 @@ export declare namespace ZoneManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.5
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.5
      */
     export enum ZoneEventStoppedReason {
         /**
@@ -771,7 +771,7 @@ export declare namespace ZoneManagement {
     /**
      * This struct is used to encode all information needed to define a TwoDCartesianZone.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7
+     * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.7
      */
     export class TwoDCartesianZone {
         constructor(values?: Partial<TwoDCartesianZone>);
@@ -779,14 +779,14 @@ export declare namespace ZoneManagement {
         /**
          * The Name field shall be a string representing the name of the Zone. This is not guaranteed to be unique.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.7.1
          */
         name: string;
 
         /**
          * The Use field shall be a Zone Use Enum representing the purpose of the Zone.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.7.2
          */
         use: ZoneUse;
 
@@ -795,7 +795,7 @@ export declare namespace ZoneManagement {
          * simple polygon on the TwoD Cartesian plane, which represents the bounds of the TwoD Cartesian Zone with an
          * implicit connection between the last and first list items.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.7.3
          */
         vertices: TwoDCartesianVertex[];
 
@@ -815,7 +815,7 @@ export declare namespace ZoneManagement {
          *   - #000000FF for R=0x00, G=0x00, B=0x00, A=0xFF - For a Privacy type zone that is black and fully opaque
          *     interior.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.7.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.14.5.7.4
          */
         color?: string;
     }

@@ -23,7 +23,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * The cluster server for Audio Output is implemented by a device that has configurable audio output.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 6.5
+ * @see {@link MatterSpecification.v16.Cluster} § 6.5
  */
 export declare namespace AudioOutput {
     /**
@@ -37,7 +37,7 @@ export declare namespace AudioOutput {
     export const name: "AudioOutput";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -55,14 +55,14 @@ export declare namespace AudioOutput {
         /**
          * This attribute provides the list of outputs supported by the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.6.1
          */
         outputList: OutputInfo[];
 
         /**
          * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.6.2
          */
         currentOutput: number;
     }
@@ -77,14 +77,14 @@ export declare namespace AudioOutput {
         /**
          * This attribute provides the list of outputs supported by the device.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.6.1
          */
         outputList: OutputInfo[];
 
         /**
          * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.6.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.6.2
          */
         currentOutput: number;
     }
@@ -100,7 +100,7 @@ export declare namespace AudioOutput {
          * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker
          * endpoint on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.7.1
          */
         selectOutput(request: SelectOutputRequest): MaybePromise;
     }
@@ -115,7 +115,7 @@ export declare namespace AudioOutput {
          * Updates to the output name shall appear in the device's settings menus. Name updates may automatically be
          * sent to the actual device to which the output connects.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.7.2
          */
         renameOutput(request: RenameOutputRequest): MaybePromise;
     }
@@ -137,7 +137,7 @@ export declare namespace AudioOutput {
     /**
      * These are optional features supported by AudioOutputCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.5.4
+     * @see {@link MatterSpecification.v16.Cluster} § 6.5.4
      */
     export enum Feature {
         /**
@@ -151,7 +151,7 @@ export declare namespace AudioOutput {
     /**
      * This contains information about an output.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 6.5.5.2
      */
     export class OutputInfo {
         constructor(values?: Partial<OutputInfo>);
@@ -159,14 +159,14 @@ export declare namespace AudioOutput {
         /**
          * This field shall indicate the unique index into the list of outputs.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.5.2.1
          */
         index: number;
 
         /**
          * This field shall indicate the type of output.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.2.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.5.2.2
          */
         outputType: OutputType;
 
@@ -174,7 +174,7 @@ export declare namespace AudioOutput {
          * The device defined and user editable output name, such as “Soundbar”, “Speakers”. This field may be blank,
          * but SHOULD be provided when known.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.2.3
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.5.2.3
          */
         name: string;
     }
@@ -185,7 +185,7 @@ export declare namespace AudioOutput {
      * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker endpoint
      * on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.5.7.1
      */
     export class SelectOutputRequest {
         constructor(values?: Partial<SelectOutputRequest>);
@@ -194,7 +194,7 @@ export declare namespace AudioOutput {
          * This shall indicate the index field of the OutputInfoStruct from the OutputList attribute in which to change
          * to.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.5.7.1.1
          */
         index: number;
     }
@@ -205,7 +205,7 @@ export declare namespace AudioOutput {
      * Updates to the output name shall appear in the device's settings menus. Name updates may automatically be sent to
      * the actual device to which the output connects.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.5.7.2
+     * @see {@link MatterSpecification.v16.Cluster} § 6.5.7.2
      */
     export class RenameOutputRequest {
         constructor(values?: Partial<RenameOutputRequest>);
@@ -216,7 +216,7 @@ export declare namespace AudioOutput {
     /**
      * The type of output, expressed as an enum, with the following values:
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 6.5.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.5.5.1
      */
     export enum OutputType {
         /**

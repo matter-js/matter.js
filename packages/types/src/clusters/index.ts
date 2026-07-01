@@ -16,6 +16,7 @@ export {
 export { AdministratorCommissioningCluster, AdministratorCommissioning } from "./administrator-commissioning.js";
 export { AirQualityCluster, AirQuality } from "./air-quality.js";
 export { AlarmBase } from "./alarm-base.js";
+export { AmbientContextSensingCluster, AmbientContextSensing } from "./ambient-context-sensing.js";
 export { ApplicationBasicCluster, ApplicationBasic } from "./application-basic.js";
 export { ApplicationLauncherCluster, ApplicationLauncher } from "./application-launcher.js";
 export { AudioOutputCluster, AudioOutput } from "./audio-output.js";
@@ -78,6 +79,7 @@ export {
 export { GeneralCommissioningCluster, GeneralCommissioning } from "./general-commissioning.js";
 export { GeneralDiagnosticsCluster, GeneralDiagnostics } from "./general-diagnostics.js";
 export { GroupKeyManagementCluster, GroupKeyManagement } from "./group-key-management.js";
+export { GroupcastCluster, Groupcast } from "./groupcast.js";
 export { GroupsCluster, Groups } from "./groups.js";
 export { HepaFilterMonitoringCluster, HepaFilterMonitoring } from "./hepa-filter-monitoring.js";
 export { IcdManagementCluster, IcdManagement } from "./icd-management.js";
@@ -148,6 +150,7 @@ export { SoftwareDiagnosticsCluster, SoftwareDiagnostics } from "./software-diag
 export { SoilMeasurementCluster, SoilMeasurement } from "./soil-measurement.js";
 export { SwitchCluster, Switch } from "./switch.js";
 export { TargetNavigatorCluster, TargetNavigator } from "./target-navigator.js";
+export { TemperatureAlarmCluster, TemperatureAlarm } from "./temperature-alarm.js";
 export { TemperatureControlCluster, TemperatureControl } from "./temperature-control.js";
 export { TemperatureMeasurementCluster, TemperatureMeasurement } from "./temperature-measurement.js";
 export { ThermostatCluster, Thermostat } from "./thermostat.js";

@@ -17,7 +17,7 @@ Resource.add({
         "match the user account on the Client." +
         "\n" +
         "Often a fabric administrator will facilitate commissioning of a Client (such as a Casting Video " +
-        "Client), and invoke commands on the AccountLogin cluster on the Content App associated with that " +
+        "Client), and invoke commands on the Account Login cluster on the Content App associated with that " +
         "client. Specifically:" +
         "\n" +
         "  1. GetSetupPIN in order to attempt to obtain the Passcode for commissioning." +
@@ -119,7 +119,7 @@ Resource.add({
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> NOTE: Newer cluster clients should be aware that AccountLogin cluster version 1 specified an 11 " +
+                    "> NOTE: Newer cluster clients should be aware that Account Login cluster version 1 specified an 11 " +
                     "digit minimum length."
             }]
         },
@@ -180,7 +180,7 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> NOTE: Newer cluster clients should be aware that AccountLogin cluster revision 1 specified an 11 " +
+                        "> NOTE: Newer cluster clients should be aware that Account Login cluster revision 1 specified an 11 " +
                         "digit minimum length."
                 },
 

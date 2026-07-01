@@ -11,8 +11,31 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/\*:
+    - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible.
+
+- @matter/types
+    - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
+
+- @matter/model
+    - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
+
 - @matter/node
+    - Feature: Implemented the newly-mandatory Matter 1.6 diagnostics attributes
+    - Feature: Enabled the BooleanState `StateChange` event by default via the new feature
+    - Feature: Emit the OccupancySensing `OccupancyChanged` event automatically when the `OccupancyEvent` feature is enabled
+    - Feature: Advertise the BasicInformation CapabilityMinima defaults and enforce the read/subscribe path-count ceiling
+    - Feature: Added a ConfigurationVersion increment convenience API and reject ConfigurationVersion bumps on bridged devices that do not enable the attribute
+    - Feature: Added a `configurationVersionChanged` endpoint/node lifecycle event that fires when a client peer's ConfigurationVersion changes (BasicInformation on the node, BridgedDeviceBasicInformation on bridged endpoints)
+    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
+    - Fix: Prune GroupKeyMap entries when a key set is removed
+    - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
+    - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
+
+- @matter/protocol
+    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
 
 ## 0.17.4 (2026-07-01)
 

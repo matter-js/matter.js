@@ -62,12 +62,13 @@ export class AccessDeniedError extends StatusResponseError {
 }
 
 /**
- * Implements Access Control Logic For one fabric as per Matter Specification @see {@link MatterSpecification.v12.Core}
- * § 6.6.5.2.
+ * Implements Access Control Logic For one fabric as per Matter Specification @see {@link MatterSpecification.v16.Core}
+ * § 6.6.6.2.
  */
 export class FabricAccessControl {
     #fabricIndex: FabricIndex;
     #aclList: AclList = [];
+    #auxiliaryFeatureEnabled = false;
     #extensionEntryAccessCheck: (
         aclList: AclList,
         aclEntry: AclEntry,
@@ -98,6 +99,10 @@ export class FabricAccessControl {
             "ACL List updated",
             this.#aclList.map(e => Diagnostic.dict(e)),
         );
+    }
+
+    set auxiliaryFeatureEnabled(enabled: boolean) {
+        this.#auxiliaryFeatureEnabled = enabled;
     }
 
     set extensionEntryAccessCheck(
@@ -231,7 +236,15 @@ export class FabricAccessControl {
 
             // Target must match, or be "wildcard"
             if (aclEntry.targets === null || aclEntry.targets.length === 0) {
-                // Empty is wildcard, no match required
+                // Group subjects cannot grant access to Endpoint 0 when Auxiliary feature is enabled
+                if (
+                    aclEntry.authMode === AccessControl.AccessControlEntryAuthMode.Group &&
+                    this.#auxiliaryFeatureEnabled &&
+                    endpointId === EndpointNumber(0)
+                ) {
+                    continue;
+                }
+                // Otherwise, empty is wildcard, no match required
             } else {
                 // Non-empty requires a match
                 let matchedTarget = false;

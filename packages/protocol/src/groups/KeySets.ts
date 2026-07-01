@@ -109,7 +109,7 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
         if (keySetId === 0) {
             // Groups: For the generation of the Destination Identifier, the originator SHALL use the operational group key with
             // the second newest EpochStartTime, if one exists, otherwise it SHALL use the single operational group key available.
-            // @see {@link MatterSpecification.v14.Core} § 4.14.2.6.
+            // @see {@link MatterSpecification.v16.Core} § 4.14.2.6.
             if (operationalKeys.length > 2) {
                 return operationalKeys[1];
             }

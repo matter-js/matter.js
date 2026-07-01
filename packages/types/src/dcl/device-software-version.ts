@@ -8,7 +8,7 @@ import { VendorId } from "../datatype/VendorId.js";
 
 /**
  * DeviceSoftwareVersionModel Schema
- * @see {@link MatterSpecification.v141.Core} § 11.23.7.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.7.
  * DCL endpoints:
  * * check with https://on.dcl.csa-iot.org/dcl/model/versions/{vid}/{pid} to get a list of software versions, check for newer ones
  * * check with https://on.dcl.csa-iot.org/dcl/model/versions/{vid}/{pid}/{softwareVersion} for these details

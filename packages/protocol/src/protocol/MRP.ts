@@ -26,7 +26,7 @@ export namespace MRP {
     /** The number of retransmissions before transitioning from linear to exponential backoff. */
     export const BACKOFF_THRESHOLD = 1;
 
-    /** @see {@link MatterSpecification.v12.Core}, section 4.11.8 */
+    /** @see {@link MatterSpecification.v16.Core}, section 4.12.8 */
     export const STANDALONE_ACK_TIMEOUT = Millis(200);
 
     /**
@@ -129,7 +129,7 @@ export namespace MRP {
      * On real sends `additionalDelay` (default 0) joins the base interval (so it is amplified) and
      * `fixedBackoff` (default 0) is added to the final backoff (so it is not).
      *
-     * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
+     * @see {@link MatterSpecification.v16.Core}, section 4.12.2.1
      */
     export function retransmissionIntervalOf(
         {

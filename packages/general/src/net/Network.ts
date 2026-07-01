@@ -68,7 +68,7 @@ export function tcpErrorFrom(error: Error): NetworkError {
 export const STANDARD_MATTER_PORT = 5540;
 
 /**
- * @see {@link MatterSpecification.v11.Core} § 11.11.4.4
+ * @see {@link MatterSpecification.v16.Core} § 11.12.5.4
  * Duplicated from the GeneralDiagnostics cluster to avoid circular dependencies.
  */
 export enum InterfaceType {

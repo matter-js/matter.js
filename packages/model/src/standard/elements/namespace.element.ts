@@ -35,7 +35,10 @@ export const namespace = Datatype(
     Field({ name: "ClosurePanel", id: 0x45 }),
     Field({ name: "ClosureCovering", id: 0x46 }),
     Field({ name: "ClosureWindow", id: 0x47 }),
-    Field({ name: "ClosureCabinet", id: 0x48 })
+    Field({ name: "ClosureCabinet", id: 0x48 }),
+    Field({ name: "IdentifiedObject", id: 0x49 }),
+    Field({ name: "IdentifiedSound", id: 0x4a }),
+    Field({ name: "IdentifiedHumanActivity", id: 0x4b })
 );
 
 MatterDefinition.children.push(namespace);

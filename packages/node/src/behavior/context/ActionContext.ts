@@ -28,6 +28,6 @@ import type { RemoteActorContext } from "./server/RemoteActorContext.js";
  *
  *   - When responding to network requests, low-level contextual information such as the wire {@link message}
  *
- * For the formal definition of an "action" see {@link MatterSpecification.v12.Core} § 8.2.4
+ * For the formal definition of an "action" see {@link MatterSpecification.v16.Core} § 8.2.4
  */
 export type ActionContext = LocalActorContext | RemoteActorContext;

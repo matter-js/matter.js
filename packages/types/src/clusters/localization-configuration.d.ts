@@ -20,7 +20,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster supports an interface to a Node. It provides attributes for determining and configuring localization
  * information that a Node shall utilize when conveying values to a user.
  *
- * @see {@link MatterSpecification.v151.Core} § 11.3
+ * @see {@link MatterSpecification.v16.Core} § 11.3
  */
 export declare namespace LocalizationConfiguration {
     /**
@@ -34,7 +34,7 @@ export declare namespace LocalizationConfiguration {
     export const name: "LocalizationConfiguration";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -58,7 +58,7 @@ export declare namespace LocalizationConfiguration {
          * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
          * CONSTRAINT_ERROR error.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.3.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.3.4.1
          */
         activeLocale: string;
 
@@ -67,7 +67,7 @@ export declare namespace LocalizationConfiguration {
          * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within the
          * list SHOULD NOT express any meaning.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.3.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.3.4.2
          */
         supportedLocales: string[];
     }
@@ -85,7 +85,7 @@ export declare namespace LocalizationConfiguration {
          * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
          * CONSTRAINT_ERROR error.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.3.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.3.4.1
          */
         activeLocale: string;
 
@@ -94,7 +94,7 @@ export declare namespace LocalizationConfiguration {
          * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within the
          * list SHOULD NOT express any meaning.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.3.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.3.4.2
          */
         supportedLocales: string[];
     }

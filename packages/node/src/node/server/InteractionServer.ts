@@ -53,6 +53,7 @@ import {
     AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
     EventPath,
+    GroupId,
     INTERACTION_PROTOCOL_ID,
     InvokeResponseData,
     ReceivedStatusResponseError,
@@ -65,11 +66,18 @@ import {
     TlvSubscribeResponse,
     TypeFromSchema,
 } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { ServerNode } from "../ServerNode.js";
 import { OnlineServerInteraction } from "./OnlineServerInteraction.js";
 import { ServerSubscription, ServerSubscriptionConfig, ServerSubscriptionContext } from "./ServerSubscription.js";
 
 const logger = Logger.get("InteractionServer");
+
+// Hard acceptance ceiling for paths in a single read/subscribe interaction, set to the upper bound of the
+// CapabilityMinimaStruct field constraints in the data model.  Separate from the advertised CapabilityMinima defaults:
+// we advertise a guaranteed floor and accept up to this ceiling, blocking only beyond it.
+const MAX_READ_PATHS = 10_000;
+const MAX_SUBSCRIBE_PATHS = 10_000;
 
 export interface PeerSubscription {
     subscriptionId: number;
@@ -81,6 +89,13 @@ export interface PeerSubscription {
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
+}
+
+/** Cumulative counters tracked by the interaction server since startup. */
+export interface InteractionCounters {
+    totalSubscriptionsEstablished: number;
+    totalInteractionModelMessagesSent: number;
+    totalInteractionModelMessagesReceived: number;
 }
 
 function validateReadAttributesPath(path: AttributePath) {
@@ -139,6 +154,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     #newActivityBlocked = false;
     #aclServer?: AccessControlServer;
     #serverInteraction: OnlineServerInteraction;
+    #counters: InteractionCounters = {
+        totalSubscriptionsEstablished: 0,
+        totalInteractionModelMessagesSent: 0,
+        totalInteractionModelMessagesReceived: 0,
+    };
 
     constructor(node: ServerNode, sessions: SessionManager) {
         this.#lifetime = node.construction.join("interaction server");
@@ -182,6 +202,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         return this.#subscriptionEstablishmentStarted;
     }
 
+    get counters(): InteractionCounters {
+        return this.#counters;
+    }
+
     async onNewExchange(exchange: MessageExchange, message: Message) {
         // When closing, ignore anything newly incoming
         if (this.#newActivityBlocked || this.isClosing) {
@@ -194,6 +218,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return await this.clientHandler.onNewExchange(exchange, message);
         }
 
+        // Count the initiating message (received before the exchange notifier could be attached) then track all
+        // further sends/receipts on this exchange (chunked DataReports, StatusResponse acks, etc.)
+        this.#counters.totalInteractionModelMessagesReceived++;
+        this.#countExchangeMessages(exchange);
+
         // Activity tracking.  This provides diagnostic information and prevents the server from shutting down whilst
         // the exchange is active
         using activity = this.#activity.begin(`session#${exchange.session.id.toString(16)}`);
@@ -205,6 +234,23 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         } finally {
             delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
         }
+    }
+
+    /**
+     * Attach per-message counters to an exchange so DeviceLoadStatus reflects every IM message sent and received.
+     * Excludes MRP retransmissions (only the initial transmission of each message counts) and duplicate receipts.
+     */
+    #countExchangeMessages(exchange: MessageExchange) {
+        exchange.onSend = (_, retransmission) => {
+            if (retransmission === 0) {
+                this.#counters.totalInteractionModelMessagesSent++;
+            }
+        };
+        exchange.onReceive = (_, duplicate) => {
+            if (!duplicate) {
+                this.#counters.totalInteractionModelMessagesReceived++;
+            }
+        };
     }
 
     get aclServer() {
@@ -312,6 +358,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
 
         validateReadPaths(attributeRequests, eventRequests);
+
+        const readPathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (readPathsCount > MAX_READ_PATHS) {
+            throw new StatusResponseError(
+                `Read request with ${readPathsCount} paths exceeds maximum of ${MAX_READ_PATHS}`,
+                Status.PathsExhausted,
+            );
+        }
 
         return {
             dataReport: {
@@ -539,6 +593,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
         }
 
+        const subscribePathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (subscribePathsCount > MAX_SUBSCRIBE_PATHS) {
+            throw new StatusResponseError(
+                `Subscribe request with ${subscribePathsCount} paths exceeds maximum of ${MAX_SUBSCRIBE_PATHS}`,
+                Status.PathsExhausted,
+            );
+        }
+
         NodeSession.assert(exchange.session, "Subscriptions are only implemented on secure sessions");
         const session = exchange.session;
         const fabric = session.fabric;
@@ -676,13 +738,19 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         // When an error occurs while sending the response, the subscription is not yet active and will be cleaned up by GC
         subscription.activate();
+        this.#counters.totalSubscriptionsEstablished++;
     }
 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
-        if (addressOrSession instanceof Session) {
-            return this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId);
-        }
-        return this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+        const exchange =
+            addressOrSession instanceof Session
+                ? this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId)
+                : this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+
+        // Count subscription report messages we push and the acks we receive in response
+        this.#countExchangeMessages(exchange);
+
+        return exchange;
     }
 
     async #establishSubscription(
@@ -789,6 +857,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 true, // Do not send status responses because we simulate that the subscription is still established
             );
             subscription.activate();
+            this.#counters.totalSubscriptionsEstablished++;
 
             logger.notice(
                 `Subscription successfully reestablished`,
@@ -869,9 +938,47 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         // Get the invoke-results from the server interaction
         const results = this.#serverInteraction.invoke(request, context);
 
-        // A groupcast invoke never produces a response; just consume the iterator.
+        // For group sessions: consume iterator, report each dispatched command to SessionManager so
+        // Groupcast testing (if enabled for the fabric) can emit the GroupcastTesting event
         if (isGroupSession) {
-            for await (const _chunk of results);
+            const rawGroupId = message.packetHeader.destGroupId;
+            const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
+            const fabric = exchange.session.associatedFabric;
+            let emitted = false;
+            for await (const chunk of results) {
+                for (const data of chunk) {
+                    if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
+                        continue;
+                    }
+                    const accessAllowed = data.kind === "cmd-response" || data.status === Status.Success;
+                    this.#context.sessions.emitGroupMessage({
+                        result: Groupcast.GroupcastTestResult.Success,
+                        fabric,
+                        groupId,
+                        endpointId: data.path.endpointId,
+                        clusterId: data.path.clusterId,
+                        elementId: data.path.commandId,
+                        accessAllowed,
+                    });
+                    emitted = true;
+                }
+            }
+            // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
+            // endpoint mappings for the group), still emit one event per requested invoke path so
+            // observers see the message arrived. FailedAuth + accessAllowed=false signals denial.
+            if (!emitted) {
+                for (const { commandPath } of invokeRequests) {
+                    this.#context.sessions.emitGroupMessage({
+                        result: Groupcast.GroupcastTestResult.FailedAuth,
+                        fabric,
+                        groupId,
+                        endpointId: commandPath.endpointId,
+                        clusterId: commandPath.clusterId,
+                        elementId: commandPath.commandId,
+                        accessAllowed: false,
+                    });
+                }
+            }
             return;
         }
 

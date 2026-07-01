@@ -11,7 +11,7 @@ import { TlvUInt8 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvCommandData } from "../types/TlvCommandData.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.7.9 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.7.9 */
 
 export const TlvInvokeRequest = TlvObject({
     /** Do not send a response to this action. */

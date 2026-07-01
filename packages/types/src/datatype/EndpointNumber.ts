@@ -12,7 +12,7 @@ import { TlvWrapper } from "../tlv/TlvWrapper.js";
 /**
  * A Endpoint Number is a 16-bit number that that indicates an instance of a device type.
  *
- * @see {@link MatterSpecification.v10.Core} § 7.18.2.11
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.27
  */
 export type EndpointNumber = Branded<number, "EndpointNumber">;
 
