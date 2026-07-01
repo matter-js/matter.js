@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/node
+    - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
+
 ## 0.17.4 (2026-07-01)
 
 - @matter/general
