@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
-    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, reduces CPU usage on busy networks
+    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, reducing CPU usage on busy networks
 
 - @matter/node
     - Enhancement: Optimizes incoming DataReport processing
