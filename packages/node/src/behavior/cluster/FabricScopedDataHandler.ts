@@ -5,6 +5,7 @@
  */
 
 import type { Behavior } from "#behavior/Behavior.js";
+import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -34,18 +35,15 @@ async function forBehaviors(
 }
 
 /**
- * Sanitize fabric-scoped attributes for a given endpoint and cluster.
- * The changed state is returned in an array of promises and should be awaited to ensure the state is updated.
+ * Compute a state patch that strips fabric-scoped attribute entries no longer belonging to an allowed fabric.
+ * Returns `undefined` when nothing needs to change.
  */
-async function sanitizeAttributeData(
+function computeFabricScopedUpdate(
     endpoint: Endpoint,
     type: Behavior.Type,
-    cluster: ClusterType,
     supportedAttributes: Set<string>,
     allowedIndices: FabricIndex[],
-) {
-    const stateUpdatePromises = new Array<Promise<void>>();
-
+): Val.Struct | undefined {
     // Build a set of fabric-scoped attribute names from the schema
     const fabricScopedAttrs = new Set<string>();
     const schema = Schema(type) as ClusterModel;
@@ -58,11 +56,11 @@ async function sanitizeAttributeData(
     }
 
     const stateUpdate = {} as Val.Struct;
-    // Iterate over all attributes and check if they are fabric-scoped
+    const state = endpoint.stateOf(type) as Val.Struct;
     for (const attributeName of supportedAttributes) {
         if (fabricScopedAttrs.has(attributeName)) {
-            const value = (endpoint.stateOf(type) as Val.Struct)[attributeName];
-            // If the value contains data for the fabric being removed, remove the data
+            const value = state[attributeName];
+            // If the value contains data for a fabric no longer present, remove that data
             if (Array.isArray(value) && value.length > 0) {
                 const filtered = value.filter(entry => allowedIndices.includes(entry.fabricIndex));
                 if (filtered.length !== value.length) {
@@ -71,20 +69,38 @@ async function sanitizeAttributeData(
             }
         }
     }
-    // If we have any state updates for this behavior, we need to set the state.
-    // Errors are being logged and ignored
-    if (Object.keys(stateUpdate).length > 0) {
-        const { resolver, promise } = createPromise<void>();
-        (endpoint.eventsOf(type) as Behavior.EventsOf<any>).stateChanged?.on(resolver);
-        try {
-            await endpoint.setStateOf(type, stateUpdate);
-            stateUpdatePromises.push(withTimeout(Seconds(5), promise)); // 5s should be enough for state change
-        } catch (error) {
-            logger.warn(
-                `Could not sanitize fabric-scoped attributes for cluster ${cluster.name} on endpoint ${endpoint.id}`,
-                error,
-            );
-        }
+    return Object.keys(stateUpdate).length > 0 ? stateUpdate : undefined;
+}
+
+/**
+ * Sanitize fabric-scoped attributes for an already-active endpoint via {@link Endpoint.setStateOf}.
+ * The changed state is returned in an array of promises and should be awaited to ensure the state is updated.
+ */
+async function sanitizeAttributeData(
+    endpoint: Endpoint,
+    type: Behavior.Type,
+    cluster: ClusterType,
+    supportedAttributes: Set<string>,
+    allowedIndices: FabricIndex[],
+) {
+    const stateUpdate = computeFabricScopedUpdate(endpoint, type, supportedAttributes, allowedIndices);
+    if (stateUpdate === undefined) {
+        return [];
+    }
+
+    const stateUpdatePromises = new Array<Promise<void>>();
+    // Best-effort during online fabric removal: a per-cluster failure must not abort the removal already in progress.
+    // The startup path (limitEndpointAttributeDataToAllowedFabrics) instead lets failures throw.
+    const { resolver, promise } = createPromise<void>();
+    (endpoint.eventsOf(type) as Behavior.EventsOf<any>).stateChanged?.on(resolver);
+    try {
+        await endpoint.setStateOf(type, stateUpdate);
+        stateUpdatePromises.push(withTimeout(Seconds(5), promise)); // 5s should be enough for state change
+    } catch (error) {
+        logger.warn(
+            `Could not sanitize fabric-scoped attributes for cluster ${cluster.name} on endpoint ${endpoint.id}`,
+            error,
+        );
     }
 
     return stateUpdatePromises;
@@ -151,16 +167,24 @@ export async function limitNodeDataToAllowedFabrics(node: ServerNode, allowedInd
     }
 }
 
-export async function limitEndpointAttributeDataToAllowedFabrics(endpoint: Endpoint, allowedIndices: FabricIndex[]) {
-    const stateUpdatePromises = new Array<Promise<void>>();
-    await forBehaviors(endpoint, async (type, cluster, elements) => {
-        if (elements.attributes.size) {
-            stateUpdatePromises.push(
-                ...(await sanitizeAttributeData(endpoint, type, cluster, elements.attributes, allowedIndices)),
-            );
+/**
+ * Sanitize fabric-scoped attributes for a single endpoint while it is still initializing.
+ *
+ * Invoked from {@link EndpointInitializer.behaviorsInitialized}, which runs inside the endpoint's construction
+ * context. The endpoint is not yet active, so {@link Endpoint.setStateOf} (which opens a fresh action that asserts an
+ * active endpoint) would throw. Instead we patch state through the supplied {@link Agent}, whose context is the
+ * construction transaction that commits when initialization completes.
+ */
+export async function limitEndpointAttributeDataToAllowedFabrics(agent: Agent, allowedIndices: FabricIndex[]) {
+    await forBehaviors(agent.endpoint, async (type, _cluster, elements) => {
+        if (!elements.attributes.size) {
+            return;
         }
+        const stateUpdate = computeFabricScopedUpdate(agent.endpoint, type, elements.attributes, allowedIndices);
+        if (stateUpdate === undefined) {
+            return;
+        }
+        const behavior = agent.get(type);
+        behavior.type.supervisor.patch(stateUpdate, behavior.state, agent.endpoint.path);
     });
-
-    // Wait for all state changed to be executed before processing events
-    await Promise.allSettled(stateUpdatePromises);
 }

@@ -14,6 +14,7 @@ import { OperationalBase } from "./OperationalBase.js";
 export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Vvsc {
+        Vvsc.assertTlvSize(tlv);
         return new Vvsc(OperationalCertificate.TlvVvsc.decode(tlv));
     }
 

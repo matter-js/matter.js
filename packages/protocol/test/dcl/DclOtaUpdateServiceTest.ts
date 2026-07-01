@@ -17,7 +17,7 @@ import {
     DataWriter,
     Endian,
     Environment,
-    HashFipsAlgorithmId,
+    HashAlgorithmId,
     MockFetch,
     MockStorageService,
     StandardCrypto,
@@ -763,7 +763,7 @@ describe("DclOtaUpdateService", () => {
             const metadata = createVersionMetadata(3, true, true, {
                 otaFileSize: otaImage.byteLength,
                 otaChecksum: otaResult.fullFileChecksum,
-                otaChecksumType: HashFipsAlgorithmId[otaResult.fullFileChecksumType],
+                otaChecksumType: HashAlgorithmId[otaResult.fullFileChecksumType],
             });
 
             // Mock version check
@@ -790,6 +790,41 @@ describe("DclOtaUpdateService", () => {
             expect(fileDesignator.exists()).to.be.true;
             expect(fileDesignator.blobName).to.equal("3");
             expect(fileDesignator.text).to.equal("ota/fff1.8000.prod.3");
+        });
+
+        it("rejects an unsupported OTA checksum type with an OtaUpdateError", async () => {
+            const otaResult = await OtaImageWriter.create(crypto, {
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                softwareVersion: 3,
+                softwareVersionString: "v3.0.0",
+                payload: new Uint8Array([0x01, 0x02, 0x03, 0x04]),
+            });
+            const otaImage = otaResult.image;
+
+            const metadata = createVersionMetadata(3, true, true, {
+                otaFileSize: otaImage.byteLength,
+                otaChecksum: otaResult.fullFileChecksum,
+                otaChecksumType: 99, // not in the IANA NI registry subset matter.js supports
+            });
+
+            fetchMock.addResponse("/dcl/model/versions/65521/32768", mockVersionsList);
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/3", metadata);
+            fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
+
+            await expect(service.downloadUpdate(update!, true)).to.be.rejectedWith(
+                OtaUpdateError,
+                /Unsupported OTA checksum type/,
+            );
         });
     });
 

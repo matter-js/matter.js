@@ -6,7 +6,7 @@
 
 import { AccessLevel } from "@matter/model";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
-import { EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
+import { AttributeId, EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -208,17 +208,22 @@ describe("AttributeWriteRequest", () => {
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
     });
 
+    // Spec 1.6 §8.9.2.8.1: a DataVersion on a wildcard path is illegal, so our encoder refuses to emit it (see
+    // WriteTest). Inbound decoding stays lenient per the §8.9 disposition, so a raw request still ignores it.
     it("writes version mismatch wildcard attribute where mismatch got ignored", async () => {
         const node = await MockServerNode.createOnline();
-        const response = await writeAttrAsAdmin(
-            node,
-            Write.Attribute({
-                cluster: BasicInformation,
-                attributes: "nodeLabel",
-                value: "Test Label",
-                version: 99,
-            }),
-        );
+        const response = await writeAttrRawAsAdmin(node, {
+            writeRequests: [
+                {
+                    path: {
+                        clusterId: BasicInformation.id,
+                        attributeId: AttributeId(5),
+                    },
+                    data: TlvString.encodeTlv("Test Label"),
+                    dataVersion: 99,
+                },
+            ],
+        });
 
         expect(response.data).deep.equals([
             {

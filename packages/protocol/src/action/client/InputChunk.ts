@@ -8,7 +8,16 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { decodeAttributeValueWithSchema, decodeUnknownAttributeValue } from "#interaction/AttributeDataDecoder.js";
 import { decodeUnknownEventValue } from "#interaction/EventDataDecoder.js";
 import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
-import { Matter } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterModel,
+    ClusterRevision,
+    EventList,
+    FeatureMap,
+    GeneratedCommandList,
+    Matter,
+} from "@matter/model";
 import {
     AttributeId,
     ClusterId,
@@ -20,14 +29,117 @@ import {
     TlvAttributeData,
     TlvAttributeReport,
     TlvAttributeStatus,
+    TlvDecodingOptions,
     TlvEventData,
     TlvEventStatus,
     TlvOfModel,
+    TlvSchema,
     TlvType,
     TypeFromSchema,
 } from "@matter/types";
 
 const logger = Logger.get("InputChunk");
+
+/**
+ * Decode options for incoming data reports. Integer signed/unsigned mismatches from non-compliant devices are tolerated
+ * here (and only here) so a single malformed value does not cause the affected attribute/event entry to be dropped; the
+ * value is still range-validated.
+ */
+const DATA_REPORT_DECODE_OPTIONS: TlvDecodingOptions = { relaxNumberTypeChecks: true };
+
+function schemaOfModel(model: Parameters<typeof TlvOfModel>[0]): TlvSchema<unknown> | undefined {
+    try {
+        return TlvOfModel(model);
+    } catch {
+        return undefined; // modeled but has no schema (e.g. deprecated global) — decode as unknown
+    }
+}
+
+// Global attributes resolved generically (cluster-independent). Used to decode globals on an unknown cluster — including
+// FeatureMap, which decodes to a bitmap object via its generic schema there (no cluster to name its bits).
+const globalAttributeSchemas = new Map<number, TlvSchema<unknown>>();
+for (const id of [
+    ClusterRevision.id,
+    FeatureMap.id,
+    AttributeList.id,
+    EventList.id,
+    AcceptedCommandList.id,
+    GeneratedCommandList.id,
+]) {
+    const model = Matter.attributes(id);
+    const schema = model === undefined ? undefined : schemaOfModel(model);
+    if (schema !== undefined) {
+        globalAttributeSchemas.set(id, schema);
+    }
+}
+
+// Seeded into each known cluster's attribute cache. FeatureMap is excluded — its schema is cluster-specialized (bits
+// named per cluster), so a known cluster resolves it per-cluster on demand rather than from the generic schema.
+const seededGlobalAttributeSchemas = new Map(globalAttributeSchemas);
+seededGlobalAttributeSchemas.delete(FeatureMap.id);
+
+interface ClusterSchemaCache {
+    model: ClusterModel;
+    attributes: Map<number, TlvSchema<unknown>>;
+    events: Map<number, TlvSchema<unknown>>;
+}
+
+// Resolved schemas cached across reports, per known cluster. Report paths come from untrusted peers, so unknown
+// clusters and unresolved elements are never cached — keeping these maps bounded by the (immutable) standard model.
+const clusterCache = new Map<number, ClusterSchemaCache>();
+
+function clusterCacheOf(clusterId: number): ClusterSchemaCache | undefined {
+    let cache = clusterCache.get(clusterId);
+    if (cache === undefined) {
+        const model = Matter.clusters(clusterId);
+        if (model === undefined) {
+            return undefined;
+        }
+        // New cluster: pre-fill its attributes with the shared global schemas, then resolve the rest on demand.
+        cache = { model, attributes: new Map(seededGlobalAttributeSchemas), events: new Map() };
+        clusterCache.set(clusterId, cache);
+    }
+    return cache;
+}
+
+function attributeSchemaOf(clusterId: number, attributeId: number): TlvSchema<unknown> | undefined {
+    const cache = clusterCacheOf(clusterId);
+    if (cache === undefined) {
+        // Unknown cluster (e.g. vendor): still decode standard global attributes with their cluster-independent schema.
+        return globalAttributeSchemas.get(attributeId);
+    }
+    const cached = cache.attributes.get(attributeId);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const attributeModel = cache.model.attributes(attributeId);
+    if (attributeModel === undefined) {
+        return undefined;
+    }
+    const schema = schemaOfModel(attributeModel);
+    if (schema !== undefined) {
+        cache.attributes.set(attributeId, schema);
+    }
+    return schema;
+}
+
+function eventSchemaOf(clusterId: number, eventId: number): TlvSchema<unknown> | undefined {
+    const cache = clusterCacheOf(clusterId);
+    if (cache === undefined) {
+        return undefined;
+    }
+    const cached = cache.events.get(eventId);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const eventModel = cache.model.events(eventId);
+    if (eventModel === undefined) {
+        return undefined;
+    }
+    const schema = TlvOfModel(eventModel);
+    cache.events.set(eventId, schema);
+    return schema;
+}
 
 interface ResolvedAttributePath {
     nodeId?: NodeId;
@@ -76,41 +188,45 @@ function* emitAttributes(
     let group: AttributeDataGroup | undefined;
 
     for (const entry of attrs) {
-        if (entry.attributeData !== undefined) {
-            const data = entry.attributeData;
-            const resolved = resolvePath(data.path, lastPath);
-            if (
-                data.path.enableTagCompression &&
-                data.dataVersion === undefined &&
-                lastPath?.dataVersion !== undefined
-            ) {
-                data.dataVersion = lastPath.dataVersion;
+        try {
+            if (entry.attributeData !== undefined) {
+                const data = entry.attributeData;
+                const resolved = resolvePath(data.path, lastPath);
+                if (
+                    data.path.enableTagCompression &&
+                    data.dataVersion === undefined &&
+                    lastPath?.dataVersion !== undefined
+                ) {
+                    data.dataVersion = lastPath.dataVersion;
+                }
+                if (!data.path.enableTagCompression) {
+                    lastPath = { ...resolved, dataVersion: data.dataVersion };
+                }
+                if (group !== undefined && !samePath(group.path, resolved)) {
+                    yield* flushDataGroup(group);
+                    group = undefined;
+                }
+                if (group === undefined) {
+                    group = { path: resolved, dataVersion: data.dataVersion, entries: [data] };
+                } else {
+                    group.entries.push(data);
+                    if (group.dataVersion === undefined) group.dataVersion = data.dataVersion;
+                }
+            } else if (entry.attributeStatus !== undefined) {
+                const statusSrc = entry.attributeStatus;
+                const resolved = resolvePath(statusSrc.path, lastPath);
+                if (!statusSrc.path.enableTagCompression) {
+                    lastPath = { ...resolved, dataVersion: lastPath?.dataVersion };
+                }
+                if (group !== undefined) {
+                    yield* flushDataGroup(group);
+                    group = undefined;
+                }
+                yield buildAttrStatus(resolved, statusSrc);
             }
-            if (!data.path.enableTagCompression) {
-                lastPath = { ...resolved, dataVersion: data.dataVersion };
-            }
-            if (group !== undefined && !samePath(group.path, resolved)) {
-                yield* flushDataGroup(group);
-                group = undefined;
-            }
-            if (group === undefined) {
-                group = { path: resolved, dataVersion: data.dataVersion, entries: [data] };
-            } else {
-                group.entries.push(data);
-                if (group.dataVersion === undefined) group.dataVersion = data.dataVersion;
-            }
-        } else if (entry.attributeStatus !== undefined) {
-            const statusSrc = entry.attributeStatus;
-            const resolved = resolvePath(statusSrc.path, lastPath);
-            // Status entry has no dataVersion of its own; preserve whatever the previous data entry installed.
-            if (!statusSrc.path.enableTagCompression) {
-                lastPath = { ...resolved, dataVersion: lastPath?.dataVersion };
-            }
-            if (group !== undefined) {
-                yield* flushDataGroup(group);
-                group = undefined;
-            }
-            yield buildAttrStatus(resolved, statusSrc);
+        } catch (error) {
+            UnexpectedDataError.accept(error);
+            logger.warn("Skipping malformed attribute report entry:", Diagnostic.errorMessage(error));
         }
     }
 
@@ -180,25 +296,11 @@ function decodeAttributeGroup(
     const { nodeId, endpointId, clusterId, attributeId } = path;
 
     try {
-        const clusterModel = Matter.clusters(clusterId);
-        const attributeModel = clusterModel?.attributes(attributeId) ?? Matter.attributes(attributeId);
-
-        let value: unknown;
-        if (attributeModel === undefined) {
-            value = decodeUnknownAttributeValue(entries);
-        } else {
-            let schema;
-            try {
-                schema = TlvOfModel(attributeModel);
-            } catch {
-                // Attribute is known but has no schema (e.g. deprecated global attributes) — decode as unknown
-                schema = undefined;
-            }
-            value =
-                schema === undefined
-                    ? decodeUnknownAttributeValue(entries)
-                    : decodeAttributeValueWithSchema(schema, entries);
-        }
+        const schema = attributeSchemaOf(clusterId, attributeId);
+        const value =
+            schema === undefined
+                ? decodeUnknownAttributeValue(entries)
+                : decodeAttributeValueWithSchema(schema, entries, undefined, DATA_REPORT_DECODE_OPTIONS);
         return {
             kind: "attr-value",
             path: { nodeId, endpointId, clusterId, attributeId },
@@ -211,7 +313,8 @@ function decodeAttributeGroup(
         // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
-            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${error.message}`,
+            `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}:`,
+            Diagnostic.errorMessage(error),
         );
         return undefined;
     }
@@ -235,12 +338,17 @@ function* emitEvents(input: DataReport): Generator<ReadResult.EventValue | ReadR
     if (events === undefined || events.length === 0) return;
 
     for (const entry of events) {
-        if (entry.eventData !== undefined) {
-            const value = decodeEventValue(entry.eventData);
-            if (value !== undefined) yield value;
-        } else if (entry.eventStatus !== undefined) {
-            const status = buildEventStatus(entry.eventStatus);
-            if (status !== undefined) yield status;
+        try {
+            if (entry.eventData !== undefined) {
+                const value = decodeEventValue(entry.eventData);
+                if (value !== undefined) yield value;
+            } else if (entry.eventStatus !== undefined) {
+                const status = buildEventStatus(entry.eventStatus);
+                if (status !== undefined) yield status;
+            }
+        } catch (error) {
+            UnexpectedDataError.accept(error);
+            logger.warn("Skipping malformed event report entry:", Diagnostic.errorMessage(error));
         }
     }
 }
@@ -262,18 +370,19 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
     }
 
     try {
-        const clusterModel = Matter.clusters(clusterId);
-        const eventModel = clusterModel?.events(eventId);
-
-        let value: unknown;
-        if (eventModel === undefined) {
+        const schema = eventSchemaOf(clusterId, eventId);
+        if (schema === undefined) {
             logger.debug(
                 `Decode unknown event ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)} via the AnySchema.`,
             );
-            value = data === undefined ? undefined : decodeUnknownEventValue(data);
+        }
+        let value: unknown;
+        if (data === undefined) {
+            value = undefined;
+        } else if (schema === undefined) {
+            value = decodeUnknownEventValue(data);
         } else {
-            const schema = TlvOfModel(eventModel);
-            value = data === undefined ? undefined : schema.decodeTlv(data);
+            value = schema.decodeTlv(data, DATA_REPORT_DECODE_OPTIONS);
         }
 
         // `timestamp` is a lossy convenience: callers needing the specific wire variant read the explicit field below.
@@ -296,7 +405,8 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
         // Skip a malformed entry; unrelated errors re-throw.
         UnexpectedDataError.accept(error);
         logger.warn(
-            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}: ${error.message}`,
+            `Error decoding event ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)}:`,
+            Diagnostic.errorMessage(error),
         );
         return undefined;
     }

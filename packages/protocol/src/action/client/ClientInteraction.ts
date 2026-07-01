@@ -312,6 +312,7 @@ export class ClientInteraction<
             await messenger.sendReadRequest(Read({ fabricFilter: false }), {
                 abort,
                 suppressPeerLoss: options?.suppressPeerLoss,
+                maxRetransmissions: options?.maxRetransmissions,
             });
             for await (const _report of messenger.readDataReports({ abort }));
             logger.info(
@@ -438,99 +439,122 @@ export class ClientInteraction<
             abort,
         });
         if (!request.suppressResponse) {
-            if (result && result.invokeResponses?.length) {
-                const chunk: InvokeResult.Chunk = result.invokeResponses
-                    .map(response => {
-                        if (response.command !== undefined) {
-                            const {
-                                commandPath: { endpointId, clusterId, commandId },
-                                commandRef,
-                                commandFields,
-                            } = response.command;
-                            const cmd = request.commands.get(commandRef);
-                            if (!cmd) {
-                                throw new ImplementationError(
-                                    `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
-                                );
-                            }
-                            let responseSchema: TlvSchema<any>;
-                            if (Invoke.isLegacy(cmd)) {
-                                responseSchema = cmd.command.responseSchema ?? TlvVoid;
-                            } else {
-                                const command = Invoke.commandOf(cmd);
-                                const responseModel = command.schema.responseModel;
-                                responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
-                            }
-                            if (commandFields === undefined && responseSchema !== TlvVoid) {
-                                throw new ImplementationError(
-                                    `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
-                                );
-                            }
+            const chunk = new Array<InvokeResult.DecodedData>();
 
-                            const data =
-                                commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
+            for (const response of result?.invokeResponses ?? []) {
+                if (response.command !== undefined) {
+                    const {
+                        commandPath: { endpointId, clusterId, commandId },
+                        commandRef,
+                        commandFields,
+                    } = response.command;
+                    const cmd = request.commands.get(commandRef);
+                    if (!cmd) {
+                        logger.warn(
+                            `Discarding unexpected invoke response for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
+                        );
+                        continue;
+                    }
+                    let responseSchema: TlvSchema<any>;
+                    if (Invoke.isLegacy(cmd)) {
+                        responseSchema = cmd.command.responseSchema ?? TlvVoid;
+                    } else {
+                        const command = Invoke.commandOf(cmd);
+                        const responseModel = command.schema.responseModel;
+                        responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
+                    }
+                    if (commandFields === undefined && responseSchema !== TlvVoid) {
+                        logger.warn(
+                            `Discarding invoke response without mandated payload for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
+                        );
+                        continue;
+                    }
 
-                            logger.info(
-                                "Invoke",
-                                Mark.INBOUND,
-                                messenger.exchange.via,
-                                messenger.exchange.diagnostics,
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
-                            );
+                    const data = commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
-                            const res: InvokeResult.DecodedCommandResponse = {
-                                kind: "cmd-response",
-                                path: {
-                                    endpointId: endpointId!,
-                                    clusterId,
-                                    commandId,
-                                },
-                                commandRef,
-                                data,
-                            };
-                            return res;
-                        } else if (response.status !== undefined) {
-                            const {
-                                commandPath: { endpointId, clusterId, commandId },
-                                commandRef,
-                                status: { status, clusterStatus },
-                            } = response.status;
-                            const res: InvokeResult.CommandStatus = {
-                                kind: "cmd-status",
-                                path: {
-                                    endpointId: endpointId!,
-                                    clusterId: clusterId,
-                                    commandId: commandId,
-                                },
-                                commandRef,
-                                status,
-                                clusterStatus,
-                            };
+                    logger.info(
+                        "Invoke",
+                        Mark.INBOUND,
+                        messenger.exchange.via,
+                        messenger.exchange.diagnostics,
+                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                        isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
+                    );
 
-                            const cmd = request.commands.get(commandRef);
-                            if (cmd) {
-                                logger.info(
-                                    "Invoke",
-                                    Mark.INBOUND,
-                                    messenger.exchange.via,
-                                    messenger.exchange.diagnostics,
-                                    Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                    Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
-                                );
-                            }
+                    chunk.push({
+                        kind: "cmd-response",
+                        path: {
+                            endpointId: endpointId!,
+                            clusterId,
+                            commandId,
+                        },
+                        commandRef,
+                        data,
+                    });
+                } else if (response.status !== undefined) {
+                    const {
+                        commandPath: { endpointId, clusterId, commandId },
+                        commandRef,
+                        status: { status, clusterStatus },
+                    } = response.status;
+                    const cmd = request.commands.get(commandRef);
+                    if (cmd) {
+                        logger.info(
+                            "Invoke",
+                            Mark.INBOUND,
+                            messenger.exchange.via,
+                            messenger.exchange.diagnostics,
+                            Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                            Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
+                        );
+                    }
 
-                            return res;
-                        } else {
-                            // Should not happen but if we ignore the response?
-                            return undefined;
-                        }
-                    })
-                    .filter(r => r !== undefined);
-                yield chunk;
-            } else {
-                yield [];
+                    chunk.push({
+                        kind: "cmd-status",
+                        path: {
+                            endpointId: endpointId!,
+                            clusterId,
+                            commandId,
+                        },
+                        commandRef,
+                        status,
+                        clusterStatus,
+                    });
+                }
             }
+
+            const respondedRefs = new Set(chunk.map(entry => entry.commandRef));
+            for (const [commandRef] of request.commands) {
+                if (respondedRefs.has(commandRef)) {
+                    continue;
+                }
+                const invokeRequest = request.invokeRequests.find(ir => ir.commandRef === commandRef);
+                if (invokeRequest === undefined) {
+                    continue;
+                }
+                const { endpointId, clusterId, commandId } = invokeRequest.commandPath;
+                if (endpointId === undefined) {
+                    // A wildcard command has no concrete path to report a synthesized status against; the server
+                    // simply returns no response entry when nothing matches.
+                    continue;
+                }
+                logger.warn(
+                    `No invoke response received for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId}); reporting NoCommandResponse`,
+                );
+                chunk.push({
+                    kind: "cmd-status",
+                    path: {
+                        endpointId,
+                        clusterId,
+                        commandId,
+                    },
+                    commandRef,
+                    status: Status.NoCommandResponse,
+                    clusterStatus: undefined,
+                });
+            }
+
+            yield chunk;
             abort.throwIfAborted();
         }
     }
@@ -990,12 +1014,11 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
                 read,
-                // TCP has 1:1 session-connection binding plus OS keep-alive — the session is
-                // evicted when the connection drops, so no liveness probe is needed.
                 probe: abort =>
                     this.#exchangeProvider.channelType === ChannelType.TCP
-                        ? Promise.resolve(true)
-                        : this.probe({ abort }),
+                        ? // TCP evicts the session when its connection drops, so no liveness probe is needed.
+                          Promise.resolve(true)
+                        : this.#exchangeProvider.verifyReachability({ reason: "session-suspect", abort }),
             });
         } else {
             subscription = await subscribe(request);
@@ -1165,6 +1188,9 @@ export interface ClientProbeOptions {
 
     /** Suppress peer-loss reporting so the session stays alive even if the probe fails. */
     suppressPeerLoss?: boolean;
+
+    /** Cap MRP transmission attempts for this probe (default: MRP.MAX_TRANSMISSIONS). */
+    maxRetransmissions?: number;
 }
 
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {

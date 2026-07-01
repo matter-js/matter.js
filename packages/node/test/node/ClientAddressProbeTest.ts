@@ -52,7 +52,7 @@ describe("ClientAddressProbeTest", () => {
 
         // *** ADVANCE past minimum probe cooldown so session activity doesn't suppress the probe ***
 
-        await MockTime.advance(Minutes(3));
+        await MockTime.advance(Minutes(11));
 
         // *** SIMULATE ADDRESS CHANGE — replace discovered addresses with a different IP ***
 
@@ -107,7 +107,7 @@ describe("ClientAddressProbeTest", () => {
 
         // *** ADVANCE past minimum probe cooldown ***
 
-        await MockTime.advance(Minutes(3));
+        await MockTime.advance(Minutes(11));
 
         // *** SIMULATE ADDRESS CHANGE ***
 

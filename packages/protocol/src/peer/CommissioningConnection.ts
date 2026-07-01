@@ -27,13 +27,13 @@ import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("CommissioningConnection");
 
-// Delay between consecutive PASE attempt starts for addresses of the same device.  The CHIP SDK
+// Delay between consecutive PASE attempts starts for addresses of the same device.  The CHIP SDK
 // responder binds its singleton PASESession to the first incoming PBKDFParamRequest exchange; concurrent
 // requests on other exchanges are rejected and clear the in-progress PASE state.  Staggering avoids that
 // race when a single device exposes multiple addresses (e.g. IPv6 ULA + link-local + IPv4).  The first
 // attempt fires immediately; each subsequent attempt waits one additional slot, cancelable when a winner
 // is established.  Paired with the shorter cross-device stagger in ParallelPaseDiscovery.
-const PER_ADDRESS_STAGGER_DELAY = Seconds(5);
+const PER_ADDRESS_STAGGER_DELAY = Seconds(15);
 
 /**
  * Attempts PASE establishments in parallel across all provided device candidates, returning the first successful
@@ -248,7 +248,7 @@ export namespace CommissioningConnection {
         externalAbort?: AbortSignal;
 
         /**
-         * Delay between consecutive PASE attempt starts.  Defaults to the internal 5s production value.
+         * Delay between consecutive PASE attempt starts.  Defaults to the internal 15s production value.
          * Exposed primarily for tests that need to disable or shorten the stagger; production callers
          * should not override this.
          */

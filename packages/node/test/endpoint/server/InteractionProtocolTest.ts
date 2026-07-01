@@ -57,6 +57,7 @@ import {
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
@@ -67,6 +68,53 @@ const TlvBootReasonEvent = TlvOfModel(GeneralDiagnostics.events.bootReason);
 const TlvOpenBasicCommissioningWindowRequest = TlvOfModel(
     AdministratorCommissioning.commands.openBasicCommissioningWindow,
 );
+const TlvArmFailSafeRequest = TlvOfModel(GeneralCommissioning.commands.armFailSafe);
+
+// GeneralCommissioning.armFailSafe (cluster 0x30, command 0) returns an ArmFailSafeResponse CommandDataIB.
+const INVOKE_ARM_FAILSAFE_SUPPRESSED: InvokeRequest = {
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+    suppressResponse: true,
+    timedRequest: false,
+    invokeRequests: [
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x30), commandId: CommandId(0) },
+            commandFields: TlvArmFailSafeRequest.encodeTlv({ expiryLengthSeconds: 60, breadcrumb: 0 }),
+        },
+    ],
+};
+
+// OnOff.on (cluster 6, command 1) returns only a success CommandStatusIB.
+const INVOKE_ON_OFF_SUPPRESSED: InvokeRequest = {
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+    suppressResponse: true,
+    timedRequest: false,
+    invokeRequests: [
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(6), commandId: CommandId(1) },
+            commandFields: TlvNoArguments.encodeTlv(undefined),
+        },
+    ],
+};
+
+// A suppressed batch where a status-only command precedes a data-returning one: the held status must be flushed
+// together with the forcing CommandDataIB.
+const INVOKE_STATUS_THEN_DATA_SUPPRESSED: InvokeRequest = {
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+    suppressResponse: true,
+    timedRequest: false,
+    invokeRequests: [
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(6), commandId: CommandId(1) },
+            commandFields: TlvNoArguments.encodeTlv(undefined),
+            commandRef: 0,
+        },
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x30), commandId: CommandId(0) },
+            commandFields: TlvArmFailSafeRequest.encodeTlv({ expiryLengthSeconds: 60, breadcrumb: 0 }),
+            commandRef: 1,
+        },
+    ],
+};
 
 /**
  * Helper to decode pre-encoded InvokeResponseForSend back to InvokeResponse for test comparison.
@@ -1829,6 +1877,58 @@ describe("InteractionProtocol", () => {
             expect(triggeredOn).equals(true);
             expect(triggeredOff).equals(true);
             expect(onOffState).equals(false);
+        });
+
+        it("sends no response under SuppressResponse when only a status is generated", async () => {
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse, getChunks } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_ON_OFF_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            expect(getResponse()).equals(undefined);
+            expect(getChunks().length).equals(0);
+            expect(onOffState).equals(true);
+        });
+
+        it("sends the response under SuppressResponse when a CommandDataIB is generated", async () => {
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_ARM_FAILSAFE_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            const response = getResponse();
+            expect(response).not.equals(undefined);
+            const decoded = decodeInvokeResponse(response!);
+            expect(decoded.invokeResponses.length).equals(1);
+            expect(decoded.invokeResponses[0].command?.commandPath).deep.equals({
+                endpointId: EndpointNumber(0),
+                clusterId: ClusterId(0x30),
+                commandId: CommandId(1),
+            });
+        });
+
+        it("under SuppressResponse, flushes a held status alongside the forcing CommandDataIB", async () => {
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_STATUS_THEN_DATA_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            const decoded = decodeInvokeResponse(getResponse()!);
+            expect(decoded.invokeResponses.length).equals(2);
+            expect(decoded.invokeResponses[0].status?.commandRef).equals(0);
+            expect(decoded.invokeResponses[1].command?.commandRef).equals(1);
         });
 
         it("throws on multi invoke commands with one same commands", async () => {

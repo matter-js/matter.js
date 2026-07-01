@@ -6,6 +6,7 @@
 
 import type { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
@@ -74,8 +75,9 @@ const logger = Logger.get("ProtocolService");
  *
  * This service maintains an optimized {@link NodeProtocol} that maps to the state of a {@link Node}.
  *
- * The protocol view only contains endpoints and clusters with active backings.  {@link Behaviors} conveys backing
- * state via the public interface.
+ * The protocol view only contains endpoints and server clusters with active backings; client clusters are excluded
+ * as they are not part of the node's server-facing data model.  {@link Behaviors} conveys backing state via the
+ * public interface.
  */
 export class ProtocolService {
     readonly #state: NodeState;
@@ -90,6 +92,11 @@ export class ProtocolService {
     addCluster(backing: BehaviorBacking) {
         const { schema } = backing.type;
         if (schema?.tag !== ElementTag.Cluster || schema.id === undefined) {
+            return;
+        }
+
+        // Client clusters are not server-facing and must not be exposed to incoming interactions.
+        if (isClientBehavior(backing.type)) {
             return;
         }
 

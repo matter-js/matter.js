@@ -29,6 +29,7 @@ import {
     InteractionServerMessenger,
     InvokeRequest,
     InvokeResponseForSend,
+    InvokeResult,
     Mark,
     Message,
     MessageExchange,
@@ -981,12 +982,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return;
         }
 
-        // For suppressResponse: just consume the iterator without sending responses
-        if (suppressResponse) {
-            for await (const _chunk of results);
-            return;
-        }
-
         // Track accumulated responses for the current message
         const currentChunkResponses = new Array<InvokeResponseData>();
         const emptyInvokeResponse: InvokeResponseForSend = {
@@ -1034,7 +1029,20 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             messageSize += invokeResponseBytes;
         };
 
-        // Process all invoke results
+        const toInvokeResponseData = (data: InvokeResult.Data): InvokeResponseData => {
+            if (data.kind === "cmd-response") {
+                const { path: commandPath, commandRef, data: commandFields } = data;
+                return { command: { commandPath, commandFields, commandRef } };
+            }
+            const { path: commandPath, commandRef, status, clusterStatus } = data;
+            return { status: { commandPath, status: { status, clusterStatus }, commandRef } };
+        };
+
+        // Per spec §8.8.3.2.1 a SuppressResponse invoke still sends a response if a CommandDataIB is generated. Until
+        // one is seen we hold generated statuses back; the first CommandDataIB flushes the held statuses and the rest
+        // stream normally. Non-suppressed responses stream from the start.
+        let suppressedBuffer: InvokeResponseData[] | undefined = suppressResponse ? [] : undefined;
+
         for await (const chunk of results) {
             if (chunkedTransmissionTerminated) {
                 // Client terminated the chunked series, continue consuming but don't send
@@ -1042,28 +1050,28 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }
 
             for (const data of chunk) {
-                switch (data.kind) {
-                    case "cmd-response": {
-                        const { path: commandPath, commandRef, data: commandFields } = data;
-                        await sendChunkIfNeeded({
-                            command: {
-                                commandPath,
-                                commandFields,
-                                commandRef,
-                            },
-                        });
-                        break;
-                    }
+                const responseData = toInvokeResponseData(data);
 
-                    case "cmd-status": {
-                        const { path, commandRef, status, clusterStatus } = data;
-                        await sendChunkIfNeeded({
-                            status: { commandPath: path, status: { status, clusterStatus }, commandRef },
-                        });
-                        break;
+                if (suppressedBuffer !== undefined) {
+                    if (data.kind !== "cmd-response") {
+                        suppressedBuffer.push(responseData);
+                        continue;
                     }
+                    // First CommandDataIB: commit to sending. Flush the held statuses, then stream the rest.
+                    for (const held of suppressedBuffer) {
+                        await sendChunkIfNeeded(held);
+                    }
+                    suppressedBuffer = undefined;
                 }
+
+                await sendChunkIfNeeded(responseData);
             }
+        }
+
+        // SuppressResponse and no CommandDataIB was generated — send nothing.
+        if (suppressedBuffer !== undefined) {
+            logger.debug("Invoke (suppressed)", Mark.OUTBOUND, exchange.via, Diagnostic.weak("no response sent"));
+            return;
         }
 
         // Send the final response if not already terminated

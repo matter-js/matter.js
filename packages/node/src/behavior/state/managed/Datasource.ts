@@ -193,6 +193,12 @@ export namespace Datasource {
         consumer?: ExternallyMutableStore.Consumer;
 
         /**
+         * Current values, preferring the live consumer over {@link Store.initialValues}.  Reflects up-to-date
+         * data while a consumer is attached, where {@link Store.initialValues} may be absent.
+         */
+        currentValues?: Val.Struct;
+
+        /**
          * The current version of the data.
          */
         version: number;
@@ -212,6 +218,11 @@ export namespace Datasource {
              * Read current values for the specified keys.
              */
             readValues(keys: Set<string>): Val.Struct;
+
+            /**
+             * Read a non-destructive copy of all current values.
+             */
+            snapshot(): Val.Struct;
 
             /**
              * Release all values from the datasource, transferring ownership back to the store.
@@ -340,6 +351,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.persistentFields = options.supervisor.persistentKeys(options.primaryKey);
 
         this.#configureExternalChanges();
+
+        // Seed consumed into #values; release the store's copy (client stores already drop theirs on consumer attach).
+        if (this.store) {
+            this.store.initialValues = undefined;
+        }
     }
 
     // -- Datasource interface --
@@ -555,6 +571,10 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
             }
         }
         return result;
+    }
+
+    snapshot() {
+        return { ...this.#values };
     }
 
     releaseValues() {

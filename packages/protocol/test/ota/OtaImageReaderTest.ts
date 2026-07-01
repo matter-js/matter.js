@@ -4,9 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OtaImageReader } from "#ota/OtaImageReader.js";
+import { TlvOtaImageHeader } from "#ota/OtaImageHeader.js";
+import { OtaImageError, OtaImageReader } from "#ota/OtaImageReader.js";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
-import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId, StandardCrypto } from "@matter/general";
+import {
+    Bytes,
+    DataWriter,
+    Endian,
+    HASH_ALGORITHM_OUTPUT_LENGTHS,
+    HashAlgorithmId,
+    StandardCrypto,
+} from "@matter/general";
 
 describe("OtaImageReader", () => {
     const crypto = new StandardCrypto();
@@ -92,7 +100,7 @@ describe("OtaImageReader", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-512"]);
+            expect(header.imageDigestType).to.equal(HashAlgorithmId["SHA-512"]);
             expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-512"]);
         });
     });
@@ -143,7 +151,7 @@ describe("OtaImageReader", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.file(reader, crypto, result.image.byteLength);
 
-            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-384"]);
+            expect(header.imageDigestType).to.equal(HashAlgorithmId["SHA-384"]);
         });
 
         it("computes full file checksum when enabled", async () => {
@@ -284,6 +292,39 @@ describe("OtaImageReader", () => {
             ).to.be.rejectedWith(/digest/);
         });
 
+        it("rejects an unsupported image digest type with an OtaImageError", async () => {
+            const payload = new Uint8Array([0x01, 0x02, 0x03]);
+            const header = Bytes.of(
+                TlvOtaImageHeader.encode({
+                    vendorId: 0xfff1,
+                    productId: 0x8000,
+                    softwareVersion: 1,
+                    softwareVersionString: "v1.0.0",
+                    payloadSize: BigInt(payload.length),
+                    imageDigestType: 99, // not in the IANA NI registry subset matter.js supports
+                    imageDigest: new Uint8Array(32),
+                }),
+            );
+            const writer = new DataWriter(Endian.Little);
+            writer.writeUInt32(0x1beef11e);
+            writer.writeUInt64(BigInt(16 + header.length + payload.length));
+            writer.writeUInt32(header.length);
+            writer.writeByteArray(header);
+            writer.writeByteArray(payload);
+            const image = writer.toByteArray();
+
+            const stream = new ReadableStream<Bytes>({
+                start(controller) {
+                    controller.enqueue(image);
+                    controller.close();
+                },
+            });
+
+            await expect(
+                OtaImageReader.file(stream.getReader(), crypto, undefined, { calculateFullChecksum: false }),
+            ).to.be.rejectedWith(OtaImageError, /Unsupported OTA image digest type/);
+        });
+
         it("handles different hash algorithms for payload validation", async () => {
             const payload = new Uint8Array([0x12, 0x34, 0x56]);
 
@@ -306,7 +347,7 @@ describe("OtaImageReader", () => {
 
             // Should validate successfully with SHA-384
             const header = await OtaImageReader.file(stream.getReader(), crypto, result.image.byteLength);
-            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-384"]);
+            expect(header.imageDigestType).to.equal(HashAlgorithmId["SHA-384"]);
         });
     });
 

@@ -18,6 +18,7 @@ import {
     TlvAttributeReport,
     TlvBoolean,
     TlvEventData,
+    TlvInt32,
     TlvOfModel,
     TlvUInt32,
     TlvVoid,
@@ -392,6 +393,77 @@ describe("InputChunk", () => {
             expect(chunks).has.length(1);
             expect(leftover).has.length(0);
         });
+
+        it("skips a tag-compressed leading entry with no prior path and still yields the next", async () => {
+            const report = buildReport({
+                attributeReports: [
+                    {
+                        attributeData: {
+                            path: {
+                                enableTagCompression: true,
+                                attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+                            },
+                            dataVersion: 1,
+                            data: TlvUInt32.encodeTlv(7),
+                        },
+                    },
+                    {
+                        attributeData: {
+                            path: {
+                                endpointId: EndpointNumber(0),
+                                clusterId: ClusterId(BasicInformation.id),
+                                attributeId: AttributeId(BasicInformation.attributes.vendorId.id),
+                            },
+                            dataVersion: 1,
+                            data: TlvUInt32.encodeTlv(0xfff1),
+                        },
+                    },
+                ],
+            });
+
+            const chunks = await collect(report);
+
+            expect(chunks).has.length(1);
+            expect(chunks[0].kind).equal("attr-value");
+            if (chunks[0].kind !== "attr-value") return;
+            expect(chunks[0].path.attributeId).equal(AttributeId(BasicInformation.attributes.vendorId.id));
+            expect(chunks[0].value).equal(0xfff1);
+        });
+
+        it("skips an entry with an incomplete uncompressed path and still yields the next", async () => {
+            const report = buildReport({
+                attributeReports: [
+                    {
+                        attributeData: {
+                            path: {
+                                endpointId: EndpointNumber(0),
+                                attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+                            },
+                            dataVersion: 1,
+                            data: TlvUInt32.encodeTlv(7),
+                        },
+                    },
+                    {
+                        attributeData: {
+                            path: {
+                                endpointId: EndpointNumber(0),
+                                clusterId: ClusterId(BasicInformation.id),
+                                attributeId: AttributeId(BasicInformation.attributes.vendorId.id),
+                            },
+                            dataVersion: 1,
+                            data: TlvUInt32.encodeTlv(0xfff1),
+                        },
+                    },
+                ],
+            });
+
+            const chunks = await collect(report);
+
+            expect(chunks).has.length(1);
+            expect(chunks[0].kind).equal("attr-value");
+            if (chunks[0].kind !== "attr-value") return;
+            expect(chunks[0].path.attributeId).equal(AttributeId(BasicInformation.attributes.vendorId.id));
+        });
     });
 
     describe("events", () => {
@@ -501,6 +573,40 @@ describe("InputChunk", () => {
             expect(only.status).equal(Status.Failure);
             expect(only.clusterStatus).equal(clusterStatus);
         });
+
+        it("skips an event entry with an invalid path and still yields the next", async () => {
+            const clusterId = ClusterId(BasicInformation.id);
+            const startUp = EventId(BasicInformation.events.startUp.id);
+            const report = buildReport({
+                eventReports: [
+                    {
+                        eventData: {
+                            path: { endpointId: EndpointNumber(0), eventId: startUp },
+                            eventNumber: EventNumber(1),
+                            priority: 1,
+                            epochTimestamp: 0,
+                            data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                        },
+                    },
+                    {
+                        eventData: {
+                            path: { endpointId: EndpointNumber(0), clusterId, eventId: startUp },
+                            eventNumber: EventNumber(2),
+                            priority: 1,
+                            epochTimestamp: 0,
+                            data: TlvStartUpEvent.encodeTlv({ softwareVersion: 2 }),
+                        },
+                    },
+                ],
+            });
+
+            const chunks = await collect(report);
+
+            expect(chunks).has.length(1);
+            expect(chunks[0].kind).equal("event-value");
+            if (chunks[0].kind !== "event-value") return;
+            expect(chunks[0].number).equal(EventNumber(2));
+        });
     });
 
     describe("ordering across attributes and events", () => {
@@ -533,6 +639,32 @@ describe("InputChunk", () => {
 
             const chunks = await collect(report);
             expect(chunks.map(c => c.kind)).deep.equal(["attr-value", "event-value"]);
+        });
+    });
+
+    describe("relaxed integer type checks", () => {
+        // dataModelRevision is an unsigned attribute; encode its value as a signed integer to mimic a non-compliant
+        // device. Data report decode tolerates the mismatch so the entry is not dropped.
+        it("decodes a signed-encoded value for an unsigned attribute", async () => {
+            const report = buildReport({
+                attributeReports: [
+                    {
+                        attributeData: {
+                            path: {
+                                endpointId: EndpointNumber(0),
+                                clusterId: ClusterId(BasicInformation.id),
+                                attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+                            },
+                            dataVersion: 1,
+                            data: TlvInt32.encodeTlv(17),
+                        },
+                    },
+                ],
+            });
+
+            const chunks = await collect(report);
+            expect(chunks.length).equal(1);
+            expect((chunks[0] as ReadResult.AttributeValue).value).equal(17);
         });
     });
 });

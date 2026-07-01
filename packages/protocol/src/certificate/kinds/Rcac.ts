@@ -14,6 +14,7 @@ import { OperationalBase } from "./OperationalBase.js";
 export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Rcac {
+        Rcac.assertTlvSize(tlv);
         return new Rcac(OperationalCertificate.TlvRcac.decode(tlv));
     }
 

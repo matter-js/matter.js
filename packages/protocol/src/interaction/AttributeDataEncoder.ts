@@ -91,6 +91,12 @@ export function encodeAttributePayload(
     options?: TlvEncodingOptions,
 ): TlvStream {
     const { attributeData, attributeStatus } = attributePayload;
+    // Spec 1.6 §8.9.2.9: an AttributeReportIB carries exactly one of {AttributeStatus, AttributeData}.
+    if ((attributeData === undefined) === (attributeStatus === undefined)) {
+        throw new MatterFlowError(
+            `Cannot encode an AttributeReport without exactly one of attributeData and attributeStatus: ${Diagnostic.json(attributePayload)}`,
+        );
+    }
     if (attributeData === undefined) {
         return TlvAttributeReport.encodeTlv({ attributeStatus });
     }
@@ -104,6 +110,12 @@ export function encodeAttributePayload(
 /** Encodes an EventReportPayload into a TlvStream (used for TlvAny type). */
 export function encodeEventPayload(eventPayload: EventReportPayload, options?: TlvEncodingOptions): TlvStream {
     const { eventData, eventStatus } = eventPayload;
+    // Spec 1.6 §8.9.3.5: an EventReportIB carries exactly one of {EventStatus, EventData}.
+    if ((eventData === undefined) === (eventStatus === undefined)) {
+        throw new MatterFlowError(
+            `Cannot encode an EventReport without exactly one of eventData and eventStatus: ${Diagnostic.json(eventPayload)}`,
+        );
+    }
     if (eventData === undefined) {
         return TlvEventReport.encodeTlv({ eventStatus });
     }
@@ -119,9 +131,12 @@ export function encodeEventPayload(eventPayload: EventReportPayload, options?: T
         systemTimestamp,
         priority,
     } = eventData;
+    // Spec 1.6 §8.9.3.4: IsUrgent is a subscribe-request path field; it SHALL NOT appear in an EventDataIB path.
+    const eventPath = { ...path };
+    delete eventPath.isUrgent;
     return TlvEventReport.encodeTlv({
         eventData: {
-            path,
+            path: eventPath,
             data: tlv.encodeTlv(payload, options),
             priority,
             systemTimestamp,

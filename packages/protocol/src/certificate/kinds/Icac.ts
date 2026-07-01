@@ -18,6 +18,7 @@ import { Rcac } from "./Rcac.js";
 export class Icac extends OperationalBase<OperationalCertificate.Icac> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Icac {
+        Icac.assertTlvSize(tlv);
         return new Icac(OperationalCertificate.TlvIcac.decode(tlv));
     }
 

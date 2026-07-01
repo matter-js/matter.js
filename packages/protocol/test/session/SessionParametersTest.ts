@@ -5,8 +5,15 @@
  */
 
 import { MIN_TCP_SPEC_VERSION, SessionParameters } from "#session/SessionParameters.js";
+import { Hours } from "@matter/general";
 
 describe("SessionParameters", () => {
+    it("accepts idle/active intervals above one hour", () => {
+        const params = SessionParameters({ idleInterval: Hours(2), activeInterval: Hours(2) });
+        expect(params.idleInterval).equal(Hours(2));
+        expect(params.activeInterval).equal(Hours(2));
+    });
+
     describe("TCP spec-version gate", () => {
         it("keeps TCP support for peers reporting spec version >= 1.5.0", () => {
             const params = SessionParameters({
