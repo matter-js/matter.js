@@ -31,6 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
+    - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
 
 - @matter/protocol
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
@@ -123,9 +124,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added `isValidPasscode()`/`assertValidPasscode()` for onboarding passcode validation
     - Fix: Ensure that passcodes are valid when encoding or decoding pairing codes
     - Fix: Ensures that the most-significant bit of a nullable bitmap is reserved for NULL as defined in the Matter specification
-
-- @matter/node
-    - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
 
 - @project-chip/matter.js
     - Fix: Ensure that `PairedNode.connect()` reconnects a node that was previously disconnected
