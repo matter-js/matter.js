@@ -287,7 +287,7 @@ function formatBlock(block: Block, width: number) {
 
 function visibleWidthOf(text: string) {
     let length = 0;
-    for (let i = 0; i < text.length; ) {
+    for (let i = 0; i < text.length;) {
         switch (text[i]) {
             case `\u001b`:
                 // Escape

@@ -234,8 +234,7 @@ export namespace Read {
      * Selects attributes or events to read.
      */
     export type Selector<C extends Specifier.Cluster = Specifier.Cluster> =
-        | ({ kind: "attribute" } & AttributeSelector<C>)
-        | ({ kind: "event" } & EventSelector<C>);
+        ({ kind: "attribute" } & AttributeSelector<C>) | ({ kind: "event" } & EventSelector<C>);
 
     /**
      * Selects attributes to read.  Limits fields to legal permutations per the Matter specification.

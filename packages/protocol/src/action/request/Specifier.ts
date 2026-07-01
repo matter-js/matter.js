@@ -36,23 +36,19 @@ export namespace Specifier {
      * conveys additional metadata.
      */
     export type Endpoint =
-        | EndpointNumber
-        | { number: EndpointNumber; versions?: Record<string, number>; minEvent?: number };
+        EndpointNumber | { number: EndpointNumber; versions?: Record<string, number>; minEvent?: number };
 
     /**
      * An attribute specifier may be the name of a cluster attribute or the name of a cluster or global attribute.
      */
     export type Attribute<C extends ClusterLike = ClusterLike> =
-        | ClusterType.Attribute
-        | (string & keyof NonNullable<C["attributes"]>)
-        | GlobalAttributeName;
+        ClusterType.Attribute | (string & keyof NonNullable<C["attributes"]>) | GlobalAttributeName;
 
     /**
      * A command specifier may be the name of a cluster command or a command object.
      */
     export type Command<C extends ClusterLike = ClusterLike> =
-        | ClusterType.Command
-        | (string & keyof NonNullable<C["commands"]>);
+        ClusterType.Command | (string & keyof NonNullable<C["commands"]>);
 
     /**
      * @deprecated
@@ -69,8 +65,7 @@ export namespace Specifier {
      * An event specifier may be the name of a cluster event or an event object.
      */
     export type Event<C extends ClusterLike = ClusterLike> =
-        | ClusterType.Event
-        | (string & keyof NonNullable<C["events"]>);
+        ClusterType.Event | (string & keyof NonNullable<C["events"]>);
 
     export type GlobalAttributeName = keyof typeof Global.attributes;
 
