@@ -11,14 +11,19 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-- @matter/general
-    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, cutting CPU on busy networks
-
 - @matter/node
     - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
+
+## 0.17.4 (2026-07-01)
+
+- @matter/general
+    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, reducing CPU usage on busy networks
+
+- @matter/node
+    - Enhancement: Optimizes incoming DataReport processing
     - Enhancement: Frees a behavior's persisted seed values from memory once the datasource has loaded them
     - Adjustment: Rejects an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
-    - Adjustment: A client write to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
+    - Adjustment: A client write interaction to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
     - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensures that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
@@ -30,16 +35,17 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures that client clusters are never exposed to incoming interactions
     - Fix: The generated manual pairing code now reflects the configured commissioning flow, including Vendor ID and Product ID for non-Standard flows
     - Fix: Ensures that a rejected SetRegulatoryConfig leaves BasicInformation.location unchanged, instead of writing the country code before validating the regulatory config
+    - Fix: Diagnostics now log endpoint number 0 instead of "(unassigned)"
 
 - @matter/nodejs
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
 
 - @matter/protocol
+    - Enhancement: Caches attribute/event schema resolution while decoding incoming data reports to reduce decode time
     - Enhancement: Incoming read/subscription data reports now tolerate signed/unsigned integer encoding mismatches within defined bounds. Such cases are still non-compliant and are logged
-    - Enhancement: The mDNS responder and scanners declare the service types and hostnames they care about so the socket can pre-filter irrelevant traffic before decoding
     - Enhancement: Unified peer device-probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
-    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
+    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD like in CHIP SDK
     - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
