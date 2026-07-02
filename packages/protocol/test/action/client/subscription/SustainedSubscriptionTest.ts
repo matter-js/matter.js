@@ -11,7 +11,7 @@ import { SustainedSubscription } from "#action/client/subscription/SustainedSubs
 import { Subscribe } from "#action/request/Subscribe.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { Entropy, Lifetime, RetrySchedule, Seconds } from "@matter/general";
+import { Entropy, Lifetime, Millis, RetrySchedule, Seconds } from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
 
 function fakePeerSub(onClose?: () => void): PeerSubscription {
@@ -274,7 +274,30 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
-        it("stays active while parked after a subscription loss until availability lapses", async () => {
+        it("keeps active true when a subscribed LIT peer's availability window expires", async () => {
+            const wakefulness = litWakefulness();
+
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => fakePeerSub(),
+            });
+
+            wakefulness.noteSignal();
+            await flush();
+            expect(subscription.active.value).equal(true);
+
+            // Advance past idleModeDuration (30s) + AVAILABILITY_MARGIN (5s) so `available` lapses.
+            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + Seconds(5)));
+            await flush();
+            expect(wakefulness.available.value).equal(false);
+
+            expect(subscription.active.value).equal(true);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("goes inactive immediately on a subscription loss, regardless of the availability window", async () => {
             const wakefulness = litWakefulness();
 
             let lastRequest: SustainedClientSubscribe | undefined;
@@ -290,21 +313,20 @@ describe("SustainedSubscription", () => {
             await flush();
             expect(subscription.active.value).equal(true);
 
+            // Past the activeModeThreshold (5s) so the peer is no longer awake and the loop parks on loss instead of
+            // immediately resubscribing, but still well within the longer availability window (30s + 5s margin).
+            await MockTime.advance(Seconds(10));
             lastRequest?.closed?.();
             await flush();
 
-            // Within the availability window the peer is still expected -> remain active even though parked.
-            await MockTime.advance(Seconds(20));
-            await flush();
-            expect(subscription.active.value).equal(true);
-            expect(subscription.inactive.value).equal(false);
-
-            // Availability window (idle 30s + 5s margin) lapses -> inactive.
-            await MockTime.advance(Seconds(20));
-            await flush();
-            expect(wakefulness.available.value).equal(false);
+            expect(wakefulness.available.value).equal(true);
             expect(subscription.active.value).equal(false);
             expect(subscription.inactive.value).equal(true);
+
+            // A fresh check-in wakes the peer and drives the resubscribe, restoring active.
+            wakefulness.noteSignal();
+            await flush();
+            expect(subscription.active.value).equal(true);
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
@@ -525,6 +547,77 @@ describe("SustainedSubscription", () => {
             wakefulness.noteSignal();
             await flush();
             expect(subscribeCount).equal(2);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("does not emit an active dip across an instant mode-flip recreate", async () => {
+            const wakefulness = litWakefulness();
+
+            let subscribeCount = 0;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => {
+                    subscribeCount++;
+                    return fakePeerSub();
+                },
+            });
+
+            wakefulness.noteSignal(); // wake -> first subscribe
+            await flush();
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(true);
+
+            const emissions = new Array<boolean>();
+            subscription.active.on(value => {
+                emissions.push(value);
+            });
+
+            // Instant LIT->SIT recreate (peer force-awake): the deliberate close must not surface as an active dip.
+            wakefulness.requiresAwait = false;
+            await flush();
+
+            expect(subscribeCount).equal(2);
+            expect(subscription.active.value).equal(true);
+            expect(emissions.includes(false)).equal(false);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("drops to not-live when a mode-flip recreate parks for a peer that never wakes", async () => {
+            const wakefulness = new IcdPeerWakefulness();
+            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            // requiresAwait defaults to false -> starts as a SIT peer (always awake).
+
+            let subscribeCount = 0;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => {
+                    subscribeCount++;
+                    return fakePeerSub();
+                },
+            });
+
+            await flush();
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(true);
+
+            // SIT->LIT flip: the recreate parks until the next Check-In. A peer that never wakes must not stay "live".
+            wakefulness.requiresAwait = true;
+            await flush();
+            await MockTime.advance(Seconds(120));
+            await flush();
+
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(false);
+
+            // Recovery: a fresh Check-In wakes the peer and restores live.
+            wakefulness.noteSignal();
+            await flush();
+            expect(subscribeCount).equal(2);
+            expect(subscription.active.value).equal(true);
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });

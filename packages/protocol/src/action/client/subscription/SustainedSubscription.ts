@@ -59,7 +59,6 @@ export class SustainedSubscription extends ClientSubscription {
     #read: (request: Read, abort: AbortSignal, logContext?: ExchangeLogContext) => ReadResult;
     #probe: (abort: AbortSignal) => Promise<boolean>;
     #wakefulness?: () => IcdPeerWakefulness | undefined;
-    #availability?: { wakefulness: IcdPeerWakefulness; observer: Observer<[boolean]> };
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
@@ -126,25 +125,28 @@ export class SustainedSubscription extends ClientSubscription {
                     };
                 });
 
-                // For an await-mode LIT peer reachability follows the availability window, not the subscription: a
-                // parked peer awaiting its next Check-In is still reachable.  Reconcile each iteration so a peer
-                // registered after construction, or flipped SIT⇄LIT, attaches/detaches the observer live.
+                // Reconcile each iteration so a peer registered after construction, or flipped SIT⇄LIT, is honored
+                // live.
                 const wakefulnessBefore = this.#wakefulness?.();
                 if (wakefulnessBefore?.requiresAwait) {
-                    this.#observeAvailability(wakefulnessBefore);
-
+                    // Gate on active: on the initial park (active already false) this await must be skipped, else the
+                    // added microtask would let a synchronous wake signal race ahead of the observer registration below.
                     if (awaitFreshSignal) {
+                        if (this.#active.value) {
+                            await this.#reportNotLive();
+                        }
                         await this.#nextWake(wakefulnessBefore);
                         awaitFreshSignal = false;
                     } else if (!wakefulnessBefore.awake.value) {
+                        if (this.#active.value) {
+                            await this.#reportNotLive();
+                        }
                         await this.#awaitAwake(wakefulnessBefore);
                     }
                     if (this.abort.aborted) {
                         break;
                     }
                 } else {
-                    this.#unobserveAvailability();
-
                     if (!sessionTrusted) {
                         if (!(await this.#probe(this.abort))) {
                             if (!this.abort.aborted) {
@@ -201,6 +203,11 @@ export class SustainedSubscription extends ClientSubscription {
                             return;
                         }
 
+                        // A mode-flip recreate whose subscribe failed is about to park/retry with no subscription held.
+                        if (this.#active.value) {
+                            await this.#reportNotLive();
+                        }
+
                         // An await-mode LIT peer has no timed retry: park for the next fresh Check-In instead.
                         if (this.#wakefulness?.()?.requiresAwait) {
                             if (!causedBy(e, AbortedError)) {
@@ -235,12 +242,9 @@ export class SustainedSubscription extends ClientSubscription {
                     continue;
                 }
 
-                // Notify listeners of an active subscription. In await mode the availability observer governs
-                // reachability, so emitting here would be redundant (and could contradict a parked-but-offline window).
-                if (this.#availability === undefined) {
-                    await this.#inactive.emit(false);
-                    await this.#active.emit(true);
-                }
+                // Subscription established: report live.
+                await this.#inactive.emit(false);
+                await this.#active.emit(true);
                 if (this.abort.aborted) {
                     break;
                 }
@@ -249,11 +253,10 @@ export class SustainedSubscription extends ClientSubscription {
                 // new mode; a SIT→LIT peer then parks for its next Check-In at the loop head before re-subscribing.
                 const modeFlipped = await this.#awaitClosedOrModeFlip(closed);
 
-                // On loss, an await-mode LIT peer's reachability is governed by the availability observer (a peer
-                // still within its window stays active), so we do not emit here; everything else becomes inactive.
-                if (this.#availability === undefined) {
-                    await this.#active.emit(false);
-                    await this.#inactive.emit(true);
+                if (!modeFlipped) {
+                    // Genuine loss: report not-live so consumers re-establish.  A deliberate mode-flip recreate keeps
+                    // active until it either re-establishes (no-op, no churn) or has to park/retry (reported there).
+                    await this.#reportNotLive();
                 }
 
                 // If aborted, then we're done
@@ -280,8 +283,6 @@ export class SustainedSubscription extends ClientSubscription {
                 logger.info(`Replacing subscription to ${this.peer} after loss`);
             }
         } finally {
-            this.#unobserveAvailability();
-
             const subscription = this.#subscription;
             this.#subscription = undefined;
             if (subscription !== undefined) {
@@ -291,34 +292,10 @@ export class SustainedSubscription extends ClientSubscription {
         }
     }
 
-    /**
-     * Drive reachability ({@link active}/{@link inactive}) from an await-mode LIT peer's availability window via a
-     * persistent observer, so a peer that silently drops its subscription but is still within its Check-In window
-     * stays reachable, and a missed Check-In flips it inactive even while we hold a stale subscription.  Idempotent
-     * for the same wakefulness; re-targets if the live provider yields a different instance.
-     */
-    #observeAvailability(wakefulness: IcdPeerWakefulness) {
-        if (this.#availability?.wakefulness === wakefulness) {
-            return;
-        }
-        this.#unobserveAvailability();
-
-        const observer: Observer<[boolean]> = available => {
-            this.#active.emit(available);
-            this.#inactive.emit(!available);
-        };
-        this.#availability = { wakefulness, observer };
-        this.#active.value = wakefulness.available.value;
-        this.#inactive.value = !wakefulness.available.value;
-        wakefulness.available.on(observer);
-    }
-
-    #unobserveAvailability() {
-        if (this.#availability === undefined) {
-            return;
-        }
-        this.#availability.wakefulness.available.off(this.#availability.observer);
-        this.#availability = undefined;
+    /** Report that we no longer hold an established subscription.  Callers gate this on {@link active} being set. */
+    async #reportNotLive() {
+        await this.#active.emit(false);
+        await this.#inactive.emit(true);
     }
 
     /**
