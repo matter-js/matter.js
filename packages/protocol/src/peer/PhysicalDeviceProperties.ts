@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Instant, Logger, Millis, Minutes, Seconds } from "@matter/general";
+import { Duration, Instant, Logger, Millis, Minutes, Seconds, UINT16_MAX } from "@matter/general";
 
 const logger = Logger.get("PhysicalDeviceProperties");
 
@@ -16,6 +16,7 @@ const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY = Minutes(3);
 const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
 const SUBSCRIPTION_CEILING_JITTER = 0.1; // up to +10% jitter on the Subscription ceiling time
 const SUBSCRIPTION_CEILING_JITTER_MIN = Seconds(10); // ... but at least +10s so smaller ceilings spread meaningfully
+const MAX_SUBSCRIPTION_CEILING = Seconds(UINT16_MAX); // uint16-seconds wire maximum for subscription maxInterval
 
 export interface PhysicalDeviceProperties {
     supportsThread: boolean;
@@ -28,6 +29,9 @@ export interface PhysicalDeviceProperties {
 
     /** Peer is operating in Long Idle Time mode — controller must await a notification (Check-In or subscription report) before sending. */
     isLongIdleTimeOperating: boolean;
+
+    /** For an intermittently-connected peer, the peer's IcdManagement.idleModeDuration (converted to Duration). */
+    idleModeDuration?: Duration;
 
     isThreadSleepyEndDevice: boolean;
     threadActive?: boolean;
@@ -54,8 +58,14 @@ export namespace PhysicalDeviceProperties {
             description = "Node";
         }
 
-        const { isMainsPowered, isBatteryPowered, isIntermittentlyConnected, supportsThread, isThreadSleepyEndDevice } =
-            properties ?? {};
+        const {
+            isMainsPowered,
+            isBatteryPowered,
+            isIntermittentlyConnected,
+            supportsThread,
+            isThreadSleepyEndDevice,
+            idleModeDuration,
+        } = properties ?? {};
 
         if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
             if (minIntervalFloor !== undefined) {
@@ -69,18 +79,20 @@ export namespace PhysicalDeviceProperties {
             minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT;
         }
 
-        const defaultCeiling =
-            isBatteryPowered && !isMainsPowered
-                ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
-                : isThreadSleepyEndDevice
-                  ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
-                  : supportsThread
-                    ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
-                    : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
+        const isIcdCeiling = isIntermittentlyConnected && idleModeDuration !== undefined;
+        const defaultCeiling = isIcdCeiling
+            ? Duration.min(idleModeDuration, MAX_SUBSCRIPTION_CEILING)
+            : isBatteryPowered && !isMainsPowered
+              ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
+              : isThreadSleepyEndDevice
+                ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
+                : supportsThread
+                  ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
+                  : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
         if (maxIntervalCeiling === undefined) {
             maxIntervalCeiling = defaultCeiling;
         }
-        if (maxIntervalCeiling < defaultCeiling) {
+        if (!isIcdCeiling && maxIntervalCeiling < defaultCeiling) {
             logger.debug(
                 `${description}: maxIntervalCeilingSeconds ideally is ${Duration.format(defaultCeiling)} instead of ${Duration.format(maxIntervalCeiling)} due to device type`,
             );
@@ -93,6 +105,7 @@ export namespace PhysicalDeviceProperties {
         const maxJitter = Math.max(maxIntervalCeiling * SUBSCRIPTION_CEILING_JITTER, SUBSCRIPTION_CEILING_JITTER_MIN);
         const jitter = Math.round(maxJitter * Math.random());
         maxIntervalCeiling = Duration.max(minIntervalFloor, Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter))));
+        maxIntervalCeiling = Duration.min(maxIntervalCeiling, MAX_SUBSCRIPTION_CEILING);
 
         return {
             minIntervalFloor,

@@ -13,6 +13,7 @@ import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagno
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { Node } from "#node/Node.js";
+import { Seconds } from "@matter/general";
 import { PhysicalDeviceProperties } from "@matter/protocol";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { PowerSource } from "@matter/types/clusters/power-source";
@@ -26,6 +27,7 @@ export function NodePhysicalProperties(node: Node) {
 
     const supportsLit = litSupported(node);
     const operatingMode = node.maybeStateOf(IcdManagementClient)?.operatingMode;
+    const idleModeDuration = node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
 
     const properties: PhysicalDeviceProperties = {
         supportsThread: false,
@@ -36,6 +38,7 @@ export function NodePhysicalProperties(node: Node) {
         isBatteryPowered: false,
         isIntermittentlyConnected: rootEndpointServerList.includes(IcdManagement.id),
         isLongIdleTimeOperating: supportsLit && operatingMode === IcdManagement.OperatingMode.Lit,
+        idleModeDuration: idleModeDuration === undefined ? undefined : Seconds(idleModeDuration),
         isThreadSleepyEndDevice: false,
     };
 

@@ -42,9 +42,11 @@ describe("NodePhysicalProperties", () => {
     });
 
     it("overrides ICD floor", async () => {
-        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(IcdManagementServer));
+        const IcdServer = IcdManagementServer.set({ idleModeDuration: 60, maximumCheckInBackoff: 60 });
+        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(IcdServer));
         const props = NodePhysicalProperties(node);
         expect(props.isIntermittentlyConnected).true;
+        expect(props.idleModeDuration).to.equal(Seconds(60));
         expectParams(
             node,
             {
