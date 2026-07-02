@@ -18,10 +18,17 @@ const BASE_PROPERTIES: PhysicalDeviceProperties = {
     isMainsPowered: true,
     isBatteryPowered: false,
     isIntermittentlyConnected: false,
+    isLongIdleTimeOperating: false,
     isThreadSleepyEndDevice: false,
 };
 
 describe("PhysicalDeviceProperties", () => {
+    describe("isLongIdleTimeOperating", () => {
+        it("defaults to false in BASE_PROPERTIES", () => {
+            expect(BASE_PROPERTIES.isLongIdleTimeOperating).to.equal(false);
+        });
+    });
+
     describe("subscriptionIntervalBoundsFor", () => {
         describe("minIntervalFloor", () => {
             it("defaults to 1 second when called with no arguments", () => {
@@ -104,7 +111,7 @@ describe("PhysicalDeviceProperties", () => {
                 expectJittered(maxIntervalCeiling, 60);
             });
 
-            it("uses 3 minutes for a Thread sleepy end device", () => {
+            it("uses 3  for a Thread sleepy end device", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, supportsThread: true, isThreadSleepyEndDevice: true },
                 });
@@ -139,6 +146,14 @@ describe("PhysicalDeviceProperties", () => {
             it("applies jitter regardless of network type", () => {
                 const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, supportsThread: true, threadActive: true },
+                });
+
+                expectJittered(maxIntervalCeiling, 60);
+            });
+
+            it("applies jitter when Thread is not active", () => {
+                const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                    properties: { ...BASE_PROPERTIES, supportsThread: true, threadActive: false },
                 });
 
                 expectJittered(maxIntervalCeiling, 60);

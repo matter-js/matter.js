@@ -1019,6 +1019,7 @@ export class ClientInteraction<
                         ? // TCP evicts the session when its connection drops, so no liveness probe is needed.
                           Promise.resolve(true)
                         : this.#exchangeProvider.verifyReachability({ reason: "session-suspect", abort }),
+                wakefulness: request.icdWakefulness,
             });
         } else {
             subscription = await subscribe(request);

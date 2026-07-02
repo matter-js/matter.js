@@ -255,6 +255,7 @@ export namespace ProtocolMocks {
                         context?.localSessionParameters ?? SessionParameters.defaults,
                     ),
                     localAdditionalMrpDelay: context?.localAdditionalMrpDelay ?? Millis(0),
+                    localFixedMrpBackoff: context?.localFixedMrpBackoff ?? Millis(0),
                     async peerLost() {},
                     retry() {},
                 },

@@ -13,9 +13,11 @@ import { ContinuousDiscovery } from "#behavior/system/controller/discovery/Conti
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
@@ -86,6 +88,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+        this.clusterInstalled(IcdManagementClient).on(this.#installIcdClient.bind(this));
         this.clusterInstalled(BridgedDeviceBasicInformationClient).on(
             this.#instrumentBridgedConfigurationVersion.bind(this),
         );
@@ -493,6 +496,14 @@ export class Peers extends EndpointContainer<ClientNode> {
         endpoint
             .eventsOf(type)
             .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
+    }
+
+    #installIcdClient(node: Endpoint) {
+        if (!(node instanceof ClientNode) || node.behaviors.has(IcdClient)) {
+            return;
+        }
+
+        node.behaviors.inject(IcdClient);
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {

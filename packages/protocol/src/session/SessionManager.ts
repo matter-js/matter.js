@@ -194,6 +194,12 @@ export class SessionManager {
      * configured "own" network profile; defaults to 0 (treated as a low-latency local network).
      */
     localAdditionalMrpDelay: Duration = Millis(0);
+
+    /**
+     * Fixed sender-side MRP backoff pad added after the exponential backoff (so it is not amplified).
+     * Used to mirror an ICD server's fast-polling-interval grace; defaults to 0.
+     */
+    localFixedMrpBackoff: Duration = Millis(0);
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);

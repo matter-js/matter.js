@@ -498,6 +498,7 @@ export class ExchangeManager implements Transport.Provider {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
             localAdditionalMrpDelay: this.#sessions.localAdditionalMrpDelay,
+            localFixedMrpBackoff: this.#sessions.localFixedMrpBackoff,
 
             peerLost: async (exchange: MessageExchange, cause: Error) => {
                 if (!(session instanceof NodeSession)) {

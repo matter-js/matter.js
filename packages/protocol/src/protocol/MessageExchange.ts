@@ -141,6 +141,9 @@ export interface MessageExchangeContext {
     /** Additive MRP retransmission margin for our own (sender-side) network. */
     localAdditionalMrpDelay: Duration;
 
+    /** Fixed sender-side MRP backoff pad (e.g. an ICD's fast-polling interval), not amplified by backoff. */
+    localFixedMrpBackoff: Duration;
+
     peerLost(exchange: MessageExchange, cause: Error): Promise<void>;
 
     /** @deprecated */
@@ -1044,6 +1047,7 @@ export class MessageExchange {
             undefined,
             false,
             additionalDelay,
+            this.#context.localFixedMrpBackoff,
         );
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {
             backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);

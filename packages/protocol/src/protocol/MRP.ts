@@ -99,8 +99,16 @@ export namespace MRP {
         /**
          * Additive margin applied to the base interval on real (non-maximum) sends.  Supplied by the
          * caller from the combined peer/own network-profile policy; 0 means the bare spec interval.
+         * Because it joins the base interval, it is amplified by the exponential backoff factor.
          */
         additionalDelay?: Duration;
+
+        /**
+         * Fixed sender-side pad added to the final backoff on real (non-maximum) sends, after margin,
+         * exponent and jitter — so it is *not* amplified.  Used for an ICD sender's fast-polling interval
+         * grace (CHIP {@link ReliableMessageMgr::GetBackoff}); 0 means no pad.
+         */
+        fixedBackoff?: Duration;
     }
 
     /**
@@ -118,12 +126,19 @@ export namespace MRP {
      * side of the exchange.
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
-     * Otherwise, the caller-supplied `additionalDelay` (default 0) is added to the base interval.
+     * On real sends `additionalDelay` (default 0) joins the base interval (so it is amplified) and
+     * `fixedBackoff` (default 0) is added to the final backoff (so it is not).
      *
      * @see {@link MatterSpecification.v16.Core}, section 4.12.2.1
      */
     export function retransmissionIntervalOf(
-        { transmissionNumber, sessionParameters, isPeerActive, additionalDelay = Millis(0) }: RetryDelayInputs,
+        {
+            transmissionNumber,
+            sessionParameters,
+            isPeerActive,
+            additionalDelay = Millis(0),
+            fixedBackoff = Millis(0),
+        }: RetryDelayInputs,
         calculateMaximum = false,
     ) {
         const { activeInterval, idleInterval } = sessionParameters;
@@ -135,14 +150,17 @@ export namespace MRP {
         if (!calculateMaximum) {
             baseInterval += additionalDelay;
         }
-        return Millis.floor(
-            Millis(
-                baseInterval *
-                    MRP.BACKOFF_MARGIN *
-                    Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
-                    (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER),
-            ),
-        );
+        let backoff =
+            baseInterval *
+            MRP.BACKOFF_MARGIN *
+            Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
+            (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER);
+        if (!calculateMaximum) {
+            // Added after the exponential backoff so the pad is not amplified — mirrors CHIP
+            // ReliableMessageMgr::GetBackoff adding the ICD fast-polling interval to mrpBackoffTime.
+            backoff += fixedBackoff;
+        }
+        return Millis.floor(Millis(backoff));
     }
 }
 

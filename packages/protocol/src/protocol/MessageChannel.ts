@@ -225,6 +225,7 @@ export class MessageChannel implements Channel<Message> {
         sessionParameters?: SessionParameters,
         calculateMaximum = false,
         additionalDelay?: Duration,
+        fixedBackoff?: Duration,
     ) {
         return MRP.retransmissionIntervalOf(
             {
@@ -232,6 +233,7 @@ export class MessageChannel implements Channel<Message> {
                 sessionParameters: sessionParameters ?? this.session.parameters,
                 isPeerActive: this.session.isPeerActive,
                 additionalDelay,
+                fixedBackoff,
             },
             calculateMaximum,
         );

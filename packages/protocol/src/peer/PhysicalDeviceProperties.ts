@@ -25,6 +25,10 @@ export interface PhysicalDeviceProperties {
     isMainsPowered: boolean;
     isBatteryPowered: boolean;
     isIntermittentlyConnected: boolean;
+
+    /** Peer is operating in Long Idle Time mode — controller must await a notification (Check-In or subscription report) before sending. */
+    isLongIdleTimeOperating: boolean;
+
     isThreadSleepyEndDevice: boolean;
     threadActive?: boolean;
     threadPan?: bigint;
