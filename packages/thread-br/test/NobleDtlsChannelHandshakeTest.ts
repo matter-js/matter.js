@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Environment, MockNetwork, Network, NetworkSimulator, type UdpSocket } from "@matter/general";
+import {
+    Bytes,
+    Environment,
+    ImplementationError,
+    MockNetwork,
+    Network,
+    NetworkSimulator,
+    type UdpSocket,
+} from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { NobleDtlsChannel } from "../src/dtls/channel/NobleDtlsChannel.js";
 import { EcJpakePms } from "../src/dtls/ecjpake/EcJpakePms.js";
@@ -656,6 +664,45 @@ describe("NobleDtlsChannel — UDP-bound EC-JPAKE handshake", () => {
             const inbound = await socket[Symbol.asyncIterator]().next();
             expect(inbound.done).to.equal(false);
             expect(Bytes.toHex(Bytes.of(inbound.value))).to.equal(Bytes.toHex(reply));
+        } finally {
+            await socket.close();
+            await server.close();
+        }
+    });
+
+    it("closes the channel when a for-await consumer breaks early", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
+        const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
+
+        const socket = new NobleDtlsChannel({
+            address: SERVER_IP,
+            port: server.port,
+            password: DEFAULT_PASSWORD,
+            type: "udp4",
+            random: makeFixedRandom(0xa4),
+            ephemeralScalar: makeScalarStream(0xdeadn),
+            connectTimeoutMs: 5000,
+            environment: mockEnvironment(simulator, "00:11:22:33:44:01", CLIENT_IP),
+        });
+        try {
+            await socket.connect();
+
+            let closed = false;
+            socket.onClose(() => {
+                closed = true;
+            });
+
+            const reply = Bytes.of(Bytes.fromHex("776f726c64"));
+            await server.sendAppData(reply);
+
+            for await (const msg of socket) {
+                expect(Bytes.toHex(Bytes.of(msg))).to.equal(Bytes.toHex(reply));
+                break;
+            }
+
+            expect(closed).to.equal(true);
+            await expect(socket.send(reply)).to.be.rejectedWith(ImplementationError);
         } finally {
             await socket.close();
             await server.close();

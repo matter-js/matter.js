@@ -34,7 +34,10 @@ function encodeCode(code: string): number {
     }
     const cls = Number(match[1]);
     const detail = Number(match[2]);
-    return ((cls & 0x7) << 5) | (detail & 0x1f);
+    if (cls > 7 || detail > 31) {
+        throw new CoapError(`CoAP code "${code}" out of range (class 0-7, detail 0-31)`);
+    }
+    return (cls << 5) | detail;
 }
 
 function decodeCode(byte: number): string {
@@ -55,11 +58,20 @@ function encodeExtension(value: number): { nibble: number; extension: number[] }
     return { nibble: 14, extension: [(extended >> 8) & 0xff, extended & 0xff] };
 }
 
+/** Avoids spread, which hits the JS engine's call-argument limit for a large payload. */
+function pushAll(out: number[], bytes: Iterable<number>): void {
+    for (const b of bytes) {
+        out.push(b);
+    }
+}
+
 function encodeOption(out: number[], delta: number, value: Uint8Array): void {
     const d = encodeExtension(delta);
     const l = encodeExtension(value.length);
     out.push((d.nibble << 4) | l.nibble);
-    out.push(...d.extension, ...l.extension, ...value);
+    pushAll(out, d.extension);
+    pushAll(out, l.extension);
+    pushAll(out, value);
 }
 
 export namespace CoapMessage {
@@ -73,7 +85,7 @@ export namespace CoapMessage {
         out.push((VERSION << 6) | (TYPE_TO_BITS[msg.type] << 4) | tokenLength);
         out.push(encodeCode(msg.code));
         out.push((msg.messageId >> 8) & 0xff, msg.messageId & 0xff);
-        out.push(...msg.token);
+        pushAll(out, msg.token);
 
         if (msg.uriPath !== undefined) {
             let lastOptionNumber = 0;
@@ -84,7 +96,8 @@ export namespace CoapMessage {
         }
 
         if (msg.payload.length > 0) {
-            out.push(PAYLOAD_MARKER, ...msg.payload);
+            out.push(PAYLOAD_MARKER);
+            pushAll(out, msg.payload);
         }
 
         return Uint8Array.from(out);

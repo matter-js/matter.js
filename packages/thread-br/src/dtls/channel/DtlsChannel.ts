@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Bytes, MatterError, type Transport } from "@matter/general";
+import { type Bytes, type ConnectedChannel, MatterError, type Transport } from "@matter/general";
 
 /** DTLS peer/wire/protocol failure (handshake give-up, malformed record, peer alert, ...). */
 export class DtlsError extends MatterError {}

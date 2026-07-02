@@ -102,6 +102,74 @@ describe("CoapMessage", () => {
             // CON, code 0.02, msgId 0, empty token, then 0xFF with nothing after.
             expect(() => CoapMessage.decode(new Uint8Array([0x40, 0x02, 0x00, 0x00, 0xff]))).to.throw(CoapError);
         });
+
+        it("rejects an out-of-range code class", () => {
+            expect(() =>
+                CoapMessage.encode({
+                    type: "CON",
+                    code: "8.00",
+                    messageId: 0,
+                    token: new Uint8Array(),
+                    payload: new Uint8Array(),
+                }),
+            ).to.throw(CoapError);
+        });
+
+        it("rejects an out-of-range code detail", () => {
+            expect(() =>
+                CoapMessage.encode({
+                    type: "CON",
+                    code: "0.99",
+                    messageId: 0,
+                    token: new Uint8Array(),
+                    payload: new Uint8Array(),
+                }),
+            ).to.throw(CoapError);
+        });
+
+        it("rejects a 1-byte option-delta extension truncated before the extension byte", () => {
+            // CON, code 0.02, msgId 0, empty token, then an option header with delta nibble 13
+            // (needs one more byte) and nothing following.
+            expect(() => CoapMessage.decode(new Uint8Array([0x40, 0x02, 0x00, 0x00, 0xd0]))).to.throw(CoapError);
+        });
+
+        it("rejects a 2-byte option-delta extension truncated after only one extension byte", () => {
+            // Option header with delta nibble 14 (needs two more bytes) but only one follows.
+            expect(() => CoapMessage.decode(new Uint8Array([0x40, 0x02, 0x00, 0x00, 0xe0, 0x01]))).to.throw(CoapError);
+        });
+    });
+
+    describe("decoding options with delta extensions", () => {
+        it("decodes an option numbered beyond 13 (needing a delta extension) after Uri-Path, keeping the path and trailing payload intact", () => {
+            // Options must appear in increasing option-number order, so Uri-Path (11) comes
+            // first, then a higher-numbered option whose delta from 11 is itself >= 13 and so
+            // needs a 1-byte delta extension (nibble 13).
+            const out = new Array<number>();
+            out.push(0x40, 0x02, 0x00, 0x00); // CON, 0.02, msgId 0, no token
+            out.push(0xb2, 0x63, 0x6f); // Uri-Path "co": delta=11 (nibble 11), len=2
+            // Next option: target number 30, delta = 30 - 11 = 19 >= 13 -> nibble 13, ext = 19-13 = 6.
+            out.push(0xd2, 0x06, 0xaa, 0xbb); // header(delta-nibble=13,len-nibble=2), ext byte, 2-byte value
+            out.push(0xff, 0x01, 0x02); // payload marker + payload
+
+            const decoded = CoapMessage.decode(Uint8Array.from(out));
+            expect(decoded.uriPath).to.deep.equal(["co"]);
+            expect(decoded.payload).to.deep.equal(new Uint8Array([0x01, 0x02]));
+        });
+
+        it("round-trips a Uri-Path segment longer than 268 bytes (2-byte extended length)", () => {
+            const segment = "x".repeat(300);
+            const msg: CoapMessage = {
+                type: "CON",
+                code: "0.02",
+                messageId: 0x0099,
+                token: new Uint8Array([0x01]),
+                uriPath: [segment],
+                payload: new Uint8Array(),
+            };
+            const encoded = CoapMessage.encode(msg);
+            const decoded = CoapMessage.decode(encoded);
+            expect(decoded.uriPath).to.deep.equal([segment]);
+        });
     });
 
     describe("round-trip", () => {

@@ -247,6 +247,10 @@ export class NobleDtlsChannel implements DtlsChannel {
                     this.#inboundWaiter = { resolve, reject };
                 });
             },
+            return: async (): Promise<IteratorResult<Bytes>> => {
+                await this.close();
+                return { value: undefined, done: true };
+            },
         };
     }
 
