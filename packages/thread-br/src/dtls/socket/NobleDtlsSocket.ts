@@ -122,6 +122,10 @@ export class NobleDtlsSocket implements DtlsSocket {
 
         const network = (this.#opts.environment ?? Environment.default).get(Network);
         const udp = await network.createUdpSocket({ type: this.#udpType, listeningPort: 0 });
+        if (this.#closed) {
+            await udp.close();
+            throw new Error("NobleDtlsSocket.connect: closed");
+        }
         this.#udp = udp;
         udp.onData((_netInterface, _peerAddress, _peerPort, data) => this.#onDatagram(Bytes.of(data)));
 

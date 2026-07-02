@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MatterError } from "@matter/general";
+
 export type OtbrRestErrorCode = "rest_unreachable" | "rest_protocol" | "rest_disabled";
 
 export interface OtbrRestErrorOptions {
@@ -11,7 +13,7 @@ export interface OtbrRestErrorOptions {
     httpStatus?: number;
 }
 
-export class OtbrRestError extends Error {
+export class OtbrRestError extends MatterError {
     readonly code: OtbrRestErrorCode;
     override readonly cause?: Error;
     readonly httpStatus?: number;

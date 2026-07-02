@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MatterError } from "@matter/general";
 import { AesCcm8 } from "./AesCcm8.js";
 import { ContentType, isContentType } from "./ContentType.js";
 
@@ -49,7 +50,7 @@ export interface DtlsRecordCipherState {
  * by the read-side anti-replay window. Distinguishable from AEAD failures so the caller
  * can log/drop without treating the record as a fatal error.
  */
-export class DtlsReplayError extends Error {
+export class DtlsReplayError extends MatterError {
     readonly epoch: number;
     readonly sequenceNumber: bigint;
 
