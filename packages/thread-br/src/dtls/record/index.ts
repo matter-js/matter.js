@@ -6,7 +6,7 @@
 
 /**
  * DTLS 1.2 record layer for `TLS_ECJPAKE_WITH_AES_128_CCM_8`. Internal to `dtls/`;
- * not re-exported from the package public API surface until the {@link DtlsSocket}
+ * not re-exported from the package public API surface until the {@link DtlsChannel}
  * interface ships in sub-batch 5.
  */
 

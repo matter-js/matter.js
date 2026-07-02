@@ -56,8 +56,8 @@ export type {
 
 export { Pskc } from "./crypto/index.js";
 
-export { createDtlsBackend } from "./dtls/socket/index.js";
-export type { DtlsBackend, DtlsConnectOpts, DtlsSocket } from "./dtls/socket/index.js";
+export { DtlsError, connectDtls } from "./dtls/channel/index.js";
+export type { DtlsChannel, DtlsConnectOpts } from "./dtls/channel/index.js";
 
 export { Commissioner, CommissionerRejectedError, CommissionerTimeoutError } from "./commissioner/index.js";
 export type { CommissionerOpts } from "./commissioner/index.js";

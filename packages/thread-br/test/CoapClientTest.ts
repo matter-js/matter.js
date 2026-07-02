@@ -4,44 +4,65 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes, type Transport } from "@matter/general";
 import { CoapClient, CoapTimeoutError } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
-import type { DtlsSocket } from "../src/dtls/socket/DtlsSocket.js";
+import type { DtlsChannel } from "../src/dtls/channel/DtlsChannel.js";
 
-class MockSocket implements DtlsSocket {
+class MockChannel implements DtlsChannel {
     readonly sent = new Array<Uint8Array>();
-    readonly #recvQueue = new Array<Uint8Array>();
-    readonly #recvWaiters = new Array<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void }>();
+    readonly #queue = new Array<Bytes>();
+    #waiter: { resolve: (result: IteratorResult<Bytes>) => void } | undefined;
     #closed = false;
+    readonly #closeListeners = new Set<() => void>();
 
-    async send(bytes: Uint8Array): Promise<void> {
-        this.sent.push(new Uint8Array(bytes));
+    async send(bytes: Bytes): Promise<void> {
+        this.sent.push(Uint8Array.from(Bytes.of(bytes)));
     }
 
-    async recv(): Promise<Uint8Array> {
-        if (this.#recvQueue.length > 0) {
-            return this.#recvQueue.shift()!;
-        }
-        return new Promise<Uint8Array>((resolve, reject) => {
-            this.#recvWaiters.push({ resolve, reject });
-        });
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: (): Promise<IteratorResult<Bytes>> => {
+                if (this.#queue.length > 0) {
+                    return Promise.resolve({ value: this.#queue.shift()!, done: false });
+                }
+                if (this.#closed) {
+                    return Promise.resolve({ value: undefined, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#waiter = { resolve };
+                });
+            },
+        };
+    }
+
+    onClose(listener: () => void): Transport.Listener {
+        this.#closeListeners.add(listener);
+        return {
+            close: async () => {
+                this.#closeListeners.delete(listener);
+            },
+        };
     }
 
     async close(): Promise<void> {
         if (this.#closed) return;
         this.#closed = true;
-        const err = new Error("MockSocket: closed");
-        for (const w of this.#recvWaiters) {
-            w.reject(err);
+        const waiter = this.#waiter;
+        this.#waiter = undefined;
+        waiter?.resolve({ value: undefined, done: true });
+        for (const listener of this.#closeListeners) {
+            listener();
         }
-        this.#recvWaiters.length = 0;
     }
 
     deliver(bytes: Uint8Array): void {
-        if (this.#recvWaiters.length > 0) {
-            this.#recvWaiters.shift()!.resolve(bytes);
+        const waiter = this.#waiter;
+        if (waiter !== undefined) {
+            this.#waiter = undefined;
+            waiter.resolve({ value: bytes, done: false });
         } else {
-            this.#recvQueue.push(bytes);
+            this.#queue.push(bytes);
         }
     }
 
@@ -64,7 +85,7 @@ describe("CoapClient", () => {
     before(MockTime.enable);
 
     it("sends a CON request and resolves when ACK arrives", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
 
         const responsePayload = new Uint8Array([0x10, 0x01, 0x01, 0x0b, 0x02, 0x00, 0x07]);
@@ -88,17 +109,17 @@ describe("CoapClient", () => {
     });
 
     it("retransmits when ACK is delayed — resolves on second attempt", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
 
         const client = new CoapClient(socket, { ackTimeoutMs: 20 });
 
         let sendCount = 0;
         const origSend = socket.send.bind(socket);
-        socket.send = async (bytes: Uint8Array): Promise<void> => {
+        socket.send = async (bytes: Bytes): Promise<void> => {
             await origSend(bytes);
             sendCount++;
             if (sendCount >= 2) {
-                const msg = CoapMessage.decode(bytes);
+                const msg = CoapMessage.decode(Bytes.of(bytes));
                 socket.deliverMessage(makeAck(msg));
             }
         };
@@ -121,7 +142,7 @@ describe("CoapClient", () => {
     });
 
     it("throws CoapTimeoutError when MAX_RETRANSMIT is exhausted", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket, { ackTimeoutMs: 5 });
 
         const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
@@ -145,7 +166,7 @@ describe("CoapClient", () => {
     });
 
     it("sends a NON request and returns immediately without waiting for ACK", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         const response = await client.request({ type: "NON", code: "0.01", uriPath: ["c", "cp"] });
@@ -169,7 +190,7 @@ describe("CoapClient", () => {
     });
 
     it("listen handler is called when inbound message matches uriPath", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         const received = new Array<CoapMessage>();
@@ -196,7 +217,7 @@ describe("CoapClient", () => {
     });
 
     it("listen handler is NOT called when uriPath differs", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         let called = false;
@@ -222,7 +243,7 @@ describe("CoapClient", () => {
     });
 
     it("multiple listeners on the same path are all called", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         let countA = 0;
@@ -253,7 +274,7 @@ describe("CoapClient", () => {
     });
 
     it("unsubscribe stops further listener calls", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         let count = 0;
@@ -283,7 +304,7 @@ describe("CoapClient", () => {
     });
 
     it("listener that throws does not break the recv loop", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         let secondCount = 0;
@@ -315,7 +336,7 @@ describe("CoapClient", () => {
     });
 
     it("resolves with separate CON response after empty ACK (RFC 7252 §5.2.2)", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
 
         const reqPromise = client.request({
@@ -365,7 +386,7 @@ describe("CoapClient", () => {
     });
 
     it("resolves with NON separate response after empty ACK without sending ACK back", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
 
         const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
@@ -403,7 +424,7 @@ describe("CoapClient", () => {
     });
 
     it("times out if separate response never arrives", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket, { ackTimeoutMs: 5_000, separateResponseTimeoutMs: 30 });
 
         const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
@@ -435,7 +456,7 @@ describe("CoapClient", () => {
     });
 
     it("auto-ACKs inbound CON dispatched to listeners", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         const received = new Array<CoapMessage>();
@@ -467,7 +488,7 @@ describe("CoapClient", () => {
     });
 
     it("close() clears all listeners", async () => {
-        const socket = new MockSocket();
+        const socket = new MockChannel();
         const client = new CoapClient(socket);
 
         let count = 0;
@@ -477,7 +498,7 @@ describe("CoapClient", () => {
 
         await client.close();
 
-        const socket2 = new MockSocket();
+        const socket2 = new MockChannel();
         const client2 = new CoapClient(socket2);
         client2.listen(["d", "da"], () => {
             count++;

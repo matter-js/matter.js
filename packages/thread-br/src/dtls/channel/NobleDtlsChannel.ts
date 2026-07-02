@@ -6,35 +6,40 @@
 
 import {
     Bytes,
-    Environment,
+    Crypto,
+    type Entropy,
     ImplementationError,
     InternalError,
-    MatterError,
     Millis,
     Network,
     Time,
     TimeoutError,
     type Timer,
+    type Transport,
     type UdpSocket,
 } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
-import { randomBytes } from "node:crypto";
 import { DtlsClient, type DtlsClientConfig } from "../handshake/DtlsClient.js";
 import { ContentType } from "../record/ContentType.js";
 import { type DtlsCipherState } from "../record/DtlsCipherState.js";
 import { DTLS_HEADER_LEN, DtlsRecord } from "../record/DtlsRecord.js";
+import { type DtlsChannel, DtlsError } from "./DtlsChannel.js";
 import type { DtlsConnectOpts } from "./DtlsConnectOpts.js";
 import { DtlsRetransmitTimer } from "./DtlsRetransmitTimer.js";
-import type { DtlsSocket } from "./DtlsSocket.js";
-
-/** DTLS peer/wire/protocol failure (handshake give-up, malformed record, peer alert, ...). */
-export class NobleDtlsError extends MatterError {}
 
 const DEFAULT_INITIAL_RETRANSMIT_MS = 1000;
 const DEFAULT_MAX_RETRANSMIT_MS = 60_000;
 const DEFAULT_MAX_RETRANSMITS = 5;
 const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_MTU = 1280;
+
+/**
+ * Cap on inbound plaintexts buffered while no consumer is iterating. DTLS app
+ * data over UDP is unreliable, so overflowing this bound closes the channel
+ * rather than growing without limit — the CoAP consumer processes one record per
+ * loop iteration, so a healthy session never approaches it.
+ */
+const MAX_INBOUND_QUEUE = 64;
 
 const N = p256.Point.Fn.ORDER;
 
@@ -48,8 +53,8 @@ function inferUdpType(address: string, hint?: "udp4" | "udp6"): "udp4" | "udp6" 
     return address.includes(":") ? "udp6" : "udp4";
 }
 
-function defaultRandom(): Uint8Array {
-    return Uint8Array.from(randomBytes(32));
+function defaultRandom(entropy: Entropy): Uint8Array {
+    return Bytes.of(entropy.randomBytes(32));
 }
 
 function concatBuffers(parts: Uint8Array[]): Uint8Array {
@@ -63,11 +68,11 @@ function concatBuffers(parts: Uint8Array[]): Uint8Array {
     return out;
 }
 
-function defaultEphemeralScalar(): bigint {
+function defaultEphemeralScalar(entropy: Entropy): bigint {
     // Sample 32 bytes and reduce mod (n-1), then add 1 to land in [1, n-1].
     // 256 bits with mod-(n-1) bias is < 2^-128 — acceptable for transient ephemerals.
     let v = 0n;
-    const buf = randomBytes(32);
+    const buf = Bytes.of(entropy.randomBytes(32));
     for (const byte of buf) {
         v = (v << 8n) | BigInt(byte);
     }
@@ -77,15 +82,15 @@ function defaultEphemeralScalar(): bigint {
 /**
  * UDP-bound DTLS 1.2 + EC-JPAKE client. Drives a {@link DtlsClient} state machine
  * over a matter.js {@link UdpSocket}, applies RFC 6347 §4.2.4 retransmit on the
- * handshake flights, then exposes a plaintext `send`/`recv` surface for
+ * handshake flights, then exposes a plaintext {@link DtlsChannel} surface for
  * application data (CoAP in Phase 4).
  *
  * Lifecycle: caller constructs with {@link DtlsConnectOpts}, awaits
  * {@link connect()} (which throws on handshake failure / timeout / give-up),
- * then uses {@link send} and {@link recv} until {@link close}. `close()` is
- * idempotent and will best-effort send a close_notify alert.
+ * then uses {@link send} and inbound async iteration until {@link close}.
+ * `close()` is idempotent and will best-effort send a close_notify alert.
  */
-export class NobleDtlsSocket implements DtlsSocket {
+export class NobleDtlsChannel implements DtlsChannel {
     readonly #opts: DtlsConnectOpts;
     readonly #udpType: "udp4" | "udp6";
 
@@ -97,18 +102,23 @@ export class NobleDtlsSocket implements DtlsSocket {
     #cipherState: DtlsCipherState | undefined;
     #connected = false;
     #closed = false;
-    #lastError: Error | undefined;
+    #failure: Error | undefined;
+    #failureDelivered = false;
 
     /** Connect-deadline timer handle. */
     #connectDeadline: Timer | undefined;
 
-    /** Decrypted application-data plaintexts waiting for a recv() caller. */
-    readonly #recvQueue = new Array<Uint8Array>();
-    /** Pending recv() callers waiting for a plaintext to arrive. FIFO. */
-    readonly #recvWaiters = new Array<{
-        resolve: (value: Uint8Array) => void;
-        reject: (reason: Error) => void;
-    }>();
+    /** Decrypted application-data plaintexts buffered until a consumer takes them. Bounded by {@link MAX_INBOUND_QUEUE}. */
+    readonly #inboundQueue = new Array<Bytes>();
+    /** A single pending consumer waiting on the async iterator. */
+    #inboundWaiter:
+        | {
+              resolve: (result: IteratorResult<Bytes>) => void;
+              reject: (reason: Error) => void;
+          }
+        | undefined;
+
+    readonly #closeListeners = new Set<() => void>();
 
     /** Resolves once the DtlsClient reports `established`. */
     #onConnect:
@@ -129,25 +139,27 @@ export class NobleDtlsSocket implements DtlsSocket {
      */
     async connect(): Promise<void> {
         if (this.#connected) {
-            throw new ImplementationError("NobleDtlsSocket.connect: already connected");
+            throw new ImplementationError("NobleDtlsChannel.connect: already connected");
         }
         if (this.#closed) {
-            throw new ImplementationError("NobleDtlsSocket.connect: closed");
+            throw new ImplementationError("NobleDtlsChannel.connect: closed");
         }
 
-        const network = (this.#opts.environment ?? Environment.default).get(Network);
+        const environment = this.#opts.environment;
+        const network = environment.get(Network);
+        const entropy = environment.get(Crypto);
         const udp = await network.createUdpSocket({ type: this.#udpType, listeningPort: 0 });
         if (this.#closed) {
             await udp.close();
-            throw new ImplementationError("NobleDtlsSocket.connect: closed");
+            throw new ImplementationError("NobleDtlsChannel.connect: closed");
         }
         this.#udp = udp;
         udp.onData((_netInterface, _peerAddress, _peerPort, data) => this.#onDatagram(Bytes.of(data)));
 
         const clientCfg: DtlsClientConfig = {
             password: this.#opts.password,
-            random: this.#opts.random ?? defaultRandom,
-            ephemeralScalar: this.#opts.ephemeralScalar ?? defaultEphemeralScalar,
+            random: this.#opts.random ?? (() => defaultRandom(entropy)),
+            ephemeralScalar: this.#opts.ephemeralScalar ?? (() => defaultEphemeralScalar(entropy)),
             initialRetransmitMs: this.#opts.initialRetransmitMs ?? DEFAULT_INITIAL_RETRANSMIT_MS,
             maxRetransmitMs: this.#opts.maxRetransmitMs ?? DEFAULT_MAX_RETRANSMIT_MS,
             mtu: this.#opts.mtu ?? DEFAULT_MTU,
@@ -160,7 +172,7 @@ export class NobleDtlsSocket implements DtlsSocket {
             maxMs: clientCfg.maxRetransmitMs ?? DEFAULT_MAX_RETRANSMIT_MS,
             maxRetransmits: this.#opts.maxRetransmits ?? DEFAULT_MAX_RETRANSMITS,
             onRetransmit: () => this.#onRetransmit(),
-            onGiveUp: () => this.#fail(new NobleDtlsError("NobleDtlsSocket: handshake gave up after max retransmits")),
+            onGiveUp: () => this.#fail(new DtlsError("NobleDtlsChannel: handshake gave up after max retransmits")),
         });
 
         const connectPromise = new Promise<void>((resolve, reject) => {
@@ -168,7 +180,7 @@ export class NobleDtlsSocket implements DtlsSocket {
         });
         const connectTimeoutMs = this.#opts.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
         this.#connectDeadline = Time.getTimer("dtls-connect-deadline", Millis(connectTimeoutMs), () =>
-            this.#fail(new TimeoutError(`NobleDtlsSocket: connect timed out after ${connectTimeoutMs}ms`)),
+            this.#fail(new TimeoutError(`NobleDtlsChannel: connect timed out after ${connectTimeoutMs}ms`)),
         ).start();
 
         // Drive the first flight.
@@ -188,17 +200,17 @@ export class NobleDtlsSocket implements DtlsSocket {
         }
     }
 
-    async send(bytes: Uint8Array): Promise<void> {
+    async send(bytes: Bytes): Promise<void> {
         if (this.#closed) {
-            throw new ImplementationError("NobleDtlsSocket.send: closed");
+            throw new ImplementationError("NobleDtlsChannel.send: closed");
         }
         if (!this.#connected) {
-            throw new ImplementationError("NobleDtlsSocket.send: not connected");
+            throw new ImplementationError("NobleDtlsChannel.send: not connected");
         }
         const cipherState = this.#cipherState;
         const udp = this.#udp;
         if (cipherState === undefined || udp === undefined) {
-            throw new InternalError("NobleDtlsSocket.send: missing cipher state or transport");
+            throw new InternalError("NobleDtlsChannel.send: missing cipher state or transport");
         }
         const seq = cipherState.nextWriteSeq();
         const record = DtlsRecord.encode(
@@ -206,23 +218,45 @@ export class NobleDtlsSocket implements DtlsSocket {
                 type: ContentType.APPLICATION_DATA,
                 epoch: cipherState.writeEpoch,
                 sequenceNumber: seq,
-                fragment: bytes,
+                fragment: Bytes.of(bytes),
             },
             cipherState,
         );
         await this.#sendDatagram(udp, record);
     }
 
-    async recv(): Promise<Uint8Array> {
-        if (this.#closed) {
-            throw new ImplementationError("NobleDtlsSocket.recv: closed");
-        }
-        if (this.#recvQueue.length > 0) {
-            return this.#recvQueue.shift()!;
-        }
-        return new Promise<Uint8Array>((resolve, reject) => {
-            this.#recvWaiters.push({ resolve, reject });
-        });
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: (): Promise<IteratorResult<Bytes>> => {
+                if (this.#inboundQueue.length > 0) {
+                    return Promise.resolve({ value: this.#inboundQueue.shift()!, done: false });
+                }
+                if (this.#failure !== undefined && !this.#failureDelivered) {
+                    this.#failureDelivered = true;
+                    return Promise.reject(this.#failure);
+                }
+                if (this.#closed) {
+                    return Promise.resolve({ value: undefined, done: true });
+                }
+                if (this.#inboundWaiter !== undefined) {
+                    return Promise.reject(
+                        new ImplementationError("NobleDtlsChannel: concurrent iteration not supported"),
+                    );
+                }
+                return new Promise<IteratorResult<Bytes>>((resolve, reject) => {
+                    this.#inboundWaiter = { resolve, reject };
+                });
+            },
+        };
+    }
+
+    onClose(listener: () => void): Transport.Listener {
+        this.#closeListeners.add(listener);
+        return {
+            close: async () => {
+                this.#closeListeners.delete(listener);
+            },
+        };
     }
 
     async close(): Promise<void> {
@@ -256,16 +290,24 @@ export class NobleDtlsSocket implements DtlsSocket {
         if (udp !== undefined) {
             await udp.close().catch(() => {});
         }
-        // Reject any waiters.
-        const closeError = this.#lastError ?? new NobleDtlsError("NobleDtlsSocket: closed");
-        while (this.#recvWaiters.length > 0) {
-            const w = this.#recvWaiters.shift()!;
-            w.reject(closeError);
+        // Release a waiting consumer: surface the fatal error if any is still undelivered, else end iteration.
+        const waiter = this.#inboundWaiter;
+        this.#inboundWaiter = undefined;
+        if (waiter !== undefined) {
+            if (this.#failure !== undefined && !this.#failureDelivered) {
+                this.#failureDelivered = true;
+                waiter.reject(this.#failure);
+            } else {
+                waiter.resolve({ value: undefined, done: true });
+            }
+        }
+        for (const listener of this.#closeListeners) {
+            listener();
         }
         if (this.#onConnect !== undefined && !this.#connected) {
             const onConnect = this.#onConnect;
             this.#onConnect = undefined;
-            onConnect.reject(closeError);
+            onConnect.reject(this.#failure ?? new DtlsError("NobleDtlsChannel: closed"));
         }
     }
 
@@ -296,7 +338,7 @@ export class NobleDtlsSocket implements DtlsSocket {
         const client = this.#client;
         const retransmit = this.#retransmit;
         if (client === undefined || retransmit === undefined) {
-            throw new InternalError("NobleDtlsSocket: handshake datagram before client/timer initialised");
+            throw new InternalError("NobleDtlsChannel: handshake datagram before client/timer initialised");
         }
         const step = client.onDatagram(bytes);
         // RFC 6347 §4.2.4: receiving the next flight implicitly acknowledges the previous one.
@@ -320,17 +362,17 @@ export class NobleDtlsSocket implements DtlsSocket {
     #handleAppDatagram(bytes: Uint8Array): void {
         const cipherState = this.#cipherState;
         if (cipherState === undefined) {
-            throw new InternalError("NobleDtlsSocket: post-handshake datagram with no cipher state");
+            throw new InternalError("NobleDtlsChannel: post-handshake datagram with no cipher state");
         }
         let p = 0;
         while (p < bytes.length) {
             if (bytes.length - p < DTLS_HEADER_LEN) {
-                throw new NobleDtlsError("NobleDtlsSocket: short DTLS record header");
+                throw new DtlsError("NobleDtlsChannel: short DTLS record header");
             }
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + DTLS_HEADER_LEN + length;
             if (recordEnd > bytes.length) {
-                throw new NobleDtlsError("NobleDtlsSocket: DTLS record length overruns datagram");
+                throw new DtlsError("NobleDtlsChannel: DTLS record length overruns datagram");
             }
             const slice = bytes.subarray(p, recordEnd);
             const { record } = DtlsRecord.decode(slice, cipherState);
@@ -339,12 +381,12 @@ export class NobleDtlsSocket implements DtlsSocket {
             } else if (record.type === ContentType.ALERT) {
                 // close_notify (level=1, desc=0) ends the session; other alerts surface as errors.
                 if (record.fragment.length >= 2 && record.fragment[1] === ALERT_DESC_CLOSE_NOTIFY) {
-                    this.#fail(new NobleDtlsError("NobleDtlsSocket: peer sent close_notify"));
+                    this.#fail(new DtlsError("NobleDtlsChannel: peer sent close_notify"));
                     return;
                 }
                 this.#fail(
-                    new NobleDtlsError(
-                        `NobleDtlsSocket: peer alert level=${record.fragment[0] ?? -1} desc=${record.fragment[1] ?? -1}`,
+                    new DtlsError(
+                        `NobleDtlsChannel: peer alert level=${record.fragment[0] ?? -1} desc=${record.fragment[1] ?? -1}`,
                     ),
                 );
                 return;
@@ -356,11 +398,15 @@ export class NobleDtlsSocket implements DtlsSocket {
     }
 
     #deliverPlaintext(plaintext: Uint8Array): void {
-        if (this.#recvWaiters.length > 0) {
-            const waiter = this.#recvWaiters.shift()!;
-            waiter.resolve(plaintext);
-        } else {
-            this.#recvQueue.push(plaintext);
+        const waiter = this.#inboundWaiter;
+        if (waiter !== undefined) {
+            this.#inboundWaiter = undefined;
+            waiter.resolve({ value: plaintext, done: false });
+            return;
+        }
+        this.#inboundQueue.push(plaintext);
+        if (this.#inboundQueue.length > MAX_INBOUND_QUEUE) {
+            this.#fail(new DtlsError("NobleDtlsChannel: inbound buffer overflow — consumer too slow"));
         }
     }
 
@@ -380,7 +426,7 @@ export class NobleDtlsSocket implements DtlsSocket {
     #sendRecords(records: Uint8Array[]): void {
         const udp = this.#udp;
         if (udp === undefined) {
-            throw new InternalError("NobleDtlsSocket: send before bind");
+            throw new InternalError("NobleDtlsChannel: send before bind");
         }
         if (records.length === 0) {
             return;
@@ -419,8 +465,8 @@ export class NobleDtlsSocket implements DtlsSocket {
         if (this.#closed) {
             return;
         }
-        if (this.#lastError === undefined) {
-            this.#lastError = error;
+        if (this.#failure === undefined) {
+            this.#failure = error;
         }
         if (this.#retransmit !== undefined) {
             this.#retransmit.cancel();
@@ -430,9 +476,11 @@ export class NobleDtlsSocket implements DtlsSocket {
         if (onConnect !== undefined && !this.#connected) {
             onConnect.reject(error);
         }
-        while (this.#recvWaiters.length > 0) {
-            const w = this.#recvWaiters.shift()!;
-            w.reject(error);
+        const waiter = this.#inboundWaiter;
+        this.#inboundWaiter = undefined;
+        if (waiter !== undefined) {
+            this.#failureDelivered = true;
+            waiter.reject(error);
         }
         // Tear the transport down asynchronously; callers see the rejection above.
         void this.close().catch(() => {});

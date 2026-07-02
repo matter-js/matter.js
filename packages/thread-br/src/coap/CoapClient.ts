@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Millis, Time, TimeoutError, Timer } from "@matter/general";
-import type { DtlsSocket } from "../dtls/socket/DtlsSocket.js";
+import { Bytes, Logger, Millis, Time, TimeoutError, Timer } from "@matter/general";
+import type { DtlsChannel } from "../dtls/channel/DtlsChannel.js";
 import { CoapMessage } from "./CoapMessage.js";
 
 const logger = Logger.get("CoapClient");
@@ -68,7 +68,7 @@ function tokenHex(token: Uint8Array): string {
 
 export class CoapClient {
     #messageId = Math.floor(Math.random() * 0x10000);
-    #socket: DtlsSocket;
+    #channel: DtlsChannel;
     #ackTimeoutMs: number;
     #separateResponseTimeoutMs: number;
     /** Tracks the per-message-id retransmit slot. Removed once the BR ACKs the
@@ -80,8 +80,8 @@ export class CoapClient {
     #pendingByToken = new Map<string, PendingState>();
     #listeners = new Set<Listener>();
 
-    constructor(socket: DtlsSocket, opts?: CoapClientOpts) {
-        this.#socket = socket;
+    constructor(channel: DtlsChannel, opts?: CoapClientOpts) {
+        this.#channel = channel;
         this.#ackTimeoutMs = opts?.ackTimeoutMs ?? RFC_ACK_TIMEOUT_MS;
         this.#separateResponseTimeoutMs = opts?.separateResponseTimeoutMs ?? SEPARATE_RESPONSE_TIMEOUT_MS;
         void this.#runRecvLoop();
@@ -105,7 +105,7 @@ export class CoapClient {
         };
 
         if (opts.type === "NON") {
-            await this.#socket.send(CoapMessage.encode(msg));
+            await this.#channel.send(CoapMessage.encode(msg));
             // NON messages receive no ACK per RFC 7252 §4.3; return a synthetic sentinel.
             // Callers must not inspect code/type of this response.
             return { type: "NON", code: "0.00", messageId, token, payload: new Uint8Array() };
@@ -124,7 +124,7 @@ export class CoapClient {
 
     async close(): Promise<void> {
         this.#listeners.clear();
-        await this.#socket.close();
+        await this.#channel.close();
     }
 
     async #sendCon(msg: CoapMessage): Promise<CoapMessage> {
@@ -193,7 +193,7 @@ export class CoapClient {
                         return;
                     }
                     attempt++;
-                    void this.#socket.send(encoded).catch(() => {});
+                    void this.#channel.send(encoded).catch(() => {});
                     scheduleRetransmit(Math.min(delayMs * 2, this.#ackTimeoutMs * 2 ** MAX_RETRANSMIT));
                 }).start();
             };
@@ -202,7 +202,7 @@ export class CoapClient {
             this.#pendingByToken.set(reqTokenHex, state);
 
             const initialDelay = this.#ackTimeoutMs * (1 + Math.random() * (RFC_ACK_RANDOM_FACTOR - 1.0));
-            void this.#socket
+            void this.#channel
                 .send(encoded)
                 .then(() => {
                     scheduleRetransmit(initialDelay);
@@ -214,28 +214,22 @@ export class CoapClient {
     }
 
     async #runRecvLoop(): Promise<void> {
-        let socketError: Error | undefined;
+        let channelError: Error | undefined;
         try {
-            for (;;) {
-                let bytes: Uint8Array;
-                try {
-                    bytes = await this.#socket.recv();
-                } catch (err) {
-                    socketError = err instanceof Error ? err : new Error(String(err));
-                    break;
-                }
-
+            for await (const bytes of this.#channel) {
                 let msg: CoapMessage;
                 try {
-                    msg = CoapMessage.decode(bytes);
+                    msg = CoapMessage.decode(Bytes.of(bytes));
                 } catch {
                     continue;
                 }
 
                 await this.#dispatchInbound(msg);
             }
+        } catch (err) {
+            channelError = err instanceof Error ? err : new Error(String(err));
         } finally {
-            const err = socketError ?? new Error("CoapClient: socket closed");
+            const err = channelError ?? new Error("CoapClient: channel closed");
             // Reject all outstanding requests (both maps reference the same PendingState entries).
             for (const state of this.#pendingByToken.values()) {
                 state.reject(err);
@@ -301,7 +295,7 @@ export class CoapClient {
             payload: new Uint8Array(),
         };
         try {
-            await this.#socket.send(CoapMessage.encode(ack));
+            await this.#channel.send(CoapMessage.encode(ack));
         } catch (err) {
             logger.debug(`Failed to send ACK for messageId=${messageId}:`, err);
         }

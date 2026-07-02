@@ -9,8 +9,9 @@ import { CoapClient } from "../coap/CoapClient.js";
 import { Commissioner } from "../commissioner/Commissioner.js";
 import type { ThreadNetworkCredentials } from "../credentials/ThreadNetworkCredentials.js";
 import type { BorderRouterEntry } from "../discovery/BorderRouterEntry.js";
-import { createDtlsBackend, type DtlsBackendKind } from "../dtls/socket/createDtlsBackend.js";
-import type { DtlsBackend } from "../dtls/socket/DtlsBackend.js";
+import { connectDtls } from "../dtls/channel/connectDtls.js";
+import type { DtlsChannel } from "../dtls/channel/DtlsChannel.js";
+import type { DtlsConnectOpts } from "../dtls/channel/DtlsConnectOpts.js";
 import type { DiagnosticSource } from "./DiagnosticSource.js";
 import { MeshCopDiagnosticSource } from "./MeshCopDiagnosticSource.js";
 
@@ -23,12 +24,10 @@ export interface ConnectMeshcopOpts {
     address?: string;
     /** Override the BR port. Defaults to {@link BorderRouterEntry.meshcopPort}. */
     port?: number;
-    /** DTLS backend kind. Defaults to `"noble"`. */
-    backendKind?: DtlsBackendKind;
-    /** Environment providing the {@link Network} for the DTLS UDP transport. Defaults to `Environment.default`. */
-    environment?: Environment;
-    /** @internal — for testing. Override the default backend factory. */
-    makeBackend?: () => DtlsBackend;
+    /** Environment providing the {@link Network} and {@link Crypto} for the DTLS UDP transport. */
+    environment: Environment;
+    /** @internal — for testing. Override the DTLS connect seam. */
+    makeConnect?: (opts: DtlsConnectOpts) => Promise<DtlsChannel>;
 }
 
 export interface MeshcopHandle {
@@ -54,8 +53,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
 
     logger.debug(`[ThreadDiag] connectMeshcop START ${address}:${port}`);
     const dtlsStart = Date.now();
-    const backend = opts.makeBackend?.() ?? createDtlsBackend({ kind: opts.backendKind ?? "noble" });
-    const socket = await backend.connect({
+    const channel = await (opts.makeConnect ?? connectDtls)({
         address,
         port,
         password: opts.creds.pskc,
@@ -65,7 +63,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
     logger.debug(`[ThreadDiag] DTLS handshake OK ${address}:${port} duration=${Date.now() - dtlsStart}ms`);
 
     try {
-        const coap = new CoapClient(socket);
+        const coap = new CoapClient(channel);
         const commissioner = new Commissioner(coap);
         const source = new MeshCopDiagnosticSource(commissioner, coap, opts.creds.meshLocalPrefix);
         return {
@@ -77,7 +75,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
         };
     } catch (err) {
         logger.warn(`[ThreadDiag] connectMeshcop post-DTLS setup FAIL ${address}:${port}: ${err}`);
-        await socket.close().catch(() => {});
+        await channel.close().catch(() => {});
         throw err;
     }
 }

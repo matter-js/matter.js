@@ -7,9 +7,9 @@
 import type { Environment } from "@matter/general";
 
 /**
- * Connection parameters consumed by {@link DtlsBackend.connect}. The `random` and
+ * Connection parameters consumed by {@link connectDtls}. The `random` and
  * `ephemeralScalar` overrides exist for deterministic tests; production callers
- * leave them unset and the backend wires in CSPRNG-backed defaults.
+ * leave them unset and the channel wires in {@link Entropy}-backed defaults.
  */
 export interface DtlsConnectOpts {
     /** IPv6 (or IPv4) address of the peer's MeshCoP DTLS port. Link-local zone IDs (`%en0`) accepted. */
@@ -45,6 +45,6 @@ export interface DtlsConnectOpts {
     /** Override `ephemeralScalar()` for deterministic testing. Production: CSPRNG-backed. */
     ephemeralScalar?: () => bigint;
 
-    /** Environment providing the {@link Network} used for the UDP transport. Defaults to `Environment.default`. */
-    environment?: Environment;
+    /** Environment providing the {@link Network} used for the UDP transport and the {@link Crypto} entropy source. */
+    environment: Environment;
 }

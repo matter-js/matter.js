@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DtlsRetransmitTimer } from "../src/dtls/socket/DtlsRetransmitTimer.js";
+import { DtlsRetransmitTimer } from "../src/dtls/channel/DtlsRetransmitTimer.js";
 
 describe("DtlsRetransmitTimer — RFC 6347 §4.2.4 doubling", () => {
     before(MockTime.enable);

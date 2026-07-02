@@ -6,6 +6,7 @@
 
 import { Bytes, Environment, MockNetwork, Network, NetworkSimulator, type UdpSocket } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
+import { NobleDtlsChannel } from "../src/dtls/channel/NobleDtlsChannel.js";
 import { EcJpakePms } from "../src/dtls/ecjpake/EcJpakePms.js";
 import {
     ECJPAKE_ID_CLIENT,
@@ -27,7 +28,6 @@ import { TlsPrf } from "../src/dtls/prf/TlsPrf.js";
 import { ContentType } from "../src/dtls/record/ContentType.js";
 import { DtlsCipherState } from "../src/dtls/record/DtlsCipherState.js";
 import { DtlsRecord } from "../src/dtls/record/DtlsRecord.js";
-import { NobleDtlsSocket } from "../src/dtls/socket/NobleDtlsSocket.js";
 
 const N = p256.Point.Fn.ORDER;
 
@@ -72,7 +72,7 @@ interface InboundRecordView {
 /**
  * Mock-network mirror server. Same handshake oracle as DtlsClientTest's
  * MirrorServer but driven through a matter.js {@link UdpSocket} so we exercise
- * the NobleDtlsSocket transport path end-to-end. Listens on an OS-assigned port
+ * the NobleDtlsChannel transport path end-to-end. Listens on an OS-assigned port
  * on its {@link MockNetwork} host.
  */
 class UdpMirrorServer {
@@ -598,7 +598,7 @@ class UdpMirrorServer {
 
 const DEFAULT_PASSWORD = Bytes.of(Bytes.fromHex("4a3070000000000a"));
 
-describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
+describe("NobleDtlsChannel — UDP-bound EC-JPAKE handshake", () => {
     before(MockTime.enable);
 
     it("completes a cookie-exchange handshake against a UDP mirror server", async () => {
@@ -606,7 +606,7 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
         const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
         const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
 
-        const socket = new NobleDtlsSocket({
+        const socket = new NobleDtlsChannel({
             address: SERVER_IP,
             port: server.port,
             password: DEFAULT_PASSWORD,
@@ -630,7 +630,7 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
         const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
         const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
 
-        const socket = new NobleDtlsSocket({
+        const socket = new NobleDtlsChannel({
             address: SERVER_IP,
             port: server.port,
             password: DEFAULT_PASSWORD,
@@ -653,8 +653,9 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
             // Server -> client direction.
             const reply = Bytes.of(Bytes.fromHex("776f726c64"));
             await server.sendAppData(reply);
-            const got = await socket.recv();
-            expect(Bytes.toHex(got)).to.equal(Bytes.toHex(reply));
+            const inbound = await socket[Symbol.asyncIterator]().next();
+            expect(inbound.done).to.equal(false);
+            expect(Bytes.toHex(Bytes.of(inbound.value))).to.equal(Bytes.toHex(reply));
         } finally {
             await socket.close();
             await server.close();
@@ -666,7 +667,7 @@ describe("NobleDtlsSocket — UDP-bound EC-JPAKE handshake", () => {
         // A reachable address with no socket listening on the port: the mock network drops the datagrams.
         new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
 
-        const socket = new NobleDtlsSocket({
+        const socket = new NobleDtlsChannel({
             address: SERVER_IP,
             port: 49191,
             password: DEFAULT_PASSWORD,

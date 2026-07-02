@@ -20,7 +20,7 @@ For maintainer review of the rationale behind what was aligned and what was kept
   `Time.getTimer`/`getPeriodicTimer`/`Time.sleep`. All durations and timing relationships are
   byte-for-byte preserved. Tests drive them with `MockTime` (`enable` + `advance`), which also
   removed the package's last process-exit leak and the test-injected `setTimeoutImpl` hooks.
-- **UDP transport → matter.js `Network`:** `NobleDtlsSocket` now obtains a `UdpSocket` from
+- **UDP transport → matter.js `Network`:** `NobleDtlsChannel` now obtains a `UdpSocket` from
   `Environment.get(Network)` instead of `node:dgram`. An optional `environment` flows through
   `connectMeshcop` → `DtlsConnectOpts` (defaults to `Environment.default`, so consumers are
   unaffected). The DTLS handshake test runs over `MockNetwork`/`NetworkSimulator` instead of a

@@ -150,8 +150,8 @@ If you see this, the noble EC-JPAKE backend interops with mbedtls byte-for-byte 
 
 Errors surface as plain `Error` instances; the example prints `<name>: <message>`. Common patterns:
 
-- **`Error: NobleDtlsSocket: connect timed out after 30000ms`** — UDP datagrams are not reaching the peer or no reply is coming back. Wrong port (re-run `lsof`), simulator stopped, or the peer rejected the ClientHello silently. On macOS, also check the firewall.
-- **`Error: NobleDtlsSocket: peer alert level=2 desc=NN`** — the peer aborted with a fatal alert. `desc=20` (`bad_record_mac`) on the post-handshake AEAD is the classic PSKc-mismatch signature; `desc=40` (`handshake_failure`) shows up when EC-JPAKE state diverges.
+- **`Error: NobleDtlsChannel: connect timed out after 30000ms`** — UDP datagrams are not reaching the peer or no reply is coming back. Wrong port (re-run `lsof`), simulator stopped, or the peer rejected the ClientHello silently. On macOS, also check the firewall.
+- **`Error: NobleDtlsChannel: peer alert level=2 desc=NN`** — the peer aborted with a fatal alert. `desc=20` (`bad_record_mac`) on the post-handshake AEAD is the classic PSKc-mismatch signature; `desc=40` (`handshake_failure`) shows up when EC-JPAKE state diverges.
 - **`Error: DtlsClient: server round-1/round-2 ZKP verification failed`** — the peer's EC-JPAKE proof didn't validate. PSKc mismatch is the expected cause; if the PSKc is right, this is a wire-format bug worth capturing.
 - **`Error: DtlsClient: server Finished verify_data mismatch`** — handshake transcript hashes diverge between client and server. Almost certainly a PRF / handshake-message-serialization bug — capture pcap and triage.
 - **`Error: DtlsClient: handshake gave up after max retransmits`** — RFC 6347 §4.2.4 give-up. Same root causes as the connect timeout.
