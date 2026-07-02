@@ -29,6 +29,9 @@ export class CommissionerTimeoutError extends TimeoutError {
     }
 }
 
+/** Thrown by {@link Commissioner.keepAlive} when the Border Router answers with a non-accept state. */
+export class CommissionerKeepAliveError extends MatterError {}
+
 export interface CommissionerOpts {
     /** Override the 30s pending-retry delay. Intended for testing. */
     pendingRetryDelayMs?: number;
@@ -123,7 +126,7 @@ export class Commissioner {
      * keep-alives automatically.
      *
      * @param sessionId - Session ID returned by {@link petition}.
-     * @throws `Error` when the BR rejects the keep-alive or the CoAP request fails.
+     * @throws {@link CommissionerKeepAliveError} when the BR rejects the keep-alive; propagates CoAP errors.
      */
     async keepAlive(sessionId: number): Promise<void> {
         const response = await this.#coap.request({
@@ -135,7 +138,7 @@ export class Commissioner {
 
         const parsed = LeadKa.parseResponse(response.payload);
         if (parsed.state !== "accept") {
-            throw new Error(`Commissioner keep-alive rejected: state=${parsed.state}`);
+            throw new CommissionerKeepAliveError(`Commissioner keep-alive rejected: state=${parsed.state}`);
         }
     }
 

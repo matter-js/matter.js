@@ -9,5 +9,5 @@ export type { ConnectMeshcopOpts, MeshcopHandle } from "./connectMeshcop.js";
 export { DefaultTlvSet } from "./DefaultTlvSet.js";
 export type { DiagnosticResponse } from "./DiagnosticResponse.js";
 export type { DiagnosticSource, QueryMulticastHandle, QueryMulticastOptions } from "./DiagnosticSource.js";
-export { MeshCopDiagnosticSource } from "./MeshCopDiagnosticSource.js";
+export { MeshCopDiagnosticSource, ThreadDiagError } from "./MeshCopDiagnosticSource.js";
 export type { EnergyScanEntry, EnergyScanOpts, PanIdConflict, PanIdQueryOpts } from "./MeshCopDiagnosticSource.js";

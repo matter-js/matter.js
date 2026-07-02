@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export { Commissioner, CommissionerRejectedError, CommissionerTimeoutError } from "./Commissioner.js";
+export {
+    Commissioner,
+    CommissionerKeepAliveError,
+    CommissionerRejectedError,
+    CommissionerTimeoutError,
+} from "./Commissioner.js";
 export type { CommissionerOpts } from "./Commissioner.js";
 export { LeadKa } from "./LeadKa.js";
 export type { LeadKaResponse } from "./LeadKa.js";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Environment, Logger } from "@matter/general";
+import { type Environment, ImplementationError, Logger } from "@matter/general";
 import { CoapClient } from "../coap/CoapClient.js";
 import { Commissioner } from "../commissioner/Commissioner.js";
 import type { ThreadNetworkCredentials } from "../credentials/ThreadNetworkCredentials.js";
@@ -48,7 +48,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
     const address = opts.address ?? selectBrAddress(opts.br.addresses);
     const port = opts.port ?? opts.br.meshcopPort;
     if (port === undefined) {
-        throw new Error("connectMeshcop: BR has no meshcopPort and no opts.port override");
+        throw new ImplementationError("connectMeshcop: BR has no meshcopPort and no opts.port override");
     }
 
     logger.debug(`[ThreadDiag] connectMeshcop START ${address}:${port}`);
@@ -65,7 +65,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
     try {
         const coap = new CoapClient(channel, opts.environment);
         const commissioner = new Commissioner(coap);
-        const source = new MeshCopDiagnosticSource(commissioner, coap, opts.creds.meshLocalPrefix);
+        const source = new MeshCopDiagnosticSource(commissioner, coap, opts.environment, opts.creds.meshLocalPrefix);
         return {
             source,
             close: async () => {
@@ -82,7 +82,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
 
 function selectBrAddress(addresses: readonly string[]): string {
     if (addresses.length === 0) {
-        throw new Error("connectMeshcop: BR has no addresses");
+        throw new ImplementationError("connectMeshcop: BR has no addresses");
     }
 
     const usable = new Array<string>();
@@ -90,7 +90,9 @@ function selectBrAddress(addresses: readonly string[]): string {
         if (!isLinkLocal(addr)) usable.push(addr);
     }
     if (usable.length === 0) {
-        throw new Error("connectMeshcop: BR has only link-local addresses; scoped addresses not yet supported");
+        throw new ImplementationError(
+            "connectMeshcop: BR has only link-local addresses; scoped addresses not yet supported",
+        );
     }
 
     return rankAddress(usable)[0];

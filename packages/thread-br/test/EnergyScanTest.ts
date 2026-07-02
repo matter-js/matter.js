@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Environment } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
@@ -16,6 +17,8 @@ import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
 type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
+
+const environment = new Environment("test", Environment.default);
 
 function mockCommissioner(): CommissionerLike {
     return {
@@ -82,7 +85,7 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         const result = await source.energyScan({ channelMask: 0x00007800, count: 2, period: 64, scanDuration: 8 });
 
         expect(requests).to.have.length(1);
@@ -136,7 +139,7 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         await source.energyScan({ channelMask: 0x00000800, count: 1, period: 64, scanDuration: 8 });
 
         expect(events[0]).to.equal("listen:c/er");
@@ -157,7 +160,7 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         // channelMask with bits 11 and 12 set
         const result = await source.energyScan({ channelMask: 0x00001800, count: 1, period: 64, scanDuration: 8 });
 
@@ -188,7 +191,7 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         try {
             await source.energyScan(TEST_OPTS);
             expect.fail("expected Error");
@@ -214,7 +217,7 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         await source.energyScan({ channelMask: 0x00000800, count: 1, period: 64, scanDuration: 8 });
         expect(unsubCalled).to.equal(true);
     });

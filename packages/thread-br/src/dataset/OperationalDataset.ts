@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/general";
+import { Bytes, MatterError } from "@matter/general";
 import { type BasicTlvEntry, BasicTlv } from "../tlv/BasicTlvCodec.js";
 import { MeshCopTlvType } from "./meshcopTlvTypes.js";
 import { SecurityPolicy } from "./SecurityPolicy.js";
+
+/** Thrown when a Thread Operational Dataset cannot be decoded from malformed MeshCoP TLV bytes. */
+export class ThreadDatasetError extends MatterError {}
 
 /**
  * Decoded Thread Operational Dataset.
@@ -117,13 +120,13 @@ function applyKnownTlvToDataset(
             break;
         case MeshCopTlvType.PANID:
             if (entry.value.length !== 2) {
-                throw new Error(`PANID TLV must be 2 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`PANID TLV must be 2 bytes, got ${entry.value.length}`);
             }
             ds.panId = (entry.value[0] << 8) | entry.value[1];
             break;
         case MeshCopTlvType.EXTPANID:
             if (entry.value.length !== 8) {
-                throw new Error(`EXTPANID TLV must be 8 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`EXTPANID TLV must be 8 bytes, got ${entry.value.length}`);
             }
             ds.extPanId = entry.value.slice();
             break;
@@ -135,13 +138,13 @@ function applyKnownTlvToDataset(
             break;
         case MeshCopTlvType.NETWORK_KEY:
             if (entry.value.length !== 16) {
-                throw new Error(`NETWORK_KEY TLV must be 16 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`NETWORK_KEY TLV must be 16 bytes, got ${entry.value.length}`);
             }
             ds.networkKey = entry.value.slice();
             break;
         case MeshCopTlvType.MESH_LOCAL_PREFIX:
             if (entry.value.length !== 8) {
-                throw new Error(`MESH_LOCAL_PREFIX TLV must be 8 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`MESH_LOCAL_PREFIX TLV must be 8 bytes, got ${entry.value.length}`);
             }
             ds.meshLocalPrefix = entry.value.slice();
             break;
@@ -150,19 +153,19 @@ function applyKnownTlvToDataset(
             break;
         case MeshCopTlvType.ACTIVE_TIMESTAMP:
             if (entry.value.length !== 8) {
-                throw new Error(`ACTIVE_TIMESTAMP TLV must be 8 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`ACTIVE_TIMESTAMP TLV must be 8 bytes, got ${entry.value.length}`);
             }
             ds.activeTimestamp = entry.value.slice();
             break;
         case MeshCopTlvType.PENDING_TIMESTAMP:
             if (entry.value.length !== 8) {
-                throw new Error(`PENDING_TIMESTAMP TLV must be 8 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`PENDING_TIMESTAMP TLV must be 8 bytes, got ${entry.value.length}`);
             }
             ds.pendingTimestamp = entry.value.slice();
             break;
         case MeshCopTlvType.DELAY_TIMER:
             if (entry.value.length !== 4) {
-                throw new Error(`DELAY_TIMER TLV must be 4 bytes, got ${entry.value.length}`);
+                throw new ThreadDatasetError(`DELAY_TIMER TLV must be 4 bytes, got ${entry.value.length}`);
             }
             ds.delayTimer = (entry.value[0] << 24) | (entry.value[1] << 16) | (entry.value[2] << 8) | entry.value[3];
             break;
@@ -319,5 +322,5 @@ function decodeChannel(value: Uint8Array): number {
     if (value.length === 3) {
         return (value[1] << 8) | value[2];
     }
-    throw new Error(`CHANNEL TLV must be 1 or 3 bytes, got ${value.length}`);
+    throw new ThreadDatasetError(`CHANNEL TLV must be 1 or 3 bytes, got ${value.length}`);
 }

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Environment } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
@@ -13,6 +14,8 @@ import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
+
+const environment = new Environment("test", Environment.default);
 
 function mockCommissioner(): CommissionerLike {
     return {
@@ -73,7 +76,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         const result = await source.panIdQuery({ panId: 0xbeef, channelMask: 0x00007800 });
 
         expect(capturedPayload).to.not.be.undefined;
@@ -109,7 +112,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         await source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800 });
 
         expect(capturedOpts?.type).to.equal("NON");
@@ -126,7 +129,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             request: async () => ackMessage(),
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         const queryPromise = source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800 });
         await MockTime.yield();
         expect(registered).to.equal(true);
@@ -146,7 +149,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             request: async () => ackMessage(),
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         const conflictPromise = source.panIdQuery({ panId: 0x5555, channelMask: 0x00007800 });
 
         await MockTime.yield();
@@ -175,7 +178,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         await source.panIdQuery({ panId: 0xabcd, channelMask: 0x00007800 });
 
         expect(events[0]).to.equal("listen:c/pc");
@@ -199,7 +202,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         await source.panIdQuery({ panId: 0xdead, channelMask: 0x00007800 });
         expect(unsubCalled).to.equal(true);
     });
@@ -226,7 +229,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         try {
             await source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800 });
             expect.fail("expected Error");
@@ -248,7 +251,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
         const result = await source.panIdQuery({ panId: 0x1234, channelMask: 0xffffffff });
         expect(result).to.not.be.undefined;
         expect(result!.conflictChannelMask).to.equal(0xdeadbeef);

@@ -12,7 +12,13 @@
 export { BorderRouterRegistry } from "./discovery/index.js";
 export type { BorderRouterEntry } from "./discovery/index.js";
 
-export { MeshCopTlvType, MeshCopTlvTypeName, OperationalDataset, SecurityPolicy } from "./dataset/index.js";
+export {
+    MeshCopTlvType,
+    MeshCopTlvTypeName,
+    OperationalDataset,
+    SecurityPolicy,
+    ThreadDatasetError,
+} from "./dataset/index.js";
 
 export { ThreadCredentialsRegistry } from "./credentials/index.js";
 export type { ThreadNetworkCredentials } from "./credentials/index.js";
@@ -27,7 +33,7 @@ export {
 } from "./util/meshLocalAddr.js";
 
 // Diagnostics: the source abstraction, response shape, and its structured sub-types.
-export { DefaultTlvSet, MeshCopDiagnosticSource, connectMeshcop } from "./diagnostic/index.js";
+export { DefaultTlvSet, MeshCopDiagnosticSource, ThreadDiagError, connectMeshcop } from "./diagnostic/index.js";
 export type {
     ConnectMeshcopOpts,
     DiagnosticResponse,
@@ -59,7 +65,12 @@ export { Pskc } from "./crypto/index.js";
 export { DtlsError, connectDtls } from "./dtls/channel/index.js";
 export type { DtlsChannel, DtlsConnectOpts } from "./dtls/channel/index.js";
 
-export { Commissioner, CommissionerRejectedError, CommissionerTimeoutError } from "./commissioner/index.js";
+export {
+    Commissioner,
+    CommissionerKeepAliveError,
+    CommissionerRejectedError,
+    CommissionerTimeoutError,
+} from "./commissioner/index.js";
 export type { CommissionerOpts } from "./commissioner/index.js";
 
 export { CoapTimeoutError } from "./coap/index.js";

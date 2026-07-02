@@ -271,7 +271,7 @@ export class BorderRouterRegistry {
             try {
                 this.#parseAndUpsert(name, source);
             } catch (e) {
-                logger.debug("Error processing border router instance change:", e);
+                logger.warn("Error processing border router instance change:", e);
             }
             return;
         }
@@ -317,7 +317,7 @@ export class BorderRouterRegistry {
                 this.events.updated.emit(entry);
             }
         } catch (e) {
-            logger.debug("Error processing border router target change:", e);
+            logger.warn("Error processing border router target change:", e);
         }
     }
 
@@ -468,7 +468,7 @@ export class BorderRouterRegistry {
                 tracking.xaKey = xaKey;
             }
         } catch (e) {
-            logger.debug("Error parsing border router record:", e);
+            logger.warn("Error parsing border router record:", e);
         }
     }
 

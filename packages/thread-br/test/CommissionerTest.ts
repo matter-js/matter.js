@@ -7,7 +7,12 @@
 import { Millis, Time } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import type { CoapMessage } from "../src/coap/CoapMessage.js";
-import { Commissioner, CommissionerRejectedError, CommissionerTimeoutError } from "../src/commissioner/Commissioner.js";
+import {
+    Commissioner,
+    CommissionerKeepAliveError,
+    CommissionerRejectedError,
+    CommissionerTimeoutError,
+} from "../src/commissioner/Commissioner.js";
 import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
@@ -238,6 +243,20 @@ describe("Commissioner", () => {
             expect(sidEntry).to.not.be.undefined;
             expect((sidEntry!.value[0] << 8) | sidEntry!.value[1]).to.equal(42);
         });
+
+        it("throws CommissionerKeepAliveError on a non-accept response", async () => {
+            const mockCoap = {
+                request: async () => ackMessage(buildKaResponse(STATE_REJECT)),
+                close: async () => {},
+            } as unknown as CoapClient;
+
+            try {
+                await new Commissioner(mockCoap).keepAlive(42);
+                expect.fail("expected CommissionerKeepAliveError");
+            } catch (err) {
+                expect(err).to.be.instanceOf(CommissionerKeepAliveError);
+            }
+        });
     });
 
     describe("release", () => {
@@ -278,6 +297,13 @@ describe("Commissioner", () => {
             expect(err).to.be.instanceOf(Error);
             expect(err).to.be.instanceOf(CommissionerTimeoutError);
             expect(err.name).to.equal("CommissionerTimeoutError");
+        });
+
+        it("CommissionerKeepAliveError inherits Error", () => {
+            const err = new CommissionerKeepAliveError("boom");
+            expect(err).to.be.instanceOf(Error);
+            expect(err).to.be.instanceOf(CommissionerKeepAliveError);
+            expect(err.message).to.equal("boom");
         });
     });
 });

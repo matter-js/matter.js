@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Environment } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapTimeoutError } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
@@ -23,6 +24,7 @@ type CoapLike = Pick<CoapClient, "request" | "listen">;
 type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
 
 const ML_PREFIX = new Uint8Array([0xfd, 0xda, 0x3f, 0xb0, 0x2c, 0x67, 0x00, 0x00]);
+const environment = new Environment("test", Environment.default);
 
 function mockCommissioner(): CommissionerLike {
     return {
@@ -110,18 +112,26 @@ describe("MeshCopDiagnosticSource", () => {
     before(MockTime.enable);
 
     it("kind is 'meshcop'", () => {
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), {
-            request: async () => ackMessage(),
-            listen: () => () => {},
-        });
+        const source = new MeshCopDiagnosticSource(
+            mockCommissioner(),
+            {
+                request: async () => ackMessage(),
+                listen: () => () => {},
+            },
+            environment,
+        );
         expect(source.kind).to.equal("meshcop");
     });
 
     it("canQuery always returns true", () => {
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), {
-            request: async () => ackMessage(),
-            listen: () => () => {},
-        });
+        const source = new MeshCopDiagnosticSource(
+            mockCommissioner(),
+            {
+                request: async () => ackMessage(),
+                listen: () => () => {},
+            },
+            environment,
+        );
         expect(source.canQuery(new Uint8Array(8))).to.equal(true);
         expect(source.canQuery(new Uint8Array(0))).to.equal(true);
     });
@@ -147,7 +157,7 @@ describe("MeshCopDiagnosticSource", () => {
             },
         };
 
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const result = await source.queryUnicast({ rloc16: 0x0400 }, [NetworkDiagTlvType.EXT_MAC_ADDRESS]);
 
         expect(capturedOpts).to.not.be.undefined;
@@ -172,7 +182,7 @@ describe("MeshCopDiagnosticSource", () => {
                 throw new CoapTimeoutError(0);
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         try {
             await source.queryUnicast({ rloc16: 0x0400 }, [0]);
             expect.fail("expected CoapTimeoutError");
@@ -198,7 +208,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return ackMessage();
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const result = await source.queryUnicast({ rloc16: 0x0400 }, [unknownType]);
 
         expect(result.unknown).to.have.length(1);
@@ -211,6 +221,7 @@ describe("MeshCopDiagnosticSource", () => {
         const source = new MeshCopDiagnosticSource(
             mockCommissioner(),
             { request: async () => ackMessage(), listen: () => () => {} },
+            environment,
             ML_PREFIX,
         );
         try {
@@ -225,6 +236,7 @@ describe("MeshCopDiagnosticSource", () => {
         const source = new MeshCopDiagnosticSource(
             mockCommissioner(),
             { request: async () => ackMessage(), listen: () => () => {} },
+            environment,
             ML_PREFIX,
         );
         try {
@@ -236,10 +248,14 @@ describe("MeshCopDiagnosticSource", () => {
     });
 
     it("queryUnicast throws when no mesh-local prefix was provided", async () => {
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), {
-            request: async () => ackMessage(),
-            listen: () => () => {},
-        });
+        const source = new MeshCopDiagnosticSource(
+            mockCommissioner(),
+            {
+                request: async () => ackMessage(),
+                listen: () => () => {},
+            },
+            environment,
+        );
         try {
             await source.queryUnicast({ rloc16: 0x0400 }, [0]);
             expect.fail("expected Error");
@@ -262,7 +278,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return () => {};
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
 
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
@@ -301,7 +317,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return () => {};
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 10,
@@ -322,7 +338,7 @@ describe("MeshCopDiagnosticSource", () => {
             },
             listen: () => () => {},
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS, NetworkDiagTlvType.ADDRESS16],
             windowMs: 10,
@@ -352,7 +368,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return () => {};
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 30,
@@ -390,7 +406,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return () => {};
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 30,
@@ -409,7 +425,7 @@ describe("MeshCopDiagnosticSource", () => {
 
     it("queryMulticast yields no nodes when no c/ur arrives within windowMs", async () => {
         const coap: CoapLike = { request: async () => ackMessage(), listen: () => () => {} };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 10,
@@ -427,7 +443,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return () => {};
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 30,
@@ -455,7 +471,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return () => {};
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 30,
@@ -489,7 +505,7 @@ describe("MeshCopDiagnosticSource", () => {
                 unsubCalled = true;
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.EXT_MAC_ADDRESS],
             windowMs: 10,
@@ -506,7 +522,7 @@ describe("MeshCopDiagnosticSource", () => {
                 unsubCalled = true;
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", { tlvTypes: [], windowMs: 10_000 });
 
         await MockTime.yield();
@@ -542,7 +558,7 @@ describe("MeshCopDiagnosticSource", () => {
                 return ackMessage();
             },
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         const handle = source.queryMulticast("ff03::2", {
             tlvTypes: [NetworkDiagTlvType.ADDRESS16, NetworkDiagTlvType.ROUTE64],
             windowMs: 80,

@@ -5,5 +5,5 @@
  */
 
 export { MeshCopTlvType, MeshCopTlvTypeName } from "./meshcopTlvTypes.js";
-export { OperationalDataset } from "./OperationalDataset.js";
+export { OperationalDataset, ThreadDatasetError } from "./OperationalDataset.js";
 export { SecurityPolicy } from "./SecurityPolicy.js";

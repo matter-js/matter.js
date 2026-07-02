@@ -4,7 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Millis, Observable, Time, Timer } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    type Entropy,
+    type Environment,
+    ImplementationError,
+    Logger,
+    MatterError,
+    Millis,
+    Observable,
+    Time,
+    Timer,
+} from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { CoapMessage } from "../coap/CoapMessage.js";
 import type { Commissioner } from "../commissioner/Commissioner.js";
@@ -55,6 +67,9 @@ import type { DiagnosticSource, QueryMulticastHandle, QueryMulticastOptions } fr
 import { DEFAULT_RESET_TLV_TYPES } from "./DiagnosticSource.js";
 
 const logger = Logger.get("MeshCopDiagnosticSource");
+
+/** Thrown when a MeshCoP diagnostic response carries malformed or missing TLVs. */
+export class ThreadDiagError extends MatterError {}
 
 const DEFAULT_WINDOW_MS = 20_000;
 const DEFAULT_UNICAST_TIMEOUT_MS = 10_000;
@@ -115,17 +130,21 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
 
     readonly #commissioner: Pick<Commissioner, "withSession">;
     readonly #coap: Pick<CoapClient, "request" | "listen">;
+    readonly #entropy: Entropy;
     readonly #mlPrefix?: Uint8Array;
-    #innerMessageId = Math.floor(Math.random() * 0x10000);
+    #innerMessageId: number;
 
     constructor(
         commissioner: Pick<Commissioner, "withSession">,
         coap: Pick<CoapClient, "request" | "listen">,
+        environment: Environment,
         mlPrefix?: Uint8Array,
     ) {
         this.#commissioner = commissioner;
         this.#coap = coap;
+        this.#entropy = environment.get(Crypto);
         this.#mlPrefix = mlPrefix;
+        this.#innerMessageId = this.#entropy.randomUint16;
     }
 
     canQuery(_extPanId: Uint8Array): boolean {
@@ -134,15 +153,15 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
 
     async queryUnicast(target: { rloc16?: number; ip?: string }, tlvTypes: number[]): Promise<DiagnosticResponse> {
         if (target.ip !== undefined) {
-            throw new Error(
+            throw new ImplementationError(
                 "MeshCopDiagnosticSource: ip-routed unicast is not supported — use rloc16 (mesh-local addressing)",
             );
         }
         if (target.rloc16 === undefined) {
-            throw new Error("MeshCopDiagnosticSource: queryUnicast requires target.rloc16");
+            throw new ImplementationError("MeshCopDiagnosticSource: queryUnicast requires target.rloc16");
         }
         if (this.#mlPrefix === undefined) {
-            throw new Error(
+            throw new ImplementationError(
                 "MeshCopDiagnosticSource: queryUnicast requires the mesh-local prefix; none was provided to the constructor",
             );
         }
@@ -356,10 +375,10 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
 
     async resetCounters(target: { rloc16?: number; ip?: string }, tlvTypes = DEFAULT_RESET_TLV_TYPES): Promise<void> {
         if (target.rloc16 === undefined) {
-            throw new Error("MeshCopDiagnosticSource: resetCounters requires target.rloc16");
+            throw new ImplementationError("MeshCopDiagnosticSource: resetCounters requires target.rloc16");
         }
         if (this.#mlPrefix === undefined) {
-            throw new Error(
+            throw new ImplementationError(
                 "MeshCopDiagnosticSource: resetCounters requires the mesh-local prefix; none was provided to the constructor",
             );
         }
@@ -535,9 +554,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
     }
 
     #freshToken(): Uint8Array {
-        const token = new Uint8Array(4);
-        crypto.getRandomValues(token);
-        return token;
+        return Bytes.of(this.#entropy.randomBytes(4));
     }
 }
 
@@ -624,7 +641,7 @@ function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<Ene
     const entries = BasicTlv.walk(payload);
     const energyEntry = entries.find(e => e.type === MeshCopTlvType.ENERGY_LIST);
     if (energyEntry === undefined) {
-        throw new Error("MeshCopDiagnosticSource: c/er missing ENERGY_LIST TLV");
+        throw new ThreadDiagError("MeshCopDiagnosticSource: c/er missing ENERGY_LIST TLV");
     }
     const energyBytes = energyEntry.value;
     const result = new Array<EnergyScanEntry>();
@@ -662,11 +679,11 @@ function decodePanIdConflict(payload: Uint8Array, expectedPanId: number): PanIdC
     const entries = BasicTlv.walk(payload);
     const maskEntry = entries.find(e => e.type === MeshCopTlvType.CHANNEL_MASK);
     if (maskEntry === undefined) {
-        throw new Error("MeshCopDiagnosticSource: c/pc missing CHANNEL_MASK TLV");
+        throw new ThreadDiagError("MeshCopDiagnosticSource: c/pc missing CHANNEL_MASK TLV");
     }
     const mv = maskEntry.value;
     if (mv.length < 4) {
-        throw new Error(`MeshCopDiagnosticSource: c/pc CHANNEL_MASK too short (${mv.length} bytes)`);
+        throw new ThreadDiagError(`MeshCopDiagnosticSource: c/pc CHANNEL_MASK too short (${mv.length} bytes)`);
     }
     const conflictChannelMask = ((mv[0] << 24) | (mv[1] << 16) | (mv[2] << 8) | mv[3]) >>> 0;
 

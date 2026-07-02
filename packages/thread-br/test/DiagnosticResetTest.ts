@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Environment } from "@matter/general";
 import { Bytes } from "@matter/main";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
@@ -24,6 +25,7 @@ type CoapLike = Pick<CoapClient, "request" | "listen">;
 type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
 
 const ML_PREFIX = new Uint8Array([0xfd, 0xda, 0x3f, 0xb0, 0x2c, 0x67, 0x00, 0x00]);
+const environment = new Environment("test", Environment.default);
 
 function mockCommissioner(): CommissionerLike {
     return {
@@ -109,7 +111,7 @@ describe("MeshCopDiagnosticSource.resetCounters", () => {
             },
             listen: () => () => {},
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         await source.resetCounters({ rloc16: 0x0400 });
 
         expect(requests).to.have.length(1);
@@ -134,7 +136,7 @@ describe("MeshCopDiagnosticSource.resetCounters", () => {
             },
             listen: () => () => {},
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         await source.resetCounters({ rloc16: 0x0400 }, [NetworkDiagTlvType.MAC_COUNTERS]);
 
         expect(requests).to.have.length(1);
@@ -153,7 +155,7 @@ describe("MeshCopDiagnosticSource.resetCounters", () => {
             },
             listen: () => () => {},
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         await source.resetCounters({ rloc16: 0x0400 });
 
         const { sourcePort, destinationPort } = unwrapProxyTx(requests[0].payload!);
@@ -165,6 +167,7 @@ describe("MeshCopDiagnosticSource.resetCounters", () => {
         const source = new MeshCopDiagnosticSource(
             mockCommissioner(),
             { request: async () => ackMessage(), listen: () => () => {} },
+            environment,
             ML_PREFIX,
         );
         try {
@@ -176,10 +179,14 @@ describe("MeshCopDiagnosticSource.resetCounters", () => {
     });
 
     it("throws when no mesh-local prefix was provided", async () => {
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), {
-            request: async () => ackMessage(),
-            listen: () => () => {},
-        });
+        const source = new MeshCopDiagnosticSource(
+            mockCommissioner(),
+            {
+                request: async () => ackMessage(),
+                listen: () => () => {},
+            },
+            environment,
+        );
         try {
             await source.resetCounters({ rloc16: 0x0400 });
             expect.fail("expected Error");
@@ -197,7 +204,7 @@ describe("MeshCopDiagnosticSource.resetCounters", () => {
             },
             listen: () => () => {},
         };
-        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, ML_PREFIX);
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment, ML_PREFIX);
         await source.resetCounters({ rloc16: 0x0800 });
 
         const { targetAddr } = unwrapProxyTx(requests[0].payload!);
