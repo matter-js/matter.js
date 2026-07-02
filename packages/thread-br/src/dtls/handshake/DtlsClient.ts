@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError, InternalError } from "@matter/general";
+import { DtlsError } from "../channel/DtlsChannel.js";
 import { EcJpakePms } from "../ecjpake/EcJpakePms.js";
 import { ECJPAKE_ID_CLIENT, ECJPAKE_ID_SERVER, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
 import { SchnorrZkp } from "../ecjpake/SchnorrZkp.js";
@@ -135,7 +137,9 @@ export class DtlsClient {
 
     cipherState(): DtlsCipherState {
         if (!this.isEstablished() || this.#cipherState === undefined) {
-            throw new Error(`DtlsClient.cipherState() called in state '${this.#state}' (need 'established')`);
+            throw new ImplementationError(
+                `DtlsClient.cipherState() called in state '${this.#state}' (need 'established')`,
+            );
         }
         return this.#cipherState;
     }
@@ -143,11 +147,13 @@ export class DtlsClient {
     /** Initial flight: ClientHello with empty cookie. */
     start(): DtlsClientStep {
         if (this.#state !== "initial") {
-            throw new Error(`DtlsClient.start() called in state '${this.#state}'`);
+            throw new ImplementationError(`DtlsClient.start() called in state '${this.#state}'`);
         }
         const random = this.#config.random();
         if (random.length !== RANDOM_LEN) {
-            throw new Error(`DtlsClient config.random() returned ${random.length} bytes, need ${RANDOM_LEN}`);
+            throw new ImplementationError(
+                `DtlsClient config.random() returned ${random.length} bytes, need ${RANDOM_LEN}`,
+            );
         }
         this.#clientRandom = random;
         const x1 = this.#config.ephemeralScalar();
@@ -168,14 +174,14 @@ export class DtlsClient {
     /** Re-emit the last flight bytes-identically (RFC 6347 §4.2.4). */
     onRetransmit(): DtlsClientStep {
         if (this.#state === "initial" || this.#state === "established" || this.#state === "failed") {
-            throw new Error(`DtlsClient.onRetransmit() called in state '${this.#state}'`);
+            throw new ImplementationError(`DtlsClient.onRetransmit() called in state '${this.#state}'`);
         }
         return { records: this.#lastFlight.map(r => r.slice()) };
     }
 
     onDatagram(bytes: Uint8Array): DtlsClientStep {
         if (this.#state === "established" || this.#state === "failed" || this.#state === "initial") {
-            throw new Error(`DtlsClient.onDatagram() called in state '${this.#state}'`);
+            throw new ImplementationError(`DtlsClient.onDatagram() called in state '${this.#state}'`);
         }
         try {
             switch (this.#state) {
@@ -190,7 +196,7 @@ export class DtlsClient {
                     // AEAD decrypt is attempted.
                     return this.#handleServerFinishedFlightLazy(bytes);
                 default:
-                    throw new Error(`DtlsClient: state ${this.#state} cannot consume a datagram`);
+                    throw new InternalError(`DtlsClient: state ${this.#state} cannot consume a datagram`);
             }
         } catch (e) {
             this.#state = "failed";
@@ -273,7 +279,7 @@ export class DtlsClient {
     #handleHelloVerifyOrServerHello(records: InboundRecord[]): DtlsClientStep {
         const messages = this.#extractHandshakeMessages(records);
         if (messages.length === 0) {
-            throw new Error("DtlsClient: expected handshake message, got none");
+            throw new DtlsError("DtlsClient: expected handshake message, got none");
         }
         if (messages[0].msgType === HandshakeType.HELLO_VERIFY_REQUEST) {
             const { cookie } = HelloVerifyRequestMessage.parse(messages[0].body);
@@ -309,22 +315,24 @@ export class DtlsClient {
 
     #consumeServerFlight(messages: InboundHandshake[]): DtlsClientStep {
         if (messages.length < 3) {
-            throw new Error(
+            throw new DtlsError(
                 `DtlsClient: server flight needs ServerHello+ServerKeyExchange+ServerHelloDone, got ${messages.length} message(s)`,
             );
         }
         const [sh, ske, shd, ...rest] = messages;
         if (rest.length !== 0) {
-            throw new Error(`DtlsClient: server flight has ${rest.length} unexpected trailing handshake message(s)`);
+            throw new DtlsError(
+                `DtlsClient: server flight has ${rest.length} unexpected trailing handshake message(s)`,
+            );
         }
         if (sh.msgType !== HandshakeType.SERVER_HELLO) {
-            throw new Error(`DtlsClient: expected ServerHello, got msg_type=${sh.msgType}`);
+            throw new DtlsError(`DtlsClient: expected ServerHello, got msg_type=${sh.msgType}`);
         }
         if (ske.msgType !== HandshakeType.SERVER_KEY_EXCHANGE) {
-            throw new Error(`DtlsClient: expected ServerKeyExchange, got msg_type=${ske.msgType}`);
+            throw new DtlsError(`DtlsClient: expected ServerKeyExchange, got msg_type=${ske.msgType}`);
         }
         if (shd.msgType !== HandshakeType.SERVER_HELLO_DONE) {
-            throw new Error(`DtlsClient: expected ServerHelloDone, got msg_type=${shd.msgType}`);
+            throw new DtlsError(`DtlsClient: expected ServerHelloDone, got msg_type=${shd.msgType}`);
         }
 
         const parsedSh = ServerHelloMessage.parse(sh.body);
@@ -340,7 +348,7 @@ export class DtlsClient {
                 id: ECJPAKE_ID_SERVER,
             })
         ) {
-            throw new Error("DtlsClient: server round-1 KP1 ZKP verification failed");
+            throw new DtlsError("DtlsClient: server round-1 KP1 ZKP verification failed");
         }
         if (
             !SchnorrZkp.verify({
@@ -349,7 +357,7 @@ export class DtlsClient {
                 id: ECJPAKE_ID_SERVER,
             })
         ) {
-            throw new Error("DtlsClient: server round-1 KP2 ZKP verification failed");
+            throw new DtlsError("DtlsClient: server round-1 KP2 ZKP verification failed");
         }
 
         const skeKp = ServerKeyExchangeMessage.parse(ske.body);
@@ -367,7 +375,7 @@ export class DtlsClient {
                 peerId: ECJPAKE_ID_SERVER,
             })
         ) {
-            throw new Error("DtlsClient: server round-2 ZKP verification failed");
+            throw new DtlsError("DtlsClient: server round-2 ZKP verification failed");
         }
 
         ServerHelloDoneMessage.parse(shd.body);
@@ -387,7 +395,7 @@ export class DtlsClient {
      */
     #emitClientFlight(serverRound2X: Uint8Array): DtlsClientStep {
         if (this.#X3 === undefined || this.#X4 === undefined || this.#serverRandom === undefined) {
-            throw new Error("DtlsClient: emitClientFlight called before server flight was parsed");
+            throw new InternalError("DtlsClient: emitClientFlight called before server flight was parsed");
         }
 
         const s = bigintFromBE(this.#config.password);
@@ -516,7 +524,7 @@ export class DtlsClient {
         const cipherState = this.#cipherState;
         const masterSecret = this.#masterSecret;
         if (cipherState === undefined || masterSecret === undefined) {
-            throw new Error("DtlsClient: server-finished handler reached without armed cipher state");
+            throw new InternalError("DtlsClient: server-finished handler reached without armed cipher state");
         }
         let sawCcs = false;
         let serverFinishedBody: Uint8Array | undefined;
@@ -524,13 +532,13 @@ export class DtlsClient {
         let p = 0;
         while (p < bytes.length) {
             if (bytes.length - p < 13) {
-                throw new Error("DtlsClient: short DTLS record header");
+                throw new DtlsError("DtlsClient: short DTLS record header");
             }
             const epoch = (bytes[p + 3] << 8) | bytes[p + 4];
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + 13 + length;
             if (recordEnd > bytes.length) {
-                throw new Error("DtlsClient: DTLS record length overruns datagram");
+                throw new DtlsError("DtlsClient: DTLS record length overruns datagram");
             }
             const recordBytes = bytes.subarray(p, recordEnd);
             const stateForDecode = epoch === 0 ? undefined : cipherState;
@@ -541,10 +549,10 @@ export class DtlsClient {
                 sawCcs = true;
             } else if (record.type === ContentType.HANDSHAKE) {
                 if (!sawCcs) {
-                    throw new Error("DtlsClient: encrypted Finished received before ChangeCipherSpec");
+                    throw new DtlsError("DtlsClient: encrypted Finished received before ChangeCipherSpec");
                 }
                 if (record.epoch !== cipherState.readEpoch) {
-                    throw new Error(
+                    throw new DtlsError(
                         `DtlsClient: server Finished record at epoch ${record.epoch}, expected ${cipherState.readEpoch}`,
                     );
                 }
@@ -552,7 +560,7 @@ export class DtlsClient {
                 while (q < record.fragment.length) {
                     const { message, consumed } = HandshakeMessage.decode(record.fragment.subarray(q));
                     if (message.msgType !== HandshakeType.FINISHED) {
-                        throw new Error(`DtlsClient: expected Finished, got msg_type=${message.msgType}`);
+                        throw new DtlsError(`DtlsClient: expected Finished, got msg_type=${message.msgType}`);
                     }
                     serverFinishedBody = message.body;
                     serverFinishedMsgSeq = message.messageSeq;
@@ -563,7 +571,7 @@ export class DtlsClient {
             p = recordEnd;
         }
         if (serverFinishedBody === undefined) {
-            throw new Error("DtlsClient: server flight missing Finished message");
+            throw new DtlsError("DtlsClient: server flight missing Finished message");
         }
 
         // Snapshot the transcript BEFORE appending the server's Finished body — the server's
@@ -576,7 +584,7 @@ export class DtlsClient {
         });
         const actual = FinishedMessage.parse(serverFinishedBody).verifyData;
         if (!constantTimeEqual(expected, actual)) {
-            throw new Error("DtlsClient: server Finished verify_data mismatch");
+            throw new DtlsError("DtlsClient: server Finished verify_data mismatch");
         }
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({

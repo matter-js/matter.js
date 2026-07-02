@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { createHash, type Hash } from "node:crypto";
 
 const SHA256_LEN = 32;
@@ -44,7 +45,7 @@ export class HandshakeTranscript {
         const snapshot = this.#hash.copy();
         const out = new Uint8Array(snapshot.digest());
         if (out.length !== SHA256_LEN) {
-            throw new Error(`HandshakeTranscript digest length ${out.length} != ${SHA256_LEN}`);
+            throw new InternalError(`HandshakeTranscript digest length ${out.length} != ${SHA256_LEN}`);
         }
         return out;
     }

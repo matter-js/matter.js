@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { createHmac } from "node:crypto";
 
 const SHA256_LEN = 32;
@@ -24,13 +25,13 @@ function hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array {
 
 function expectLength(name: string, value: Uint8Array, expected: number): void {
     if (value.length !== expected) {
-        throw new Error(`TlsPrf ${name} must be ${expected} bytes, got ${value.length}`);
+        throw new InternalError(`TlsPrf ${name} must be ${expected} bytes, got ${value.length}`);
     }
 }
 
 function pSha256(secret: Uint8Array, seed: Uint8Array, outputLength: number): Uint8Array {
     if (outputLength < 0) {
-        throw new Error(`TlsPrf outputLength must be non-negative, got ${outputLength}`);
+        throw new InternalError(`TlsPrf outputLength must be non-negative, got ${outputLength}`);
     }
     const out = new Uint8Array(outputLength);
     if (outputLength === 0) {

@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "@matter/general";
+import { InternalError, MatterError } from "@matter/general";
+import { DtlsError } from "../channel/DtlsChannel.js";
 import { AesCcm8 } from "./AesCcm8.js";
 import { ContentType, isContentType } from "./ContentType.js";
 
@@ -88,7 +89,7 @@ function readUint16BE(buf: Uint8Array, offset: number): number {
 
 function writeUint48BE(buf: Uint8Array, offset: number, value: bigint): void {
     if (value < 0n || value > MAX_SEQ) {
-        throw new Error(`DTLS sequence_number out of range: ${value}`);
+        throw new InternalError(`DTLS sequence_number out of range: ${value}`);
     }
     buf[offset] = Number((value >> 40n) & 0xffn);
     buf[offset + 1] = Number((value >> 32n) & 0xffn);
@@ -120,30 +121,30 @@ function readUint48BE(buf: Uint8Array, offset: number): bigint {
 export namespace DtlsRecord {
     export function encode(record: DtlsRecord, state?: DtlsRecordCipherState): Uint8Array {
         if (record.epoch < 0 || record.epoch > MAX_EPOCH) {
-            throw new Error(`DTLS epoch out of range: ${record.epoch}`);
+            throw new InternalError(`DTLS epoch out of range: ${record.epoch}`);
         }
         if (record.sequenceNumber < 0n || record.sequenceNumber > MAX_SEQ) {
-            throw new Error(`DTLS sequence_number out of range: ${record.sequenceNumber}`);
+            throw new InternalError(`DTLS sequence_number out of range: ${record.sequenceNumber}`);
         }
         if (!isContentType(record.type)) {
-            throw new Error(`DTLS unknown ContentType: ${record.type}`);
+            throw new InternalError(`DTLS unknown ContentType: ${record.type}`);
         }
 
         let fragment: Uint8Array;
         if (record.epoch === 0) {
             if (record.fragment.length > DTLS_MAX_FRAGMENT_LEN) {
-                throw new Error(
+                throw new InternalError(
                     `DTLS plaintext fragment too large: ${record.fragment.length} > ${DTLS_MAX_FRAGMENT_LEN}`,
                 );
             }
             fragment = record.fragment;
         } else {
             if (state === undefined) {
-                throw new Error(`DTLS encode at epoch ${record.epoch} requires cipher state`);
+                throw new InternalError(`DTLS encode at epoch ${record.epoch} requires cipher state`);
             }
             const plaintextLen = record.fragment.length;
             if (plaintextLen + DTLS_AEAD_OVERHEAD > DTLS_MAX_FRAGMENT_LEN) {
-                throw new Error(
+                throw new InternalError(
                     `DTLS encrypted fragment too large: ${plaintextLen + DTLS_AEAD_OVERHEAD} > ${DTLS_MAX_FRAGMENT_LEN}`,
                 );
             }
@@ -178,16 +179,16 @@ export namespace DtlsRecord {
 
     export function decode(bytes: Uint8Array, state?: DtlsRecordCipherState): DecodeResult {
         if (bytes.length < DTLS_HEADER_LEN) {
-            throw new Error(`DTLS record header truncated: have ${bytes.length}, need ${DTLS_HEADER_LEN}`);
+            throw new DtlsError(`DTLS record header truncated: have ${bytes.length}, need ${DTLS_HEADER_LEN}`);
         }
         const type = bytes[0];
         if (!isContentType(type)) {
-            throw new Error(`DTLS unknown ContentType: ${type}`);
+            throw new DtlsError(`DTLS unknown ContentType: ${type}`);
         }
         const major = bytes[1];
         const minor = bytes[2];
         if (major !== DTLS_1_2_VERSION.major || minor !== DTLS_1_2_VERSION.minor) {
-            throw new Error(
+            throw new DtlsError(
                 `DTLS unsupported version ${major.toString(16)}.${minor.toString(16)}; only DTLS 1.2 is supported`,
             );
         }
@@ -195,11 +196,11 @@ export namespace DtlsRecord {
         const sequenceNumber = readUint48BE(bytes, 5);
         const length = readUint16BE(bytes, 11);
         if (length > DTLS_MAX_FRAGMENT_LEN) {
-            throw new Error(`DTLS fragment length ${length} exceeds limit ${DTLS_MAX_FRAGMENT_LEN}`);
+            throw new DtlsError(`DTLS fragment length ${length} exceeds limit ${DTLS_MAX_FRAGMENT_LEN}`);
         }
         const total = DTLS_HEADER_LEN + length;
         if (bytes.length < total) {
-            throw new Error(`DTLS record truncated: header says ${length}, have ${bytes.length - DTLS_HEADER_LEN}`);
+            throw new DtlsError(`DTLS record truncated: header says ${length}, have ${bytes.length - DTLS_HEADER_LEN}`);
         }
 
         let fragment: Uint8Array;
@@ -207,10 +208,12 @@ export namespace DtlsRecord {
             fragment = bytes.slice(DTLS_HEADER_LEN, total);
         } else {
             if (state === undefined) {
-                throw new Error(`DTLS decode at epoch ${epoch} requires cipher state`);
+                throw new InternalError(`DTLS decode at epoch ${epoch} requires cipher state`);
             }
             if (length < DTLS_AEAD_OVERHEAD) {
-                throw new Error(`DTLS encrypted fragment ${length} bytes < ${DTLS_AEAD_OVERHEAD}-byte AEAD overhead`);
+                throw new DtlsError(
+                    `DTLS encrypted fragment ${length} bytes < ${DTLS_AEAD_OVERHEAD}-byte AEAD overhead`,
+                );
             }
             // Wire layout: explicit_nonce(8) || ciphertext(N) || tag(8); plaintext length is N.
             const explicitNonce = bytes.subarray(DTLS_HEADER_LEN, DTLS_HEADER_LEN + 8);
@@ -224,7 +227,7 @@ export namespace DtlsRecord {
                 wireSeq = (wireSeq << 8n) | BigInt(explicitNonce[i]);
             }
             if (wireEpoch !== epoch || wireSeq !== sequenceNumber) {
-                throw new Error(
+                throw new DtlsError(
                     `DTLS explicit nonce ${wireEpoch}/${wireSeq} disagrees with header ${epoch}/${sequenceNumber}`,
                 );
             }

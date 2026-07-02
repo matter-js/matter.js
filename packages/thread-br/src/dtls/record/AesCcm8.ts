@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { createCipheriv, createDecipheriv } from "node:crypto";
+import { DtlsError } from "../channel/DtlsChannel.js";
 
 const KEY_LEN = 16;
 const TAG_LEN = 8;
@@ -36,7 +38,7 @@ export namespace AesCcm8 {
 
     export function encrypt({ key, nonce, aad, plaintext }: EncryptArgs): Uint8Array {
         if (key.length !== KEY_LEN) {
-            throw new Error(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${key.length}`);
+            throw new InternalError(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${key.length}`);
         }
         const cipher = createCipheriv("aes-128-ccm", key, nonce, { authTagLength: TAG_LEN });
         cipher.setAAD(aad, { plaintextLength: plaintext.length });
@@ -55,10 +57,10 @@ export namespace AesCcm8 {
 
     export function decrypt({ key, nonce, aad, ciphertextWithTag }: DecryptArgs): Uint8Array {
         if (key.length !== KEY_LEN) {
-            throw new Error(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${key.length}`);
+            throw new InternalError(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${key.length}`);
         }
         if (ciphertextWithTag.length < TAG_LEN) {
-            throw new Error(`AES-128-CCM-8 input shorter than ${TAG_LEN}-byte tag`);
+            throw new DtlsError(`AES-128-CCM-8 input shorter than ${TAG_LEN}-byte tag`);
         }
         const ctLen = ciphertextWithTag.length - TAG_LEN;
         const ct = ciphertextWithTag.subarray(0, ctLen);

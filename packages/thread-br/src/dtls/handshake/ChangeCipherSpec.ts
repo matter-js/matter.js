@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DtlsError } from "../channel/DtlsChannel.js";
+
 /**
  * ChangeCipherSpec is *not* a handshake message — it sits at the record layer
  * under its own ContentType (20) and consists of a single byte 0x01
@@ -22,7 +24,7 @@ export const CHANGE_CIPHER_SPEC_BODY: Readonly<Uint8Array> = new Uint8Array([0x0
 export const ChangeCipherSpec = {
     parse(body: Uint8Array): void {
         if (body.length !== 1 || body[0] !== 0x01) {
-            throw new Error(
+            throw new DtlsError(
                 `ChangeCipherSpec must be a single 0x01 byte, got len=${body.length} first=${body[0] ?? "undefined"}`,
             );
         }

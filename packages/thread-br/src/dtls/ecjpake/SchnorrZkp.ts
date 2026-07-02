@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { DtlsError } from "../channel/DtlsChannel.js";
 
 /**
  * Schnorr zero-knowledge proof of knowledge of `x` such that `X = x*G`,
@@ -71,7 +73,7 @@ function hashChallenge(args: {
 
 function bigintToMinimalBE(value: bigint): Uint8Array {
     if (value < 0n) {
-        throw new Error("Schnorr response scalar must be non-negative");
+        throw new InternalError("Schnorr response scalar must be non-negative");
     }
     if (value === 0n) {
         return new Uint8Array(0);
@@ -99,7 +101,7 @@ function getBaseGBytes(): Uint8Array {
 
 function pointFromBytes(bytes: Uint8Array): InstanceType<typeof Point> {
     if (bytes.length !== POINT_LEN || bytes[0] !== 0x04) {
-        throw new Error(
+        throw new DtlsError(
             `expected SEC1-uncompressed P-256 point (65 bytes, 0x04 prefix), got len=${bytes.length} head=${bytes[0]}`,
         );
     }
@@ -120,7 +122,7 @@ export interface SchnorrZkpGenerator {
 function generatorOrBase(g?: SchnorrZkpGenerator): SchnorrZkpGenerator {
     if (g) {
         if (g.bytes.length !== POINT_LEN || g.bytes[0] !== 0x04) {
-            throw new Error("generator bytes must be SEC1-uncompressed P-256 (65 bytes, 0x04 prefix)");
+            throw new InternalError("generator bytes must be SEC1-uncompressed P-256 (65 bytes, 0x04 prefix)");
         }
         return g;
     }
@@ -147,10 +149,10 @@ export const SchnorrZkp = {
     }): SchnorrZkp {
         const { privateKey, publicKey, ephemeral, id } = args;
         if (ephemeral <= 0n || ephemeral >= N) {
-            throw new Error("ephemeral scalar must be in [1, n-1]");
+            throw new InternalError("ephemeral scalar must be in [1, n-1]");
         }
         if (privateKey <= 0n || privateKey >= N) {
-            throw new Error("private key scalar must be in [1, n-1]");
+            throw new InternalError("private key scalar must be in [1, n-1]");
         }
         const g = generatorOrBase(args.generator);
         const V = g.point.multiply(ephemeral);

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { createCipheriv } from "node:crypto";
 
 const BLOCK_SIZE = 16;
@@ -53,7 +54,7 @@ function generateSubkeys(key: Uint8Array): { k1: Uint8Array; k2: Uint8Array } {
 export namespace AesCmac {
     export function compute(key: Uint8Array, message: Uint8Array): Uint8Array {
         if (key.length !== 16) {
-            throw new Error(`AES-CMAC key must be 16 bytes, got ${key.length}`);
+            throw new InternalError(`AES-CMAC key must be 16 bytes, got ${key.length}`);
         }
         const { k1, k2 } = generateSubkeys(key);
 

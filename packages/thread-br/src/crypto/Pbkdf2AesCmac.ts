@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
 import { AesCmacPrf128 } from "./AesCmacPrf128.js";
 
 const HLEN = 16;
@@ -22,14 +23,14 @@ export function pbkdf2AesCmac(args: {
 }): Uint8Array {
     const { password, salt, iterations, dkLen } = args;
     if (!Number.isInteger(iterations) || iterations <= 0) {
-        throw new Error(`iterations must be a positive integer, got ${iterations}`);
+        throw new ImplementationError(`iterations must be a positive integer, got ${iterations}`);
     }
     if (!Number.isInteger(dkLen) || dkLen <= 0) {
-        throw new Error(`dkLen must be a positive integer, got ${dkLen}`);
+        throw new ImplementationError(`dkLen must be a positive integer, got ${dkLen}`);
     }
     // PBKDF2 caps the derived-key length at (2^32 - 1) * hLen bytes (RFC 8018).
     if (dkLen > 0xffffffff * HLEN) {
-        throw new Error(`dkLen ${dkLen} exceeds PBKDF2 maximum`);
+        throw new ImplementationError(`dkLen ${dkLen} exceeds PBKDF2 maximum`);
     }
 
     const numBlocks = Math.ceil(dkLen / HLEN);

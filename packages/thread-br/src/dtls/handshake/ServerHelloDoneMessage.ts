@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DtlsError } from "../channel/DtlsChannel.js";
+
 /**
  * ServerHelloDone body parser (RFC 5246 §7.4.5). The body is empty; this
  * exists only so the state machine has a uniform per-message entry point and
@@ -12,7 +14,7 @@
 export const ServerHelloDoneMessage = {
     parse(body: Uint8Array): void {
         if (body.length !== 0) {
-            throw new Error(`ServerHelloDone body must be empty, got ${body.length} bytes`);
+            throw new DtlsError(`ServerHelloDone body must be empty, got ${body.length} bytes`);
         }
     },
 } as const;

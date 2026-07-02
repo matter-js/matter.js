@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { AntiReplayWindow } from "./AntiReplayWindow.js";
 import { ContentType } from "./ContentType.js";
 import { DTLS_1_2_VERSION, type DtlsRecordCipherState } from "./DtlsRecord.js";
@@ -34,7 +35,7 @@ const MAX_SEQ = (1n << 48n) - 1n;
 
 function copyExpect(name: string, value: Uint8Array, expectedLen: number): Uint8Array {
     if (value.length !== expectedLen) {
-        throw new Error(`DtlsCipherState ${name} must be ${expectedLen} bytes, got ${value.length}`);
+        throw new InternalError(`DtlsCipherState ${name} must be ${expectedLen} bytes, got ${value.length}`);
     }
     return new Uint8Array(value);
 }
@@ -92,7 +93,9 @@ export class DtlsCipherState implements DtlsRecordCipherState {
      */
     nextWriteSeq(): bigint {
         if (this.#writeSeq > MAX_SEQ) {
-            throw new Error(`DtlsCipherState write sequence_number space exhausted at epoch ${this.#writeEpoch}`);
+            throw new InternalError(
+                `DtlsCipherState write sequence_number space exhausted at epoch ${this.#writeEpoch}`,
+            );
         }
         const seq = this.#writeSeq;
         this.#writeSeq += 1n;
@@ -105,7 +108,7 @@ export class DtlsCipherState implements DtlsRecordCipherState {
      */
     advanceWriteEpoch(): void {
         if (this.#writeEpoch >= MAX_EPOCH) {
-            throw new Error(`DtlsCipherState write epoch overflow`);
+            throw new InternalError(`DtlsCipherState write epoch overflow`);
         }
         this.#writeEpoch += 1;
         this.#writeSeq = 0n;
@@ -117,7 +120,7 @@ export class DtlsCipherState implements DtlsRecordCipherState {
      */
     advanceReadEpoch(): void {
         if (this.#readEpoch >= MAX_EPOCH) {
-            throw new Error(`DtlsCipherState read epoch overflow`);
+            throw new InternalError(`DtlsCipherState read epoch overflow`);
         }
         this.#readEpoch += 1;
         this.#readWindow = new AntiReplayWindow();
@@ -155,13 +158,13 @@ export class DtlsCipherState implements DtlsRecordCipherState {
 
     nonceFor(salt: Uint8Array, epoch: number, seqNum: bigint): Uint8Array {
         if (salt.length !== SALT_LEN) {
-            throw new Error(`DtlsCipherState nonceFor: salt must be ${SALT_LEN} bytes, got ${salt.length}`);
+            throw new InternalError(`DtlsCipherState nonceFor: salt must be ${SALT_LEN} bytes, got ${salt.length}`);
         }
         if (epoch < 0 || epoch > MAX_EPOCH) {
-            throw new Error(`DtlsCipherState nonceFor: epoch ${epoch} out of range`);
+            throw new InternalError(`DtlsCipherState nonceFor: epoch ${epoch} out of range`);
         }
         if (seqNum < 0n || seqNum > MAX_SEQ) {
-            throw new Error(`DtlsCipherState nonceFor: seqNum ${seqNum} out of range`);
+            throw new InternalError(`DtlsCipherState nonceFor: seqNum ${seqNum} out of range`);
         }
         const out = new Uint8Array(NONCE_LEN);
         out.set(salt, 0);
@@ -175,13 +178,13 @@ export class DtlsCipherState implements DtlsRecordCipherState {
 
     aadFor(type: ContentType, epoch: number, seqNum: bigint, plaintextLen: number): Uint8Array {
         if (epoch < 0 || epoch > MAX_EPOCH) {
-            throw new Error(`DtlsCipherState aadFor: epoch ${epoch} out of range`);
+            throw new InternalError(`DtlsCipherState aadFor: epoch ${epoch} out of range`);
         }
         if (seqNum < 0n || seqNum > MAX_SEQ) {
-            throw new Error(`DtlsCipherState aadFor: seqNum ${seqNum} out of range`);
+            throw new InternalError(`DtlsCipherState aadFor: seqNum ${seqNum} out of range`);
         }
         if (plaintextLen < 0 || plaintextLen > 0xffff) {
-            throw new Error(`DtlsCipherState aadFor: plaintextLen ${plaintextLen} out of range`);
+            throw new InternalError(`DtlsCipherState aadFor: plaintextLen ${plaintextLen} out of range`);
         }
         const out = new Uint8Array(AAD_LEN);
         out[0] = (epoch >>> 8) & 0xff;

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { DtlsError } from "../channel/DtlsChannel.js";
 import { HandshakeType, isHandshakeType } from "./HandshakeType.js";
 
 /** Length of the DTLS 1.2 handshake message header (RFC 6347 §4.2.2). */
@@ -78,13 +80,13 @@ export namespace HandshakeMessage {
     export function encode(message: HandshakeMessage): Uint8Array {
         const { msgType, messageSeq, body } = message;
         if (!isHandshakeType(msgType)) {
-            throw new Error(`HandshakeMessage unknown msg_type: ${msgType}`);
+            throw new InternalError(`HandshakeMessage unknown msg_type: ${msgType}`);
         }
         if (messageSeq < 0 || messageSeq > UINT16_MAX) {
-            throw new Error(`HandshakeMessage message_seq ${messageSeq} out of range`);
+            throw new InternalError(`HandshakeMessage message_seq ${messageSeq} out of range`);
         }
         if (body.length > UINT24_MAX) {
-            throw new Error(`HandshakeMessage body length ${body.length} exceeds 24-bit max`);
+            throw new InternalError(`HandshakeMessage body length ${body.length} exceeds 24-bit max`);
         }
         const out = new Uint8Array(DTLS_HANDSHAKE_HEADER_LEN + body.length);
         out[0] = msgType;
@@ -107,26 +109,26 @@ export namespace HandshakeMessage {
 
     export function decode(bytes: Uint8Array): DecodeResult {
         if (bytes.length < DTLS_HANDSHAKE_HEADER_LEN) {
-            throw new Error(
+            throw new DtlsError(
                 `HandshakeMessage header truncated: have ${bytes.length}, need ${DTLS_HANDSHAKE_HEADER_LEN}`,
             );
         }
         const msgType = bytes[0];
         if (!isHandshakeType(msgType)) {
-            throw new Error(`HandshakeMessage unknown msg_type: ${msgType}`);
+            throw new DtlsError(`HandshakeMessage unknown msg_type: ${msgType}`);
         }
         const length = readUint24BE(bytes, 1);
         const messageSeq = readUint16BE(bytes, 4);
         const fragmentOffset = readUint24BE(bytes, 6);
         const fragmentLength = readUint24BE(bytes, 9);
         if (fragmentOffset !== 0 || fragmentLength !== length) {
-            throw new Error(
+            throw new DtlsError(
                 `HandshakeMessage fragmented input not supported: offset=${fragmentOffset} fragLen=${fragmentLength} totalLen=${length}`,
             );
         }
         const total = DTLS_HANDSHAKE_HEADER_LEN + length;
         if (bytes.length < total) {
-            throw new Error(
+            throw new DtlsError(
                 `HandshakeMessage body truncated: header says ${length}, have ${bytes.length - DTLS_HANDSHAKE_HEADER_LEN}`,
             );
         }

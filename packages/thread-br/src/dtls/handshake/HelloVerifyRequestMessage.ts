@@ -21,21 +21,23 @@
  * ClientHello carry the spec-mandated DTLS 1.2 version regardless.
  */
 
+import { DtlsError } from "../channel/DtlsChannel.js";
+
 const MAX_COOKIE_LEN = 0xff;
 
 export const HelloVerifyRequestMessage = {
     parse(body: Uint8Array): { cookie: Uint8Array } {
         if (body.length < 2 + 1) {
-            throw new Error(`HelloVerifyRequest body truncated: have ${body.length}, need >= 3`);
+            throw new DtlsError(`HelloVerifyRequest body truncated: have ${body.length}, need >= 3`);
         }
         // server_version (2 bytes) is intentionally not validated — see jsdoc.
         const cookieLen = body[2];
         if (cookieLen > MAX_COOKIE_LEN) {
-            throw new Error(`HelloVerifyRequest cookie length ${cookieLen} exceeds ${MAX_COOKIE_LEN}`);
+            throw new DtlsError(`HelloVerifyRequest cookie length ${cookieLen} exceeds ${MAX_COOKIE_LEN}`);
         }
         const expectedLen = 2 + 1 + cookieLen;
         if (body.length !== expectedLen) {
-            throw new Error(
+            throw new DtlsError(
                 `HelloVerifyRequest body length ${body.length} disagrees with cookie length ${cookieLen} (expected ${expectedLen})`,
             );
         }

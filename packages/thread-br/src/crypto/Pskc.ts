@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
 import { pbkdf2AesCmac } from "./Pbkdf2AesCmac.js";
 
 const SALT_PREFIX = new TextEncoder().encode("Thread");
@@ -27,16 +28,16 @@ export namespace Pskc {
     export function derive(args: { passphrase: string; extPanId: Uint8Array; networkName: string }): Uint8Array {
         const password = new TextEncoder().encode(args.passphrase);
         if (password.length < PASSPHRASE_MIN_BYTES || password.length > PASSPHRASE_MAX_BYTES) {
-            throw new Error(
+            throw new ImplementationError(
                 `passphrase UTF-8 length must be ${PASSPHRASE_MIN_BYTES}..${PASSPHRASE_MAX_BYTES} bytes, got ${password.length}`,
             );
         }
         if (args.extPanId.length !== EXT_PAN_ID_LENGTH) {
-            throw new Error(`extPanId must be ${EXT_PAN_ID_LENGTH} bytes, got ${args.extPanId.length}`);
+            throw new ImplementationError(`extPanId must be ${EXT_PAN_ID_LENGTH} bytes, got ${args.extPanId.length}`);
         }
         const networkNameBytes = new TextEncoder().encode(args.networkName);
         if (networkNameBytes.length === 0 || networkNameBytes.length > NETWORK_NAME_MAX_BYTES) {
-            throw new Error(
+            throw new ImplementationError(
                 `networkName UTF-8 length must be 1..${NETWORK_NAME_MAX_BYTES} bytes, got ${networkNameBytes.length}`,
             );
         }

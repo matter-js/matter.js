@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Time, type Timer } from "@matter/general";
+import { ImplementationError, Millis, Time, type Timer } from "@matter/general";
 
 /**
  * Per-flight DTLS 1.2 retransmit timer (RFC 6347 §4.2.4).
@@ -43,13 +43,17 @@ export class DtlsRetransmitTimer {
 
     constructor(opts: DtlsRetransmitTimerOpts) {
         if (opts.initialMs <= 0) {
-            throw new Error(`DtlsRetransmitTimer initialMs must be > 0, got ${opts.initialMs}`);
+            throw new ImplementationError(`DtlsRetransmitTimer initialMs must be > 0, got ${opts.initialMs}`);
         }
         if (opts.maxMs < opts.initialMs) {
-            throw new Error(`DtlsRetransmitTimer maxMs ${opts.maxMs} must be >= initialMs ${opts.initialMs}`);
+            throw new ImplementationError(
+                `DtlsRetransmitTimer maxMs ${opts.maxMs} must be >= initialMs ${opts.initialMs}`,
+            );
         }
         if (opts.maxRetransmits < 1) {
-            throw new Error(`DtlsRetransmitTimer maxRetransmits must be >= 1, got ${opts.maxRetransmits}`);
+            throw new ImplementationError(
+                `DtlsRetransmitTimer maxRetransmits must be >= 1, got ${opts.maxRetransmits}`,
+            );
         }
         this.#initialMs = opts.initialMs;
         this.#maxMs = opts.maxMs;

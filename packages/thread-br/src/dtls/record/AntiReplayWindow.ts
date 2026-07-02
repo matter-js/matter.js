@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+
 const WINDOW_SIZE = 64n;
 const WINDOW_MASK = (1n << WINDOW_SIZE) - 1n;
 const MAX_SEQ = (1n << 48n) - 1n;
@@ -51,7 +53,7 @@ export class AntiReplayWindow {
      */
     check(seqNum: bigint): boolean {
         if (seqNum < 0n || seqNum > MAX_SEQ) {
-            throw new Error(`AntiReplayWindow: seqNum ${seqNum} out of 48-bit range`);
+            throw new InternalError(`AntiReplayWindow: seqNum ${seqNum} out of 48-bit range`);
         }
 
         if (seqNum > this.#rightmost) {

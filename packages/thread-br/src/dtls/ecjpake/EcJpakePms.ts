@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { DtlsError } from "../channel/DtlsChannel.js";
 
 const Point = p256.Point;
 const N = Point.Fn.ORDER;
@@ -36,22 +38,22 @@ export const EcJpakePms = {
     derive(args: { Xp: Uint8Array; Xp2: Uint8Array; xm2: bigint; s: bigint }): Uint8Array {
         const { Xp, Xp2, xm2, s } = args;
         if (xm2 <= 0n || xm2 >= N) {
-            throw new Error("xm2 must be in [1, n-1]");
+            throw new InternalError("xm2 must be in [1, n-1]");
         }
         if (s <= 0n) {
-            throw new Error("s (password as integer) must be positive");
+            throw new InternalError("s (password as integer) must be positive");
         }
         const Xp_pt = Point.fromBytes(Xp);
         const Xp2_pt = Point.fromBytes(Xp2);
         if (Xp_pt.is0() || Xp2_pt.is0()) {
-            throw new Error("peer points must not be the point at infinity");
+            throw new DtlsError("peer points must not be the point at infinity");
         }
         const xm2sNeg = (N - ((xm2 * s) % N)) % N;
         // xm2sNeg is derived from the password; multiply (constant-time) avoids leaking it via timing.
         const K1 = Xp_pt.add(Xp2_pt.multiply(xm2sNeg));
         const K = K1.multiply(xm2);
         if (K.is0()) {
-            throw new Error("derived K is the point at infinity");
+            throw new DtlsError("derived K is the point at infinity");
         }
         // mbedTLS writes K.X as a fixed-width 32-byte BE field element before
         // SHA-256. SEC1-uncompressed encoding from noble lays out as

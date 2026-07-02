@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DtlsError } from "../channel/DtlsChannel.js";
 import { CIPHER_SUITE_ECJPAKE_WITH_AES_128_CCM_8, EXTENSION_TYPE_ECJPAKE_KKPP } from "./ClientHelloMessage.js";
 
 /**
@@ -51,77 +52,77 @@ export interface ParsedServerHello {
 export const ServerHelloMessage = {
     parse(body: Uint8Array): ParsedServerHello {
         if (body.length < 2 + RANDOM_LEN + 1 + 2 + 1) {
-            throw new Error(`ServerHello body truncated: have ${body.length}`);
+            throw new DtlsError(`ServerHello body truncated: have ${body.length}`);
         }
         let p = 0;
         const major = body[p++];
         const minor = body[p++];
         if (major !== DTLS_1_2_MAJOR || minor !== DTLS_1_2_MINOR) {
-            throw new Error(`ServerHello version ${major.toString(16)}.${minor.toString(16)} is not DTLS 1.2`);
+            throw new DtlsError(`ServerHello version ${major.toString(16)}.${minor.toString(16)} is not DTLS 1.2`);
         }
         // slice (copy) so the parsed random does not alias the inbound datagram buffer.
         const serverRandom = body.slice(p, p + RANDOM_LEN);
         p += RANDOM_LEN;
         const sessionIdLen = body[p++];
         if (p + sessionIdLen > body.length) {
-            throw new Error(`ServerHello session_id length ${sessionIdLen} overruns body`);
+            throw new DtlsError(`ServerHello session_id length ${sessionIdLen} overruns body`);
         }
         // We don't preserve the session_id — we never resume sessions in this stack.
         p += sessionIdLen;
         if (p + 2 + 1 > body.length) {
-            throw new Error(`ServerHello truncated before cipher_suite/compression_method`);
+            throw new DtlsError(`ServerHello truncated before cipher_suite/compression_method`);
         }
         const suite = readUint16BE(body, p);
         p += 2;
         if (suite !== CIPHER_SUITE_ECJPAKE_WITH_AES_128_CCM_8) {
-            throw new Error(
+            throw new DtlsError(
                 `ServerHello selected unsupported cipher suite 0x${suite.toString(16).padStart(4, "0")}; require TLS_ECJPAKE_WITH_AES_128_CCM_8 (0xc0ff)`,
             );
         }
         const compression = body[p++];
         if (compression !== COMPRESSION_NULL) {
-            throw new Error(`ServerHello selected unsupported compression method 0x${compression.toString(16)}`);
+            throw new DtlsError(`ServerHello selected unsupported compression method 0x${compression.toString(16)}`);
         }
 
         let ecjpakeKkpp: Uint8Array | undefined;
         if (p < body.length) {
             if (p + 2 > body.length) {
-                throw new Error("ServerHello extensions block length truncated");
+                throw new DtlsError("ServerHello extensions block length truncated");
             }
             const extsLen = readUint16BE(body, p);
             p += 2;
             const extsEnd = p + extsLen;
             if (extsEnd > body.length) {
-                throw new Error(`ServerHello extensions length ${extsLen} overruns body`);
+                throw new DtlsError(`ServerHello extensions length ${extsLen} overruns body`);
             }
             while (p < extsEnd) {
                 if (p + 4 > extsEnd) {
-                    throw new Error("ServerHello extension entry truncated");
+                    throw new DtlsError("ServerHello extension entry truncated");
                 }
                 const extType = readUint16BE(body, p);
                 p += 2;
                 const extDataLen = readUint16BE(body, p);
                 p += 2;
                 if (p + extDataLen > extsEnd) {
-                    throw new Error(`ServerHello extension type 0x${extType.toString(16)} data overruns`);
+                    throw new DtlsError(`ServerHello extension type 0x${extType.toString(16)} data overruns`);
                 }
                 if (extType === EXTENSION_TYPE_ECJPAKE_KKPP) {
                     if (ecjpakeKkpp !== undefined) {
-                        throw new Error("ServerHello contains multiple ecjpake_kkpp extensions");
+                        throw new DtlsError("ServerHello contains multiple ecjpake_kkpp extensions");
                     }
                     ecjpakeKkpp = body.slice(p, p + extDataLen);
                 }
                 p += extDataLen;
             }
             if (p !== extsEnd) {
-                throw new Error(`ServerHello extensions block ended at ${p}, expected ${extsEnd}`);
+                throw new DtlsError(`ServerHello extensions block ended at ${p}, expected ${extsEnd}`);
             }
         }
         if (p !== body.length) {
-            throw new Error(`ServerHello has ${body.length - p} trailing bytes after extensions block`);
+            throw new DtlsError(`ServerHello has ${body.length - p} trailing bytes after extensions block`);
         }
         if (ecjpakeKkpp === undefined) {
-            throw new Error("ServerHello missing required ecjpake_kkpp extension (type 0x0100)");
+            throw new DtlsError("ServerHello missing required ecjpake_kkpp extension (type 0x0100)");
         }
         return { serverRandom, ecjpakeKkpp };
     },

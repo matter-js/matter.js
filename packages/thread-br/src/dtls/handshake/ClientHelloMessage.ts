@@ -27,6 +27,8 @@
  *   omitted but real BRs may not be
  */
 
+import { InternalError } from "@matter/general";
+
 /** TLS extension type for `ecjpake_kkpp` (draft-cragie-tls-ecjpake-01 §3). */
 export const EXTENSION_TYPE_ECJPAKE_KKPP = 0x0100;
 
@@ -73,10 +75,10 @@ export const ClientHelloMessage = {
     build(fields: ClientHelloFields): Uint8Array {
         const { random, cookie, ecjpakeKkpp } = fields;
         if (random.length !== RANDOM_LEN) {
-            throw new Error(`ClientHello random must be ${RANDOM_LEN} bytes, got ${random.length}`);
+            throw new InternalError(`ClientHello random must be ${RANDOM_LEN} bytes, got ${random.length}`);
         }
         if (cookie.length > MAX_COOKIE_LEN) {
-            throw new Error(`ClientHello cookie must be <= ${MAX_COOKIE_LEN} bytes, got ${cookie.length}`);
+            throw new InternalError(`ClientHello cookie must be <= ${MAX_COOKIE_LEN} bytes, got ${cookie.length}`);
         }
         const ecjpakeExtLen = 2 + 2 + ecjpakeKkpp.length;
         const supportedGroupsExtLen = 2 + 2 + 2 + 2; // header(4) + list_len(2) + secp256r1(2)
@@ -141,7 +143,7 @@ export const ClientHelloMessage = {
         out[p++] = 1; // list_len = 1 byte (one format)
         out[p++] = 0x00; // uncompressed
         if (p !== totalLen) {
-            throw new Error(`ClientHello internal length mismatch: wrote ${p}, expected ${totalLen}`);
+            throw new InternalError(`ClientHello internal length mismatch: wrote ${p}, expected ${totalLen}`);
         }
         return out;
     },
