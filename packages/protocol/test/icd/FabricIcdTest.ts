@@ -172,5 +172,17 @@ describe("FabricIcd", () => {
             const icd = fabricIcd();
             expect(icd.wakefulnessFor(NodeId(99))).undefined;
         });
+
+        it("peerFed emits the peer node ID on addPeer", () => {
+            const icd = fabricIcd();
+            const fed = new Array<NodeId>();
+            icd.peerFed.on(nodeId => {
+                fed.push(nodeId);
+            });
+
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+
+            expect(fed).deep.equal([NodeId(11)]);
+        });
     });
 });

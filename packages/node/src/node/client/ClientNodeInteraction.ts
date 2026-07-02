@@ -151,6 +151,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             // Resolve wakefulness live: the sustained subscription reads it on each loop decision, so a peer
             // registered after subscribe, or flipped SIT⇄LIT at runtime, is honored without re-subscribing.
             icdWakefulness: () => this.#icdWakefulness(),
+
+            // A subscription established before its peer was fed holds no wakefulness to observe the first
+            // registration-induced flip on; the feed signal lets it recreate on that flip.
+            icdPeerFed: () => this.#peerIcd()?.icd.peerFed,
         };
 
         return this.#interaction.subscribe(intermediateRequest, context);

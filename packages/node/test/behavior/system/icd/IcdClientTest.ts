@@ -810,6 +810,44 @@ describe("IcdClient", () => {
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
+
+        it("recreates the running subscription on the first registration-induced SIT→LIT flip", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            // Established while SIT/unfed: no wakefulness exists, so the underlying subscription runs as plain sustained.
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(wakefulnessOf(controller, peer1)).undefined;
+            const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription;
+            if (!(subscription instanceof SustainedSubscription)) {
+                throw new ImplementationError("expected a sustained subscription");
+            }
+            const idBeforeFlip = subscription.subscriptionId;
+
+            // Runtime SIT→LIT flip auto-registers (feeds the peer). The running subscription held no wakefulness to
+            // observe the flip on, so it recreates via the feed signal for the new mode.
+            const modeChanged = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdManagementClient).operatingMode$Changed.once(() => resolve()),
+            );
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(modeChanged, { macrotasks: true });
+            await settleAutoRegistration(peer1);
+            for (let i = 0; i < 5; i++) {
+                await MockTime.advance(Millis(200));
+                await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            }
+
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(wakefulnessOf(controller, peer1)?.requiresAwait).true;
+            // Recreated: a new underlying subscription id, still active (the register seeded the awake window, so the
+            // recreate landed in-window rather than parking).
+            expect(subscription.subscriptionId).not.equal(idBeforeFlip);
+            expect(subscription.active.value).true;
+        });
     });
 
     describe("MRP idle interval", () => {

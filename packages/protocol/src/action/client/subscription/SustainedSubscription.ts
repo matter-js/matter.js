@@ -21,12 +21,13 @@ import {
     Hours,
     ImplementationError,
     Logger,
+    Observable,
     Observer,
     RetrySchedule,
     Seconds,
     Time,
 } from "@matter/general";
-import { SubscribeResponse } from "@matter/types";
+import { type NodeId, SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
 import { PeerSubscription } from "./PeerSubscription.js";
 
@@ -59,13 +60,14 @@ export class SustainedSubscription extends ClientSubscription {
     #read: (request: Read, abort: AbortSignal, logContext?: ExchangeLogContext) => ReadResult;
     #probe: (abort: AbortSignal) => Promise<boolean>;
     #wakefulness?: () => IcdPeerWakefulness | undefined;
+    #peerFed?: () => Observable<[NodeId]> | undefined;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
     constructor(config: SustainedSubscription.Configuration) {
         super(config);
 
-        const { request, read, probe, retries, subscribe, wakefulness } = config;
+        const { request, read, probe, retries, subscribe, wakefulness, peerFed } = config;
 
         this.#request = request;
         this.#retries = retries;
@@ -73,6 +75,7 @@ export class SustainedSubscription extends ClientSubscription {
         this.#read = read;
         this.#probe = probe;
         this.#wakefulness = wakefulness;
+        this.#peerFed = peerFed;
         this.done = this.#run();
     }
 
@@ -315,8 +318,35 @@ export class SustainedSubscription extends ClientSubscription {
     async #awaitClosedOrModeFlip(closed: Promise<void>): Promise<boolean> {
         const wakefulness = this.#wakefulness?.();
         if (wakefulness === undefined) {
-            await this.abort.race(closed);
-            return false;
+            // No wakefulness exists yet to observe a mode flip on: the subscription established before its peer was
+            // fed (registered). Race the feed signal so the first registration-induced flip recreates for the new
+            // mode instead of being missed until a later loss; the recreate re-captures the now-present wakefulness so
+            // subsequent flips are handled by the normal observer above.
+            const peerFed = this.#peerFed?.();
+            if (peerFed === undefined) {
+                await this.abort.race(closed);
+                return false;
+            }
+
+            let fed = false;
+            let observer: Observer<[NodeId]> | undefined;
+            const feed = new Promise<void>(resolve => {
+                observer = nodeId => {
+                    if (nodeId === this.peer.nodeId) {
+                        fed = true;
+                        resolve();
+                    }
+                };
+                peerFed.on(observer);
+            });
+            try {
+                await this.abort.race(Promise.race([closed, feed]));
+            } finally {
+                if (observer !== undefined) {
+                    peerFed.off(observer);
+                }
+            }
+            return fed && !this.abort.aborted;
         }
 
         let flipped = false;
@@ -427,6 +457,14 @@ export namespace SustainedSubscription {
          * otherwise behavior is identical to a non-ICD sustained subscription.
          */
         wakefulness?: () => IcdPeerWakefulness | undefined;
+
+        /**
+         * Live provider of the fabric ICD registry's "peer fed" signal, emitting the peer node ID whenever a peer is
+         * registered (fed).  A subscription established before its peer was fed holds no wakefulness to observe a mode
+         * flip on, so it races this signal: the first registration-induced feed re-iterates the run loop, which
+         * re-captures the now-present wakefulness and recreates through the normal mode-flip path.
+         */
+        peerFed?: () => Observable<[NodeId]> | undefined;
     }
 
     export function assert(subscription: SubscribeResponse): asserts subscription is SustainedSubscription {

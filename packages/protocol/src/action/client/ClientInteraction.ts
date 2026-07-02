@@ -1020,6 +1020,7 @@ export class ClientInteraction<
                           Promise.resolve(true)
                         : this.#exchangeProvider.verifyReachability({ reason: "session-suspect", abort }),
                 wakefulness: request.icdWakefulness,
+                peerFed: request.icdPeerFed,
             });
         } else {
             subscription = await subscribe(request);

@@ -5,7 +5,7 @@
  */
 
 import type { Crypto } from "@matter/general";
-import { Bytes, ImplementationError, Logger } from "@matter/general";
+import { Bytes, ImplementationError, Logger, Observable } from "@matter/general";
 import { type SubjectId, NodeId } from "@matter/types";
 import type { IcdManagement } from "@matter/types/clusters/icd-management";
 import { CheckInMessage } from "./CheckInMessage.js";
@@ -28,9 +28,19 @@ export class FabricIcd {
         NodeId,
         { peer: FabricIcd.Peer; handler: FabricIcd.CheckInHandler; wakefulness: IcdPeerWakefulness }
     >();
+    readonly #peerFed = Observable<[NodeId]>();
 
     constructor(crypto: Crypto) {
         this.#crypto = crypto;
+    }
+
+    /**
+     * Emits the peer node ID whenever a peer is fed ({@link addPeer}), i.e. a fresh {@link IcdPeerWakefulness} becomes
+     * available.  A sustained subscription established before its peer was registered races this signal so the first
+     * registration-induced SIT⇄LIT flip recreates the subscription for the new mode.
+     */
+    get peerFed() {
+        return this.#peerFed;
     }
 
     /** All registered check-in clients for this fabric. */
@@ -54,6 +64,7 @@ export class FabricIcd {
     addPeer(peer: FabricIcd.Peer, handler: FabricIcd.CheckInHandler): void {
         this.#peers.get(peer.peerNodeId)?.wakefulness.close();
         this.#peers.set(peer.peerNodeId, { peer, handler, wakefulness: new IcdPeerWakefulness() });
+        this.#peerFed.emit(peer.peerNodeId);
     }
 
     /**

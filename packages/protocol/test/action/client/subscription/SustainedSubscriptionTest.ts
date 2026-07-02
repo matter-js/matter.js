@@ -11,7 +11,7 @@ import { SustainedSubscription } from "#action/client/subscription/SustainedSubs
 import { Subscribe } from "#action/request/Subscribe.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { Entropy, Lifetime, Millis, RetrySchedule, Seconds } from "@matter/general";
+import { Entropy, Lifetime, Millis, Observable, RetrySchedule, Seconds } from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
 
 function fakePeerSub(onClose?: () => void): PeerSubscription {
@@ -693,6 +693,118 @@ describe("SustainedSubscription", () => {
             await flush();
             expect(subscribeCount).equal(2);
             expect(subscription.active.value).equal(true);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("recreates on the first registration-induced feed while the subscription was established unfed", async () => {
+            const peerFed = Observable<[NodeId]>();
+            let registered: IcdPeerWakefulness | undefined;
+
+            let subscribeCount = 0;
+            let closedCount = 0;
+            const networks = new Array<string | undefined>();
+            const subscription = build({
+                wakefulness: () => registered,
+                peerFed: () => peerFed,
+                subscribe: async (request: Subscribe) => {
+                    subscribeCount++;
+                    networks.push((request as SustainedClientSubscribe).network);
+                    return fakePeerSub(() => closedCount++);
+                },
+            });
+
+            // Unfed at establishment -> behaves non-ICD and subscribes immediately.
+            await flush();
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(true);
+
+            const emissions = new Array<boolean>();
+            subscription.active.on(value => {
+                emissions.push(value);
+            });
+
+            // Registration feeds the peer: mirror FabricIcd.addPeer creating an awake LIT wakefulness (register seeds
+            // noteSignal) plus IcdClient.#feedFabricIcd, then emit the feed signal.
+            const wakefulness = litWakefulness();
+            wakefulness.noteSignal();
+            registered = wakefulness;
+            peerFed.emit(NodeId(BigInt(1)));
+            await flush();
+
+            // The first feed recreates for the new mode via the existing flip machinery: close + in-window resubscribe.
+            expect(closedCount).equal(1);
+            expect(subscribeCount).equal(2);
+            expect(networks[1]).equal("unlimited");
+            expect(subscription.active.value).equal(true);
+            expect(emissions.includes(false)).equal(false);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("does not double-recreate: a stray feed signal after the peer is fed is a no-op, later flips use the observer", async () => {
+            const peerFed = Observable<[NodeId]>();
+            let registered: IcdPeerWakefulness | undefined;
+
+            let subscribeCount = 0;
+            const subscription = build({
+                wakefulness: () => registered,
+                peerFed: () => peerFed,
+                subscribe: async () => {
+                    subscribeCount++;
+                    return fakePeerSub();
+                },
+            });
+
+            await flush();
+            expect(subscribeCount).equal(1);
+
+            const wakefulness = litWakefulness();
+            wakefulness.noteSignal();
+            registered = wakefulness;
+            peerFed.emit(NodeId(BigInt(1)));
+            await flush();
+            expect(subscribeCount).equal(2); // exactly one recreate
+
+            // A stray feed signal for the already-fed peer must not add a second recreate; the subscription now
+            // observes further flips via operatingModeChanged, not the feed signal.
+            peerFed.emit(NodeId(BigInt(1)));
+            await flush();
+            expect(subscribeCount).equal(2);
+
+            // A real subsequent DSLS flip still recreates exactly once, via the existing observer.
+            wakefulness.requiresAwait = false;
+            await flush();
+            expect(subscribeCount).equal(3);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("ignores a feed signal for a different peer", async () => {
+            const peerFed = Observable<[NodeId]>();
+            let registered: IcdPeerWakefulness | undefined;
+
+            let subscribeCount = 0;
+            const subscription = build({
+                wakefulness: () => registered,
+                peerFed: () => peerFed,
+                subscribe: async () => {
+                    subscribeCount++;
+                    return fakePeerSub();
+                },
+            });
+
+            await flush();
+            expect(subscribeCount).equal(1);
+
+            // A feed for an unrelated peer must not recreate this subscription.
+            registered = litWakefulness();
+            peerFed.emit(NodeId(BigInt(2)));
+            await flush();
+            expect(subscribeCount).equal(1);
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
