@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Node } from "#node/Node.js";
@@ -36,9 +37,10 @@ const logger = Logger.get("IcdClient");
 /**
  * Controller-side client for ICD (Intermittently Connected Device) Check-In support.
  *
- * Auto-installed on a {@link ClientNode} whose peer exposes the IcdManagement cluster; installation alone does not
- * register this controller as a Check-In client — registration is an explicit application action. Receiving Check-Ins
- * emits events and updates informational state only; this behavior does not resubscribe or track peer wakefulness.
+ * Auto-installed on a {@link ClientNode} whose peer exposes the IcdManagement cluster. Registration — automatic for a
+ * LIT-operating peer, or explicit via {@link register} — requires an established subscription so the decision runs on a
+ * fresh operating mode rather than a stale cached one. The behavior tracks peer wakefulness to hold interactions for a
+ * sleeping ICD.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16
  */
@@ -102,14 +104,23 @@ export class IcdClient extends Behavior {
             );
         }
 
-        // register() needs the peer online. At commissioning the peer is reachable while operatingMode is read but only
-        // reports online afterwards, so the peer-online edge — not init — is the reliable trigger; on a later restart of
-        // an already-online LIT peer, the init call below covers the already-online case.
+        // Decide registration on a fresh operating mode: the subscription-established edge lands after the bootstrap
+        // read, unlike the online edge which fires before it. The immediate check covers an already-established
+        // subscription (e.g. init on an already-online peer).
         if (this.endpoint instanceof Node) {
-            this.reactTo(this.endpoint.lifecycle.online, this.#ensureLitRegistration);
-            if (this.endpoint.lifecycle.isOnline) {
+            this.reactTo(
+                this.endpoint.eventsOf(NetworkClient).subscriptionStatusChanged,
+                this.#onSubscriptionStatusChanged,
+            );
+            if (this.agent.get(NetworkClient).subscriptionActive) {
                 this.#ensureLitRegistration();
             }
+        }
+    }
+
+    #onSubscriptionStatusChanged(isActive: boolean) {
+        if (isActive) {
+            this.#ensureLitRegistration();
         }
     }
 
@@ -128,7 +139,15 @@ export class IcdClient extends Behavior {
      * so it adapts to the registration with no re-subscribe.
      */
     #ensureLitRegistration() {
-        if (!this.#peerIsLongIdleTimeOperating || this.state.registered || this.internal.autoRegister !== undefined) {
+        // Gate on capability, not the cached mode: a stale cached SIT must not skip the fresh read that would reveal LIT.
+        // Require an established subscription: register() needs one anyway, and this suppresses a doomed attempt (and its
+        // warn) when operatingMode$Changed fires during the pre-subscription bootstrap read.
+        if (
+            !this.peerSupportsLit ||
+            !this.agent.get(NetworkClient).subscriptionActive ||
+            this.state.registered ||
+            this.internal.autoRegister !== undefined
+        ) {
             return;
         }
         this.internal.autoRegister = this.#autoRegister();
@@ -147,9 +166,14 @@ export class IcdClient extends Behavior {
                     icd.state.registered ||
                     !(icd.endpoint instanceof Node) ||
                     !icd.endpoint.lifecycle.isOnline ||
-                    !litSupported(icd.endpoint) ||
-                    icd.endpoint.maybeStateOf(IcdManagementClient)?.operatingMode !== IcdManagement.OperatingMode.Lit
+                    !litSupported(icd.endpoint)
                 ) {
+                    return;
+                }
+                // Fresh read (mirrors #readPeerFabrics): the cached mode may be stale, so only register on LIT confirmed
+                // by the peer itself.
+                const { operatingMode } = await icd.endpoint.getStateOf(IcdManagementClient, ["operatingMode"]);
+                if (operatingMode !== IcdManagement.OperatingMode.Lit) {
                     return;
                 }
                 await icd.register({ allowMultiAdmin: true });
@@ -247,6 +271,12 @@ export class IcdClient extends Behavior {
         if (this.state.registered) {
             throw new ImplementationError(
                 "ICD client is already registered; unregister first or let key refresh re-key in place.",
+            );
+        }
+
+        if (!this.agent.get(NetworkClient).subscriptionActive) {
+            throw new ImplementationError(
+                "ICD registration requires an active subscription so the peer operating mode is not stale.",
             );
         }
 

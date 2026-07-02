@@ -7,6 +7,7 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
@@ -127,7 +128,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
 
             const state = peer1.stateOf(IcdClient);
@@ -156,7 +157,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             const monitoredSubject = SubjectId(NodeId(0xabcdn));
             await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject }));
 
@@ -189,7 +190,7 @@ describe("IcdClient", () => {
                 adminFabricId: FabricId(2),
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
 
             let caught: unknown;
             try {
@@ -216,12 +217,30 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             expect(peer1.maybeStateOf(IcdClient)).not.undefined;
 
             await peer1.act(agent => agent.get(IcdClient).register());
             expect(peer1.stateOf(IcdClient).registered).true;
             expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+        });
+
+        it("refuses register() without an established subscription", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            // The sustained subscription has not reached its established (active) edge, so registering now would decide
+            // on stale peer state.
+            const peer1 = controller.peers.get("peer1")!;
+            expect(await peer1.act(agent => agent.get(NetworkClient).subscriptionActive)).false;
+
+            await expect(peer1.act(agent => agent.get(IcdClient).register())).to.be.rejectedWith(
+                ImplementationError,
+                /subscription/i,
+            );
+            expect(peer1.stateOf(IcdClient).registered).false;
         });
 
         it("throws when already registered", async () => {
@@ -230,7 +249,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
 
             let caught: unknown;
@@ -280,6 +299,31 @@ describe("IcdClient", () => {
             expect(peer1.stateOf(IcdClient).registered).false;
         });
 
+        it("does not auto-register when the fresh operating mode is Sit despite a persisted Lit", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            expect(peer1.stateOf(IcdClient).registered).false;
+
+            // Stale cache: the device operates in SIT but the controller's persisted operatingMode still reads LIT (as
+            // after the device flipped LIT->SIT while the controller was down). Deciding on this cached LIT would
+            // wrongly register; a fresh read must reveal SIT and suppress registration.
+            await peer1.act(agent => {
+                agent.get(IcdManagementClient).state.operatingMode = IcdManagement.OperatingMode.Lit;
+            });
+            // Let any auto-registration transaction (deferred, with peer I/O) run to completion. On stale-cache
+            // behavior the wrong registration lands well within this window (empirically by the 6th step).
+            for (let i = 0; i < 15; i++) {
+                await MockTime.advance(Millis(200));
+                await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            }
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+        });
+
         it("auto-registers on a runtime SIT->LIT flip", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair({
@@ -308,7 +352,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             // addCommissionedPair leaves an active subscription whose subject is the controller's own node id. Register a
             // monitored subject that subscription does not cover so the device's suppression check does not fire and a
             // real Check-In is transmitted to us.
@@ -342,7 +386,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
 
             // A first Check-In advances the rolling offset.
@@ -384,7 +428,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
 
             const originalCounterStart = peer1.stateOf(IcdClient).counterStart!;
@@ -440,7 +484,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
             expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
 
@@ -523,7 +567,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
 
             const controllerId = controller.id;
@@ -546,7 +590,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
 
             // Receive a Check-In so the persisted rolling offset is non-zero.
@@ -615,7 +659,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
 
             expect(peer1.stateOf(IcdClient).available).true;
@@ -691,7 +735,7 @@ describe("IcdClient", () => {
                 device: { type: RootWithIcd },
             });
 
-            const peer1 = controller.peers.get("peer1")!;
+            const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
 
             const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;

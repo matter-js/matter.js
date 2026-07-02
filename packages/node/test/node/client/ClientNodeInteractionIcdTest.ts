@@ -42,6 +42,13 @@ async function registeredLitPair(site: MockSite) {
     await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
     await commission(controller, device);
     const peer1 = await subscribedPeer(controller, "peer1");
+    // A LIT-operating peer auto-registers on the subscription-established edge; settle it, then re-register under a
+    // subject the active subscription does not cover so the device transmits Check-Ins.
+    if (!peer1.stateOf(IcdClient).registered) {
+        const registered = new Promise<void>(resolve => peer1.eventsOf(IcdClient).registered.once(() => resolve()));
+        await MockTime.resolve(registered, { macrotasks: true });
+    }
+    await peer1.act(agent => agent.get(IcdClient).unregister());
     await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: MONITORED }));
     // register seeds a signal (awake for activeModeThreshold = 5s); let that window lapse so the peer is idle.
     await MockTime.advance(Seconds(6));
