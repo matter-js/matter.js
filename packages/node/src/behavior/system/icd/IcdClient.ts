@@ -127,7 +127,15 @@ export class IcdClient extends Behavior {
     #onOperatingModeChanged() {
         const wakefulness = this.#fedWakefulness();
         if (wakefulness !== undefined) {
-            wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
+            const litOperating = this.#peerIsLongIdleTimeOperating;
+            wakefulness.requiresAwait = litOperating;
+            // operatingMode only mutates via live inbound peer data (read/report), so a flip into LIT means the peer is
+            // awake right now: re-arm the active window the requiresAwait setter just force-slept, so the recreate
+            // re-subscribes in-window instead of parking a full idle cycle. Gate on the peer being online so a stale
+            // rehydration of operatingMode cannot arm the window from data that is not live.
+            if (litOperating && this.endpoint instanceof Node && this.endpoint.lifecycle.isOnline) {
+                wakefulness.noteSignal();
+            }
         }
         this.#ensureLitRegistration();
     }

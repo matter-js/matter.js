@@ -103,10 +103,18 @@ export class SustainedSubscription extends ClientSubscription {
         // current awake window, which would hammer a peer that has likely already gone back to sleep.
         let awaitFreshSignal = false;
 
+        // A mode-flip recreate is time-critical: it must land inside the peer's brief active window. Carry a one-shot
+        // flag so the recreate's subscribe bypasses the per-network throttle rather than queuing behind it.
+        let recreateWithPriorityNetwork = false;
+
         try {
             while (true) {
                 // Create a request and promise that will inform us when the underlying subscription closes
                 let request: SustainedClientSubscribe = { ...this.#request, updated };
+                if (recreateWithPriorityNetwork) {
+                    request.network = "unlimited";
+                    recreateWithPriorityNetwork = false;
+                }
                 if (this.#request.updated) {
                     const bound = this.#request.updated.bind(request);
                     // A report (or bootstrap-read response) is inbound peer activity, so refresh the wake/availability
@@ -277,6 +285,7 @@ export class SustainedSubscription extends ClientSubscription {
                         await subscription.close();
                     }
                     logger.info(`Recreating subscription to ${this.peer} after ICD operating mode change`);
+                    recreateWithPriorityNetwork = true;
                     continue;
                 }
 

@@ -586,6 +586,81 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
+        it("recreates on the unlimited network profile, then reverts to the default on a later loss", async () => {
+            const wakefulness = litWakefulness();
+
+            const networks = new Array<string | undefined>();
+            let lastRequest: SustainedClientSubscribe | undefined;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async (request: Subscribe) => {
+                    const sustained = request as SustainedClientSubscribe;
+                    networks.push(sustained.network);
+                    lastRequest = sustained;
+                    return fakePeerSub();
+                },
+            });
+
+            wakefulness.noteSignal(); // wake -> first (establish) subscribe
+            await flush();
+            expect(networks).deep.equal([undefined]);
+
+            // A mode-flip recreate must bypass the per-network throttle so the time-critical resubscribe is not queued
+            // out of the peer's brief active window.
+            wakefulness.requiresAwait = false;
+            await flush();
+            expect(networks).deep.equal([undefined, "unlimited"]);
+
+            // A subsequent genuine loss is a normal resubscribe, not a mode flip: it must revert to the default profile.
+            lastRequest?.closed?.();
+            await flush();
+            expect(networks).deep.equal([undefined, "unlimited", undefined]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("keeps active live across a report-driven SIT→LIT flip when the recreate lands in-window", async () => {
+            const wakefulness = new IcdPeerWakefulness();
+            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            // requiresAwait defaults to false -> starts as a SIT peer (always awake).
+
+            let subscribeCount = 0;
+            const networks = new Array<string | undefined>();
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async (request: Subscribe) => {
+                    subscribeCount++;
+                    networks.push((request as SustainedClientSubscribe).network);
+                    return fakePeerSub();
+                },
+            });
+
+            await flush();
+            expect(subscribeCount).equal(1);
+            expect(subscription.active.value).equal(true);
+
+            const emissions = new Array<boolean>();
+            subscription.active.on(value => {
+                emissions.push(value);
+            });
+
+            // A report-driven SIT→LIT flip in the fixed IcdClient order: the requiresAwait setter force-sleeps the
+            // window, then the live report re-arms it via noteSignal. The recreate re-checks awake at the loop head and
+            // finds it armed, so it re-subscribes in-window with no not-live dip.
+            wakefulness.requiresAwait = true;
+            wakefulness.noteSignal();
+            await flush();
+
+            expect(subscribeCount).equal(2);
+            expect(networks[1]).equal("unlimited");
+            expect(subscription.active.value).equal(true);
+            expect(emissions.includes(false)).equal(false);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
         it("drops to not-live when a mode-flip recreate parks for a peer that never wakes", async () => {
             const wakefulness = new IcdPeerWakefulness();
             wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });

@@ -704,6 +704,30 @@ describe("IcdClient", () => {
 
             expect(wakefulnessOf(controller, peer1)!.requiresAwait).true;
         });
+
+        it("arms the awake window on a report-driven SIT→LIT flip so the recreate lands in-window", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            const wakefulness = wakefulnessOf(controller, peer1)!;
+            expect(wakefulness.requiresAwait).false;
+
+            const modeChanged = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdManagementClient).operatingMode$Changed.once(() => resolve()),
+            );
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(modeChanged, { macrotasks: true });
+
+            // The flip arrived on a live report, so the peer is demonstrably awake now: the requiresAwait setter
+            // force-slept the window, but the flip re-arms it so the recreate re-subscribes in-window rather than
+            // parking a full idle cycle.
+            expect(wakefulness.requiresAwait).true;
+            expect(wakefulness.awake.value).true;
+        });
     });
 
     describe("awake getter", () => {
