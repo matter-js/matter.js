@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+
 /**
  * Type List TLV value codec (Network Diagnostic TLV type 18).
  *
@@ -23,7 +25,7 @@ export namespace TypeListTlv {
         for (let i = 0; i < types.length; i++) {
             const t = types[i];
             if (!Number.isInteger(t) || t < 0 || t > 0xff) {
-                throw new Error(`TypeList entry out of range: ${t}`);
+                throw new InternalError(`TypeList entry out of range: ${t}`);
             }
             out[i] = t;
         }

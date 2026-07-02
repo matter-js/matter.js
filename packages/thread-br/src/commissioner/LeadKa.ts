@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MatterError } from "@matter/general";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
+
+/** Thrown when a commissioner BR response (LeadKa/LeadPet) cannot be parsed. */
+export class CommissionerProtocolError extends MatterError {}
 
 export interface LeadKaResponse {
     state: "accept" | "reject" | "pending";
@@ -36,9 +40,9 @@ export namespace LeadKa {
                 if (byte === 0x01) return { state: "accept" };
                 if (byte === 0xff) return { state: "reject" };
                 if (byte === 0x00) return { state: "pending" };
-                throw new Error(`LeadKa: unknown state byte ${byte}`);
+                throw new CommissionerProtocolError(`LeadKa: unknown state byte ${byte}`);
             }
         }
-        throw new Error("LeadKa: response missing STATE TLV");
+        throw new CommissionerProtocolError("LeadKa: response missing STATE TLV");
     }
 }

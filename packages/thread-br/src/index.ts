@@ -23,6 +23,7 @@ export {
 export { ThreadCredentialsRegistry } from "./credentials/index.js";
 export type { ThreadNetworkCredentials } from "./credentials/index.js";
 
+export { ThreadTlvError } from "./tlv/BasicTlvCodec.js";
 export { NetworkDiagTlvType, NetworkDiagTlvTypeName } from "./tlv/networkDiagTlvTypes.js";
 
 export {
@@ -68,6 +69,7 @@ export type { DtlsChannel, DtlsConnectOpts } from "./dtls/channel/index.js";
 export {
     Commissioner,
     CommissionerKeepAliveError,
+    CommissionerProtocolError,
     CommissionerRejectedError,
     CommissionerTimeoutError,
 } from "./commissioner/index.js";

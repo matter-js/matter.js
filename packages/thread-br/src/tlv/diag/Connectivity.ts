@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded Connectivity TLV (Network Diagnostic TLV type 4).
  *
@@ -73,7 +75,9 @@ function parentPriorityTo2Bit(prio: ParentPriority): number {
 export namespace Connectivity {
     export function decode(value: Uint8Array): Connectivity {
         if (value.length !== MIN_SIZE && value.length !== FULL_SIZE) {
-            throw new Error(`Connectivity TLV must be ${MIN_SIZE} or ${FULL_SIZE} bytes, got ${value.length}`);
+            throw new ThreadDiagError(
+                `Connectivity TLV must be ${MIN_SIZE} or ${FULL_SIZE} bytes, got ${value.length}`,
+            );
         }
         const priorityBits = (value[0] & FLAGS_PARENT_PRIORITY_MASK) >> FLAGS_PARENT_PRIORITY_SHIFT;
         const partial: Connectivity = {

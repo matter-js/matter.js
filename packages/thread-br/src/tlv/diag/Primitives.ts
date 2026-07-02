@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Small fixed-size primitive Network Diagnostic TLVs.
  *
@@ -23,14 +26,14 @@
 
 function eui64Decode(value: Uint8Array, name: string): Uint8Array {
     if (value.length !== 8) {
-        throw new Error(`${name} TLV must be 8 bytes, got ${value.length}`);
+        throw new ThreadDiagError(`${name} TLV must be 8 bytes, got ${value.length}`);
     }
     return value.slice();
 }
 
 function eui64Encode(addr: Uint8Array, name: string): Uint8Array {
     if (addr.length !== 8) {
-        throw new Error(`${name} must be 8 bytes, got ${addr.length}`);
+        throw new InternalError(`${name} must be 8 bytes, got ${addr.length}`);
     }
     return addr.slice();
 }
@@ -58,14 +61,14 @@ export namespace Eui64 {
 export namespace Address16 {
     export function decode(value: Uint8Array): number {
         if (value.length !== 2) {
-            throw new Error(`Address16 TLV must be 2 bytes, got ${value.length}`);
+            throw new ThreadDiagError(`Address16 TLV must be 2 bytes, got ${value.length}`);
         }
         return (value[0] << 8) | value[1];
     }
 
     export function encode(rloc16: number): Uint8Array {
         if (!Number.isInteger(rloc16) || rloc16 < 0 || rloc16 > 0xffff) {
-            throw new Error(`Address16 out of range: ${rloc16}`);
+            throw new InternalError(`Address16 out of range: ${rloc16}`);
         }
         return new Uint8Array([(rloc16 >> 8) & 0xff, rloc16 & 0xff]);
     }
@@ -74,14 +77,14 @@ export namespace Address16 {
 export namespace BatteryLevel {
     export function decode(value: Uint8Array): number {
         if (value.length !== 1) {
-            throw new Error(`BatteryLevel TLV must be 1 byte, got ${value.length}`);
+            throw new ThreadDiagError(`BatteryLevel TLV must be 1 byte, got ${value.length}`);
         }
         return value[0];
     }
 
     export function encode(percent: number): Uint8Array {
         if (!Number.isInteger(percent) || percent < 0 || percent > 0xff) {
-            throw new Error(`BatteryLevel out of range: ${percent}`);
+            throw new InternalError(`BatteryLevel out of range: ${percent}`);
         }
         return new Uint8Array([percent]);
     }
@@ -90,14 +93,14 @@ export namespace BatteryLevel {
 export namespace SupplyVoltage {
     export function decode(value: Uint8Array): number {
         if (value.length !== 2) {
-            throw new Error(`SupplyVoltage TLV must be 2 bytes, got ${value.length}`);
+            throw new ThreadDiagError(`SupplyVoltage TLV must be 2 bytes, got ${value.length}`);
         }
         return (value[0] << 8) | value[1];
     }
 
     export function encode(millivolts: number): Uint8Array {
         if (!Number.isInteger(millivolts) || millivolts < 0 || millivolts > 0xffff) {
-            throw new Error(`SupplyVoltage out of range: ${millivolts}`);
+            throw new InternalError(`SupplyVoltage out of range: ${millivolts}`);
         }
         return new Uint8Array([(millivolts >> 8) & 0xff, millivolts & 0xff]);
     }
@@ -106,14 +109,14 @@ export namespace SupplyVoltage {
 export namespace MaxChildTimeout {
     export function decode(value: Uint8Array): number {
         if (value.length !== 4) {
-            throw new Error(`MaxChildTimeout TLV must be 4 bytes, got ${value.length}`);
+            throw new ThreadDiagError(`MaxChildTimeout TLV must be 4 bytes, got ${value.length}`);
         }
         return ((value[0] << 24) | (value[1] << 16) | (value[2] << 8) | value[3]) >>> 0;
     }
 
     export function encode(seconds: number): Uint8Array {
         if (!Number.isInteger(seconds) || seconds < 0 || seconds > 0xffffffff) {
-            throw new Error(`MaxChildTimeout out of range: ${seconds}`);
+            throw new InternalError(`MaxChildTimeout out of range: ${seconds}`);
         }
         return new Uint8Array([
             (seconds >>> 24) & 0xff,
@@ -134,7 +137,7 @@ export namespace ChannelPages {
         for (let i = 0; i < pages.length; i++) {
             const p = pages[i];
             if (!Number.isInteger(p) || p < 0 || p > 0xff) {
-                throw new Error(`ChannelPages entry out of range: ${p}`);
+                throw new InternalError(`ChannelPages entry out of range: ${p}`);
             }
             out[i] = p;
         }

@@ -11,7 +11,6 @@ import {
     type Environment,
     ImplementationError,
     Logger,
-    MatterError,
     Millis,
     Observable,
     Time,
@@ -65,11 +64,11 @@ import {
 import type { DiagnosticResponse } from "./DiagnosticResponse.js";
 import type { DiagnosticSource, QueryMulticastHandle, QueryMulticastOptions } from "./DiagnosticSource.js";
 import { DEFAULT_RESET_TLV_TYPES } from "./DiagnosticSource.js";
+import { ThreadDiagError } from "./errors.js";
+
+export { ThreadDiagError } from "./errors.js";
 
 const logger = Logger.get("MeshCopDiagnosticSource");
-
-/** Thrown when a MeshCoP diagnostic response carries malformed or missing TLVs. */
-export class ThreadDiagError extends MatterError {}
 
 const DEFAULT_WINDOW_MS = 20_000;
 const DEFAULT_UNICAST_TIMEOUT_MS = 10_000;

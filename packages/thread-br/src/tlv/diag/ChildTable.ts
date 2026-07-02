@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
 import { Mode } from "./Mode.js";
 
 /**
@@ -47,7 +49,7 @@ function timeoutFromExponent(exp: number): number {
 export namespace ChildTable {
     export function decode(value: Uint8Array): ChildTableEntry[] {
         if (value.length % ENTRY_BYTES !== 0) {
-            throw new Error(`ChildTable TLV length ${value.length} not a multiple of ${ENTRY_BYTES}`);
+            throw new ThreadDiagError(`ChildTable TLV length ${value.length} not a multiple of ${ENTRY_BYTES}`);
         }
         const entries = new Array<ChildTableEntry>();
         for (let offset = 0; offset < value.length; offset += ENTRY_BYTES) {
@@ -69,13 +71,13 @@ export namespace ChildTable {
         for (let i = 0; i < entries.length; i++) {
             const e = entries[i];
             if (e.timeoutExponent < 0 || e.timeoutExponent > TIMEOUT_EXP_MAX) {
-                throw new Error(`ChildTable timeoutExponent out of range: ${e.timeoutExponent}`);
+                throw new InternalError(`ChildTable timeoutExponent out of range: ${e.timeoutExponent}`);
             }
             if (e.incomingLinkQuality < 0 || e.incomingLinkQuality > 3) {
-                throw new Error(`ChildTable incomingLinkQuality out of range: ${e.incomingLinkQuality}`);
+                throw new InternalError(`ChildTable incomingLinkQuality out of range: ${e.incomingLinkQuality}`);
             }
             if (e.childId < 0 || e.childId > 0x1ff) {
-                throw new Error(`ChildTable childId out of range: ${e.childId}`);
+                throw new InternalError(`ChildTable childId out of range: ${e.childId}`);
             }
             const word =
                 ((e.timeoutExponent << TIMEOUT_SHIFT) & TIMEOUT_MASK) |

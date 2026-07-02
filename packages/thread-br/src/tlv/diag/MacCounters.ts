@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded MAC Counters TLV (Network Diagnostic TLV type 9).
  *
@@ -52,7 +55,7 @@ function writeU32BE(bytes: Uint8Array, offset: number, value: number): void {
 export namespace MacCounters {
     export function decode(value: Uint8Array): MacCounters {
         if (value.length !== TOTAL_BYTES) {
-            throw new Error(`MacCounters TLV must be ${TOTAL_BYTES} bytes, got ${value.length}`);
+            throw new ThreadDiagError(`MacCounters TLV must be ${TOTAL_BYTES} bytes, got ${value.length}`);
         }
         return {
             ifInUnknownProtos: readU32BE(value, 0),
@@ -72,7 +75,7 @@ export namespace MacCounters {
         for (let i = 0; i < FIELD_ORDER.length; i++) {
             const v = counters[FIELD_ORDER[i]];
             if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) {
-                throw new Error(`MacCounters.${FIELD_ORDER[i]} out of range: ${v}`);
+                throw new InternalError(`MacCounters.${FIELD_ORDER[i]} out of range: ${v}`);
             }
             writeU32BE(out, i * 4, v);
         }

@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, MatterError } from "@matter/general";
+import { Bytes } from "@matter/general";
 import { type BasicTlvEntry, BasicTlv } from "../tlv/BasicTlvCodec.js";
+import { ThreadDatasetError } from "./errors.js";
 import { MeshCopTlvType } from "./meshcopTlvTypes.js";
 import { SecurityPolicy } from "./SecurityPolicy.js";
 
-/** Thrown when a Thread Operational Dataset cannot be decoded from malformed MeshCoP TLV bytes. */
-export class ThreadDatasetError extends MatterError {}
+export { ThreadDatasetError } from "./errors.js";
 
 /**
  * Decoded Thread Operational Dataset.

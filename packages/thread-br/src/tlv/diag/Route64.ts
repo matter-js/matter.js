@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded Route64 TLV (Network Diagnostic TLV type 5).
  *
@@ -59,7 +62,7 @@ function setRouterIdBit(mask: Uint8Array, routerId: number): void {
 export namespace Route64 {
     export function decode(value: Uint8Array): Route64 {
         if (value.length < HEADER_BYTES) {
-            throw new Error(`Route64 TLV too short: ${value.length} bytes (need >=${HEADER_BYTES})`);
+            throw new ThreadDiagError(`Route64 TLV too short: ${value.length} bytes (need >=${HEADER_BYTES})`);
         }
         const idSequence = value[0];
         const mask = value.subarray(1, HEADER_BYTES);
@@ -70,7 +73,7 @@ export namespace Route64 {
         }
 
         if (value.length !== HEADER_BYTES + allocatedIds.length) {
-            throw new Error(
+            throw new ThreadDiagError(
                 `Route64 TLV size mismatch: ${value.length} bytes for ${allocatedIds.length} allocated routers`,
             );
         }
@@ -98,10 +101,10 @@ export namespace Route64 {
         for (let i = 0; i < sortedEntries.length; i++) {
             const e = sortedEntries[i];
             if (!Number.isInteger(e.routerId) || e.routerId < 0 || e.routerId > MAX_ROUTER_ID) {
-                throw new Error(`Route64 router ID out of range: ${e.routerId}`);
+                throw new InternalError(`Route64 router ID out of range: ${e.routerId}`);
             }
             if (i > 0 && sortedEntries[i - 1].routerId === e.routerId) {
-                throw new Error(`Route64 duplicate router ID: ${e.routerId}`);
+                throw new InternalError(`Route64 duplicate router ID: ${e.routerId}`);
             }
             setRouterIdBit(mask, e.routerId);
 

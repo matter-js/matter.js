@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
+import { ThreadDatasetError } from "./errors.js";
+
 /**
  * MeshCoP Security Policy TLV (type 12) is a fixed 4-byte payload: 2-byte
  * big-endian rotation time (hours) followed by 2 bytes of policy flags.
@@ -20,7 +23,7 @@ export interface SecurityPolicy {
 export namespace SecurityPolicy {
     export function decode(value: Uint8Array): SecurityPolicy {
         if (value.length !== 4) {
-            throw new Error(`Security policy must be 4 bytes, got ${value.length}`);
+            throw new ThreadDatasetError(`Security policy must be 4 bytes, got ${value.length}`);
         }
         return {
             rotationTime: (value[0] << 8) | value[1],
@@ -30,10 +33,10 @@ export namespace SecurityPolicy {
 
     export function encode(policy: SecurityPolicy): Uint8Array {
         if (policy.rotationTime < 0 || policy.rotationTime > 0xffff) {
-            throw new Error(`Security policy rotationTime out of range: ${policy.rotationTime}`);
+            throw new ImplementationError(`Security policy rotationTime out of range: ${policy.rotationTime}`);
         }
         if (policy.flags < 0 || policy.flags > 0xffff) {
-            throw new Error(`Security policy flags out of range: ${policy.flags}`);
+            throw new ImplementationError(`Security policy flags out of range: ${policy.flags}`);
         }
         return new Uint8Array([
             (policy.rotationTime >> 8) & 0xff,

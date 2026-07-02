@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded Leader Data TLV (Network Diagnostic TLV type 6).
  *
@@ -26,7 +29,7 @@ export interface LeaderData {
 export namespace LeaderData {
     export function decode(value: Uint8Array): LeaderData {
         if (value.length !== 8) {
-            throw new Error(`LeaderData TLV must be 8 bytes, got ${value.length}`);
+            throw new ThreadDiagError(`LeaderData TLV must be 8 bytes, got ${value.length}`);
         }
         const partitionId = ((value[0] << 24) | (value[1] << 16) | (value[2] << 8) | value[3]) >>> 0;
         return {
@@ -40,7 +43,7 @@ export namespace LeaderData {
 
     export function encode(data: LeaderData): Uint8Array {
         if (data.partitionId < 0 || data.partitionId > 0xffffffff) {
-            throw new Error(`LeaderData partitionId out of range: ${data.partitionId}`);
+            throw new InternalError(`LeaderData partitionId out of range: ${data.partitionId}`);
         }
         const out = new Uint8Array(8);
         out[0] = (data.partitionId >>> 24) & 0xff;

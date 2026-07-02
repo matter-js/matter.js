@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "@matter/general";
+
 /**
  * Realm-local all-Thread-nodes multicast address (`ff03::1`).
  */
@@ -23,10 +25,10 @@ export const ALL_THREAD_ROUTERS_REALM_LOCAL: Uint8Array = realmLocal(0x02);
  */
 export function deriveMeshLocalAddress(mlPrefix: Uint8Array, rloc16: number): Uint8Array {
     if (mlPrefix.length !== 8) {
-        throw new Error(`deriveMeshLocalAddress: mlPrefix must be 8 bytes, got ${mlPrefix.length}`);
+        throw new ImplementationError(`deriveMeshLocalAddress: mlPrefix must be 8 bytes, got ${mlPrefix.length}`);
     }
     if (!Number.isInteger(rloc16) || rloc16 < 0 || rloc16 > 0xffff) {
-        throw new Error(`deriveMeshLocalAddress: rloc16 out of range: ${rloc16}`);
+        throw new ImplementationError(`deriveMeshLocalAddress: rloc16 out of range: ${rloc16}`);
     }
     const addr = new Uint8Array(16);
     addr.set(mlPrefix, 0);
@@ -43,7 +45,7 @@ export function deriveMeshLocalAddress(mlPrefix: Uint8Array, rloc16: number): Ui
  */
 export function formatIp6(addr: Uint8Array): string {
     if (addr.length !== 16) {
-        throw new Error(`formatIp6: address must be 16 bytes, got ${addr.length}`);
+        throw new ImplementationError(`formatIp6: address must be 16 bytes, got ${addr.length}`);
     }
     const groups = new Array<string>();
     for (let i = 0; i < 16; i += 2) {

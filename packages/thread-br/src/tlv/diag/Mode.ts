@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded MLE Mode TLV (Network Diagnostic TLV type 2).
  *
@@ -29,7 +31,7 @@ const FLAG_FULL_NETWORK_DATA = 1 << 0;
 export namespace Mode {
     export function decode(value: Uint8Array): Mode {
         if (value.length !== 1) {
-            throw new Error(`Mode TLV must be 1 byte, got ${value.length}`);
+            throw new ThreadDiagError(`Mode TLV must be 1 byte, got ${value.length}`);
         }
         const raw = value[0];
         return {

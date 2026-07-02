@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ThreadTlvError } from "../BasicTlvCodec.js";
+
 /**
  * IPv6 Address TLV value codec (MeshCoP TLV type 49).
  *
@@ -29,6 +31,6 @@ export namespace Ip6AddressTlv {
 
 function assertLength(addr: Uint8Array): void {
     if (addr.length !== 16) {
-        throw new Error(`Ip6AddressTlv: address must be 16 bytes, got ${addr.length}`);
+        throw new ThreadTlvError(`Ip6AddressTlv: address must be 16 bytes, got ${addr.length}`);
     }
 }

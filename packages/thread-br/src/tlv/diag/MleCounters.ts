@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded MLE Counters TLV (Network Diagnostic TLV type 34).
  *
@@ -102,7 +105,7 @@ const U64_MAX = (1n << 64n) - 1n;
 export namespace MleCounters {
     export function decode(value: Uint8Array): MleCounters {
         if (value.length !== TOTAL_BYTES) {
-            throw new Error(`MleCounters TLV must be ${TOTAL_BYTES} bytes, got ${value.length}`);
+            throw new ThreadDiagError(`MleCounters TLV must be ${TOTAL_BYTES} bytes, got ${value.length}`);
         }
         return {
             disabledRole: readU16BE(value, 0),
@@ -128,14 +131,14 @@ export namespace MleCounters {
         for (let i = 0; i < U16_FIELDS.length; i++) {
             const v = counters[U16_FIELDS[i]];
             if (!Number.isInteger(v) || v < 0 || v > 0xffff) {
-                throw new Error(`MleCounters.${U16_FIELDS[i]} out of range: ${v}`);
+                throw new InternalError(`MleCounters.${U16_FIELDS[i]} out of range: ${v}`);
             }
             writeU16BE(out, i * 2, v);
         }
         for (let i = 0; i < U64_FIELDS.length; i++) {
             const v = counters[U64_FIELDS[i]];
             if (typeof v !== "bigint" || v < 0n || v > U64_MAX) {
-                throw new Error(`MleCounters.${U64_FIELDS[i]} out of range: ${v}`);
+                throw new InternalError(`MleCounters.${U64_FIELDS[i]} out of range: ${v}`);
             }
             writeU64BE(out, U64_OFFSET + i * 8, v);
         }

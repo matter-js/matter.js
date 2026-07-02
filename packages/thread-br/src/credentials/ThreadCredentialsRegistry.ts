@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Observable } from "@matter/general";
+import { Bytes, ImplementationError, Observable } from "@matter/general";
 import type { OperationalDataset } from "../dataset/OperationalDataset.js";
 import type { ThreadNetworkCredentials } from "./ThreadNetworkCredentials.js";
 
@@ -34,13 +34,13 @@ export class ThreadCredentialsRegistry {
      */
     register(dataset: OperationalDataset): void {
         if (dataset.extPanId === undefined) {
-            throw new Error("Cannot register credentials: dataset is missing extPanId");
+            throw new ImplementationError("Cannot register credentials: dataset is missing extPanId");
         }
         if (dataset.networkName === undefined) {
-            throw new Error("Cannot register credentials: dataset is missing networkName");
+            throw new ImplementationError("Cannot register credentials: dataset is missing networkName");
         }
         if (dataset.pskc === undefined) {
-            throw new Error("Cannot register credentials: dataset is missing pskc");
+            throw new ImplementationError("Cannot register credentials: dataset is missing pskc");
         }
         this.registerCredentials({
             extPanId: dataset.extPanId,

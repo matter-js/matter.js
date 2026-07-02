@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoders for the variable-length Network Diagnostic vendor-info TLVs and
  * the related fixed-size primitive TLVs that round out the default request set.
@@ -32,7 +35,7 @@ function decodeUtf8(value: Uint8Array): string {
 function encodeUtf8(text: string, maxBytes: number, name: string): Uint8Array {
     const encoded = TEXT_ENCODER.encode(text);
     if (encoded.length > maxBytes) {
-        throw new Error(`${name} value too long: ${encoded.length} bytes (max ${maxBytes})`);
+        throw new InternalError(`${name} value too long: ${encoded.length} bytes (max ${maxBytes})`);
     }
     return encoded;
 }
@@ -46,14 +49,14 @@ export const VENDOR_APP_URL_MAX = 96;
 export namespace Version {
     export function decode(value: Uint8Array): number {
         if (value.length !== 2) {
-            throw new Error(`Version TLV must be 2 bytes, got ${value.length}`);
+            throw new ThreadDiagError(`Version TLV must be 2 bytes, got ${value.length}`);
         }
         return (value[0] << 8) | value[1];
     }
 
     export function encode(version: number): Uint8Array {
         if (!Number.isInteger(version) || version < 0 || version > 0xffff) {
-            throw new Error(`Version TLV out of range: ${version}`);
+            throw new InternalError(`Version TLV out of range: ${version}`);
         }
         return new Uint8Array([(version >> 8) & 0xff, version & 0xff]);
     }

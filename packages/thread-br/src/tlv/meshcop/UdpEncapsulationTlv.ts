@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadTlvError } from "../BasicTlvCodec.js";
+
 /**
  * UDP Encapsulation TLV value codec (MeshCoP TLV type 48).
  *
@@ -37,7 +40,7 @@ export namespace UdpEncapsulationTlv {
 
     export function decode(bytes: Uint8Array): UdpEncapsulation {
         if (bytes.length < 4) {
-            throw new Error(`UdpEncapsulationTlv: value must be at least 4 bytes, got ${bytes.length}`);
+            throw new ThreadTlvError(`UdpEncapsulationTlv: value must be at least 4 bytes, got ${bytes.length}`);
         }
         return {
             sourcePort: (bytes[0] << 8) | bytes[1],
@@ -49,6 +52,6 @@ export namespace UdpEncapsulationTlv {
 
 function assertPort(port: number, name: string): void {
     if (!Number.isInteger(port) || port < 0 || port > 0xffff) {
-        throw new Error(`UdpEncapsulationTlv: ${name} out of range: ${port}`);
+        throw new InternalError(`UdpEncapsulationTlv: ${name} out of range: ${port}`);
     }
 }

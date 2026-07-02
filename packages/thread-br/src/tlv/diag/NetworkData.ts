@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded Thread Network Data (Network Diagnostic TLV type 7).
  *
@@ -117,14 +119,14 @@ function walkTlvs(blob: Uint8Array): NetworkDataEntry[] {
     let offset = 0;
     while (offset < blob.length) {
         if (offset + 2 > blob.length) {
-            throw new Error(`Truncated Network Data TLV header at offset ${offset}`);
+            throw new ThreadDiagError(`Truncated Network Data TLV header at offset ${offset}`);
         }
         const typeByte = blob[offset];
         const length = blob[offset + 1];
         const valueStart = offset + 2;
         const valueEnd = valueStart + length;
         if (valueEnd > blob.length) {
-            throw new Error(
+            throw new ThreadDiagError(
                 `Truncated Network Data TLV value at offset ${offset} (type=${typeByte >> 1}, length=${length})`,
             );
         }
@@ -183,13 +185,13 @@ function parseService(value: Uint8Array): NetworkDataService {
     let enterpriseNumber: number | undefined;
     if (!threadEnterprise) {
         if (value.length < 5) {
-            throw new Error(`Truncated Service TLV: ${value.length} bytes, need 5 for enterprise number`);
+            throw new ThreadDiagError(`Truncated Service TLV: ${value.length} bytes, need 5 for enterprise number`);
         }
         enterpriseNumber = ((value[1] << 24) | (value[2] << 16) | (value[3] << 8) | value[4]) >>> 0;
         offset = 5;
     }
     if (offset >= value.length) {
-        throw new Error(`Truncated Service TLV: missing service data length at offset ${offset}`);
+        throw new ThreadDiagError(`Truncated Service TLV: missing service data length at offset ${offset}`);
     }
     const serviceDataLength = value[offset];
     offset += 1;

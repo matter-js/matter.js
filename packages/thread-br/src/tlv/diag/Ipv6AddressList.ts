@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/general";
+import { ThreadDiagError } from "../../diagnostic/errors.js";
+
 /**
  * Decoded IPv6 Address List TLV (Network Diagnostic TLV type 8).
  *
@@ -19,7 +22,9 @@ export const IPV6_ADDRESS_BYTES = 16;
 export namespace Ipv6AddressList {
     export function decode(value: Uint8Array): Uint8Array[] {
         if (value.length % IPV6_ADDRESS_BYTES !== 0) {
-            throw new Error(`IPv6 address list TLV length ${value.length} not a multiple of ${IPV6_ADDRESS_BYTES}`);
+            throw new ThreadDiagError(
+                `IPv6 address list TLV length ${value.length} not a multiple of ${IPV6_ADDRESS_BYTES}`,
+            );
         }
         const out = new Array<Uint8Array>();
         for (let offset = 0; offset < value.length; offset += IPV6_ADDRESS_BYTES) {
@@ -33,7 +38,7 @@ export namespace Ipv6AddressList {
         for (let i = 0; i < addresses.length; i++) {
             const addr = addresses[i];
             if (addr.length !== IPV6_ADDRESS_BYTES) {
-                throw new Error(`IPv6 address must be ${IPV6_ADDRESS_BYTES} bytes, got ${addr.length}`);
+                throw new InternalError(`IPv6 address must be ${IPV6_ADDRESS_BYTES} bytes, got ${addr.length}`);
             }
             out.set(addr, i * IPV6_ADDRESS_BYTES);
         }
