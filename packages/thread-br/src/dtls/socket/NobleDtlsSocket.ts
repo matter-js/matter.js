@@ -4,7 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Environment, Millis, Network, Time, type Timer, type UdpSocket } from "@matter/general";
+import {
+    Bytes,
+    Environment,
+    ImplementationError,
+    InternalError,
+    MatterError,
+    Millis,
+    Network,
+    Time,
+    TimeoutError,
+    type Timer,
+    type UdpSocket,
+} from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { randomBytes } from "node:crypto";
 import { DtlsClient, type DtlsClientConfig } from "../handshake/DtlsClient.js";
@@ -14,6 +26,9 @@ import { DTLS_HEADER_LEN, DtlsRecord } from "../record/DtlsRecord.js";
 import type { DtlsConnectOpts } from "./DtlsConnectOpts.js";
 import { DtlsRetransmitTimer } from "./DtlsRetransmitTimer.js";
 import type { DtlsSocket } from "./DtlsSocket.js";
+
+/** DTLS peer/wire/protocol failure (handshake give-up, malformed record, peer alert, ...). */
+export class NobleDtlsError extends MatterError {}
 
 const DEFAULT_INITIAL_RETRANSMIT_MS = 1000;
 const DEFAULT_MAX_RETRANSMIT_MS = 60_000;
@@ -114,17 +129,17 @@ export class NobleDtlsSocket implements DtlsSocket {
      */
     async connect(): Promise<void> {
         if (this.#connected) {
-            throw new Error("NobleDtlsSocket.connect: already connected");
+            throw new ImplementationError("NobleDtlsSocket.connect: already connected");
         }
         if (this.#closed) {
-            throw new Error("NobleDtlsSocket.connect: closed");
+            throw new ImplementationError("NobleDtlsSocket.connect: closed");
         }
 
         const network = (this.#opts.environment ?? Environment.default).get(Network);
         const udp = await network.createUdpSocket({ type: this.#udpType, listeningPort: 0 });
         if (this.#closed) {
             await udp.close();
-            throw new Error("NobleDtlsSocket.connect: closed");
+            throw new ImplementationError("NobleDtlsSocket.connect: closed");
         }
         this.#udp = udp;
         udp.onData((_netInterface, _peerAddress, _peerPort, data) => this.#onDatagram(Bytes.of(data)));
@@ -145,7 +160,7 @@ export class NobleDtlsSocket implements DtlsSocket {
             maxMs: clientCfg.maxRetransmitMs ?? DEFAULT_MAX_RETRANSMIT_MS,
             maxRetransmits: this.#opts.maxRetransmits ?? DEFAULT_MAX_RETRANSMITS,
             onRetransmit: () => this.#onRetransmit(),
-            onGiveUp: () => this.#fail(new Error("NobleDtlsSocket: handshake gave up after max retransmits")),
+            onGiveUp: () => this.#fail(new NobleDtlsError("NobleDtlsSocket: handshake gave up after max retransmits")),
         });
 
         const connectPromise = new Promise<void>((resolve, reject) => {
@@ -153,7 +168,7 @@ export class NobleDtlsSocket implements DtlsSocket {
         });
         const connectTimeoutMs = this.#opts.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
         this.#connectDeadline = Time.getTimer("dtls-connect-deadline", Millis(connectTimeoutMs), () =>
-            this.#fail(new Error(`NobleDtlsSocket: connect timed out after ${connectTimeoutMs}ms`)),
+            this.#fail(new TimeoutError(`NobleDtlsSocket: connect timed out after ${connectTimeoutMs}ms`)),
         ).start();
 
         // Drive the first flight.
@@ -162,7 +177,7 @@ export class NobleDtlsSocket implements DtlsSocket {
             this.#sendRecords(step.records);
             this.#retransmit.armNewFlight();
         } catch (e) {
-            this.#fail(e instanceof Error ? e : new Error(String(e)));
+            this.#fail(e instanceof Error ? e : new InternalError(String(e)));
         }
 
         try {
@@ -175,15 +190,15 @@ export class NobleDtlsSocket implements DtlsSocket {
 
     async send(bytes: Uint8Array): Promise<void> {
         if (this.#closed) {
-            throw new Error("NobleDtlsSocket.send: closed");
+            throw new ImplementationError("NobleDtlsSocket.send: closed");
         }
         if (!this.#connected) {
-            throw new Error("NobleDtlsSocket.send: not connected");
+            throw new ImplementationError("NobleDtlsSocket.send: not connected");
         }
         const cipherState = this.#cipherState;
         const udp = this.#udp;
         if (cipherState === undefined || udp === undefined) {
-            throw new Error("NobleDtlsSocket.send: missing cipher state or transport");
+            throw new InternalError("NobleDtlsSocket.send: missing cipher state or transport");
         }
         const seq = cipherState.nextWriteSeq();
         const record = DtlsRecord.encode(
@@ -200,7 +215,7 @@ export class NobleDtlsSocket implements DtlsSocket {
 
     async recv(): Promise<Uint8Array> {
         if (this.#closed) {
-            throw new Error("NobleDtlsSocket.recv: closed");
+            throw new ImplementationError("NobleDtlsSocket.recv: closed");
         }
         if (this.#recvQueue.length > 0) {
             return this.#recvQueue.shift()!;
@@ -242,7 +257,7 @@ export class NobleDtlsSocket implements DtlsSocket {
             await udp.close().catch(() => {});
         }
         // Reject any waiters.
-        const closeError = this.#lastError ?? new Error("NobleDtlsSocket: closed");
+        const closeError = this.#lastError ?? new NobleDtlsError("NobleDtlsSocket: closed");
         while (this.#recvWaiters.length > 0) {
             const w = this.#recvWaiters.shift()!;
             w.reject(closeError);
@@ -273,7 +288,7 @@ export class NobleDtlsSocket implements DtlsSocket {
                 this.#handleHandshakeDatagram(bytes);
             }
         } catch (e) {
-            this.#fail(e instanceof Error ? e : new Error(String(e)));
+            this.#fail(e instanceof Error ? e : new InternalError(String(e)));
         }
     }
 
@@ -281,7 +296,7 @@ export class NobleDtlsSocket implements DtlsSocket {
         const client = this.#client;
         const retransmit = this.#retransmit;
         if (client === undefined || retransmit === undefined) {
-            throw new Error("NobleDtlsSocket: handshake datagram before client/timer initialised");
+            throw new InternalError("NobleDtlsSocket: handshake datagram before client/timer initialised");
         }
         const step = client.onDatagram(bytes);
         // RFC 6347 §4.2.4: receiving the next flight implicitly acknowledges the previous one.
@@ -305,17 +320,17 @@ export class NobleDtlsSocket implements DtlsSocket {
     #handleAppDatagram(bytes: Uint8Array): void {
         const cipherState = this.#cipherState;
         if (cipherState === undefined) {
-            throw new Error("NobleDtlsSocket: post-handshake datagram with no cipher state");
+            throw new InternalError("NobleDtlsSocket: post-handshake datagram with no cipher state");
         }
         let p = 0;
         while (p < bytes.length) {
             if (bytes.length - p < DTLS_HEADER_LEN) {
-                throw new Error("NobleDtlsSocket: short DTLS record header");
+                throw new NobleDtlsError("NobleDtlsSocket: short DTLS record header");
             }
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + DTLS_HEADER_LEN + length;
             if (recordEnd > bytes.length) {
-                throw new Error("NobleDtlsSocket: DTLS record length overruns datagram");
+                throw new NobleDtlsError("NobleDtlsSocket: DTLS record length overruns datagram");
             }
             const slice = bytes.subarray(p, recordEnd);
             const { record } = DtlsRecord.decode(slice, cipherState);
@@ -324,11 +339,11 @@ export class NobleDtlsSocket implements DtlsSocket {
             } else if (record.type === ContentType.ALERT) {
                 // close_notify (level=1, desc=0) ends the session; other alerts surface as errors.
                 if (record.fragment.length >= 2 && record.fragment[1] === ALERT_DESC_CLOSE_NOTIFY) {
-                    this.#fail(new Error("NobleDtlsSocket: peer sent close_notify"));
+                    this.#fail(new NobleDtlsError("NobleDtlsSocket: peer sent close_notify"));
                     return;
                 }
                 this.#fail(
-                    new Error(
+                    new NobleDtlsError(
                         `NobleDtlsSocket: peer alert level=${record.fragment[0] ?? -1} desc=${record.fragment[1] ?? -1}`,
                     ),
                 );
@@ -358,14 +373,14 @@ export class NobleDtlsSocket implements DtlsSocket {
             const step = client.onRetransmit();
             this.#sendRecords(step.records);
         } catch (e) {
-            this.#fail(e instanceof Error ? e : new Error(String(e)));
+            this.#fail(e instanceof Error ? e : new InternalError(String(e)));
         }
     }
 
     #sendRecords(records: Uint8Array[]): void {
         const udp = this.#udp;
         if (udp === undefined) {
-            throw new Error("NobleDtlsSocket: send before bind");
+            throw new InternalError("NobleDtlsSocket: send before bind");
         }
         if (records.length === 0) {
             return;
@@ -390,7 +405,9 @@ export class NobleDtlsSocket implements DtlsSocket {
             datagrams.push(concatBuffers(acc));
         }
         for (const dg of datagrams) {
-            void this.#sendDatagram(udp, dg).catch(e => this.#fail(e instanceof Error ? e : new Error(String(e))));
+            void this.#sendDatagram(udp, dg).catch(e =>
+                this.#fail(e instanceof Error ? e : new InternalError(String(e))),
+            );
         }
     }
 

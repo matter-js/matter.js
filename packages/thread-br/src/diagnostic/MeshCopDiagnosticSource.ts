@@ -244,6 +244,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         // see the release ACK (manifested as petition-rejected on retry).
         const sessionPromise = this.#commissioner
             .withSession(async () => {
+                if (closed) return;
                 logger.debug(`[ThreadDiag] queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
                 const collected = new Array<DiagnosticResponse>();
                 const probed = new Set<number>();
@@ -296,7 +297,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     onError.emit(err instanceof Error ? err : new Error(String(err)));
                 }
 
-                if (this.#mlPrefix !== undefined) {
+                if (this.#mlPrefix !== undefined && !closed) {
                     const mlPrefix = this.#mlPrefix;
                     const sendUnicastFill = (): void => {
                         if (closed) return;
