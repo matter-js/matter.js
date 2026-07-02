@@ -4,7 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Millis, Time, TimeoutError, Timer } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    type Entropy,
+    type Environment,
+    ImplementationError,
+    Logger,
+    Millis,
+    Time,
+    TimeoutError,
+    Timer,
+} from "@matter/general";
 import type { DtlsChannel } from "../dtls/channel/DtlsChannel.js";
 import { CoapMessage } from "./CoapMessage.js";
 
@@ -67,7 +78,8 @@ function tokenHex(token: Uint8Array): string {
 }
 
 export class CoapClient {
-    #messageId = Math.floor(Math.random() * 0x10000);
+    #entropy: Entropy;
+    #messageId: number;
     #channel: DtlsChannel;
     #ackTimeoutMs: number;
     #separateResponseTimeoutMs: number;
@@ -80,8 +92,10 @@ export class CoapClient {
     #pendingByToken = new Map<string, PendingState>();
     #listeners = new Set<Listener>();
 
-    constructor(channel: DtlsChannel, opts?: CoapClientOpts) {
+    constructor(channel: DtlsChannel, environment: Environment, opts?: CoapClientOpts) {
         this.#channel = channel;
+        this.#entropy = environment.get(Crypto);
+        this.#messageId = this.#entropy.randomUint16;
         this.#ackTimeoutMs = opts?.ackTimeoutMs ?? RFC_ACK_TIMEOUT_MS;
         this.#separateResponseTimeoutMs = opts?.separateResponseTimeoutMs ?? SEPARATE_RESPONSE_TIMEOUT_MS;
         void this.#runRecvLoop();
@@ -129,11 +143,13 @@ export class CoapClient {
 
     async #sendCon(msg: CoapMessage): Promise<CoapMessage> {
         if (this.#pendingByMsgId.has(msg.messageId)) {
-            throw new Error(`CoapClient: messageId collision at ${msg.messageId} — too many concurrent CON requests`);
+            throw new ImplementationError(
+                `CoapClient: messageId collision at ${msg.messageId} — too many concurrent CON requests`,
+            );
         }
         const reqTokenHex = tokenHex(msg.token);
         if (this.#pendingByToken.has(reqTokenHex)) {
-            throw new Error(`CoapClient: token collision for ${reqTokenHex}`);
+            throw new ImplementationError(`CoapClient: token collision for ${reqTokenHex}`);
         }
 
         const encoded = CoapMessage.encode(msg);
@@ -193,7 +209,11 @@ export class CoapClient {
                         return;
                     }
                     attempt++;
-                    void this.#channel.send(encoded).catch(() => {});
+                    void this.#channel
+                        .send(encoded)
+                        .catch(err =>
+                            logger.warn(`CoAP retransmit send failed for messageId=${msg.messageId}: ${err}`),
+                        );
                     scheduleRetransmit(Math.min(delayMs * 2, this.#ackTimeoutMs * 2 ** MAX_RETRANSMIT));
                 }).start();
             };
@@ -220,7 +240,8 @@ export class CoapClient {
                 let msg: CoapMessage;
                 try {
                     msg = CoapMessage.decode(Bytes.of(bytes));
-                } catch {
+                } catch (err) {
+                    logger.debug(`CoAP inbound decode failed, dropping: ${err}`);
                     continue;
                 }
 
@@ -328,8 +349,6 @@ export class CoapClient {
     }
 
     #randomToken(): Uint8Array {
-        const token = new Uint8Array(4);
-        crypto.getRandomValues(token);
-        return token;
+        return Bytes.of(this.#entropy.randomBytes(4));
     }
 }

@@ -30,8 +30,7 @@
     "dependencies": {
         "@matter/general": "*",
         "@matter/protocol": "*",
-        "@noble/curves": "^2.2.0",
-        "coap-packet": "^1.1.1"
+        "@noble/curves": "^2.2.0"
     },
     "devDependencies": {
         "@matter/testing": "*"

@@ -63,7 +63,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
     logger.debug(`[ThreadDiag] DTLS handshake OK ${address}:${port} duration=${Date.now() - dtlsStart}ms`);
 
     try {
-        const coap = new CoapClient(channel);
+        const coap = new CoapClient(channel, opts.environment);
         const commissioner = new Commissioner(coap);
         const source = new MeshCopDiagnosticSource(commissioner, coap, opts.creds.meshLocalPrefix);
         return {

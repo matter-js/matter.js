@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, type Transport } from "@matter/general";
+import { Bytes, Environment, type Transport } from "@matter/general";
 import { CoapClient, CoapTimeoutError } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { DtlsChannel } from "../src/dtls/channel/DtlsChannel.js";
@@ -81,12 +81,14 @@ function makeAck(req: CoapMessage, payload?: Uint8Array): CoapMessage {
     };
 }
 
+const environment = new Environment("test", Environment.default);
+
 describe("CoapClient", () => {
     before(MockTime.enable);
 
     it("sends a CON request and resolves when ACK arrives", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
+        const client = new CoapClient(socket, environment, { ackTimeoutMs: 5_000 });
 
         const responsePayload = new Uint8Array([0x10, 0x01, 0x01, 0x0b, 0x02, 0x00, 0x07]);
         const reqPromise = client.request({
@@ -111,7 +113,7 @@ describe("CoapClient", () => {
     it("retransmits when ACK is delayed — resolves on second attempt", async () => {
         const socket = new MockChannel();
 
-        const client = new CoapClient(socket, { ackTimeoutMs: 20 });
+        const client = new CoapClient(socket, environment, { ackTimeoutMs: 20 });
 
         let sendCount = 0;
         const origSend = socket.send.bind(socket);
@@ -143,7 +145,7 @@ describe("CoapClient", () => {
 
     it("throws CoapTimeoutError when MAX_RETRANSMIT is exhausted", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket, { ackTimeoutMs: 5 });
+        const client = new CoapClient(socket, environment, { ackTimeoutMs: 5 });
 
         const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
 
@@ -167,7 +169,7 @@ describe("CoapClient", () => {
 
     it("sends a NON request and returns immediately without waiting for ACK", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         const response = await client.request({ type: "NON", code: "0.01", uriPath: ["c", "cp"] });
 
@@ -191,7 +193,7 @@ describe("CoapClient", () => {
 
     it("listen handler is called when inbound message matches uriPath", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         const received = new Array<CoapMessage>();
         client.listen(["d", "da"], msg => {
@@ -218,7 +220,7 @@ describe("CoapClient", () => {
 
     it("listen handler is NOT called when uriPath differs", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         let called = false;
         client.listen(["d", "da"], () => {
@@ -244,7 +246,7 @@ describe("CoapClient", () => {
 
     it("multiple listeners on the same path are all called", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         let countA = 0;
         let countB = 0;
@@ -275,7 +277,7 @@ describe("CoapClient", () => {
 
     it("unsubscribe stops further listener calls", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         let count = 0;
         const unsubscribe = client.listen(["d", "da"], () => {
@@ -305,7 +307,7 @@ describe("CoapClient", () => {
 
     it("listener that throws does not break the recv loop", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         let secondCount = 0;
         client.listen(["d", "da"], () => {
@@ -337,7 +339,7 @@ describe("CoapClient", () => {
 
     it("resolves with separate CON response after empty ACK (RFC 7252 §5.2.2)", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
+        const client = new CoapClient(socket, environment, { ackTimeoutMs: 5_000 });
 
         const reqPromise = client.request({
             type: "CON",
@@ -387,7 +389,7 @@ describe("CoapClient", () => {
 
     it("resolves with NON separate response after empty ACK without sending ACK back", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket, { ackTimeoutMs: 5_000 });
+        const client = new CoapClient(socket, environment, { ackTimeoutMs: 5_000 });
 
         const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
 
@@ -425,7 +427,7 @@ describe("CoapClient", () => {
 
     it("times out if separate response never arrives", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket, { ackTimeoutMs: 5_000, separateResponseTimeoutMs: 30 });
+        const client = new CoapClient(socket, environment, { ackTimeoutMs: 5_000, separateResponseTimeoutMs: 30 });
 
         const reqPromise = client.request({ type: "CON", code: "0.02", uriPath: ["c", "cp"] });
 
@@ -457,7 +459,7 @@ describe("CoapClient", () => {
 
     it("auto-ACKs inbound CON dispatched to listeners", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         const received = new Array<CoapMessage>();
         client.listen(["d", "da"], msg => {
@@ -489,7 +491,7 @@ describe("CoapClient", () => {
 
     it("close() clears all listeners", async () => {
         const socket = new MockChannel();
-        const client = new CoapClient(socket);
+        const client = new CoapClient(socket, environment);
 
         let count = 0;
         client.listen(["d", "da"], () => {
@@ -499,7 +501,7 @@ describe("CoapClient", () => {
         await client.close();
 
         const socket2 = new MockChannel();
-        const client2 = new CoapClient(socket2);
+        const client2 = new CoapClient(socket2, environment);
         client2.listen(["d", "da"], () => {
             count++;
         });
