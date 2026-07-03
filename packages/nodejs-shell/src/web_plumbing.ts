@@ -88,7 +88,7 @@ export function initializeWebPlumbing(
         wss = new WebSocketServer({ server });
     } else wss = new WebSocketServer({ port: webSocketPort, host: listenHost });
 
-    console.info(`WebSocket server running on ws://${listenHost}:${webSocketPort}`);
+    console.info(`WebSocket server listening on ${listenHost} port ${webSocketPort}`);
 
     console.log =
         // console.debug = // too much traffic - kills the websocket
