@@ -44,7 +44,12 @@ Resource.add(
                             "light; it does not impact alarm reporting in AlarmsActive."
                     },
 
-                    { tag: "field", name: "SENSLVL", details: "Supports ability to set sensor sensitivity" }
+                    { tag: "field", name: "SENSLVL", details: "Supports ability to set sensor sensitivity" },
+                    {
+                        tag: "field", name: "FAULTEV", xref: "cluster§1.8.4.2",
+                        details: "This feature shall indicate that the device supports reporting sensor faults. When this feature is " +
+                            "supported, there shall be at least one cause of internal failure that will generate the SensorFault."
+                    }
                 ]
             },
 

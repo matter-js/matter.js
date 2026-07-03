@@ -6,7 +6,7 @@
 
 import { TlvByteString, TlvField, TlvObject, TlvOptionalField, TlvUInt32 } from "@matter/types";
 
-/** @see {@link MatterSpecification.v11.Core} § 11.17.5.4 */
+/** @see {@link MatterSpecification.v16.Core} § 11.18.4.6 */
 export const TlvAttestation = TlvObject({
     declaration: TlvField(1, TlvByteString),
     attestationNonce: TlvField(2, TlvByteString.bound({ length: 32 })),
@@ -14,7 +14,7 @@ export const TlvAttestation = TlvObject({
     firmwareInfo: TlvOptionalField(4, TlvByteString),
 });
 
-/** @see {@link MatterSpecification.v11.Core} § 11.17.5.6 */
+/** @see {@link MatterSpecification.v16.Core} § 11.18.4.8 */
 export const TlvCertSigningRequest = TlvObject({
     certSigningRequest: TlvField(1, TlvByteString),
     csrNonce: TlvField(2, TlvByteString.bound({ length: 32 })),

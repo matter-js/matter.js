@@ -14,7 +14,7 @@ import { TlvDataVersionFilter } from "../types/TlvDataVersionFilter.js";
 import { TlvEventFilter } from "../types/TlvEventFilter.js";
 import { TlvEventPath } from "../types/TlvEventPath.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.7.4 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.7.4 */
 
 export const TlvSubscribeRequest = TlvObject({
     /** False to terminate existing subscriptions from initiator. */

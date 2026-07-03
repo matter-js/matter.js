@@ -11,7 +11,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
 import { InternalError, Logger } from "@matter/general";
 import { assertRemoteActor, Fabric } from "@matter/protocol";
-import { Status, StatusResponseError } from "@matter/types";
+import { FabricIndex, Status, StatusResponseError } from "@matter/types";
 import { Groups } from "@matter/types/clusters/groups";
 import { GroupsBehavior } from "./GroupsBehavior.js";
 
@@ -81,6 +81,16 @@ export class GroupsServer extends GroupsBase {
         return act(this.context.session.associatedFabric, gkm);
     }
 
+    // Groups cluster rev 5: management commands return INVALID_IN_STATE for Groupcast-adopted fabrics.  Inert while
+    // the Groupcast feature is provisional (groupcastAdoption is never populated), guarded in GroupKeyManagementServer.
+    #isGroupcastAdopted(fabricIndex: FabricIndex): boolean {
+        const groupcastAdoption = this.#rootEndpoint.stateOf(GroupKeyManagementServer).groupcastAdoption;
+        if (!groupcastAdoption) {
+            return false;
+        }
+        return groupcastAdoption.some(e => e.fabricIndex === fabricIndex && e.groupcastAdopted);
+    }
+
     override async addGroup({ groupId, groupName }: Groups.AddGroupRequest): Promise<Groups.AddGroupResponse> {
         assertRemoteActor(this.context);
         const fabric = this.context.session.associatedFabric;
@@ -90,6 +100,10 @@ export class GroupsServer extends GroupsBase {
         }
         if (groupName.length > 16) {
             return { status: Status.ConstraintError, groupId };
+        }
+
+        if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
+            return { status: Status.InvalidInState, groupId };
         }
 
         if (!fabric.groups.groupKeyIdMap.has(groupId)) {
@@ -119,6 +133,10 @@ export class GroupsServer extends GroupsBase {
             return { status: Status.ConstraintError, groupId, groupName: "" };
         }
 
+        if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
+            return { status: Status.InvalidInState, groupId, groupName: "" };
+        }
+
         const fabricIndex = fabric.fabricIndex;
         const endpointNumber = this.endpoint.number;
 
@@ -135,6 +153,11 @@ export class GroupsServer extends GroupsBase {
     }: Groups.GetGroupMembershipRequest): Promise<Groups.GetGroupMembershipResponse> {
         assertRemoteActor(this.context);
         const fabric = this.context.session.associatedFabric;
+
+        if (this.#isGroupcastAdopted(fabric.fabricIndex)) {
+            throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", Status.InvalidInState);
+        }
+
         const fabricIndex = fabric.fabricIndex;
         const endpointNumber = this.endpoint.number;
 
@@ -194,6 +217,10 @@ export class GroupsServer extends GroupsBase {
     }
 
     override async addGroupIfIdentifying({ groupId, groupName }: Groups.AddGroupIfIdentifyingRequest) {
+        assertRemoteActor(this.context);
+        if (this.#isGroupcastAdopted(this.context.session.associatedFabric.fabricIndex)) {
+            throw new StatusResponseError("Groupcast adopted, use Groupcast cluster", Status.InvalidInState);
+        }
         if (this.endpoint.stateOf(IdentifyBehavior).identifyTime > 0) {
             // We identify ourselves currently
             const { status } = await this.addGroup({ groupId, groupName });

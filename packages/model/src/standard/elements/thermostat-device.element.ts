@@ -13,7 +13,7 @@ export const ThermostatDt = DeviceType(
     { name: "Thermostat", id: 0x301, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 769, revision: 5 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 769, revision: 6 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "Active", element: "serverCluster" }),
@@ -23,7 +23,8 @@ export const ThermostatDt = DeviceType(
     Requirement({ name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "clientCluster" }),
-    Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" })
+    Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" }),
+    Requirement({ name: "AmbientContextSensing", id: 0x431, conformance: "P, O", element: "clientCluster" })
 );
 
 MatterDefinition.children.push(ThermostatDt);

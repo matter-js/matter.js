@@ -19,7 +19,7 @@ import { Identity } from "@matter/general";
  * WindowCoveringDevice requires WindowCovering cluster but WindowCovering is not added by default because you must
  * select the features your device supports. You can add manually using WindowCoveringDevice.with().
  *
- * @see {@link MatterSpecification.v151.Device} § 8.3
+ * @see {@link MatterSpecification.v16.Device} § 8.3
  */
 export interface WindowCoveringDevice extends Identity<typeof WindowCoveringDeviceDefinition> {}
 

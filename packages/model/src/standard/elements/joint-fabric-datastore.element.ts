@@ -18,62 +18,108 @@ import {
 export const JointFabricDatastore = Cluster(
     { name: "JointFabricDatastore", id: 0x752, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
-    Attribute({ name: "AnchorRootCa", id: 0x0, type: "octstr", access: "R A", conformance: "P, M" }),
-    Attribute({ name: "AnchorNodeId", id: 0x1, type: "node-id", access: "R A", conformance: "P, M" }),
-    Attribute({ name: "AnchorVendorId", id: 0x2, type: "vendor-id", access: "R A", conformance: "P, M" }),
-    Attribute({ name: "FriendlyName", id: 0x3, type: "string", access: "R A", conformance: "P, M", constraint: "max 32" }),
+    Attribute({
+        name: "AnchorRootCa", id: 0x0, type: "octstr", access: "R A", conformance: "M",
+        constraint: "max 400", quality: "N"
+    }),
+    Attribute({ name: "AnchorNodeId", id: 0x1, type: "node-id", access: "R A", conformance: "M", quality: "N" }),
+    Attribute({ name: "AnchorVendorId", id: 0x2, type: "vendor-id", access: "R A", conformance: "M", quality: "N" }),
+    Attribute({
+        name: "FriendlyName", id: 0x3, type: "string", access: "R A", conformance: "M",
+        constraint: "max 32", quality: "N"
+    }),
+
     Attribute(
-        { name: "GroupKeySetList", id: 0x4, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "GroupKeySetList", id: 0x4, type: "list", access: "R A", conformance: "M",
+            constraint: "1 to 254", quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreGroupKeySetStruct" })
     ),
+
     Attribute(
-        { name: "GroupList", id: 0x5, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "GroupList", id: 0x5, type: "list", access: "R A", conformance: "M", constraint: "1 to 254",
+            quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreGroupInformationEntryStruct" })
     ),
+
     Attribute(
-        { name: "NodeList", id: 0x6, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "NodeList", id: 0x6, type: "list", access: "R A", conformance: "M", constraint: "max 1024",
+            quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreNodeInformationEntryStruct" })
     ),
+
     Attribute(
-        { name: "AdminList", id: 0x7, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "AdminList", id: 0x7, type: "list", access: "R A", conformance: "M", constraint: "1 to 32",
+            quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreAdministratorInformationEntryStruct" })
     ),
-    Attribute({ name: "Status", id: 0x8, type: "DatastoreStatusEntryStruct", access: "R A", conformance: "P, M" }),
+
     Attribute(
-        { name: "EndpointGroupIdList", id: 0x9, type: "list", access: "R A", conformance: "P, M" },
+        { name: "Status", id: 0x8, type: "DatastoreStatusEntryStruct", access: "R A", conformance: "M", quality: "N" }
+    ),
+
+    Attribute(
+        {
+            name: "EndpointGroupIdList", id: 0x9, type: "list", access: "R A", conformance: "M",
+            constraint: "max 8192", quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreEndpointGroupIDEntryStruct" })
     ),
+
     Attribute(
-        { name: "EndpointBindingList", id: 0xa, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "EndpointBindingList", id: 0xa, type: "list", access: "R A", conformance: "M",
+            constraint: "max 8192", quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreEndpointBindingEntryStruct" })
     ),
+
     Attribute(
-        { name: "NodeKeySetList", id: 0xb, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "NodeKeySetList", id: 0xb, type: "list", access: "R A", conformance: "M",
+            constraint: "max 8192", quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreNodeKeySetEntryStruct" })
     ),
+
     Attribute(
-        { name: "NodeAclList", id: 0xc, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "NodeAclList", id: 0xc, type: "list", access: "R A", conformance: "M", constraint: "max 8192",
+            quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreACLEntryStruct" })
     ),
+
     Attribute(
-        { name: "NodeEndpointList", id: 0xd, type: "list", access: "R A", conformance: "P, M" },
+        {
+            name: "NodeEndpointList", id: 0xd, type: "list", access: "R A", conformance: "M",
+            constraint: "max 8192", quality: "N"
+        },
         Field({ name: "entry", type: "DatastoreEndpointEntryStruct" })
     ),
+
     Command(
-        { name: "AddKeySet", id: 0x0, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "AddKeySet", id: 0x0, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupKeySet", id: 0x0, type: "DatastoreGroupKeySetStruct", conformance: "M" })
     ),
     Command(
-        { name: "UpdateKeySet", id: 0x1, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "UpdateKeySet", id: 0x1, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupKeySet", id: 0x0, type: "DatastoreGroupKeySetStruct", conformance: "M" })
     ),
     Command(
-        { name: "RemoveKeySet", id: 0x2, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "RemoveKeySet", id: 0x2, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupKeySetId", id: 0x0, type: "uint16", conformance: "M" })
     ),
 
     Command(
-        { name: "AddGroup", id: 0x3, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "AddGroup", id: 0x3, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
         Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32" }),
         Field({ name: "GroupKeySetId", id: 0x2, type: "uint16", conformance: "M", constraint: "1 to 65534", quality: "X" }),
@@ -83,7 +129,7 @@ export const JointFabricDatastore = Cluster(
     ),
 
     Command(
-        { name: "UpdateGroup", id: 0x4, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "UpdateGroup", id: 0x4, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
         Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32", quality: "X" }),
         Field({ name: "GroupKeySetId", id: 0x2, type: "uint16", conformance: "M", constraint: "1 to 65535", quality: "X" }),
@@ -96,51 +142,51 @@ export const JointFabricDatastore = Cluster(
     ),
 
     Command(
-        { name: "RemoveGroup", id: 0x5, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "RemoveGroup", id: 0x5, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" })
     ),
 
     Command(
-        { name: "AddAdmin", id: 0x6, access: "A", conformance: "P, M", direction: "request", response: "status" },
-        Field({ name: "NodeId", id: 0x1, type: "node-id", conformance: "M" }),
-        Field({ name: "FriendlyName", id: 0x2, type: "string", conformance: "M", constraint: "max 32" }),
-        Field({ name: "VendorId", id: 0x3, type: "vendor-id", conformance: "M" }),
-        Field({ name: "Icac", id: 0x4, type: "octstr", conformance: "M", constraint: "max 400" })
+        { name: "AddAdmin", id: 0x6, access: "A", conformance: "M", direction: "request", response: "status" },
+        Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
+        Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32" }),
+        Field({ name: "VendorId", id: 0x2, type: "vendor-id", conformance: "M" }),
+        Field({ name: "Icac", id: 0x3, type: "octstr", conformance: "M", constraint: "max 400" })
     ),
 
     Command(
-        { name: "UpdateAdmin", id: 0x7, access: "A", conformance: "P, M", direction: "request", response: "status" },
-        Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M", quality: "X" }),
-        Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32", quality: "X" }),
-        Field({ name: "Icac", id: 0x2, type: "octstr", conformance: "M", constraint: "max 400", quality: "X" })
+        { name: "UpdateAdmin", id: 0x7, access: "A", conformance: "M", direction: "request", response: "status" },
+        Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
+        Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "O", constraint: "max 32" }),
+        Field({ name: "Icac", id: 0x2, type: "octstr", conformance: "O", constraint: "max 400" })
     ),
 
     Command(
-        { name: "RemoveAdmin", id: 0x8, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "RemoveAdmin", id: 0x8, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" })
     ),
     Command(
-        { name: "AddPendingNode", id: 0x9, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "AddPendingNode", id: 0x9, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
         Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32" })
     ),
     Command(
-        { name: "RefreshNode", id: 0xa, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "RefreshNode", id: 0xa, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" })
     ),
     Command(
-        { name: "UpdateNode", id: 0xb, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "UpdateNode", id: 0xb, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
         Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32" })
     ),
     Command(
-        { name: "RemoveNode", id: 0xc, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "RemoveNode", id: 0xc, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" })
     ),
 
     Command(
         {
-            name: "UpdateEndpointForNode", id: 0xd, access: "A", conformance: "P, M", direction: "request",
+            name: "UpdateEndpointForNode", id: 0xd, access: "A", conformance: "M", direction: "request",
             response: "status"
         },
         Field({ name: "EndpointId", id: 0x0, type: "endpoint-no", conformance: "M" }),
@@ -150,7 +196,17 @@ export const JointFabricDatastore = Cluster(
 
     Command(
         {
-            name: "AddGroupIdToEndpointForNode", id: 0xe, access: "A", conformance: "P, M",
+            name: "AddGroupIdToEndpointForNode", id: 0xe, access: "A", conformance: "M", direction: "request",
+            response: "status"
+        },
+        Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
+        Field({ name: "EndpointId", id: 0x1, type: "endpoint-no", conformance: "M" }),
+        Field({ name: "GroupId", id: 0x2, type: "group-id", conformance: "M" })
+    ),
+
+    Command(
+        {
+            name: "RemoveGroupIdFromEndpointForNode", id: 0xf, access: "A", conformance: "M",
             direction: "request", response: "status"
         },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
@@ -160,18 +216,8 @@ export const JointFabricDatastore = Cluster(
 
     Command(
         {
-            name: "RemoveGroupIdFromEndpointForNode", id: 0xf, access: "A", conformance: "P, M",
-            direction: "request", response: "status"
-        },
-        Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
-        Field({ name: "EndpointId", id: 0x1, type: "endpoint-no", conformance: "M" }),
-        Field({ name: "GroupId", id: 0x2, type: "group-id", conformance: "M" })
-    ),
-
-    Command(
-        {
-            name: "AddBindingToEndpointForNode", id: 0x10, access: "A", conformance: "P, M",
-            direction: "request", response: "status"
+            name: "AddBindingToEndpointForNode", id: 0x10, access: "A", conformance: "M", direction: "request",
+            response: "status"
         },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
         Field({ name: "EndpointId", id: 0x1, type: "endpoint-no", conformance: "M" }),
@@ -180,7 +226,7 @@ export const JointFabricDatastore = Cluster(
 
     Command(
         {
-            name: "RemoveBindingFromEndpointForNode", id: 0x11, access: "A", conformance: "P, M",
+            name: "RemoveBindingFromEndpointForNode", id: 0x11, access: "A", conformance: "M",
             direction: "request", response: "status"
         },
         Field({ name: "ListId", id: 0x0, type: "uint16", conformance: "M" }),
@@ -189,14 +235,14 @@ export const JointFabricDatastore = Cluster(
     ),
 
     Command(
-        { name: "AddAclToNode", id: 0x12, access: "A", conformance: "P, M", direction: "request", response: "status" },
+        { name: "AddAclToNode", id: 0x12, access: "A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
         Field({ name: "AclEntry", id: 0x1, type: "DatastoreAccessControlEntryStruct", conformance: "M" })
     ),
 
     Command(
         {
-            name: "RemoveAclFromNode", id: 0x13, access: "A", conformance: "P, M", direction: "request",
+            name: "RemoveAclFromNode", id: 0x13, access: "A", conformance: "M", direction: "request",
             response: "status"
         },
         Field({ name: "ListId", id: 0x0, type: "uint16", conformance: "M" }),
@@ -213,9 +259,9 @@ export const JointFabricDatastore = Cluster(
 
     Datatype(
         { name: "DatastoreStatusEntryStruct", type: "struct" },
-        Field({ name: "State", id: 0x0, type: "DatastoreStateEnum", access: "R V", conformance: "M", default: 0 }),
+        Field({ name: "State", id: 0x0, type: "DatastoreStateEnum", access: "R V", conformance: "M" }),
         Field({ name: "UpdateTimestamp", id: 0x1, type: "epoch-s", access: "R V", conformance: "M" }),
-        Field({ name: "FailureCode", id: 0x2, type: "status", access: "R V", conformance: "M", default: 0 })
+        Field({ name: "FailureCode", id: 0x2, type: "status", access: "R V", conformance: "M" })
     ),
 
     Datatype(
@@ -228,7 +274,6 @@ export const JointFabricDatastore = Cluster(
     Datatype(
         { name: "DatastoreAccessControlEntryPrivilegeEnum", type: "enum8" },
         Field({ name: "View", id: 0x1, conformance: "M" }),
-        Field({ name: "ProxyView", id: 0x2, conformance: "D" }),
         Field({ name: "Operate", id: 0x3, conformance: "M" }),
         Field({ name: "Manage", id: 0x4, conformance: "M" }),
         Field({ name: "Administer", id: 0x5, conformance: "M" })
@@ -269,10 +314,7 @@ export const JointFabricDatastore = Cluster(
         Field({ name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M" }),
         Field({ name: "EndpointId", id: 0x1, type: "endpoint-no", access: "R V", conformance: "M" }),
         Field({ name: "ListId", id: 0x2, type: "uint16", access: "R V", conformance: "M" }),
-        Field({
-            name: "Binding", id: 0x3, type: "DatastoreBindingTargetStruct", access: "R V", conformance: "M",
-            constraint: "desc"
-        }),
+        Field({ name: "Binding", id: 0x3, type: "DatastoreBindingTargetStruct", access: "R V", conformance: "M" }),
         Field({ name: "StatusEntry", id: 0x4, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M" })
     ),
 
@@ -288,8 +330,7 @@ export const JointFabricDatastore = Cluster(
         { name: "DatastoreEndpointEntryStruct", type: "struct" },
         Field({ name: "EndpointId", id: 0x0, type: "endpoint-no", access: "R V", conformance: "M" }),
         Field({ name: "NodeId", id: 0x1, type: "node-id", access: "R V", conformance: "M" }),
-        Field({ name: "FriendlyName", id: 0x2, type: "string", access: "R V", conformance: "M", constraint: "max 32" }),
-        Field({ name: "StatusEntry", id: 0x3, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M" })
+        Field({ name: "FriendlyName", id: 0x2, type: "string", access: "R V", conformance: "M", constraint: "max 32" })
     ),
 
     Datatype(
@@ -338,20 +379,20 @@ export const JointFabricDatastore = Cluster(
 
     Datatype(
         { name: "DatastoreNodeInformationEntryStruct", type: "struct" },
-        Field({ name: "NodeId", id: 0x1, type: "node-id", access: "R V", conformance: "M" }),
-        Field({ name: "FriendlyName", id: 0x2, type: "string", access: "R V", conformance: "M", constraint: "max 32" }),
+        Field({ name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M" }),
+        Field({ name: "FriendlyName", id: 0x1, type: "string", access: "R V", conformance: "M", constraint: "max 32" }),
         Field({
-            name: "CommissioningStatusEntry", id: 0x3, type: "DatastoreStatusEntryStruct", access: "R V",
+            name: "CommissioningStatusEntry", id: 0x2, type: "DatastoreStatusEntryStruct", access: "R V",
             conformance: "M"
         })
     ),
 
     Datatype(
         { name: "DatastoreAdministratorInformationEntryStruct", type: "struct" },
-        Field({ name: "NodeId", id: 0x1, type: "node-id", access: "R V", conformance: "M" }),
-        Field({ name: "FriendlyName", id: 0x2, type: "string", access: "R V", conformance: "M", constraint: "max 32" }),
-        Field({ name: "VendorId", id: 0x3, type: "vendor-id", access: "R V", conformance: "M" }),
-        Field({ name: "Icac", id: 0x4, type: "octstr", access: "R V", conformance: "M", constraint: "max 400" })
+        Field({ name: "NodeId", id: 0x0, type: "node-id", conformance: "M" }),
+        Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32" }),
+        Field({ name: "VendorId", id: 0x2, type: "vendor-id", conformance: "M" }),
+        Field({ name: "Icac", id: 0x3, type: "octstr", conformance: "M", constraint: "max 400" })
     ),
 
     Datatype(
@@ -374,7 +415,7 @@ export const JointFabricDatastore = Cluster(
         Field({ name: "EpochStartTime1", id: 0x5, type: "epoch-us", conformance: "M", quality: "X" }),
         Field({ name: "EpochKey2", id: 0x6, type: "octstr", conformance: "M", constraint: "16", quality: "X" }),
         Field({ name: "EpochStartTime2", id: 0x7, type: "epoch-us", conformance: "M", quality: "X" }),
-        Field({ name: "GroupKeyMulticastPolicy", id: 0x8, type: "DatastoreGroupKeyMulticastPolicyEnum", conformance: "P, M" })
+        Field({ name: "GroupKeyMulticastPolicy", id: 0x8, type: "DatastoreGroupKeyMulticastPolicyEnum", conformance: "D" })
     )
 );
 

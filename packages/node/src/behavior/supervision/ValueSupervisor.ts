@@ -85,8 +85,9 @@ export namespace ValueSupervisor {
 
         /**
          * Present on contexts rooted at a ClientNode (peer node).  Drives substitution of the
-         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes (Matter §7.13.6) so the local
-         * cache mirrors the post-write peer state.
+         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors the
+         * post-write peer state.
+         * @see {@link MatterSpecification.v16.Core} § 7.13.6
          */
         clientPeerContext?: {
             /** Fabric index the peer assigned to our identity, when known. */

@@ -9,7 +9,7 @@ import { TlvNodeId } from "../../datatype/NodeId.js";
 import { TlvUInt64 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.6 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.6 */
 
 export const TlvEventFilter = TlvObject({
     // EventFilterIB

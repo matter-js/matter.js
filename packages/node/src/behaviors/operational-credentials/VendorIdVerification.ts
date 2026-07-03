@@ -96,7 +96,7 @@ export namespace VendorIdVerification {
      * It requires data read the the device (if relevant read non fabric filtered) for fabrics, nocs and
      * trustedRootCertificates to provide the raw input data for verification.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.10.1.
+     * @see {@link MatterSpecification.v16.Core} § 6.4.10.1.
      */
     export async function verify(
         node: ClientNode,
@@ -163,7 +163,7 @@ export namespace VendorIdVerification {
     /**
      * Verify VendorId ownership using VID Verification protocol on pure data level
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.10.1.
+     * @see {@link MatterSpecification.v16.Core} § 6.4.10.1.
      */
     export async function verifyData(
         crypto: Crypto,

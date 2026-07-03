@@ -12,10 +12,11 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
-import { GroupSession } from "#session/GroupSession.js";
+import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
     BasicSet,
     Bytes,
+    causedBy,
     Channel,
     ClosedError,
     Construction,
@@ -41,7 +42,8 @@ import {
     Transport,
     UnexpectedDataError,
 } from "@matter/general";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
+import { CaseAuthenticatedTag, ClusterId, EndpointNumber, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
@@ -115,6 +117,24 @@ export interface ActiveSessionInformation {
 }
 
 /**
+ * Metadata about a received group message, emitted via {@link SessionManager.onGroupMessage} for Groupcast testing.
+ * Uses {@link Groupcast.GroupcastTestResult} directly so consumers can forward the value without mapping.
+ */
+export interface GroupMessageEventInfo {
+    result: Groupcast.GroupcastTestResult;
+    fabric?: Fabric;
+    groupId?: GroupId;
+    sourceIp?: string;
+    destIp?: string;
+    endpointId?: EndpointNumber;
+    clusterId?: ClusterId;
+    elementId?: number;
+
+    /** Whether the ACL granted access for the dispatched command (only set for Success). */
+    accessAllowed?: boolean;
+}
+
+/**
  * Interfaces {@link SessionManager} with other components.
  */
 export interface SessionManagerContext {
@@ -141,7 +161,8 @@ const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 
 /**
  * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
- * is persisted this far ahead so an unclean restart never rolls it back (Matter spec §4.6.1.3).
+ * is persisted this far ahead so an unclean restart never rolls it back.
+ * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
  */
 const GROUP_DATA_COUNTER_RESERVE = 1000;
 
@@ -180,6 +201,7 @@ export class SessionManager {
 
     readonly #subscriptionsChanged = Observable<[session: NodeSession, subscription: Subscription]>();
     readonly #retry = Observable<[session: Session, number: number]>();
+    readonly #onGroupMessage = Observable<[info: GroupMessageEventInfo]>();
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
@@ -239,7 +261,10 @@ export class SessionManager {
         return this.#context.fabrics.crypto;
     }
 
-    /** The single node-global Group Encrypted Data Message Counter shared by all group sessions (spec §4.6.1.3). */
+    /**
+     * The single node-global Group Encrypted Data Message Counter shared by all group sessions.
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     */
     get groupDataMessageCounter() {
         this.#construction.assert();
         return this.#groupDataMessageCounter;
@@ -302,6 +327,14 @@ export class SessionManager {
      */
     get retry() {
         return this.#retry;
+    }
+
+    /**
+     * Emits for each received group message (success or failure).  Observers remain inactive until at least one
+     * listener attaches, so fabrics not under test incur no emission overhead.
+     */
+    get onGroupMessage() {
+        return this.#onGroupMessage;
     }
 
     /**
@@ -595,17 +628,29 @@ export class SessionManager {
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
         this.#construction.assert();
-        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = GroupSession.decode(
-            this.#context.fabrics,
-            packet,
-            aad,
-        );
+        let decoded;
+        try {
+            decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
+        } catch (error) {
+            // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
+            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.
+            if (causedBy(error, GroupSessionNoKeyError)) {
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey });
+            } else if (causedBy(error, GroupSessionDecodeError)) {
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth });
+            }
+            throw error;
+        }
 
-        const groupId = message.packetHeader.destGroupId;
-        if (groupId === undefined) {
+        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = decoded;
+
+        // The group id is only authoritative after decode, since privacy obfuscates it in the wire header.
+        const rawGroupId = message.packetHeader.destGroupId;
+        if (rawGroupId === undefined) {
             throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
         }
-        GroupId.assertGroupId(GroupId(groupId));
+        const groupId = GroupId(rawGroupId);
+        GroupId.assertGroupId(groupId);
 
         let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
         if (session === undefined) {
@@ -617,11 +662,17 @@ export class SessionManager {
                 operationalGroupKey: key,
                 operationalPrivacyKey: privacyKey,
                 peerNodeId: sourceNodeId,
+                multicastAddress: fabric.groups.multicastAddressFor(groupId),
                 messageCounter: this.#groupDataMessageCounter,
             });
         }
 
         return { session, message, key };
+    }
+
+    /** Report a group message event (used by ExchangeManager for replay and InteractionServer for dispatch). */
+    emitGroupMessage(info: GroupMessageEventInfo) {
+        this.#onGroupMessage.emit(info);
     }
 
     registerGroupSession(session: GroupSession) {
@@ -783,7 +834,8 @@ export class SessionManager {
     /**
      * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
      * model, seed it above every value any per-key counter could already have used so it never rolls back below a
-     * value already sent with a surviving key (spec §4.6.1.3); then clear the legacy entries.
+     * value already sent with a surviving key; then clear the legacy entries.
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
      */
     async #createGroupDataMessageCounter() {
         const storage = this.#context.storage;

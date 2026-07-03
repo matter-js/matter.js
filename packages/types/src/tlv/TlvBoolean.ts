@@ -12,7 +12,7 @@ import { TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
 /**
  * Schema to encode a boolean in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.3
+ * @see {@link MatterSpecification.v16.Core} § A.11.3
  */
 export class BooleanSchema extends TlvSchema<boolean> {
     override encodeTlvInternal(writer: TlvWriter, value: boolean, tag?: TlvTag): void {

@@ -8,6 +8,7 @@
 
 export * from "./AtomicAttributeStatus.js";
 export * from "./AtomicRequestType.js";
+export * from "./CertificationType.js";
 export * from "./MeasurementAccuracyRange.js";
 export * from "./MeasurementAccuracy.js";
 export * from "./MeasurementType.js";

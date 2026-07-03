@@ -21,7 +21,7 @@ export const RootNodeDt = DeviceType(
     ),
     Requirement(
         { name: "AccessControl", id: 0x1f, conformance: "M", element: "serverCluster", quality: "I" },
-        Requirement({ name: "MNGD", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }),
+        Requirement({ name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }),
         Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute" })
     ),
     Requirement({ name: "BasicInformation", id: 0x28, conformance: "M", element: "serverCluster", quality: "I" }),

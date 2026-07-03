@@ -13,7 +13,7 @@ import { Mei } from "./ManufacturerExtensibleIdentifier.js";
 /**
  * A Device type ID is a 32-bit number that defines the type of the device.
  *
- * @see {@link MatterSpecification.v10.Core} § 7.15
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.29
  */
 export type DeviceTypeId = Branded<number, "DeviceTypeId">;
 

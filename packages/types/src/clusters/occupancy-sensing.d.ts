@@ -16,7 +16,7 @@ import type { ClusterModel } from "@matter/model";
  * The server cluster provides an interface to occupancy sensing functionality based on one or more sensing modalities,
  * including configuration and provision of notifications of occupancy status.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 2.7
+ * @see {@link MatterSpecification.v16.Cluster} § 2.7
  */
 export declare namespace OccupancySensing {
     /**
@@ -30,9 +30,9 @@ export declare namespace OccupancySensing {
     export const name: "OccupancySensing";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
-    export const revision: 6;
+    export const revision: 7;
 
     /**
      * Canonical metadata for the OccupancySensing cluster.
@@ -50,17 +50,17 @@ export declare namespace OccupancySensing {
          * where the status is indicated in bit 0: a value of 1 means occupied, and 0 means unoccupied, with the other
          * bits set to 0; this can be considered equivalent to a boolean.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.1
          */
         occupancy: Occupancy;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6
          */
         occupancySensorType: OccupancySensorType;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6
          */
         occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
 
@@ -87,14 +87,14 @@ export declare namespace OccupancySensing {
          *
          * !HoldTime
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.3
          */
         holdTime?: number;
 
         /**
          * Indicates the server's limits, and default value, for the HoldTime attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.4
          */
         holdTimeLimits?: HoldTimeLimits;
     }
@@ -107,7 +107,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
          * state after the last detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.6
          */
         pirOccupiedToUnoccupiedDelay?: number;
 
@@ -115,7 +115,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied state
          * after the first detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.7
          */
         pirUnoccupiedToOccupiedDelay?: number;
 
@@ -123,7 +123,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the number of occupancy detection events that must occur in the period
          * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.8
          */
         pirUnoccupiedToOccupiedThreshold?: number;
     }
@@ -136,7 +136,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
          * unoccupied state after the last detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.9
          */
         ultrasonicOccupiedToUnoccupiedDelay?: number;
 
@@ -144,7 +144,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its occupied
          * state after the first detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.10
          */
         ultrasonicUnoccupiedToOccupiedDelay?: number;
 
@@ -152,7 +152,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the number of occupancy detection events that must occur in the period
          * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.11
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.11
          */
         ultrasonicUnoccupiedToOccupiedThreshold?: number;
     }
@@ -165,7 +165,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor changes
          * to its unoccupied state after detecting the unoccupied event.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.12
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.12
          */
         physicalContactOccupiedToUnoccupiedDelay?: number;
 
@@ -173,7 +173,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to its
          * occupied state after the first detection of the occupied event.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.13
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.13
          */
         physicalContactUnoccupiedToOccupiedDelay?: number;
 
@@ -181,7 +181,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the number of occupancy detection events that must occur in the period
          * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.14
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.14
          */
         physicalContactUnoccupiedToOccupiedThreshold?: number;
     }
@@ -198,17 +198,17 @@ export declare namespace OccupancySensing {
          * where the status is indicated in bit 0: a value of 1 means occupied, and 0 means unoccupied, with the other
          * bits set to 0; this can be considered equivalent to a boolean.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.1
          */
         occupancy: Occupancy;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6
          */
         occupancySensorType: OccupancySensorType;
 
         /**
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6
          */
         occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
 
@@ -235,14 +235,14 @@ export declare namespace OccupancySensing {
          *
          * !HoldTime
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.3
          */
         holdTime: number;
 
         /**
          * Indicates the server's limits, and default value, for the HoldTime attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.4
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.4
          */
         holdTimeLimits: HoldTimeLimits;
 
@@ -250,7 +250,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
          * state after the last detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.6
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.6
          */
         pirOccupiedToUnoccupiedDelay: number;
 
@@ -258,7 +258,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied state
          * after the first detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.7
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.7
          */
         pirUnoccupiedToOccupiedDelay: number;
 
@@ -266,7 +266,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the number of occupancy detection events that must occur in the period
          * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.8
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.8
          */
         pirUnoccupiedToOccupiedThreshold: number;
 
@@ -274,7 +274,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
          * unoccupied state after the last detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.9
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.9
          */
         ultrasonicOccupiedToUnoccupiedDelay: number;
 
@@ -282,7 +282,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its occupied
          * state after the first detection of occupancy in the sensed area.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.10
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.10
          */
         ultrasonicUnoccupiedToOccupiedDelay: number;
 
@@ -290,7 +290,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the number of occupancy detection events that must occur in the period
          * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.11
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.11
          */
         ultrasonicUnoccupiedToOccupiedThreshold: number;
 
@@ -298,7 +298,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor changes
          * to its unoccupied state after detecting the unoccupied event.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.12
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.12
          */
         physicalContactOccupiedToUnoccupiedDelay: number;
 
@@ -306,7 +306,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to its
          * occupied state after the first detection of the occupied event.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.13
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.13
          */
         physicalContactUnoccupiedToOccupiedDelay: number;
 
@@ -314,7 +314,7 @@ export declare namespace OccupancySensing {
          * This attribute shall specify the number of occupancy detection events that must occur in the period
          * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.14
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.14
          */
         physicalContactUnoccupiedToOccupiedThreshold: number;
     }
@@ -326,9 +326,21 @@ export declare namespace OccupancySensing {
         /**
          * If this event is supported, it shall be generated when the Occupancy attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.7.1
          */
         occupancyChanged?: OccupancyChangedEvent;
+    }
+
+    /**
+     * {@link OccupancySensing} supports these elements if it supports feature "OccupancyEvent".
+     */
+    export interface OccupancyEventEvents {
+        /**
+         * If this event is supported, it shall be generated when the Occupancy attribute changes.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.7.1
+         */
+        occupancyChanged: OccupancyChangedEvent;
     }
 
     /**
@@ -341,7 +353,7 @@ export declare namespace OccupancySensing {
         /**
          * If this event is supported, it shall be generated when the Occupancy attribute changes.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.7.1
          */
         occupancyChanged: OccupancyChangedEvent;
     }
@@ -350,15 +362,16 @@ export declare namespace OccupancySensing {
         { flags: {}, attributes: BaseAttributes, events: BaseEvents },
         { flags: { passiveInfrared: true }, attributes: PassiveInfraredAttributes },
         { flags: { ultrasonic: true }, attributes: UltrasonicAttributes },
-        { flags: { physicalContact: true }, attributes: PhysicalContactAttributes }
+        { flags: { physicalContact: true }, attributes: PhysicalContactAttributes },
+        { flags: { occupancyEvent: true }, events: OccupancyEventEvents }
     ];
 
-    export type Features = "Other" | "PassiveInfrared" | "Ultrasonic" | "PhysicalContact" | "ActiveInfrared" | "Radar" | "RfSensing" | "Vision";
+    export type Features = "Other" | "PassiveInfrared" | "Ultrasonic" | "PhysicalContact" | "ActiveInfrared" | "Radar" | "RfSensing" | "Vision" | "OccupancyEvent";
 
     /**
      * These are optional features supported by OccupancySensingCluster.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.7.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.7.4
      */
     export enum Feature {
         /**
@@ -416,11 +429,18 @@ export declare namespace OccupancySensing {
          *
          * Supports sensing based on analyzing images
          */
-        Vision = "Vision"
+        Vision = "Vision",
+
+        /**
+         * OccupancyEvent (OCCEVENT)
+         *
+         * Supports generating OccupancyChanged events
+         */
+        OccupancyEvent = "OccupancyEvent"
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.1
      */
     export class Occupancy {
         constructor(values?: Partial<Occupancy> | number);
@@ -431,7 +451,7 @@ export declare namespace OccupancySensing {
          * If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall indicate the
          * unoccupied state.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.1.1
          */
         occupied?: boolean;
     }
@@ -442,7 +462,7 @@ export declare namespace OccupancySensing {
      * > NOTE: This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
      *   provide the sensor modality (or modalities) for later cluster revisions. See Backward Compatibility section.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.3
+     * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.3
      */
     export enum OccupancySensorType {
         /**
@@ -472,7 +492,7 @@ export declare namespace OccupancySensing {
      * > NOTE: This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
      *   provide the sensor modality (or modalities) for later cluster revisions. See Backward Compatibility section.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.2
      */
     export class OccupancySensorTypeBitmap {
         constructor(values?: Partial<OccupancySensorTypeBitmap> | number);
@@ -496,7 +516,7 @@ export declare namespace OccupancySensing {
     /**
      * This structure provides information on the server's supported values for the HoldTime attribute.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4
+     * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.4
      */
     export class HoldTimeLimits {
         constructor(values?: Partial<HoldTimeLimits>);
@@ -505,7 +525,7 @@ export declare namespace OccupancySensing {
          * This field shall specify the minimum value of the server's supported value for the HoldTime attribute, in
          * seconds.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.4.1
          */
         holdTimeMin: number;
 
@@ -513,7 +533,7 @@ export declare namespace OccupancySensing {
          * This field shall specify the maximum value of the server's supported value for the HoldTime attribute, in
          * seconds.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.4.2
          */
         holdTimeMax: number;
 
@@ -521,7 +541,7 @@ export declare namespace OccupancySensing {
          * This field shall specify the (manufacturer-determined) default value of the server's HoldTime attribute, in
          * seconds. This is the value that a client who wants to reset the settings to a valid default SHOULD use.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.5.4.3
          */
         holdTimeDefault: number;
     }
@@ -529,7 +549,7 @@ export declare namespace OccupancySensing {
     /**
      * If this event is supported, it shall be generated when the Occupancy attribute changes.
      *
-     * @see {@link MatterSpecification.v151.Cluster} § 2.7.7.1
+     * @see {@link MatterSpecification.v16.Cluster} § 2.7.7.1
      */
     export class OccupancyChangedEvent {
         constructor(values?: Partial<OccupancyChangedEvent>);
@@ -537,7 +557,7 @@ export declare namespace OccupancySensing {
         /**
          * This field shall indicate the new value of the Occupancy attribute.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 2.7.7.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 2.7.7.1.1
          */
         occupancy: Occupancy;
     }

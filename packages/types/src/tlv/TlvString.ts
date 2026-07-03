@@ -18,7 +18,7 @@ type LengthConstraints = {
 /**
  * Schema to encode an byte string or an Utf8 string in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.2
+ * @see {@link MatterSpecification.v16.Core} § A.11.2
  */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
 

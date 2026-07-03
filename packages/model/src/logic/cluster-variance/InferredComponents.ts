@@ -56,6 +56,10 @@ const FEATURE_NAME = "[A-Z_][A-Z_0-9]+";
 const FEATURE = `(${FEATURE_NAME})`;
 const CONJUNCT_FEATURES = `(${FEATURE_NAME}(?: & ${FEATURE_NAME})*)`;
 const DISJUNCT_FEATURES = CONJUNCT_FEATURES.replace(/&/g, "[|,]");
+// Comma "otherwise" list of feature terms, each term a single feature or a conjunction, e.g. "HA, OI, AUD" or
+// "HA, OI, AUD, OC & OI" (separator is ", ", not " , ").  Requires 2+ terms.
+const COMMA_OTHERWISE = `(${FEATURE_NAME}(?: & ${FEATURE_NAME})*(?:, ${FEATURE_NAME}(?: & ${FEATURE_NAME})*)+)`;
+const CHOICE = "\\.[a-z][0-9-]*[+\\-]?";
 const FIELD = "[A-Z][A-Za-z_$]*[a-z][A-Za-z_$]*";
 const CONJUNCT_FIELDS = `(${FIELD}(?: & ${FIELD})*)`;
 const DISJUNCT_FIELDS = CONJUNCT_FIELDS.replace(/&/g, "[|,]");
@@ -293,6 +297,35 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
+    // FOO, BAR<, BAZ>*<, BIZ & BAZ>* (comma "otherwise" list — mandatory if any listed term is satisfied).
+    // Single-feature terms collapse into one anyOf component; conjunction terms each get their own component.
+    {
+        pattern: pattern(COMMA_OTHERWISE),
+        processor(add, match) {
+            const terms = match[0].split(", ").map(t => t.split(" & "));
+            const singles = terms.filter(t => t.length === 1).map(t => t[0]);
+            if (singles.length === 1) {
+                add(false, { allOf: singles });
+            } else if (singles.length > 1) {
+                add(false, { anyOf: singles });
+            }
+            for (const term of terms) {
+                if (term.length > 1) {
+                    add(false, { allOf: term });
+                }
+            }
+        },
+    },
+
+    // [FOO & !fieldName]<.x+> (bracketed feature gate with a negated field reference + optional choice marker).
+    // Field reference is runtime-enforced so ignored for variance.
+    {
+        pattern: pattern("[", FEATURE, AND, NOT, FIELD, "]", `(?:${CHOICE})?`),
+        processor(add, match) {
+            add(true, { allOf: [match[0]] });
+        },
+    },
+
     // Handles a bunch of super ugly conformances in deprecated occupancy sensing attributes.  They all effectively
     // become optional if certain features are enabled.  We use the presence of the "HoldTime" field to reliably detect
     // these and ensure these rules aren't too greedy
@@ -332,13 +365,20 @@ function addElement(components: InferredComponents, element: ValueModel) {
     // Revision conformance (Rev >= vN) indicates when an element was introduced.
     // Strip it for variance purposes — it doesn't affect feature-based components.
     // Bare "Rev >= vN" is mandatory; bracketed "[Rev >= vN]" is optional.
-    // Only apply fallback if Rev was actually present and stripping left nothing.
+    // Handles Rev joined to other terms via conjunction ("[Rev >= vN & FOO]") or otherwise list
+    // ("Rev >= vN, ...") by dropping the Rev term together with its adjacent connector.
+    // Only apply the empty-result fallback if Rev was present and stripping left nothing.
     let hasRevision = false;
     let hasBareRevision = false;
+    const REV = String.raw`Rev >= v\d+`;
     const stripped = text
-        .replace(/(\[?)Rev >= v\d+]?(?:, )?/g, (_, bracket) => {
+        .replace(new RegExp(`${REV} & `, "g"), () => ((hasRevision = true), ""))
+        .replace(new RegExp(` & ${REV}`, "g"), () => ((hasRevision = true), ""))
+        .replace(new RegExp(`${REV}, `, "g"), () => ((hasRevision = hasBareRevision = true), ""))
+        .replace(new RegExp(`, ${REV}`, "g"), () => ((hasRevision = hasBareRevision = true), ""))
+        .replace(new RegExp(`(\\[?)${REV}(]?)`, "g"), (_m, lb, rb) => {
             hasRevision = true;
-            if (!bracket) hasBareRevision = true;
+            if (!lb && !rb) hasBareRevision = true;
             return "";
         })
         .replace(/,\s*$/, "")

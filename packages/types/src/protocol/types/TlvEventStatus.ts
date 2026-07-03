@@ -9,7 +9,7 @@ import { TlvField, TlvObject } from "../../tlv/TlvObject.js";
 import { TlvEventPath } from "./TlvEventPath.js";
 import { TlvStatus } from "./TlvStatus.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.15 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.15 */
 
 export const TlvEventStatus = TlvObject({
     // EventStatusIB

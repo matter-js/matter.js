@@ -15,7 +15,7 @@ import { VendorId } from "./VendorId.js";
  * A Cluster Identifier is a 32 bit number and SHALL reference a single cluster specification and
  * SHALL define conformance to that specification.
  *
- * @see {@link MatterSpecification.v10.Core} § 7.10
+ * @see {@link MatterSpecification.v16.Core} § 7.10
  */
 export type ClusterId = Branded<number, "ClusterId">;
 

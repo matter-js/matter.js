@@ -1039,37 +1039,37 @@ const wildcardTestCases: {
     wildcardPathFilter?: TypeFromPartialBitSchema<typeof WildcardPathFlagsBitmap>;
     count: number;
 }[] = [
-    { testCase: "no", clusterId: ClusterId(0x28), wildcardPathFilter: undefined, count: 22 },
+    { testCase: "no", clusterId: ClusterId(0x28), wildcardPathFilter: undefined, count: 23 },
     { testCase: "skipRootNode", clusterId: ClusterId(0x28), wildcardPathFilter: { skipRootNode: true }, count: 0 }, // all sorted out
     {
         testCase: "skipGlobalAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipGlobalAttributes: true },
-        count: 19,
+        count: 20,
     }, // 3 less
     {
         testCase: "skipAttributeList",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipAttributeList: true },
-        count: 21,
+        count: 22,
     }, // 1 less
     {
         testCase: "skipCommandLists",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipCommandLists: true },
-        count: 20,
+        count: 21,
     }, // 2 less
     {
         testCase: "skipFixedAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipFixedAttributes: true },
-        count: 3,
+        count: 4,
     }, // 19 less
     {
         testCase: "skipChangesOmittedAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipChangesOmittedAttributes: true },
-        count: 22,
+        count: 23,
     }, // nothing filtered
     {
         testCase: "no for WiFiDiag",
@@ -1262,6 +1262,49 @@ describe("InteractionProtocol", () => {
                 expect((await fillIterableDataReport(result)).attributeReportsPayload?.length || 0).equals(count);
             });
         }
+
+        async function readBasicInformationWithFilter(wildcardFilterConfigurationVersion?: number) {
+            const result = await interactionProtocol.handleReadRequest(
+                await createDummyMessageExchange(node),
+                {
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                    isFabricFiltered: true,
+                    attributeRequests: [
+                        {
+                            endpointId: undefined,
+                            clusterId: ClusterId(0x28), // BasicInformation
+                            attributeId: undefined,
+                            wildcardPathFlags: { skipGlobalAttributes: true },
+                            wildcardFilterConfigurationVersion,
+                        },
+                    ],
+                },
+                interaction.BarelyMockedMessage,
+            );
+            return (await fillIterableDataReport(result)).attributeReportsPayload?.length || 0;
+        }
+
+        // ConfigurationVersion defaults to 1; skipGlobalAttributes drops 3 of the 23 BasicInformation attributes.
+        it("applies WildcardPathFlags when the filter version is current", async () => {
+            expect(await readBasicInformationWithFilter(undefined)).equals(20); // omitted == current
+            expect(await readBasicInformationWithFilter(1)).equals(20); // equal to current
+        });
+
+        it("ignores WildcardPathFlags when the configuration changed past the filter version", async () => {
+            expect(await readBasicInformationWithFilter(0)).equals(23); // stale filter -> flags do not apply
+        });
+
+        it("rejects a read exceeding the path ceiling with PathsExhausted", async () => {
+            const attributeRequests = Array.from({ length: 10_001 }, () => READ_REQUEST.attributeRequests![0]);
+
+            await expect(
+                interactionProtocol.handleReadRequest(
+                    await createDummyMessageExchange(node),
+                    { ...READ_REQUEST, attributeRequests, eventRequests: undefined },
+                    interaction.BarelyMockedMessage,
+                ),
+            ).rejectedWith(StatusResponseError, /exceeds maximum of 10000/);
+        });
     });
 
     describe("handleSubscribeRequest", () => {
@@ -1293,6 +1336,23 @@ describe("InteractionProtocol", () => {
             );
             expect(statusSent).equals(128);
             expect(closed).equals(true);
+        });
+
+        it("rejects a subscribe exceeding the path ceiling with PathsExhausted", async () => {
+            const attributeRequests = Array.from(
+                { length: 10_001 },
+                () => INVALID_SUBSCRIBE_REQUEST.attributeRequests![0],
+            );
+            const exchange = await createDummyMessageExchange(node);
+
+            await expect(
+                interactionProtocol.handleSubscribeRequest(
+                    exchange,
+                    { ...INVALID_SUBSCRIBE_REQUEST, attributeRequests, eventRequests: undefined },
+                    new InteractionServerMessenger(exchange),
+                    interaction.BarelyMockedMessage,
+                ),
+            ).rejectedWith(StatusResponseError, /exceeds maximum of 10000/);
         });
     });
 
@@ -1335,6 +1395,7 @@ describe("InteractionProtocol", () => {
                     authMode: 2,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex), // Set from session
                 },
                 {
@@ -1342,6 +1403,7 @@ describe("InteractionProtocol", () => {
                     authMode: 3,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex), // existing value 2, we override hard
                 },
             ]);
@@ -1457,6 +1519,7 @@ describe("InteractionProtocol", () => {
                     authMode: 2,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex),
                 },
                 {
@@ -1464,6 +1527,7 @@ describe("InteractionProtocol", () => {
                     authMode: 3,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                     fabricIndex: FabricIndex(fabric.fabricIndex),
                 },
             ]);

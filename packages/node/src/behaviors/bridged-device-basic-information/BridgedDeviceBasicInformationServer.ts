@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ActionContext } from "#behavior/context/ActionContext.js";
 import { BasicInformationServer, validateBasicInfoAttributes } from "#behaviors/basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { ImplementationError, Logger } from "@matter/general";
+import { RootEndpoint } from "#endpoints/root";
+import { ImplementationError, Logger, MaybePromise } from "@matter/general";
 import { BridgedDeviceBasicInformationBehavior } from "./BridgedDeviceBasicInformationBehavior.js";
 
 const logger = Logger.get("BridgedDeviceBasicInformationServer");
@@ -16,6 +18,13 @@ const logger = Logger.get("BridgedDeviceBasicInformationServer");
  * This is the default server implementation of BridgedDeviceBasicInformationBehavior.
  *
  * All attributes are optional except for the "reachable" attribute.
+ *
+ * `ConfigurationVersion` is optional on bridged devices; enable it by providing an initial value when configuring the
+ * device.  On a configuration change of the bridged node, bump it with {@link increaseConfigurationVersion} (which
+ * throws if not enabled); called standalone it also increments the bridge's {@link BasicInformationServer} version,
+ * since a bridged-node change is also a change of the bridge.  To coalesce several bridged-node changes into a single
+ * bridge increment, drive them from {@link BasicInformationServer.increaseConfigurationVersion} and pass its `context`
+ * here.
  */
 export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInformationBehavior {
     override async initialize() {
@@ -34,6 +43,51 @@ export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInfor
         }
 
         validateBasicInfoAttributes(this.state, logger);
+    }
+
+    /**
+     * Run a configuration change for this bridged node and increase its ConfigurationVersion afterwards.
+     *
+     * A bridged-node configuration change is also a configuration change of the bridge itself.  When called standalone
+     * the bridge's {@link BasicInformationServer} ConfigurationVersion is increased as well.
+     *
+     * To group changes across multiple bridged nodes into a single bridge increment, drive them from
+     * {@link BasicInformationServer.increaseConfigurationVersion} and pass its callback's `context` here: the change is
+     * applied in that shared transaction and the bridge increment is left to the enclosing call.
+     *
+     * `ConfigurationVersion` is optional on bridged devices.  Throws if it is not enabled on this node — provide an
+     * initial `configurationVersion` value when configuring the device before calling this.
+     */
+    async increaseConfigurationVersion<T = void>(
+        change?: (context: ActionContext) => MaybePromise<T>,
+        context?: ActionContext,
+    ): Promise<T> {
+        if (this.state.configurationVersion === undefined) {
+            throw new ImplementationError(
+                "ConfigurationVersion is not enabled on this bridged device; set an initial configurationVersion " +
+                    "value when configuring BridgedDeviceBasicInformation before calling increaseConfigurationVersion.",
+            );
+        }
+
+        const result = await change?.(context ?? this.context);
+
+        this.state.configurationVersion = BasicInformationServer.nextConfigurationVersion(
+            this.state.configurationVersion,
+        );
+
+        // A shared context means the bridge increment is owned by the enclosing change; only bump it standalone.
+        if (context === undefined) {
+            const root = this.endpoint.ownerOfType(RootEndpoint);
+            if (root !== undefined) {
+                const agent = root.agentFor(this.context);
+                const basicInformation = agent.get(BasicInformationServer);
+                await agent.context.transaction.addResources(basicInformation);
+                await agent.context.transaction.begin();
+                await basicInformation.increaseConfigurationVersion();
+            }
+        }
+
+        return result as T;
     }
 
     static override readonly schema = BasicInformationServer.enableUniqueIdPersistence(

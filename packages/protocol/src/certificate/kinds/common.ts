@@ -7,7 +7,7 @@ import { Bytes, ImplementationError } from "@matter/general";
 
 /**
  * Matter specific Certificate Sizes
- * @see {@link MatterSpecification.v13.Core} 6.1.3.
+ * @see {@link MatterSpecification.v16.Core} 6.1.3.
  */
 export const MAX_DER_CERTIFICATE_SIZE = 600;
 

@@ -17,17 +17,17 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 /**
  * Definitions for the GroupKeyManagement cluster.
  *
- * The Group Key Management cluster manages group keys for the node. The cluster is scoped to the node and is a
- * singleton for the node. This cluster maintains a list of groups supported by the node. Each group list entry supports
- * a single group, with a single group ID and single group key. Duplicate groups are not allowed in the list. Additions
- * or removal of a group entry are performed via modifications of the list. Such modifications require Administer
- * privilege.
+ * The Group Key Management cluster manages shared symmetric keys for the node. The cluster is scoped to the node and is
+ * a singleton for the node. This cluster maintains a list of groups supported by the node. Each group list entry
+ * supports a single group, with a single group ID and single group key. Duplicate groups are not allowed in the list.
+ * Additions or removal of a group entry are performed via modifications of the list. Such modifications require
+ * Administer privilege.
  *
  * Each group entry includes a membership list of zero of more endpoints that are members of the group on the node.
  * Modification of this membership list is done via the Groups cluster, which is scoped to an endpoint. See the Chapter
  * 9, System Model Specification specification for more information on groups.
  *
- * @see {@link MatterSpecification.v151.Core} § 11.2
+ * @see {@link MatterSpecification.v16.Core} § 11.2
  */
 export declare namespace GroupKeyManagement {
     /**
@@ -41,9 +41,9 @@ export declare namespace GroupKeyManagement {
     export const name: "GroupKeyManagement";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
-    export const revision: 2;
+    export const revision: 3;
 
     /**
      * Canonical metadata for the GroupKeyManagement cluster.
@@ -57,14 +57,43 @@ export declare namespace GroupKeyManagement {
      */
     export interface BaseAttributes {
         /**
+         * If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the accessing
+         * Fabric:
+         *
+         *   - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):
+         *
+         *   - This attribute shall be empty.
+         *
+         *   - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code.
+         *
+         *   - Otherwise (Groupcast is not adopted or the entry is missing):
+         *
+         *   - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's Membership
+         *     attribute (one mapping per group per fabric).
+         *
+         *   - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership attribute (by
+         *     GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for a given GroupID in the
+         *     GroupKeyMap, which exists in the Groupcast cluster's Membership attribute for a given fabric, then the
+         *     Groupcast cluster's membership attribute shall use placeholder value 65535 for the KeySetID. While this
+         *     KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid value
+         *     aliasing for this field.
+         *
          * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
          * particular group key set.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.1
          */
         groupKeyMap: GroupKeyMap[];
 
         /**
+         * If the GCAST feature is set in the FeatureMap:
+         *
+         *   - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the
+         *     GroupcastAdopted field set to true, then this field shall be empty.
+         *
+         *   - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast cluster's
+         *     Membership attribute (one mapping per group per fabric).
+         *
          * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
          * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
          * attribute reflects data managed via the Groups cluster (see [[AppClusters]](#ref_AppClusters)), and is in
@@ -74,17 +103,22 @@ export declare namespace GroupKeyManagement {
          * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
          * the entire GroupTable entry for that given GroupId shall be removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.2
          */
         groupTable: GroupInfoMap[];
 
         /**
-         * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute shall
-         * be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2, "Group
-         * Limits". The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
+         * If the Groupcast support is enabled (GCAST feature is set), this shall be set to 0 indicating group
+         * management is done using the Groupcast cluster and not the legacy Groups cluster.
+         *
+         * Indicates the maximum number of legacy groups that this node supports per fabric. For legacy usage, the value
+         * of this attribute shall be set to be no less than the required minimum supported groups as specified in
+         * Section 2.11.1.2, "Group Limits".
+         *
+         * The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
          * MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.3
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.3
          */
         maxGroupsPerFabric: number;
 
@@ -93,9 +127,29 @@ export declare namespace GroupKeyManagement {
          * shall be set according to the minimum number of group key sets to support as specified in Section 2.11.1.2,
          * "Group Limits".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.4
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.4
          */
         maxGroupKeysPerFabric: number;
+    }
+
+    /**
+     * {@link GroupKeyManagement} supports these elements if it supports feature "Groupcast".
+     */
+    export interface GroupcastAttributes {
+        /**
+         * Indicates whether the accessing fabric claims to have migrated to Groupcast.
+         *
+         * When a Fabric's entry has the GroupcastAdopted field set to true, the behavior of the GroupKeyMap and
+         * GroupTable attributes will change (see description of respective attributes).
+         *
+         * There shall NOT be more than 1 entry per fabric in this attribute.
+         *
+         * If a Fabric has not yet written an entry for themselves, the server shall act as if that Fabric had written
+         * an entry with GroupcastAdopted set to false, even if not present in the list.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.5
+         */
+        groupcastAdoption: GroupcastAdoption[];
     }
 
     /**
@@ -106,14 +160,43 @@ export declare namespace GroupKeyManagement {
      */
     export interface Attributes {
         /**
+         * If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the accessing
+         * Fabric:
+         *
+         *   - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):
+         *
+         *   - This attribute shall be empty.
+         *
+         *   - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code.
+         *
+         *   - Otherwise (Groupcast is not adopted or the entry is missing):
+         *
+         *   - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's Membership
+         *     attribute (one mapping per group per fabric).
+         *
+         *   - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership attribute (by
+         *     GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for a given GroupID in the
+         *     GroupKeyMap, which exists in the Groupcast cluster's Membership attribute for a given fabric, then the
+         *     Groupcast cluster's membership attribute shall use placeholder value 65535 for the KeySetID. While this
+         *     KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid value
+         *     aliasing for this field.
+         *
          * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
          * particular group key set.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.1
          */
         groupKeyMap: GroupKeyMap[];
 
         /**
+         * If the GCAST feature is set in the FeatureMap:
+         *
+         *   - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the
+         *     GroupcastAdopted field set to true, then this field shall be empty.
+         *
+         *   - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast cluster's
+         *     Membership attribute (one mapping per group per fabric).
+         *
          * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
          * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
          * attribute reflects data managed via the Groups cluster (see [[AppClusters]](#ref_AppClusters)), and is in
@@ -123,17 +206,22 @@ export declare namespace GroupKeyManagement {
          * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
          * the entire GroupTable entry for that given GroupId shall be removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.2
          */
         groupTable: GroupInfoMap[];
 
         /**
-         * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute shall
-         * be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2, "Group
-         * Limits". The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
+         * If the Groupcast support is enabled (GCAST feature is set), this shall be set to 0 indicating group
+         * management is done using the Groupcast cluster and not the legacy Groups cluster.
+         *
+         * Indicates the maximum number of legacy groups that this node supports per fabric. For legacy usage, the value
+         * of this attribute shall be set to be no less than the required minimum supported groups as specified in
+         * Section 2.11.1.2, "Group Limits".
+         *
+         * The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
          * MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.3
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.3
          */
         maxGroupsPerFabric: number;
 
@@ -142,9 +230,24 @@ export declare namespace GroupKeyManagement {
          * shall be set according to the minimum number of group key sets to support as specified in Section 2.11.1.2,
          * "Group Limits".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.6.4
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.4
          */
         maxGroupKeysPerFabric: number;
+
+        /**
+         * Indicates whether the accessing fabric claims to have migrated to Groupcast.
+         *
+         * When a Fabric's entry has the GroupcastAdopted field set to true, the behavior of the GroupKeyMap and
+         * GroupTable attributes will change (see description of respective attributes).
+         *
+         * There shall NOT be more than 1 entry per fabric in this attribute.
+         *
+         * If a Fabric has not yet written an entry for themselves, the server shall act as if that Fabric had written
+         * an entry with GroupcastAdopted set to false, even if not present in the list.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.2.6.5
+         */
+        groupcastAdoption: GroupcastAdoption[];
     }
 
     /**
@@ -155,21 +258,21 @@ export declare namespace GroupKeyManagement {
          * This command is used by Administrators to set the state of a given Group Key Set, including atomically
          * updating the state of all epoch keys.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.7.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.7.1
          */
         keySetWrite(request: KeySetWriteRequest): MaybePromise;
 
         /**
          * This command is used by Administrators to read the state of a given Group Key Set.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.7.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.7.2
          */
         keySetRead(request: KeySetReadRequest): MaybePromise<KeySetReadResponse>;
 
         /**
          * This command is used by Administrators to remove all state of a given Group Key Set.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.7.4
+         * @see {@link MatterSpecification.v16.Core} § 11.2.7.4
          */
         keySetRemove(request: KeySetRemoveRequest): MaybePromise;
 
@@ -177,7 +280,7 @@ export declare namespace GroupKeyManagement {
          * This command is used by Administrators to query a list of all Group Key Sets associated with the accessing
          * fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.7.5
+         * @see {@link MatterSpecification.v16.Core} § 11.2.7.5
          */
         keySetReadAllIndices(): MaybePromise<KeySetReadAllIndicesResponse>;
     }
@@ -187,25 +290,44 @@ export declare namespace GroupKeyManagement {
      */
     export interface Commands extends BaseCommands {}
 
-    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
-    export type Features = "CacheAndSync";
+    export type Components = [
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { groupcast: true }, attributes: GroupcastAttributes }
+    ];
+    export type Features = "CacheAndSync" | "Groupcast";
 
     /**
      * These are optional features supported by GroupKeyManagementCluster.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.2.4
+     * @see {@link MatterSpecification.v16.Core} § 11.2.4
      */
     export enum Feature {
         /**
          * CacheAndSync (CS)
          *
-         * The ability to support CacheAndSync security policy and MCSP.
+         * The CacheAndSync security policy has been provisional since Matter v1.0.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.2.4.1
          */
-        CacheAndSync = "CacheAndSync"
+        CacheAndSync = "CacheAndSync",
+
+        /**
+         * Groupcast (GCAST)
+         *
+         * When set, group management and group key mapping is done using the Section 11.27, "Groupcast Cluster".
+         *
+         * If the Groupcast cluster is present on the Root Node endpoint, then this feature bit shall be set.
+         *
+         * When this feature map bit is set, this cluster SHOULD be used solely for key management as the Groupcast
+         * cluster offers more direct and long-term supported methods of managing group key mapping.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.2.4.2
+         */
+        Groupcast = "Groupcast"
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.2.5.3
+     * @see {@link MatterSpecification.v16.Core} § 11.2.5.3
      */
     export class GroupKeyMap {
         constructor(values?: Partial<GroupKeyMap>);
@@ -213,7 +335,7 @@ export declare namespace GroupKeyManagement {
         /**
          * This field uniquely identifies the group within the scope of the given Fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.3.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.3.1
          */
         groupId: GroupId;
 
@@ -223,7 +345,7 @@ export declare namespace GroupKeyManagement {
          *
          * A GroupKeyMapStruct shall NOT accept GroupKeySetID of 0, which is reserved for the IPK.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.3.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.3.2
          */
         groupKeySetId: number;
 
@@ -231,7 +353,7 @@ export declare namespace GroupKeyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.2.5.5
+     * @see {@link MatterSpecification.v16.Core} § 11.2.5.5
      */
     export class GroupInfoMap {
         constructor(values?: Partial<GroupInfoMap>);
@@ -239,14 +361,14 @@ export declare namespace GroupKeyManagement {
         /**
          * This field uniquely identifies the group within the scope of the given Fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.5.1
          */
         groupId: GroupId;
 
         /**
          * This field provides the list of Endpoint IDs on the Node to which messages to this group shall be forwarded.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.5.2
          */
         endpoints: EndpointNumber[];
 
@@ -254,9 +376,25 @@ export declare namespace GroupKeyManagement {
          * This field provides a name for the group. This field shall contain the last GroupName written for a given
          * GroupId on any Endpoint via the Groups cluster.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.5.3
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.5.3
          */
         groupName?: string;
+
+        fabricIndex: FabricIndex;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v16.Core} § 11.2.5.6
+     */
+    export class GroupcastAdoption {
+        constructor(values?: Partial<GroupcastAdoption>);
+
+        /**
+         * This field shall indicate whether Groupcast was adopted by the associated Fabric's administrators.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.6.1
+         */
+        groupcastAdopted: boolean;
 
         fabricIndex: FabricIndex;
     }
@@ -265,7 +403,7 @@ export declare namespace GroupKeyManagement {
      * This command is used by Administrators to set the state of a given Group Key Set, including atomically updating
      * the state of all epoch keys.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.2.7.1
+     * @see {@link MatterSpecification.v16.Core} § 11.2.7.1
      */
     export class KeySetWriteRequest {
         constructor(values?: Partial<KeySetWriteRequest>);
@@ -275,7 +413,7 @@ export declare namespace GroupKeyManagement {
     /**
      * This command is used by Administrators to read the state of a given Group Key Set.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.2.7.2
+     * @see {@link MatterSpecification.v16.Core} § 11.2.7.2
      */
     export class KeySetReadRequest {
         constructor(values?: Partial<KeySetReadRequest>);
@@ -287,7 +425,7 @@ export declare namespace GroupKeyManagement {
      * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.2.7.3
+     * @see {@link MatterSpecification.v16.Core} § 11.2.7.3
      */
     export class KeySetReadResponse {
         constructor(values?: Partial<KeySetReadResponse>);
@@ -297,7 +435,7 @@ export declare namespace GroupKeyManagement {
     /**
      * This command is used by Administrators to remove all state of a given Group Key Set.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.2.7.4
+     * @see {@link MatterSpecification.v16.Core} § 11.2.7.4
      */
     export class KeySetRemoveRequest {
         constructor(values?: Partial<KeySetRemoveRequest>);
@@ -308,7 +446,7 @@ export declare namespace GroupKeyManagement {
      * This command shall be generated in response to KeySetReadAllIndices and it shall contain the list of
      * GroupKeySetID for all Group Key Sets associated with the scoped Fabric.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.2.7.6
+     * @see {@link MatterSpecification.v16.Core} § 11.2.7.6
      */
     export class KeySetReadAllIndicesResponse {
         constructor(values?: Partial<KeySetReadAllIndicesResponse>);
@@ -319,13 +457,13 @@ export declare namespace GroupKeyManagement {
          *
          * Each entry in GroupKeySetIDs is a GroupKeySetID field.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.7.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.7.6.1
          */
         groupKeySetIDs: number[];
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.2.5.1
+     * @see {@link MatterSpecification.v16.Core} § 11.2.5.1
      */
     export enum GroupKeySecurityPolicy {
         /**
@@ -340,7 +478,7 @@ export declare namespace GroupKeyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.2.5.2
+     * @see {@link MatterSpecification.v16.Core} § 11.2.5.2
      */
     export enum GroupKeyMulticastPolicy {
         /**
@@ -348,7 +486,7 @@ export declare namespace GroupKeyManagement {
          *
          * The 16-bit Group Identifier of the Multicast Address shall be the Group ID of the group.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.2.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.2.1
          */
         PerGroupId = 0,
 
@@ -357,13 +495,13 @@ export declare namespace GroupKeyManagement {
          *
          * The 16-bit Group Identifier of the Multicast Address shall be 0xFFFF.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.2.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.2.2
          */
         AllNodes = 1
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.2.5.4
+     * @see {@link MatterSpecification.v16.Core} § 11.2.5.4
      */
     export class GroupKeySet {
         constructor(values?: Partial<GroupKeySet>);
@@ -372,7 +510,7 @@ export declare namespace GroupKeyManagement {
          * This field shall provide the fabric-unique index for the associated group key set, as specified in Section
          * 4.17.3.5.1, "Group Key Set ID".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.1
          */
         groupKeySetId: number;
 
@@ -382,15 +520,17 @@ export declare namespace GroupKeyManagement {
          * When CacheAndSync is not supported in the FeatureMap of this cluster, any action attempting to set
          * CacheAndSync in the GroupKeySecurityPolicy field shall fail with an INVALID_COMMAND error.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.2
          */
         groupKeySecurityPolicy: GroupKeySecurityPolicy;
 
         /**
-         * This field, if not null, shall be the root credential used in the derivation of an operational group key for
-         * epoch slot 0 of the given group key set. If EpochKey0 is not null, EpochStartTime0 shall NOT be null.
+         * This field, if not null, shall be the InputKey used in the derivation of an OperationalGroupKey for epoch
+         * slot 0 of the given group key set. The derived OperationalGroupKey shall be persistently stored for the
+         * lifetime of the derived key; however, the InputKey itself shall NOT be stored. If EpochKey0 is not null,
+         * EpochStartTime0 shall NOT be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.3
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.3
          */
         epochKey0: Bytes | null;
 
@@ -398,15 +538,17 @@ export declare namespace GroupKeyManagement {
          * This field, if not null, shall define when EpochKey0 becomes valid as specified by Section 4.17.3, "Epoch
          * Keys". Units are absolute UTC time in microseconds encoded using the epoch-us representation.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.4
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.4
          */
         epochStartTime0: number | bigint | null;
 
         /**
-         * This field, if not null, shall be the root credential used in the derivation of an operational group key for
-         * epoch slot 1 of the given group key set. If EpochKey1 is not null, EpochStartTime1 shall NOT be null.
+         * This field, if not null, shall be the InputKey used in the derivation of an OperationalGroupKey for epoch
+         * slot 1 of the given group key set. The derived OperationalGroupKey shall be persistently stored for the
+         * lifetime of the derived key; however, the InputKey itself shall NOT be stored. If EpochKey1 is not null,
+         * EpochStartTime1 shall NOT be null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.5
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.5
          */
         epochKey1: Bytes | null;
 
@@ -414,44 +556,35 @@ export declare namespace GroupKeyManagement {
          * This field, if not null, shall define when EpochKey1 becomes valid as specified by Section 4.17.3, "Epoch
          * Keys". Units are absolute UTC time in microseconds encoded using the epoch-us representation.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.6
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.6
          */
         epochStartTime1: number | bigint | null;
 
         /**
-         * This field, if not null, shall be the root credential used in the derivation of an operational group key for
-         * epoch slot 2 of the given group key set. If EpochKey2 is not null, EpochStartTime2 shall NOT be null.
+         * If the GCAST feature bit is set in the FeatureMap, this field shall be null, unless the GroupKeySetId is 0
+         * (the Identity Protection Key).
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.7
+         * This field, if not null, shall be the InputKey used in the derivation of an OperationalGroupKey for epoch
+         * slot 2 of the given group key set. The derived OperationalGroupKey shall be persistently stored for the
+         * lifetime of the derived key; however, the InputKey itself shall NOT be stored. If EpochKey2 is not null,
+         * EpochStartTime2 shall NOT be null.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.7
          */
         epochKey2: Bytes | null;
 
         /**
+         * If the GCAST feature bit is set in the FeatureMap, this field shall be null, unless the GroupKeySetId is 0
+         * (the Identity Protection Key).
+         *
          * This field, if not null, shall define when EpochKey2 becomes valid as specified by Section 4.17.3, "Epoch
          * Keys". Units are absolute UTC time in microseconds encoded using the epoch-us representation.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.8
+         * @see {@link MatterSpecification.v16.Core} § 11.2.5.4.8
          */
         epochStartTime2: number | bigint | null;
 
-        /**
-         * This field specifies how the IPv6 Multicast Address shall be formed for groups using this operational group
-         * key set.
-         *
-         * The PerGroupID method maximizes filtering of multicast messages, so that receiving nodes receive only
-         * multicast messages for groups to which they are subscribed.
-         *
-         * The AllNodes method minimizes the number of multicast addresses to which a receiver node needs to subscribe.
-         *
-         * > [!NOTE]
-         *
-         * > NOTE: Support for GroupKeyMulticastPolicy is provisional. Correct default behavior is that implied by value
-         *   PerGroupID.
-         *
-         * @see {@link MatterSpecification.v151.Core} § 11.2.5.4.9
-         */
         groupKeyMulticastPolicy?: GroupKeyMulticastPolicy;
-
         fabricIndex?: FabricIndex;
     }
 
