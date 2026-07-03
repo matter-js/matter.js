@@ -1,7 +1,7 @@
 {
     "name": "@matter/thread-br",
     "version": "0.0.0-git",
-    "description": "Thread Border Router discovery, dataset codec, and MeshCoP/OTBR diagnostics for Matter.js",
+    "description": "Thread Border Router discovery, dataset codec, and MeshCoP/OTBR diagnostics for matter.js",
     "keywords": [
         "iot",
         "home automation",
