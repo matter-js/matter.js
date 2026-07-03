@@ -9,7 +9,7 @@ import { IcdClient, IcdMultiAdminError, litSupported } from "@matter/node";
 import { IcdManagementClient } from "@matter/node/behaviors/icd-management";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { PairedNode } from "@project-chip/matter.js/device";
+import { NodeStates, PairedNode } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 
@@ -48,16 +48,19 @@ async function printStatus(paired: PairedNode) {
     );
 }
 
-async function clientNodeFor(theNode: MatterNode, nodeIdStr: string) {
+async function pairedNodeFor(theNode: MatterNode, nodeIdStr: string) {
     const paired = (await theNode.connectAndGetNodes(nodeIdStr))[0];
     if (paired === undefined) {
         throw new Error(`Node ${nodeIdStr} not found / not connected`);
     }
-    const clientNode = paired.node;
-    if (!clientNode.behaviors.has(IcdClient)) {
+    if (!paired.node.behaviors.has(IcdClient)) {
         throw new Error(`Node ${nodeIdStr} is not an ICD device (no IcdManagement cluster)`);
     }
-    return clientNode;
+    return paired;
+}
+
+async function clientNodeFor(theNode: MatterNode, nodeIdStr: string) {
+    return (await pairedNodeFor(theNode, nodeIdStr)).node;
 }
 
 export default function commands(theNode: MatterNode) {
@@ -172,7 +175,7 @@ export default function commands(theNode: MatterNode) {
                 .command({
                     command: "watch <node-id> [state]",
                     describe:
-                        "Stream ICD events for a peer live (state: on|off, default on); awake is shown by `icd status`",
+                        "Stream ICD events for a peer live (state: on|off, default on), including awake, nextCheckIn and connection state",
                     builder: (y: Argv) =>
                         y
                             .positional("node-id", { describe: "node id", type: "string", demandOption: true })
@@ -189,17 +192,38 @@ export default function commands(theNode: MatterNode) {
                             console.log(`Stopped watching node ${argv.nodeId}`);
                             return;
                         }
-                        const clientNode = await clientNodeFor(theNode, argv.nodeId);
+                        const paired = await pairedNodeFor(theNode, argv.nodeId);
+                        const clientNode = paired.node;
                         const observers = new ObserverGroup();
                         const stamp = (msg: string) => console.log(`[icd ${argv.nodeId}] ${msg}`);
+                        // Fresh awake/nextCheckIn read; the event emitters discard emit()'s promise, so a rejection here must not escape.
+                        const wakefulnessSuffix = async () => {
+                            try {
+                                const { nextCheckIn, awake } = await clientNode.act(agent => {
+                                    const icd = agent.get(IcdClient);
+                                    return { nextCheckIn: icd.nextExpectedCheckin, awake: icd.awake };
+                                });
+                                return `nextCheckIn=${nextCheckIn} awake=${awake}`;
+                            } catch (e) {
+                                return `wakefulness read failed: ${e instanceof Error ? e.message : String(e)}`;
+                            }
+                        };
                         const events = clientNode.eventsOf(IcdClient);
                         observers.on(events.registered, () => stamp("registered"));
                         observers.on(events.unregistered, () => stamp("unregistered"));
-                        observers.on(events.checkedIn, ({ counter, activeModeThreshold }) =>
-                            stamp(`check-in counter=${counter} SAT(ms)=${activeModeThreshold}`),
+                        observers.on(events.checkedIn, async ({ counter, activeModeThreshold }) =>
+                            stamp(
+                                `check-in counter=${counter} SAT(ms)=${activeModeThreshold} ${await wakefulnessSuffix()}`,
+                            ),
+                        );
+                        observers.on(events.checkInMissed, async () =>
+                            stamp(`check-in MISSED ${await wakefulnessSuffix()}`),
                         );
                         observers.on(events.keyRefreshed, () => stamp("key refreshed"));
                         observers.on(events.available$Changed, (value: boolean) => stamp(`available=${value}`));
+                        observers.on(paired.events.stateChanged, state =>
+                            stamp(`connection=${NodeStates[state] ?? state}`),
+                        );
                         watchers.set(key, observers);
                         // Drop the watcher when the node goes away so it doesn't leak in the map.
                         clientNode.lifecycle.destroyed.once(() => {
