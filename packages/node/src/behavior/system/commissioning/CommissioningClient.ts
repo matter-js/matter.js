@@ -294,6 +294,7 @@ export class CommissioningClient extends Behavior {
         network.state.defaultSubscription = opts.defaultSubscription;
         // Nodes we commission are auto-subscribed by default, unless disabled explicitly
         network.state.autoSubscribe = opts.autoSubscribe !== false;
+        network.state.autoStateInitialize = opts.autoStateInitialize;
 
         network.internal.isNewlyCommissioned = true;
 
@@ -960,6 +961,13 @@ export namespace CommissioningClient {
          * Matter.js will not subscribe automatically if set to false.
          */
         autoSubscribe?: boolean;
+
+        /**
+         * By default a newly-commissioned node performs a one-time read of its structure so its state is available
+         * immediately, even when {@link autoSubscribe} is false.  Set to false to skip this read and leave the node
+         * uninitialized until a later subscription or read.
+         */
+        autoStateInitialize?: boolean;
 
         /**
          * Case Authenticated Tags (CATs)
