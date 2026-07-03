@@ -120,12 +120,18 @@ export class SustainedSubscription extends ClientSubscription {
                 }
                 if (this.#request.updated) {
                     const bound = this.#request.updated.bind(request);
-                    // A report (or bootstrap-read response) is inbound peer activity, so refresh the wake/availability
-                    // windows: an actively-reporting peer must read as awake for concurrent interactions.
+                    // A data report (or bootstrap-read response) is inbound peer activity, so refresh the
+                    // wake/availability windows: an actively-reporting peer must read as awake for concurrent
+                    // interactions.
                     request.updated = result => {
                         this.#wakefulness?.()?.noteSignal();
                         return bound(result);
                     };
+                }
+                // An empty keepalive report carries no data and so never reaches updated(); re-arm wakefulness from it
+                // too so a subscribed LIT peer's heartbeat keeps it reachable between data changes.
+                if (this.#wakefulness !== undefined) {
+                    request.keepaliveReceived = () => this.#wakefulness?.()?.noteSignal();
                 }
                 const closed = new Promise<void>(resolve => {
                     request.closed = () => {

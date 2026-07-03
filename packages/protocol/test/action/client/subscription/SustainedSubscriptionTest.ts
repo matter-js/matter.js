@@ -479,6 +479,48 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
+        it("re-arms awake and availability on an empty keepalive report", async () => {
+            const wakefulness = litWakefulness();
+            let missed = 0;
+            wakefulness.checkInMissed.on(() => {
+                missed++;
+            });
+
+            let capturedKeepalive: SustainedClientSubscribe["keepaliveReceived"];
+            const subscription = build({
+                request: { sustain: true, updated: async () => {} } as unknown as SustainedClientSubscribe,
+                wakefulness: () => wakefulness,
+                subscribe: async (request: Subscribe) => {
+                    capturedKeepalive = (request as SustainedClientSubscribe).keepaliveReceived;
+                    return fakePeerSub(); // maxInterval 60s -> availability window 60s + margin
+                },
+            });
+
+            wakefulness.noteSignal(); // check-in wakes the peer -> establish subscribe
+            await flush();
+            expect(subscription.active.value).equal(true);
+
+            // Let the short awake window (activeModeThreshold 5s) lapse while still inside the availability window.
+            await MockTime.advance(Seconds(10));
+            expect(wakefulness.awake.value).equal(false);
+            expect(wakefulness.available.value).equal(true);
+
+            // An empty keepalive arrives: it must re-arm BOTH awake (reachability for held interactions) and
+            // availability, and must not have fired a spurious checkInMissed.
+            capturedKeepalive?.();
+            await flush();
+            expect(wakefulness.awake.value).equal(true);
+            expect(wakefulness.available.value).equal(true);
+
+            // Advance past the original availability expiry (65s) but within the keepalive-refreshed one: no lapse.
+            await MockTime.advance(Millis(Seconds(60)));
+            expect(wakefulness.available.value).equal(true);
+            expect(missed).equal(0);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
         it("close() resolves done cleanly while parked", async () => {
             const wakefulness = litWakefulness();
             const subscription = build({ wakefulness: () => wakefulness });

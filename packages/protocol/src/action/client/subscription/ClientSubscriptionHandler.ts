@@ -109,6 +109,10 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
 
             // If this is just a ping, only reset the timeout
             if (!initialReport.attributeReports?.length && !initialReport.eventReports?.length) {
+                // An empty keepalive never reaches updated() but is still inbound peer activity, so re-arm ICD
+                // wake/availability windows from it.
+                subscription.request.keepaliveReceived?.();
+
                 // Read the next report to trigger success message sent out
                 const ending = await reports.next();
                 if (!ending.done) {
