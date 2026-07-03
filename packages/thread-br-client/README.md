@@ -1,0 +1,192 @@
+# @matter/thread-br-client - Thread Border Router communication for Matter.js
+
+Thread Border Router support for matter.js: mDNS BR discovery, dataset codec, MeshCoP/CoAP/DTLS-EC-JPAKE diagnostic queries, and OpenThread Border Router (OTBR) REST adapter.
+
+For more information about matter.js, see the [matter.js README](../../README.md).
+
+It provides Thread BR-perspective routing, link-quality, child-table, and vendor data for an entire Thread mesh — including non-Matter nodes.
+
+> **Runtime: Node.js (for now).** The MeshCoP DTLS stack uses AES-CCM-8 and AES-CMAC via Node's
+> `crypto`, which keeps the package Node-bound. The UDP transport and CoAP codec are
+> platform-agnostic (matter.js `Network` + an inline RFC 7252 codec), so only the crypto pins it
+> to Node. Browser/React-Native support can be revisited if matter.js `Crypto` gains
+> configurable-tag CCM and AES-CMAC.
+
+## Scope
+
+This package targets **read-only Thread diagnostics** — the data needed to visualise a Thread mesh
+from the Border Router's perspective. Implemented today:
+
+- **Discovery:** passive `_meshcop` mDNS Border Router discovery (`BorderRouterRegistry`).
+- **Dataset:** Operational Dataset decode/encode (`OperationalDataset`).
+- **Diagnostics — OTBR REST:** node info, network diagnostics, active-dataset read, energy-scan and
+  diagnostic-counter-reset actions, plus the read-only `/node/*` surface — role/state, addresses,
+  leader data, active/pending dataset, co-processor version, commissioner state and joiners
+  (`OtbrRestClient` / `OtbrRestDiagnosticSource`).
+- **Diagnostics — MeshCoP:** commissioner petition + CoAP-over-DTLS-EC-JPAKE diagnostic queries
+  (`d/dq`/`d/dr`, energy scan `c/es`, PAN-ID query `c/pq`) via `connectMeshcop` / `MeshCopDiagnosticSource`.
+
+`OtbrRestClient` also exposes the OTBR **mutating** operations — active/pending **dataset push**,
+Border Router **state change**, **factory reset**, and commissioner **joiner** onboarding. These can
+silently partition or brick a network, so the library provides the capability but leaves the
+orchestration and confirmation UX to the consumer; nothing here triggers them on its own. Still
+unimplemented: MeshCoP-side dataset management (`c/as`/`c/ps`), list-connected-devices, and the
+newer `/api/diagnostics` task-queue REST endpoint.
+
+## Using this package
+
+### Discover Thread Border Routers (passive mDNS)
+
+```ts
+import { Environment } from "@matter/main";
+import { BorderRouterRegistry } from "@matter/thread-br-client";
+
+const registry = new BorderRouterRegistry(Environment.default);
+await registry.start();
+registry.events.added.on(br => console.log(br.networkName, br.extAddressHex, br.addresses));
+// … later: await registry.stop();
+```
+
+### Decode a Thread Operational Dataset
+
+```ts
+import { OperationalDataset } from "@matter/thread-br-client";
+
+const ds = OperationalDataset.decode("0e08...");   // hex from `ot-ctl dataset active -x`
+console.log(ds.networkName, ds.channel);
+const safe = OperationalDataset.redact(ds);        // clears pskc / networkKey for display
+console.log(safe.networkName, safe.channel);       // secrets are undefined
+```
+
+### Query network diagnostics
+
+Two paths, picked per Border Router:
+
+- **OTBR REST** (auto-detected): when the BR exposes the OpenThread REST API.
+- **MeshCoP** (CoAP over DTLS-EC-JPAKE): requires the network's credentials (PSKc), looked
+  up by extended PAN ID from a `ThreadCredentialsRegistry`.
+
+```ts
+import { DefaultTlvSet, OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestProbe } from "@matter/thread-br-client";
+
+const cap = await OtbrRestProbe.probe(host, 8081, 1500);
+if (cap) {
+    const client = new OtbrRestClient({ host, port: 8081 });
+    const source = new OtbrRestDiagnosticSource(client, cap);
+    const handle = source.queryMulticast("ff03::2", { tlvTypes: [...DefaultTlvSet] });
+    handle.onNode.on(node => console.log(node.extMacAddress, node.rloc16));
+    await handle.done;
+}
+```
+
+(For the MeshCoP path see `connectMeshcop` + `ThreadCredentialsRegistry`.)
+
+## Development
+
+Examples and integration scripts target a local OpenThread CLI simulator:
+
+```bash
+brew install openthread
+```
+
+## Live integration testing with ot-cli-ftd
+
+The `noble` DTLS backend implements the DTLS 1.2 + EC-JPAKE handshake from scratch. Beyond the unit-test gate (recorded mbedtls flights replayed against our state machine) we also exercise it against a live mbedtls peer — the OpenThread CLI simulator (`ot-cli-ftd`), which uses mbedtls for its MeshCoP commissioner port. A successful handshake against `ot-cli-ftd` proves byte-level interop across every flight.
+
+### Build prerequisite
+
+Build `ot-cli-ftd` once. If you haven't:
+
+```bash
+git clone https://github.com/openthread/openthread.git ~/src/openthread
+cd ~/src/openthread
+./script/bootstrap
+./script/cmake-build simulation
+```
+
+The binary lands at `~/src/openthread/build/simulation/examples/apps/cli/ot-cli-ftd`.
+
+### Step-by-step procedure
+
+**Terminal A — start the simulator and capture the dataset:**
+
+```bash
+cd ~/src/openthread
+./build/simulation/examples/apps/cli/ot-cli-ftd 1
+```
+
+At the OT CLI prompt:
+
+```
+> dataset init new
+Done
+> dataset commit active
+Done
+> ifconfig up
+Done
+> thread start
+Done
+```
+
+Wait a few seconds, then confirm the node has come up:
+
+```
+> state
+leader
+Done
+> dataset active -x
+0e08...   <-- copy this hex blob
+Done
+```
+
+The simulator's MeshCoP DTLS service binds to a UDP port on the loopback. `DtlsConnectOpts.port` documents 49191 as the typical default, but real ports drift — confirm yours:
+
+```bash
+# In a third shell, find the actual port:
+lsof -nP -iUDP -p $(pgrep -f ot-cli-ftd | head -1)
+```
+
+Look for an entry like `*:49191` or `*:49xxx` — that's the MeshCoP port.
+
+**Terminal B — extract the PSKc and drive the handshake:**
+
+```bash
+cd <repo-root>
+npm run build -w @matter/thread-br-client
+
+cd packages/thread-br-client
+PSKC=$(npm run --silent example -- examples/extract-pskc.ts <dataset-hex> 2>/dev/null)
+npm run example -- examples/handshake-dtls.ts 127.0.0.1 <port> "$PSKC"
+```
+
+### Expected outcome
+
+```
+DTLS handshake established in NNNms.
+```
+
+If you see this, the noble EC-JPAKE backend interops with mbedtls byte-for-byte across the full DTLS 1.2 handshake (ClientHello → HelloVerifyRequest → ClientHello with cookie → ServerHello + ServerKeyExchange + ServerHelloDone → ClientKeyExchange + ChangeCipherSpec + Finished → ChangeCipherSpec + Finished).
+
+### Failure modes
+
+Errors surface as plain `Error` instances; the example prints `<name>: <message>`. Common patterns:
+
+- **`Error: NobleDtlsChannel: connect timed out after 30000ms`** — UDP datagrams are not reaching the peer or no reply is coming back. Wrong port (re-run `lsof`), simulator stopped, or the peer rejected the ClientHello silently. On macOS, also check the firewall.
+- **`Error: NobleDtlsChannel: peer alert level=2 desc=NN`** — the peer aborted with a fatal alert. `desc=20` (`bad_record_mac`) on the post-handshake AEAD is the classic PSKc-mismatch signature; `desc=40` (`handshake_failure`) shows up when EC-JPAKE state diverges.
+- **`Error: DtlsClient: server round-1/round-2 ZKP verification failed`** — the peer's EC-JPAKE proof didn't validate. PSKc mismatch is the expected cause; if the PSKc is right, this is a wire-format bug worth capturing.
+- **`Error: DtlsClient: server Finished verify_data mismatch`** — handshake transcript hashes diverge between client and server. Almost certainly a PRF / handshake-message-serialization bug — capture pcap and triage.
+- **`Error: DtlsClient: handshake gave up after max retransmits`** — RFC 6347 §4.2.4 give-up. Same root causes as the connect timeout.
+- **Anything else thrown from `DtlsClient` / record codecs** — wire-format mismatch with mbedtls. This is the bug class the live test is meant to surface; capture the failure log + handshake datagrams and triage.
+
+### Capturing handshake bytes for triage
+
+```bash
+sudo tcpdump -i lo0 -w /tmp/dtls.pcap "udp port <port>" &
+TCPDUMP_PID=$!
+# ... run the test ...
+sudo kill $TCPDUMP_PID
+```
+
+Open `/tmp/dtls.pcap` in Wireshark. Without the Thread / MeshCoP dissector you still see DTLS 1.2 record headers, fragment offsets, and epoch transitions, which is enough to locate where client and server diverge.
+
+For more information about matter.js, see the [matter.js README](../../README.md).
