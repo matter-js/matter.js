@@ -13,7 +13,7 @@
         "packages/nodejs-ble",
         "packages/mqtt",
         "packages/main",
-        "packages/thread-br",
+        "packages/thread-br-client",
         "packages/nodejs-shell",
         "packages/react-native",
         "packages/cli-tool",

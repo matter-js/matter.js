@@ -1,4 +1,4 @@
-# @matter/thread-br - Thread Border Router communication for Matter.js
+# @matter/thread-br-client - Thread Border Router communication for Matter.js
 
 Thread Border Router support for matter.js: mDNS BR discovery, dataset codec, MeshCoP/CoAP/DTLS-EC-JPAKE diagnostic queries, and OpenThread Border Router (OTBR) REST adapter.
 
@@ -39,7 +39,7 @@ newer `/api/diagnostics` task-queue REST endpoint.
 
 ```ts
 import { Environment } from "@matter/main";
-import { BorderRouterRegistry } from "@matter/thread-br";
+import { BorderRouterRegistry } from "@matter/thread-br-client";
 
 const registry = new BorderRouterRegistry(Environment.default);
 await registry.start();
@@ -50,7 +50,7 @@ registry.events.added.on(br => console.log(br.networkName, br.extAddressHex, br.
 ### Decode a Thread Operational Dataset
 
 ```ts
-import { OperationalDataset } from "@matter/thread-br";
+import { OperationalDataset } from "@matter/thread-br-client";
 
 const ds = OperationalDataset.decode("0e08...");   // hex from `ot-ctl dataset active -x`
 console.log(ds.networkName, ds.channel);
@@ -67,7 +67,7 @@ Two paths, picked per Border Router:
   up by extended PAN ID from a `ThreadCredentialsRegistry`.
 
 ```ts
-import { DefaultTlvSet, OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestProbe } from "@matter/thread-br";
+import { DefaultTlvSet, OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestProbe } from "@matter/thread-br-client";
 
 const cap = await OtbrRestProbe.probe(host, 8081, 1500);
 if (cap) {
@@ -152,9 +152,9 @@ Look for an entry like `*:49191` or `*:49xxx` — that's the MeshCoP port.
 
 ```bash
 cd <repo-root>
-npm run build -w @matter/thread-br
+npm run build -w @matter/thread-br-client
 
-cd packages/thread-br
+cd packages/thread-br-client
 PSKC=$(npm run --silent example -- examples/extract-pskc.ts <dataset-hex> 2>/dev/null)
 npm run example -- examples/handshake-dtls.ts 127.0.0.1 <port> "$PSKC"
 ```

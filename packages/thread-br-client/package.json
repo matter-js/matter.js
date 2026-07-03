@@ -1,5 +1,5 @@
 {
-    "name": "@matter/thread-br",
+    "name": "@matter/thread-br-client",
     "version": "0.0.0-git",
     "description": "Thread Border Router discovery, dataset codec, and MeshCoP/OTBR diagnostics for matter.js",
     "keywords": [

@@ -5,7 +5,7 @@
  */
 
 /**
- * `@matter/thread-br` — Thread Border Router discovery, dataset codec, and
+ * `@matter/thread-br-client` — Thread Border Router discovery, dataset codec, and
  * read-only network diagnostics (MeshCoP/CoAP over DTLS-EC-JPAKE, and OTBR REST).
  * See the package README for a consumer getting-started.
  */
