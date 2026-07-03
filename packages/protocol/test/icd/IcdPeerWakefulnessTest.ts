@@ -102,6 +102,41 @@ describe("IcdPeerWakefulness", () => {
         expect(fired).equals(1);
     });
 
+    it("sizes the availability window from the negotiated report interval while subscribed", async () => {
+        const w = lit();
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.noteSignal(); // idle-based window (30s + 5s margin)
+        w.setActiveReportInterval(Seconds(60)); // subscribed: reports arrive up to 60s
+
+        // Past idle + margin (35s) but before the report cadence + margin (65s): no spurious lapse.
+        await MockTime.advance(Millis(Seconds(40)));
+        expect(w.available.value).equals(true);
+        expect(fired).equals(0);
+
+        // Past the report cadence + margin: the window finally lapses and reports the miss.
+        await MockTime.advance(Millis(Seconds(30)));
+        expect(w.available.value).equals(false);
+        expect(fired).equals(1);
+    });
+
+    it("reverts to the idle Check-In cadence when the report interval is cleared", async () => {
+        const w = lit();
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.setActiveReportInterval(Seconds(60));
+        w.setActiveReportInterval(undefined); // subscription lost
+        w.noteSignal(); // fresh Check-In -> idle-based window
+
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        expect(w.available.value).equals(false);
+        expect(fired).equals(1);
+    });
+
     it("checkInMissed does not fire on a SIT->LIT requiresAwait flip", async () => {
         const w = new IcdPeerWakefulness();
         w.setTimings({ activeModeThreshold: Millis(4000), idleModeDuration: Seconds(30) });

@@ -24,8 +24,11 @@ import {
  *
  *   - {@link awake} — send-now. Window length is `activeModeThreshold`. Any inbound signal re-arms it; a StayActive
  *     promise extends it; expiry clears it.
- *   - {@link available} — not-offline. Longer window of `idleModeDuration + AVAILABILITY_MARGIN`. Expiry means an
- *     expected Check-In was missed, i.e. the peer is offline.
+ *   - {@link available} — not-offline. Longer window of `max(idleModeDuration, active report interval) +
+ *     AVAILABILITY_MARGIN`. While subscribed the peer suppresses Check-Ins and instead re-arms this window via
+ *     subscription reports, which legitimately arrive as late as the negotiated `maxInterval` (idle + jitter); sizing
+ *     from the report cadence avoids a spurious lapse mid-cycle. Expiry means an expected Check-In (or report) was
+ *     missed, i.e. the peer is offline.
  *
  * Invariant: `awake` implies `available` — a signal refreshes both. A non-LIT peer (`requiresAwait === false`) is
  * always awake and available with no timers.
@@ -43,6 +46,7 @@ export class IcdPeerWakefulness {
     #requiresAwait = false;
     #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
     #idleModeDuration = IcdPeerWakefulness.DEFAULT_IDLE;
+    #activeReportInterval?: Duration;
 
     #awakeUntil = Timestamp(0);
     #availableUntil = Timestamp(0);
@@ -109,13 +113,33 @@ export class IcdPeerWakefulness {
         }
     }
 
+    /**
+     * Inform the availability window of the active subscription's negotiated report cadence (its `maxInterval`), or
+     * pass `undefined` when no subscription is held so the window reverts to the Check-In cadence
+     * (`idleModeDuration`). A running window sized from the shorter idle cadence at establish time is extended to the
+     * larger report cadence so a report arriving as late as `maxInterval` does not lapse it. Never truncates: clearing
+     * leaves the running window to expire on its own, so a genuine missed Check-In still fires {@link checkInMissed}.
+     * Tradeoff: a peer that dies exactly as its subscription drops is detected up to `maxInterval - idleModeDuration`
+     * later than the idle cadence would (bounded, never suppressed; converges to `idleModeDuration` on the next signal)
+     * — accepted to avoid an early/reentrant fire that truncating on clear would risk.
+     */
+    setActiveReportInterval(interval: Duration | undefined) {
+        if (interval === this.#activeReportInterval) {
+            return;
+        }
+        this.#activeReportInterval = interval;
+        if (this.#requiresAwait && interval !== undefined && this.#availableTimer !== undefined) {
+            this.#armAvailable(this.#availabilityWindow());
+        }
+    }
+
     /** Record an inbound signal: re-arm both windows and mark awake + available. */
     noteSignal() {
         if (!this.#requiresAwait) {
             return;
         }
         this.#armAwake(this.#activeModeThreshold);
-        this.#armAvailable(Millis(this.#idleModeDuration + IcdPeerWakefulness.AVAILABILITY_MARGIN));
+        this.#armAvailable(this.#availabilityWindow());
         this.#setAwake(true);
         this.#setAvailable(true);
     }
@@ -159,6 +183,14 @@ export class IcdPeerWakefulness {
             this.#awakeTimer = undefined;
             this.#setAwake(false);
         }).start();
+    }
+
+    #availabilityWindow(): Duration {
+        const cadence =
+            this.#activeReportInterval !== undefined
+                ? Duration.max(this.#idleModeDuration, this.#activeReportInterval)
+                : this.#idleModeDuration;
+        return Millis(cadence + IcdPeerWakefulness.AVAILABILITY_MARGIN);
     }
 
     #armAvailable(duration: Duration) {

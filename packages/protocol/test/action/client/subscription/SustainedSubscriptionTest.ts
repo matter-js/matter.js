@@ -286,12 +286,66 @@ describe("SustainedSubscription", () => {
             await flush();
             expect(subscription.active.value).equal(true);
 
-            // Advance past idleModeDuration (30s) + AVAILABILITY_MARGIN (5s) so `available` lapses.
-            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + Seconds(5)));
+            // Advance past the negotiated report cadence (fakePeerSub maxInterval 60s) + AVAILABILITY_MARGIN (5s) so
+            // `available` lapses even though the peer is subscribed.
+            await MockTime.advance(Millis(Seconds(60) + IcdPeerWakefulness.AVAILABILITY_MARGIN + Seconds(5)));
             await flush();
             expect(wakefulness.available.value).equal(false);
 
             expect(subscription.active.value).equal(true);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("does not lapse a subscribed LIT peer's availability before its negotiated report interval", async () => {
+            const wakefulness = litWakefulness();
+            let missed = 0;
+            wakefulness.checkInMissed.on(() => {
+                missed++;
+            });
+
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => fakePeerSub(), // maxInterval 60s > idleModeDuration + margin
+            });
+
+            wakefulness.noteSignal();
+            await flush();
+            expect(subscription.active.value).equal(true);
+
+            // Past idleModeDuration (30s) + margin (5s) but before the negotiated report cadence (60s): a healthy
+            // subscribed peer whose reports arrive up to maxInterval must not blip offline every idle cycle.
+            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + Seconds(5)));
+            await flush();
+            expect(wakefulness.available.value).equal(true);
+            expect(missed).equal(0);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("fires checkInMissed for a parked LIT peer that never subscribes and misses its Check-In", async () => {
+            const wakefulness = litWakefulness();
+            let missed = 0;
+            wakefulness.checkInMissed.on(() => {
+                missed++;
+            });
+
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => {
+                    throw new Error("no subscription for a parked peer");
+                },
+            });
+
+            wakefulness.noteSignal(); // check-in arms the idle-based window; subscribe fails -> parks with no report cadence
+            await flush();
+
+            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+            await flush();
+            expect(wakefulness.available.value).equal(false);
+            expect(missed).equal(1);
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
