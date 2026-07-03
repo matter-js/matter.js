@@ -41,7 +41,7 @@ describe("pbkdf2AesCmac", () => {
                 dkLen: vector.dkLen,
             });
             expect(Bytes.toHex(dk)).to.equal(vector.expectedHex);
-        });
+        }).timeout(20_000); // up to 16384 AES-CMAC iterations; locally sub-second, CI runners far slower
     }
 
     it("dkLen=32 prefix equals dkLen=16 output for the same inputs", () => {

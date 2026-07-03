@@ -38,7 +38,7 @@ describe("Pskc.derive", () => {
                 networkName: vector.networkName,
             });
             expect(Bytes.toHex(pskc)).to.equal(vector.expectedPskcHex);
-        });
+        }).timeout(20_000); // 16384-iteration MeshCoP KDF; locally sub-second, CI runners far slower
     }
 
     it("rejects passphrases shorter than 6 UTF-8 bytes", () => {
