@@ -7,10 +7,29 @@ For more information about matter.js, see the [matter.js README](../../README.md
 It provides Thread BR-perspective routing, link-quality, child-table, and vendor data for an entire Thread mesh — including non-Matter nodes.
 
 > **Runtime: Node.js (for now).** The MeshCoP DTLS stack uses AES-CCM-8 and AES-CMAC via Node's
-> `crypto`, and CoAP framing uses `coap-packet` (`Buffer`-based) — these keep the package
-> Node-bound. The UDP transport is abstracted behind matter.js `Network`, so the networking layer
-> is portable; only the crypto pins it to Node. Browser/React-Native support can be revisited if
-> matter.js `Crypto` gains configurable-tag CCM and AES-CMAC. See [docs/MIGRATION.md](./docs/MIGRATION.md).
+> `crypto`, which keeps the package Node-bound. The UDP transport and CoAP codec are
+> platform-agnostic (matter.js `Network` + an inline RFC 7252 codec), so only the crypto pins it
+> to Node. Browser/React-Native support can be revisited if matter.js `Crypto` gains
+> configurable-tag CCM and AES-CMAC.
+
+## Scope
+
+This package targets **read-only Thread diagnostics** — the data needed to visualise a Thread mesh
+from the Border Router's perspective. Implemented today:
+
+- **Discovery:** passive `_meshcop` mDNS Border Router discovery (`BorderRouterRegistry`).
+- **Dataset:** Operational Dataset decode/encode (`OperationalDataset`).
+- **Diagnostics — OTBR REST:** node info, network diagnostics, active-dataset read, energy-scan and
+  diagnostic-counter-reset actions (`OtbrRestClient` / `OtbrRestDiagnosticSource`).
+- **Diagnostics — MeshCoP:** commissioner petition + CoAP-over-DTLS-EC-JPAKE diagnostic queries
+  (`d/dq`/`d/dr`, energy scan `c/es`, PAN-ID query `c/pq`) via `connectMeshcop` / `MeshCopDiagnosticSource`.
+
+Deliberately **not** implemented (but supported by OTBR REST / MeshCoP and straightforward to add
+on need): mutating operations — active/pending **dataset push**, **joiner** onboarding, Border
+Router **state change**, and **factory reset**. These can silently partition or brick a network, so
+they need orchestration + a confirmation UX before exposure. Also unimplemented reads:
+list-connected-devices, coprocessor firmware version, and the newer `/api/diagnostics` task-queue
+REST endpoint.
 
 ## Using this package
 

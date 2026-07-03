@@ -32,6 +32,14 @@ describe("OperationalDataset.decode", () => {
         expect(ds.activeTimestamp).to.deep.equal(new Uint8Array([0, 0, 0, 0, 0, 1, 0, 0]));
     });
 
+    it("accepts pre-parsed Bytes (ArrayBuffer) equivalently to a Uint8Array", () => {
+        const bytes = loadFixture("synthetic-1.hex");
+        const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        const ds = OperationalDataset.decode(arrayBuffer);
+        expect(ds.networkName).to.equal("OpenThread");
+        expect(ds.raw).to.deep.equal(bytes);
+    });
+
     it("preserves the original blob in `raw`", () => {
         const blob = loadFixture("synthetic-1.hex");
         const ds = OperationalDataset.decode(blob);
