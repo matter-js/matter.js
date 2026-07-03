@@ -258,7 +258,6 @@ export class SustainedSubscription extends ClientSubscription {
                     continue;
                 }
 
-                // Subscription established: report live.
                 await this.#inactive.emit(false);
                 await this.#active.emit(true);
                 if (this.abort.aborted) {

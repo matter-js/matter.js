@@ -113,9 +113,8 @@ export class IcdClient extends Behavior {
             );
         }
 
-        // Decide registration on a fresh operating mode: the subscription-established edge lands after the bootstrap
-        // read, unlike the online edge which fires before it. The immediate check covers an already-established
-        // subscription (e.g. init on an already-online peer).
+        // The subscription-established edge lands after the bootstrap read, so operatingMode is fresh when we decide;
+        // the immediate check covers an already-active subscription.
         if (this.endpoint instanceof Node) {
             this.reactTo(
                 this.endpoint.eventsOf(NetworkClient).subscriptionStatusChanged,
