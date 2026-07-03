@@ -18,6 +18,9 @@ const watchers = new Map<string, ObserverGroup>();
 async function printStatus(paired: PairedNode) {
     const clientNode = paired.node;
     if (!clientNode.behaviors.has(IcdClient)) {
+        if (!paired.initialized) {
+            console.log(`node ${paired.nodeId}: uninitialized (no cached data yet)`);
+        }
         return;
     }
     const icd = clientNode.stateOf(IcdClient);
@@ -28,9 +31,10 @@ async function printStatus(paired: PairedNode) {
         mgmt === undefined
             ? "n/a"
             : (IcdManagement.OperatingMode[mgmt.operatingMode ?? -1] ?? mgmt.operatingMode ?? "unknown");
+    const marker = paired.initialized ? "" : " [uninitialized]";
     console.log(
         [
-            `node ${paired.nodeId}:`,
+            `node ${paired.nodeId}:${marker}`,
             `  registered=${icd.registered}`,
             `  available=${icd.available}`,
             `  awake=${awake}`,
@@ -145,9 +149,23 @@ export default function commands(theNode: MatterNode) {
                     builder: (y: Argv) =>
                         y.positional("node-id", { describe: "node id", type: "string", default: undefined }),
                     handler: async (argv: any) => {
-                        const nodes = await theNode.connectAndGetNodes(argv.nodeId);
-                        for (const paired of nodes) {
-                            await printStatus(paired);
+                        // getNode() never awaits remote init, unlike connectAndGetNodes(), so a peer stuck mid-read can't hang this command.
+                        await theNode.start();
+                        const nodeIds =
+                            argv.nodeId !== undefined
+                                ? [NodeId(BigInt(argv.nodeId))]
+                                : theNode.controller.getCommissionedNodes();
+                        if (nodeIds.length === 0) {
+                            console.log("No commissioned nodes.");
+                            return;
+                        }
+                        for (const nodeId of nodeIds) {
+                            try {
+                                await printStatus(await theNode.controller.getNode(nodeId));
+                            } catch (e) {
+                                const message = e instanceof Error ? e.message : String(e);
+                                console.log(`node ${nodeId}: unavailable (${message})`);
+                            }
                         }
                     },
                 })

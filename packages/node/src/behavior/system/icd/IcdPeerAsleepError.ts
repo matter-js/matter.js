@@ -5,7 +5,7 @@
  */
 
 import { Duration, MatterError } from "@matter/general";
-import type { PeerAddress } from "@matter/protocol";
+import { PeerAddress } from "@matter/protocol";
 
 /**
  * Thrown by a one-shot interaction (read/write/invoke) with a LIT (Long Idle Time) ICD peer when the peer does not wake
@@ -17,6 +17,7 @@ export class IcdPeerAsleepError extends MatterError {
     readonly address: PeerAddress;
 
     constructor(address: PeerAddress, timeout: Duration) {
+        address = PeerAddress(address);
         super(`LIT ICD peer ${address} did not wake within ${Duration.format(timeout)}`);
         this.address = address;
     }
