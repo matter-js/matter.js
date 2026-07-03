@@ -12,6 +12,7 @@ import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Node } from "#node/Node.js";
 import {
+    AsyncObservable,
     AsyncObservableValue,
     Bytes,
     Crypto,
@@ -67,6 +68,14 @@ export class IcdClient extends Behavior {
      */
     get awake() {
         return this.#fedWakefulness()?.awake.value ?? true;
+    }
+
+    /**
+     * Deadline by which the next Check-In from a registered LIT peer is expected, or undefined when no Check-In is
+     * scheduled (no fed peer / not registered / not LIT). Derived from the fed peer's wakefulness availability window.
+     */
+    get nextExpectedCheckin(): Timestamp | undefined {
+        return this.#fedWakefulness()?.availableUntil;
     }
 
     /** Whether the peer is currently operating in LIT mode (LIT-capable AND OperatingMode === Lit; a DSLS flip changes this at runtime). */
@@ -245,6 +254,7 @@ export class IcdClient extends Behavior {
             return;
         }
         this.#unsubscribeAvailable();
+        this.#unsubscribeCheckInMissed();
         this.env.get(FabricManager).maybeFor(fedPeer.fabricIndex)?.icd.deletePeer(fedPeer.nodeId);
         this.internal.fedPeer = undefined;
     }
@@ -256,6 +266,15 @@ export class IcdClient extends Behavior {
         }
         this.internal.availableSource = undefined;
         this.internal.availableListener = undefined;
+    }
+
+    #unsubscribeCheckInMissed() {
+        const { checkInMissedSource, checkInMissedListener } = this.internal;
+        if (checkInMissedSource !== undefined && checkInMissedListener !== undefined) {
+            checkInMissedSource.off(checkInMissedListener);
+        }
+        this.internal.checkInMissedSource = undefined;
+        this.internal.checkInMissedListener = undefined;
     }
 
     /**
@@ -431,10 +450,20 @@ export class IcdClient extends Behavior {
         this.internal.availableSource = wakefulness.available;
         this.internal.availableListener = listener;
         this.state.available = wakefulness.available.value === true;
+
+        this.#unsubscribeCheckInMissed();
+        const checkInMissedListener = this.callback(this.#onCheckInMissed, { offline: true, lock: true });
+        wakefulness.checkInMissed.on(checkInMissedListener);
+        this.internal.checkInMissedSource = wakefulness.checkInMissed;
+        this.internal.checkInMissedListener = checkInMissedListener;
     }
 
     #onAvailableChanged(available: boolean) {
         this.state.available = available;
+    }
+
+    #onCheckInMissed() {
+        this.events.checkInMissed.emit();
     }
 
     #onCheckIn(checkIn: FabricIcd.ReceivedCheckIn) {
@@ -536,6 +565,12 @@ export namespace IcdClient {
 
         /** Listener mirroring {@link availableSource} into {@link IcdClient.State.available}; removed on drop and before re-feed. */
         availableListener?: Observer<[boolean]>;
+
+        /** The fed peer's wakefulness `checkInMissed` observable we currently mirror; recreated on every feed. */
+        checkInMissedSource?: AsyncObservable<[]>;
+
+        /** Listener mirroring {@link checkInMissedSource} into {@link IcdClient.Events.checkInMissed}; removed on drop and before re-feed. */
+        checkInMissedListener?: Observer<[]>;
     }
 
     export class State {
@@ -594,5 +629,8 @@ export namespace IcdClient {
         checkedIn = Observable<[checkIn: { counter: number; activeModeThreshold: number }]>();
         keyRefreshed = Observable();
         available$Changed = new Observable<[value: boolean, oldValue: boolean]>();
+
+        /** Emits when a registered LIT peer misses its expected Check-In (its availability window lapsed). */
+        checkInMissed = Observable();
     }
 }

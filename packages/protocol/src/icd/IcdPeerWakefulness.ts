@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservableValue, Duration, Millis, Seconds, Time, Timer, Timespan, Timestamp } from "@matter/general";
+import {
+    AsyncObservable,
+    AsyncObservableValue,
+    Duration,
+    Millis,
+    Seconds,
+    Time,
+    Timer,
+    Timespan,
+    Timestamp,
+} from "@matter/general";
 
 /**
  * Per-peer wakefulness for a LIT (Long Idle Time) ICD peer.
@@ -28,6 +38,7 @@ export class IcdPeerWakefulness {
     readonly #awake = AsyncObservableValue(true);
     readonly #available = AsyncObservableValue(true);
     readonly #operatingModeChanged = AsyncObservableValue(false);
+    readonly #checkInMissed = AsyncObservable<[]>();
 
     #requiresAwait = false;
     #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
@@ -48,6 +59,11 @@ export class IcdPeerWakefulness {
         return this.#available;
     }
 
+    /** Deadline by which the next Check-In is expected, or undefined when the peer needs no awaiting (non-LIT / no baseline). */
+    get availableUntil(): Timestamp | undefined {
+        return this.#requiresAwait && this.#availableUntil > 0 ? this.#availableUntil : undefined;
+    }
+
     /**
      * Emits the new {@link requiresAwait} value when the peer's operating mode flips (SIT⇄LIT) at runtime. A
      * sustained subscription recreates itself on this edge so the underlying Matter subscription is renegotiated for
@@ -55,6 +71,11 @@ export class IcdPeerWakefulness {
      */
     get operatingModeChanged() {
         return this.#operatingModeChanged;
+    }
+
+    /** Emits only when an armed availability window lapses — a missed Check-In, never a mode flip or teardown. */
+    get checkInMissed() {
+        return this.#checkInMissed;
     }
 
     get requiresAwait() {
@@ -152,6 +173,7 @@ export class IcdPeerWakefulness {
             this.#availableTimer?.stop();
             this.#availableTimer = undefined;
             this.#setAvailable(false);
+            this.#checkInMissed.emit();
         }).start();
     }
 

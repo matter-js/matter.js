@@ -90,6 +90,55 @@ describe("IcdPeerWakefulness", () => {
         expect(seen).deep.equals([true, false]);
     });
 
+    it("checkInMissed fires once when the availability window lapses", async () => {
+        const w = lit();
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.noteSignal();
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        expect(w.available.value).equals(false);
+        expect(fired).equals(1);
+    });
+
+    it("checkInMissed does not fire on a SIT->LIT requiresAwait flip", async () => {
+        const w = new IcdPeerWakefulness();
+        w.setTimings({ activeModeThreshold: Millis(4000), idleModeDuration: Seconds(30) });
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.requiresAwait = true;
+        await MockTime.yield();
+        expect(w.available.value).equals(false);
+        expect(fired).equals(0);
+    });
+
+    it("checkInMissed does not fire on close() teardown", async () => {
+        const w = lit();
+        w.noteSignal();
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.close();
+        await MockTime.yield();
+        expect(fired).equals(0);
+    });
+
+    it("checkInMissed does not fire on a LIT->SIT flip that cancels the timer", async () => {
+        const w = lit();
+        w.noteSignal();
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.requiresAwait = false;
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        expect(fired).equals(0);
+    });
+
     it("close() releases a consumer parked on the awake edge", async () => {
         const w = lit();
         let released = false;

@@ -670,6 +670,104 @@ describe("IcdClient", () => {
             expect(peer1.stateOf(IcdClient).available).true;
         });
 
+        it("exposes nextExpectedCheckin as the availability deadline for a registered LIT peer", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+
+            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
+
+            const nextExpectedCheckin = await peer1.act(agent => agent.get(IcdClient).nextExpectedCheckin);
+            expect(nextExpectedCheckin).not.undefined;
+            expect(nextExpectedCheckin).equals(wakefulnessOf(controller, peer1)!.availableUntil);
+            expect(nextExpectedCheckin! > Time.nowMs).true;
+        });
+
+        it("has no nextExpectedCheckin for an unregistered peer", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            expect(await peer1.act(agent => agent.get(IcdClient).nextExpectedCheckin)).undefined;
+        });
+
+        it("has no nextExpectedCheckin for a SIT/non-LIT registered peer", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            expect(await peer1.act(agent => agent.get(IcdClient).nextExpectedCheckin)).undefined;
+        });
+
+        it("emits checkInMissed when a registered LIT peer misses its expected check-in", async () => {
+            await using site = new MockSite();
+            const { peer1 } = await litOperatingPair(site);
+
+            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
+
+            let missed = 0;
+            const firstMiss = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).checkInMissed.on(() => {
+                    missed++;
+                    resolve();
+                }),
+            );
+
+            // idleModeDuration (3600s) + AVAILABILITY_MARGIN (5s) + slack.
+            await MockTime.advance(Seconds(3700));
+            await MockTime.resolve(firstMiss, { macrotasks: true });
+
+            expect(missed).equals(1);
+            expect(peer1.stateOf(IcdClient).available).false;
+        });
+
+        it("does not emit checkInMissed when the registration is dropped", async () => {
+            await using site = new MockSite();
+            const { peer1 } = await litOperatingPair(site);
+
+            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
+
+            let missed = 0;
+            peer1.eventsOf(IcdClient).checkInMissed.on(() => {
+                missed++;
+            });
+
+            await peer1.act(agent => agent.get(IcdClient).unregister());
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(missed).equals(0);
+        });
+
+        it("does not emit checkInMissed on a runtime SIT→LIT operating-mode flip", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            let missed = 0;
+            peer1.eventsOf(IcdClient).checkInMissed.on(() => {
+                missed++;
+            });
+
+            const modeChanged = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdManagementClient).operatingMode$Changed.once(() => resolve()),
+            );
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await MockTime.resolve(modeChanged, { macrotasks: true });
+
+            expect(wakefulnessOf(controller, peer1)!.requiresAwait).true;
+            expect(missed).equals(0);
+        });
+
         it("extends the awake window when stayActive promises a longer duration", async () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
