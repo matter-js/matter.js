@@ -133,6 +133,22 @@ describe("ClientNodeInteraction ICD hold", () => {
         await MockTime.resolve(drainRead(peer1), { macrotasks: true });
     });
 
+    it("breaks the hold deadlock after forget(): a read completes without a check-in", async () => {
+        await using site = new MockSite();
+        const { controller, peer1 } = await registeredLitPair(site);
+
+        // An idle registered LIT peer would park every interaction on a check-in that never comes.
+        expect(wakefulnessOf(controller, peer1)!.awake.value).false;
+
+        await peer1.act(agent => agent.get(IcdClient).forget());
+
+        expect(peer1.stateOf(IcdClient).registered).false;
+        expect(wakefulnessOf(controller, peer1)).undefined;
+
+        // No wakeDevice, no MockTime advance: forget() dropped the fed peer, so the interaction no longer holds.
+        await MockTime.resolve(drainRead(peer1), { macrotasks: true });
+    });
+
     it("honors a per-call timeout override that expires before the default window", async () => {
         await using site = new MockSite();
         const { controller, peer1 } = await registeredLitPair(site);

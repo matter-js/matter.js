@@ -379,6 +379,28 @@ export class IcdClient extends Behavior {
     }
 
     /**
+     * Locally drop this controller's Check-In registration without contacting the peer.
+     *
+     * Escape hatch for an unreachable registered LIT peer: {@link unregister} round-trips to the peer, so it parks on
+     * the same wakefulness deadlock this clears. Dropping the fed peer removes its wakefulness, so subsequent
+     * interactions no longer hold — a later subscribe can re-establish and re-register. The peer keeps a stale
+     * registration for us until it prunes it (or a fresh {@link register} mints a new key). A no-op when not registered.
+     */
+    async forget(): Promise<void> {
+        if (!this.state.registered) {
+            return;
+        }
+
+        // Clear registered up front so a late refreshNeeded Check-In cannot start a new re-key; then settle any
+        // in-flight re-key before teardown so it cannot resurrect the state we are about to clear.
+        this.state.registered = false;
+        await this.internal.keyRefresh;
+
+        logger.info("ICD registration forgotten locally (no peer UnregisterClient); peer retains a stale registration");
+        this.#clearRegistration();
+    }
+
+    /**
      * Ask the peer to remain in Active mode for at least `duration` and return the duration it actually promised.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.16.7.4

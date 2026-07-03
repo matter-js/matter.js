@@ -521,6 +521,53 @@ describe("IcdClient", () => {
         });
     });
 
+    describe("forget", () => {
+        it("clears local registration and drops the fabric feed WITHOUT a peer UnregisterClient", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            expect(fabric.icd.hasPeers).true;
+
+            const unregistered = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).unregistered.once(() => resolve()),
+            );
+
+            await peer1.act(agent => agent.get(IcdClient).forget());
+            await MockTime.resolve(unregistered, { macrotasks: true });
+
+            const state = peer1.stateOf(IcdClient);
+            expect(state.registered).false;
+            expect(state.key).undefined;
+            expect(state.counterStart).undefined;
+            expect(state.lastOffset).undefined;
+            expect(state.available).false;
+
+            // Local teardown only: the fabric feed is gone, but the peer's registration was left untouched (contrast
+            // unregister, which round-trips to the peer). This is the escape hatch when the peer is unreachable.
+            expect(fabric.icd.hasPeers).false;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+        });
+
+        it("is a no-op when not registered", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            await peer1.act(agent => agent.get(IcdClient).forget());
+            expect(peer1.stateOf(IcdClient).registered).false;
+        });
+    });
+
     describe("stayActive", () => {
         it("requests a stay-active window and returns the promised duration", async () => {
             await using site = new MockSite();

@@ -120,8 +120,29 @@ export default function commands(theNode: MatterNode) {
                     command: "unregister <node-id>",
                     describe: "Remove this controller's Check-In registration from the peer",
                     builder: (y: Argv) =>
-                        y.positional("node-id", { describe: "node id", type: "string", demandOption: true }),
+                        y
+                            .positional("node-id", { describe: "node id", type: "string", demandOption: true })
+                            .option("force", {
+                                describe:
+                                    "forget the registration locally without contacting the peer (escape hatch for an unreachable LIT ICD)",
+                                type: "boolean",
+                                default: false,
+                            }),
                     handler: async (argv: any) => {
+                        if (argv.force) {
+                            // A registered-but-unreachable LIT peer parks every connecting/peer-I/O path on its
+                            // never-coming Check-In; reach it via the non-connecting accessor and forget() locally.
+                            await theNode.start();
+                            const clientNode = (await theNode.controller.getNode(NodeId(BigInt(argv.nodeId)))).node;
+                            if (!clientNode.behaviors.has(IcdClient)) {
+                                throw new Error(`Node ${argv.nodeId} is not an ICD device (no IcdManagement cluster)`);
+                            }
+                            await clientNode.act(agent => agent.get(IcdClient).forget());
+                            console.log(
+                                `Forgot Check-In registration for node ${argv.nodeId} locally (peer not contacted)`,
+                            );
+                            return;
+                        }
                         const clientNode = await clientNodeFor(theNode, argv.nodeId);
                         await clientNode.act(agent => agent.get(IcdClient).unregister());
                         console.log(`Unregistered Check-In client on node ${argv.nodeId}`);
