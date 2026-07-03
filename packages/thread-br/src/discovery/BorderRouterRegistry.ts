@@ -9,6 +9,7 @@ import {
     type DnsRecord,
     DnsRecordType,
     Environment,
+    Hours,
     Logger,
     Observable,
     type SrvRecordValue,
@@ -29,7 +30,7 @@ const INSTANCE_OBSERVER_CAP = 512;
  *  runs on `list` / `get` / `#onDiscovered`, so without activity an eligible entry
  *  may linger past the window. Long enough that BRs announcing once per ~half-day
  *  stay resolvable; short enough that vanished BRs eventually drop. */
-const STALE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const STALE_RETENTION = Hours(24);
 const MESHCOP_TYPE_QNAME = "_meshcop._udp.local";
 const TREL_TYPE_QNAME = "_trel._udp.local";
 const MESHCOP_SUFFIX = "._meshcop._udp.local";
@@ -178,7 +179,7 @@ export class BorderRouterRegistry {
     }
 
     #pruneExpired(): void {
-        const cutoff = Date.now() - STALE_RETENTION_MS;
+        const cutoff = Date.now() - STALE_RETENTION;
         const pruned = new Array<BorderRouterEntry>();
         for (const [xaKey, entry] of this.#registry) {
             if (entry.sources.length === 0 && entry.lastSeen < cutoff) {

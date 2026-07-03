@@ -7,12 +7,15 @@
 import {
     Bytes,
     Crypto,
+    type Duration,
     type Entropy,
     ImplementationError,
     InternalError,
     Logger,
     Millis,
+    Minutes,
     Network,
+    Seconds,
     Time,
     TimeoutError,
     type Timer,
@@ -30,10 +33,10 @@ import { DtlsRetransmitTimer } from "./DtlsRetransmitTimer.js";
 
 const logger = Logger.get("NobleDtlsChannel");
 
-const DEFAULT_INITIAL_RETRANSMIT_MS = 1000;
-const DEFAULT_MAX_RETRANSMIT_MS = 60_000;
+const DEFAULT_INITIAL_RETRANSMIT = Seconds(1);
+const DEFAULT_MAX_RETRANSMIT = Minutes(1);
 const DEFAULT_MAX_RETRANSMITS = 5;
-const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+const DEFAULT_CONNECT_TIMEOUT = Seconds(30);
 const DEFAULT_MTU = 1280;
 
 /**
@@ -159,20 +162,27 @@ export class NobleDtlsChannel implements DtlsChannel {
         this.#udp = udp;
         udp.onData((_netInterface, _peerAddress, _peerPort, data) => this.#onDatagram(Bytes.of(data)));
 
+        const initialRetransmit: Duration =
+            this.#opts.initialRetransmitMs !== undefined
+                ? Millis(this.#opts.initialRetransmitMs)
+                : DEFAULT_INITIAL_RETRANSMIT;
+        const maxRetransmit: Duration =
+            this.#opts.maxRetransmitMs !== undefined ? Millis(this.#opts.maxRetransmitMs) : DEFAULT_MAX_RETRANSMIT;
+
         const clientCfg: DtlsClientConfig = {
             password: this.#opts.password,
             random: this.#opts.random ?? (() => defaultRandom(entropy)),
             ephemeralScalar: this.#opts.ephemeralScalar ?? (() => defaultEphemeralScalar(entropy)),
-            initialRetransmitMs: this.#opts.initialRetransmitMs ?? DEFAULT_INITIAL_RETRANSMIT_MS,
-            maxRetransmitMs: this.#opts.maxRetransmitMs ?? DEFAULT_MAX_RETRANSMIT_MS,
+            initialRetransmitMs: initialRetransmit,
+            maxRetransmitMs: maxRetransmit,
             mtu: this.#opts.mtu ?? DEFAULT_MTU,
         };
         const client = new DtlsClient(clientCfg);
         this.#client = client;
 
         this.#retransmit = new DtlsRetransmitTimer({
-            initialMs: clientCfg.initialRetransmitMs ?? DEFAULT_INITIAL_RETRANSMIT_MS,
-            maxMs: clientCfg.maxRetransmitMs ?? DEFAULT_MAX_RETRANSMIT_MS,
+            initialMs: initialRetransmit,
+            maxMs: maxRetransmit,
             maxRetransmits: this.#opts.maxRetransmits ?? DEFAULT_MAX_RETRANSMITS,
             onRetransmit: () => this.#onRetransmit(),
             onGiveUp: () => this.#fail(new DtlsError("NobleDtlsChannel: handshake gave up after max retransmits")),
@@ -181,9 +191,10 @@ export class NobleDtlsChannel implements DtlsChannel {
         const connectPromise = new Promise<void>((resolve, reject) => {
             this.#onConnect = { resolve, reject };
         });
-        const connectTimeoutMs = this.#opts.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-        this.#connectDeadline = Time.getTimer("dtls-connect-deadline", Millis(connectTimeoutMs), () =>
-            this.#fail(new TimeoutError(`NobleDtlsChannel: connect timed out after ${connectTimeoutMs}ms`)),
+        const connectTimeout: Duration =
+            this.#opts.connectTimeoutMs !== undefined ? Millis(this.#opts.connectTimeoutMs) : DEFAULT_CONNECT_TIMEOUT;
+        this.#connectDeadline = Time.getTimer("dtls-connect-deadline", connectTimeout, () =>
+            this.#fail(new TimeoutError(`NobleDtlsChannel: connect timed out after ${connectTimeout}ms`)),
         ).start();
 
         // Drive the first flight.

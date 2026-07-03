@@ -7,11 +7,13 @@
 import {
     Bytes,
     Crypto,
+    type Duration,
     type Entropy,
     type Environment,
     ImplementationError,
     Logger,
     Millis,
+    Seconds,
     Time,
     TimeoutError,
     Timer,
@@ -23,7 +25,7 @@ const logger = Logger.get("CoapClient");
 
 /** Thrown when a CON request exhausts MAX_RETRANSMIT without receiving an ACK,
  *  or when an empty ACK is received but no separate response arrives within
- *  {@link SEPARATE_RESPONSE_TIMEOUT_MS}. */
+ *  {@link SEPARATE_RESPONSE_TIMEOUT}. */
 export class CoapTimeoutError extends TimeoutError {
     constructor(messageId: number) {
         super(`CoAP CON messageId=${messageId} timed out after MAX_RETRANSMIT`);
@@ -32,7 +34,7 @@ export class CoapTimeoutError extends TimeoutError {
 }
 
 /** RFC 7252 §4.2 retransmission constants. */
-const RFC_ACK_TIMEOUT_MS = 2_000;
+const RFC_ACK_TIMEOUT = Seconds(2);
 const RFC_ACK_RANDOM_FACTOR = 1.5;
 const MAX_RETRANSMIT = 4;
 /** Wait this long after an empty ACK (RFC 7252 §5.2.2 separate response) for the
@@ -40,7 +42,7 @@ const MAX_RETRANSMIT = 4;
  *  much tighter ceiling because Thread MeshCoP transactions are local-network
  *  fast paths — a no-show after 30s indicates a dropped response, not network
  *  delay. */
-const SEPARATE_RESPONSE_TIMEOUT_MS = 30_000;
+const SEPARATE_RESPONSE_TIMEOUT = Seconds(30);
 
 export interface CoapClientOpts {
     /** Override ACK_TIMEOUT for testing. Default: 2000ms per RFC 7252 §4.2. */
@@ -82,7 +84,7 @@ export class CoapClient {
     #messageId: number;
     #channel: DtlsChannel;
     #ackTimeoutMs: number;
-    #separateResponseTimeoutMs: number;
+    #separateResponseTimeout: Duration;
     /** Tracks the per-message-id retransmit slot. Removed once the BR ACKs the
      *  request — either with a piggybacked response or an empty ACK announcing
      *  a separate response. */
@@ -96,8 +98,11 @@ export class CoapClient {
         this.#channel = channel;
         this.#entropy = environment.get(Crypto);
         this.#messageId = this.#entropy.randomUint16;
-        this.#ackTimeoutMs = opts?.ackTimeoutMs ?? RFC_ACK_TIMEOUT_MS;
-        this.#separateResponseTimeoutMs = opts?.separateResponseTimeoutMs ?? SEPARATE_RESPONSE_TIMEOUT_MS;
+        this.#ackTimeoutMs = opts?.ackTimeoutMs ?? RFC_ACK_TIMEOUT;
+        this.#separateResponseTimeout =
+            opts?.separateResponseTimeoutMs !== undefined
+                ? Millis(opts.separateResponseTimeoutMs)
+                : SEPARATE_RESPONSE_TIMEOUT;
         void this.#runRecvLoop();
     }
 
@@ -190,13 +195,9 @@ export class CoapClient {
                         retransmitTimer = undefined;
                     }
                     this.#pendingByMsgId.delete(msg.messageId);
-                    separateTimer = Time.getTimer(
-                        "coap-separate-response",
-                        Millis(this.#separateResponseTimeoutMs),
-                        () => {
-                            state.reject(new CoapTimeoutError(msg.messageId));
-                        },
-                    ).start();
+                    separateTimer = Time.getTimer("coap-separate-response", this.#separateResponseTimeout, () => {
+                        state.reject(new CoapTimeoutError(msg.messageId));
+                    }).start();
                 },
             };
 

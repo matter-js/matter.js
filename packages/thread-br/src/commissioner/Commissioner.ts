@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, MatterError, Millis, Time, TimeoutError, type Timer } from "@matter/general";
+import { type Duration, Logger, MatterError, Millis, Seconds, Time, TimeoutError, type Timer } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
@@ -47,11 +47,11 @@ export interface CommissionerOpts {
  */
 export class Commissioner {
     static readonly COMMISSIONER_ID = "matter-server";
-    static readonly #KA_INTERVAL_MS = 40_000;
-    static readonly #PENDING_RETRY_DELAY_MS = 30_000;
+    static readonly #KA_INTERVAL = Seconds(40);
+    static readonly #PENDING_RETRY_DELAY = Seconds(30);
 
     readonly #coap: CoapClient;
-    readonly #pendingRetryDelayMs: number;
+    readonly #pendingRetryDelay: Duration;
 
     /**
      * @param coap - CoAP transport connected to the target Border Router.
@@ -59,7 +59,10 @@ export class Commissioner {
      */
     constructor(coap: CoapClient, opts?: CommissionerOpts) {
         this.#coap = coap;
-        this.#pendingRetryDelayMs = opts?.pendingRetryDelayMs ?? Commissioner.#PENDING_RETRY_DELAY_MS;
+        this.#pendingRetryDelay =
+            opts?.pendingRetryDelayMs !== undefined
+                ? Millis(opts.pendingRetryDelayMs)
+                : Commissioner.#PENDING_RETRY_DELAY;
     }
 
     /**
@@ -95,7 +98,7 @@ export class Commissioner {
         }
 
         // pending: wait and retry once
-        await Time.sleep("commissioner-pending-retry", Millis(this.#pendingRetryDelayMs));
+        await Time.sleep("commissioner-pending-retry", this.#pendingRetryDelay);
 
         const retryResponse = await this.#coap.request({
             type: "CON",
@@ -186,15 +189,11 @@ export class Commissioner {
      */
     async withSession<T>(fn: (sessionId: number) => Promise<T>): Promise<T> {
         const sessionId = await this.petition();
-        const kaInterval: Timer = Time.getPeriodicTimer(
-            "commissioner-keepalive",
-            Millis(Commissioner.#KA_INTERVAL_MS),
-            () => {
-                void this.keepAlive(sessionId).catch(err => {
-                    logger.warn("Commissioner keep-alive error:", err);
-                });
-            },
-        ).start();
+        const kaInterval: Timer = Time.getPeriodicTimer("commissioner-keepalive", Commissioner.#KA_INTERVAL, () => {
+            void this.keepAlive(sessionId).catch(err => {
+                logger.warn("Commissioner keep-alive error:", err);
+            });
+        }).start();
 
         try {
             return await fn(sessionId);

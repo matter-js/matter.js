@@ -13,6 +13,7 @@ import {
     Logger,
     Millis,
     Observable,
+    Seconds,
     Time,
     Timer,
 } from "@matter/general";
@@ -70,8 +71,8 @@ export { ThreadDiagError } from "./errors.js";
 
 const logger = Logger.get("MeshCopDiagnosticSource");
 
-const DEFAULT_WINDOW_MS = 20_000;
-const DEFAULT_UNICAST_TIMEOUT_MS = 10_000;
+const DEFAULT_WINDOW = Seconds(20);
+const DEFAULT_UNICAST_TIMEOUT = Seconds(10);
 
 /** TMF service port on the mesh-local interface (Thread spec §5.20). */
 const TMF_PORT = 61631;
@@ -91,7 +92,7 @@ const ENERGY_REPORT_URI = ["c", "er"];
 const PANID_QUERY_URI = ["c", "pq"];
 const PANID_CONFLICT_URI = ["c", "pc"];
 
-const DEFAULT_SCAN_TIMEOUT_MS = 30_000;
+const DEFAULT_SCAN_TIMEOUT = Seconds(30);
 
 export interface EnergyScanOpts {
     channelMask: number;
@@ -197,7 +198,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 }
             });
 
-            const timer = Time.getTimer("meshcop-unicast-timeout", Millis(DEFAULT_UNICAST_TIMEOUT_MS), () => {
+            const timer = Time.getTimer("meshcop-unicast-timeout", DEFAULT_UNICAST_TIMEOUT, () => {
                 rejectResponse(
                     new Error(`MeshCopDiagnosticSource: unicast diagnostic to ${formatIp6(targetAddr)} timed out`),
                 );
@@ -222,7 +223,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
     }
 
     queryMulticast(scope: "ff03::1" | "ff03::2", opts: QueryMulticastOptions): QueryMulticastHandle {
-        const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
+        const windowMs = opts.windowMs ?? DEFAULT_WINDOW;
         const targetAddr = scope === "ff03::1" ? ALL_THREAD_NODES_REALM_LOCAL : ALL_THREAD_ROUTERS_REALM_LOCAL;
         const onNode = new Observable<[DiagnosticResponse]>();
         const onError = new Observable<[Error]>();
@@ -426,7 +427,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 }
             });
 
-            const timer = Time.getTimer("energy-scan-timeout", Millis(DEFAULT_SCAN_TIMEOUT_MS), () => {
+            const timer = Time.getTimer("energy-scan-timeout", DEFAULT_SCAN_TIMEOUT, () => {
                 rejectReport(new Error("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
             }).start();
 
@@ -476,7 +477,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             });
 
             // No conflict = no c/pc arrives; resolve undefined after timeout.
-            const timer = Time.getTimer("panid-query-timeout", Millis(DEFAULT_SCAN_TIMEOUT_MS), () => {
+            const timer = Time.getTimer("panid-query-timeout", DEFAULT_SCAN_TIMEOUT, () => {
                 resolveReport(undefined);
             }).start();
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Millis, Time, Timer } from "@matter/general";
+import { Bytes, Logger, Millis, Seconds, Time, Timer } from "@matter/general";
 import type { OtbrRestCapability } from "./OtbrRestCapability.js";
 import { OtbrRestClient } from "./OtbrRestClient.js";
 import { OtbrRestError } from "./OtbrRestError.js";
@@ -12,7 +12,7 @@ import { OtbrRestError } from "./OtbrRestError.js";
 const logger = Logger.get("OtbrRestProbe");
 
 const DEFAULT_PROBE_PORT = 8081;
-const DEFAULT_PROBE_TIMEOUT_MS = 1000;
+const DEFAULT_PROBE_TIMEOUT = Seconds(1);
 
 const HTTP_OK = 200;
 const HTTP_NOT_FOUND = 404;
@@ -28,7 +28,7 @@ export class OtbrRestProbe {
     static async probe(
         host: string,
         port: number = DEFAULT_PROBE_PORT,
-        timeoutMs: number = DEFAULT_PROBE_TIMEOUT_MS,
+        timeoutMs: number = DEFAULT_PROBE_TIMEOUT,
     ): Promise<OtbrRestCapability | null> {
         const client = new OtbrRestClient({ host, port, timeoutMs });
         const baseUrl = client.baseUrl;

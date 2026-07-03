@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Millis, Time, Timer } from "@matter/general";
+import { Bytes, type Duration, Millis, Seconds, Time, Timer } from "@matter/general";
 import { normalizeKeys } from "./caseNormalizer.js";
 import { OtbrRestError } from "./OtbrRestError.js";
 
@@ -40,7 +40,7 @@ export interface OtbrRestClientOptions {
 }
 
 const DEFAULT_PORT = 8081;
-const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_TIMEOUT = Seconds(5);
 const HTTP_NO_CONTENT = 204;
 
 interface FetchedJson {
@@ -102,7 +102,7 @@ function parseHexBytes(hex: string, expectedLen: number, where: string): Uint8Ar
  */
 export class OtbrRestClient {
     readonly #baseUrl: string;
-    readonly #timeoutMs: number;
+    readonly #timeout: Duration;
 
     /**
      * @param opts - Connection parameters; `host` is required.
@@ -111,7 +111,7 @@ export class OtbrRestClient {
         const port = opts.port ?? DEFAULT_PORT;
         const host = opts.host.includes(":") && !opts.host.startsWith("[") ? `[${opts.host}]` : opts.host;
         this.#baseUrl = `http://${host}:${port}`;
-        this.#timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        this.#timeout = opts.timeoutMs !== undefined ? Millis(opts.timeoutMs) : DEFAULT_TIMEOUT;
     }
 
     get baseUrl(): string {
@@ -224,7 +224,7 @@ export class OtbrRestClient {
     async #postActions(body: Record<string, unknown>): Promise<void> {
         const url = `${this.#baseUrl}/api/actions`;
         const controller = new AbortController();
-        const timer: Timer = Time.getTimer("otbr-post-actions-timeout", Millis(this.#timeoutMs), () =>
+        const timer: Timer = Time.getTimer("otbr-post-actions-timeout", this.#timeout, () =>
             controller.abort(),
         ).start();
         let response: Response;
@@ -285,9 +285,7 @@ export class OtbrRestClient {
     async #doFetch(path: string, accept: string): Promise<{ status: number; ok: boolean; text: string }> {
         const url = `${this.#baseUrl}${path}`;
         const controller = new AbortController();
-        const timer: Timer = Time.getTimer("otbr-fetch-timeout", Millis(this.#timeoutMs), () =>
-            controller.abort(),
-        ).start();
+        const timer: Timer = Time.getTimer("otbr-fetch-timeout", this.#timeout, () => controller.abort()).start();
         try {
             const response = await fetch(url, {
                 method: "GET",
