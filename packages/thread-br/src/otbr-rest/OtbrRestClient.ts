@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, type Duration, Millis, Seconds, Time, Timer } from "@matter/general";
+import { Bytes, type Duration, ImplementationError, Millis, Seconds, Time, Timer } from "@matter/general";
+import { OperationalDataset } from "../dataset/OperationalDataset.js";
 import { normalizeKeys } from "./caseNormalizer.js";
-import { OtbrRestError } from "./OtbrRestError.js";
+import { OtbrRestError, type OtbrRestErrorCode } from "./OtbrRestError.js";
 
 export interface OtbrLeaderData {
     partitionId: number;
@@ -33,6 +34,20 @@ export interface OtbrDatasetHex {
     pendingHex?: string;
 }
 
+/**
+ * A joiner entry to add to the on-BR commissioner via `POST /node/commissioner/joiner`.
+ *
+ * `pskd` (the joiner passphrase) is required; provide at most one of `eui64`
+ * (EUI-64 hex, or `"*"` for any device) or `discerner` (OpenThread joiner
+ * discerner, e.g. `"0x123/12"`).
+ */
+export interface OtbrJoiner {
+    pskd: string;
+    eui64?: string;
+    discerner?: string;
+    timeoutSeconds?: number;
+}
+
 export interface OtbrRestClientOptions {
     host: string;
     port?: number;
@@ -42,6 +57,25 @@ export interface OtbrRestClientOptions {
 const DEFAULT_PORT = 8081;
 const DEFAULT_TIMEOUT = Seconds(5);
 const HTTP_NO_CONTENT = 204;
+
+/**
+ * Map a non-2xx HTTP status onto an {@link OtbrRestErrorCode}, mirroring
+ * python-otbr-api's error classification: 404 = endpoint unsupported by this
+ * firmware, 405 = operation not allowed, 409 = conflict (e.g. dataset set while
+ * Thread is active). Everything else is a generic protocol error.
+ */
+function errorCodeForStatus(status: number): OtbrRestErrorCode {
+    switch (status) {
+        case 404:
+            return "rest_unsupported";
+        case 405:
+            return "rest_not_allowed";
+        case 409:
+            return "rest_conflict";
+        default:
+            return "rest_protocol";
+    }
+}
 
 interface FetchedJson {
     status: number;
@@ -194,6 +228,274 @@ export class OtbrRestClient {
     }
 
     /**
+     * Fetch the node role from `/node/state` (e.g. `"router"`, `"leader"`, `"child"`, `"disabled"`).
+     *
+     * @throws {@link OtbrRestError} `"rest_unreachable"` on network error, `"rest_protocol"` on a
+     *   non-string body.
+     */
+    async getState(): Promise<string> {
+        return this.#getJsonString("/node/state");
+    }
+
+    /**
+     * Fetch the Thread network name from `/node/network-name`.
+     */
+    async getNetworkName(): Promise<string> {
+        return this.#getJsonString("/node/network-name");
+    }
+
+    /**
+     * Fetch the node's Routing Locator (RLOC) IPv6 address from `/node/rloc`.
+     */
+    async getRloc(): Promise<string> {
+        return this.#getJsonString("/node/rloc");
+    }
+
+    /**
+     * Fetch the 16-bit RLOC from `/node/rloc16`.
+     */
+    async getRloc16(): Promise<number> {
+        return this.#getJsonNumber("/node/rloc16");
+    }
+
+    /**
+     * Fetch the number of routers in the Thread network from `/node/num-of-router`.
+     */
+    async getNumOfRouter(): Promise<number> {
+        return this.#getJsonNumber("/node/num-of-router");
+    }
+
+    /**
+     * Fetch the 8-byte IEEE EUI-64 extended address from `/node/ext-address`.
+     */
+    async getExtAddress(): Promise<Uint8Array> {
+        return parseHexBytes(await this.#getJsonString("/node/ext-address"), 8, "/node/ext-address");
+    }
+
+    /**
+     * Fetch the 8-byte Extended PAN ID from `/node/ext-panid`.
+     */
+    async getExtPanId(): Promise<Uint8Array> {
+        return parseHexBytes(await this.#getJsonString("/node/ext-panid"), 8, "/node/ext-panid");
+    }
+
+    /**
+     * Fetch the 16-byte Border Agent ID from `/node/ba-id`.
+     *
+     * @throws {@link OtbrRestError} `"rest_unsupported"` on older firmware that lacks this endpoint (404).
+     */
+    async getBorderAgentId(): Promise<Uint8Array> {
+        return parseHexBytes(await this.#getJsonString("/node/ba-id"), 16, "/node/ba-id");
+    }
+
+    /**
+     * Fetch the leader data record from `/node/leader-data`.
+     */
+    async getLeaderData(): Promise<OtbrLeaderData> {
+        const { body } = await this.#fetchJson("/node/leader-data");
+        if (!isRecord(body)) {
+            throw new OtbrRestError("rest_protocol", "/node/leader-data did not return a JSON object");
+        }
+        const where = "/node/leader-data";
+        return {
+            partitionId: expectNumber(body, "partitionId", where),
+            weighting: expectNumber(body, "weighting", where),
+            dataVersion: expectNumber(body, "dataVersion", where),
+            stableDataVersion: expectNumber(body, "stableDataVersion", where),
+            leaderRouterId: expectNumber(body, "leaderRouterId", where),
+        };
+    }
+
+    /**
+     * Fetch and decode the active Operational Dataset from `/node/dataset/active`.
+     *
+     * @returns The decoded dataset, or `undefined` when the BR has no active dataset (204).
+     */
+    async getActiveDataset(): Promise<OperationalDataset | undefined> {
+        return this.#getDataset("/node/dataset/active");
+    }
+
+    /**
+     * Fetch and decode the pending Operational Dataset from `/node/dataset/pending`.
+     *
+     * @returns The decoded dataset, or `undefined` when the BR has no pending dataset (204).
+     */
+    async getPendingDataset(): Promise<OperationalDataset | undefined> {
+        return this.#getDataset("/node/dataset/pending");
+    }
+
+    /**
+     * Fetch the RCP/co-processor version string from `/node/coprocessor/version`.
+     *
+     * @throws {@link OtbrRestError} `"rest_unsupported"` on older firmware that lacks this endpoint (404).
+     */
+    async getCoprocessorVersion(): Promise<string> {
+        return this.#getJsonString("/node/coprocessor/version");
+    }
+
+    /**
+     * Fetch the on-BR commissioner state from `/node/commissioner/state`.
+     *
+     * @throws {@link OtbrRestError} `"rest_unsupported"` on firmware without a built-in commissioner (404).
+     */
+    async getCommissionerState(): Promise<string> {
+        return this.#getJsonString("/node/commissioner/state");
+    }
+
+    /**
+     * Fetch the list of pending joiners from `/node/commissioner/joiner`.
+     *
+     * The entries are returned as-is (keys normalized to camelCase); callers
+     * interpret the per-joiner objects.
+     *
+     * @throws {@link OtbrRestError} `"rest_unsupported"` on firmware without a built-in commissioner (404).
+     */
+    async getJoiners(): Promise<unknown[]> {
+        const { body } = await this.#fetchJson("/node/commissioner/joiner");
+        if (!Array.isArray(body)) {
+            throw new OtbrRestError("rest_protocol", "/node/commissioner/joiner did not return a JSON array");
+        }
+        return body;
+    }
+
+    /**
+     * Enable or disable the Thread interface via `PUT /node/state`.
+     *
+     * @throws {@link OtbrRestError} `"rest_conflict"` when the BR rejects the transition (409).
+     */
+    async setState(enable: boolean): Promise<void> {
+        await this.#mutate("PUT", "/node/state", {
+            contentType: "application/json",
+            body: JSON.stringify(enable ? "enable" : "disable"),
+        });
+    }
+
+    /**
+     * Set the active Operational Dataset via `PUT /node/dataset/active`.
+     *
+     * @param dataset - An {@link OperationalDataset} (encoded to TLV hex) or a raw TLV hex string.
+     * @throws {@link OtbrRestError} `"rest_conflict"` when Thread is active and the active
+     *   dataset cannot be replaced in place (409) — use {@link setPendingDataset} instead.
+     */
+    async setActiveDataset(dataset: OperationalDataset | string): Promise<void> {
+        await this.#putDataset("/node/dataset/active", dataset);
+    }
+
+    /**
+     * Clear the active Operational Dataset via `DELETE /node/dataset/active`.
+     */
+    async deleteActiveDataset(): Promise<void> {
+        await this.#mutate("DELETE", "/node/dataset/active");
+    }
+
+    /**
+     * Set the pending Operational Dataset via `PUT /node/dataset/pending`.
+     *
+     * @param dataset - An {@link OperationalDataset} (encoded to TLV hex) or a raw TLV hex string.
+     */
+    async setPendingDataset(dataset: OperationalDataset | string): Promise<void> {
+        await this.#putDataset("/node/dataset/pending", dataset);
+    }
+
+    /**
+     * Clear the pending Operational Dataset via `DELETE /node/dataset/pending`.
+     */
+    async deletePendingDataset(): Promise<void> {
+        await this.#mutate("DELETE", "/node/dataset/pending");
+    }
+
+    /**
+     * Factory-reset the Thread node via `DELETE /node`.
+     *
+     * @throws {@link OtbrRestError} `"rest_not_allowed"` when the firmware disallows factory reset (405);
+     *   `"rest_conflict"` when the interface is in a state that forbids it (409).
+     */
+    async factoryReset(): Promise<void> {
+        await this.#mutate("DELETE", "/node");
+    }
+
+    /**
+     * Enable or disable the on-BR commissioner via `PUT /node/commissioner/state`.
+     *
+     * @throws {@link OtbrRestError} `"rest_conflict"` when the BR is not active (409);
+     *   `"rest_unsupported"` on firmware without a built-in commissioner (404).
+     */
+    async setCommissionerState(enable: boolean): Promise<void> {
+        await this.#mutate("PUT", "/node/commissioner/state", {
+            contentType: "application/json",
+            body: JSON.stringify(enable ? "enable" : "disable"),
+        });
+    }
+
+    /**
+     * Add a joiner to the on-BR commissioner via `POST /node/commissioner/joiner`.
+     *
+     * Provide at most one of `eui64` or `discerner`; omit both to match any device.
+     *
+     * @throws {@link ImplementationError} when both `eui64` and `discerner` are provided.
+     * @throws {@link OtbrRestError} `"rest_conflict"` when the commissioner is not active (409).
+     */
+    async addJoiner(joiner: OtbrJoiner): Promise<void> {
+        if (joiner.eui64 !== undefined && joiner.discerner !== undefined) {
+            throw new ImplementationError("addJoiner: provide at most one of eui64 or discerner");
+        }
+        const payload: Record<string, unknown> = { pskd: joiner.pskd };
+        if (joiner.eui64 !== undefined) payload.eui64 = joiner.eui64;
+        if (joiner.discerner !== undefined) payload.discerner = joiner.discerner;
+        if (joiner.timeoutSeconds !== undefined) payload.timeout = joiner.timeoutSeconds;
+        await this.#mutate("POST", "/node/commissioner/joiner", {
+            contentType: "application/json",
+            body: JSON.stringify(payload),
+        });
+    }
+
+    /**
+     * Remove a joiner from the on-BR commissioner via `DELETE /node/commissioner/joiner`.
+     *
+     * @param joinerId - EUI-64 hex, a discerner (`"0x…/len"`), or `"*"` to remove all joiners.
+     * @throws {@link OtbrRestError} `"rest_conflict"` when the commissioner is not active (409).
+     */
+    async removeJoiner(joinerId: string): Promise<void> {
+        await this.#mutate("DELETE", "/node/commissioner/joiner", {
+            contentType: "application/json",
+            body: JSON.stringify(joinerId),
+        });
+    }
+
+    async #getDataset(path: string): Promise<OperationalDataset | undefined> {
+        const hex = await this.#fetchText(path);
+        if (hex === undefined || hex.length === 0) return undefined;
+        try {
+            return OperationalDataset.decode(hex);
+        } catch (err) {
+            throw new OtbrRestError("rest_protocol", `GET ${path} returned an undecodable dataset`, {
+                cause: err instanceof Error ? err : undefined,
+            });
+        }
+    }
+
+    async #putDataset(path: string, dataset: OperationalDataset | string): Promise<void> {
+        const hex = typeof dataset === "string" ? dataset : Bytes.toHex(OperationalDataset.encode(dataset));
+        await this.#mutate("PUT", path, { contentType: "text/plain", body: hex });
+    }
+
+    async #getJsonString(path: string): Promise<string> {
+        const { body } = await this.#fetchJson(path);
+        if (typeof body !== "string") {
+            throw new OtbrRestError("rest_protocol", `GET ${path} did not return a string`);
+        }
+        return body;
+    }
+
+    async #getJsonNumber(path: string): Promise<number> {
+        const { body } = await this.#fetchJson(path);
+        if (typeof body !== "number" || !Number.isFinite(body)) {
+            throw new OtbrRestError("rest_protocol", `GET ${path} did not return a number`);
+        }
+        return body;
+    }
+
+    /**
      * POST an action body to the OTBR `/api/actions` endpoint.
      *
      * Only available on camelCase (post-2024) OTBR builds — callers must guard
@@ -256,7 +558,7 @@ export class OtbrRestClient {
             return { status: response.status, body: null };
         }
         if (!response.ok) {
-            throw new OtbrRestError("rest_protocol", `GET ${path} returned ${response.status}`, {
+            throw new OtbrRestError(errorCodeForStatus(response.status), `GET ${path} returned ${response.status}`, {
                 httpStatus: response.status,
             });
         }
@@ -275,7 +577,7 @@ export class OtbrRestClient {
         const response = await this.#doFetch(path, "text/plain");
         if (response.status === HTTP_NO_CONTENT) return undefined;
         if (!response.ok) {
-            throw new OtbrRestError("rest_protocol", `GET ${path} returned ${response.status}`, {
+            throw new OtbrRestError(errorCodeForStatus(response.status), `GET ${path} returned ${response.status}`, {
                 httpStatus: response.status,
             });
         }
@@ -303,6 +605,40 @@ export class OtbrRestClient {
             });
         } finally {
             timer.stop();
+        }
+    }
+
+    async #mutate(
+        method: "PUT" | "POST" | "DELETE",
+        path: string,
+        opts?: { contentType?: string; body?: string },
+    ): Promise<void> {
+        const url = `${this.#baseUrl}${path}`;
+        const controller = new AbortController();
+        const timer: Timer = Time.getTimer("otbr-mutate-timeout", this.#timeout, () => controller.abort()).start();
+        const headers: Record<string, string> = {};
+        if (opts?.contentType !== undefined) headers["Content-Type"] = opts.contentType;
+        let status: number;
+        let ok: boolean;
+        try {
+            const response = await fetch(url, { method, headers, body: opts?.body, signal: controller.signal });
+            // Drain the body inside the timer scope so the timeout covers a BR that
+            // sends headers then stalls the body (mirrors #doFetch).
+            await response.text();
+            status = response.status;
+            ok = response.ok;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            throw new OtbrRestError("rest_unreachable", `${method} ${path} failed: ${message}`, {
+                cause: err instanceof Error ? err : undefined,
+            });
+        } finally {
+            timer.stop();
+        }
+        if (!ok) {
+            throw new OtbrRestError(errorCodeForStatus(status), `${method} ${path} returned ${status}`, {
+                httpStatus: status,
+            });
         }
     }
 }

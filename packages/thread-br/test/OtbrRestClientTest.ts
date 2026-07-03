@@ -7,15 +7,22 @@
 import { Bytes } from "@matter/main";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { OperationalDataset } from "../src/dataset/OperationalDataset.js";
 import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
 
+function fixture(name: string): string {
+    return readFileSync(resolve(FIXTURE_DIR, name), "utf8").trim();
+}
+
 const NODE_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node.json"), "utf8");
 const DIAGNOSTICS_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8");
-const DATASET_HEX_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "dataset-active.hex"), "utf8").trim();
+
+// A valid, decodable active-dataset TLV blob (synthetic network "MockThread") — no real network data.
+const DATASET_HEX_FIXTURE = fixture("dataset-active.hex");
 
 type FetchHandler = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -29,6 +36,77 @@ function installFetch(handler: FetchHandler): () => void {
     return () => {
         globalThis.fetch = original;
     };
+}
+
+interface RecordedRequest {
+    method: string;
+    path: string;
+    body?: string;
+    contentType?: string;
+}
+
+/**
+ * Routes `(method, path)` to a canned {@link Response} over the {@link installFetch}
+ * stub and records each request, so mutating-op tests can assert the exact verb,
+ * path, body and content-type the client puts on the wire.
+ */
+class MockOtbrServer {
+    readonly requests = new Array<RecordedRequest>();
+    readonly #routes = new Map<string, () => Response>();
+    #restore?: () => void;
+
+    on(method: string, path: string, respond: () => Response): this {
+        this.#routes.set(`${method} ${path}`, respond);
+        return this;
+    }
+
+    install(): void {
+        this.#restore = installFetch(async (url, init) => {
+            const method = (init?.method ?? "GET").toUpperCase();
+            const path = new URL(url).pathname;
+            const headers = new Headers(init?.headers);
+            this.requests.push({
+                method,
+                path,
+                body: typeof init?.body === "string" ? init.body : undefined,
+                contentType: headers.get("Content-Type") ?? undefined,
+            });
+            const route = this.#routes.get(`${method} ${path}`);
+            if (route === undefined) {
+                return new Response(`no route for ${method} ${path}`, { status: 501 });
+            }
+            return route();
+        });
+    }
+
+    uninstall(): void {
+        this.#restore?.();
+    }
+
+    lastRequest(): RecordedRequest {
+        const last = this.requests[this.requests.length - 1];
+        if (last === undefined) throw new Error("no request recorded");
+        return last;
+    }
+}
+
+function jsonResponse(body: string, status = 200): Response {
+    return new Response(body, { status, headers: { "Content-Type": "application/json" } });
+}
+
+function textResponse(body: string, status = 200): Response {
+    return new Response(body, { status, headers: { "Content-Type": "text/plain" } });
+}
+
+async function expectRestError(promise: Promise<unknown>, code: string): Promise<void> {
+    try {
+        await promise;
+        expect.fail(`expected OtbrRestError(${code})`);
+    } catch (err) {
+        expect(err).to.be.instanceOf(OtbrRestError);
+        if (!(err instanceof OtbrRestError)) throw err;
+        expect(err.code).to.equal(code);
+    }
 }
 
 describe("OtbrRestClient", () => {
@@ -190,5 +268,262 @@ describe("OtbrRestClient", () => {
         } finally {
             restore();
         }
+    });
+});
+
+describe("OtbrRestClient read-only getters", () => {
+    before(MockTime.enable);
+
+    let server: MockOtbrServer;
+    let client: OtbrRestClient;
+
+    beforeEach(() => {
+        server = new MockOtbrServer();
+        server.install();
+        client = new OtbrRestClient({ host: "br.example" });
+    });
+
+    afterEach(() => server.uninstall());
+
+    it("getState returns the node role", async () => {
+        server.on("GET", "/node/state", () => jsonResponse(fixture("state.json")));
+        expect(await client.getState()).to.equal("router");
+    });
+
+    it("getNetworkName returns the Thread network name", async () => {
+        server.on("GET", "/node/network-name", () => jsonResponse(fixture("network-name.json")));
+        expect(await client.getNetworkName()).to.equal("TestNet");
+    });
+
+    it("getRloc returns the RLOC IPv6 address", async () => {
+        server.on("GET", "/node/rloc", () => jsonResponse('"fd00:1122:3344:5566:0:ff:fe00:7400"'));
+        expect(await client.getRloc()).to.equal("fd00:1122:3344:5566:0:ff:fe00:7400");
+    });
+
+    it("getRloc16 returns the 16-bit RLOC", async () => {
+        server.on("GET", "/node/rloc16", () => jsonResponse(fixture("rloc16.json")));
+        expect(await client.getRloc16()).to.equal(29696);
+    });
+
+    it("getNumOfRouter returns the router count", async () => {
+        server.on("GET", "/node/num-of-router", () => jsonResponse(fixture("num-of-router.json")));
+        expect(await client.getNumOfRouter()).to.equal(5);
+    });
+
+    it("getExtAddress decodes the EUI-64 hex", async () => {
+        server.on("GET", "/node/ext-address", () => jsonResponse(fixture("ext-address.json")));
+        expect(Bytes.toHex(await client.getExtAddress())).to.equal("0011223344556601");
+    });
+
+    it("getExtPanId decodes the extended PAN ID hex", async () => {
+        server.on("GET", "/node/ext-panid", () => jsonResponse('"1122334455667788"'));
+        expect(Bytes.toHex(await client.getExtPanId())).to.equal("1122334455667788");
+    });
+
+    it("getBorderAgentId decodes the 16-byte BA ID hex", async () => {
+        server.on("GET", "/node/ba-id", () => jsonResponse(fixture("ba-id.json")));
+        expect(Bytes.toHex(await client.getBorderAgentId())).to.equal("00112233445566778899aabbccddeeff");
+    });
+
+    it("getLeaderData returns the normalized leader record", async () => {
+        server.on("GET", "/node/leader-data", () => jsonResponse(fixture("leader-data.json")));
+        const leader = await client.getLeaderData();
+        expect(leader.partitionId).to.equal(305419896);
+        expect(leader.weighting).to.equal(64);
+        expect(leader.dataVersion).to.equal(147);
+        expect(leader.stableDataVersion).to.equal(205);
+        expect(leader.leaderRouterId).to.equal(61);
+    });
+
+    it("getActiveDataset decodes the text/plain hex into an OperationalDataset", async () => {
+        server.on("GET", "/node/dataset/active", () => textResponse(DATASET_HEX_FIXTURE));
+        const ds = await client.getActiveDataset();
+        expect(ds).to.not.equal(undefined);
+        expect(ds?.networkName).to.equal("MockThread");
+    });
+
+    it("getActiveDataset returns undefined on 204", async () => {
+        server.on("GET", "/node/dataset/active", () => new Response(null, { status: 204 }));
+        expect(await client.getActiveDataset()).to.equal(undefined);
+    });
+
+    it("getPendingDataset returns undefined on 204", async () => {
+        server.on("GET", "/node/dataset/pending", () => new Response(null, { status: 204 }));
+        expect(await client.getPendingDataset()).to.equal(undefined);
+    });
+
+    it("getActiveDataset returns undefined on an empty 200 body", async () => {
+        server.on("GET", "/node/dataset/active", () => textResponse(""));
+        expect(await client.getActiveDataset()).to.equal(undefined);
+    });
+
+    it("getActiveDataset throws rest_protocol on an undecodable 200 body", async () => {
+        server.on("GET", "/node/dataset/active", () => textResponse("nothex!!"));
+        await expectRestError(client.getActiveDataset(), "rest_protocol");
+    });
+
+    it("getCoprocessorVersion throws rest_unsupported on 404", async () => {
+        server.on("GET", "/node/coprocessor/version", () => new Response("", { status: 404 }));
+        await expectRestError(client.getCoprocessorVersion(), "rest_unsupported");
+    });
+
+    it("getCommissionerState throws rest_unsupported on 404", async () => {
+        server.on("GET", "/node/commissioner/state", () => new Response("", { status: 404 }));
+        await expectRestError(client.getCommissionerState(), "rest_unsupported");
+    });
+
+    it("getJoiners throws rest_unsupported on 404", async () => {
+        server.on("GET", "/node/commissioner/joiner", () => new Response("", { status: 404 }));
+        await expectRestError(client.getJoiners(), "rest_unsupported");
+    });
+
+    it("getJoiners returns the normalized joiner array", async () => {
+        server.on("GET", "/node/commissioner/joiner", () =>
+            jsonResponse('[{"Pskd":"J01NME","Eui64":"*","Timeout":120}]'),
+        );
+        const joiners = await client.getJoiners();
+        expect(joiners).to.have.length(1);
+        const first = joiners[0];
+        if (first === null || typeof first !== "object") throw new Error("expected joiner object");
+        expect("pskd" in first).to.equal(true);
+    });
+
+    it("getState throws rest_protocol when the body is not a string", async () => {
+        server.on("GET", "/node/state", () => jsonResponse("123"));
+        await expectRestError(client.getState(), "rest_protocol");
+    });
+});
+
+describe("OtbrRestClient mutations", () => {
+    before(MockTime.enable);
+
+    let server: MockOtbrServer;
+    let client: OtbrRestClient;
+
+    beforeEach(() => {
+        server = new MockOtbrServer();
+        server.install();
+        client = new OtbrRestClient({ host: "br.example" });
+    });
+
+    afterEach(() => server.uninstall());
+
+    it('setState(true) PUTs "enable" as JSON', async () => {
+        server.on("PUT", "/node/state", () => new Response("", { status: 200 }));
+        await client.setState(true);
+        const req = server.lastRequest();
+        expect(req.method).to.equal("PUT");
+        expect(req.path).to.equal("/node/state");
+        expect(req.contentType).to.equal("application/json");
+        expect(req.body).to.equal('"enable"');
+    });
+
+    it('setState(false) PUTs "disable"', async () => {
+        server.on("PUT", "/node/state", () => new Response("", { status: 200 }));
+        await client.setState(false);
+        expect(server.lastRequest().body).to.equal('"disable"');
+    });
+
+    it("setActiveDataset(hex string) PUTs text/plain hex verbatim", async () => {
+        server.on("PUT", "/node/dataset/active", () => new Response("", { status: 200 }));
+        await client.setActiveDataset("AABBCC");
+        const req = server.lastRequest();
+        expect(req.method).to.equal("PUT");
+        expect(req.path).to.equal("/node/dataset/active");
+        expect(req.contentType).to.equal("text/plain");
+        expect(req.body).to.equal("AABBCC");
+    });
+
+    it("setActiveDataset(OperationalDataset) PUTs the encoded TLV hex", async () => {
+        server.on("PUT", "/node/dataset/active", () => new Response("", { status: 200 }));
+        const ds = OperationalDataset.decode(DATASET_HEX_FIXTURE);
+        await client.setActiveDataset(ds);
+        const req = server.lastRequest();
+        expect(req.contentType).to.equal("text/plain");
+        expect((req.body ?? "").toUpperCase()).to.equal(DATASET_HEX_FIXTURE.toUpperCase());
+    });
+
+    it("setActiveDataset throws rest_conflict on 409", async () => {
+        server.on("PUT", "/node/dataset/active", () => new Response("", { status: 409 }));
+        await expectRestError(client.setActiveDataset("AABB"), "rest_conflict");
+    });
+
+    it("deleteActiveDataset DELETEs the endpoint with no body", async () => {
+        server.on("DELETE", "/node/dataset/active", () => new Response(null, { status: 204 }));
+        await client.deleteActiveDataset();
+        const req = server.lastRequest();
+        expect(req.method).to.equal("DELETE");
+        expect(req.path).to.equal("/node/dataset/active");
+        expect(req.body).to.equal(undefined);
+    });
+
+    it("setPendingDataset PUTs to the pending endpoint", async () => {
+        server.on("PUT", "/node/dataset/pending", () => new Response("", { status: 200 }));
+        await client.setPendingDataset("AABB");
+        expect(server.lastRequest().path).to.equal("/node/dataset/pending");
+    });
+
+    it("deletePendingDataset DELETEs the pending endpoint", async () => {
+        server.on("DELETE", "/node/dataset/pending", () => new Response(null, { status: 204 }));
+        await client.deletePendingDataset();
+        expect(server.lastRequest().method).to.equal("DELETE");
+    });
+
+    it("factoryReset DELETEs /node", async () => {
+        server.on("DELETE", "/node", () => new Response(null, { status: 200 }));
+        await client.factoryReset();
+        const req = server.lastRequest();
+        expect(req.method).to.equal("DELETE");
+        expect(req.path).to.equal("/node");
+    });
+
+    it("factoryReset throws rest_not_allowed on 405", async () => {
+        server.on("DELETE", "/node", () => new Response("", { status: 405 }));
+        await expectRestError(client.factoryReset(), "rest_not_allowed");
+    });
+
+    it('setCommissionerState PUTs "disable" as JSON', async () => {
+        server.on("PUT", "/node/commissioner/state", () => new Response("", { status: 200 }));
+        await client.setCommissionerState(false);
+        const req = server.lastRequest();
+        expect(req.path).to.equal("/node/commissioner/state");
+        expect(req.body).to.equal('"disable"');
+    });
+
+    it("addJoiner POSTs pskd/eui64/timeout as JSON", async () => {
+        server.on("POST", "/node/commissioner/joiner", () => new Response("", { status: 200 }));
+        await client.addJoiner({ pskd: "J01NME", eui64: "*", timeoutSeconds: 120 });
+        const req = server.lastRequest();
+        expect(req.method).to.equal("POST");
+        expect(req.path).to.equal("/node/commissioner/joiner");
+        expect(req.contentType).to.equal("application/json");
+        expect(JSON.parse(req.body ?? "")).to.deep.equal({ pskd: "J01NME", eui64: "*", timeout: 120 });
+    });
+
+    it("addJoiner rejects when both eui64 and discerner are given", async () => {
+        server.on("POST", "/node/commissioner/joiner", () => new Response("", { status: 200 }));
+        let threw = false;
+        try {
+            await client.addJoiner({ pskd: "J01NME", eui64: "*", discerner: "0x123/12" });
+        } catch (err) {
+            threw = true;
+            expect(err).to.be.instanceOf(Error);
+        }
+        expect(threw).to.equal(true);
+        expect(server.requests).to.have.length(0);
+    });
+
+    it("removeJoiner DELETEs with the joiner id as a JSON string", async () => {
+        server.on("DELETE", "/node/commissioner/joiner", () => new Response(null, { status: 200 }));
+        await client.removeJoiner("*");
+        const req = server.lastRequest();
+        expect(req.method).to.equal("DELETE");
+        expect(req.path).to.equal("/node/commissioner/joiner");
+        expect(req.body).to.equal('"*"');
+    });
+
+    it("setState throws rest_conflict on 409", async () => {
+        server.on("PUT", "/node/state", () => new Response("", { status: 409 }));
+        await expectRestError(client.setState(true), "rest_conflict");
     });
 });

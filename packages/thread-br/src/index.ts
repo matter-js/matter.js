@@ -80,6 +80,7 @@ export { CoapTimeoutError } from "./coap/index.js";
 export { OtbrRestClient, OtbrRestDiagnosticSource, OtbrRestError, OtbrRestProbe } from "./otbr-rest/index.js";
 export type {
     OtbrDatasetHex,
+    OtbrJoiner,
     OtbrLeaderData,
     OtbrNodeInfo,
     OtbrRestCapability,
