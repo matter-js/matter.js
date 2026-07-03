@@ -260,10 +260,9 @@ export class OtbrRestClient {
                 httpStatus: response.status,
             });
         }
-        const text = await response.text();
         let parsed: unknown;
         try {
-            parsed = JSON.parse(text);
+            parsed = JSON.parse(response.text);
         } catch (err) {
             throw new OtbrRestError("rest_protocol", `GET ${path} returned non-JSON body`, {
                 cause: err instanceof Error ? err : undefined,
@@ -280,21 +279,25 @@ export class OtbrRestClient {
                 httpStatus: response.status,
             });
         }
-        return response.text();
+        return response.text;
     }
 
-    async #doFetch(path: string, accept: string): Promise<Response> {
+    async #doFetch(path: string, accept: string): Promise<{ status: number; ok: boolean; text: string }> {
         const url = `${this.#baseUrl}${path}`;
         const controller = new AbortController();
         const timer: Timer = Time.getTimer("otbr-fetch-timeout", Millis(this.#timeoutMs), () =>
             controller.abort(),
         ).start();
         try {
-            return await fetch(url, {
+            const response = await fetch(url, {
                 method: "GET",
                 headers: { Accept: accept },
                 signal: controller.signal,
             });
+            // Read the body inside the timer's scope so the timeout covers a BR that
+            // sends headers then stalls the body (RFC-silent, seen on flaky OTBR).
+            const text = await response.text();
+            return { status: response.status, ok: response.ok, text };
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new OtbrRestError("rest_unreachable", `GET ${path} failed: ${message}`, {

@@ -143,8 +143,8 @@ class UdpMirrorServer {
         await this.#udp.close();
     }
 
-    /** Send an encrypted application_data record to the peer (post-handshake). */
-    async sendAppData(plaintext: Uint8Array): Promise<void> {
+    /** Send an encrypted application_data record to the peer (post-handshake); returns the wire bytes. */
+    async sendAppData(plaintext: Uint8Array): Promise<Uint8Array> {
         const cipherState = this.#cipherState;
         if (cipherState === undefined || !this.#seenClientFinished) {
             throw new Error("UdpMirrorServer: cannot sendAppData before handshake completes");
@@ -162,6 +162,15 @@ class UdpMirrorServer {
             },
             cipherState,
         );
+        await this.#udp.send(this.#peerAddress, this.#peerPort, record);
+        return record;
+    }
+
+    /** Re-inject raw record bytes verbatim, simulating a duplicated UDP datagram. */
+    async resendRaw(record: Uint8Array): Promise<void> {
+        if (this.#peerAddress === undefined || this.#peerPort === undefined) {
+            throw new Error("UdpMirrorServer: peer address/port unknown");
+        }
         await this.#udp.send(this.#peerAddress, this.#peerPort, record);
     }
 
@@ -664,6 +673,57 @@ describe("NobleDtlsChannel — UDP-bound EC-JPAKE handshake", () => {
             const inbound = await socket[Symbol.asyncIterator]().next();
             expect(inbound.done).to.equal(false);
             expect(Bytes.toHex(Bytes.of(inbound.value))).to.equal(Bytes.toHex(reply));
+        } finally {
+            await socket.close();
+            await server.close();
+        }
+    });
+
+    it("drops a replayed application-data record instead of failing the session", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
+        const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
+
+        const socket = new NobleDtlsChannel({
+            address: SERVER_IP,
+            port: server.port,
+            password: DEFAULT_PASSWORD,
+            type: "udp4",
+            random: makeFixedRandom(0xa5),
+            ephemeralScalar: makeScalarStream(0xf00dn),
+            connectTimeoutMs: 5000,
+            environment: mockEnvironment(simulator, "00:11:22:33:44:01", CLIENT_IP),
+        });
+        try {
+            await socket.connect();
+
+            let closed = false;
+            socket.onClose(() => {
+                closed = true;
+            });
+
+            const reply = Bytes.of(Bytes.fromHex("776f726c64"));
+            const rawRecord = await server.sendAppData(reply);
+
+            // Original delivery: the consumer receives the plaintext exactly once.
+            const first = await socket[Symbol.asyncIterator]().next();
+            expect(first.done).to.equal(false);
+            expect(Bytes.toHex(Bytes.of(first.value))).to.equal(Bytes.toHex(reply));
+
+            // Replay the identical record (same epoch/seq) — a benign UDP duplicate.
+            await server.resendRaw(rawRecord);
+            await MockTime.macrotasks;
+
+            // The duplicate is dropped: no teardown, session still established.
+            expect(closed).to.equal(false);
+            expect(socket.isConnected()).to.equal(true);
+
+            // A fresh-sequence inbound still works — the session survived the replay.
+            const reply2 = Bytes.of(Bytes.fromHex("616761696e"));
+            await server.sendAppData(reply2);
+            const second = await socket[Symbol.asyncIterator]().next();
+            expect(second.done).to.equal(false);
+            expect(Bytes.toHex(Bytes.of(second.value))).to.equal(Bytes.toHex(reply2));
         } finally {
             await socket.close();
             await server.close();

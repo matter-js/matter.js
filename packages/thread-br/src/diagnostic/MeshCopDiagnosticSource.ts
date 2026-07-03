@@ -231,7 +231,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         let closed = false;
         let unsubscribe: (() => void) | undefined;
         let windowTimer: Timer | undefined;
-        let fillTimers: Timer[] = [];
+        let fillTimers = new Array<Timer>();
         let resolveTeardown!: () => void;
         // teardownPromise gates the inner withSession callback: when it resolves
         // (via teardown()), the callback returns and Commissioner.release() runs.

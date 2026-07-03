@@ -10,6 +10,7 @@ import {
     type Entropy,
     ImplementationError,
     InternalError,
+    Logger,
     Millis,
     Network,
     Time,
@@ -22,10 +23,12 @@ import { p256 } from "@noble/curves/nist.js";
 import { DtlsClient, type DtlsClientConfig } from "../handshake/DtlsClient.js";
 import { ContentType } from "../record/ContentType.js";
 import { type DtlsCipherState } from "../record/DtlsCipherState.js";
-import { DTLS_HEADER_LEN, DtlsRecord } from "../record/DtlsRecord.js";
+import { DTLS_HEADER_LEN, DtlsRecord, DtlsReplayError } from "../record/DtlsRecord.js";
 import { type DtlsChannel, DtlsError } from "./DtlsChannel.js";
 import type { DtlsConnectOpts } from "./DtlsConnectOpts.js";
 import { DtlsRetransmitTimer } from "./DtlsRetransmitTimer.js";
+
+const logger = Logger.get("NobleDtlsChannel");
 
 const DEFAULT_INITIAL_RETRANSMIT_MS = 1000;
 const DEFAULT_MAX_RETRANSMIT_MS = 60_000;
@@ -379,7 +382,20 @@ export class NobleDtlsChannel implements DtlsChannel {
                 throw new DtlsError("NobleDtlsChannel: DTLS record length overruns datagram");
             }
             const slice = bytes.subarray(p, recordEnd);
-            const { record } = DtlsRecord.decode(slice, cipherState);
+            let record: DtlsRecord;
+            try {
+                ({ record } = DtlsRecord.decode(slice, cipherState));
+            } catch (e) {
+                // RFC 6347 §4.1.2.6: a replayed/old-sequence record is benign (normal UDP
+                // duplication) — drop just this record and keep processing the datagram.
+                // Every other decode failure (AEAD, malformed) stays fatal.
+                if (e instanceof DtlsReplayError) {
+                    logger.debug(`Dropping replayed DTLS record epoch=${e.epoch} seq=${e.sequenceNumber}`);
+                    p = recordEnd;
+                    continue;
+                }
+                throw e;
+            }
             if (record.type === ContentType.APPLICATION_DATA) {
                 this.#deliverPlaintext(record.fragment);
             } else if (record.type === ContentType.ALERT) {
