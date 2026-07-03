@@ -20,16 +20,18 @@ from the Border Router's perspective. Implemented today:
 - **Discovery:** passive `_meshcop` mDNS Border Router discovery (`BorderRouterRegistry`).
 - **Dataset:** Operational Dataset decode/encode (`OperationalDataset`).
 - **Diagnostics — OTBR REST:** node info, network diagnostics, active-dataset read, energy-scan and
-  diagnostic-counter-reset actions (`OtbrRestClient` / `OtbrRestDiagnosticSource`).
+  diagnostic-counter-reset actions, plus the read-only `/node/*` surface — role/state, addresses,
+  leader data, active/pending dataset, co-processor version, commissioner state and joiners
+  (`OtbrRestClient` / `OtbrRestDiagnosticSource`).
 - **Diagnostics — MeshCoP:** commissioner petition + CoAP-over-DTLS-EC-JPAKE diagnostic queries
   (`d/dq`/`d/dr`, energy scan `c/es`, PAN-ID query `c/pq`) via `connectMeshcop` / `MeshCopDiagnosticSource`.
 
-Deliberately **not** implemented (but supported by OTBR REST / MeshCoP and straightforward to add
-on need): mutating operations — active/pending **dataset push**, **joiner** onboarding, Border
-Router **state change**, and **factory reset**. These can silently partition or brick a network, so
-they need orchestration + a confirmation UX before exposure. Also unimplemented reads:
-list-connected-devices, coprocessor firmware version, and the newer `/api/diagnostics` task-queue
-REST endpoint.
+`OtbrRestClient` also exposes the OTBR **mutating** operations — active/pending **dataset push**,
+Border Router **state change**, **factory reset**, and commissioner **joiner** onboarding. These can
+silently partition or brick a network, so the library provides the capability but leaves the
+orchestration and confirmation UX to the consumer; nothing here triggers them on its own. Still
+unimplemented: MeshCoP-side dataset management (`c/as`/`c/ps`), list-connected-devices, and the
+newer `/api/diagnostics` task-queue REST endpoint.
 
 ## Using this package
 
