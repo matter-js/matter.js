@@ -37,6 +37,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
 
+- @matter/nodejs-shell
+    - Fix: Close a path-containment gap in the optional web server that let requests reach sibling directories sharing the web-root name prefix, and resolve symlinks before serving (reported by tonghuaroot)
+    - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
+
 ## 0.17.4 (2026-07-01)
 
 - @matter/general

@@ -4,6 +4,8 @@ This project provides a light-weight node.js implementation of a Matter shell ap
 
 > This package supports all Node.js LTS versions starting with 20.x
 
+> **⚠️ Development and testing tool only.** The shell (and its optional WebSocket/web interface) is intended for development, testing and debugging. It is **not** hardened for production use: it has no authentication, stores credentials unencrypted on disk, and the WebSocket/web interface serves the shell without access control. Do not expose it on untrusted networks or run it as a production service.
+
 ## Install
 
 If you want to install just the shell app then you can do so by running:
@@ -447,6 +449,8 @@ $ more .matter-shell-1/Node.ip
 # Running over websockets
 
 If the matter shell is started with the parameter --webSocketInterface all interaction with the shell will be done over a websocket instead of the local terminal. The parameter --webSocketPort NNNN can be used to change from the default port of 3000 to a user-specified port. If the parameter --webServer is added, the matter shell will also start an http server that will serve files from the same directory as the application itself utilizying the same port as the websocket. The functionality of the shell will be identical to the above description with the exception that the "exit" command will only close the websocket and not exit the matter shell application.
+
+> **⚠️ Security:** The WebSocket/web interface has **no authentication** — anyone who can reach the port gets full shell control. By default it binds to loopback (`127.0.0.1`) only; a warning is logged to remind you of this. To expose it on other interfaces pass `--webAddress <address>` (e.g. `--webAddress 0.0.0.0`), but only do so on a trusted network. This interface is meant for local development and testing, not for production or internet-facing deployments.
 
 An example application that shows interaction from a web browser is included. The example shows how commands can be sent from html and javascript in the browser to the shell and how the results of the commands can be parsed to create a user interface. 
 
