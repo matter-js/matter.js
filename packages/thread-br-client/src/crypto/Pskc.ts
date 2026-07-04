@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/general";
+import { Crypto, ImplementationError } from "@matter/general";
 import { pbkdf2AesCmac } from "./Pbkdf2AesCmac.js";
 
 const SALT_PREFIX = new TextEncoder().encode("Thread");
@@ -25,7 +25,10 @@ const PSKC_LENGTH = 16;
  * || networkName` ordering is wrong).
  */
 export namespace Pskc {
-    export function derive(args: { passphrase: string; extPanId: Uint8Array; networkName: string }): Uint8Array {
+    export function derive(
+        crypto: Crypto,
+        args: { passphrase: string; extPanId: Uint8Array; networkName: string },
+    ): Uint8Array {
         const password = new TextEncoder().encode(args.passphrase);
         if (password.length < PASSPHRASE_MIN_BYTES || password.length > PASSPHRASE_MAX_BYTES) {
             throw new ImplementationError(
@@ -47,7 +50,7 @@ export namespace Pskc {
         salt.set(args.extPanId, SALT_PREFIX.length);
         salt.set(networkNameBytes, SALT_PREFIX.length + EXT_PAN_ID_LENGTH);
 
-        return pbkdf2AesCmac({
+        return pbkdf2AesCmac(crypto, {
             password,
             salt,
             iterations: ITERATIONS,

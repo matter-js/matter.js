@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/general";
+import { Crypto, ImplementationError } from "@matter/general";
 import { AesCmacPrf128 } from "./AesCmacPrf128.js";
 
 const HLEN = 16;
@@ -15,12 +15,15 @@ const HLEN = 16;
  * Hand-rolled because Node's `crypto.pbkdf2` is hardwired to HMAC. The PRF here
  * always emits 16 bytes, so each output block needs one PRF call per iteration.
  */
-export function pbkdf2AesCmac(args: {
-    password: Uint8Array;
-    salt: Uint8Array;
-    iterations: number;
-    dkLen: number;
-}): Uint8Array {
+export function pbkdf2AesCmac(
+    crypto: Crypto,
+    args: {
+        password: Uint8Array;
+        salt: Uint8Array;
+        iterations: number;
+        dkLen: number;
+    },
+): Uint8Array {
     const { password, salt, iterations, dkLen } = args;
     if (!Number.isInteger(iterations) || iterations <= 0) {
         throw new ImplementationError(`iterations must be a positive integer, got ${iterations}`);
@@ -44,10 +47,10 @@ export function pbkdf2AesCmac(args: {
         saltedBlock[salt.length + 2] = (i >>> 8) & 0xff;
         saltedBlock[salt.length + 3] = i & 0xff;
 
-        let u = AesCmacPrf128.compute(password, saltedBlock);
+        let u = AesCmacPrf128.compute(crypto, password, saltedBlock);
         const t = new Uint8Array(u);
         for (let j = 1; j < iterations; j++) {
-            u = AesCmacPrf128.compute(password, u);
+            u = AesCmacPrf128.compute(crypto, password, u);
             for (let k = 0; k < HLEN; k++) t[k] ^= u[k];
         }
         out.set(t, (i - 1) * HLEN);
