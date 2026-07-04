@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError } from "@matter/general";
+import { Crypto, InternalError, MatterError } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 import { AesCcm8 } from "./AesCcm8.js";
 import { ContentType, isContentType } from "./ContentType.js";
@@ -119,7 +119,11 @@ function readUint48BE(buf: Uint8Array, offset: number): bigint {
  * decode invokes it after AEAD success and throws {@link DtlsReplayError} on rejection.
  */
 export namespace DtlsRecord {
-    export function encode(record: DtlsRecord, state?: DtlsRecordCipherState): Uint8Array {
+    export async function encode(
+        crypto: Crypto,
+        record: DtlsRecord,
+        state?: DtlsRecordCipherState,
+    ): Promise<Uint8Array> {
         if (record.epoch < 0 || record.epoch > MAX_EPOCH) {
             throw new InternalError(`DTLS epoch out of range: ${record.epoch}`);
         }
@@ -151,7 +155,7 @@ export namespace DtlsRecord {
             const { key, salt } = state.encryptParams();
             const nonce = state.nonceFor(salt, record.epoch, record.sequenceNumber);
             const aad = state.aadFor(record.type, record.epoch, record.sequenceNumber, plaintextLen);
-            const cipherWithTag = AesCcm8.encrypt({ key, nonce, aad, plaintext: record.fragment });
+            const cipherWithTag = await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext: record.fragment });
 
             fragment = new Uint8Array(8 + cipherWithTag.length);
             // Explicit nonce on the wire mirrors the (epoch || seq) bytes of the AAD/nonce.
@@ -177,7 +181,11 @@ export namespace DtlsRecord {
         consumed: number;
     }
 
-    export function decode(bytes: Uint8Array, state?: DtlsRecordCipherState): DecodeResult {
+    export async function decode(
+        crypto: Crypto,
+        bytes: Uint8Array,
+        state?: DtlsRecordCipherState,
+    ): Promise<DecodeResult> {
         if (bytes.length < DTLS_HEADER_LEN) {
             throw new DtlsError(`DTLS record header truncated: have ${bytes.length}, need ${DTLS_HEADER_LEN}`);
         }
@@ -233,7 +241,7 @@ export namespace DtlsRecord {
             }
             const nonce = state.nonceFor(salt, epoch, sequenceNumber);
             const aad = state.aadFor(type, epoch, sequenceNumber, plaintextLen);
-            fragment = AesCcm8.decrypt({ key, nonce, aad, ciphertextWithTag: cipherWithTag });
+            fragment = await AesCcm8.decrypt(crypto, { key, nonce, aad, ciphertextWithTag: cipherWithTag });
             // Anti-replay applies only to AEAD-protected records; epoch=0 plaintext has
             // no integrity check that a replay tracker could meaningfully gate.
             if (state.acceptIncoming !== undefined && !state.acceptIncoming(epoch, sequenceNumber)) {
