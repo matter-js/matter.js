@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
-import { createHash, type Hash } from "node:crypto";
+import { Bytes, Crypto, InternalError } from "@matter/general";
 
 const SHA256_LEN = 32;
 
@@ -26,24 +25,31 @@ const SHA256_LEN = 32;
  * Internal to `dtls/`; not re-exported from the package public API surface.
  */
 export class HandshakeTranscript {
-    #hash: Hash = createHash("sha256");
+    readonly #crypto: Crypto;
+    readonly #chunks = new Array<Uint8Array>();
+
+    constructor(crypto: Crypto) {
+        this.#crypto = crypto;
+    }
 
     /**
      * Append a handshake message in DTLS 1.2 form
      * (`type(1) || length(3) || message_seq(2) || fragment_offset(3) || fragment_length(3) || body`).
      */
     appendHandshakeMessage(messageBytes: Uint8Array): void {
-        this.#hash.update(messageBytes);
+        if (messageBytes.length > 0) {
+            // Copy: the deferred digest() must not observe caller mutations after append.
+            this.#chunks.push(new Uint8Array(messageBytes));
+        }
     }
 
     /**
-     * Snapshot the running SHA-256 digest without disturbing the transcript so
-     * the same accumulator can compute Finished for both peers and continue
-     * absorbing later messages. Backed by `Hash.copy()` (Node.js >= 13.10).
+     * SHA-256 over the messages appended so far. Non-mutating: the buffer keeps
+     * growing, so the same transcript yields Finished for both peers and keeps
+     * absorbing later messages.
      */
-    digest(): Uint8Array {
-        const snapshot = this.#hash.copy();
-        const out = new Uint8Array(snapshot.digest());
+    async digest(): Promise<Uint8Array> {
+        const out = Bytes.of(await this.#crypto.computeHash(this.#chunks));
         if (out.length !== SHA256_LEN) {
             throw new InternalError(`HandshakeTranscript digest length ${out.length} != ${SHA256_LEN}`);
         }
