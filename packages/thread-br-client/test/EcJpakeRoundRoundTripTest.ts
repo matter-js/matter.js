@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -11,6 +12,7 @@ import { ECJPAKE_ID_CLIENT, EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRoun
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
     x1: string;
@@ -30,13 +32,19 @@ function bigintFromHex(hex: string): bigint {
 describe("EcJpakeRound parse -> serialize round-trip", () => {
     const vectors = loadVectors();
 
-    it("is byte-identical across synthetic round-1 messages with varying r-lengths", () => {
+    it("is byte-identical across synthetic round-1 messages with varying r-lengths", async () => {
         // Mix of ephemeral seeds to hit both 32-byte and shorter r encodings via
         // the deterministic build/parse loop.
         const x1 = bigintFromHex(vectors.x1);
         const x2 = bigintFromHex(vectors.x2);
         for (let seed = 7n; seed < 20n; seed++) {
-            const built = EcJpakeRound.buildRound1({ x1, x2, v1: seed, v2: seed + 1n, id: ECJPAKE_ID_CLIENT });
+            const built = await EcJpakeRound.buildRound1(crypto, {
+                x1,
+                x2,
+                v1: seed,
+                v2: seed + 1n,
+                id: ECJPAKE_ID_CLIENT,
+            });
             const wire = EcJpakeRound.serializeRound1(built.kp1, built.kp2);
             const round = EcJpakeRound.parseRound1(wire);
             const reEncoded = EcJpakeRound.serializeRound1(round.kp1, round.kp2);
@@ -44,8 +52,8 @@ describe("EcJpakeRound parse -> serialize round-trip", () => {
         }
     });
 
-    it("preserves both kp1 and kp2 ZKP fields independently across parse -> serialize", () => {
-        const built = EcJpakeRound.buildRound1({
+    it("preserves both kp1 and kp2 ZKP fields independently across parse -> serialize", async () => {
+        const built = await EcJpakeRound.buildRound1(crypto, {
             x1: bigintFromHex(vectors.x1),
             x2: bigintFromHex(vectors.x2),
             v1: 0xdeadbeefn,

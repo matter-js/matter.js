@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Crypto, InternalError } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { DtlsError } from "../channel/DtlsChannel.js";
 import { SchnorrZkp, type SchnorrZkpGenerator } from "./SchnorrZkp.js";
@@ -137,15 +137,18 @@ export const EcJpakeRound = {
      *
      * `id` is `ECJPAKE_ID_CLIENT` for the joiner and `ECJPAKE_ID_SERVER` for the commissioner.
      */
-    buildRound1(args: { x1: bigint; x2: bigint; v1: bigint; v2: bigint; id: string }): {
+    async buildRound1(
+        crypto: Crypto,
+        args: { x1: bigint; x2: bigint; v1: bigint; v2: bigint; id: string },
+    ): Promise<{
         kp1: EcJpakeKeyKP;
         kp2: EcJpakeKeyKP;
-    } {
+    }> {
         const { x1, x2, v1, v2, id } = args;
         const X1 = Point.BASE.multiply(x1).toBytes(false);
         const X2 = Point.BASE.multiply(x2).toBytes(false);
-        const zkp1 = SchnorrZkp.generate({ privateKey: x1, publicKey: X1, ephemeral: v1, id });
-        const zkp2 = SchnorrZkp.generate({ privateKey: x2, publicKey: X2, ephemeral: v2, id });
+        const zkp1 = await SchnorrZkp.generate(crypto, { privateKey: x1, publicKey: X1, ephemeral: v1, id });
+        const zkp2 = await SchnorrZkp.generate(crypto, { privateKey: x2, publicKey: X2, ephemeral: v2, id });
         return {
             kp1: { X: X1, zkp: zkp1 },
             kp2: { X: X2, zkp: zkp2 },
@@ -193,7 +196,10 @@ export const EcJpakeRound = {
      * Caller-supplied `v` makes output deterministic for testing; production
      * callers must source `v` from a CSPRNG.
      */
-    buildRound2(args: { xm2: bigint; s: bigint; v: bigint; id: string; generator: SchnorrZkpGenerator }): EcJpakeKeyKP {
+    async buildRound2(
+        crypto: Crypto,
+        args: { xm2: bigint; s: bigint; v: bigint; id: string; generator: SchnorrZkpGenerator },
+    ): Promise<EcJpakeKeyKP> {
         const { xm2, s, v, id, generator } = args;
         if (xm2 <= 0n || xm2 >= N) {
             throw new InternalError("xm2 must be in [1, n-1]");
@@ -207,7 +213,7 @@ export const EcJpakeRound = {
         }
         const Xm = generator.point.multiply(xm);
         const XmBytes = Xm.toBytes(false);
-        const zkp = SchnorrZkp.generate({
+        const zkp = await SchnorrZkp.generate(crypto, {
             privateKey: xm,
             publicKey: XmBytes,
             ephemeral: v,
@@ -272,8 +278,11 @@ export const EcJpakeRound = {
      * on any verification failure — including malformed bytes — to mirror the
      * round-1 `SchnorrZkp.verify` contract.
      */
-    verifyRound2Zkp(args: { kp: EcJpakeKeyKP; generator: SchnorrZkpGenerator; peerId: string }): boolean {
+    async verifyRound2Zkp(
+        crypto: Crypto,
+        args: { kp: EcJpakeKeyKP; generator: SchnorrZkpGenerator; peerId: string },
+    ): Promise<boolean> {
         const { kp, generator, peerId } = args;
-        return SchnorrZkp.verify({ zkp: kp.zkp, publicKey: kp.X, id: peerId, generator });
+        return await SchnorrZkp.verify(crypto, { zkp: kp.zkp, publicKey: kp.X, id: peerId, generator });
     },
 } as const;
