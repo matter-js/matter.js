@@ -82,21 +82,23 @@ export class StandardCrypto extends Crypto {
         return result;
     }
 
-    encrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes) {
+    encrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes, tagLength = 16) {
         const ccm = Ccm(key);
         return ccm.encrypt({
             pt: Bytes.of(data),
             nonce: Bytes.of(nonce),
             adata: associatedData !== undefined ? Bytes.of(associatedData) : undefined,
+            micLength: tagLength,
         });
     }
 
-    decrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes) {
+    decrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes, tagLength = 16) {
         const ccm = Ccm(key);
         return ccm.decrypt({
             ct: Bytes.of(data),
             nonce: Bytes.of(nonce),
             adata: associatedData !== undefined ? Bytes.of(associatedData) : undefined,
+            micLength: tagLength,
         });
     }
 

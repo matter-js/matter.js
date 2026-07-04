@@ -91,14 +91,14 @@ export abstract class Crypto extends Entropy {
     abstract implementationName: string;
 
     /**
-     * Encrypt using AES-CCM with constants limited to those required by Matter.
+     * Encrypt using AES-CCM. `tagLength` defaults to 16 (Matter AEAD); pass 8 for CCM-8.
      */
-    abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
+    abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
 
     /**
-     * Decrypt using AES-CCM with constants limited to those required by Matter.
+     * Decrypt using AES-CCM. `tagLength` defaults to 16; pass 8 for CCM-8.
      */
-    abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
+    abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
 
     /**
      * Compute a cryptographic hash using the specified algorithm. If no algorithm is specified, SHA-256 is used.
