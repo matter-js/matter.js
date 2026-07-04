@@ -182,4 +182,76 @@ describe("SecureSession", () => {
             expect(result.message.packetHeader.messageId).equals(0x12345679);
         });
     });
+
+    describe("ICD wakefulness on inbound activity", () => {
+        const KEY = Bytes.fromHex("d90e13180d00baadd20cf5ed4913d3ff");
+
+        function icdFabric() {
+            const fabric = new Fabric(crypto, {
+                fabricIndex: FabricIndex(1),
+                fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
+                nodeId: NodeId(1),
+                rootNodeId: NodeId(1),
+                globalId: GlobalFabricId(0),
+                keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
+                rootPublicKey: TEST_ROOT_PUBLIC_KEY,
+                rootVendorId: VendorId(0),
+                rootCert: new Uint8Array(),
+                identityProtectionKey: new Uint8Array(),
+                operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
+                intermediateCACert: new Uint8Array(),
+                operationalCert: new Uint8Array(),
+                label: "",
+            });
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            fabric.storage = new StorageContext(storage, ["fabric"]);
+            fabric.icd.addPeer({ peerNodeId: NodeId(11), key: KEY, counterStart: 0, lastOffset: 0 }, () => {});
+            return fabric;
+        }
+
+        function icdSession(fabric: Fabric, peerNodeId: NodeId, isInitiator: boolean) {
+            return new NodeSession({
+                crypto,
+                id: 2,
+                fabric,
+                peerNodeId,
+                peerSessionId: 0x8d4b,
+                decryptKey: DECRYPT_KEY,
+                encryptKey: ENCRYPT_KEY,
+                attestationKey: new Uint8Array(),
+                isInitiator,
+            });
+        }
+
+        it("re-arms a registered ICD peer's wakefulness on a device-initiated session", () => {
+            const fabric = icdFabric();
+            const wakefulness = fabric.icd.wakefulnessFor(NodeId(11))!;
+            wakefulness.requiresAwait = true;
+            expect(wakefulness.awake.value).false;
+
+            icdSession(fabric, NodeId(11), false); // responder = device initiated the session
+
+            expect(wakefulness.awake.value).true;
+            expect(wakefulness.available.value).true;
+            wakefulness.close();
+        });
+
+        it("does not re-arm on a controller-initiated session", () => {
+            const fabric = icdFabric();
+            const wakefulness = fabric.icd.wakefulnessFor(NodeId(11))!;
+            wakefulness.requiresAwait = true;
+
+            icdSession(fabric, NodeId(11), true); // initiator = we opened the session
+
+            expect(wakefulness.awake.value).false;
+            wakefulness.close();
+        });
+
+        it("is a no-op for a peer with no ICD registration on the fabric", () => {
+            const fabric = icdFabric();
+            expect(() => icdSession(fabric, NodeId(22), false)).not.throw();
+            fabric.icd.wakefulnessFor(NodeId(11))!.close();
+        });
+    });
 });

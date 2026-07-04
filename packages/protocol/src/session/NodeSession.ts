@@ -139,6 +139,15 @@ export class NodeSession extends SecureSession {
             manager?.sessions.add(this);
         }
         fabric?.addSession(this);
+
+        // A device-initiated session (we are the responder) proves a registered ICD peer is awake, so re-arm its
+        // wakefulness the same as a Check-In would — this surfaces liveness a Check-In cadence earlier when a LIT peer
+        // reconnects to us on its own (e.g. after a reboot) rather than via its next scheduled Check-In. Our own
+        // outbound sessions and ongoing subscription/response traffic are excluded so subscription liveness stays
+        // decoupled from availability.
+        if (!isInitiator && fabric?.icdActive) {
+            fabric.icd.wakefulnessFor(peerNodeId)?.noteSignal();
+        }
     }
 
     get parameterDiagnostics() {
