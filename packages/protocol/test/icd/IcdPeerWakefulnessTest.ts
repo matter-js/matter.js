@@ -122,6 +122,26 @@ describe("IcdPeerWakefulness", () => {
         expect(fired).equals(1);
     });
 
+    it("sizes the availability window from an injected check-in delivery margin", async () => {
+        const w = lit();
+        w.setTimings({ checkInDeliveryMargin: Seconds(20) });
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.noteSignal(); // idle (30s) + injected margin (20s) = 50s window
+
+        // Past idle + old fixed 5s margin (35s) but before idle + injected margin (50s): no spurious lapse.
+        await MockTime.advance(Millis(Seconds(40)));
+        expect(w.available.value).equals(true);
+        expect(fired).equals(0);
+
+        // Past idle + injected margin: the window lapses.
+        await MockTime.advance(Millis(Seconds(11)));
+        expect(w.available.value).equals(false);
+        expect(fired).equals(1);
+    });
+
     it("reverts to the idle Check-In cadence when the report interval is cleared", async () => {
         const w = lit();
         let fired = 0;

@@ -27,7 +27,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { bool, field, nonvolatile, octstr, subjectId, systimeMs, uint32, uint8 } from "@matter/model";
-import { FabricManager, PeerAddress, type FabricIcd } from "@matter/protocol";
+import { FabricManager, PeerAddress, PeerSet, type FabricIcd } from "@matter/protocol";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdMultiAdminError } from "./IcdMultiAdminError.js";
@@ -453,10 +453,12 @@ export class IcdClient extends Behavior {
         }
 
         const icdState = this.endpoint.maybeStateOf(IcdManagementClient);
+        const peer = this.env.get(PeerSet).get(this.internal.fedPeer);
         wakefulness.setTimings({
             activeModeThreshold:
                 icdState?.activeModeThreshold === undefined ? undefined : Millis(icdState.activeModeThreshold),
             idleModeDuration: icdState?.idleModeDuration === undefined ? undefined : Seconds(icdState.idleModeDuration),
+            checkInDeliveryMargin: peer?.exchangeProvider.maximumPeerResponseTime(Millis(0), true),
         });
         wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
 

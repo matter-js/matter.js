@@ -301,12 +301,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
         // Default wait spans the peer's idle window plus the same reachability margin used for availability.
         const idle = this.#node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
+        const margin =
+            this.#node.env.get(PeerSet).get(address)?.exchangeProvider.maximumPeerResponseTime(Millis(0), true) ??
+            IcdPeerWakefulness.AVAILABILITY_MARGIN;
         const effectiveTimeout =
-            timeout ??
-            Millis(
-                (idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) +
-                    IcdPeerWakefulness.AVAILABILITY_MARGIN,
-            );
+            timeout ?? Millis((idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) + margin);
 
         return this.#awaitWake(wakefulness, address, effectiveTimeout);
     }

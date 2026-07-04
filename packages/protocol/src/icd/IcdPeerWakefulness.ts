@@ -25,7 +25,9 @@ import {
  *   - {@link awake} — send-now. Window length is `activeModeThreshold`. Any inbound signal re-arms it; a StayActive
  *     promise extends it; expiry clears it.
  *   - {@link available} — not-offline. Longer window of `max(idleModeDuration, active report interval) +
- *     AVAILABILITY_MARGIN`. While subscribed the peer suppresses Check-Ins and instead re-arms this window via
+ *     checkInDeliveryMargin`, the last being the peer's worst-case MRP delivery time (injected via {@link setTimings};
+ *     defaults to {@link AVAILABILITY_MARGIN}) so a Check-In delayed by retransmission backoff does not lapse the
+ *     window. While subscribed the peer suppresses Check-Ins and instead re-arms this window via
  *     subscription reports, which legitimately arrive as late as the negotiated `maxInterval` (idle + jitter); sizing
  *     from the report cadence avoids a spurious lapse mid-cycle. Expiry means an expected Check-In (or report) was
  *     missed, i.e. the peer is offline.
@@ -46,6 +48,7 @@ export class IcdPeerWakefulness {
     #requiresAwait = false;
     #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
     #idleModeDuration = IcdPeerWakefulness.DEFAULT_IDLE;
+    #checkInDeliveryMargin: Duration = IcdPeerWakefulness.AVAILABILITY_MARGIN;
     #activeReportInterval?: Duration;
 
     #awakeUntil = Timestamp(0);
@@ -104,12 +107,19 @@ export class IcdPeerWakefulness {
         this.#operatingModeChanged.emit(value);
     }
 
-    setTimings(timings: { activeModeThreshold?: Duration; idleModeDuration?: Duration }) {
+    setTimings(timings: {
+        activeModeThreshold?: Duration;
+        idleModeDuration?: Duration;
+        checkInDeliveryMargin?: Duration;
+    }) {
         if (timings.activeModeThreshold !== undefined) {
             this.#activeModeThreshold = timings.activeModeThreshold;
         }
         if (timings.idleModeDuration !== undefined) {
             this.#idleModeDuration = timings.idleModeDuration;
+        }
+        if (timings.checkInDeliveryMargin !== undefined) {
+            this.#checkInDeliveryMargin = timings.checkInDeliveryMargin;
         }
     }
 
@@ -190,7 +200,7 @@ export class IcdPeerWakefulness {
             this.#activeReportInterval !== undefined
                 ? Duration.max(this.#idleModeDuration, this.#activeReportInterval)
                 : this.#idleModeDuration;
-        return Millis(cadence + IcdPeerWakefulness.AVAILABILITY_MARGIN);
+        return Millis(cadence + this.#checkInDeliveryMargin);
     }
 
     #armAvailable(duration: Duration) {
