@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StandardCrypto } from "@matter/general";
+import { CryptoDecryptError, StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { p256 } from "@noble/curves/nist.js";
+import { DtlsError } from "../src/dtls/channel/DtlsChannel.js";
 import { EcJpakePms } from "../src/dtls/ecjpake/EcJpakePms.js";
 import {
     ECJPAKE_ID_CLIENT,
@@ -53,11 +54,23 @@ function makeFixedRandom(byte: number): () => Uint8Array {
     return () => new Uint8Array(32).fill(byte);
 }
 
-/** Assert that a promise rejects. */
-async function expectReject(promise: Promise<unknown>): Promise<void> {
+/**
+ * Assert that a promise rejects. If `expected` is given (an error constructor or a message
+ * regex), the rejection must also match it — callers exercising a specific failure mode should
+ * pass this so the test can't pass for the wrong reason.
+ */
+async function expectReject(
+    promise: Promise<unknown>,
+    expected?: { new (...args: never[]): Error } | RegExp,
+): Promise<void> {
     try {
         await promise;
-    } catch {
+    } catch (e) {
+        if (expected instanceof RegExp) {
+            expect((e as Error).message).to.match(expected);
+        } else if (expected !== undefined) {
+            expect(e).to.be.instanceOf(expected);
+        }
         return;
     }
     expect.fail("expected promise to reject");
@@ -695,7 +708,7 @@ describe("DtlsClient — failure paths", () => {
         // ZKP V coordinate of the first server KP).
         const tampered = Uint8Array.from(reply);
         tampered[200] ^= 0x01;
-        await expectReject(client.onDatagram(tampered));
+        await expectReject(client.onDatagram(tampered), DtlsError);
         expect(client.state()).to.equal("failed");
     });
 
@@ -719,7 +732,7 @@ describe("DtlsClient — failure paths", () => {
         // client hits is the AEAD tag check on the encrypted server Finished record (the AES
         // key the server used to seal it differs from the one the client derives). If keys
         // happened to align, the verify_data MAC check would catch it instead.
-        await expectReject(runHandshake(client, server));
+        await expectReject(runHandshake(client, server), CryptoDecryptError);
         expect(client.state()).to.equal("failed");
     });
 });

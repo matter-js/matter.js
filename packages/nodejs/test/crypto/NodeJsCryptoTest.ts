@@ -8,6 +8,7 @@ import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import {
     b$,
     Bytes,
+    CryptoInputError,
     DataReader,
     HASH_ALGORITHM_OUTPUT_LENGTHS,
     HashAlgorithm,
@@ -72,6 +73,17 @@ describe("NodeJsCrypto", () => {
 
             const back = new NodeJsCrypto().decrypt(key, a, n12, Bytes.of(aad), 8);
             expect(Bytes.toHex(back)).equals(Bytes.toHex(pt));
+        });
+
+        it("rejects an illegal tagLength", () => {
+            for (const bad of [5, 17, 18]) {
+                expect(() => cryptoNode.encrypt(KEY_2, PLAIN_DATA_2, NONCE_2, ADDITIONAL_AUTH_DATA_2, bad)).to.throw(
+                    CryptoInputError,
+                );
+                expect(() => cryptoNode.decrypt(KEY, ENCRYPTED_DATA, NONCE, ADDITIONAL_AUTH_DATA, bad)).to.throw(
+                    CryptoInputError,
+                );
+            }
         });
     });
 
