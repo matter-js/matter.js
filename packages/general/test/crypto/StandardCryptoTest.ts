@@ -98,6 +98,11 @@ describe("StandardCrypto", () => {
         expect(Bytes.toHex(hash)).equals("ab4a2b4fba653117");
     });
 
+    it("cmac matches RFC 4493 Example 2 via the Crypto abstraction", () => {
+        const out = crypto.cmac(b$`2b7e151628aed2a6abf7158809cf4f3c`, b$`6bc1bee22e409f96e93d7e117393172a`);
+        expect(Bytes.toHex(out)).equals("070a16b46b4d4144f79bdd9dd04a287c");
+    });
+
     it("computes correct DH shared secret", async () => {
         const key1 = await crypto.createKeyPair();
         const key2 = await crypto.createKeyPair();
