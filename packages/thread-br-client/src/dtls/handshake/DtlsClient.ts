@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, InternalError } from "@matter/general";
+import { Crypto, ImplementationError, InternalError } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 import { EcJpakePms } from "../ecjpake/EcJpakePms.js";
 import { ECJPAKE_ID_CLIENT, ECJPAKE_ID_SERVER, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
@@ -52,6 +52,8 @@ export type DtlsClientState =
     | "failed";
 
 export interface DtlsClientConfig {
+    /** Crypto backend threaded through record codec, EC-JPAKE, PRF and transcript. */
+    crypto: Crypto;
     /** EC-JPAKE password (PSKc bytes for Thread). Hashed by mbedTLS as the integer of these bytes. */
     password: Uint8Array;
     /** Returns 32 bytes for `ClientHello.random`. Production: CSPRNG. */
@@ -100,9 +102,10 @@ function bigintFromBE(bytes: Uint8Array): bigint {
 
 export class DtlsClient {
     readonly #config: DtlsClientConfig;
+    readonly #crypto: Crypto;
 
     #state: DtlsClientState = "initial";
-    #transcript = new HandshakeTranscript();
+    #transcript: HandshakeTranscript;
     #handshakeMessageSeq = 0;
     #recordSeq = 0n;
     #lastFlight = new Array<Uint8Array>();
@@ -125,6 +128,8 @@ export class DtlsClient {
 
     constructor(config: DtlsClientConfig) {
         this.#config = config;
+        this.#crypto = config.crypto;
+        this.#transcript = new HandshakeTranscript(this.#crypto);
     }
 
     state(): DtlsClientState {
@@ -145,7 +150,7 @@ export class DtlsClient {
     }
 
     /** Initial flight: ClientHello with empty cookie. */
-    start(): DtlsClientStep {
+    async start(): Promise<DtlsClientStep> {
         if (this.#state !== "initial") {
             throw new ImplementationError(`DtlsClient.start() called in state '${this.#state}'`);
         }
@@ -160,41 +165,41 @@ export class DtlsClient {
         const x2 = this.#config.ephemeralScalar();
         const v1 = this.#config.ephemeralScalar();
         const v2 = this.#config.ephemeralScalar();
-        const round1 = EcJpakeRound.buildRound1({ x1, x2, v1, v2, id: ECJPAKE_ID_CLIENT });
+        const round1 = await EcJpakeRound.buildRound1(this.#crypto, { x1, x2, v1, v2, id: ECJPAKE_ID_CLIENT });
         this.#x2 = x2;
         this.#X1 = round1.kp1.X;
         this.#X2 = round1.kp2.X;
         this.#round1Bytes = EcJpakeRound.serializeRound1(round1.kp1, round1.kp2);
 
-        const records = this.#emitClientHello(new Uint8Array(0), false);
+        const records = await this.#emitClientHello(new Uint8Array(0), false);
         this.#state = "sent_first_clienthello";
         return { records };
     }
 
     /** Re-emit the last flight bytes-identically (RFC 6347 §4.2.4). */
-    onRetransmit(): DtlsClientStep {
+    async onRetransmit(): Promise<DtlsClientStep> {
         if (this.#state === "initial" || this.#state === "established" || this.#state === "failed") {
             throw new ImplementationError(`DtlsClient.onRetransmit() called in state '${this.#state}'`);
         }
         return { records: this.#lastFlight.map(r => r.slice()) };
     }
 
-    onDatagram(bytes: Uint8Array): DtlsClientStep {
+    async onDatagram(bytes: Uint8Array): Promise<DtlsClientStep> {
         if (this.#state === "established" || this.#state === "failed" || this.#state === "initial") {
             throw new ImplementationError(`DtlsClient.onDatagram() called in state '${this.#state}'`);
         }
         try {
             switch (this.#state) {
                 case "sent_first_clienthello":
-                    return this.#handleHelloVerifyOrServerHello(this.#splitDatagramIntoRecords(bytes));
+                    return await this.#handleHelloVerifyOrServerHello(await this.#splitDatagramIntoRecords(bytes));
                 case "sent_clienthello_with_cookie":
-                    return this.#handleServerHelloFlight(this.#splitDatagramIntoRecords(bytes));
+                    return await this.#handleServerHelloFlight(await this.#splitDatagramIntoRecords(bytes));
                 case "sent_clientkeyexchange_flight":
                     // Cannot eagerly split this datagram — the encrypted Finished record is at
                     // epoch 1 and needs the CCS earlier in the same datagram to bump the read
                     // epoch first. Walk the record envelopes lazily so CCS arrives before the
                     // AEAD decrypt is attempted.
-                    return this.#handleServerFinishedFlightLazy(bytes);
+                    return await this.#handleServerFinishedFlightLazy(bytes);
                 default:
                     throw new InternalError(`DtlsClient: state ${this.#state} cannot consume a datagram`);
             }
@@ -207,11 +212,11 @@ export class DtlsClient {
     // -----------------------------------------------------------------------
     // Datagram / record splitting
 
-    #splitDatagramIntoRecords(bytes: Uint8Array): InboundRecord[] {
+    async #splitDatagramIntoRecords(bytes: Uint8Array): Promise<InboundRecord[]> {
         const out = new Array<InboundRecord>();
         let p = 0;
         while (p < bytes.length) {
-            const { record, consumed } = DtlsRecord.decode(bytes.subarray(p), this.#cipherState);
+            const { record, consumed } = await DtlsRecord.decode(this.#crypto, bytes.subarray(p), this.#cipherState);
             out.push(record);
             p += consumed;
         }
@@ -241,7 +246,7 @@ export class DtlsClient {
     // -----------------------------------------------------------------------
     // Outbound encoding helpers
 
-    #emitClientHello(cookie: Uint8Array, contributesToTranscript: boolean): Uint8Array[] {
+    async #emitClientHello(cookie: Uint8Array, contributesToTranscript: boolean): Promise<Uint8Array[]> {
         const body = ClientHelloMessage.build({
             random: this.#clientRandom,
             cookie,
@@ -261,7 +266,7 @@ export class DtlsClient {
                 }),
             );
         }
-        const record = DtlsRecord.encode({
+        const record = await DtlsRecord.encode(this.#crypto, {
             type: ContentType.HANDSHAKE,
             epoch: 0,
             sequenceNumber: this.#recordSeq,
@@ -276,7 +281,7 @@ export class DtlsClient {
     // -----------------------------------------------------------------------
     // State handlers
 
-    #handleHelloVerifyOrServerHello(records: InboundRecord[]): DtlsClientStep {
+    async #handleHelloVerifyOrServerHello(records: InboundRecord[]): Promise<DtlsClientStep> {
         const messages = this.#extractHandshakeMessages(records);
         if (messages.length === 0) {
             throw new DtlsError("DtlsClient: expected handshake message, got none");
@@ -285,14 +290,14 @@ export class DtlsClient {
             const { cookie } = HelloVerifyRequestMessage.parse(messages[0].body);
             // RFC 6347 §4.2.6: the first ClientHello and HelloVerifyRequest are NOT in the
             // transcript; the transcript starts with the second ClientHello.
-            this.#transcript = new HandshakeTranscript();
-            const records2 = this.#emitClientHello(cookie, true);
+            this.#transcript = new HandshakeTranscript(this.#crypto);
+            const records2 = await this.#emitClientHello(cookie, true);
             this.#state = "sent_clienthello_with_cookie";
             return { records: records2 };
         }
         // Cookieless server (mbedTLS always cookies, but the spec allows skipping). Seed the
         // transcript with our first (and only) ClientHello — the bytes match what we sent.
-        this.#transcript = new HandshakeTranscript();
+        this.#transcript = new HandshakeTranscript(this.#crypto);
         const firstHelloBody = ClientHelloMessage.build({
             random: this.#clientRandom,
             cookie: new Uint8Array(0),
@@ -305,15 +310,15 @@ export class DtlsClient {
                 body: firstHelloBody,
             }),
         );
-        return this.#consumeServerFlight(messages);
+        return await this.#consumeServerFlight(messages);
     }
 
-    #handleServerHelloFlight(records: InboundRecord[]): DtlsClientStep {
+    async #handleServerHelloFlight(records: InboundRecord[]): Promise<DtlsClientStep> {
         const messages = this.#extractHandshakeMessages(records);
-        return this.#consumeServerFlight(messages);
+        return await this.#consumeServerFlight(messages);
     }
 
-    #consumeServerFlight(messages: InboundHandshake[]): DtlsClientStep {
+    async #consumeServerFlight(messages: InboundHandshake[]): Promise<DtlsClientStep> {
         if (messages.length < 3) {
             throw new DtlsError(
                 `DtlsClient: server flight needs ServerHello+ServerKeyExchange+ServerHelloDone, got ${messages.length} message(s)`,
@@ -342,20 +347,20 @@ export class DtlsClient {
         this.#X4 = serverRound1.kp2.X;
         // Verify the server's round-1 ZKPs against the curve base point.
         if (
-            !SchnorrZkp.verify({
+            !(await SchnorrZkp.verify(this.#crypto, {
                 zkp: serverRound1.kp1.zkp,
                 publicKey: serverRound1.kp1.X,
                 id: ECJPAKE_ID_SERVER,
-            })
+            }))
         ) {
             throw new DtlsError("DtlsClient: server round-1 KP1 ZKP verification failed");
         }
         if (
-            !SchnorrZkp.verify({
+            !(await SchnorrZkp.verify(this.#crypto, {
                 zkp: serverRound1.kp2.zkp,
                 publicKey: serverRound1.kp2.X,
                 id: ECJPAKE_ID_SERVER,
-            })
+            }))
         ) {
             throw new DtlsError("DtlsClient: server round-1 KP2 ZKP verification failed");
         }
@@ -369,11 +374,11 @@ export class DtlsClient {
             Xm1: this.#X3,
         });
         if (
-            !EcJpakeRound.verifyRound2Zkp({
+            !(await EcJpakeRound.verifyRound2Zkp(this.#crypto, {
                 kp: skeKp,
                 generator: serverGenerator,
                 peerId: ECJPAKE_ID_SERVER,
-            })
+            }))
         ) {
             throw new DtlsError("DtlsClient: server round-2 ZKP verification failed");
         }
@@ -386,14 +391,14 @@ export class DtlsClient {
         this.#transcript.appendHandshakeMessage(shd.transcriptBytes);
 
         this.#state = "received_serverhello_flight";
-        return this.#emitClientFlight(skeKp.X);
+        return await this.#emitClientFlight(skeKp.X);
     }
 
     /**
      * Build the client's CKE + CCS + Finished flight and arm the cipher state.
      * `serverRound2X` is the server's round-2 public point (`Xp` for the PMS derivation).
      */
-    #emitClientFlight(serverRound2X: Uint8Array): DtlsClientStep {
+    async #emitClientFlight(serverRound2X: Uint8Array): Promise<DtlsClientStep> {
         if (this.#X3 === undefined || this.#X4 === undefined || this.#serverRandom === undefined) {
             throw new InternalError("DtlsClient: emitClientFlight called before server flight was parsed");
         }
@@ -406,7 +411,7 @@ export class DtlsClient {
             Xp2: this.#X4,
             Xm1: this.#X1,
         });
-        const clientRound2 = EcJpakeRound.buildRound2({
+        const clientRound2 = await EcJpakeRound.buildRound2(this.#crypto, {
             xm2: this.#x2,
             s,
             v: v3,
@@ -432,19 +437,19 @@ export class DtlsClient {
         );
 
         // Derive PMS, master_secret, key_block, cipher state.
-        const pms = EcJpakePms.derive({
+        const pms = await EcJpakePms.derive(this.#crypto, {
             Xp: serverRound2X,
             Xp2: this.#X4,
             xm2: this.#x2,
             s,
         });
-        const masterSecret = TlsPrf.masterSecret({
+        const masterSecret = await TlsPrf.masterSecret(this.#crypto, {
             premasterSecret: pms,
             clientRandom: this.#clientRandom,
             serverRandom: this.#serverRandom,
         });
         this.#masterSecret = masterSecret;
-        const keyBlock = TlsPrf.keyBlock({
+        const keyBlock = await TlsPrf.keyBlock(this.#crypto, {
             masterSecret,
             clientRandom: this.#clientRandom,
             serverRandom: this.#serverRandom,
@@ -458,10 +463,10 @@ export class DtlsClient {
         this.#cipherState = cipherState;
 
         // Compute client Finished verify_data over the transcript (CH..SHD..CKE).
-        const verifyData = TlsPrf.verifyData({
+        const verifyData = await TlsPrf.verifyData(this.#crypto, {
             masterSecret,
             role: "client",
-            transcriptDigest: this.#transcript.digest(),
+            transcriptDigest: await this.#transcript.digest(),
         });
         const finishedBody = FinishedMessage.build(verifyData);
         const finishedMsgSeq = this.#handshakeMessageSeq;
@@ -481,14 +486,14 @@ export class DtlsClient {
             }),
         );
 
-        const ckeRecord = DtlsRecord.encode({
+        const ckeRecord = await DtlsRecord.encode(this.#crypto, {
             type: ContentType.HANDSHAKE,
             epoch: 0,
             sequenceNumber: this.#recordSeq,
             fragment: ckeHandshake,
         });
         this.#recordSeq += 1n;
-        const ccsRecord = DtlsRecord.encode({
+        const ccsRecord = await DtlsRecord.encode(this.#crypto, {
             type: ContentType.CHANGE_CIPHER_SPEC,
             epoch: 0,
             sequenceNumber: this.#recordSeq,
@@ -497,7 +502,8 @@ export class DtlsClient {
         this.#recordSeq += 1n;
         cipherState.advanceWriteEpoch();
         const finishedSeq = cipherState.nextWriteSeq();
-        const finishedRecord = DtlsRecord.encode(
+        const finishedRecord = await DtlsRecord.encode(
+            this.#crypto,
             {
                 type: ContentType.HANDSHAKE,
                 epoch: cipherState.writeEpoch,
@@ -520,7 +526,7 @@ export class DtlsClient {
      * `DtlsRecord.decode` for both records would feed CCS to the codec only after the
      * decrypt of the Finished record had already failed with a wrong-epoch error.
      */
-    #handleServerFinishedFlightLazy(bytes: Uint8Array): DtlsClientStep {
+    async #handleServerFinishedFlightLazy(bytes: Uint8Array): Promise<DtlsClientStep> {
         const cipherState = this.#cipherState;
         const masterSecret = this.#masterSecret;
         if (cipherState === undefined || masterSecret === undefined) {
@@ -542,7 +548,7 @@ export class DtlsClient {
             }
             const recordBytes = bytes.subarray(p, recordEnd);
             const stateForDecode = epoch === 0 ? undefined : cipherState;
-            const { record } = DtlsRecord.decode(recordBytes, stateForDecode);
+            const { record } = await DtlsRecord.decode(this.#crypto, recordBytes, stateForDecode);
             if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
                 ChangeCipherSpec.parse(record.fragment);
                 cipherState.advanceReadEpoch();
@@ -577,10 +583,10 @@ export class DtlsClient {
         // Snapshot the transcript BEFORE appending the server's Finished body — the server's
         // verify_data was computed over (CH..SHD..CKE..clientFinished), exactly the digest we
         // already hold from the previous append in #emitClientFlight.
-        const expected = TlsPrf.verifyData({
+        const expected = await TlsPrf.verifyData(this.#crypto, {
             masterSecret,
             role: "server",
-            transcriptDigest: this.#transcript.digest(),
+            transcriptDigest: await this.#transcript.digest(),
         });
         const actual = FinishedMessage.parse(serverFinishedBody).verifyData;
         if (!constantTimeEqual(expected, actual)) {
