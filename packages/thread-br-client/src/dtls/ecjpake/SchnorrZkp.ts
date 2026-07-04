@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, Crypto, InternalError } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
-import { sha256 } from "@noble/hashes/sha2.js";
 import { DtlsError } from "../channel/DtlsChannel.js";
 
 /**
@@ -37,12 +36,15 @@ function be32(value: number): Uint8Array {
     return out;
 }
 
-function hashChallenge(args: {
-    gBytes: Uint8Array;
-    vBytes: Uint8Array;
-    xBytes: Uint8Array;
-    idBytes: Uint8Array;
-}): bigint {
+async function hashChallenge(
+    crypto: Crypto,
+    args: {
+        gBytes: Uint8Array;
+        vBytes: Uint8Array;
+        xBytes: Uint8Array;
+        idBytes: Uint8Array;
+    },
+): Promise<bigint> {
     const { gBytes, vBytes, xBytes, idBytes } = args;
     const total = 4 + gBytes.length + 4 + vBytes.length + 4 + xBytes.length + 4 + idBytes.length;
     const buf = new Uint8Array(total);
@@ -63,7 +65,7 @@ function hashChallenge(args: {
     p += 4;
     buf.set(idBytes, p);
 
-    const digest = sha256(buf);
+    const digest = Bytes.of(await crypto.computeHash(buf));
     let h = 0n;
     for (const byte of digest) {
         h = (h << 8n) | BigInt(byte);
@@ -140,13 +142,16 @@ export const SchnorrZkp = {
      * `ephemeral` is the per-proof scalar `v`; in production it must be sampled
      * uniformly from `[1, n-1]`. Tests pass a fixed value so the proof is deterministic.
      */
-    generate(args: {
-        privateKey: bigint;
-        publicKey: Uint8Array;
-        ephemeral: bigint;
-        id: string;
-        generator?: SchnorrZkpGenerator;
-    }): SchnorrZkp {
+    async generate(
+        crypto: Crypto,
+        args: {
+            privateKey: bigint;
+            publicKey: Uint8Array;
+            ephemeral: bigint;
+            id: string;
+            generator?: SchnorrZkpGenerator;
+        },
+    ): Promise<SchnorrZkp> {
         const { privateKey, publicKey, ephemeral, id } = args;
         if (ephemeral <= 0n || ephemeral >= N) {
             throw new InternalError("ephemeral scalar must be in [1, n-1]");
@@ -158,13 +163,16 @@ export const SchnorrZkp = {
         const V = g.point.multiply(ephemeral);
         const vBytes = V.toBytes(false);
         const idBytes = new TextEncoder().encode(id);
-        const h = hashChallenge({ gBytes: g.bytes, vBytes, xBytes: publicKey, idBytes });
+        const h = await hashChallenge(crypto, { gBytes: g.bytes, vBytes, xBytes: publicKey, idBytes });
         // r = v - h*x mod n, matching mbedTLS ecjpake_zkp_write.
         const rBig = (((ephemeral - ((h * privateKey) % N)) % N) + N) % N;
         return { V: vBytes, r: bigintToMinimalBE(rBig) };
     },
 
-    verify(args: { zkp: SchnorrZkp; publicKey: Uint8Array; id: string; generator?: SchnorrZkpGenerator }): boolean {
+    async verify(
+        crypto: Crypto,
+        args: { zkp: SchnorrZkp; publicKey: Uint8Array; id: string; generator?: SchnorrZkpGenerator },
+    ): Promise<boolean> {
         const { zkp, publicKey, id } = args;
         const idBytes = new TextEncoder().encode(id);
         let g: SchnorrZkpGenerator;
@@ -184,7 +192,7 @@ export const SchnorrZkp = {
         if (r >= N) {
             return false;
         }
-        const h = hashChallenge({ gBytes: g.bytes, vBytes: zkp.V, xBytes: publicKey, idBytes });
+        const h = await hashChallenge(crypto, { gBytes: g.bytes, vBytes: zkp.V, xBytes: publicKey, idBytes });
         // mbedTLS ecjpake_zkp_verify computes V' = r*G + h*X via ecp_muladd. multiplyUnsafe is
         // safe here: r is on the wire (peer-supplied) and h is a hash digest; neither is secret.
         const lhs = g.point.multiplyUnsafe(r).add(X.multiplyUnsafe(h));

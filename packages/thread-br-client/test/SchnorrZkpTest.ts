@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes, StandardCrypto } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -13,6 +13,8 @@ import { SchnorrZkp } from "../src/dtls/ecjpake/SchnorrZkp.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+
+const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
     x1: string;
@@ -59,70 +61,102 @@ function sliceKkp(
 describe("SchnorrZkp.verify (mbedTLS oracle)", () => {
     const vectors = loadVectors();
 
-    it("accepts both ZKPs in mbedTLS cli_one (id='client')", () => {
+    it("accepts both ZKPs in mbedTLS cli_one (id='client')", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const first = sliceKkp(buf, 0);
         const second = sliceKkp(buf, first.nextOffset);
         expect(
-            SchnorrZkp.verify({ zkp: { V: first.V, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_CLIENT }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: first.V, r: first.r },
+                publicKey: first.X,
+                id: ECJPAKE_ID_CLIENT,
+            }),
         ).to.equal(true);
         expect(
-            SchnorrZkp.verify({ zkp: { V: second.V, r: second.r }, publicKey: second.X, id: ECJPAKE_ID_CLIENT }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: second.V, r: second.r },
+                publicKey: second.X,
+                id: ECJPAKE_ID_CLIENT,
+            }),
         ).to.equal(true);
     });
 
-    it("accepts both ZKPs in mbedTLS srv_one (id='server')", () => {
+    it("accepts both ZKPs in mbedTLS srv_one (id='server')", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.srv_one));
         const first = sliceKkp(buf, 0);
         const second = sliceKkp(buf, first.nextOffset);
         expect(
-            SchnorrZkp.verify({ zkp: { V: first.V, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_SERVER }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: first.V, r: first.r },
+                publicKey: first.X,
+                id: ECJPAKE_ID_SERVER,
+            }),
         ).to.equal(true);
         expect(
-            SchnorrZkp.verify({ zkp: { V: second.V, r: second.r }, publicKey: second.X, id: ECJPAKE_ID_SERVER }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: second.V, r: second.r },
+                publicKey: second.X,
+                id: ECJPAKE_ID_SERVER,
+            }),
         ).to.equal(true);
     });
 
-    it("rejects a cli_one ZKP when verified with id='server'", () => {
+    it("rejects a cli_one ZKP when verified with id='server'", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const first = sliceKkp(buf, 0);
         expect(
-            SchnorrZkp.verify({ zkp: { V: first.V, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_SERVER }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: first.V, r: first.r },
+                publicKey: first.X,
+                id: ECJPAKE_ID_SERVER,
+            }),
         ).to.equal(false);
     });
 
-    it("rejects when r is mutated (last byte flipped)", () => {
+    it("rejects when r is mutated (last byte flipped)", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const first = sliceKkp(buf, 0);
         const tampered = new Uint8Array(first.r);
         tampered[tampered.length - 1] ^= 0x01;
         expect(
-            SchnorrZkp.verify({ zkp: { V: first.V, r: tampered }, publicKey: first.X, id: ECJPAKE_ID_CLIENT }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: first.V, r: tampered },
+                publicKey: first.X,
+                id: ECJPAKE_ID_CLIENT,
+            }),
         ).to.equal(false);
     });
 
-    it("rejects when V is mutated to a different on-curve point", () => {
+    it("rejects when V is mutated to a different on-curve point", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const first = sliceKkp(buf, 0);
         // Use 2*V as a substitute (still a valid curve point but breaks the proof equation).
         const Vpoint = Point.fromBytes(first.V).double();
         const tamperedV = Vpoint.toBytes(false);
         expect(
-            SchnorrZkp.verify({ zkp: { V: tamperedV, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_CLIENT }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: tamperedV, r: first.r },
+                publicKey: first.X,
+                id: ECJPAKE_ID_CLIENT,
+            }),
         ).to.equal(false);
     });
 
-    it("rejects an off-curve V (last byte mutated, almost surely off-curve)", () => {
+    it("rejects an off-curve V (last byte mutated, almost surely off-curve)", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const first = sliceKkp(buf, 0);
         const tamperedV = new Uint8Array(first.V);
         tamperedV[tamperedV.length - 1] ^= 0x01;
         // Whether the mutation lands off-curve or just breaks the proof, verify must say false (and not throw).
-        expect(() =>
-            SchnorrZkp.verify({ zkp: { V: tamperedV, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_CLIENT }),
-        ).to.not.throw();
+        await expect(
+            SchnorrZkp.verify(crypto, { zkp: { V: tamperedV, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_CLIENT }),
+        ).to.not.be.rejected;
         expect(
-            SchnorrZkp.verify({ zkp: { V: tamperedV, r: first.r }, publicKey: first.X, id: ECJPAKE_ID_CLIENT }),
+            await SchnorrZkp.verify(crypto, {
+                zkp: { V: tamperedV, r: first.r },
+                publicKey: first.X,
+                id: ECJPAKE_ID_CLIENT,
+            }),
         ).to.equal(false);
     });
 });
@@ -130,34 +164,49 @@ describe("SchnorrZkp.verify (mbedTLS oracle)", () => {
 describe("SchnorrZkp.generate -> verify round-trip", () => {
     const vectors = loadVectors();
 
-    it("produces a verifiable ZKP for known fixed scalars (id='client')", () => {
+    it("produces a verifiable ZKP for known fixed scalars (id='client')", async () => {
         const x = bigintFromHex(vectors.x1);
         const v = bigintFromHex(vectors.x2);
         const X = Point.BASE.multiply(x).toBytes(false);
-        const zkp = SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_CLIENT });
-        expect(SchnorrZkp.verify({ zkp, publicKey: X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
+        const zkp = await SchnorrZkp.generate(crypto, {
+            privateKey: x,
+            publicKey: X,
+            ephemeral: v,
+            id: ECJPAKE_ID_CLIENT,
+        });
+        expect(await SchnorrZkp.verify(crypto, { zkp, publicKey: X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
     });
 
-    it("emits r in minimal big-endian (no leading zero) for a 32-byte case", () => {
+    it("emits r in minimal big-endian (no leading zero) for a 32-byte case", async () => {
         const x = bigintFromHex(vectors.x1);
         const v = bigintFromHex(vectors.x2);
         const X = Point.BASE.multiply(x).toBytes(false);
-        const zkp = SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_CLIENT });
+        const zkp = await SchnorrZkp.generate(crypto, {
+            privateKey: x,
+            publicKey: X,
+            ephemeral: v,
+            id: ECJPAKE_ID_CLIENT,
+        });
         expect(zkp.r.length).to.be.within(1, 32);
         expect(zkp.r[0]).to.not.equal(0x00);
     });
 
-    it("strips leading zero(s) when r happens to be < 2^248 (variable r-length)", () => {
+    it("strips leading zero(s) when r happens to be < 2^248 (variable r-length)", async () => {
         // Iterate ephemerals deterministically until r turns out shorter than 32 bytes,
         // exercising the minimal-encoding branch that mbedTLS implements via mbedtls_mpi_size.
         const x = bigintFromHex(vectors.x1);
         const X = Point.BASE.multiply(x).toBytes(false);
         let v = 1n;
-        let zkp: ReturnType<typeof SchnorrZkp.generate> | undefined;
+        let zkp: Awaited<ReturnType<typeof SchnorrZkp.generate>> | undefined;
         for (let i = 0; i < 4096; i++) {
             v = (v + 1n) % N;
             if (v === 0n) continue;
-            const candidate = SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_CLIENT });
+            const candidate = await SchnorrZkp.generate(crypto, {
+                privateKey: x,
+                publicKey: X,
+                ephemeral: v,
+                id: ECJPAKE_ID_CLIENT,
+            });
             if (candidate.r.length < 32) {
                 zkp = candidate;
                 break;
@@ -165,36 +214,46 @@ describe("SchnorrZkp.generate -> verify round-trip", () => {
         }
         expect(zkp, "must find an ephemeral producing r < 32 bytes within 4096 attempts").to.exist;
         expect(zkp!.r[0]).to.not.equal(0x00);
-        expect(SchnorrZkp.verify({ zkp: zkp!, publicKey: X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
+        expect(await SchnorrZkp.verify(crypto, { zkp: zkp!, publicKey: X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
     });
 
-    it("rejects ephemeral=0 and ephemeral>=n", () => {
+    it("rejects ephemeral=0 and ephemeral>=n", async () => {
         const x = bigintFromHex(vectors.x1);
         const X = Point.BASE.multiply(x).toBytes(false);
-        expect(() =>
-            SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: 0n, id: ECJPAKE_ID_CLIENT }),
-        ).to.throw(/ephemeral/);
-        expect(() =>
-            SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: N, id: ECJPAKE_ID_CLIENT }),
-        ).to.throw(/ephemeral/);
+        await expect(
+            SchnorrZkp.generate(crypto, { privateKey: x, publicKey: X, ephemeral: 0n, id: ECJPAKE_ID_CLIENT }),
+        ).to.be.rejectedWith(/ephemeral/);
+        await expect(
+            SchnorrZkp.generate(crypto, { privateKey: x, publicKey: X, ephemeral: N, id: ECJPAKE_ID_CLIENT }),
+        ).to.be.rejectedWith(/ephemeral/);
     });
 
-    it("rejects privateKey=0 and privateKey>=n", () => {
+    it("rejects privateKey=0 and privateKey>=n", async () => {
         const X = Point.BASE.toBytes(false);
-        expect(() =>
-            SchnorrZkp.generate({ privateKey: 0n, publicKey: X, ephemeral: 1n, id: ECJPAKE_ID_CLIENT }),
-        ).to.throw(/private key/);
-        expect(() =>
-            SchnorrZkp.generate({ privateKey: N, publicKey: X, ephemeral: 1n, id: ECJPAKE_ID_CLIENT }),
-        ).to.throw(/private key/);
+        await expect(
+            SchnorrZkp.generate(crypto, { privateKey: 0n, publicKey: X, ephemeral: 1n, id: ECJPAKE_ID_CLIENT }),
+        ).to.be.rejectedWith(/private key/);
+        await expect(
+            SchnorrZkp.generate(crypto, { privateKey: N, publicKey: X, ephemeral: 1n, id: ECJPAKE_ID_CLIENT }),
+        ).to.be.rejectedWith(/private key/);
     });
 
-    it("is deterministic: same inputs -> identical (V, r)", () => {
+    it("is deterministic: same inputs -> identical (V, r)", async () => {
         const x = bigintFromHex(vectors.x1);
         const v = bigintFromHex(vectors.x2);
         const X = Point.BASE.multiply(x).toBytes(false);
-        const a = SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_CLIENT });
-        const b = SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_CLIENT });
+        const a = await SchnorrZkp.generate(crypto, {
+            privateKey: x,
+            publicKey: X,
+            ephemeral: v,
+            id: ECJPAKE_ID_CLIENT,
+        });
+        const b = await SchnorrZkp.generate(crypto, {
+            privateKey: x,
+            publicKey: X,
+            ephemeral: v,
+            id: ECJPAKE_ID_CLIENT,
+        });
         expect(Bytes.areEqual(a.V, b.V)).to.equal(true);
         expect(Bytes.areEqual(a.r, b.r)).to.equal(true);
     });
@@ -212,53 +271,68 @@ describe("SchnorrZkp custom generator (round-2 prep)", () => {
         return { point, bytes: point.toBytes(false) };
     }
 
-    it("generate -> verify round-trips against a composite generator", () => {
+    it("generate -> verify round-trips against a composite generator", async () => {
         const g = makeCompositeGenerator();
         const x = bigintFromHex(vectors.x4);
         const v = bigintFromHex(vectors.x1);
         const X = g.point.multiply(x).toBytes(false);
-        const zkp = SchnorrZkp.generate({
+        const zkp = await SchnorrZkp.generate(crypto, {
             privateKey: x,
             publicKey: X,
             ephemeral: v,
             id: ECJPAKE_ID_SERVER,
             generator: g,
         });
-        expect(SchnorrZkp.verify({ zkp, publicKey: X, id: ECJPAKE_ID_SERVER, generator: g })).to.equal(true);
+        expect(await SchnorrZkp.verify(crypto, { zkp, publicKey: X, id: ECJPAKE_ID_SERVER, generator: g })).to.equal(
+            true,
+        );
     });
 
-    it("verify rejects when the verifier uses the base generator instead of the composite", () => {
+    it("verify rejects when the verifier uses the base generator instead of the composite", async () => {
         const g = makeCompositeGenerator();
         const x = bigintFromHex(vectors.x4);
         const v = bigintFromHex(vectors.x1);
         const X = g.point.multiply(x).toBytes(false);
-        const zkp = SchnorrZkp.generate({
+        const zkp = await SchnorrZkp.generate(crypto, {
             privateKey: x,
             publicKey: X,
             ephemeral: v,
             id: ECJPAKE_ID_SERVER,
             generator: g,
         });
-        expect(SchnorrZkp.verify({ zkp, publicKey: X, id: ECJPAKE_ID_SERVER })).to.equal(false);
+        expect(await SchnorrZkp.verify(crypto, { zkp, publicKey: X, id: ECJPAKE_ID_SERVER })).to.equal(false);
     });
 
-    it("verify rejects when the prover uses the base generator but verifier uses composite", () => {
+    it("verify rejects when the prover uses the base generator but verifier uses composite", async () => {
         const g = makeCompositeGenerator();
         const x = bigintFromHex(vectors.x4);
         const v = bigintFromHex(vectors.x1);
         const X = Point.BASE.multiply(x).toBytes(false);
-        const zkp = SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_SERVER });
-        expect(SchnorrZkp.verify({ zkp, publicKey: X, id: ECJPAKE_ID_SERVER, generator: g })).to.equal(false);
+        const zkp = await SchnorrZkp.generate(crypto, {
+            privateKey: x,
+            publicKey: X,
+            ephemeral: v,
+            id: ECJPAKE_ID_SERVER,
+        });
+        expect(await SchnorrZkp.verify(crypto, { zkp, publicKey: X, id: ECJPAKE_ID_SERVER, generator: g })).to.equal(
+            false,
+        );
     });
 
-    it("rejects malformed generator bytes", () => {
+    it("rejects malformed generator bytes", async () => {
         const g = makeCompositeGenerator();
         const x = bigintFromHex(vectors.x4);
         const v = bigintFromHex(vectors.x1);
         const X = g.point.multiply(x).toBytes(false);
         const bad = { point: g.point, bytes: g.bytes.slice(0, 64) };
-        expect(() =>
-            SchnorrZkp.generate({ privateKey: x, publicKey: X, ephemeral: v, id: ECJPAKE_ID_SERVER, generator: bad }),
-        ).to.throw(/generator/);
+        await expect(
+            SchnorrZkp.generate(crypto, {
+                privateKey: x,
+                publicKey: X,
+                ephemeral: v,
+                id: ECJPAKE_ID_SERVER,
+                generator: bad,
+            }),
+        ).to.be.rejectedWith(/generator/);
     });
 });
