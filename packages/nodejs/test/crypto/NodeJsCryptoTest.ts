@@ -85,6 +85,12 @@ describe("NodeJsCrypto", () => {
                 );
             }
         });
+
+        it("rejects ciphertext shorter than the tag", () => {
+            expect(() => cryptoNode.decrypt(KEY, new Uint8Array(7), NONCE, ADDITIONAL_AUTH_DATA, 8)).to.throw(
+                CryptoInputError,
+            );
+        });
     });
 
     describe("sign & verify with raw keys", () => {

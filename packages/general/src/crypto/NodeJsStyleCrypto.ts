@@ -181,6 +181,9 @@ export class NodeJsStyleCrypto extends Crypto {
         });
         const data = Bytes.of(encrypted);
         const plaintextLength = data.length - tagLength;
+        if (plaintextLength < 0) {
+            throw new CryptoInputError(`Cannot decrypt ciphertext shorter than tag length of ${tagLength}`);
+        }
         if (aad !== undefined) {
             cipher.setAAD(Bytes.of(aad), { plaintextLength });
         }
