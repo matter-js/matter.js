@@ -12,7 +12,7 @@
  * OpenSSL: https://github.com/openssl/openssl/blob/master/crypto/modes/ccm128.c
  */
 
-import { CRYPTO_AEAD_MIC_LENGTH_BYTES, CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "#crypto/CryptoConstants.js";
+import { CRYPTO_AEAD_MIC_LENGTH_BYTES } from "#crypto/CryptoConstants.js";
 import { CryptoDecryptError, CryptoInputError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Aes } from "./Aes.js";
@@ -23,9 +23,11 @@ import { WordArray } from "./WordArray.js";
  *
  * This AES-CCM implementation is tailored for Matter:
  *
- * * Only supports 2-byte length
+ * * Supports 2- or 3-byte length (L), derived as 15 - nonce.length
  *
- * * Only supports 13-byte nonce
+ * * Supports 13-byte (L=2) or 12-byte (L=3) nonce
+ *
+ * * Supports a configurable tag length (defaults to 16 bytes for Matter AEAD)
  *
  * * Stores the MIC in the ciphertext buffer following the ciphertext
  *
@@ -64,36 +66,37 @@ export function Ccm(key: Bytes) {
     return {
         encrypt(input: Ccm.EncryptInput): Bytes {
             validateNonceAndAdata(input);
+            const micLength = input.micLength ?? CRYPTO_AEAD_MIC_LENGTH_BYTES;
+            const L = bytesInLengthFor(input.nonce.length);
 
             const ptLength = input.pt.length;
-            if (ptLength > MAX_PLAINTEXT_LENGTH) {
-                throw new CryptoInputError(
-                    `Cannot encrypt plaintext exceeding maximum length of ${MAX_PLAINTEXT_LENGTH}`,
-                );
+            if (ptLength > maxPlaintextForL(L, micLength)) {
+                throw new CryptoInputError(`Cannot encrypt plaintext exceeding maximum length for L=${L}`);
             }
 
             // Create view for loading plaintext words in platform byte order
             const ptView = new DataView(input.pt.buffer, input.pt.byteOffset, input.pt.byteLength);
 
             // Allocate ciphertext output buffer
-            const ct = new Uint8Array(ptLength + CRYPTO_AEAD_MIC_LENGTH_BYTES);
-            const ctView = new DataView(ct.buffer);
+            const ct = new Uint8Array(ptLength + micLength);
 
             // Compute MIC using CBC-MAC
-            cbcMac(input, ptView, ptLength);
+            cbcMac(input, ptView, ptLength, micLength, L);
 
             // Encrypt using CTR mode
-            ctr(input, ptView, ctView, ptLength, computedMic);
+            ctr(input, ptView, new DataView(ct.buffer), ptLength, computedMic, L);
 
-            for (let i = 0; i < computedMic.words.length; i++) {
-                ctView.setInt32(input.pt.length + i * 4, computedMic.words[i]);
-            }
+            // Serialize the MIC words big-endian in place, then append only the first micLength bytes
+            serializeMic(computedMic);
+            ct.set(computedMic.bytes.subarray(0, micLength), ptLength);
 
             return ct;
         },
 
         decrypt(input: Ccm.DecryptInput): Bytes {
             validateNonceAndAdata(input);
+            const micLength = input.micLength ?? CRYPTO_AEAD_MIC_LENGTH_BYTES;
+            const L = bytesInLengthFor(input.nonce.length);
 
             if (input.ct.length > MAX_CIPHERTEXT_LENGTH) {
                 throw new CryptoInputError(
@@ -101,37 +104,37 @@ export function Ccm(key: Bytes) {
                 );
             }
 
-            const ptLength = input.ct.length - CRYPTO_AEAD_MIC_LENGTH_BYTES;
+            const ptLength = input.ct.length - micLength;
 
             if (ptLength < 0) {
-                throw new CryptoInputError(
-                    `Cannot decrypt ciphertext shorter than minimum length of ${CRYPTO_AEAD_MIC_LENGTH_BYTES}`,
-                );
+                throw new CryptoInputError(`Cannot decrypt ciphertext shorter than minimum length of ${micLength}`);
             }
 
-            // Extract ciphertext (zero copy using a DataView) and MIC from input ciphertext
+            // Extract ciphertext (zero copy using a DataView) and load the received tag (micLength bytes, big-endian,
+            // zero-padded to a full block) into the MIC buffer
             const ctView = new DataView(input.ct.buffer, input.ct.byteOffset, ptLength);
             WordArray.bytesToBlock(
-                new DataView(input.ct.buffer, input.ct.byteOffset, input.ct.byteLength),
+                new DataView(input.ct.buffer, input.ct.byteOffset + ptLength, micLength),
                 inputMic.words,
-                ptLength,
             );
 
             // Allocate plaintext output buffer
             const pt = new Uint8Array(ptLength);
             const ptView = new DataView(pt.buffer);
 
-            // Decrypt using CTR mode
-            ctr(input, ctView, ptView, ptLength, inputMic);
+            // Decrypt using CTR mode (also recovers the raw MIC in inputMic)
+            ctr(input, ctView, ptView, ptLength, inputMic, L);
 
             // Compute MIC using CBC-MAC
-            cbcMac(input, ptView, ptLength);
+            cbcMac(input, ptView, ptLength, micLength, L);
 
-            // Constant-time tag comparison: accumulate all word differences and check once, so timing does not leak
-            // how many leading tag words matched.
+            // Constant-time comparison of the first micLength tag bytes: accumulate byte differences and check once, so
+            // timing does not leak how many leading bytes matched.
+            serializeMic(computedMic);
+            serializeMic(inputMic);
             let micDiff = 0;
-            for (let i = 0; i < computedMic.words.length; i++) {
-                micDiff |= inputMic.words[i] ^ computedMic.words[i];
+            for (let i = 0; i < micLength; i++) {
+                micDiff |= computedMic.bytes[i] ^ inputMic.bytes[i];
             }
             if (micDiff !== 0) {
                 throw new CryptoDecryptError("Message authentication failed: tag mismatch");
@@ -148,19 +151,23 @@ export function Ccm(key: Bytes) {
      *
      * Writes to {@link computedMic}.
      */
-    function cbcMac(input: Ccm.Input, pt: DataView, ptLength: number) {
+    function cbcMac(input: Ccm.Input, pt: DataView, ptLength: number, micLength: number, L: number) {
         const adataLength = input.adata?.length;
 
         // Create the header; first add the flag byte and nonce
-        computedMic.bytes[0] =
-            (adataLength ? 1 << 6 : 0) | ((CRYPTO_AEAD_MIC_LENGTH_BYTES - 2) << 2) | (BYTES_IN_LENGTH - 1);
+        computedMic.bytes[0] = (adataLength ? 1 << 6 : 0) | ((micLength - 2) << 2) | (L - 1);
         computedMic.bytes.set(input.nonce, 1);
+        // Zero the bytes between the nonce and the L-byte length field (relevant for L=3 / 12-byte nonce)
+        for (let i = 1 + input.nonce.length; i < 16; i++) {
+            computedMic.bytes[i] = 0;
+        }
 
         // Convert header to platform byte order
         WordArray.bytesToBlock(computedMic.view, computedMic.words); // Convert to platform byte order
 
-        // Add plaintext length (must occur after conversion to platform byte order)
-        computedMic.words[3] = (computedMic.words[3] & 0xffff0000) | ptLength;
+        // Add plaintext length into the low L bytes of the last word (after conversion to platform byte order)
+        const lengthMask = L === 2 ? 0xffff0000 : 0xff000000;
+        computedMic.words[3] = (computedMic.words[3] & lengthMask) | ptLength;
 
         // Start computation
         aes.encrypt(computedMic.words);
@@ -212,12 +219,14 @@ export function Ccm(key: Bytes) {
      * Encrypts/decrypts {@link ptLength} bytes of {@link input} into {@link output}.  Also encrypts/decrypts
      * {@link mic} in place.
      */
-    function ctr(input: Ccm.Input, from: DataView, to: DataView, ptLength: number, mic: SingletonBuffer) {
+    function ctr(input: Ccm.Input, from: DataView, to: DataView, ptLength: number, mic: SingletonBuffer, L: number) {
         // Initialize the counter (big endian)
-        tempBlock1.bytes[0] = BYTES_IN_LENGTH - 1;
-        tempBlock1.bytes.set(input.nonce, 1); // Bytes 1 - 13
-        tempBlock1.bytes[14] = 0;
-        tempBlock1.bytes[15] = 0;
+        tempBlock1.bytes[0] = L - 1;
+        tempBlock1.bytes.set(input.nonce, 1);
+        // Zero the L-byte counter field following the nonce
+        for (let i = 1 + input.nonce.length; i < 16; i++) {
+            tempBlock1.bytes[i] = 0;
+        }
 
         // Change to platform byte order for CTR computation
         WordArray.bytesToBlock(tempBlock1.view, ctrBlock.words);
@@ -259,6 +268,7 @@ export namespace Ccm {
     export interface Input {
         nonce: Uint8Array;
         adata: Uint8Array | undefined; // Do not use ? to ensure object shape remains stable
+        micLength?: number; // Authentication tag length in bytes; defaults to 16 (Matter AEAD)
     }
 
     export interface EncryptInput extends Input {
@@ -345,11 +355,36 @@ const tempBlock1 = new SingletonBuffer();
 const tempBlock2 = new SingletonBuffer();
 
 function validateNonceAndAdata(input: Ccm.Input) {
-    if (input.nonce.length !== CRYPTO_AEAD_NONCE_LENGTH_BYTES) {
-        throw new CryptoInputError("Nonce must be 13 bytes");
+    if (input.nonce.length !== 12 && input.nonce.length !== 13) {
+        throw new CryptoInputError("Nonce must be 12 or 13 bytes");
+    }
+
+    // NIST SP 800-38C permits an even tag length in [4, 16]; anything else corrupts the flag byte or truncates the tag
+    if (input.micLength !== undefined && (input.micLength < 4 || input.micLength > 16 || input.micLength % 2 !== 0)) {
+        throw new CryptoInputError("Tag length must be an even value between 4 and 16 bytes");
     }
 
     if (input.adata && input.adata.length > 0xffff) {
         throw new CryptoInputError(`Associated adata exceeds maximum length of ${MAX_PLAINTEXT_LENGTH}`);
+    }
+}
+
+/** Derive the NIST length parameter L from the nonce length; only L=2 (13-byte) and L=3 (12-byte) are supported. */
+function bytesInLengthFor(nonceLength: number): number {
+    const L = 15 - nonceLength;
+    if (L < 2 || L > 3) {
+        throw new CryptoInputError(`Unsupported nonce length ${nonceLength}; expected 12 (L=3) or 13 (L=2)`);
+    }
+    return L;
+}
+
+function maxPlaintextForL(L: number, micLength: number): number {
+    return Math.pow(2, L * 8) - micLength;
+}
+
+/** Serialize a MIC buffer's four words big-endian into its own byte view, yielding canonical tag bytes. */
+function serializeMic(mic: SingletonBuffer) {
+    for (let i = 0; i < 4; i++) {
+        mic.view.setInt32(i * 4, mic.words[i]);
     }
 }
