@@ -52,4 +52,54 @@ describe("DeepCopy", () => {
             expect(copiedArr[i]).to.not.equal(arr[i]);
         }
     });
+
+    it("should correctly copy Set values", () => {
+        const set = new Set([1, 2, 3]);
+        const copiedSet = deepCopy(set);
+        expect(copiedSet).to.be.instanceOf(Set);
+        expect([...copiedSet]).to.deep.equal([...set]);
+        expect(copiedSet).to.not.equal(set);
+    });
+
+    it("should deeply copy the members of a Set", () => {
+        const member = { a: 1 };
+        const set = new Set([member]);
+        const copiedSet = deepCopy(set);
+        const copiedMember = [...copiedSet][0];
+        expect(copiedMember).to.deep.equal(member);
+        expect(copiedMember).to.not.equal(member);
+    });
+
+    it("should handle a Set that participates in a cycle", () => {
+        const set = new Set<unknown>();
+        const member = { set };
+        set.add(member);
+
+        const copiedSet = deepCopy(set);
+        expect(copiedSet).to.be.instanceOf(Set);
+        const copiedMember = [...copiedSet][0] as { set: Set<unknown> };
+        expect(copiedMember).to.not.equal(member);
+        expect(copiedMember.set).to.equal(copiedSet);
+    });
+
+    it("should handle a Map that participates in a cycle", () => {
+        const map = new Map<string, unknown>();
+        map.set("self", map);
+
+        const copiedMap = deepCopy(map);
+        expect(copiedMap).to.be.instanceOf(Map);
+        expect(copiedMap.get("self")).to.equal(copiedMap);
+    });
+
+    it("should correctly copy Map values", () => {
+        const map = new Map<string, { v: number }>([
+            ["a", { v: 1 }],
+            ["b", { v: 2 }],
+        ]);
+        const copiedMap = deepCopy(map);
+        expect(copiedMap).to.be.instanceOf(Map);
+        expect([...copiedMap]).to.deep.equal([...map]);
+        expect(copiedMap).to.not.equal(map);
+        expect(copiedMap.get("a")).to.not.equal(map.get("a"));
+    });
 });
