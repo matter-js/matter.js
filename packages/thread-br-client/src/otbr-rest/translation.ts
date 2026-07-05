@@ -15,7 +15,7 @@ import type { Mode } from "../tlv/diag/Mode.js";
 import { NetworkData } from "../tlv/diag/NetworkData.js";
 import type { Route64, Route64Entry } from "../tlv/diag/Route64.js";
 import { OtbrRestError } from "./OtbrRestError.js";
-import { parseHexBytes } from "./parseHexBytes.js";
+import { parseHexBytes, parseRloc16 } from "./parseHexBytes.js";
 
 const TIMEOUT_EXP_MIN = 4;
 const IPV6_BYTES = 16;
@@ -245,7 +245,7 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
         result.extMacAddress = parseHexBytes(extAddress, "extAddress", 8);
     }
 
-    const rloc16 = asNumber(json["rloc16"]);
+    const rloc16 = parseRloc16(json["rloc16"]);
     if (rloc16 !== undefined) result.rloc16 = rloc16;
 
     const mode = asRecord(json["mode"]);
