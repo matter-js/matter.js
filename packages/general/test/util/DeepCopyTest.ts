@@ -70,6 +70,27 @@ describe("DeepCopy", () => {
         expect(copiedMember).to.not.equal(member);
     });
 
+    it("should handle a Set that participates in a cycle", () => {
+        const set = new Set<unknown>();
+        const member = { set };
+        set.add(member);
+
+        const copiedSet = deepCopy(set);
+        expect(copiedSet).to.be.instanceOf(Set);
+        const copiedMember = [...copiedSet][0] as { set: Set<unknown> };
+        expect(copiedMember).to.not.equal(member);
+        expect(copiedMember.set).to.equal(copiedSet);
+    });
+
+    it("should handle a Map that participates in a cycle", () => {
+        const map = new Map<string, unknown>();
+        map.set("self", map);
+
+        const copiedMap = deepCopy(map);
+        expect(copiedMap).to.be.instanceOf(Map);
+        expect(copiedMap.get("self")).to.equal(copiedMap);
+    });
+
     it("should correctly copy Map values", () => {
         const map = new Map<string, { v: number }>([
             ["a", { v: 1 }],
