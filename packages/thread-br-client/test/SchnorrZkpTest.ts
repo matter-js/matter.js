@@ -187,8 +187,9 @@ describe("SchnorrZkp.generate -> verify round-trip", () => {
             ephemeral: v,
             id: ECJPAKE_ID_CLIENT,
         });
-        expect(zkp.r.length).to.be.within(1, 32);
-        expect(zkp.r[0]).to.not.equal(0x00);
+        const r = Bytes.of(zkp.r);
+        expect(r.length).to.be.within(1, 32);
+        expect(r[0]).to.not.equal(0x00);
     });
 
     it("strips leading zero(s) when r happens to be < 2^248 (variable r-length)", async () => {
@@ -207,13 +208,13 @@ describe("SchnorrZkp.generate -> verify round-trip", () => {
                 ephemeral: v,
                 id: ECJPAKE_ID_CLIENT,
             });
-            if (candidate.r.length < 32) {
+            if (Bytes.of(candidate.r).length < 32) {
                 zkp = candidate;
                 break;
             }
         }
         expect(zkp, "must find an ephemeral producing r < 32 bytes within 4096 attempts").to.exist;
-        expect(zkp!.r[0]).to.not.equal(0x00);
+        expect(Bytes.of(zkp!.r)[0]).to.not.equal(0x00);
         expect(await SchnorrZkp.verify(crypto, { zkp: zkp!, publicKey: X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
     });
 

@@ -104,9 +104,9 @@ class MirrorServer {
     #recordSeq = 0n;
     #clientRound1?: { kp1: EcJpakeKeyKP; kp2: EcJpakeKeyKP };
     #x4?: bigint;
-    #X3?: Uint8Array;
-    #X4?: Uint8Array;
-    #clientRandom?: Uint8Array;
+    #X3?: Bytes;
+    #X4?: Bytes;
+    #clientRandom?: Bytes;
     #masterSecret?: Uint8Array;
     #cipherState?: DtlsCipherState;
     #expectingCookieEcho = true;
@@ -226,7 +226,7 @@ class MirrorServer {
         if (message.msgType !== HandshakeType.CLIENT_HELLO) {
             throw new Error(`MirrorServer: expected ClientHello, got ${message.msgType}`);
         }
-        const parsed = this.#parseClientHello(message.body);
+        const parsed = this.#parseClientHello(Bytes.of(message.body));
         if (parsed.cookie.length === 0) {
             // Reply with HelloVerifyRequest.
             const hvrBody = new Uint8Array(2 + 1 + this.#cookie.length);
@@ -303,13 +303,15 @@ class MirrorServer {
         const serverRound1Bytes = EcJpakeRound.serializeRound1(serverRound1.kp1, serverRound1.kp2);
 
         // ServerHello body.
-        const serverHelloBody = this.#buildServerHelloBody(serverRound1Bytes);
+        const serverHelloBody = this.#buildServerHelloBody(Bytes.of(serverRound1Bytes));
         const serverHelloMsgSeq = this.#handshakeMessageSeq++;
-        const serverHelloHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO,
-            messageSeq: serverHelloMsgSeq,
-            body: serverHelloBody,
-        });
+        const serverHelloHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO,
+                messageSeq: serverHelloMsgSeq,
+                body: serverHelloBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO,
@@ -334,11 +336,13 @@ class MirrorServer {
         });
         const skeBody = EcJpakeRound.serializeRound2(serverRound2, { prependEcParameters: true });
         const skeMsgSeq = this.#handshakeMessageSeq++;
-        const skeHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_KEY_EXCHANGE,
-            messageSeq: skeMsgSeq,
-            body: skeBody,
-        });
+        const skeHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_KEY_EXCHANGE,
+                messageSeq: skeMsgSeq,
+                body: skeBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_KEY_EXCHANGE,
@@ -348,11 +352,13 @@ class MirrorServer {
         );
 
         const shdMsgSeq = this.#handshakeMessageSeq++;
-        const shdHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO_DONE,
-            messageSeq: shdMsgSeq,
-            body: new Uint8Array(0),
-        });
+        const shdHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO_DONE,
+                messageSeq: shdMsgSeq,
+                body: new Uint8Array(0),
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO_DONE,
@@ -410,7 +416,7 @@ class MirrorServer {
      */
     async #handleClientFlightLazy(bytes: Uint8Array): Promise<Uint8Array[]> {
         let p = 0;
-        let clientFinishedBody: Uint8Array | undefined;
+        let clientFinishedBody: Bytes | undefined;
         let clientFinishedMsgSeq = 0;
         let sawCcs = false;
         let sawCke = false;
@@ -455,7 +461,7 @@ class MirrorServer {
                         body: message.body,
                     }),
                 );
-                await this.#armCipherStateFromCke(message.body);
+                await this.#armCipherStateFromCke(Bytes.of(message.body));
             } else if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
                 ChangeCipherSpec.parse(Bytes.of(record.fragment));
                 sawCcs = true;
@@ -605,11 +611,12 @@ class MirrorServer {
  * reports "established".
  */
 async function runHandshake(client: DtlsClient, server: MirrorServer): Promise<{ steps: number }> {
-    const concat = (records: Uint8Array[]) => {
-        const total = records.reduce((a, r) => a + r.length, 0);
+    const concat = (records: Bytes[]) => {
+        const buffers = records.map(r => Bytes.of(r));
+        const total = buffers.reduce((a, r) => a + r.length, 0);
         const out = new Uint8Array(total);
         let off = 0;
-        for (const r of records) {
+        for (const r of buffers) {
             out.set(r, off);
             off += r.length;
         }
@@ -667,11 +674,12 @@ describe("DtlsClient — happy-path handshake (mirror server)", () => {
             password: DEFAULT_PASSWORD,
             scalarSeed: 0x42n,
         });
-        const concat = (rs: Uint8Array[]) => {
-            const t = rs.reduce((a, r) => a + r.length, 0);
+        const concat = (rs: Bytes[]) => {
+            const buffers = rs.map(r => Bytes.of(r));
+            const t = buffers.reduce((a, r) => a + r.length, 0);
             const o = new Uint8Array(t);
             let p = 0;
-            for (const r of rs) {
+            for (const r of buffers) {
                 o.set(r, p);
                 p += r.length;
             }
@@ -701,11 +709,12 @@ describe("DtlsClient — failure paths", () => {
             ephemeralScalar: makeScalarStream(0x1n),
         });
         const server = new MirrorServer({ password: DEFAULT_PASSWORD });
-        const concat = (rs: Uint8Array[]) => {
-            const t = rs.reduce((a, r) => a + r.length, 0);
+        const concat = (rs: Bytes[]) => {
+            const buffers = rs.map(r => Bytes.of(r));
+            const t = buffers.reduce((a, r) => a + r.length, 0);
             const o = new Uint8Array(t);
             let p = 0;
-            for (const r of rs) {
+            for (const r of buffers) {
                 o.set(r, p);
                 p += r.length;
             }
@@ -765,11 +774,12 @@ describe("DtlsClient — retransmit", () => {
         }
         // After the cookie exchange the retransmit should re-emit the second ClientHello.
         const server = new MirrorServer({ password: DEFAULT_PASSWORD });
-        const concat = (rs: Uint8Array[]) => {
-            const t = rs.reduce((a, r) => a + r.length, 0);
+        const concat = (rs: Bytes[]) => {
+            const buffers = rs.map(r => Bytes.of(r));
+            const t = buffers.reduce((a, r) => a + r.length, 0);
             const o = new Uint8Array(t);
             let p = 0;
-            for (const r of rs) {
+            for (const r of buffers) {
                 o.set(r, p);
                 p += r.length;
             }

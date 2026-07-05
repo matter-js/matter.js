@@ -21,9 +21,9 @@ import { DtlsError } from "../channel/DtlsChannel.js";
  */
 export interface SchnorrZkp {
     /** SEC1-uncompressed encoding of `V = v*G`. */
-    V: Uint8Array;
+    V: Bytes;
     /** Minimal big-endian encoding of `r = v - h*x mod n`. */
-    r: Uint8Array;
+    r: Bytes;
 }
 
 const Point = p256.Point;
@@ -39,13 +39,16 @@ function be32(value: number): Uint8Array {
 async function hashChallenge(
     crypto: Crypto,
     args: {
-        gBytes: Uint8Array;
-        vBytes: Uint8Array;
-        xBytes: Uint8Array;
-        idBytes: Uint8Array;
+        gBytes: Bytes;
+        vBytes: Bytes;
+        xBytes: Bytes;
+        idBytes: Bytes;
     },
 ): Promise<bigint> {
-    const { gBytes, vBytes, xBytes, idBytes } = args;
+    const gBytes = Bytes.of(args.gBytes);
+    const vBytes = Bytes.of(args.vBytes);
+    const xBytes = Bytes.of(args.xBytes);
+    const idBytes = Bytes.of(args.idBytes);
     const total = 4 + gBytes.length + 4 + vBytes.length + 4 + xBytes.length + 4 + idBytes.length;
     const buf = new Uint8Array(total);
     let p = 0;
@@ -89,9 +92,9 @@ function bigintToMinimalBE(value: bigint): Uint8Array {
     return Uint8Array.from(tmp.reverse());
 }
 
-function bigintFromBE(bytes: Uint8Array): bigint {
+function bigintFromBE(bytes: Bytes): bigint {
     let v = 0n;
-    for (const byte of bytes) {
+    for (const byte of Bytes.of(bytes)) {
         v = (v << 8n) | BigInt(byte);
     }
     return v;
@@ -101,13 +104,14 @@ function getBaseGBytes(): Uint8Array {
     return Point.BASE.toBytes(false);
 }
 
-function pointFromBytes(bytes: Uint8Array): InstanceType<typeof Point> {
-    if (bytes.length !== POINT_LEN || bytes[0] !== 0x04) {
+function pointFromBytes(bytes: Bytes): InstanceType<typeof Point> {
+    const buf = Bytes.of(bytes);
+    if (buf.length !== POINT_LEN || buf[0] !== 0x04) {
         throw new DtlsError(
-            `expected SEC1-uncompressed P-256 point (65 bytes, 0x04 prefix), got len=${bytes.length} head=${bytes[0]}`,
+            `expected SEC1-uncompressed P-256 point (65 bytes, 0x04 prefix), got len=${buf.length} head=${buf[0]}`,
         );
     }
-    return Point.fromBytes(bytes);
+    return Point.fromBytes(buf);
 }
 
 /**
@@ -118,12 +122,13 @@ function pointFromBytes(bytes: Uint8Array): InstanceType<typeof Point> {
  */
 export interface SchnorrZkpGenerator {
     point: InstanceType<typeof Point>;
-    bytes: Uint8Array;
+    bytes: Bytes;
 }
 
 function generatorOrBase(g?: SchnorrZkpGenerator): SchnorrZkpGenerator {
     if (g) {
-        if (g.bytes.length !== POINT_LEN || g.bytes[0] !== 0x04) {
+        const bytes = Bytes.of(g.bytes);
+        if (bytes.length !== POINT_LEN || bytes[0] !== 0x04) {
             throw new InternalError("generator bytes must be SEC1-uncompressed P-256 (65 bytes, 0x04 prefix)");
         }
         return g;
@@ -146,7 +151,7 @@ export const SchnorrZkp = {
         crypto: Crypto,
         args: {
             privateKey: bigint;
-            publicKey: Uint8Array;
+            publicKey: Bytes;
             ephemeral: bigint;
             id: string;
             generator?: SchnorrZkpGenerator;
@@ -171,7 +176,7 @@ export const SchnorrZkp = {
 
     async verify(
         crypto: Crypto,
-        args: { zkp: SchnorrZkp; publicKey: Uint8Array; id: string; generator?: SchnorrZkpGenerator },
+        args: { zkp: SchnorrZkp; publicKey: Bytes; id: string; generator?: SchnorrZkpGenerator },
     ): Promise<boolean> {
         const { zkp, publicKey, id } = args;
         const idBytes = new TextEncoder().encode(id);

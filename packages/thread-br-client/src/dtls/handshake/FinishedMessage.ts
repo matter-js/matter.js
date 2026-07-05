@@ -11,13 +11,14 @@
  * `TlsPrf.verifyData` and the state machine.
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 
 const VERIFY_DATA_LEN = 12;
 
 export const FinishedMessage = {
-    build(verifyData: Uint8Array): Uint8Array {
+    build(rawVerifyData: Bytes): Bytes {
+        const verifyData = Bytes.of(rawVerifyData);
         if (verifyData.length !== VERIFY_DATA_LEN) {
             throw new InternalError(`Finished verify_data must be ${VERIFY_DATA_LEN} bytes, got ${verifyData.length}`);
         }
@@ -25,7 +26,8 @@ export const FinishedMessage = {
         return verifyData.slice();
     },
 
-    parse(body: Uint8Array): { verifyData: Uint8Array } {
+    parse(rawBody: Bytes): { verifyData: Bytes } {
+        const body = Bytes.of(rawBody);
         if (body.length !== VERIFY_DATA_LEN) {
             throw new DtlsError(`Finished body must be ${VERIFY_DATA_LEN} bytes, got ${body.length}`);
         }

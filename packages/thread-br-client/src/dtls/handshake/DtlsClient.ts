@@ -55,9 +55,9 @@ export interface DtlsClientConfig {
     /** Crypto backend threaded through record codec, EC-JPAKE, PRF and transcript. */
     crypto: Crypto;
     /** EC-JPAKE password (PSKc bytes for Thread). Hashed by mbedTLS as the integer of these bytes. */
-    password: Uint8Array;
+    password: Bytes;
     /** Returns 32 bytes for `ClientHello.random`. Production: CSPRNG. */
-    random: () => Uint8Array;
+    random: () => Bytes;
     /**
      * Returns a fresh scalar in [1, n-1]. Called five times per attempt:
      * x1, x2 (round-1 private keys), v1, v2 (round-1 ZKP ephemerals), v3 (round-2 ZKP ephemeral).
@@ -73,7 +73,7 @@ export interface DtlsClientConfig {
 
 export interface DtlsClientStep {
     /** Records to emit on the wire (already framed as DTLS records). */
-    records: Uint8Array[];
+    records: Bytes[];
 }
 
 const RANDOM_LEN = 32;
@@ -87,14 +87,14 @@ interface InboundRecord {
 
 interface InboundHandshake {
     msgType: HandshakeType;
-    body: Uint8Array;
+    body: Bytes;
     /** TLS-form bytes for transcript hashing. */
-    transcriptBytes: Uint8Array;
+    transcriptBytes: Bytes;
 }
 
-function bigintFromBE(bytes: Uint8Array): bigint {
+function bigintFromBE(bytes: Bytes): bigint {
     let v = 0n;
-    for (const byte of bytes) {
+    for (const byte of Bytes.of(bytes)) {
         v = (v << 8n) | BigInt(byte);
     }
     return v;
@@ -111,17 +111,17 @@ export class DtlsClient {
     #lastFlight = new Array<Uint8Array>();
 
     #x2!: bigint;
-    #X1!: Uint8Array;
-    #X2!: Uint8Array;
+    #X1!: Bytes;
+    #X2!: Bytes;
     /** Round-1 wire bytes — bytes-identical across cookie-exchange retries (mbedTLS `ecjpake_cache`). */
-    #round1Bytes!: Uint8Array;
+    #round1Bytes!: Bytes;
 
     /** 32-byte ClientHello.random — bytes-identical across cookie retries. */
-    #clientRandom!: Uint8Array;
+    #clientRandom!: Bytes;
 
-    #X3?: Uint8Array;
-    #X4?: Uint8Array;
-    #serverRandom?: Uint8Array;
+    #X3?: Bytes;
+    #X4?: Bytes;
+    #serverRandom?: Bytes;
 
     #masterSecret?: Uint8Array;
     #cipherState?: DtlsCipherState;
@@ -154,7 +154,7 @@ export class DtlsClient {
         if (this.#state !== "initial") {
             throw new ImplementationError(`DtlsClient.start() called in state '${this.#state}'`);
         }
-        const random = this.#config.random();
+        const random = Bytes.of(this.#config.random());
         if (random.length !== RANDOM_LEN) {
             throw new ImplementationError(
                 `DtlsClient config.random() returned ${random.length} bytes, need ${RANDOM_LEN}`,
@@ -184,22 +184,23 @@ export class DtlsClient {
         return { records: this.#lastFlight.map(r => r.slice()) };
     }
 
-    async onDatagram(bytes: Uint8Array): Promise<DtlsClientStep> {
+    async onDatagram(bytes: Bytes): Promise<DtlsClientStep> {
         if (this.#state === "established" || this.#state === "failed" || this.#state === "initial") {
             throw new ImplementationError(`DtlsClient.onDatagram() called in state '${this.#state}'`);
         }
+        const buf = Bytes.of(bytes);
         try {
             switch (this.#state) {
                 case "sent_first_clienthello":
-                    return await this.#handleHelloVerifyOrServerHello(await this.#splitDatagramIntoRecords(bytes));
+                    return await this.#handleHelloVerifyOrServerHello(await this.#splitDatagramIntoRecords(buf));
                 case "sent_clienthello_with_cookie":
-                    return await this.#handleServerHelloFlight(await this.#splitDatagramIntoRecords(bytes));
+                    return await this.#handleServerHelloFlight(await this.#splitDatagramIntoRecords(buf));
                 case "sent_clientkeyexchange_flight":
                     // Cannot eagerly split this datagram — the encrypted Finished record is at
                     // epoch 1 and needs the CCS earlier in the same datagram to bump the read
                     // epoch first. Walk the record envelopes lazily so CCS arrives before the
                     // AEAD decrypt is attempted.
-                    return await this.#handleServerFinishedFlightLazy(bytes);
+                    return await this.#handleServerFinishedFlightLazy(buf);
                 default:
                     throw new InternalError(`DtlsClient: state ${this.#state} cannot consume a datagram`);
             }
@@ -246,7 +247,7 @@ export class DtlsClient {
     // -----------------------------------------------------------------------
     // Outbound encoding helpers
 
-    async #emitClientHello(cookie: Uint8Array, contributesToTranscript: boolean): Promise<Uint8Array[]> {
+    async #emitClientHello(cookie: Bytes, contributesToTranscript: boolean): Promise<Uint8Array[]> {
         const body = ClientHelloMessage.build({
             random: this.#clientRandom,
             cookie,
@@ -400,7 +401,7 @@ export class DtlsClient {
      * Build the client's CKE + CCS + Finished flight and arm the cipher state.
      * `serverRound2X` is the server's round-2 public point (`Xp` for the PMS derivation).
      */
-    async #emitClientFlight(serverRound2X: Uint8Array): Promise<DtlsClientStep> {
+    async #emitClientFlight(serverRound2X: Bytes): Promise<DtlsClientStep> {
         if (this.#X3 === undefined || this.#X4 === undefined || this.#serverRandom === undefined) {
             throw new InternalError("DtlsClient: emitClientFlight called before server flight was parsed");
         }
@@ -545,7 +546,7 @@ export class DtlsClient {
             throw new InternalError("DtlsClient: server-finished handler reached without armed cipher state");
         }
         let sawCcs = false;
-        let serverFinishedBody: Uint8Array | undefined;
+        let serverFinishedBody: Bytes | undefined;
         let serverFinishedMsgSeq = 0;
         let p = 0;
         while (p < bytes.length) {
@@ -562,7 +563,7 @@ export class DtlsClient {
             const stateForDecode = epoch === 0 ? undefined : cipherState;
             const { record } = await DtlsRecord.decode(this.#crypto, recordBytes, stateForDecode);
             if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
-                ChangeCipherSpec.parse(Bytes.of(record.fragment));
+                ChangeCipherSpec.parse(record.fragment);
                 cipherState.advanceReadEpoch();
                 sawCcs = true;
             } else if (record.type === ContentType.HANDSHAKE) {
@@ -619,7 +620,9 @@ export class DtlsClient {
     }
 }
 
-function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+function constantTimeEqual(rawA: Bytes, rawB: Bytes): boolean {
+    const a = Bytes.of(rawA);
+    const b = Bytes.of(rawB);
     if (a.length !== b.length || a.length !== FINISHED_VERIFY_DATA_LEN) {
         return false;
     }

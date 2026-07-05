@@ -41,13 +41,15 @@ describe("EcJpakeRound.parseRound1 (mbedTLS oracle)", () => {
 
     it("decodes mbedTLS cli_one into two valid key-pair-with-ZKP entries", () => {
         const round = EcJpakeRound.parseRound1(Bytes.of(Bytes.fromHex(vectors.cli_one)));
-        expect(round.kp1.X.length).to.equal(65);
-        expect(round.kp1.X[0]).to.equal(0x04);
-        expect(round.kp1.zkp.V.length).to.equal(65);
-        expect(round.kp1.zkp.V[0]).to.equal(0x04);
-        expect(round.kp1.zkp.r.length).to.be.within(1, 32);
-        expect(round.kp2.X.length).to.equal(65);
-        expect(round.kp2.zkp.V.length).to.equal(65);
+        const kp1X = Bytes.of(round.kp1.X);
+        const kp1V = Bytes.of(round.kp1.zkp.V);
+        expect(kp1X.length).to.equal(65);
+        expect(kp1X[0]).to.equal(0x04);
+        expect(kp1V.length).to.equal(65);
+        expect(kp1V[0]).to.equal(0x04);
+        expect(Bytes.of(round.kp1.zkp.r).length).to.be.within(1, 32);
+        expect(Bytes.of(round.kp2.X).length).to.equal(65);
+        expect(Bytes.of(round.kp2.zkp.V).length).to.equal(65);
     });
 
     it("kp1.X equals x1*G and kp2.X equals x2*G for the mbedTLS client side", () => {
@@ -102,7 +104,7 @@ describe("EcJpakeRound.serializeRound1 (byte-identical with mbedTLS oracle)", ()
 
     it("rejects writing a ZKP r that has a non-minimal leading zero", () => {
         const round = EcJpakeRound.parseRound1(Bytes.of(Bytes.fromHex(vectors.cli_one)));
-        const padded = new Uint8Array([0x00, ...round.kp1.zkp.r]);
+        const padded = new Uint8Array([0x00, ...Bytes.of(round.kp1.zkp.r)]);
         const tampered = { X: round.kp1.X, zkp: { V: round.kp1.zkp.V, r: padded } };
         expect(() => EcJpakeRound.serializeRound1(tampered, round.kp2)).to.throw(/minimal/);
     });
@@ -115,10 +117,10 @@ describe("EcJpakeRound.parseRound1 defensive copies", () => {
         const original = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const input = new Uint8Array(original);
         const parsed = EcJpakeRound.parseRound1(input);
-        const x1Snapshot = new Uint8Array(parsed.kp1.X);
-        const v1Snapshot = new Uint8Array(parsed.kp1.zkp.V);
-        const r1Snapshot = new Uint8Array(parsed.kp1.zkp.r);
-        const x2Snapshot = new Uint8Array(parsed.kp2.X);
+        const x1Snapshot = new Uint8Array(Bytes.of(parsed.kp1.X));
+        const v1Snapshot = new Uint8Array(Bytes.of(parsed.kp1.zkp.V));
+        const r1Snapshot = new Uint8Array(Bytes.of(parsed.kp1.zkp.r));
+        const x2Snapshot = new Uint8Array(Bytes.of(parsed.kp2.X));
         input.fill(0xff);
         expect(Bytes.areEqual(parsed.kp1.X, x1Snapshot)).to.equal(true);
         expect(Bytes.areEqual(parsed.kp1.zkp.V, v1Snapshot)).to.equal(true);

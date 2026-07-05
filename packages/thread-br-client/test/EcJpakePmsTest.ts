@@ -78,7 +78,7 @@ describe("EcJpakePms.derive (mbedTLS oracle)", () => {
             xm2: bigintFromHex(vectors.x4),
             s: bigintFromHex(vectors.password.hex),
         });
-        expect(pms.length).to.equal(32);
+        expect(Bytes.of(pms).length).to.equal(32);
     });
 
     it("changes when the password changes", async () => {

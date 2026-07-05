@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Bytes } from "@matter/general";
 import { type EcJpakeKeyKP, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
 
 /**
@@ -22,7 +23,7 @@ import { type EcJpakeKeyKP, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
  */
 
 export const ServerKeyExchangeMessage = {
-    parse(body: Uint8Array): EcJpakeKeyKP {
+    parse(body: Bytes): EcJpakeKeyKP {
         // EcJpakeRound.parseRound2 already validates the 3-byte ECParameters prefix
         // and the ECJPAKEKeyKP body when `expectEcParameters` is true; deferring keeps
         // both error paths (bad prefix, bad body) consistent with round-1 parsers.

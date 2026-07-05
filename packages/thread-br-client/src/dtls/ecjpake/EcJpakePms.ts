@@ -34,10 +34,7 @@ const COORDINATE_BYTES = 32;
  * TLS 1.2 PRF takes over (Phase 0c.5 / DTLS layer).
  */
 export const EcJpakePms = {
-    async derive(
-        crypto: Crypto,
-        args: { Xp: Uint8Array; Xp2: Uint8Array; xm2: bigint; s: bigint },
-    ): Promise<Uint8Array> {
+    async derive(crypto: Crypto, args: { Xp: Bytes; Xp2: Bytes; xm2: bigint; s: bigint }): Promise<Bytes> {
         const { Xp, Xp2, xm2, s } = args;
         if (xm2 <= 0n || xm2 >= N) {
             throw new InternalError("xm2 must be in [1, n-1]");
@@ -45,8 +42,8 @@ export const EcJpakePms = {
         if (s <= 0n) {
             throw new InternalError("s (password as integer) must be positive");
         }
-        const Xp_pt = Point.fromBytes(Xp);
-        const Xp2_pt = Point.fromBytes(Xp2);
+        const Xp_pt = Point.fromBytes(Bytes.of(Xp));
+        const Xp2_pt = Point.fromBytes(Bytes.of(Xp2));
         if (Xp_pt.is0() || Xp2_pt.is0()) {
             throw new DtlsError("peer points must not be the point at infinity");
         }

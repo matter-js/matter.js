@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, InternalError } from "@matter/general";
+import { Bytes, Crypto, InternalError } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { DtlsError } from "../channel/DtlsChannel.js";
 import { SchnorrZkp, type SchnorrZkpGenerator } from "./SchnorrZkp.js";
@@ -22,7 +22,7 @@ import { SchnorrZkp, type SchnorrZkpGenerator } from "./SchnorrZkp.js";
  */
 export interface EcJpakeKeyKP {
     /** SEC1-uncompressed public key `X = x*G`. */
-    X: Uint8Array;
+    X: Bytes;
     /** Schnorr ZKP proving knowledge of `x`. */
     zkp: SchnorrZkp;
 }
@@ -57,38 +57,44 @@ function readSlice(bytes: Uint8Array, offset: number, length: number): Uint8Arra
 }
 
 function validateKeyKP(keyKP: EcJpakeKeyKP): void {
-    if (keyKP.X.length !== POINT_LEN || keyKP.X[0] !== 0x04) {
+    const X = Bytes.of(keyKP.X);
+    const V = Bytes.of(keyKP.zkp.V);
+    const r = Bytes.of(keyKP.zkp.r);
+    if (X.length !== POINT_LEN || X[0] !== 0x04) {
         throw new InternalError("X must be SEC1-uncompressed P-256 (65 bytes, 0x04 prefix)");
     }
-    if (keyKP.zkp.V.length !== POINT_LEN || keyKP.zkp.V[0] !== 0x04) {
+    if (V.length !== POINT_LEN || V[0] !== 0x04) {
         throw new InternalError("ZKP.V must be SEC1-uncompressed P-256 (65 bytes, 0x04 prefix)");
     }
-    if (keyKP.zkp.r.length === 0 || keyKP.zkp.r.length > 255) {
-        throw new InternalError(`ZKP.r length must be 1..255, got ${keyKP.zkp.r.length}`);
+    if (r.length === 0 || r.length > 255) {
+        throw new InternalError(`ZKP.r length must be 1..255, got ${r.length}`);
     }
     // Minimal-encoding invariant: leading byte must be non-zero (except r === 0,
     // already excluded above). mbedTLS produces the minimal form via mbedtls_mpi_size,
     // so ours must too if we want byte-identical output.
-    if (keyKP.zkp.r[0] === 0x00) {
+    if (r[0] === 0x00) {
         throw new InternalError("ZKP.r must be minimal big-endian (no leading zero)");
     }
 }
 
 function keyKpEncodedLength(keyKP: EcJpakeKeyKP): number {
-    return 1 + POINT_LEN + 1 + POINT_LEN + 1 + keyKP.zkp.r.length;
+    return 1 + POINT_LEN + 1 + POINT_LEN + 1 + Bytes.of(keyKP.zkp.r).length;
 }
 
 function writeKeyKP(keyKP: EcJpakeKeyKP, out: Uint8Array, offset: number): number {
+    const X = Bytes.of(keyKP.X);
+    const V = Bytes.of(keyKP.zkp.V);
+    const r = Bytes.of(keyKP.zkp.r);
     let p = offset;
     out[p++] = POINT_LEN;
-    out.set(keyKP.X, p);
+    out.set(X, p);
     p += POINT_LEN;
     out[p++] = POINT_LEN;
-    out.set(keyKP.zkp.V, p);
+    out.set(V, p);
     p += POINT_LEN;
-    out[p++] = keyKP.zkp.r.length;
-    out.set(keyKP.zkp.r, p);
-    p += keyKP.zkp.r.length;
+    out[p++] = r.length;
+    out.set(r, p);
+    p += r.length;
     return p;
 }
 
@@ -155,7 +161,7 @@ export const EcJpakeRound = {
         };
     },
 
-    serializeRound1(kp1: EcJpakeKeyKP, kp2: EcJpakeKeyKP): Uint8Array {
+    serializeRound1(kp1: EcJpakeKeyKP, kp2: EcJpakeKeyKP): Bytes {
         validateKeyKP(kp1);
         validateKeyKP(kp2);
         const out = new Uint8Array(keyKpEncodedLength(kp1) + keyKpEncodedLength(kp2));
@@ -164,11 +170,12 @@ export const EcJpakeRound = {
         return out;
     },
 
-    parseRound1(bytes: Uint8Array): { kp1: EcJpakeKeyKP; kp2: EcJpakeKeyKP } {
-        const first = readKeyKP(bytes, 0);
-        const second = readKeyKP(bytes, first.nextOffset);
-        if (second.nextOffset !== bytes.length) {
-            throw new DtlsError(`trailing bytes after round-1 pair: ${bytes.length - second.nextOffset} extra`);
+    parseRound1(bytes: Bytes): { kp1: EcJpakeKeyKP; kp2: EcJpakeKeyKP } {
+        const buf = Bytes.of(bytes);
+        const first = readKeyKP(buf, 0);
+        const second = readKeyKP(buf, first.nextOffset);
+        if (second.nextOffset !== buf.length) {
+            throw new DtlsError(`trailing bytes after round-1 pair: ${buf.length - second.nextOffset} extra`);
         }
         return { kp1: first.kp, kp2: second.kp };
     },
@@ -179,8 +186,11 @@ export const EcJpakeRound = {
      * Both sides use the same formula by symmetry — for the client `Xp1 = X3`,
      * `Xp2 = X4`, `Xm1 = X1`; for the server `Xp1 = X1`, `Xp2 = X2`, `Xm1 = X3`.
      */
-    composeRound2Generator(args: { Xp1: Uint8Array; Xp2: Uint8Array; Xm1: Uint8Array }): SchnorrZkpGenerator {
-        const point = Point.fromBytes(args.Xp1).add(Point.fromBytes(args.Xp2)).add(Point.fromBytes(args.Xm1));
+    composeRound2Generator(args: { Xp1: Bytes; Xp2: Bytes; Xm1: Bytes }): SchnorrZkpGenerator {
+        const Xp1 = Bytes.of(args.Xp1);
+        const Xp2 = Bytes.of(args.Xp2);
+        const Xm1 = Bytes.of(args.Xm1);
+        const point = Point.fromBytes(Xp1).add(Point.fromBytes(Xp2)).add(Point.fromBytes(Xm1));
         if (point.is0()) {
             throw new DtlsError("round-2 generator G' must not be the point at infinity");
         }
@@ -231,7 +241,7 @@ export const EcJpakeRound = {
      * Server-side messages (ServerKeyExchange) use `true`; client-side
      * (ClientKeyExchange) uses `false`.
      */
-    serializeRound2(kp: EcJpakeKeyKP, options: { prependEcParameters: boolean }): Uint8Array {
+    serializeRound2(kp: EcJpakeKeyKP, options: { prependEcParameters: boolean }): Bytes {
         validateKeyKP(kp);
         const headerLen = options.prependEcParameters ? 3 : 0;
         const out = new Uint8Array(headerLen + keyKpEncodedLength(kp));
@@ -250,24 +260,25 @@ export const EcJpakeRound = {
      * is the client reading ServerKeyExchange, and `false` when the parser is the
      * server reading ClientKeyExchange.
      */
-    parseRound2(bytes: Uint8Array, options: { expectEcParameters: boolean }): EcJpakeKeyKP {
+    parseRound2(bytes: Bytes, options: { expectEcParameters: boolean }): EcJpakeKeyKP {
+        const buf = Bytes.of(bytes);
         let p = 0;
         if (options.expectEcParameters) {
-            if (bytes.length < 3) {
+            if (buf.length < 3) {
                 throw new DtlsError("round-2 message too short for ECParameters header");
             }
-            if (bytes[0] !== 0x03 || bytes[1] !== 0x00 || bytes[2] !== 0x17) {
+            if (buf[0] !== 0x03 || buf[1] !== 0x00 || buf[2] !== 0x17) {
                 throw new DtlsError(
-                    `expected ECParameters{named_curve, secp256r1} (03 00 17), got ${Array.from(bytes.subarray(0, 3))
+                    `expected ECParameters{named_curve, secp256r1} (03 00 17), got ${Array.from(buf.subarray(0, 3))
                         .map(b => b.toString(16).padStart(2, "0"))
                         .join(" ")}`,
                 );
             }
             p = 3;
         }
-        const { kp, nextOffset } = readKeyKP(bytes, p);
-        if (nextOffset !== bytes.length) {
-            throw new DtlsError(`trailing bytes after round-2 message: ${bytes.length - nextOffset} extra`);
+        const { kp, nextOffset } = readKeyKP(buf, p);
+        if (nextOffset !== buf.length) {
+            throw new DtlsError(`trailing bytes after round-2 message: ${buf.length - nextOffset} extra`);
         }
         return kp;
     },

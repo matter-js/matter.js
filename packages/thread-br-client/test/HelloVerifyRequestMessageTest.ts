@@ -11,7 +11,7 @@ describe("HelloVerifyRequestMessage.parse", () => {
     it("extracts an empty cookie", () => {
         const body = Bytes.of(Bytes.fromHex("fefd00"));
         const result = HelloVerifyRequestMessage.parse(body);
-        expect(result.cookie.length).to.equal(0);
+        expect(Bytes.of(result.cookie).length).to.equal(0);
     });
 
     it("extracts a typical 16-byte cookie", () => {
@@ -39,7 +39,7 @@ describe("HelloVerifyRequestMessage.parse", () => {
         const result = HelloVerifyRequestMessage.parse(body);
         // Mutate the source buffer; the cookie copy must not change.
         body[3] = 0x00;
-        expect(result.cookie[0]).to.equal(0xaa);
+        expect(Bytes.of(result.cookie)[0]).to.equal(0xaa);
     });
 
     it("rejects bodies shorter than the 3-byte minimum (version + length)", () => {

@@ -49,11 +49,13 @@ describe("EcJpakeRound.parseRound2 + verifyRound2Zkp (mbedTLS oracle)", () => {
         const kp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         });
-        expect(kp.X.length).to.equal(65);
-        expect(kp.X[0]).to.equal(0x04);
-        expect(kp.zkp.V.length).to.equal(65);
-        expect(kp.zkp.V[0]).to.equal(0x04);
-        expect(kp.zkp.r.length).to.be.within(1, 32);
+        const kpX = Bytes.of(kp.X);
+        const kpV = Bytes.of(kp.zkp.V);
+        expect(kpX.length).to.equal(65);
+        expect(kpX[0]).to.equal(0x04);
+        expect(kpV.length).to.equal(65);
+        expect(kpV[0]).to.equal(0x04);
+        expect(Bytes.of(kp.zkp.r).length).to.be.within(1, 32);
     });
 
     it("parses srv_two with ECParameters prefix (03 00 17)", () => {
@@ -62,8 +64,9 @@ describe("EcJpakeRound.parseRound2 + verifyRound2Zkp (mbedTLS oracle)", () => {
         expect(bytes[1]).to.equal(0x00);
         expect(bytes[2]).to.equal(0x17);
         const kp = EcJpakeRound.parseRound2(bytes, { expectEcParameters: true });
-        expect(kp.X.length).to.equal(65);
-        expect(kp.X[0]).to.equal(0x04);
+        const kpX = Bytes.of(kp.X);
+        expect(kpX.length).to.equal(65);
+        expect(kpX[0]).to.equal(0x04);
     });
 
     it("rejects srv_two when expectEcParameters is false (header bytes parsed as kkp length)", () => {

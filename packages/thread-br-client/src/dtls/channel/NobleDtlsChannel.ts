@@ -492,7 +492,7 @@ export class NobleDtlsChannel implements DtlsChannel {
         this.#sendRecords(step.records);
     }
 
-    #sendRecords(records: Uint8Array[]): void {
+    #sendRecords(records: Bytes[]): void {
         const udp = this.#udp;
         if (udp === undefined) {
             throw new InternalError("NobleDtlsChannel: send before bind");
@@ -507,7 +507,8 @@ export class NobleDtlsChannel implements DtlsChannel {
         const datagrams = new Array<Uint8Array>();
         let acc = new Array<Uint8Array>();
         let accLen = 0;
-        for (const record of records) {
+        for (const rawRecord of records) {
+            const record = Bytes.of(rawRecord);
             if (accLen > 0 && accLen + record.length > mtu) {
                 datagrams.push(concatBuffers(acc));
                 acc = [];

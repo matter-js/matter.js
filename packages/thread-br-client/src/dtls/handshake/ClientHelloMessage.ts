@@ -27,7 +27,7 @@
  *   omitted but real BRs may not be
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 
 /** TLS extension type for `ecjpake_kkpp` (draft-cragie-tls-ecjpake-01 §3). */
 export const EXTENSION_TYPE_ECJPAKE_KKPP = 0x0100;
@@ -52,14 +52,14 @@ const MAX_COOKIE_LEN = 0xff;
 
 export interface ClientHelloFields {
     /** 32 random bytes that will become `ClientHello.random`. */
-    random: Uint8Array;
+    random: Bytes;
     /**
      * DTLS cookie returned by `HelloVerifyRequest`, or empty on the first ClientHello
      * (RFC 6347 §4.2.1).
      */
-    cookie: Uint8Array;
+    cookie: Bytes;
     /** `ecjpake_kkpp` extension payload — the round-1 ECJPAKEKeyKPPairList bytes. */
-    ecjpakeKkpp: Uint8Array;
+    ecjpakeKkpp: Bytes;
 }
 
 function writeUint16BE(buf: Uint8Array, offset: number, value: number): void {
@@ -72,8 +72,10 @@ export const ClientHelloMessage = {
      * Serialise a ClientHello body. Caller wraps the result in a
      * {@link HandshakeMessage} and a `DtlsRecord` of `ContentType.HANDSHAKE`.
      */
-    build(fields: ClientHelloFields): Uint8Array {
-        const { random, cookie, ecjpakeKkpp } = fields;
+    build(fields: ClientHelloFields): Bytes {
+        const random = Bytes.of(fields.random);
+        const cookie = Bytes.of(fields.cookie);
+        const ecjpakeKkpp = Bytes.of(fields.ecjpakeKkpp);
         if (random.length !== RANDOM_LEN) {
             throw new InternalError(`ClientHello random must be ${RANDOM_LEN} bytes, got ${random.length}`);
         }

@@ -28,10 +28,12 @@ describe("ServerKeyExchangeMessage.parse", () => {
     it("parses srv_two (mbedTLS oracle) and exposes the embedded ECJPAKEKeyKP", () => {
         const body = Bytes.of(Bytes.fromHex(vectors.srv_two));
         const kp = ServerKeyExchangeMessage.parse(body);
-        expect(kp.X.length).to.equal(65);
-        expect(kp.X[0]).to.equal(0x04);
-        expect(kp.zkp.V.length).to.equal(65);
-        expect(kp.zkp.V[0]).to.equal(0x04);
+        const X = Bytes.of(kp.X);
+        const V = Bytes.of(kp.zkp.V);
+        expect(X.length).to.equal(65);
+        expect(X[0]).to.equal(0x04);
+        expect(V.length).to.equal(65);
+        expect(V[0]).to.equal(0x04);
         // Re-serialise via the EcJpakeRound codec to confirm round-trip identity.
         const reEncoded = EcJpakeRound.serializeRound2(kp, { prependEcParameters: true });
         expect(Bytes.toHex(reEncoded)).to.equal(vectors.srv_two);

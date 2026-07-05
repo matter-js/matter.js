@@ -41,7 +41,7 @@ describe("ClientKeyExchangeMessage.build", () => {
         const cliKp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         });
-        const wire = ClientKeyExchangeMessage.build(cliKp);
+        const wire = Bytes.of(ClientKeyExchangeMessage.build(cliKp));
         expect(Bytes.toHex(wire)).to.equal(vectors.cli_two);
         // First byte is the X-length (0x41 = 65) — not the 0x03 ECParameters tag.
         expect(wire[0]).to.equal(0x41);
@@ -51,8 +51,8 @@ describe("ClientKeyExchangeMessage.build", () => {
         const srvKp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.srv_two)), {
             expectEcParameters: true,
         });
-        const cke = ClientKeyExchangeMessage.build(srvKp);
-        const ske = EcJpakeRound.serializeRound2(srvKp, { prependEcParameters: true });
+        const cke = Bytes.of(ClientKeyExchangeMessage.build(srvKp));
+        const ske = Bytes.of(EcJpakeRound.serializeRound2(srvKp, { prependEcParameters: true }));
         expect(ske.length - cke.length).to.equal(3);
         expect(Bytes.areEqual(cke, ske.subarray(3))).to.equal(true);
     });

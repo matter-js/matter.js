@@ -21,12 +21,14 @@
  * ClientHello carry the spec-mandated DTLS 1.2 version regardless.
  */
 
+import { Bytes } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 
 const MAX_COOKIE_LEN = 0xff;
 
 export const HelloVerifyRequestMessage = {
-    parse(body: Uint8Array): { cookie: Uint8Array } {
+    parse(rawBody: Bytes): { cookie: Bytes } {
+        const body = Bytes.of(rawBody);
         if (body.length < 2 + 1) {
             throw new DtlsError(`HelloVerifyRequest body truncated: have ${body.length}, need >= 3`);
         }

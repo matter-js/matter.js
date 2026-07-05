@@ -99,9 +99,9 @@ class UdpMirrorServer {
     #recordSeq = 0n;
     #clientRound1?: { kp1: EcJpakeKeyKP; kp2: EcJpakeKeyKP };
     #x4?: bigint;
-    #X3?: Uint8Array;
-    #X4?: Uint8Array;
-    #clientRandom?: Uint8Array;
+    #X3?: Bytes;
+    #X4?: Bytes;
+    #clientRandom?: Bytes;
     #masterSecret?: Uint8Array;
     #cipherState?: DtlsCipherState;
     #expectingCookieEcho = true;
@@ -284,7 +284,7 @@ class UdpMirrorServer {
         if (message.msgType !== HandshakeType.CLIENT_HELLO) {
             throw new Error(`UdpMirrorServer: expected ClientHello, got ${message.msgType}`);
         }
-        const parsed = this.#parseClientHello(message.body);
+        const parsed = this.#parseClientHello(Bytes.of(message.body));
         if (parsed.cookie.length === 0) {
             const hvrBody = new Uint8Array(2 + 1 + this.#cookie.length);
             hvrBody[0] = 0xfe;
@@ -355,13 +355,15 @@ class UdpMirrorServer {
         this.#X4 = serverRound1.kp2.X;
         const serverRound1Bytes = EcJpakeRound.serializeRound1(serverRound1.kp1, serverRound1.kp2);
 
-        const serverHelloBody = this.#buildServerHelloBody(serverRound1Bytes);
+        const serverHelloBody = this.#buildServerHelloBody(Bytes.of(serverRound1Bytes));
         const serverHelloMsgSeq = this.#handshakeMessageSeq++;
-        const serverHelloHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO,
-            messageSeq: serverHelloMsgSeq,
-            body: serverHelloBody,
-        });
+        const serverHelloHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO,
+                messageSeq: serverHelloMsgSeq,
+                body: serverHelloBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO,
@@ -385,11 +387,13 @@ class UdpMirrorServer {
         });
         const skeBody = EcJpakeRound.serializeRound2(serverRound2, { prependEcParameters: true });
         const skeMsgSeq = this.#handshakeMessageSeq++;
-        const skeHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_KEY_EXCHANGE,
-            messageSeq: skeMsgSeq,
-            body: skeBody,
-        });
+        const skeHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_KEY_EXCHANGE,
+                messageSeq: skeMsgSeq,
+                body: skeBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_KEY_EXCHANGE,
@@ -399,11 +403,13 @@ class UdpMirrorServer {
         );
 
         const shdMsgSeq = this.#handshakeMessageSeq++;
-        const shdHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO_DONE,
-            messageSeq: shdMsgSeq,
-            body: new Uint8Array(0),
-        });
+        const shdHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO_DONE,
+                messageSeq: shdMsgSeq,
+                body: new Uint8Array(0),
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO_DONE,
@@ -454,7 +460,7 @@ class UdpMirrorServer {
 
     async #handleClientFlightLazy(bytes: Uint8Array): Promise<Uint8Array[]> {
         let p = 0;
-        let clientFinishedBody: Uint8Array | undefined;
+        let clientFinishedBody: Bytes | undefined;
         let clientFinishedMsgSeq = 0;
         let sawCcs = false;
         let sawCke = false;
@@ -484,7 +490,7 @@ class UdpMirrorServer {
                         body: message.body,
                     }),
                 );
-                await this.#armCipherStateFromCke(message.body);
+                await this.#armCipherStateFromCke(Bytes.of(message.body));
             } else if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
                 ChangeCipherSpec.parse(Bytes.of(record.fragment));
                 sawCcs = true;
