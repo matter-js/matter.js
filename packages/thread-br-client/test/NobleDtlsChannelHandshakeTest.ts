@@ -8,9 +8,11 @@ import {
     Bytes,
     Environment,
     ImplementationError,
+    Logger,
     MockNetwork,
     Network,
     NetworkSimulator,
+    StandardCrypto,
     type UdpSocket,
 } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
@@ -36,6 +38,9 @@ import { TlsPrf } from "../src/dtls/prf/TlsPrf.js";
 import { ContentType } from "../src/dtls/record/ContentType.js";
 import { DtlsCipherState } from "../src/dtls/record/DtlsCipherState.js";
 import { DtlsRecord } from "../src/dtls/record/DtlsRecord.js";
+
+const crypto = new StandardCrypto();
+const logger = Logger.get("UdpMirrorServer");
 
 const N = p256.Point.Fn.ORDER;
 
@@ -88,14 +93,15 @@ class UdpMirrorServer {
     readonly #cookie: Uint8Array;
     readonly #scalars: () => bigint;
     readonly #serverRandom: Uint8Array;
-    #transcript = new HandshakeTranscript();
+    #transcript = new HandshakeTranscript(crypto);
+    #inbound: Promise<void> = Promise.resolve();
     #handshakeMessageSeq = 0;
     #recordSeq = 0n;
     #clientRound1?: { kp1: EcJpakeKeyKP; kp2: EcJpakeKeyKP };
     #x4?: bigint;
-    #X3?: Uint8Array;
-    #X4?: Uint8Array;
-    #clientRandom?: Uint8Array;
+    #X3?: Bytes;
+    #X4?: Bytes;
+    #clientRandom?: Bytes;
     #masterSecret?: Uint8Array;
     #cipherState?: DtlsCipherState;
     #expectingCookieEcho = true;
@@ -123,7 +129,13 @@ class UdpMirrorServer {
         this.#udp.onData((_netInterface, peerAddress, peerPort, msg) => {
             this.#peerAddress = peerAddress;
             this.#peerPort = peerPort;
-            this.#handleDatagram(Bytes.of(msg));
+            const bytes = Bytes.of(msg);
+            // Serialize datagram handling so async decode/PRF steps never interleave and
+            // corrupt the transcript. On error the handshake stalls and the client-side
+            // connect times out; log so the root cause is visible (matches MockRouter).
+            this.#inbound = this.#inbound
+                .then(() => this.#handleDatagram(bytes))
+                .catch(err => logger.error("UdpMirrorServer datagram handling failed", err));
         });
     }
 
@@ -153,14 +165,17 @@ class UdpMirrorServer {
             throw new Error("UdpMirrorServer: peer address/port unknown");
         }
         const seq = cipherState.nextWriteSeq();
-        const record = DtlsRecord.encode(
-            {
-                type: ContentType.APPLICATION_DATA,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: seq,
-                fragment: plaintext,
-            },
-            cipherState,
+        const record = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.APPLICATION_DATA,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: seq,
+                    fragment: plaintext,
+                },
+                cipherState,
+            ),
         );
         await this.#udp.send(this.#peerAddress, this.#peerPort, record);
         return record;
@@ -174,20 +189,20 @@ class UdpMirrorServer {
         await this.#udp.send(this.#peerAddress, this.#peerPort, record);
     }
 
-    #handleDatagram(bytes: Uint8Array): void {
+    async #handleDatagram(bytes: Uint8Array): Promise<void> {
         if (this.#expectingCookieEcho) {
-            const records = this.#splitRecords(bytes);
-            const reply = this.#handleFirstOrSecondClientHello(records);
+            const records = await this.#splitRecords(bytes);
+            const reply = await this.#handleFirstOrSecondClientHello(records);
             this.#sendAll(reply);
             return;
         }
         if (!this.#seenClientFinished) {
-            const reply = this.#handleClientFlightLazy(bytes);
+            const reply = await this.#handleClientFlightLazy(bytes);
             this.#sendAll(reply);
             return;
         }
         // Post-handshake: decode app-data and stash plaintext.
-        this.#handleAppDataDatagram(bytes);
+        await this.#handleAppDataDatagram(bytes);
     }
 
     #sendAll(records: Uint8Array[]): void {
@@ -205,12 +220,12 @@ class UdpMirrorServer {
         void this.#udp.send(this.#peerAddress, this.#peerPort, out);
     }
 
-    #splitRecords(bytes: Uint8Array): InboundRecordView[] {
+    async #splitRecords(bytes: Uint8Array): Promise<InboundRecordView[]> {
         const out = new Array<InboundRecordView>();
         let p = 0;
         while (p < bytes.length) {
-            const { record, consumed } = DtlsRecord.decode(bytes.subarray(p), this.#cipherState);
-            out.push(record);
+            const { record, consumed } = await DtlsRecord.decode(crypto, bytes.subarray(p), this.#cipherState);
+            out.push({ ...record, fragment: Bytes.of(record.fragment) });
             p += consumed;
         }
         return out;
@@ -261,7 +276,7 @@ class UdpMirrorServer {
         return { random, cookie, ecjpakeKkpp };
     }
 
-    #handleFirstOrSecondClientHello(records: InboundRecordView[]): Uint8Array[] {
+    async #handleFirstOrSecondClientHello(records: InboundRecordView[]): Promise<Uint8Array[]> {
         if (records.length !== 1 || records[0].type !== ContentType.HANDSHAKE) {
             throw new Error("UdpMirrorServer: expected single handshake record");
         }
@@ -269,7 +284,7 @@ class UdpMirrorServer {
         if (message.msgType !== HandshakeType.CLIENT_HELLO) {
             throw new Error(`UdpMirrorServer: expected ClientHello, got ${message.msgType}`);
         }
-        const parsed = this.#parseClientHello(message.body);
+        const parsed = this.#parseClientHello(Bytes.of(message.body));
         if (parsed.cookie.length === 0) {
             const hvrBody = new Uint8Array(2 + 1 + this.#cookie.length);
             hvrBody[0] = 0xfe;
@@ -281,12 +296,14 @@ class UdpMirrorServer {
                 messageSeq: 0,
                 body: hvrBody,
             });
-            const rec = DtlsRecord.encode({
-                type: ContentType.HANDSHAKE,
-                epoch: 0,
-                sequenceNumber: this.#recordSeq,
-                fragment: hvr,
-            });
+            const rec = Bytes.of(
+                await DtlsRecord.encode(crypto, {
+                    type: ContentType.HANDSHAKE,
+                    epoch: 0,
+                    sequenceNumber: this.#recordSeq,
+                    fragment: hvr,
+                }),
+            );
             this.#recordSeq += 1n;
             return [rec];
         }
@@ -304,20 +321,20 @@ class UdpMirrorServer {
         this.#clientRandom = parsed.random;
         this.#clientRound1 = EcJpakeRound.parseRound1(parsed.ecjpakeKkpp);
         if (
-            !SchnorrZkp.verify({
+            !(await SchnorrZkp.verify(crypto, {
                 zkp: this.#clientRound1.kp1.zkp,
                 publicKey: this.#clientRound1.kp1.X,
                 id: ECJPAKE_ID_CLIENT,
-            })
+            }))
         ) {
             throw new Error("UdpMirrorServer: client KP1 ZKP failed");
         }
         if (
-            !SchnorrZkp.verify({
+            !(await SchnorrZkp.verify(crypto, {
                 zkp: this.#clientRound1.kp2.zkp,
                 publicKey: this.#clientRound1.kp2.X,
                 id: ECJPAKE_ID_CLIENT,
-            })
+            }))
         ) {
             throw new Error("UdpMirrorServer: client KP2 ZKP failed");
         }
@@ -326,7 +343,7 @@ class UdpMirrorServer {
         const x4 = this.#scalars();
         const v1 = this.#scalars();
         const v2 = this.#scalars();
-        const serverRound1 = EcJpakeRound.buildRound1({
+        const serverRound1 = await EcJpakeRound.buildRound1(crypto, {
             x1: x3,
             x2: x4,
             v1,
@@ -338,13 +355,15 @@ class UdpMirrorServer {
         this.#X4 = serverRound1.kp2.X;
         const serverRound1Bytes = EcJpakeRound.serializeRound1(serverRound1.kp1, serverRound1.kp2);
 
-        const serverHelloBody = this.#buildServerHelloBody(serverRound1Bytes);
+        const serverHelloBody = this.#buildServerHelloBody(Bytes.of(serverRound1Bytes));
         const serverHelloMsgSeq = this.#handshakeMessageSeq++;
-        const serverHelloHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO,
-            messageSeq: serverHelloMsgSeq,
-            body: serverHelloBody,
-        });
+        const serverHelloHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO,
+                messageSeq: serverHelloMsgSeq,
+                body: serverHelloBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO,
@@ -359,7 +378,7 @@ class UdpMirrorServer {
             Xm1: this.#X3,
         });
         const v3 = this.#scalars();
-        const serverRound2 = EcJpakeRound.buildRound2({
+        const serverRound2 = await EcJpakeRound.buildRound2(crypto, {
             xm2: x4,
             s: this.#password,
             v: v3,
@@ -368,11 +387,13 @@ class UdpMirrorServer {
         });
         const skeBody = EcJpakeRound.serializeRound2(serverRound2, { prependEcParameters: true });
         const skeMsgSeq = this.#handshakeMessageSeq++;
-        const skeHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_KEY_EXCHANGE,
-            messageSeq: skeMsgSeq,
-            body: skeBody,
-        });
+        const skeHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_KEY_EXCHANGE,
+                messageSeq: skeMsgSeq,
+                body: skeBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_KEY_EXCHANGE,
@@ -382,11 +403,13 @@ class UdpMirrorServer {
         );
 
         const shdMsgSeq = this.#handshakeMessageSeq++;
-        const shdHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO_DONE,
-            messageSeq: shdMsgSeq,
-            body: new Uint8Array(0),
-        });
+        const shdHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO_DONE,
+                messageSeq: shdMsgSeq,
+                body: new Uint8Array(0),
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO_DONE,
@@ -400,12 +423,14 @@ class UdpMirrorServer {
         flightBytes.set(skeHs, serverHelloHs.length);
         flightBytes.set(shdHs, serverHelloHs.length + skeHs.length);
 
-        const flightRecord = DtlsRecord.encode({
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: flightBytes,
-        });
+        const flightRecord = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: flightBytes,
+            }),
+        );
         this.#recordSeq += 1n;
         return [flightRecord];
     }
@@ -433,9 +458,9 @@ class UdpMirrorServer {
         return out;
     }
 
-    #handleClientFlightLazy(bytes: Uint8Array): Uint8Array[] {
+    async #handleClientFlightLazy(bytes: Uint8Array): Promise<Uint8Array[]> {
         let p = 0;
-        let clientFinishedBody: Uint8Array | undefined;
+        let clientFinishedBody: Bytes | undefined;
         let clientFinishedMsgSeq = 0;
         let sawCcs = false;
         let sawCke = false;
@@ -451,9 +476,9 @@ class UdpMirrorServer {
             }
             const recordBytes = bytes.subarray(p, recordEnd);
             const stateForDecode = epoch === 0 ? undefined : this.#cipherState;
-            const { record } = DtlsRecord.decode(recordBytes, stateForDecode);
+            const { record } = await DtlsRecord.decode(crypto, recordBytes, stateForDecode);
             if (record.type === ContentType.HANDSHAKE && record.epoch === 0) {
-                const { message } = HandshakeMessage.decode(record.fragment);
+                const { message } = HandshakeMessage.decode(Bytes.of(record.fragment));
                 if (message.msgType !== HandshakeType.CLIENT_KEY_EXCHANGE) {
                     throw new Error(`UdpMirrorServer: expected CKE, got ${message.msgType}`);
                 }
@@ -465,15 +490,15 @@ class UdpMirrorServer {
                         body: message.body,
                     }),
                 );
-                this.#armCipherStateFromCke(message.body);
+                await this.#armCipherStateFromCke(Bytes.of(message.body));
             } else if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
-                ChangeCipherSpec.parse(record.fragment);
+                ChangeCipherSpec.parse(Bytes.of(record.fragment));
                 sawCcs = true;
             } else if (record.type === ContentType.HANDSHAKE && record.epoch >= 1) {
                 if (!sawCke || !sawCcs) {
                     throw new Error("UdpMirrorServer: encrypted handshake before CKE/CCS");
                 }
-                const { message } = HandshakeMessage.decode(record.fragment);
+                const { message } = HandshakeMessage.decode(Bytes.of(record.fragment));
                 if (message.msgType !== HandshakeType.FINISHED) {
                     throw new Error(`UdpMirrorServer: expected Finished, got ${message.msgType}`);
                 }
@@ -490,10 +515,10 @@ class UdpMirrorServer {
         if (cipherState === undefined || masterSecret === undefined) {
             throw new Error("UdpMirrorServer: cipher state should be armed");
         }
-        const expected = TlsPrf.verifyData({
+        const expected = await TlsPrf.verifyData(crypto, {
             masterSecret,
             role: "client",
-            transcriptDigest: this.#transcript.digest(),
+            transcriptDigest: await this.#transcript.digest(),
         });
         const actual = FinishedMessage.parse(clientFinishedBody).verifyData;
         if (!Bytes.areEqual(expected, actual)) {
@@ -506,39 +531,46 @@ class UdpMirrorServer {
                 body: clientFinishedBody,
             }),
         );
-        const ccsRecord = DtlsRecord.encode({
-            type: ContentType.CHANGE_CIPHER_SPEC,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: CHANGE_CIPHER_SPEC_BODY,
-        });
+        const ccsRecord = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.CHANGE_CIPHER_SPEC,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: CHANGE_CIPHER_SPEC_BODY,
+            }),
+        );
         this.#recordSeq += 1n;
         cipherState.advanceWriteEpoch();
-        const serverVerifyData = TlsPrf.verifyData({
-            masterSecret,
-            role: "server",
-            transcriptDigest: this.#transcript.digest(),
-        });
+        const serverVerifyData = Bytes.of(
+            await TlsPrf.verifyData(crypto, {
+                masterSecret,
+                role: "server",
+                transcriptDigest: await this.#transcript.digest(),
+            }),
+        );
         const serverFinishedHs = HandshakeMessage.encode({
             msgType: HandshakeType.FINISHED,
             messageSeq: this.#handshakeMessageSeq++,
             body: FinishedMessage.build(serverVerifyData),
         });
         const finishedSeq = cipherState.nextWriteSeq();
-        const finishedRecord = DtlsRecord.encode(
-            {
-                type: ContentType.HANDSHAKE,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: finishedSeq,
-                fragment: serverFinishedHs,
-            },
-            cipherState,
+        const finishedRecord = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.HANDSHAKE,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: finishedSeq,
+                    fragment: serverFinishedHs,
+                },
+                cipherState,
+            ),
         );
         this.#seenClientFinished = true;
         return [ccsRecord, finishedRecord];
     }
 
-    #armCipherStateFromCke(ckeBody: Uint8Array): void {
+    async #armCipherStateFromCke(ckeBody: Uint8Array): Promise<void> {
         const X3 = this.#X3;
         const X4 = this.#X4;
         const clientRound1 = this.#clientRound1;
@@ -560,26 +592,28 @@ class UdpMirrorServer {
             Xm1: clientRound1.kp1.X,
         });
         if (
-            !EcJpakeRound.verifyRound2Zkp({
+            !(await EcJpakeRound.verifyRound2Zkp(crypto, {
                 kp: clientRound2,
                 generator: clientGenerator,
                 peerId: ECJPAKE_ID_CLIENT,
-            })
+            }))
         ) {
             throw new Error("UdpMirrorServer: client round-2 ZKP failed");
         }
-        const pms = EcJpakePms.derive({
+        const pms = await EcJpakePms.derive(crypto, {
             Xp: clientRound2.X,
             Xp2: clientRound1.kp2.X,
             xm2: x4,
             s: this.#password,
         });
-        this.#masterSecret = TlsPrf.masterSecret({
-            premasterSecret: pms,
-            clientRandom,
-            serverRandom: this.#serverRandom,
-        });
-        const keyBlock = TlsPrf.keyBlock({
+        this.#masterSecret = Bytes.of(
+            await TlsPrf.masterSecret(crypto, {
+                premasterSecret: pms,
+                clientRandom,
+                serverRandom: this.#serverRandom,
+            }),
+        );
+        const keyBlock = await TlsPrf.keyBlock(crypto, {
             masterSecret: this.#masterSecret,
             clientRandom,
             serverRandom: this.#serverRandom,
@@ -593,7 +627,7 @@ class UdpMirrorServer {
         this.#cipherState.advanceReadEpoch();
     }
 
-    #handleAppDataDatagram(bytes: Uint8Array): void {
+    async #handleAppDataDatagram(bytes: Uint8Array): Promise<void> {
         const cipherState = this.#cipherState;
         if (cipherState === undefined) {
             throw new Error("UdpMirrorServer: app-data datagram before cipher state armed");
@@ -603,9 +637,9 @@ class UdpMirrorServer {
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + 13 + length;
             const slice = bytes.subarray(p, recordEnd);
-            const { record } = DtlsRecord.decode(slice, cipherState);
+            const { record } = await DtlsRecord.decode(crypto, slice, cipherState);
             if (record.type === ContentType.APPLICATION_DATA) {
-                this.receivedAppData.push(record.fragment);
+                this.receivedAppData.push(Bytes.of(record.fragment));
             }
             // close_notify alerts ignored — test asserts via socket close from the client side.
             p = recordEnd;
@@ -663,8 +697,9 @@ describe("NobleDtlsChannel — UDP-bound EC-JPAKE handshake", () => {
             const sent = Bytes.of(Bytes.fromHex("48656c6c6f20436f4150"));
             await socket.send(sent);
 
-            // The mock network delivers the datagram synchronously within the send macrotask.
-            await MockTime.macrotasks;
+            // A macrotask boundary drains the full delivery chain (router -> serialized
+            // inbound queue -> async AEAD decode) before we inspect the server's buffer.
+            await MockTime.macrotask;
             expect(Bytes.toHex(server.receivedAppData[0])).to.equal(Bytes.toHex(sent));
 
             // Server -> client direction.
@@ -712,7 +747,7 @@ describe("NobleDtlsChannel — UDP-bound EC-JPAKE handshake", () => {
 
             // Replay the identical record (same epoch/seq) — a benign UDP duplicate.
             await server.resendRaw(rawRecord);
-            await MockTime.macrotasks;
+            await MockTime.macrotask;
 
             // The duplicate is dropped: no teardown, session still established.
             expect(closed).to.equal(false);

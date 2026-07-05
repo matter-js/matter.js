@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "@matter/general";
+import { Bytes, MatterError } from "@matter/general";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
 
@@ -19,7 +19,7 @@ export interface LeadKaResponse {
 const STATE_ACCEPT = 0x01;
 
 export namespace LeadKa {
-    export function buildRequest(sessionId: number): Uint8Array {
+    export function buildRequest(sessionId: number): Bytes {
         const sessionBytes = new Uint8Array(2);
         sessionBytes[0] = (sessionId >> 8) & 0xff;
         sessionBytes[1] = sessionId & 0xff;
@@ -32,11 +32,11 @@ export namespace LeadKa {
         ]);
     }
 
-    export function parseResponse(payload: Uint8Array): LeadKaResponse {
+    export function parseResponse(payload: Bytes): LeadKaResponse {
         const entries = BasicTlv.walk(payload);
         for (const entry of entries) {
             if (entry.type === MeshCopTlvType.STATE) {
-                const byte = entry.value[0];
+                const byte = Bytes.of(entry.value)[0];
                 if (byte === 0x01) return { state: "accept" };
                 if (byte === 0xff) return { state: "reject" };
                 if (byte === 0x00) return { state: "pending" };

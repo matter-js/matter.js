@@ -49,7 +49,7 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
      *
      * @param extPanId - 8-byte Extended PAN ID of the network to query.
      */
-    canQuery(extPanId: Uint8Array): boolean {
+    canQuery(extPanId: Bytes): boolean {
         return Bytes.areEqual(extPanId, this.#capability.extPanId);
     }
 
@@ -116,14 +116,14 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
         });
 
         const start = Date.now();
-        logger.debug(`[ThreadDiag] REST GET /diagnostics ${this.#capability.baseUrl}`);
+        logger.debug(`REST GET /diagnostics ${this.#capability.baseUrl}`);
         void (async () => {
             try {
                 const list = await this.#client.getDiagnostics();
                 for (const entry of list) {
                     onNode.emit(translateNodeJson(entry));
                 }
-                logger.debug(`[ThreadDiag] REST /diagnostics OK nodes=${list.length} duration=${Date.now() - start}ms`);
+                logger.debug(`REST /diagnostics OK nodes=${list.length} duration=${Date.now() - start}ms`);
                 resolveDone();
             } catch (err) {
                 const e = err instanceof Error ? err : new Error(String(err));

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { AntiReplayWindow } from "./AntiReplayWindow.js";
 import { ContentType } from "./ContentType.js";
 import { DTLS_1_2_VERSION, type DtlsRecordCipherState } from "./DtlsRecord.js";
@@ -17,13 +17,13 @@ import { DTLS_1_2_VERSION, type DtlsRecordCipherState } from "./DtlsRecord.js";
  */
 export interface DtlsCipherStateInputs {
     /** 16-byte AES key the client uses to encrypt outbound records. */
-    clientWriteKey: Uint8Array;
+    clientWriteKey: Bytes;
     /** 16-byte AES key the server uses to encrypt outbound records. */
-    serverWriteKey: Uint8Array;
+    serverWriteKey: Bytes;
     /** 4-byte client implicit-IV salt (`client_write_IV`). */
-    clientWriteSalt: Uint8Array;
+    clientWriteSalt: Bytes;
     /** 4-byte server implicit-IV salt (`server_write_IV`). */
-    serverWriteSalt: Uint8Array;
+    serverWriteSalt: Bytes;
 }
 
 const KEY_LEN = 16;
@@ -33,11 +33,12 @@ const AAD_LEN = 13;
 const MAX_EPOCH = 0xffff;
 const MAX_SEQ = (1n << 48n) - 1n;
 
-function copyExpect(name: string, value: Uint8Array, expectedLen: number): Uint8Array {
-    if (value.length !== expectedLen) {
-        throw new InternalError(`DtlsCipherState ${name} must be ${expectedLen} bytes, got ${value.length}`);
+function copyExpect(name: string, value: Bytes, expectedLen: number): Uint8Array {
+    const bytes = Bytes.of(value);
+    if (bytes.length !== expectedLen) {
+        throw new InternalError(`DtlsCipherState ${name} must be ${expectedLen} bytes, got ${bytes.length}`);
     }
-    return new Uint8Array(value);
+    return new Uint8Array(bytes);
 }
 
 /**
@@ -144,21 +145,24 @@ export class DtlsCipherState implements DtlsRecordCipherState {
         return this.#readWindow.check(seqNum);
     }
 
-    encryptParams(): { key: Uint8Array; salt: Uint8Array } {
+    encryptParams(): { key: Bytes; salt: Bytes } {
         return this.role === "client"
             ? { key: this.#clientWriteKey, salt: this.#clientWriteSalt }
             : { key: this.#serverWriteKey, salt: this.#serverWriteSalt };
     }
 
-    decryptParams(): { key: Uint8Array; salt: Uint8Array } {
+    decryptParams(): { key: Bytes; salt: Bytes } {
         return this.role === "client"
             ? { key: this.#serverWriteKey, salt: this.#serverWriteSalt }
             : { key: this.#clientWriteKey, salt: this.#clientWriteSalt };
     }
 
-    nonceFor(salt: Uint8Array, epoch: number, seqNum: bigint): Uint8Array {
-        if (salt.length !== SALT_LEN) {
-            throw new InternalError(`DtlsCipherState nonceFor: salt must be ${SALT_LEN} bytes, got ${salt.length}`);
+    nonceFor(salt: Bytes, epoch: number, seqNum: bigint): Bytes {
+        const saltBytes = Bytes.of(salt);
+        if (saltBytes.length !== SALT_LEN) {
+            throw new InternalError(
+                `DtlsCipherState nonceFor: salt must be ${SALT_LEN} bytes, got ${saltBytes.length}`,
+            );
         }
         if (epoch < 0 || epoch > MAX_EPOCH) {
             throw new InternalError(`DtlsCipherState nonceFor: epoch ${epoch} out of range`);
@@ -167,7 +171,7 @@ export class DtlsCipherState implements DtlsRecordCipherState {
             throw new InternalError(`DtlsCipherState nonceFor: seqNum ${seqNum} out of range`);
         }
         const out = new Uint8Array(NONCE_LEN);
-        out.set(salt, 0);
+        out.set(saltBytes, 0);
         out[4] = (epoch >>> 8) & 0xff;
         out[5] = epoch & 0xff;
         for (let i = 0; i < 6; i++) {
@@ -176,7 +180,7 @@ export class DtlsCipherState implements DtlsRecordCipherState {
         return out;
     }
 
-    aadFor(type: ContentType, epoch: number, seqNum: bigint, plaintextLen: number): Uint8Array {
+    aadFor(type: ContentType, epoch: number, seqNum: bigint, plaintextLen: number): Bytes {
         if (epoch < 0 || epoch > MAX_EPOCH) {
             throw new InternalError(`DtlsCipherState aadFor: epoch ${epoch} out of range`);
         }

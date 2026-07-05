@@ -25,11 +25,13 @@ describe("HandshakeType.isHandshakeType", () => {
 describe("HandshakeMessage envelope", () => {
     it("encodes an unfragmented ClientHello with offset=0 and frag_len=length", () => {
         const body = Bytes.of(Bytes.fromHex("aabbccdd"));
-        const wire = HandshakeMessage.encode({
-            msgType: HandshakeType.CLIENT_HELLO,
-            messageSeq: 0,
-            body,
-        });
+        const wire = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.CLIENT_HELLO,
+                messageSeq: 0,
+                body,
+            }),
+        );
         expect(wire.length).to.equal(DTLS_HANDSHAKE_HEADER_LEN + body.length);
         expect(wire[0]).to.equal(HandshakeType.CLIENT_HELLO);
         // length (3 BE) = 4
@@ -52,11 +54,13 @@ describe("HandshakeMessage envelope", () => {
 
     it("round-trips through encode/decode preserving msg_type, message_seq and body", () => {
         const body = Bytes.of(Bytes.fromHex("000102030405060708"));
-        const wire = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO,
-            messageSeq: 0x1234,
-            body,
-        });
+        const wire = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO,
+                messageSeq: 0x1234,
+                body,
+            }),
+        );
         const { message, consumed } = HandshakeMessage.decode(wire);
         expect(consumed).to.equal(wire.length);
         expect(message.msgType).to.equal(HandshakeType.SERVER_HELLO);
@@ -65,16 +69,20 @@ describe("HandshakeMessage envelope", () => {
     });
 
     it("decode reports `consumed` so multiple messages can be split off the same buffer", () => {
-        const a = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO,
-            messageSeq: 1,
-            body: Bytes.of(Bytes.fromHex("aa")),
-        });
-        const b = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_KEY_EXCHANGE,
-            messageSeq: 2,
-            body: Bytes.of(Bytes.fromHex("bbcc")),
-        });
+        const a = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO,
+                messageSeq: 1,
+                body: Bytes.of(Bytes.fromHex("aa")),
+            }),
+        );
+        const b = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_KEY_EXCHANGE,
+                messageSeq: 2,
+                body: Bytes.of(Bytes.fromHex("bbcc")),
+            }),
+        );
         const concat = new Uint8Array(a.length + b.length);
         concat.set(a, 0);
         concat.set(b, a.length);
@@ -88,11 +96,13 @@ describe("HandshakeMessage envelope", () => {
     });
 
     it("rejects fragmented input (fragment_offset != 0 or fragment_length != length)", () => {
-        const wire = HandshakeMessage.encode({
-            msgType: HandshakeType.CLIENT_HELLO,
-            messageSeq: 0,
-            body: Bytes.of(Bytes.fromHex("00112233")),
-        });
+        const wire = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.CLIENT_HELLO,
+                messageSeq: 0,
+                body: Bytes.of(Bytes.fromHex("00112233")),
+            }),
+        );
         // Tamper fragment_length down to 2 — claim a partial fragment.
         const tampered = Uint8Array.from(wire);
         tampered[11] = 2;
@@ -103,11 +113,13 @@ describe("HandshakeMessage envelope", () => {
     });
 
     it("rejects truncated headers and bodies", () => {
-        const wire = HandshakeMessage.encode({
-            msgType: HandshakeType.CLIENT_HELLO,
-            messageSeq: 0,
-            body: Bytes.of(Bytes.fromHex("00112233")),
-        });
+        const wire = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.CLIENT_HELLO,
+                messageSeq: 0,
+                body: Bytes.of(Bytes.fromHex("00112233")),
+            }),
+        );
         expect(() => HandshakeMessage.decode(wire.subarray(0, DTLS_HANDSHAKE_HEADER_LEN - 1))).to.throw(
             /header truncated/,
         );
@@ -146,11 +158,13 @@ describe("HandshakeMessage envelope", () => {
 
     it("encodeForTranscript produces the full DTLS 1.2 12-byte header form (matches encode)", () => {
         const body = Bytes.of(Bytes.fromHex("deadbeef"));
-        const transcriptBytes = HandshakeMessage.encodeForTranscript({
-            msgType: HandshakeType.CLIENT_HELLO,
-            messageSeq: 0,
-            body,
-        });
+        const transcriptBytes = Bytes.of(
+            HandshakeMessage.encodeForTranscript({
+                msgType: HandshakeType.CLIENT_HELLO,
+                messageSeq: 0,
+                body,
+            }),
+        );
         expect(transcriptBytes.length).to.equal(DTLS_HANDSHAKE_HEADER_LEN + body.length);
         expect(transcriptBytes[0]).to.equal(HandshakeType.CLIENT_HELLO);
         // length (3 BE) = 4

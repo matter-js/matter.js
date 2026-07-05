@@ -22,7 +22,7 @@ export class ExtPanIdLockManager {
      * Errors thrown by `fn` propagate to the caller but never poison the queue —
      * the next caller for the same key still runs.
      */
-    withLock<T>(extPanId: Uint8Array, fn: () => Promise<T>): Promise<T> {
+    withLock<T>(extPanId: Bytes, fn: () => Promise<T>): Promise<T> {
         const key = Bytes.toHex(extPanId);
         const previous = this.#queues.get(key) ?? Promise.resolve();
         const result = previous.then(() => fn());

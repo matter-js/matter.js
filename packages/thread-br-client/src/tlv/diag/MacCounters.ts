@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -53,24 +53,25 @@ function writeU32BE(bytes: Uint8Array, offset: number, value: number): void {
 }
 
 export namespace MacCounters {
-    export function decode(value: Uint8Array): MacCounters {
-        if (value.length !== TOTAL_BYTES) {
-            throw new ThreadDiagError(`MacCounters TLV must be ${TOTAL_BYTES} bytes, got ${value.length}`);
+    export function decode(value: Bytes): MacCounters {
+        const buf = Bytes.of(value);
+        if (buf.length !== TOTAL_BYTES) {
+            throw new ThreadDiagError(`MacCounters TLV must be ${TOTAL_BYTES} bytes, got ${buf.length}`);
         }
         return {
-            ifInUnknownProtos: readU32BE(value, 0),
-            ifInErrors: readU32BE(value, 4),
-            ifOutErrors: readU32BE(value, 8),
-            ifInUcastPkts: readU32BE(value, 12),
-            ifInBroadcastPkts: readU32BE(value, 16),
-            ifInDiscards: readU32BE(value, 20),
-            ifOutUcastPkts: readU32BE(value, 24),
-            ifOutBroadcastPkts: readU32BE(value, 28),
-            ifOutDiscards: readU32BE(value, 32),
+            ifInUnknownProtos: readU32BE(buf, 0),
+            ifInErrors: readU32BE(buf, 4),
+            ifOutErrors: readU32BE(buf, 8),
+            ifInUcastPkts: readU32BE(buf, 12),
+            ifInBroadcastPkts: readU32BE(buf, 16),
+            ifInDiscards: readU32BE(buf, 20),
+            ifOutUcastPkts: readU32BE(buf, 24),
+            ifOutBroadcastPkts: readU32BE(buf, 28),
+            ifOutDiscards: readU32BE(buf, 32),
         };
     }
 
-    export function encode(counters: MacCounters): Uint8Array {
+    export function encode(counters: MacCounters): Bytes {
         const out = new Uint8Array(TOTAL_BYTES);
         for (let i = 0; i < FIELD_ORDER.length; i++) {
             const v = counters[FIELD_ORDER[i]];

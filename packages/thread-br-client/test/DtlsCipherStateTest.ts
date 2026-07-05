@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { ContentType } from "../src/dtls/record/ContentType.js";
 import { DtlsCipherState, type DtlsCipherStateInputs } from "../src/dtls/record/DtlsCipherState.js";
 import { DtlsRecord, DtlsReplayError } from "../src/dtls/record/DtlsRecord.js";
+
+const crypto = new StandardCrypto();
 
 const FIXED_INPUTS: DtlsCipherStateInputs = {
     clientWriteKey: Bytes.of(Bytes.fromHex("000102030405060708090a0b0c0d0e0f")),
@@ -41,8 +44,8 @@ describe("DtlsCipherState role-based key/salt selection", () => {
             serverWriteSalt: new Uint8Array(4),
         };
         const state = new DtlsCipherState("client", inputs);
-        inputs.clientWriteKey.fill(0xff);
-        inputs.clientWriteSalt.fill(0xff);
+        Bytes.of(inputs.clientWriteKey).fill(0xff);
+        Bytes.of(inputs.clientWriteSalt).fill(0xff);
         expect(Bytes.toHex(state.encryptParams().key)).to.equal("00000000000000000000000000000000");
         expect(Bytes.toHex(state.encryptParams().salt)).to.equal("00000000");
     });
@@ -93,14 +96,14 @@ describe("DtlsCipherState.aadFor", () => {
     const state = new DtlsCipherState("client", FIXED_INPUTS);
 
     it("matches epoch||seq(8) || type(1) || version(2) || plaintextLen(2)", () => {
-        const aad = state.aadFor(ContentType.APPLICATION_DATA, 1, 42n, 100);
+        const aad = Bytes.of(state.aadFor(ContentType.APPLICATION_DATA, 1, 42n, 100));
         // 0001 00000000002a 17 fefd 0064
         expect(Bytes.toHex(aad)).to.equal("0001" + "00000000002a" + "17" + "fefd" + "0064");
         expect(aad.length).to.equal(13);
     });
 
     it("reflects ContentType byte verbatim", () => {
-        const aad = state.aadFor(ContentType.HANDSHAKE, 0, 7n, 1);
+        const aad = Bytes.of(state.aadFor(ContentType.HANDSHAKE, 0, 7n, 1));
         expect(aad[8]).to.equal(22);
         expect(aad[11]).to.equal(0x00);
         expect(aad[12]).to.equal(0x01);
@@ -182,38 +185,42 @@ describe("DtlsRecord + DtlsCipherState end-to-end (epoch=1)", () => {
         server.advanceReadEpoch();
     }
 
-    it("encrypt at epoch=1 seq=0 with client state -> decrypt with server state", () => {
+    it("encrypt at epoch=1 seq=0 with client state -> decrypt with server state", async () => {
         const { client, server } = pairStates();
         bumpToEpoch1(client, server);
         const plaintext = Bytes.of(Bytes.fromHex("a0a1a2a3a4a5"));
         const seq = client.nextWriteSeq();
         expect(seq).to.equal(0n);
-        const wire = DtlsRecord.encode(
+        const wire = await DtlsRecord.encode(
+            crypto,
             { type: ContentType.APPLICATION_DATA, epoch: client.writeEpoch, sequenceNumber: seq, fragment: plaintext },
             client,
         );
-        const { record } = DtlsRecord.decode(wire, server);
+        const { record } = await DtlsRecord.decode(crypto, wire, server);
         expect(record.epoch).to.equal(1);
         expect(record.sequenceNumber).to.equal(0n);
         expect(Bytes.areEqual(record.fragment, plaintext)).to.equal(true);
     });
 
-    it("tag tamper -> decode throws (auth failure, not DtlsReplayError)", () => {
+    it("tag tamper -> decode throws (auth failure, not DtlsReplayError)", async () => {
         const { client, server } = pairStates();
         bumpToEpoch1(client, server);
-        const wire = DtlsRecord.encode(
-            {
-                type: ContentType.APPLICATION_DATA,
-                epoch: 1,
-                sequenceNumber: client.nextWriteSeq(),
-                fragment: Bytes.of(Bytes.fromHex("11223344")),
-            },
-            client,
+        const wire = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.APPLICATION_DATA,
+                    epoch: 1,
+                    sequenceNumber: client.nextWriteSeq(),
+                    fragment: Bytes.of(Bytes.fromHex("11223344")),
+                },
+                client,
+            ),
         );
         wire[wire.length - 1] ^= 0x01;
         let thrown: unknown;
         try {
-            DtlsRecord.decode(wire, server);
+            await DtlsRecord.decode(crypto, wire, server);
         } catch (e) {
             thrown = e;
         }
@@ -221,10 +228,11 @@ describe("DtlsRecord + DtlsCipherState end-to-end (epoch=1)", () => {
         expect(thrown instanceof DtlsReplayError).to.equal(false);
     });
 
-    it("replay -> decode throws DtlsReplayError on second delivery of the same record", () => {
+    it("replay -> decode throws DtlsReplayError on second delivery of the same record", async () => {
         const { client, server } = pairStates();
         bumpToEpoch1(client, server);
-        const wire = DtlsRecord.encode(
+        const wire = await DtlsRecord.encode(
+            crypto,
             {
                 type: ContentType.APPLICATION_DATA,
                 epoch: 1,
@@ -234,12 +242,12 @@ describe("DtlsRecord + DtlsCipherState end-to-end (epoch=1)", () => {
             client,
         );
         // First delivery succeeds.
-        const first = DtlsRecord.decode(wire, server);
+        const first = await DtlsRecord.decode(crypto, wire, server);
         expect(first.record.sequenceNumber).to.equal(0n);
         // Replay of the identical bytes is rejected.
         let thrown: unknown;
         try {
-            DtlsRecord.decode(wire, server);
+            await DtlsRecord.decode(crypto, wire, server);
         } catch (e) {
             thrown = e;
         }
@@ -250,29 +258,38 @@ describe("DtlsRecord + DtlsCipherState end-to-end (epoch=1)", () => {
         }
     });
 
-    it("out-of-order within window is accepted exactly once", () => {
+    it("out-of-order within window is accepted exactly once", async () => {
         const { client, server } = pairStates();
         bumpToEpoch1(client, server);
         const records: Uint8Array[] = [];
         for (let i = 0; i < 5; i++) {
             records.push(
-                DtlsRecord.encode(
-                    {
-                        type: ContentType.APPLICATION_DATA,
-                        epoch: 1,
-                        sequenceNumber: client.nextWriteSeq(),
-                        fragment: new Uint8Array([i]),
-                    },
-                    client,
+                Bytes.of(
+                    await DtlsRecord.encode(
+                        crypto,
+                        {
+                            type: ContentType.APPLICATION_DATA,
+                            epoch: 1,
+                            sequenceNumber: client.nextWriteSeq(),
+                            fragment: new Uint8Array([i]),
+                        },
+                        client,
+                    ),
                 ),
             );
         }
         // Deliver in scrambled order: 4, 0, 2, 1, 3
         for (const idx of [4, 0, 2, 1, 3]) {
-            const { record } = DtlsRecord.decode(records[idx], server);
-            expect(record.fragment[0]).to.equal(idx);
+            const { record } = await DtlsRecord.decode(crypto, records[idx], server);
+            expect(Bytes.of(record.fragment)[0]).to.equal(idx);
         }
         // Replay any one of them — rejected.
-        expect(() => DtlsRecord.decode(records[2], server)).to.throw(DtlsReplayError);
+        let thrown: unknown;
+        try {
+            await DtlsRecord.decode(crypto, records[2], server);
+        } catch (e) {
+            thrown = e;
+        }
+        expect(thrown instanceof DtlsReplayError).to.equal(true);
     });
 });

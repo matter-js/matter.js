@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Bytes } from "@matter/general";
 import { type EcJpakeKeyKP, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
 
 /**
@@ -19,7 +20,7 @@ import { type EcJpakeKeyKP, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
  * ```
  */
 export const ClientKeyExchangeMessage = {
-    build(kp: EcJpakeKeyKP): Uint8Array {
+    build(kp: EcJpakeKeyKP): Bytes {
         return EcJpakeRound.serializeRound2(kp, { prependEcParameters: false });
     },
 } as const;

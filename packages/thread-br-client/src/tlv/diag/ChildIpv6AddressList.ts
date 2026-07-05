@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
+
 /**
  * Decoded Child IPv6 Address List TLV (Network Diagnostic TLV type 30).
  *
@@ -15,20 +17,21 @@
  */
 export interface ChildIpv6Addresses {
     rloc16: number;
-    addresses: Uint8Array[];
+    addresses: Bytes[];
 }
 
 const RLOC16_BYTES = 2;
 const IPV6_ADDRESS_BYTES = 16;
 
 export namespace ChildIpv6AddressList {
-    export function decode(value: Uint8Array): ChildIpv6Addresses {
-        if (value.length < RLOC16_BYTES) {
+    export function decode(value: Bytes): ChildIpv6Addresses {
+        const buf = Bytes.of(value);
+        if (buf.length < RLOC16_BYTES) {
             return { rloc16: 0, addresses: [] };
         }
 
-        const rloc16 = (value[0] << 8) | value[1];
-        const addressPayload = value.subarray(RLOC16_BYTES);
+        const rloc16 = (buf[0] << 8) | buf[1];
+        const addressPayload = buf.subarray(RLOC16_BYTES);
         const addressCount = Math.floor(addressPayload.length / IPV6_ADDRESS_BYTES);
 
         const addresses = new Array<Uint8Array>();

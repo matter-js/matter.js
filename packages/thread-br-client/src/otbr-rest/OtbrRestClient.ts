@@ -8,6 +8,7 @@ import { Bytes, type Duration, ImplementationError, Millis, Seconds, Time, Timer
 import { OperationalDataset } from "../dataset/OperationalDataset.js";
 import { normalizeKeys } from "./caseNormalizer.js";
 import { OtbrRestError, type OtbrRestErrorCode } from "./OtbrRestError.js";
+import { parseHexBytes } from "./parseHexBytes.js";
 
 export interface OtbrLeaderData {
     partitionId: number;
@@ -18,15 +19,15 @@ export interface OtbrLeaderData {
 }
 
 export interface OtbrNodeInfo {
-    baId: Uint8Array;
+    baId: Bytes;
     state: string;
     numOfRouter: number;
     rlocAddress: string;
-    extAddress: Uint8Array;
+    extAddress: Bytes;
     networkName: string;
     rloc16: number;
     leaderData: OtbrLeaderData;
-    extPanId: Uint8Array;
+    extPanId: Bytes;
 }
 
 export interface OtbrDatasetHex {
@@ -110,16 +111,6 @@ function expectRecord(record: Record<string, unknown>, key: string, where: strin
     return value;
 }
 
-function parseHexBytes(hex: string, expectedLen: number, where: string): Uint8Array {
-    if (!/^[0-9a-fA-F]*$/.test(hex)) {
-        throw new OtbrRestError("rest_protocol", `${where}: not hex`);
-    }
-    if (hex.length !== expectedLen * 2) {
-        throw new OtbrRestError("rest_protocol", `${where}: expected ${expectedLen} bytes, got ${hex.length / 2}`);
-    }
-    return Bytes.of(Bytes.fromHex(hex));
-}
-
 /**
  * Thin HTTP client for the OpenThread Border Router (OTBR) REST API.
  *
@@ -155,7 +146,7 @@ export class OtbrRestClient {
     /**
      * Fetch the current node summary from the OTBR `/node` endpoint.
      *
-     * @returns Parsed node info with typed fields (binary fields as `Uint8Array`).
+     * @returns Parsed node info with typed fields (binary fields as `Bytes`).
      * @throws {@link OtbrRestError} with code `"rest_unreachable"` on network error or timeout.
      * @throws {@link OtbrRestError} with code `"rest_protocol"` when the response is
      *   not a valid JSON object or a required field is missing or has the wrong type.
@@ -175,15 +166,15 @@ export class OtbrRestClient {
             leaderRouterId: expectNumber(leaderRaw, "leaderRouterId", `${where}.leaderData`),
         };
         return {
-            baId: parseHexBytes(expectString(body, "baId", where), 16, `${where}.baId`),
+            baId: parseHexBytes(expectString(body, "baId", where), `${where}.baId`, 16),
             state: expectString(body, "state", where),
             numOfRouter: expectNumber(body, "numOfRouter", where),
             rlocAddress: expectString(body, "rlocAddress", where),
-            extAddress: parseHexBytes(expectString(body, "extAddress", where), 8, `${where}.extAddress`),
+            extAddress: parseHexBytes(expectString(body, "extAddress", where), `${where}.extAddress`, 8),
             networkName: expectString(body, "networkName", where),
             rloc16: expectNumber(body, "rloc16", where),
             leaderData,
-            extPanId: parseHexBytes(expectString(body, "extPanId", where), 8, `${where}.extPanId`),
+            extPanId: parseHexBytes(expectString(body, "extPanId", where), `${where}.extPanId`, 8),
         };
     }
 
@@ -268,15 +259,15 @@ export class OtbrRestClient {
     /**
      * Fetch the 8-byte IEEE EUI-64 extended address from `/node/ext-address`.
      */
-    async getExtAddress(): Promise<Uint8Array> {
-        return parseHexBytes(await this.#getJsonString("/node/ext-address"), 8, "/node/ext-address");
+    async getExtAddress(): Promise<Bytes> {
+        return parseHexBytes(await this.#getJsonString("/node/ext-address"), "/node/ext-address", 8);
     }
 
     /**
      * Fetch the 8-byte Extended PAN ID from `/node/ext-panid`.
      */
-    async getExtPanId(): Promise<Uint8Array> {
-        return parseHexBytes(await this.#getJsonString("/node/ext-panid"), 8, "/node/ext-panid");
+    async getExtPanId(): Promise<Bytes> {
+        return parseHexBytes(await this.#getJsonString("/node/ext-panid"), "/node/ext-panid", 8);
     }
 
     /**
@@ -284,8 +275,8 @@ export class OtbrRestClient {
      *
      * @throws {@link OtbrRestError} `"rest_unsupported"` on older firmware that lacks this endpoint (404).
      */
-    async getBorderAgentId(): Promise<Uint8Array> {
-        return parseHexBytes(await this.#getJsonString("/node/ba-id"), 16, "/node/ba-id");
+    async getBorderAgentId(): Promise<Bytes> {
+        return parseHexBytes(await this.#getJsonString("/node/ba-id"), "/node/ba-id", 16);
     }
 
     /**

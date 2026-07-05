@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -20,23 +20,24 @@ import { ThreadDiagError } from "../../diagnostic/errors.js";
 export const IPV6_ADDRESS_BYTES = 16;
 
 export namespace Ipv6AddressList {
-    export function decode(value: Uint8Array): Uint8Array[] {
-        if (value.length % IPV6_ADDRESS_BYTES !== 0) {
+    export function decode(value: Bytes): Bytes[] {
+        const buf = Bytes.of(value);
+        if (buf.length % IPV6_ADDRESS_BYTES !== 0) {
             throw new ThreadDiagError(
-                `IPv6 address list TLV length ${value.length} not a multiple of ${IPV6_ADDRESS_BYTES}`,
+                `IPv6 address list TLV length ${buf.length} not a multiple of ${IPV6_ADDRESS_BYTES}`,
             );
         }
         const out = new Array<Uint8Array>();
-        for (let offset = 0; offset < value.length; offset += IPV6_ADDRESS_BYTES) {
-            out.push(value.slice(offset, offset + IPV6_ADDRESS_BYTES));
+        for (let offset = 0; offset < buf.length; offset += IPV6_ADDRESS_BYTES) {
+            out.push(buf.slice(offset, offset + IPV6_ADDRESS_BYTES));
         }
         return out;
     }
 
-    export function encode(addresses: ReadonlyArray<Uint8Array>): Uint8Array {
+    export function encode(addresses: ReadonlyArray<Bytes>): Bytes {
         const out = new Uint8Array(addresses.length * IPV6_ADDRESS_BYTES);
         for (let i = 0; i < addresses.length; i++) {
-            const addr = addresses[i];
+            const addr = Bytes.of(addresses[i]);
             if (addr.length !== IPV6_ADDRESS_BYTES) {
                 throw new InternalError(`IPv6 address must be ${IPV6_ADDRESS_BYTES} bytes, got ${addr.length}`);
             }

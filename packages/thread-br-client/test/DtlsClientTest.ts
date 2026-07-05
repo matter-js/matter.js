@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CryptoDecryptError, StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { p256 } from "@noble/curves/nist.js";
+import { DtlsError } from "../src/dtls/channel/DtlsChannel.js";
 import { EcJpakePms } from "../src/dtls/ecjpake/EcJpakePms.js";
 import {
     ECJPAKE_ID_CLIENT,
@@ -29,6 +31,8 @@ import { ContentType } from "../src/dtls/record/ContentType.js";
 import { DtlsCipherState } from "../src/dtls/record/DtlsCipherState.js";
 import { DtlsRecord } from "../src/dtls/record/DtlsRecord.js";
 
+const crypto = new StandardCrypto();
+
 const N = p256.Point.Fn.ORDER;
 
 interface InboundRecordView {
@@ -48,6 +52,28 @@ function bigintFromBE(bytes: Uint8Array): bigint {
 
 function makeFixedRandom(byte: number): () => Uint8Array {
     return () => new Uint8Array(32).fill(byte);
+}
+
+/**
+ * Assert that a promise rejects. If `expected` is given (an error constructor or a message
+ * regex), the rejection must also match it — callers exercising a specific failure mode should
+ * pass this so the test can't pass for the wrong reason.
+ */
+async function expectReject(
+    promise: Promise<unknown>,
+    expected?: { new (...args: never[]): Error } | RegExp,
+): Promise<void> {
+    try {
+        await promise;
+    } catch (e) {
+        if (expected instanceof RegExp) {
+            expect((e as Error).message).to.match(expected);
+        } else if (expected !== undefined) {
+            expect(e).to.be.instanceOf(expected);
+        }
+        return;
+    }
+    expect.fail("expected promise to reject");
 }
 
 /**
@@ -73,14 +99,14 @@ class MirrorServer {
     readonly #cookie: Uint8Array;
     readonly #scalars: () => bigint;
     readonly #serverRandom: Uint8Array;
-    #transcript = new HandshakeTranscript();
+    #transcript = new HandshakeTranscript(crypto);
     #handshakeMessageSeq = 0;
     #recordSeq = 0n;
     #clientRound1?: { kp1: EcJpakeKeyKP; kp2: EcJpakeKeyKP };
     #x4?: bigint;
-    #X3?: Uint8Array;
-    #X4?: Uint8Array;
-    #clientRandom?: Uint8Array;
+    #X3?: Bytes;
+    #X4?: Bytes;
+    #clientRandom?: Bytes;
     #masterSecret?: Uint8Array;
     #cipherState?: DtlsCipherState;
     #expectingCookieEcho = true;
@@ -109,9 +135,9 @@ class MirrorServer {
     }
 
     /** Process one client datagram, return the records to send back. */
-    onClientDatagram(bytes: Uint8Array): Uint8Array[] {
+    async onClientDatagram(bytes: Uint8Array): Promise<Uint8Array[]> {
         if (this.#expectingCookieEcho) {
-            const records = this.#splitRecords(bytes);
+            const records = await this.#splitRecords(bytes);
             return this.#handleFirstOrSecondClientHello(records);
         }
         if (this.#seenClientFinished) {
@@ -133,12 +159,12 @@ class MirrorServer {
         return this.#cipherState;
     }
 
-    #splitRecords(bytes: Uint8Array): InboundRecordView[] {
+    async #splitRecords(bytes: Uint8Array): Promise<InboundRecordView[]> {
         const out: InboundRecordView[] = [];
         let p = 0;
         while (p < bytes.length) {
-            const { record, consumed } = DtlsRecord.decode(bytes.subarray(p), this.#cipherState);
-            out.push(record);
+            const { record, consumed } = await DtlsRecord.decode(crypto, bytes.subarray(p), this.#cipherState);
+            out.push({ ...record, fragment: Bytes.of(record.fragment) });
             p += consumed;
         }
         return out;
@@ -192,7 +218,7 @@ class MirrorServer {
         return { random, cookie, ecjpakeKkpp };
     }
 
-    #handleFirstOrSecondClientHello(records: InboundRecordView[]): Uint8Array[] {
+    async #handleFirstOrSecondClientHello(records: InboundRecordView[]): Promise<Uint8Array[]> {
         if (records.length !== 1 || records[0].type !== ContentType.HANDSHAKE) {
             throw new Error("MirrorServer: expected single handshake record");
         }
@@ -200,7 +226,7 @@ class MirrorServer {
         if (message.msgType !== HandshakeType.CLIENT_HELLO) {
             throw new Error(`MirrorServer: expected ClientHello, got ${message.msgType}`);
         }
-        const parsed = this.#parseClientHello(message.body);
+        const parsed = this.#parseClientHello(Bytes.of(message.body));
         if (parsed.cookie.length === 0) {
             // Reply with HelloVerifyRequest.
             const hvrBody = new Uint8Array(2 + 1 + this.#cookie.length);
@@ -213,12 +239,14 @@ class MirrorServer {
                 messageSeq: 0,
                 body: hvrBody,
             });
-            const rec = DtlsRecord.encode({
-                type: ContentType.HANDSHAKE,
-                epoch: 0,
-                sequenceNumber: this.#recordSeq,
-                fragment: hvr,
-            });
+            const rec = Bytes.of(
+                await DtlsRecord.encode(crypto, {
+                    type: ContentType.HANDSHAKE,
+                    epoch: 0,
+                    sequenceNumber: this.#recordSeq,
+                    fragment: hvr,
+                }),
+            );
             this.#recordSeq += 1n;
             return [rec];
         }
@@ -239,20 +267,20 @@ class MirrorServer {
         this.#clientRound1 = EcJpakeRound.parseRound1(parsed.ecjpakeKkpp);
         // Verify client's round-1 ZKPs against curve base.
         if (
-            !SchnorrZkp.verify({
+            !(await SchnorrZkp.verify(crypto, {
                 zkp: this.#clientRound1.kp1.zkp,
                 publicKey: this.#clientRound1.kp1.X,
                 id: ECJPAKE_ID_CLIENT,
-            })
+            }))
         ) {
             throw new Error("MirrorServer: client KP1 ZKP failed");
         }
         if (
-            !SchnorrZkp.verify({
+            !(await SchnorrZkp.verify(crypto, {
                 zkp: this.#clientRound1.kp2.zkp,
                 publicKey: this.#clientRound1.kp2.X,
                 id: ECJPAKE_ID_CLIENT,
-            })
+            }))
         ) {
             throw new Error("MirrorServer: client KP2 ZKP failed");
         }
@@ -262,7 +290,7 @@ class MirrorServer {
         const x4 = this.#scalars();
         const v1 = this.#scalars();
         const v2 = this.#scalars();
-        const serverRound1 = EcJpakeRound.buildRound1({
+        const serverRound1 = await EcJpakeRound.buildRound1(crypto, {
             x1: x3,
             x2: x4,
             v1,
@@ -275,13 +303,15 @@ class MirrorServer {
         const serverRound1Bytes = EcJpakeRound.serializeRound1(serverRound1.kp1, serverRound1.kp2);
 
         // ServerHello body.
-        const serverHelloBody = this.#buildServerHelloBody(serverRound1Bytes);
+        const serverHelloBody = this.#buildServerHelloBody(Bytes.of(serverRound1Bytes));
         const serverHelloMsgSeq = this.#handshakeMessageSeq++;
-        const serverHelloHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO,
-            messageSeq: serverHelloMsgSeq,
-            body: serverHelloBody,
-        });
+        const serverHelloHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO,
+                messageSeq: serverHelloMsgSeq,
+                body: serverHelloBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO,
@@ -297,7 +327,7 @@ class MirrorServer {
             Xm1: this.#X3,
         });
         const v3 = this.#scalars();
-        const serverRound2 = EcJpakeRound.buildRound2({
+        const serverRound2 = await EcJpakeRound.buildRound2(crypto, {
             xm2: x4,
             s: this.#password,
             v: v3,
@@ -306,11 +336,13 @@ class MirrorServer {
         });
         const skeBody = EcJpakeRound.serializeRound2(serverRound2, { prependEcParameters: true });
         const skeMsgSeq = this.#handshakeMessageSeq++;
-        const skeHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_KEY_EXCHANGE,
-            messageSeq: skeMsgSeq,
-            body: skeBody,
-        });
+        const skeHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_KEY_EXCHANGE,
+                messageSeq: skeMsgSeq,
+                body: skeBody,
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_KEY_EXCHANGE,
@@ -320,11 +352,13 @@ class MirrorServer {
         );
 
         const shdMsgSeq = this.#handshakeMessageSeq++;
-        const shdHs = HandshakeMessage.encode({
-            msgType: HandshakeType.SERVER_HELLO_DONE,
-            messageSeq: shdMsgSeq,
-            body: new Uint8Array(0),
-        });
+        const shdHs = Bytes.of(
+            HandshakeMessage.encode({
+                msgType: HandshakeType.SERVER_HELLO_DONE,
+                messageSeq: shdMsgSeq,
+                body: new Uint8Array(0),
+            }),
+        );
         this.#transcript.appendHandshakeMessage(
             HandshakeMessage.encodeForTranscript({
                 msgType: HandshakeType.SERVER_HELLO_DONE,
@@ -339,12 +373,14 @@ class MirrorServer {
         flightBytes.set(skeHs, serverHelloHs.length);
         flightBytes.set(shdHs, serverHelloHs.length + skeHs.length);
 
-        const flightRecord = DtlsRecord.encode({
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: flightBytes,
-        });
+        const flightRecord = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: flightBytes,
+            }),
+        );
         this.#recordSeq += 1n;
         return [flightRecord];
     }
@@ -378,9 +414,9 @@ class MirrorServer {
      * CKE + CCS, then decrypt the encrypted Finished record. This mirrors what a real DTLS
      * server has to do because it can never decrypt before key derivation.
      */
-    #handleClientFlightLazy(bytes: Uint8Array): Uint8Array[] {
+    async #handleClientFlightLazy(bytes: Uint8Array): Promise<Uint8Array[]> {
         let p = 0;
-        let clientFinishedBody: Uint8Array | undefined;
+        let clientFinishedBody: Bytes | undefined;
         let clientFinishedMsgSeq = 0;
         let sawCcs = false;
         let sawCke = false;
@@ -400,7 +436,7 @@ class MirrorServer {
             const stateForDecode = epoch === 0 ? undefined : this.#cipherState;
             let record;
             try {
-                record = DtlsRecord.decode(recordBytes, stateForDecode).record;
+                record = (await DtlsRecord.decode(crypto, recordBytes, stateForDecode)).record;
             } catch (e) {
                 if (epoch >= 1 && this.#ignoreClientFinishedMismatch) {
                     // Wrong-password test path: server can't decrypt the client's Finished because
@@ -413,7 +449,7 @@ class MirrorServer {
                 throw e;
             }
             if (record.type === ContentType.HANDSHAKE && record.epoch === 0) {
-                const { message } = HandshakeMessage.decode(record.fragment);
+                const { message } = HandshakeMessage.decode(Bytes.of(record.fragment));
                 if (message.msgType !== HandshakeType.CLIENT_KEY_EXCHANGE) {
                     throw new Error(`MirrorServer: expected CKE, got ${message.msgType}`);
                 }
@@ -425,15 +461,15 @@ class MirrorServer {
                         body: message.body,
                     }),
                 );
-                this.#armCipherStateFromCke(message.body);
+                await this.#armCipherStateFromCke(Bytes.of(message.body));
             } else if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
-                ChangeCipherSpec.parse(record.fragment);
+                ChangeCipherSpec.parse(Bytes.of(record.fragment));
                 sawCcs = true;
             } else if (record.type === ContentType.HANDSHAKE && record.epoch >= 1) {
                 if (!sawCke || !sawCcs) {
                     throw new Error("MirrorServer: encrypted handshake before CKE/CCS");
                 }
-                const { message } = HandshakeMessage.decode(record.fragment);
+                const { message } = HandshakeMessage.decode(Bytes.of(record.fragment));
                 if (message.msgType !== HandshakeType.FINISHED) {
                     throw new Error(`MirrorServer: expected Finished, got ${message.msgType}`);
                 }
@@ -451,10 +487,10 @@ class MirrorServer {
             throw new Error("MirrorServer: cipher state should have been armed by now");
         }
         // Verify client Finished against transcript-so-far (CH..SHD..CKE).
-        const expected = TlsPrf.verifyData({
+        const expected = await TlsPrf.verifyData(crypto, {
             masterSecret,
             role: "client",
-            transcriptDigest: this.#transcript.digest(),
+            transcriptDigest: await this.#transcript.digest(),
         });
         const actual = FinishedMessage.parse(clientFinishedBody).verifyData;
         if (!Bytes.areEqual(expected, actual) && !this.#ignoreClientFinishedMismatch) {
@@ -469,39 +505,46 @@ class MirrorServer {
             }),
         );
         // Build server's CCS + Finished.
-        const ccsRecord = DtlsRecord.encode({
-            type: ContentType.CHANGE_CIPHER_SPEC,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: CHANGE_CIPHER_SPEC_BODY,
-        });
+        const ccsRecord = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.CHANGE_CIPHER_SPEC,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: CHANGE_CIPHER_SPEC_BODY,
+            }),
+        );
         this.#recordSeq += 1n;
         cipherState.advanceWriteEpoch();
-        const serverVerifyData = TlsPrf.verifyData({
-            masterSecret,
-            role: "server",
-            transcriptDigest: this.#transcript.digest(),
-        });
+        const serverVerifyData = Bytes.of(
+            await TlsPrf.verifyData(crypto, {
+                masterSecret,
+                role: "server",
+                transcriptDigest: await this.#transcript.digest(),
+            }),
+        );
         const serverFinishedHs = HandshakeMessage.encode({
             msgType: HandshakeType.FINISHED,
             messageSeq: this.#handshakeMessageSeq++,
             body: FinishedMessage.build(serverVerifyData),
         });
         const finishedSeq = cipherState.nextWriteSeq();
-        const finishedRecord = DtlsRecord.encode(
-            {
-                type: ContentType.HANDSHAKE,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: finishedSeq,
-                fragment: serverFinishedHs,
-            },
-            cipherState,
+        const finishedRecord = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.HANDSHAKE,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: finishedSeq,
+                    fragment: serverFinishedHs,
+                },
+                cipherState,
+            ),
         );
         this.#seenClientFinished = true;
         return [ccsRecord, finishedRecord];
     }
 
-    #armCipherStateFromCke(ckeBody: Uint8Array): void {
+    async #armCipherStateFromCke(ckeBody: Uint8Array): Promise<void> {
         const X3 = this.#X3;
         const X4 = this.#X4;
         const clientRound1 = this.#clientRound1;
@@ -523,27 +566,29 @@ class MirrorServer {
             Xm1: clientRound1.kp1.X,
         });
         if (
-            !EcJpakeRound.verifyRound2Zkp({
+            !(await EcJpakeRound.verifyRound2Zkp(crypto, {
                 kp: clientRound2,
                 generator: clientGenerator,
                 peerId: ECJPAKE_ID_CLIENT,
-            })
+            }))
         ) {
             throw new Error("MirrorServer: client round-2 ZKP failed");
         }
         // PMS from server's perspective: Xp = client's Xm, Xp2 = client's X2, xm2 = server's x4, s = password.
-        const pms = EcJpakePms.derive({
+        const pms = await EcJpakePms.derive(crypto, {
             Xp: clientRound2.X,
             Xp2: clientRound1.kp2.X,
             xm2: x4,
             s: this.#password,
         });
-        this.#masterSecret = TlsPrf.masterSecret({
-            premasterSecret: pms,
-            clientRandom,
-            serverRandom: this.#serverRandom,
-        });
-        const keyBlock = TlsPrf.keyBlock({
+        this.#masterSecret = Bytes.of(
+            await TlsPrf.masterSecret(crypto, {
+                premasterSecret: pms,
+                clientRandom,
+                serverRandom: this.#serverRandom,
+            }),
+        );
+        const keyBlock = await TlsPrf.keyBlock(crypto, {
             masterSecret: this.#masterSecret,
             clientRandom,
             serverRandom: this.#serverRandom,
@@ -565,18 +610,19 @@ class MirrorServer {
  * feed the server's response back into the client. Returns once the client
  * reports "established".
  */
-function runHandshake(client: DtlsClient, server: MirrorServer): { steps: number } {
-    const concat = (records: Uint8Array[]) => {
-        const total = records.reduce((a, r) => a + r.length, 0);
+async function runHandshake(client: DtlsClient, server: MirrorServer): Promise<{ steps: number }> {
+    const concat = (records: Bytes[]) => {
+        const buffers = records.map(r => Bytes.of(r));
+        const total = buffers.reduce((a, r) => a + r.length, 0);
         const out = new Uint8Array(total);
         let off = 0;
-        for (const r of records) {
+        for (const r of buffers) {
             out.set(r, off);
             off += r.length;
         }
         return out;
     };
-    let { records } = client.start();
+    let { records } = await client.start();
     let steps = 0;
     while (!client.isEstablished()) {
         steps += 1;
@@ -584,12 +630,12 @@ function runHandshake(client: DtlsClient, server: MirrorServer): { steps: number
             throw new Error("handshake did not converge");
         }
         const datagram = concat(records);
-        const reply = server.onClientDatagram(datagram);
+        const reply = await server.onClientDatagram(datagram);
         if (reply.length === 0) {
             break;
         }
         const replyDatagram = concat(reply);
-        const next = client.onDatagram(replyDatagram);
+        const next = await client.onDatagram(replyDatagram);
         records = next.records;
     }
     return { steps };
@@ -598,8 +644,9 @@ function runHandshake(client: DtlsClient, server: MirrorServer): { steps: number
 const DEFAULT_PASSWORD = Bytes.of(Bytes.fromHex("4a3070000000000a"));
 
 describe("DtlsClient — happy-path handshake (mirror server)", () => {
-    it("completes a cookie-exchange handshake to 'established'", () => {
+    it("completes a cookie-exchange handshake to 'established'", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0xa1),
             ephemeralScalar: makeScalarStream(0x1234567890abcdefn),
@@ -609,15 +656,16 @@ describe("DtlsClient — happy-path handshake (mirror server)", () => {
             cookie: Bytes.of(Bytes.fromHex("aa55cc33")),
             scalarSeed: 0xfeedfacecafebaben,
         });
-        runHandshake(client, server);
+        await runHandshake(client, server);
         expect(client.state()).to.equal("established");
         expect(client.isEstablished()).to.equal(true);
         expect(client.cipherState().writeEpoch).to.equal(1);
         expect(server.isEstablished()).to.equal(true);
     });
 
-    it("'state()' transitions in the documented order through the cookie path", () => {
+    it("'state()' transitions in the documented order through the cookie path", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0xa2),
             ephemeralScalar: makeScalarStream(0x99n),
@@ -626,64 +674,68 @@ describe("DtlsClient — happy-path handshake (mirror server)", () => {
             password: DEFAULT_PASSWORD,
             scalarSeed: 0x42n,
         });
-        const concat = (rs: Uint8Array[]) => {
-            const t = rs.reduce((a, r) => a + r.length, 0);
+        const concat = (rs: Bytes[]) => {
+            const buffers = rs.map(r => Bytes.of(r));
+            const t = buffers.reduce((a, r) => a + r.length, 0);
             const o = new Uint8Array(t);
             let p = 0;
-            for (const r of rs) {
+            for (const r of buffers) {
                 o.set(r, p);
                 p += r.length;
             }
             return o;
         };
         expect(client.state()).to.equal("initial");
-        const start = client.start();
+        const start = await client.start();
         expect(client.state()).to.equal("sent_first_clienthello");
-        const r1 = server.onClientDatagram(concat(start.records));
-        const step2 = client.onDatagram(concat(r1));
+        const r1 = await server.onClientDatagram(concat(start.records));
+        const step2 = await client.onDatagram(concat(r1));
         expect(client.state()).to.equal("sent_clienthello_with_cookie");
-        const r2 = server.onClientDatagram(concat(step2.records));
-        const step3 = client.onDatagram(concat(r2));
+        const r2 = await server.onClientDatagram(concat(step2.records));
+        const step3 = await client.onDatagram(concat(r2));
         expect(client.state()).to.equal("sent_clientkeyexchange_flight");
-        const r3 = server.onClientDatagram(concat(step3.records));
-        client.onDatagram(concat(r3));
+        const r3 = await server.onClientDatagram(concat(step3.records));
+        await client.onDatagram(concat(r3));
         expect(client.state()).to.equal("established");
     });
 });
 
 describe("DtlsClient — failure paths", () => {
-    it("transitions to 'failed' when the server's round-1 ZKP is corrupt", () => {
+    it("transitions to 'failed' when the server's round-1 ZKP is corrupt", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0x10),
             ephemeralScalar: makeScalarStream(0x1n),
         });
         const server = new MirrorServer({ password: DEFAULT_PASSWORD });
-        const concat = (rs: Uint8Array[]) => {
-            const t = rs.reduce((a, r) => a + r.length, 0);
+        const concat = (rs: Bytes[]) => {
+            const buffers = rs.map(r => Bytes.of(r));
+            const t = buffers.reduce((a, r) => a + r.length, 0);
             const o = new Uint8Array(t);
             let p = 0;
-            for (const r of rs) {
+            for (const r of buffers) {
                 o.set(r, p);
                 p += r.length;
             }
             return o;
         };
-        const start = client.start();
-        const r1 = concat(server.onClientDatagram(concat(start.records)));
-        const step2 = client.onDatagram(r1);
-        const reply = concat(server.onClientDatagram(concat(step2.records)));
+        const start = await client.start();
+        const r1 = concat(await server.onClientDatagram(concat(start.records)));
+        const step2 = await client.onDatagram(r1);
+        const reply = concat(await server.onClientDatagram(concat(step2.records)));
         // Tamper the server flight: flip a bit deep inside the ServerHello extension data.
         // We pick an offset well past the headers (around 200 bytes in — inside the
         // ZKP V coordinate of the first server KP).
         const tampered = Uint8Array.from(reply);
         tampered[200] ^= 0x01;
-        expect(() => client.onDatagram(tampered)).to.throw();
+        await expectReject(client.onDatagram(tampered), DtlsError);
         expect(client.state()).to.equal("failed");
     });
 
-    it("transitions to 'failed' when client and server use different passwords (server Finished MAC mismatch)", () => {
+    it("transitions to 'failed' when client and server use different passwords (server Finished MAC mismatch)", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0x20),
             ephemeralScalar: makeScalarStream(0xabcdn),
@@ -701,39 +753,41 @@ describe("DtlsClient — failure paths", () => {
         // client hits is the AEAD tag check on the encrypted server Finished record (the AES
         // key the server used to seal it differs from the one the client derives). If keys
         // happened to align, the verify_data MAC check would catch it instead.
-        expect(() => runHandshake(client, server)).to.throw();
+        await expectReject(runHandshake(client, server), CryptoDecryptError);
         expect(client.state()).to.equal("failed");
     });
 });
 
 describe("DtlsClient — retransmit", () => {
-    it("re-emits the last flight bytes-identically when onRetransmit() is called", () => {
+    it("re-emits the last flight bytes-identically when onRetransmit() is called", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0x30),
             ephemeralScalar: makeScalarStream(0xfeedn),
         });
-        const first = client.start();
-        const re1 = client.onRetransmit();
+        const first = await client.start();
+        const re1 = await client.onRetransmit();
         expect(re1.records.length).to.equal(first.records.length);
         for (let i = 0; i < first.records.length; i++) {
             expect(Bytes.areEqual(first.records[i], re1.records[i])).to.equal(true);
         }
         // After the cookie exchange the retransmit should re-emit the second ClientHello.
         const server = new MirrorServer({ password: DEFAULT_PASSWORD });
-        const concat = (rs: Uint8Array[]) => {
-            const t = rs.reduce((a, r) => a + r.length, 0);
+        const concat = (rs: Bytes[]) => {
+            const buffers = rs.map(r => Bytes.of(r));
+            const t = buffers.reduce((a, r) => a + r.length, 0);
             const o = new Uint8Array(t);
             let p = 0;
-            for (const r of rs) {
+            for (const r of buffers) {
                 o.set(r, p);
                 p += r.length;
             }
             return o;
         };
-        const reply = concat(server.onClientDatagram(concat(first.records)));
-        const second = client.onDatagram(reply);
-        const re2 = client.onRetransmit();
+        const reply = concat(await server.onClientDatagram(concat(first.records)));
+        const second = await client.onDatagram(reply);
+        const re2 = await client.onRetransmit();
         expect(re2.records.length).to.equal(second.records.length);
         for (let i = 0; i < second.records.length; i++) {
             expect(Bytes.areEqual(second.records[i], re2.records[i])).to.equal(true);
@@ -742,33 +796,36 @@ describe("DtlsClient — retransmit", () => {
 });
 
 describe("DtlsClient — multi-record datagram", () => {
-    it("accepts ServerHello + SKE + SHD packed into a single datagram", () => {
+    it("accepts ServerHello + SKE + SHD packed into a single datagram", async () => {
         // The MirrorServer already packs the three messages into one record/datagram by default;
         // this test asserts that the client splits them correctly.
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0xb0),
             ephemeralScalar: makeScalarStream(0xbeefn),
         });
         const server = new MirrorServer({ password: DEFAULT_PASSWORD });
-        runHandshake(client, server);
+        await runHandshake(client, server);
         expect(client.isEstablished()).to.equal(true);
     });
 });
 
 describe("DtlsClient — pre/post-state guards", () => {
-    it("throws if start() is called twice", () => {
+    it("throws if start() is called twice", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0xc0),
             ephemeralScalar: makeScalarStream(0x1n),
         });
-        client.start();
-        expect(() => client.start()).to.throw();
+        await client.start();
+        await expectReject(client.start());
     });
 
     it("throws if cipherState() is called before 'established'", () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0xc1),
             ephemeralScalar: makeScalarStream(0x1n),
@@ -776,12 +833,13 @@ describe("DtlsClient — pre/post-state guards", () => {
         expect(() => client.cipherState()).to.throw(/established/);
     });
 
-    it("throws if onDatagram() is called before start()", () => {
+    it("throws if onDatagram() is called before start()", async () => {
         const client = new DtlsClient({
+            crypto,
             password: DEFAULT_PASSWORD,
             random: makeFixedRandom(0xc2),
             ephemeralScalar: makeScalarStream(0x1n),
         });
-        expect(() => client.onDatagram(new Uint8Array(0))).to.throw();
+        await expectReject(client.onDatagram(new Uint8Array(0)));
     });
 });

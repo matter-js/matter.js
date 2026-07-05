@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, Crypto, InternalError } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
-import { sha256 } from "@noble/hashes/sha2.js";
 import { DtlsError } from "../channel/DtlsChannel.js";
 
 const Point = p256.Point;
@@ -35,7 +34,7 @@ const COORDINATE_BYTES = 32;
  * TLS 1.2 PRF takes over (Phase 0c.5 / DTLS layer).
  */
 export const EcJpakePms = {
-    derive(args: { Xp: Uint8Array; Xp2: Uint8Array; xm2: bigint; s: bigint }): Uint8Array {
+    async derive(crypto: Crypto, args: { Xp: Bytes; Xp2: Bytes; xm2: bigint; s: bigint }): Promise<Bytes> {
         const { Xp, Xp2, xm2, s } = args;
         if (xm2 <= 0n || xm2 >= N) {
             throw new InternalError("xm2 must be in [1, n-1]");
@@ -43,8 +42,8 @@ export const EcJpakePms = {
         if (s <= 0n) {
             throw new InternalError("s (password as integer) must be positive");
         }
-        const Xp_pt = Point.fromBytes(Xp);
-        const Xp2_pt = Point.fromBytes(Xp2);
+        const Xp_pt = Point.fromBytes(Bytes.of(Xp));
+        const Xp2_pt = Point.fromBytes(Bytes.of(Xp2));
         if (Xp_pt.is0() || Xp2_pt.is0()) {
             throw new DtlsError("peer points must not be the point at infinity");
         }
@@ -60,6 +59,6 @@ export const EcJpakePms = {
         // 0x04 || X(32) || Y(32) — slice X out at offset 1.
         const sec1 = K.toBytes(false);
         const xBytes = sec1.subarray(1, 1 + COORDINATE_BYTES);
-        return sha256(xBytes);
+        return Bytes.of(await crypto.computeHash(xBytes));
     },
 } as const;

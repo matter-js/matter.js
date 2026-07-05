@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Bytes } from "@matter/general";
 import type { ChildIpv6Addresses } from "../tlv/diag/ChildIpv6AddressList.js";
 import type { ChildTableEntry } from "../tlv/diag/ChildTable.js";
 import type { Connectivity } from "../tlv/diag/Connectivity.js";
@@ -16,7 +17,7 @@ import type { Route64 } from "../tlv/diag/Route64.js";
 import type { RouterNeighborEntry } from "../tlv/diag/RouterNeighbor.js";
 
 export interface DiagnosticResponse {
-    extMacAddress?: Uint8Array;
+    extMacAddress?: Bytes;
     rloc16?: number;
     mode?: Mode;
     timeout?: number;
@@ -24,7 +25,7 @@ export interface DiagnosticResponse {
     route64?: Route64;
     leaderData?: LeaderData;
     networkData?: ThreadNetworkData;
-    ipv6Addresses?: Uint8Array[];
+    ipv6Addresses?: Bytes[];
     macCounters?: MacCounters;
     batteryLevel?: number;
     supplyVoltage?: number;
@@ -33,7 +34,7 @@ export interface DiagnosticResponse {
     routerNeighbors?: RouterNeighborEntry[];
     channelPages?: number[];
     maxChildTimeout?: number;
-    eui64?: Uint8Array;
+    eui64?: Bytes;
     version?: number;
     vendorName?: string;
     vendorModel?: string;
@@ -41,5 +42,5 @@ export interface DiagnosticResponse {
     threadStackVersion?: string;
     vendorAppUrl?: string;
     mleCounters?: MleCounters;
-    unknown: Array<{ type: number; value: Uint8Array }>;
+    unknown: Array<{ type: number; value: Bytes }>;
 }

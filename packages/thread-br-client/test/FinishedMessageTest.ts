@@ -19,7 +19,7 @@ describe("FinishedMessage", () => {
 
     it("build returns a copy that the caller cannot accidentally mutate", () => {
         const vd = new Uint8Array(FINISHED_VERIFY_DATA_LEN);
-        const wire = FinishedMessage.build(vd);
+        const wire = Bytes.of(FinishedMessage.build(vd));
         wire[0] = 0xff;
         expect(vd[0]).to.equal(0);
     });

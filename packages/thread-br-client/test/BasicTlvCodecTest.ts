@@ -63,7 +63,7 @@ describe("BasicTlv", () => {
 
         it("emits the 0xFF extended-length escape for values >=255 bytes", () => {
             const value = new Uint8Array(255);
-            const encoded = BasicTlv.encode([{ type: 0x05, value }]);
+            const encoded = Bytes.of(BasicTlv.encode([{ type: 0x05, value }]));
             expect(encoded.length).to.equal(1 + 1 + 2 + 255);
             expect(encoded[0]).to.equal(0x05);
             expect(encoded[1]).to.equal(0xff);

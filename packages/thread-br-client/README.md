@@ -6,11 +6,11 @@ For more information about matter.js, see the [matter.js README](../../README.md
 
 It provides Thread BR-perspective routing, link-quality, child-table, and vendor data for an entire Thread mesh — including non-Matter nodes.
 
-> **Runtime: Node.js (for now).** The MeshCoP DTLS stack uses AES-CCM-8 and AES-CMAC via Node's
-> `crypto`, which keeps the package Node-bound. The UDP transport and CoAP codec are
-> platform-agnostic (matter.js `Network` + an inline RFC 7252 codec), so only the crypto pins it
-> to Node. Browser/React-Native support can be revisited if matter.js `Crypto` gains
-> configurable-tag CCM and AES-CMAC.
+> **Runtime: portable.** All crypto (AES-CCM-8, AES-CMAC, TLS-PRF, SHA-256, EC-JPAKE hashing)
+> routes through the matter.js `Crypto` abstraction, so the package runs anywhere matter.js runs —
+> Node.js, browser, and React-Native — with no `node:` dependency. It uses `@matter/general`'s
+> `Crypto` (native on Node via `NodeJsCrypto`; WebCrypto + pure-JS AES elsewhere) and
+> `@noble/curves` for EC-JPAKE P-256 point math.
 
 ## Scope
 

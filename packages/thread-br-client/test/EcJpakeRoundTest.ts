@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { p256 } from "@noble/curves/nist.js";
 import { readFileSync } from "node:fs";
@@ -13,6 +14,7 @@ import { SchnorrZkp } from "../src/dtls/ecjpake/SchnorrZkp.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
     x1: string;
@@ -39,13 +41,15 @@ describe("EcJpakeRound.parseRound1 (mbedTLS oracle)", () => {
 
     it("decodes mbedTLS cli_one into two valid key-pair-with-ZKP entries", () => {
         const round = EcJpakeRound.parseRound1(Bytes.of(Bytes.fromHex(vectors.cli_one)));
-        expect(round.kp1.X.length).to.equal(65);
-        expect(round.kp1.X[0]).to.equal(0x04);
-        expect(round.kp1.zkp.V.length).to.equal(65);
-        expect(round.kp1.zkp.V[0]).to.equal(0x04);
-        expect(round.kp1.zkp.r.length).to.be.within(1, 32);
-        expect(round.kp2.X.length).to.equal(65);
-        expect(round.kp2.zkp.V.length).to.equal(65);
+        const kp1X = Bytes.of(round.kp1.X);
+        const kp1V = Bytes.of(round.kp1.zkp.V);
+        expect(kp1X.length).to.equal(65);
+        expect(kp1X[0]).to.equal(0x04);
+        expect(kp1V.length).to.equal(65);
+        expect(kp1V[0]).to.equal(0x04);
+        expect(Bytes.of(round.kp1.zkp.r).length).to.be.within(1, 32);
+        expect(Bytes.of(round.kp2.X).length).to.equal(65);
+        expect(Bytes.of(round.kp2.zkp.V).length).to.equal(65);
     });
 
     it("kp1.X equals x1*G and kp2.X equals x2*G for the mbedTLS client side", () => {
@@ -100,7 +104,7 @@ describe("EcJpakeRound.serializeRound1 (byte-identical with mbedTLS oracle)", ()
 
     it("rejects writing a ZKP r that has a non-minimal leading zero", () => {
         const round = EcJpakeRound.parseRound1(Bytes.of(Bytes.fromHex(vectors.cli_one)));
-        const padded = new Uint8Array([0x00, ...round.kp1.zkp.r]);
+        const padded = new Uint8Array([0x00, ...Bytes.of(round.kp1.zkp.r)]);
         const tampered = { X: round.kp1.X, zkp: { V: round.kp1.zkp.V, r: padded } };
         expect(() => EcJpakeRound.serializeRound1(tampered, round.kp2)).to.throw(/minimal/);
     });
@@ -113,10 +117,10 @@ describe("EcJpakeRound.parseRound1 defensive copies", () => {
         const original = Bytes.of(Bytes.fromHex(vectors.cli_one));
         const input = new Uint8Array(original);
         const parsed = EcJpakeRound.parseRound1(input);
-        const x1Snapshot = new Uint8Array(parsed.kp1.X);
-        const v1Snapshot = new Uint8Array(parsed.kp1.zkp.V);
-        const r1Snapshot = new Uint8Array(parsed.kp1.zkp.r);
-        const x2Snapshot = new Uint8Array(parsed.kp2.X);
+        const x1Snapshot = new Uint8Array(Bytes.of(parsed.kp1.X));
+        const v1Snapshot = new Uint8Array(Bytes.of(parsed.kp1.zkp.V));
+        const r1Snapshot = new Uint8Array(Bytes.of(parsed.kp1.zkp.r));
+        const x2Snapshot = new Uint8Array(Bytes.of(parsed.kp2.X));
         input.fill(0xff);
         expect(Bytes.areEqual(parsed.kp1.X, x1Snapshot)).to.equal(true);
         expect(Bytes.areEqual(parsed.kp1.zkp.V, v1Snapshot)).to.equal(true);
@@ -128,23 +132,27 @@ describe("EcJpakeRound.parseRound1 defensive copies", () => {
 describe("EcJpakeRound.buildRound1 (deterministic ephemerals)", () => {
     const vectors = loadVectors();
 
-    it("produces a parseable, ZKP-valid round-1 for the client side", () => {
+    it("produces a parseable, ZKP-valid round-1 for the client side", async () => {
         const x1 = bigintFromHex(vectors.x1);
         const x2 = bigintFromHex(vectors.x2);
         const v1 = (x1 ^ 0x5a5a5a5an) % N || 1n;
         const v2 = (x2 ^ 0xa5a5a5a5n) % N || 1n;
-        const built = EcJpakeRound.buildRound1({ x1, x2, v1, v2, id: ECJPAKE_ID_CLIENT });
+        const built = await EcJpakeRound.buildRound1(crypto, { x1, x2, v1, v2, id: ECJPAKE_ID_CLIENT });
         const wire = EcJpakeRound.serializeRound1(built.kp1, built.kp2);
         const round = EcJpakeRound.parseRound1(wire);
-        expect(SchnorrZkp.verify({ zkp: round.kp1.zkp, publicKey: round.kp1.X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
-        expect(SchnorrZkp.verify({ zkp: round.kp2.zkp, publicKey: round.kp2.X, id: ECJPAKE_ID_CLIENT })).to.equal(true);
+        expect(
+            await SchnorrZkp.verify(crypto, { zkp: round.kp1.zkp, publicKey: round.kp1.X, id: ECJPAKE_ID_CLIENT }),
+        ).to.equal(true);
+        expect(
+            await SchnorrZkp.verify(crypto, { zkp: round.kp2.zkp, publicKey: round.kp2.X, id: ECJPAKE_ID_CLIENT }),
+        ).to.equal(true);
         const expectedX1 = Point.BASE.multiply(x1).toBytes(false);
         const expectedX2 = Point.BASE.multiply(x2).toBytes(false);
         expect(Bytes.toHex(round.kp1.X)).to.equal(Bytes.toHex(expectedX1));
         expect(Bytes.toHex(round.kp2.X)).to.equal(Bytes.toHex(expectedX2));
     });
 
-    it("is fully deterministic: same inputs -> identical bytes", () => {
+    it("is fully deterministic: same inputs -> identical bytes", async () => {
         const args = {
             x1: bigintFromHex(vectors.x1),
             x2: bigintFromHex(vectors.x2),
@@ -152,8 +160,8 @@ describe("EcJpakeRound.buildRound1 (deterministic ephemerals)", () => {
             v2: bigintFromHex(vectors.x4),
             id: ECJPAKE_ID_CLIENT,
         };
-        const a = EcJpakeRound.buildRound1(args);
-        const b = EcJpakeRound.buildRound1(args);
+        const a = await EcJpakeRound.buildRound1(crypto, args);
+        const b = await EcJpakeRound.buildRound1(crypto, args);
         expect(Bytes.areEqual(a.kp1.X, b.kp1.X)).to.equal(true);
         expect(Bytes.areEqual(a.kp1.zkp.V, b.kp1.zkp.V)).to.equal(true);
         expect(Bytes.areEqual(a.kp1.zkp.r, b.kp1.zkp.r)).to.equal(true);

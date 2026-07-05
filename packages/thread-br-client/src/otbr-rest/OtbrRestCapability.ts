@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Bytes } from "@matter/general";
+
 /**
  * Snapshot of an OTBR REST endpoint as observed by {@link OtbrRestProbe}.
  *
@@ -18,5 +20,5 @@ export interface OtbrRestCapability {
     apiVersion?: string;
     probedAt: number;
     networkName: string;
-    extPanId: Uint8Array;
+    extPanId: Bytes;
 }

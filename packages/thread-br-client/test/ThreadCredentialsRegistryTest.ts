@@ -78,12 +78,12 @@ describe("ThreadCredentialsRegistry", () => {
             });
             registry.registerCredentials(makeCreds());
             expect(received).to.not.equal(undefined);
-            received!.extPanId[0] = 0xff;
-            received!.pskc[0] = 0xff;
+            Bytes.of(received!.extPanId)[0] = 0xff;
+            Bytes.of(received!.pskc)[0] = 0xff;
             const stored = registry.getCredentials(lookup);
             expect(stored).to.not.equal(undefined);
-            expect(stored!.extPanId[0]).to.equal(0x11);
-            expect(stored!.pskc[0]).to.equal(0x00);
+            expect(Bytes.of(stored!.extPanId)[0]).to.equal(0x11);
+            expect(Bytes.of(stored!.pskc)[0]).to.equal(0x00);
         });
 
         it("replaces an existing entry with the same extPanId", () => {
@@ -99,7 +99,7 @@ describe("ThreadCredentialsRegistry", () => {
             const ds = loadDataset("synthetic-1.hex");
             registry.register(ds);
             const registered: ThreadNetworkCredentials[] = [];
-            const unregistered: Uint8Array[] = [];
+            const unregistered: Bytes[] = [];
             registry.events.registered.on(c => {
                 registered.push(c);
             });
@@ -160,8 +160,8 @@ describe("ThreadCredentialsRegistry", () => {
             pskc[0] = 0xff;
             const stored = registry.getCredentials(new Uint8Array([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]));
             expect(stored).to.not.equal(undefined);
-            expect(stored!.extPanId[0]).to.equal(0x11);
-            expect(stored!.pskc[0]).to.equal(0xab);
+            expect(Bytes.of(stored!.extPanId)[0]).to.equal(0x11);
+            expect(Bytes.of(stored!.pskc)[0]).to.equal(0xab);
         });
     });
 
@@ -189,7 +189,7 @@ describe("ThreadCredentialsRegistry", () => {
 
         it("fires events.unregistered with a copy of the extPanId", () => {
             registry.registerCredentials(makeCreds());
-            const emitted: Uint8Array[] = [];
+            const emitted: Bytes[] = [];
             registry.events.unregistered.on(x => {
                 emitted.push(x);
             });
@@ -201,7 +201,7 @@ describe("ThreadCredentialsRegistry", () => {
         });
 
         it("is a no-op when the extPanId is unknown", () => {
-            const emitted: Uint8Array[] = [];
+            const emitted: Bytes[] = [];
             registry.events.unregistered.on(x => {
                 emitted.push(x);
             });

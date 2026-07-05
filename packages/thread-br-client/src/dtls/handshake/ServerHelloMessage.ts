@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 import { CIPHER_SUITE_ECJPAKE_WITH_AES_128_CCM_8, EXTENSION_TYPE_ECJPAKE_KKPP } from "./ClientHelloMessage.js";
 
@@ -44,13 +45,14 @@ function readUint16BE(buf: Uint8Array, offset: number): number {
 
 export interface ParsedServerHello {
     /** Server's 32-byte random — feeds the TLS PRF. */
-    serverRandom: Uint8Array;
+    serverRandom: Bytes;
     /** Server's `ecjpake_kkpp` extension data (round-1 ECJPAKEKeyKPPairList). */
-    ecjpakeKkpp: Uint8Array;
+    ecjpakeKkpp: Bytes;
 }
 
 export const ServerHelloMessage = {
-    parse(body: Uint8Array): ParsedServerHello {
+    parse(rawBody: Bytes): ParsedServerHello {
+        const body = Bytes.of(rawBody);
         if (body.length < 2 + RANDOM_LEN + 1 + 2 + 1) {
             throw new DtlsError(`ServerHello body truncated: have ${body.length}`);
         }

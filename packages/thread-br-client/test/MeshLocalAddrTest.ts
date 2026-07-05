@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import {
     ALL_THREAD_NODES_REALM_LOCAL,
     ALL_THREAD_ROUTERS_REALM_LOCAL,
@@ -24,7 +25,7 @@ describe("meshLocalAddr", () => {
     });
 
     it("places the rloc16 big-endian in the low two bytes", () => {
-        const addr = deriveMeshLocalAddress(mlPrefix, 0x0401);
+        const addr = Bytes.of(deriveMeshLocalAddress(mlPrefix, 0x0401));
         expect(addr[14]).to.equal(0x04);
         expect(addr[15]).to.equal(0x01);
     });

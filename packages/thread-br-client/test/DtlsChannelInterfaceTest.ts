@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Bytes, Environment } from "@matter/general";
+import { Bytes, Environment } from "@matter/general";
 import type { DtlsChannel, DtlsConnectOpts } from "../src/dtls/channel/index.js";
 
 describe("DtlsChannel / DtlsConnectOpts — interface shape", () => {
@@ -32,7 +32,7 @@ describe("DtlsChannel / DtlsConnectOpts — interface shape", () => {
         };
         expect(opts.address).to.equal("fe80::1");
         expect(opts.port).to.equal(49191);
-        expect(opts.password.length).to.equal(16);
+        expect(Bytes.of(opts.password).length).to.equal(16);
         expect(opts.environment).to.equal(Environment.default);
     });
 });
