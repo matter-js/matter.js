@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Environment } from "@matter/general";
+import { Bytes, Environment, Millis } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
@@ -122,6 +122,28 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
         expect(result[1]).to.deep.equal({ channel: 12, energy: -85 });
         expect(result[2]).to.deep.equal({ channel: 13, energy: -80 });
         expect(result[3]).to.deep.equal({ channel: 14, energy: -75 });
+    });
+
+    it("rejects on an injected timeout shorter than the default", async () => {
+        const coap: CoapLike = {
+            listen: () => () => {},
+            request: async () => ackMessage(),
+        };
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
+        const scanPromise = source.energyScan({
+            channelMask: 0x00007800,
+            count: 2,
+            period: 64,
+            scanDuration: 8,
+            timeout: Millis(500),
+        });
+        const settled = scanPromise.then(
+            () => "resolved",
+            (e: Error) => e.message,
+        );
+        await MockTime.yield();
+        await MockTime.advance(500);
+        expect(await settled).to.include("timed out");
     });
 
     it("registers c/er listener BEFORE sending c/es", async () => {

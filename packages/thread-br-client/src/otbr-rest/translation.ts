@@ -124,6 +124,9 @@ function translateMacCounters(input: Record<string, unknown>): MacCounters {
 function requireBigInt(record: Record<string, unknown>, key: string, where: string): bigint {
     const v = record[key];
     if (typeof v === "bigint") return v;
+    // 64-bit counters exceed 2^53, so some producers emit them as decimal
+    // strings; decode those directly to preserve full precision.
+    if (typeof v === "string" && /^\d+$/.test(v)) return BigInt(v);
     const n = asNumber(v);
     if (n === undefined) throw new OtbrRestError("rest_protocol", `${where}: missing numeric ${key}`);
     return BigInt(Math.trunc(n));

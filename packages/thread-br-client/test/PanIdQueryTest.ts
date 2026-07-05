@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Environment } from "@matter/general";
+import { Bytes, Environment, Millis } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
@@ -138,6 +138,18 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
         await MockTime.advance(30_000);
         const result = await queryPromise;
         expect(result).to.be.undefined;
+    });
+
+    it("honors an injected timeout shorter than the default", async () => {
+        const coap: CoapLike = {
+            listen: () => () => {},
+            request: async () => ackMessage(),
+        };
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
+        const queryPromise = source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800, timeout: Millis(500) });
+        await MockTime.yield();
+        await MockTime.advance(500);
+        expect(await queryPromise).to.be.undefined;
     });
 
     it("resolves the conflict when c/pc arrives asynchronously after the request", async () => {

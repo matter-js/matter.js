@@ -65,13 +65,17 @@ export function selectBr(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEnt
 }
 
 /**
- * Rank all candidate BRs best-first using the same priority as {@link selectBr}.
- * Callers fall back to later entries when the preferred BR is unreachable.
+ * Rank dialable candidate BRs best-first using the same priority as
+ * {@link selectBr}. BRs with no resolved address are dropped — they can never
+ * be dialed, so returning them would only waste a connect attempt. Callers fall
+ * back to later entries when the preferred BR is unreachable.
  */
 export function rankBrs(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEntry[] {
-    return [...brs].sort((a, b) => {
-        const byScore = scoreOf(b) - scoreOf(a);
-        if (byScore !== 0) return byScore;
-        return a.extAddressHex < b.extAddressHex ? -1 : a.extAddressHex > b.extAddressHex ? 1 : 0;
-    });
+    return brs
+        .filter(br => br.addresses.length > 0)
+        .sort((a, b) => {
+            const byScore = scoreOf(b) - scoreOf(a);
+            if (byScore !== 0) return byScore;
+            return a.extAddressHex < b.extAddressHex ? -1 : a.extAddressHex > b.extAddressHex ? 1 : 0;
+        });
 }

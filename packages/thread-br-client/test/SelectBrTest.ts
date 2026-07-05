@@ -5,12 +5,12 @@
  */
 
 import type { BorderRouterEntry } from "../src/discovery/BorderRouterEntry.js";
-import { decodeStateBitmap, selectBr } from "../src/selection/selectBr.js";
+import { decodeStateBitmap, rankBrs, selectBr } from "../src/selection/selectBr.js";
 
 function makeBr(overrides: Partial<BorderRouterEntry>): BorderRouterEntry {
     return {
         extAddressHex: "AAAAAAAAAAAAAAAA",
-        addresses: [],
+        addresses: ["fd00::1"],
         sources: ["meshcop"],
         lastSeen: 0,
         ...overrides,
@@ -87,6 +87,28 @@ describe("selectBr", () => {
         const a = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA1", addresses: ["FE80::1"] });
         const b = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA2" });
         expect(selectBr([a, b])).to.equal(a);
+    });
+
+    it("excludes a BR with no addresses (undialable) from the ranking", () => {
+        const withAddr = makeBr({ extAddressHex: "1111111111111111", addresses: ["fd00::1"] });
+        const noAddr = makeBr({ extAddressHex: "2222222222222222", addresses: [] });
+        expect(rankBrs([withAddr, noAddr])).to.deep.equal([withAddr]);
+    });
+
+    it("returns undefined when every candidate lacks an address", () => {
+        const a = makeBr({ extAddressHex: "1111111111111111", addresses: [] });
+        const b = makeBr({ extAddressHex: "2222222222222222", addresses: [] });
+        expect(selectBr([a, b])).to.equal(undefined);
+    });
+
+    it("skips a higher-state BR with no address in favor of a dialable one", () => {
+        const unreachable = makeBr({
+            extAddressHex: "1111111111111111",
+            stateBitmapHex: STATE_BBR_ACTIVE_PRIMARY,
+            addresses: [],
+        });
+        const dialable = makeBr({ extAddressHex: "2222222222222222", addresses: ["fd00::1"] });
+        expect(selectBr([unreachable, dialable])).to.equal(dialable);
     });
 });
 

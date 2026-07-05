@@ -7,6 +7,7 @@
 import {
     Bytes,
     Crypto,
+    type Duration,
     type Entropy,
     type Environment,
     ImplementationError,
@@ -99,6 +100,8 @@ export interface EnergyScanOpts {
     count: number;
     period: number;
     scanDuration: number;
+    /** How long to wait for the `c/er` report before failing. Defaults to 30s. */
+    timeout?: Duration;
 }
 
 export interface EnergyScanEntry {
@@ -109,6 +112,8 @@ export interface EnergyScanEntry {
 export interface PanIdQueryOpts {
     panId: number;
     channelMask: number;
+    /** How long to wait for a `c/pc` conflict before resolving `undefined`. Defaults to 30s. */
+    timeout?: Duration;
 }
 
 export interface PanIdConflict {
@@ -417,6 +422,13 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 rejectReport = rej;
             });
 
+            // Start the timer before registering the listener: an out-of-range
+            // timeout makes getTimer throw, and doing so first avoids leaking
+            // the listener that a later throw would strand.
+            const timer = Time.getTimer("energy-scan-timeout", opts.timeout ?? DEFAULT_SCAN_TIMEOUT, () => {
+                rejectReport(new Error("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
+            }).start();
+
             const unsubscribe = this.#coap.listen(ENERGY_REPORT_URI, msg => {
                 try {
                     resolveReport(decodeEnergyReport(msg.payload, opts.channelMask));
@@ -424,10 +436,6 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     rejectReport(err instanceof Error ? err : new Error(String(err)));
                 }
             });
-
-            const timer = Time.getTimer("energy-scan-timeout", DEFAULT_SCAN_TIMEOUT, () => {
-                rejectReport(new Error("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
-            }).start();
 
             try {
                 await this.#coap.request({
@@ -466,6 +474,13 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 rejectReport = rej;
             });
 
+            // No conflict = no c/pc arrives; resolve undefined after timeout.
+            // Start the timer before the listener so an out-of-range timeout
+            // throws from getTimer without leaking the listener.
+            const timer = Time.getTimer("panid-query-timeout", opts.timeout ?? DEFAULT_SCAN_TIMEOUT, () => {
+                resolveReport(undefined);
+            }).start();
+
             const unsubscribe = this.#coap.listen(PANID_CONFLICT_URI, msg => {
                 try {
                     resolveReport(decodePanIdConflict(msg.payload, opts.panId));
@@ -473,11 +488,6 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     rejectReport(err instanceof Error ? err : new Error(String(err)));
                 }
             });
-
-            // No conflict = no c/pc arrives; resolve undefined after timeout.
-            const timer = Time.getTimer("panid-query-timeout", DEFAULT_SCAN_TIMEOUT, () => {
-                resolveReport(undefined);
-            }).start();
 
             try {
                 await this.#coap.request({

@@ -182,6 +182,52 @@ describe("translateNodeJson", () => {
         expect(decoded.mleCounters).to.be.undefined;
     });
 
+    it("decodes string-encoded 64-bit MLE time counters without precision loss", () => {
+        // 2^53 + 1 = 9007199254740993 — not representable as a JS number.
+        const decoded = translateNodeJson({
+            mleCounters: {
+                disabledRole: 1,
+                detachedRole: 2,
+                childRole: 3,
+                routerRole: 4,
+                leaderRole: 5,
+                attachAttempts: 6,
+                partitionIdChanges: 7,
+                betterPartitionAttachAttempts: 8,
+                parentChanges: 9,
+                trackedTime: "9007199254740993",
+                disabledTime: "200000",
+                detachedTime: "300000",
+                childTime: "400000",
+                routerTime: "500000",
+                leaderTime: "600000",
+            },
+        });
+        expect(decoded.mleCounters!.trackedTime).to.equal(9007199254740993n);
+        expect(decoded.mleCounters!.disabledTime).to.equal(200000n);
+    });
+
+    it("rejects a malformed string MLE counter", () => {
+        const base = {
+            disabledRole: 1,
+            detachedRole: 2,
+            childRole: 3,
+            routerRole: 4,
+            leaderRole: 5,
+            attachAttempts: 6,
+            partitionIdChanges: 7,
+            betterPartitionAttachAttempts: 8,
+            parentChanges: 9,
+            trackedTime: "12.5",
+            disabledTime: 0,
+            detachedTime: 0,
+            childTime: 0,
+            routerTime: 0,
+            leaderTime: 0,
+        };
+        expect(() => translateNodeJson({ mleCounters: base })).to.throw(/trackedTime/);
+    });
+
     it("translates mode with all-zero flags", () => {
         const decoded = translateNodeJson({
             extAddress: "0011223344556677",
