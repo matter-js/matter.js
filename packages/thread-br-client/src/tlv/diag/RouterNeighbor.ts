@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
+
 /**
  * One decoded Router Neighbor entry from Network Diagnostic TLV type 31.
  *
@@ -24,7 +26,7 @@
 export interface RouterNeighborEntry {
     rloc16: number;
     /** 8-byte IEEE EUI-64 extended address. */
-    extAddress: Uint8Array;
+    extAddress: Bytes;
     version: number;
     /** Seconds elapsed since link establishment. */
     connectionTime: number;
@@ -47,24 +49,25 @@ const ENTRY_BYTES = 24;
 const FLAGS_TRACK_ERR_RATE = 0x80; // kFlagsTrackErrRate = 1 << 7
 
 export namespace RouterNeighbor {
-    export function decode(value: Uint8Array): RouterNeighborEntry[] {
-        const entryCount = Math.floor(value.length / ENTRY_BYTES);
+    export function decode(value: Bytes): RouterNeighborEntry[] {
+        const buf = Bytes.of(value);
+        const entryCount = Math.floor(buf.length / ENTRY_BYTES);
         const entries = new Array<RouterNeighborEntry>();
 
         for (let i = 0; i < entryCount; i++) {
             const off = i * ENTRY_BYTES;
-            const flags = value[off];
-            const rloc16 = (value[off + 1] << 8) | value[off + 2];
-            const extAddress = value.slice(off + 3, off + 11);
-            const version = (value[off + 11] << 8) | value[off + 12];
+            const flags = buf[off];
+            const rloc16 = (buf[off + 1] << 8) | buf[off + 2];
+            const extAddress = buf.slice(off + 3, off + 11);
+            const version = (buf[off + 11] << 8) | buf[off + 12];
             const connectionTime =
-                ((value[off + 13] << 24) | (value[off + 14] << 16) | (value[off + 15] << 8) | value[off + 16]) >>> 0;
-            const linkMargin = value[off + 17];
+                ((buf[off + 13] << 24) | (buf[off + 14] << 16) | (buf[off + 15] << 8) | buf[off + 16]) >>> 0;
+            const linkMargin = buf[off + 17];
             // int8 signed decode: values >= 128 are negative (two's complement).
-            const averageRssi = value[off + 18] > 127 ? value[off + 18] - 256 : value[off + 18];
-            const lastRssi = value[off + 19] > 127 ? value[off + 19] - 256 : value[off + 19];
-            const frameErrorRate = (value[off + 20] << 8) | value[off + 21];
-            const messageErrorRate = (value[off + 22] << 8) | value[off + 23];
+            const averageRssi = buf[off + 18] > 127 ? buf[off + 18] - 256 : buf[off + 18];
+            const lastRssi = buf[off + 19] > 127 ? buf[off + 19] - 256 : buf[off + 19];
+            const frameErrorRate = (buf[off + 20] << 8) | buf[off + 21];
+            const messageErrorRate = (buf[off + 22] << 8) | buf[off + 23];
 
             entries.push({
                 rloc16,

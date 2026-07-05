@@ -51,8 +51,8 @@ function unwrapProxyTx(proxyPayload: Uint8Array): {
     }
     const encap = UdpEncapsulationTlv.decode(encapEntry.value);
     return {
-        inner: CoapMessage.decode(encap.payload),
-        targetAddr: Ip6AddressTlv.decode(addrEntry.value),
+        inner: CoapMessage.decode(Bytes.of(encap.payload)),
+        targetAddr: Bytes.of(Ip6AddressTlv.decode(addrEntry.value)),
         sourcePort: encap.sourcePort,
         destinationPort: encap.destinationPort,
     };

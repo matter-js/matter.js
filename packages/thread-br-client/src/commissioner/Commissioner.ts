@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Duration, Logger, MatterError, Millis, Seconds, Time, TimeoutError, type Timer } from "@matter/general";
+import {
+    Bytes,
+    type Duration,
+    Logger,
+    MatterError,
+    Millis,
+    Seconds,
+    Time,
+    TimeoutError,
+    type Timer,
+} from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
@@ -160,10 +170,15 @@ export class Commissioner {
             const sessionBytes = new Uint8Array(2);
             sessionBytes[0] = (sessionId >> 8) & 0xff;
             sessionBytes[1] = sessionId & 0xff;
-            const releasePayload = BasicTlv.encode([
-                { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: sessionBytes },
-                { type: MeshCopTlvType.COMMISSIONER_ID, value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID) },
-            ]);
+            const releasePayload = Bytes.of(
+                BasicTlv.encode([
+                    { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: sessionBytes },
+                    {
+                        type: MeshCopTlvType.COMMISSIONER_ID,
+                        value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID),
+                    },
+                ]),
+            );
             await this.#coap.request({
                 type: "CON",
                 code: "0.02",

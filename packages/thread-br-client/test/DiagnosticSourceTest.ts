@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/general";
+import { Bytes, Environment } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapTimeoutError } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
@@ -37,7 +37,7 @@ function ackMessage(): CoapMessage {
 }
 
 function buildDiagPayload(type: number, value: Uint8Array): Uint8Array {
-    return BasicTlv.encode([{ type, value }]);
+    return Bytes.of(BasicTlv.encode([{ type, value }]));
 }
 
 /** Decode the outer ProxyTx TLVs the source built, returning the inner CoAP
@@ -56,8 +56,8 @@ function unwrapProxyTx(proxyPayload: Uint8Array): {
     }
     const encap = UdpEncapsulationTlv.decode(encapEntry.value);
     return {
-        inner: CoapMessage.decode(encap.payload),
-        targetAddr: Ip6AddressTlv.decode(addrEntry.value),
+        inner: CoapMessage.decode(Bytes.of(encap.payload)),
+        targetAddr: Bytes.of(Ip6AddressTlv.decode(addrEntry.value)),
         sourcePort: encap.sourcePort,
         destinationPort: encap.destinationPort,
     };
@@ -80,13 +80,15 @@ function buildProxyRxReply(
         uriPath: ["d", "da"],
         payload: diagPayload,
     });
-    const proxyPayload = BasicTlv.encode([
-        {
-            type: MeshCopTlvType.UDP_ENCAPSULATION,
-            value: UdpEncapsulationTlv.encode({ sourcePort: 61631, destinationPort: 49152, payload: innerCoap }),
-        },
-        { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(sourceAddr) },
-    ]);
+    const proxyPayload = Bytes.of(
+        BasicTlv.encode([
+            {
+                type: MeshCopTlvType.UDP_ENCAPSULATION,
+                value: UdpEncapsulationTlv.encode({ sourcePort: 61631, destinationPort: 49152, payload: innerCoap }),
+            },
+            { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(sourceAddr) },
+        ]),
+    );
     return {
         type: "NON",
         code: "0.02",
@@ -541,10 +543,15 @@ describe("MeshCopDiagnosticSource", () => {
         }
 
         const diagFor = (rloc16: number, refRouterIds: number[]): Uint8Array =>
-            NetworkDiagnosticTlv.encode([
-                { type: NetworkDiagTlvType.ADDRESS16, value: new Uint8Array([(rloc16 >> 8) & 0xff, rloc16 & 0xff]) },
-                { type: NetworkDiagTlvType.ROUTE64, value: encodeRoute64(refRouterIds) },
-            ]);
+            Bytes.of(
+                NetworkDiagnosticTlv.encode([
+                    {
+                        type: NetworkDiagTlvType.ADDRESS16,
+                        value: new Uint8Array([(rloc16 >> 8) & 0xff, rloc16 & 0xff]),
+                    },
+                    { type: NetworkDiagTlvType.ROUTE64, value: encodeRoute64(refRouterIds) },
+                ]),
+            );
 
         const proxyTxTargets = new Array<Uint8Array>();
         let urHandler: ((msg: CoapMessage) => void) | undefined;

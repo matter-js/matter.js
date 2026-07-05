@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -28,11 +28,11 @@ import { ThreadDiagError } from "../../diagnostic/errors.js";
 const TEXT_DECODER = new TextDecoder("utf-8", { fatal: false });
 const TEXT_ENCODER = new TextEncoder();
 
-function decodeUtf8(value: Uint8Array): string {
+function decodeUtf8(value: Bytes): string {
     return TEXT_DECODER.decode(value);
 }
 
-function encodeUtf8(text: string, maxBytes: number, name: string): Uint8Array {
+function encodeUtf8(text: string, maxBytes: number, name: string): Bytes {
     const encoded = TEXT_ENCODER.encode(text);
     if (encoded.length > maxBytes) {
         throw new InternalError(`${name} value too long: ${encoded.length} bytes (max ${maxBytes})`);
@@ -47,14 +47,15 @@ export const THREAD_STACK_VERSION_MAX = 64;
 export const VENDOR_APP_URL_MAX = 96;
 
 export namespace Version {
-    export function decode(value: Uint8Array): number {
-        if (value.length !== 2) {
-            throw new ThreadDiagError(`Version TLV must be 2 bytes, got ${value.length}`);
+    export function decode(value: Bytes): number {
+        const buf = Bytes.of(value);
+        if (buf.length !== 2) {
+            throw new ThreadDiagError(`Version TLV must be 2 bytes, got ${buf.length}`);
         }
-        return (value[0] << 8) | value[1];
+        return (buf[0] << 8) | buf[1];
     }
 
-    export function encode(version: number): Uint8Array {
+    export function encode(version: number): Bytes {
         if (!Number.isInteger(version) || version < 0 || version > 0xffff) {
             throw new InternalError(`Version TLV out of range: ${version}`);
         }
@@ -63,51 +64,51 @@ export namespace Version {
 }
 
 export namespace VendorName {
-    export function decode(value: Uint8Array): string {
+    export function decode(value: Bytes): string {
         return decodeUtf8(value);
     }
 
-    export function encode(name: string): Uint8Array {
+    export function encode(name: string): Bytes {
         return encodeUtf8(name, VENDOR_NAME_MAX, "VendorName");
     }
 }
 
 export namespace VendorModel {
-    export function decode(value: Uint8Array): string {
+    export function decode(value: Bytes): string {
         return decodeUtf8(value);
     }
 
-    export function encode(model: string): Uint8Array {
+    export function encode(model: string): Bytes {
         return encodeUtf8(model, VENDOR_MODEL_MAX, "VendorModel");
     }
 }
 
 export namespace VendorSwVersion {
-    export function decode(value: Uint8Array): string {
+    export function decode(value: Bytes): string {
         return decodeUtf8(value);
     }
 
-    export function encode(version: string): Uint8Array {
+    export function encode(version: string): Bytes {
         return encodeUtf8(version, VENDOR_SW_VERSION_MAX, "VendorSwVersion");
     }
 }
 
 export namespace ThreadStackVersion {
-    export function decode(value: Uint8Array): string {
+    export function decode(value: Bytes): string {
         return decodeUtf8(value);
     }
 
-    export function encode(version: string): Uint8Array {
+    export function encode(version: string): Bytes {
         return encodeUtf8(version, THREAD_STACK_VERSION_MAX, "ThreadStackVersion");
     }
 }
 
 export namespace VendorAppUrl {
-    export function decode(value: Uint8Array): string {
+    export function decode(value: Bytes): string {
         return decodeUtf8(value);
     }
 
-    export function encode(url: string): Uint8Array {
+    export function encode(url: string): Bytes {
         return encodeUtf8(url, VENDOR_APP_URL_MAX, "VendorAppUrl");
     }
 }

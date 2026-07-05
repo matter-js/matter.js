@@ -65,7 +65,7 @@ describe("translateNodeJson", () => {
 
         expect(decoded.networkData).to.not.be.undefined;
         expect(decoded.networkData!.raw).to.be.instanceOf(Uint8Array);
-        expect(decoded.networkData!.raw.length).to.be.greaterThan(0);
+        expect(Bytes.of(decoded.networkData!.raw).length).to.be.greaterThan(0);
         expect(decoded.networkData!.prefixes.length).to.be.greaterThan(0);
 
         expect(decoded.ipv6Addresses).to.not.be.undefined;

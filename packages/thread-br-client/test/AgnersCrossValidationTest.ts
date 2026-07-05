@@ -63,7 +63,7 @@ describe("OperationalDataset cross-validation against Agners' Python parser", ()
             const exp = expected[i];
             const got = walked[i];
             expect(got.type, `type mismatch at index ${i}`).to.equal(exp.type);
-            expect(got.value.length, `length mismatch at index ${i} (type ${exp.type})`).to.equal(exp.length);
+            expect(Bytes.of(got.value).length, `length mismatch at index ${i} (type ${exp.type})`).to.equal(exp.length);
             expect(
                 Bytes.areEqual(got.value, exp.value),
                 `value mismatch at index ${i} (type ${exp.type}): got ${Bytes.toHex(got.value)}, expected ${Bytes.toHex(exp.value)}`,

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/general";
+import { Bytes, Environment } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
@@ -42,10 +42,12 @@ function buildPanIdConflict(conflictChannelMask: number, panId: number): CoapMes
     panIdBytes[0] = (panId >> 8) & 0xff;
     panIdBytes[1] = panId & 0xff;
 
-    const payload = BasicTlv.encode([
-        { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
-        { type: MeshCopTlvType.PANID, value: panIdBytes },
-    ]);
+    const payload = Bytes.of(
+        BasicTlv.encode([
+            { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
+            { type: MeshCopTlvType.PANID, value: panIdBytes },
+        ]),
+    );
     return {
         type: "NON",
         code: "0.02",
@@ -216,7 +218,9 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
             request: async () => {
                 // Send c/pc without a CHANNEL_MASK TLV
-                const payload = BasicTlv.encode([{ type: MeshCopTlvType.PANID, value: new Uint8Array([0x12, 0x34]) }]);
+                const payload = Bytes.of(
+                    BasicTlv.encode([{ type: MeshCopTlvType.PANID, value: new Uint8Array([0x12, 0x34]) }]),
+                );
                 pcHandler!({
                     type: "NON",
                     code: "0.02",

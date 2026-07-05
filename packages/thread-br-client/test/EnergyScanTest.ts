@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/general";
+import { Bytes, Environment } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
@@ -35,7 +35,9 @@ function ackMessage(): CoapMessage {
  * Energy bytes are one signed byte per channel in channel-number order within the mask.
  */
 function buildEnergyReport(energyBytes: number[]): CoapMessage {
-    const payload = BasicTlv.encode([{ type: MeshCopTlvType.ENERGY_LIST, value: new Uint8Array(energyBytes) }]);
+    const payload = Bytes.of(
+        BasicTlv.encode([{ type: MeshCopTlvType.ENERGY_LIST, value: new Uint8Array(energyBytes) }]),
+    );
     return {
         type: "NON",
         code: "0.02",
@@ -178,7 +180,9 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
             request: async () => {
                 // Send c/er with a different TLV type (no ENERGY_LIST)
-                const payload = BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([0x01]) }]);
+                const payload = Bytes.of(
+                    BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([0x01]) }]),
+                );
                 erHandler!({
                     type: "NON",
                     code: "0.02",

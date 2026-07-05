@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -15,14 +15,15 @@ import { ThreadDiagError } from "../../diagnostic/errors.js";
  * `network_diagnostic.cpp` parser.
  */
 export namespace Timeout {
-    export function decode(value: Uint8Array): number {
-        if (value.length !== 4) {
-            throw new ThreadDiagError(`Timeout TLV must be 4 bytes, got ${value.length}`);
+    export function decode(value: Bytes): number {
+        const buf = Bytes.of(value);
+        if (buf.length !== 4) {
+            throw new ThreadDiagError(`Timeout TLV must be 4 bytes, got ${buf.length}`);
         }
-        return ((value[0] << 24) | (value[1] << 16) | (value[2] << 8) | value[3]) >>> 0;
+        return ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]) >>> 0;
     }
 
-    export function encode(seconds: number): Uint8Array {
+    export function encode(seconds: number): Bytes {
         if (!Number.isInteger(seconds) || seconds < 0 || seconds > 0xffffffff) {
             throw new InternalError(`Timeout TLV out of range: ${seconds}`);
         }

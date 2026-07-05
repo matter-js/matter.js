@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -24,49 +24,52 @@ import { ThreadDiagError } from "../../diagnostic/errors.js";
  * `Client::GetNextDiagTlv` parser.
  */
 
-function eui64Decode(value: Uint8Array, name: string): Uint8Array {
-    if (value.length !== 8) {
-        throw new ThreadDiagError(`${name} TLV must be 8 bytes, got ${value.length}`);
+function eui64Decode(value: Bytes, name: string): Bytes {
+    const buf = Bytes.of(value);
+    if (buf.length !== 8) {
+        throw new ThreadDiagError(`${name} TLV must be 8 bytes, got ${buf.length}`);
     }
-    return value.slice();
+    return buf.slice();
 }
 
-function eui64Encode(addr: Uint8Array, name: string): Uint8Array {
-    if (addr.length !== 8) {
-        throw new InternalError(`${name} must be 8 bytes, got ${addr.length}`);
+function eui64Encode(addr: Bytes, name: string): Bytes {
+    const buf = Bytes.of(addr);
+    if (buf.length !== 8) {
+        throw new InternalError(`${name} must be 8 bytes, got ${buf.length}`);
     }
-    return addr.slice();
+    return buf.slice();
 }
 
 export namespace ExtMacAddress {
-    export function decode(value: Uint8Array): Uint8Array {
+    export function decode(value: Bytes): Bytes {
         return eui64Decode(value, "ExtMacAddress");
     }
 
-    export function encode(addr: Uint8Array): Uint8Array {
+    export function encode(addr: Bytes): Bytes {
         return eui64Encode(addr, "ExtMacAddress");
     }
 }
 
 export namespace Eui64 {
-    export function decode(value: Uint8Array): Uint8Array {
+    export function decode(value: Bytes): Bytes {
         return eui64Decode(value, "Eui64");
     }
 
-    export function encode(addr: Uint8Array): Uint8Array {
+    export function encode(addr: Bytes): Bytes {
         return eui64Encode(addr, "Eui64");
     }
 }
 
 export namespace Address16 {
-    export function decode(value: Uint8Array): number {
-        if (value.length !== 2) {
-            throw new ThreadDiagError(`Address16 TLV must be 2 bytes, got ${value.length}`);
+    export function decode(value: Bytes): number {
+        const buf = Bytes.of(value);
+        if (buf.length !== 2) {
+            throw new ThreadDiagError(`Address16 TLV must be 2 bytes, got ${buf.length}`);
         }
-        return (value[0] << 8) | value[1];
+        return (buf[0] << 8) | buf[1];
     }
 
-    export function encode(rloc16: number): Uint8Array {
+    export function encode(rloc16: number): Bytes {
         if (!Number.isInteger(rloc16) || rloc16 < 0 || rloc16 > 0xffff) {
             throw new InternalError(`Address16 out of range: ${rloc16}`);
         }
@@ -75,14 +78,15 @@ export namespace Address16 {
 }
 
 export namespace BatteryLevel {
-    export function decode(value: Uint8Array): number {
-        if (value.length !== 1) {
-            throw new ThreadDiagError(`BatteryLevel TLV must be 1 byte, got ${value.length}`);
+    export function decode(value: Bytes): number {
+        const buf = Bytes.of(value);
+        if (buf.length !== 1) {
+            throw new ThreadDiagError(`BatteryLevel TLV must be 1 byte, got ${buf.length}`);
         }
-        return value[0];
+        return buf[0];
     }
 
-    export function encode(percent: number): Uint8Array {
+    export function encode(percent: number): Bytes {
         if (!Number.isInteger(percent) || percent < 0 || percent > 0xff) {
             throw new InternalError(`BatteryLevel out of range: ${percent}`);
         }
@@ -91,14 +95,15 @@ export namespace BatteryLevel {
 }
 
 export namespace SupplyVoltage {
-    export function decode(value: Uint8Array): number {
-        if (value.length !== 2) {
-            throw new ThreadDiagError(`SupplyVoltage TLV must be 2 bytes, got ${value.length}`);
+    export function decode(value: Bytes): number {
+        const buf = Bytes.of(value);
+        if (buf.length !== 2) {
+            throw new ThreadDiagError(`SupplyVoltage TLV must be 2 bytes, got ${buf.length}`);
         }
-        return (value[0] << 8) | value[1];
+        return (buf[0] << 8) | buf[1];
     }
 
-    export function encode(millivolts: number): Uint8Array {
+    export function encode(millivolts: number): Bytes {
         if (!Number.isInteger(millivolts) || millivolts < 0 || millivolts > 0xffff) {
             throw new InternalError(`SupplyVoltage out of range: ${millivolts}`);
         }
@@ -107,14 +112,15 @@ export namespace SupplyVoltage {
 }
 
 export namespace MaxChildTimeout {
-    export function decode(value: Uint8Array): number {
-        if (value.length !== 4) {
-            throw new ThreadDiagError(`MaxChildTimeout TLV must be 4 bytes, got ${value.length}`);
+    export function decode(value: Bytes): number {
+        const buf = Bytes.of(value);
+        if (buf.length !== 4) {
+            throw new ThreadDiagError(`MaxChildTimeout TLV must be 4 bytes, got ${buf.length}`);
         }
-        return ((value[0] << 24) | (value[1] << 16) | (value[2] << 8) | value[3]) >>> 0;
+        return ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]) >>> 0;
     }
 
-    export function encode(seconds: number): Uint8Array {
+    export function encode(seconds: number): Bytes {
         if (!Number.isInteger(seconds) || seconds < 0 || seconds > 0xffffffff) {
             throw new InternalError(`MaxChildTimeout out of range: ${seconds}`);
         }
@@ -128,11 +134,11 @@ export namespace MaxChildTimeout {
 }
 
 export namespace ChannelPages {
-    export function decode(value: Uint8Array): number[] {
-        return Array.from(value);
+    export function decode(value: Bytes): number[] {
+        return Array.from(Bytes.of(value));
     }
 
-    export function encode(pages: ReadonlyArray<number>): Uint8Array {
+    export function encode(pages: ReadonlyArray<number>): Bytes {
         const out = new Uint8Array(pages.length);
         for (let i = 0; i < pages.length; i++) {
             const p = pages[i];

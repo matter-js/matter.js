@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError } from "@matter/general";
+import { Bytes, InternalError, MatterError } from "@matter/general";
 
 /** Low-level MeshCoP/base TLV codec parse failure (truncated stream, bad length, ...). */
 export class ThreadTlvError extends MatterError {}
@@ -15,48 +15,49 @@ export class ThreadTlvError extends MatterError {}
  */
 export interface BasicTlvEntry {
     type: number;
-    value: Uint8Array;
+    value: Bytes;
 }
 
 export namespace BasicTlv {
-    export function walk(blob: Uint8Array): BasicTlvEntry[] {
+    export function walk(blob: Bytes): BasicTlvEntry[] {
+        const buf = Bytes.of(blob);
         const out = new Array<BasicTlvEntry>();
         let offset = 0;
-        while (offset < blob.length) {
-            if (offset + 2 > blob.length) {
+        while (offset < buf.length) {
+            if (offset + 2 > buf.length) {
                 throw new ThreadTlvError(`Truncated TLV header at offset ${offset}`);
             }
-            const type = blob[offset];
-            const lenByte = blob[offset + 1];
+            const type = buf[offset];
+            const lenByte = buf[offset + 1];
             let length: number;
             let valueStart: number;
             if (lenByte === 0xff) {
-                if (offset + 4 > blob.length) {
+                if (offset + 4 > buf.length) {
                     throw new ThreadTlvError(`Truncated extended-length TLV header at offset ${offset}`);
                 }
-                length = (blob[offset + 2] << 8) | blob[offset + 3];
+                length = (buf[offset + 2] << 8) | buf[offset + 3];
                 valueStart = offset + 4;
             } else {
                 length = lenByte;
                 valueStart = offset + 2;
             }
             const valueEnd = valueStart + length;
-            if (valueEnd > blob.length) {
+            if (valueEnd > buf.length) {
                 throw new ThreadTlvError(`Truncated TLV value at offset ${offset} (type=${type}, length=${length})`);
             }
-            out.push({ type, value: blob.slice(valueStart, valueEnd) });
+            out.push({ type, value: buf.slice(valueStart, valueEnd) });
             offset = valueEnd;
         }
         return out;
     }
 
-    export function encode(entries: ReadonlyArray<BasicTlvEntry>): Uint8Array {
+    export function encode(entries: ReadonlyArray<BasicTlvEntry>): Bytes {
         let totalLength = 0;
         for (const entry of entries) {
             if (!Number.isInteger(entry.type) || entry.type < 0 || entry.type > 0xff) {
                 throw new InternalError(`Invalid TLV type ${entry.type}: must be 0..255`);
             }
-            const valueLen = entry.value.length;
+            const valueLen = Bytes.of(entry.value).length;
             if (valueLen > 0xffff) {
                 throw new InternalError(`Invalid TLV length ${valueLen}: must be <= 0xFFFF`);
             }
@@ -66,7 +67,8 @@ export namespace BasicTlv {
         const out = new Uint8Array(totalLength);
         let offset = 0;
         for (const entry of entries) {
-            const valueLen = entry.value.length;
+            const value = Bytes.of(entry.value);
+            const valueLen = value.length;
             out[offset++] = entry.type;
             if (valueLen >= 0xff) {
                 out[offset++] = 0xff;
@@ -75,7 +77,7 @@ export namespace BasicTlv {
             } else {
                 out[offset++] = valueLen;
             }
-            out.set(entry.value, offset);
+            out.set(value, offset);
             offset += valueLen;
         }
         return out;

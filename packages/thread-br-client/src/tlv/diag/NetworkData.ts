@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -57,7 +58,7 @@ import { ThreadDiagError } from "../../diagnostic/errors.js";
 export interface NetworkDataEntry {
     type: number;
     stable: boolean;
-    value: Uint8Array;
+    value: Bytes;
 }
 
 export interface HasRouteEntry {
@@ -73,21 +74,21 @@ export interface BorderRouterEntry {
 export interface NetworkDataPrefix {
     domainId: number;
     prefixLength: number;
-    prefix: Uint8Array;
+    prefix: Bytes;
     hasRoutes: HasRouteEntry[];
     borderRouters: BorderRouterEntry[];
 }
 
 export interface NetworkDataServer {
     rloc16: number;
-    serverData: Uint8Array;
+    serverData: Bytes;
 }
 
 export interface NetworkDataService {
     serviceId: number;
     threadEnterprise: boolean;
     enterpriseNumber?: number;
-    serviceData: Uint8Array;
+    serviceData: Bytes;
     servers: NetworkDataServer[];
 }
 
@@ -95,7 +96,7 @@ export interface ThreadNetworkData {
     entries: NetworkDataEntry[];
     prefixes: NetworkDataPrefix[];
     services: NetworkDataService[];
-    raw: Uint8Array;
+    raw: Bytes;
 }
 
 const enum NetworkDataTlvType {
@@ -158,63 +159,67 @@ function parseBorderRouters(value: Uint8Array): BorderRouterEntry[] {
     return out;
 }
 
-function parsePrefix(value: Uint8Array): NetworkDataPrefix {
-    const domainId = value[0];
-    const prefixLength = value[1];
+function parsePrefix(value: Bytes): NetworkDataPrefix {
+    const buf = Bytes.of(value);
+    const domainId = buf[0];
+    const prefixLength = buf[1];
     const prefixBytes = Math.ceil(prefixLength / 8);
-    const prefix = value.slice(2, 2 + prefixBytes);
+    const prefix = buf.slice(2, 2 + prefixBytes);
 
     const hasRoutes = new Array<HasRouteEntry>();
     const borderRouters = new Array<BorderRouterEntry>();
-    for (const sub of walkTlvs(value.subarray(2 + prefixBytes))) {
+    for (const sub of walkTlvs(buf.subarray(2 + prefixBytes))) {
         if (sub.type === NetworkDataTlvType.HasRoute) {
-            hasRoutes.push(...parseHasRoutes(sub.value));
+            hasRoutes.push(...parseHasRoutes(Bytes.of(sub.value)));
         } else if (sub.type === NetworkDataTlvType.BorderRouter) {
-            borderRouters.push(...parseBorderRouters(sub.value));
+            borderRouters.push(...parseBorderRouters(Bytes.of(sub.value)));
         }
     }
     return { domainId, prefixLength, prefix, hasRoutes, borderRouters };
 }
 
-function parseService(value: Uint8Array): NetworkDataService {
-    const flags = value[0];
+function parseService(value: Bytes): NetworkDataService {
+    const buf = Bytes.of(value);
+    const flags = buf[0];
     const threadEnterprise = (flags & SERVICE_THREAD_FLAG) !== 0;
     const serviceId = flags & SERVICE_ID_MASK;
 
     let offset = 1;
     let enterpriseNumber: number | undefined;
     if (!threadEnterprise) {
-        if (value.length < 5) {
-            throw new ThreadDiagError(`Truncated Service TLV: ${value.length} bytes, need 5 for enterprise number`);
+        if (buf.length < 5) {
+            throw new ThreadDiagError(`Truncated Service TLV: ${buf.length} bytes, need 5 for enterprise number`);
         }
-        enterpriseNumber = ((value[1] << 24) | (value[2] << 16) | (value[3] << 8) | value[4]) >>> 0;
+        enterpriseNumber = ((buf[1] << 24) | (buf[2] << 16) | (buf[3] << 8) | buf[4]) >>> 0;
         offset = 5;
     }
-    if (offset >= value.length) {
+    if (offset >= buf.length) {
         throw new ThreadDiagError(`Truncated Service TLV: missing service data length at offset ${offset}`);
     }
-    const serviceDataLength = value[offset];
+    const serviceDataLength = buf[offset];
     offset += 1;
-    const serviceData = value.slice(offset, offset + serviceDataLength);
+    const serviceData = buf.slice(offset, offset + serviceDataLength);
     offset += serviceDataLength;
 
     const servers = new Array<NetworkDataServer>();
-    for (const sub of walkTlvs(value.subarray(offset))) {
+    for (const sub of walkTlvs(buf.subarray(offset))) {
         if (sub.type === NetworkDataTlvType.Server) {
-            if (sub.value.length < 2) continue;
-            servers.push({ rloc16: (sub.value[0] << 8) | sub.value[1], serverData: sub.value.slice(2) });
+            const serverValue = Bytes.of(sub.value);
+            if (serverValue.length < 2) continue;
+            servers.push({ rloc16: (serverValue[0] << 8) | serverValue[1], serverData: serverValue.slice(2) });
         }
     }
     return { serviceId, threadEnterprise, enterpriseNumber, serviceData, servers };
 }
 
 export namespace NetworkData {
-    export function decode(value: Uint8Array): ThreadNetworkData {
-        const raw = value.slice();
+    export function decode(value: Bytes): ThreadNetworkData {
+        const buf = Bytes.of(value);
+        const raw = buf.slice();
 
         let entries: NetworkDataEntry[];
         try {
-            entries = walkTlvs(value);
+            entries = walkTlvs(buf);
         } catch {
             // A truncated top-level stream must not abort the whole node's diagnostic
             // decode; `raw` preserves the bytes for any consumer that wants them.

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Time } from "@matter/general";
+import { Bytes, Millis, Time } from "@matter/general";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import type { CoapMessage } from "../src/coap/CoapMessage.js";
 import {
@@ -30,11 +30,11 @@ function buildPetitionResponse(state: number, sessionId?: number): Uint8Array {
             value: new Uint8Array([(sessionId >> 8) & 0xff, sessionId & 0xff]),
         });
     }
-    return BasicTlv.encode(entries);
+    return Bytes.of(BasicTlv.encode(entries));
 }
 
 function buildKaResponse(state: number): Uint8Array {
-    return BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([state]) }]);
+    return Bytes.of(BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([state]) }]));
 }
 
 function ackMessage(payload: Uint8Array): CoapMessage {
@@ -241,7 +241,8 @@ describe("Commissioner", () => {
             const entries = BasicTlv.walk(capturedPayload!);
             const sidEntry = entries.find(e => e.type === MeshCopTlvType.COMMISSIONER_SESSION_ID);
             expect(sidEntry).to.not.be.undefined;
-            expect((sidEntry!.value[0] << 8) | sidEntry!.value[1]).to.equal(42);
+            const sidValue = Bytes.of(sidEntry!.value);
+            expect((sidValue[0] << 8) | sidValue[1]).to.equal(42);
         });
 
         it("throws CommissionerKeepAliveError on a non-accept response", async () => {
@@ -279,7 +280,8 @@ describe("Commissioner", () => {
             const idEntry = entries.find(e => e.type === MeshCopTlvType.COMMISSIONER_ID);
             expect(sidEntry).to.not.be.undefined;
             expect(idEntry).to.not.be.undefined;
-            expect((sidEntry!.value[0] << 8) | sidEntry!.value[1]).to.equal(42);
+            const sidValue = Bytes.of(sidEntry!.value);
+            expect((sidValue[0] << 8) | sidValue[1]).to.equal(42);
             expect(new TextDecoder().decode(idEntry!.value)).to.equal(Commissioner.COMMISSIONER_ID);
         });
     });

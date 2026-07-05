@@ -503,9 +503,11 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             messageId: this.#nextInnerMessageId(),
             token,
             uriPath,
-            payload: NetworkDiagnosticTlv.encode([
-                { type: NetworkDiagTlvType.TYPE_LIST, value: TypeListTlv.encode(tlvTypes) },
-            ]),
+            payload: Bytes.of(
+                NetworkDiagnosticTlv.encode([
+                    { type: NetworkDiagTlvType.TYPE_LIST, value: TypeListTlv.encode(tlvTypes) },
+                ]),
+            ),
         });
     }
 
@@ -515,13 +517,15 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         sourcePort = PROXY_SRC_PORT,
         destinationPort = TMF_PORT,
     ): Uint8Array {
-        return BasicTlv.encode([
-            {
-                type: MeshCopTlvType.UDP_ENCAPSULATION,
-                value: UdpEncapsulationTlv.encode({ sourcePort, destinationPort, payload: innerCoapBytes }),
-            },
-            { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(targetAddr) },
-        ]);
+        return Bytes.of(
+            BasicTlv.encode([
+                {
+                    type: MeshCopTlvType.UDP_ENCAPSULATION,
+                    value: UdpEncapsulationTlv.encode({ sourcePort, destinationPort, payload: innerCoapBytes }),
+                },
+                { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(targetAddr) },
+            ]),
+        );
     }
 
     /**
@@ -586,7 +590,7 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
         if (entry.type === MeshCopTlvType.UDP_ENCAPSULATION) {
             encap = UdpEncapsulationTlv.decode(entry.value);
         } else if (entry.type === MeshCopTlvType.IPV6_ADDRESS) {
-            sourceAddr = Ip6AddressTlv.decode(entry.value);
+            sourceAddr = Bytes.of(Ip6AddressTlv.decode(entry.value));
         }
     }
     if (encap === undefined || sourceAddr === undefined) {
@@ -598,7 +602,7 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
 
     let inner: CoapMessage;
     try {
-        inner = CoapMessage.decode(encap.payload);
+        inner = CoapMessage.decode(Bytes.of(encap.payload));
     } catch (err) {
         logger.warn("[ThreadDiag] c/ur inner CoAP parse failed, dropping:", err);
         return undefined;
@@ -629,12 +633,14 @@ function encodeScanRequest(opts: EnergyScanOpts): Uint8Array {
     scanDuration[0] = (opts.scanDuration >> 8) & 0xff;
     scanDuration[1] = opts.scanDuration & 0xff;
 
-    return BasicTlv.encode([
-        { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
-        { type: MeshCopTlvType.COUNT, value: count },
-        { type: MeshCopTlvType.PERIOD, value: period },
-        { type: MeshCopTlvType.SCAN_DURATION, value: scanDuration },
-    ]);
+    return Bytes.of(
+        BasicTlv.encode([
+            { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
+            { type: MeshCopTlvType.COUNT, value: count },
+            { type: MeshCopTlvType.PERIOD, value: period },
+            { type: MeshCopTlvType.SCAN_DURATION, value: scanDuration },
+        ]),
+    );
 }
 
 function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<EnergyScanEntry> {
@@ -643,7 +649,7 @@ function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<Ene
     if (energyEntry === undefined) {
         throw new ThreadDiagError("MeshCopDiagnosticSource: c/er missing ENERGY_LIST TLV");
     }
-    const energyBytes = energyEntry.value;
+    const energyBytes = Bytes.of(energyEntry.value);
     const result = new Array<EnergyScanEntry>();
     let byteIndex = 0;
     for (let ch = 0; ch < 32; ch++) {
@@ -669,10 +675,12 @@ function encodePanIdQuery(opts: PanIdQueryOpts): Uint8Array {
     panId[0] = (opts.panId >> 8) & 0xff;
     panId[1] = opts.panId & 0xff;
 
-    return BasicTlv.encode([
-        { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
-        { type: MeshCopTlvType.PANID, value: panId },
-    ]);
+    return Bytes.of(
+        BasicTlv.encode([
+            { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
+            { type: MeshCopTlvType.PANID, value: panId },
+        ]),
+    );
 }
 
 function decodePanIdConflict(payload: Uint8Array, expectedPanId: number): PanIdConflict {
@@ -681,19 +689,22 @@ function decodePanIdConflict(payload: Uint8Array, expectedPanId: number): PanIdC
     if (maskEntry === undefined) {
         throw new ThreadDiagError("MeshCopDiagnosticSource: c/pc missing CHANNEL_MASK TLV");
     }
-    const mv = maskEntry.value;
+    const mv = Bytes.of(maskEntry.value);
     if (mv.length < 4) {
         throw new ThreadDiagError(`MeshCopDiagnosticSource: c/pc CHANNEL_MASK too short (${mv.length} bytes)`);
     }
     const conflictChannelMask = ((mv[0] << 24) | (mv[1] << 16) | (mv[2] << 8) | mv[3]) >>> 0;
 
     const panIdEntry = entries.find(e => e.type === MeshCopTlvType.PANID);
-    if (panIdEntry !== undefined && panIdEntry.value.length >= 2) {
-        const reportedPanId = (panIdEntry.value[0] << 8) | panIdEntry.value[1];
-        if (reportedPanId !== expectedPanId) {
-            logger.warn(
-                `[ThreadDiag] c/pc PAN-ID mismatch: expected=0x${expectedPanId.toString(16)} got=0x${reportedPanId.toString(16)}, ignoring`,
-            );
+    if (panIdEntry !== undefined) {
+        const panIdValue = Bytes.of(panIdEntry.value);
+        if (panIdValue.length >= 2) {
+            const reportedPanId = (panIdValue[0] << 8) | panIdValue[1];
+            if (reportedPanId !== expectedPanId) {
+                logger.warn(
+                    `[ThreadDiag] c/pc PAN-ID mismatch: expected=0x${expectedPanId.toString(16)} got=0x${reportedPanId.toString(16)}, ignoring`,
+                );
+            }
         }
     }
 
@@ -724,7 +735,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
     for (const entry of entries) {
         switch (entry.type) {
             case NetworkDiagTlvType.EXT_MAC_ADDRESS:
-                result.extMacAddress = ExtMacAddress.decode(entry.value);
+                result.extMacAddress = Bytes.of(ExtMacAddress.decode(entry.value));
                 break;
             case NetworkDiagTlvType.ADDRESS16:
                 result.rloc16 = Address16.decode(entry.value);
@@ -748,7 +759,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
                 result.networkData = NetworkData.decode(entry.value);
                 break;
             case NetworkDiagTlvType.IPV6_ADDRESS_LIST:
-                result.ipv6Addresses = Ipv6AddressList.decode(entry.value);
+                result.ipv6Addresses = Ipv6AddressList.decode(entry.value).map(a => Bytes.of(a));
                 break;
             case NetworkDiagTlvType.MAC_COUNTERS:
                 result.macCounters = MacCounters.decode(entry.value);
@@ -775,7 +786,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
                 result.maxChildTimeout = MaxChildTimeout.decode(entry.value);
                 break;
             case NetworkDiagTlvType.EUI64:
-                result.eui64 = Eui64.decode(entry.value);
+                result.eui64 = Bytes.of(Eui64.decode(entry.value));
                 break;
             case NetworkDiagTlvType.VERSION:
                 result.version = Version.decode(entry.value);
@@ -799,7 +810,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
                 result.vendorAppUrl = VendorAppUrl.decode(entry.value);
                 break;
             default:
-                result.unknown.push({ type: entry.type, value: entry.value });
+                result.unknown.push({ type: entry.type, value: Bytes.of(entry.value) });
                 break;
         }
     }

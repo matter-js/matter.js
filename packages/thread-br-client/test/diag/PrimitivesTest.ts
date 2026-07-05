@@ -23,7 +23,7 @@ describe("ExtMacAddress", () => {
 
     it("round-trips and returns a defensive copy", () => {
         const input = Bytes.of(Bytes.fromHex("a1a2a3a4a5a6a7a8"));
-        const encoded = ExtMacAddress.encode(input);
+        const encoded = Bytes.of(ExtMacAddress.encode(input));
         encoded[0] = 0xff;
         expect(input[0]).to.equal(0xa1);
     });

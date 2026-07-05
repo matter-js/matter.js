@@ -54,7 +54,7 @@ export namespace OperationalDataset {
         const blob = typeof input === "string" ? Bytes.of(Bytes.fromHex(input.replace(/\s+/g, ""))) : Bytes.of(input);
         const entries = BasicTlv.walk(blob);
         const unknownTlvs = new Array<{ type: number; value: Uint8Array }>();
-        const originalTlvs = entries.map(e => ({ type: e.type, value: e.value.slice() }));
+        const originalTlvs = entries.map(e => ({ type: e.type, value: Bytes.of(e.value).slice() }));
         const ds: OperationalDataset = {
             unknownTlvs,
             raw: blob.slice(),
@@ -85,7 +85,7 @@ export namespace OperationalDataset {
         if (originals !== undefined) {
             return encodeWithReplay(ds, originals);
         }
-        return BasicTlv.encode(canonicalEntries(ds));
+        return Bytes.of(BasicTlv.encode(canonicalEntries(ds)));
     }
 
     /**
@@ -114,66 +114,67 @@ function applyKnownTlvToDataset(
     entry: BasicTlvEntry,
     unknownTlvs: Array<{ type: number; value: Uint8Array }>,
 ): void {
+    const value = Bytes.of(entry.value);
     switch (entry.type) {
         case MeshCopTlvType.CHANNEL:
-            ds.channel = decodeChannel(entry.value);
+            ds.channel = decodeChannel(value);
             break;
         case MeshCopTlvType.PANID:
-            if (entry.value.length !== 2) {
-                throw new ThreadDatasetError(`PANID TLV must be 2 bytes, got ${entry.value.length}`);
+            if (value.length !== 2) {
+                throw new ThreadDatasetError(`PANID TLV must be 2 bytes, got ${value.length}`);
             }
-            ds.panId = (entry.value[0] << 8) | entry.value[1];
+            ds.panId = (value[0] << 8) | value[1];
             break;
         case MeshCopTlvType.EXTPANID:
-            if (entry.value.length !== 8) {
-                throw new ThreadDatasetError(`EXTPANID TLV must be 8 bytes, got ${entry.value.length}`);
+            if (value.length !== 8) {
+                throw new ThreadDatasetError(`EXTPANID TLV must be 8 bytes, got ${value.length}`);
             }
-            ds.extPanId = entry.value.slice();
+            ds.extPanId = value.slice();
             break;
         case MeshCopTlvType.NETWORK_NAME:
-            ds.networkName = new TextDecoder("utf-8").decode(entry.value);
+            ds.networkName = new TextDecoder("utf-8").decode(value);
             break;
         case MeshCopTlvType.PSKC:
-            ds.pskc = entry.value.slice();
+            ds.pskc = value.slice();
             break;
         case MeshCopTlvType.NETWORK_KEY:
-            if (entry.value.length !== 16) {
-                throw new ThreadDatasetError(`NETWORK_KEY TLV must be 16 bytes, got ${entry.value.length}`);
+            if (value.length !== 16) {
+                throw new ThreadDatasetError(`NETWORK_KEY TLV must be 16 bytes, got ${value.length}`);
             }
-            ds.networkKey = entry.value.slice();
+            ds.networkKey = value.slice();
             break;
         case MeshCopTlvType.MESH_LOCAL_PREFIX:
-            if (entry.value.length !== 8) {
-                throw new ThreadDatasetError(`MESH_LOCAL_PREFIX TLV must be 8 bytes, got ${entry.value.length}`);
+            if (value.length !== 8) {
+                throw new ThreadDatasetError(`MESH_LOCAL_PREFIX TLV must be 8 bytes, got ${value.length}`);
             }
-            ds.meshLocalPrefix = entry.value.slice();
+            ds.meshLocalPrefix = value.slice();
             break;
         case MeshCopTlvType.SECURITY_POLICY:
-            ds.securityPolicy = SecurityPolicy.decode(entry.value);
+            ds.securityPolicy = SecurityPolicy.decode(value);
             break;
         case MeshCopTlvType.ACTIVE_TIMESTAMP:
-            if (entry.value.length !== 8) {
-                throw new ThreadDatasetError(`ACTIVE_TIMESTAMP TLV must be 8 bytes, got ${entry.value.length}`);
+            if (value.length !== 8) {
+                throw new ThreadDatasetError(`ACTIVE_TIMESTAMP TLV must be 8 bytes, got ${value.length}`);
             }
-            ds.activeTimestamp = entry.value.slice();
+            ds.activeTimestamp = value.slice();
             break;
         case MeshCopTlvType.PENDING_TIMESTAMP:
-            if (entry.value.length !== 8) {
-                throw new ThreadDatasetError(`PENDING_TIMESTAMP TLV must be 8 bytes, got ${entry.value.length}`);
+            if (value.length !== 8) {
+                throw new ThreadDatasetError(`PENDING_TIMESTAMP TLV must be 8 bytes, got ${value.length}`);
             }
-            ds.pendingTimestamp = entry.value.slice();
+            ds.pendingTimestamp = value.slice();
             break;
         case MeshCopTlvType.DELAY_TIMER:
-            if (entry.value.length !== 4) {
-                throw new ThreadDatasetError(`DELAY_TIMER TLV must be 4 bytes, got ${entry.value.length}`);
+            if (value.length !== 4) {
+                throw new ThreadDatasetError(`DELAY_TIMER TLV must be 4 bytes, got ${value.length}`);
             }
-            ds.delayTimer = (entry.value[0] << 24) | (entry.value[1] << 16) | (entry.value[2] << 8) | entry.value[3];
+            ds.delayTimer = (value[0] << 24) | (value[1] << 16) | (value[2] << 8) | value[3];
             break;
         case MeshCopTlvType.CHANNEL_MASK:
-            ds.channelMask = entry.value.slice();
+            ds.channelMask = value.slice();
             break;
         default:
-            unknownTlvs.push({ type: entry.type, value: entry.value.slice() });
+            unknownTlvs.push({ type: entry.type, value: value.slice() });
             break;
     }
 }
@@ -216,7 +217,7 @@ function encodeWithReplay(ds: OperationalDataset, originals: ReadonlyArray<Basic
         out.push({ type: known.type, value: canonical });
     }
 
-    return BasicTlv.encode(out);
+    return Bytes.of(BasicTlv.encode(out));
 }
 
 const EMPTY_BYTES = new Uint8Array();

@@ -35,7 +35,7 @@ describe("NetworkDiagnosticTlv", () => {
     it("uses the extended-length escape for values >= 254 bytes", () => {
         const value = new Uint8Array(300);
         for (let i = 0; i < value.length; i++) value[i] = (i * 3) & 0xff;
-        const encoded = NetworkDiagnosticTlv.encode([{ type: NetworkDiagTlvType.IPV6_ADDRESS_LIST, value }]);
+        const encoded = Bytes.of(NetworkDiagnosticTlv.encode([{ type: NetworkDiagTlvType.IPV6_ADDRESS_LIST, value }]));
 
         // Header is type:1 + 0xFF:1 + length:2 = 4 bytes, plus the value.
         expect(encoded.length).to.equal(4 + value.length);

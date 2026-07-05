@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { LeadPet } from "../src/commissioner/LeadPet.js";
 import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import type { BasicTlvEntry } from "../src/tlv/BasicTlvCodec.js";
@@ -18,7 +19,7 @@ function buildResponse(state: number, sessionId?: number): Uint8Array {
             value: new Uint8Array([(sessionId >> 8) & 0xff, sessionId & 0xff]),
         });
     }
-    return BasicTlv.encode(entries);
+    return Bytes.of(BasicTlv.encode(entries));
 }
 
 describe("LeadPet", () => {
@@ -34,7 +35,7 @@ describe("LeadPet", () => {
         it("handles an empty commissioner ID", () => {
             const payload = LeadPet.buildRequest("");
             const entries = BasicTlv.walk(payload);
-            expect(entries[0].value.length).to.equal(0);
+            expect(Bytes.of(entries[0].value).length).to.equal(0);
         });
     });
 
@@ -73,9 +74,11 @@ describe("LeadPet", () => {
         });
 
         it("throws when STATE TLV is missing", () => {
-            const payload = BasicTlv.encode([
-                { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: new Uint8Array([0x00, 0x07]) },
-            ]);
+            const payload = Bytes.of(
+                BasicTlv.encode([
+                    { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: new Uint8Array([0x00, 0x07]) },
+                ]),
+            );
             expect(() => LeadPet.parseResponse(payload)).to.throw(/STATE/i);
         });
     });
