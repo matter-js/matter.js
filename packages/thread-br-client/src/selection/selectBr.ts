@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ServerAddress } from "@matter/general";
 import type { BorderRouterEntry } from "../discovery/BorderRouterEntry.js";
 
 /**
@@ -37,12 +38,8 @@ export function decodeStateBitmap(hex: string | undefined): DecodedStateBitmap {
     };
 }
 
-function isLinkLocal(addr: string): boolean {
-    return addr.toLowerCase().startsWith("fe80:");
-}
-
 function hasLinkLocal(addresses: ReadonlyArray<string>): boolean {
-    return addresses.some(isLinkLocal);
+    return addresses.some(ServerAddress.isIpv6LinkLocal);
 }
 
 /**
@@ -51,7 +48,7 @@ function hasLinkLocal(addresses: ReadonlyArray<string>): boolean {
  * through every mDNS resolver path).
  */
 function hasDialableAddress(addresses: ReadonlyArray<string>): boolean {
-    return addresses.some(addr => !isLinkLocal(addr));
+    return addresses.some(addr => !ServerAddress.isIpv6LinkLocal(addr));
 }
 
 function scoreOf(br: BorderRouterEntry): number {
@@ -64,10 +61,11 @@ function scoreOf(br: BorderRouterEntry): number {
 }
 
 /**
- * Pick the best BR per spec FR-12 priority:
+ * Pick the best dialable BR. BRs without a non-link-local address are excluded
+ * (see {@link rankBrs}); the rest are ordered by spec FR-12 priority:
  *   1. State bitmap "BBR Active + Primary" (bits 7 and 8) wins.
  *   2. Then BBR Active but not Primary.
- *   3. Among equals: BR with at least one IPv6 link-local (`fe80:`) address wins.
+ *   3. Among equals: BR with at least one IPv6 link-local (`fe80::/10`) address wins.
  *   4. Among equals: alphabetical `extAddressHex` ascending (deterministic tie-break).
  */
 export function selectBr(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEntry | undefined {

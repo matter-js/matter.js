@@ -96,6 +96,13 @@ describe("selectBr", () => {
         expect(selectBr([linkLocalOnly])).to.equal(undefined);
     });
 
+    it("treats the whole fe80::/10 range as link-local, not just fe80:", () => {
+        // fe90::/… is still link-local (fe80::/10 spans fe8/fe9/fea/feb).
+        for (const ll of ["fe90::1", "fea0::1", "feb0::1"]) {
+            expect(selectBr([makeBr({ extAddressHex: "1111111111111111", addresses: [ll] })])).to.equal(undefined);
+        }
+    });
+
     it("excludes a BR with no addresses (undialable) from the ranking", () => {
         const withAddr = makeBr({ extAddressHex: "1111111111111111", addresses: ["fd00::1"] });
         const noAddr = makeBr({ extAddressHex: "2222222222222222", addresses: [] });

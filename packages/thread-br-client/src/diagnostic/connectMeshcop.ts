@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Environment, ImplementationError, Logger } from "@matter/general";
+import { type Environment, ImplementationError, Logger, ServerAddress } from "@matter/general";
 import { CoapClient } from "../coap/CoapClient.js";
 import { Commissioner } from "../commissioner/Commissioner.js";
 import type { ThreadNetworkCredentials } from "../credentials/ThreadNetworkCredentials.js";
@@ -87,7 +87,7 @@ function selectBrAddress(addresses: readonly string[]): string {
 
     const usable = new Array<string>();
     for (const addr of addresses) {
-        if (!isLinkLocal(addr)) usable.push(addr);
+        if (!ServerAddress.isIpv6LinkLocal(addr)) usable.push(addr);
     }
     if (usable.length === 0) {
         throw new ImplementationError(
@@ -96,14 +96,6 @@ function selectBrAddress(addresses: readonly string[]): string {
     }
 
     return rankAddress(usable)[0];
-}
-
-function isLinkLocal(addr: string): boolean {
-    const lower = addr.toLowerCase();
-    if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) {
-        return true;
-    }
-    return false;
 }
 
 /**

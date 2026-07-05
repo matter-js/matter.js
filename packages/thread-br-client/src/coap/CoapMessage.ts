@@ -19,7 +19,9 @@ export interface CoapMessage {
 
 /**
  * Thrown for CoAP-layer failures: a datagram that cannot be decoded per RFC
- * 7252 §3, an RST response, or loss of the underlying channel.
+ * 7252 §3, an RST response, or a clean close of the underlying channel while
+ * requests are still outstanding. A channel that fails with its own error
+ * propagates that error unchanged.
  */
 export class CoapError extends MatterError {}
 
