@@ -18,15 +18,15 @@ export interface OtbrLeaderData {
 }
 
 export interface OtbrNodeInfo {
-    baId: Uint8Array;
+    baId: Bytes;
     state: string;
     numOfRouter: number;
     rlocAddress: string;
-    extAddress: Uint8Array;
+    extAddress: Bytes;
     networkName: string;
     rloc16: number;
     leaderData: OtbrLeaderData;
-    extPanId: Uint8Array;
+    extPanId: Bytes;
 }
 
 export interface OtbrDatasetHex {
@@ -110,14 +110,14 @@ function expectRecord(record: Record<string, unknown>, key: string, where: strin
     return value;
 }
 
-function parseHexBytes(hex: string, expectedLen: number, where: string): Uint8Array {
+function parseHexBytes(hex: string, expectedLen: number, where: string): Bytes {
     if (!/^[0-9a-fA-F]*$/.test(hex)) {
         throw new OtbrRestError("rest_protocol", `${where}: not hex`);
     }
     if (hex.length !== expectedLen * 2) {
         throw new OtbrRestError("rest_protocol", `${where}: expected ${expectedLen} bytes, got ${hex.length / 2}`);
     }
-    return Bytes.of(Bytes.fromHex(hex));
+    return Bytes.fromHex(hex);
 }
 
 /**
@@ -155,7 +155,7 @@ export class OtbrRestClient {
     /**
      * Fetch the current node summary from the OTBR `/node` endpoint.
      *
-     * @returns Parsed node info with typed fields (binary fields as `Uint8Array`).
+     * @returns Parsed node info with typed fields (binary fields as `Bytes`).
      * @throws {@link OtbrRestError} with code `"rest_unreachable"` on network error or timeout.
      * @throws {@link OtbrRestError} with code `"rest_protocol"` when the response is
      *   not a valid JSON object or a required field is missing or has the wrong type.
@@ -268,14 +268,14 @@ export class OtbrRestClient {
     /**
      * Fetch the 8-byte IEEE EUI-64 extended address from `/node/ext-address`.
      */
-    async getExtAddress(): Promise<Uint8Array> {
+    async getExtAddress(): Promise<Bytes> {
         return parseHexBytes(await this.#getJsonString("/node/ext-address"), 8, "/node/ext-address");
     }
 
     /**
      * Fetch the 8-byte Extended PAN ID from `/node/ext-panid`.
      */
-    async getExtPanId(): Promise<Uint8Array> {
+    async getExtPanId(): Promise<Bytes> {
         return parseHexBytes(await this.#getJsonString("/node/ext-panid"), 8, "/node/ext-panid");
     }
 
@@ -284,7 +284,7 @@ export class OtbrRestClient {
      *
      * @throws {@link OtbrRestError} `"rest_unsupported"` on older firmware that lacks this endpoint (404).
      */
-    async getBorderAgentId(): Promise<Uint8Array> {
+    async getBorderAgentId(): Promise<Bytes> {
         return parseHexBytes(await this.#getJsonString("/node/ba-id"), 16, "/node/ba-id");
     }
 

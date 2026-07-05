@@ -71,9 +71,10 @@ function pathsEqual(a: string[], b: string[]): boolean {
     return true;
 }
 
-function tokenHex(token: Uint8Array): string {
+function tokenHex(token: Bytes): string {
+    const buf = Bytes.of(token);
     let out = "";
-    for (const b of token) {
+    for (const b of buf) {
         out += b.toString(16).padStart(2, "0");
     }
     return out;
@@ -110,7 +111,7 @@ export class CoapClient {
         type: "CON" | "NON";
         code: string;
         uriPath: string[];
-        payload?: Uint8Array;
+        payload?: Bytes;
     }): Promise<CoapMessage> {
         const messageId = this.#nextMessageId();
         const token = this.#randomToken();
@@ -240,7 +241,7 @@ export class CoapClient {
             for await (const bytes of this.#channel) {
                 let msg: CoapMessage;
                 try {
-                    msg = CoapMessage.decode(Bytes.of(bytes));
+                    msg = CoapMessage.decode(bytes);
                 } catch (err) {
                     logger.debug(`CoAP inbound decode failed, dropping: ${err}`);
                     continue;
@@ -268,7 +269,7 @@ export class CoapClient {
                 // Stray ACK (duplicate or for a request we no longer track) — ignore.
                 return;
             }
-            const isEmptyAck = msg.code === "0.00" && msg.payload.length === 0;
+            const isEmptyAck = msg.code === "0.00" && Bytes.of(msg.payload).length === 0;
             if (isEmptyAck) {
                 // Separate response coming.
                 state.onEmptyAck();
@@ -338,7 +339,7 @@ export class CoapClient {
         }
         if (delivered === 0) {
             logger.debug(
-                `CoAP inbound consumed by no request or listener: uri=${uri} type=${msg.type} code=${msg.code} payloadLen=${msg.payload.length}`,
+                `CoAP inbound consumed by no request or listener: uri=${uri} type=${msg.type} code=${msg.code} payloadLen=${Bytes.of(msg.payload).length}`,
             );
         }
     }
@@ -349,7 +350,7 @@ export class CoapClient {
         return id;
     }
 
-    #randomToken(): Uint8Array {
+    #randomToken(): Bytes {
         return Bytes.of(this.#entropy.randomBytes(4));
     }
 }

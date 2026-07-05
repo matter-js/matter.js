@@ -27,18 +27,18 @@ export { ThreadDatasetError } from "./errors.js";
 export interface OperationalDataset {
     channel?: number;
     panId?: number;
-    extPanId?: Uint8Array;
+    extPanId?: Bytes;
     networkName?: string;
-    pskc?: Uint8Array;
-    networkKey?: Uint8Array;
-    meshLocalPrefix?: Uint8Array;
+    pskc?: Bytes;
+    networkKey?: Bytes;
+    meshLocalPrefix?: Bytes;
     securityPolicy?: SecurityPolicy;
-    activeTimestamp?: Uint8Array;
-    pendingTimestamp?: Uint8Array;
+    activeTimestamp?: Bytes;
+    pendingTimestamp?: Bytes;
     delayTimer?: number;
-    channelMask?: Uint8Array;
-    unknownTlvs: Array<{ type: number; value: Uint8Array }>;
-    raw: Uint8Array;
+    channelMask?: Bytes;
+    unknownTlvs: Array<{ type: number; value: Bytes }>;
+    raw: Bytes;
 }
 
 export namespace OperationalDataset {
@@ -53,7 +53,7 @@ export namespace OperationalDataset {
     export function decode(input: Bytes | string): OperationalDataset {
         const blob = typeof input === "string" ? Bytes.of(Bytes.fromHex(input.replace(/\s+/g, ""))) : Bytes.of(input);
         const entries = BasicTlv.walk(blob);
-        const unknownTlvs = new Array<{ type: number; value: Uint8Array }>();
+        const unknownTlvs = new Array<{ type: number; value: Bytes }>();
         const originalTlvs = entries.map(e => ({ type: e.type, value: Bytes.of(e.value).slice() }));
         const ds: OperationalDataset = {
             unknownTlvs,
@@ -80,7 +80,7 @@ export namespace OperationalDataset {
      * @param ds - Dataset to encode; may be a decoded or manually constructed object.
      * @returns MeshCoP TLV byte sequence.
      */
-    export function encode(ds: OperationalDataset): Uint8Array {
+    export function encode(ds: OperationalDataset): Bytes {
         const originals = ORIGINAL_TLVS.get(ds);
         if (originals !== undefined) {
             return encodeWithReplay(ds, originals);
@@ -112,7 +112,7 @@ const ORIGINAL_TLVS = new WeakMap<OperationalDataset, ReadonlyArray<BasicTlvEntr
 function applyKnownTlvToDataset(
     ds: OperationalDataset,
     entry: BasicTlvEntry,
-    unknownTlvs: Array<{ type: number; value: Uint8Array }>,
+    unknownTlvs: Array<{ type: number; value: Bytes }>,
 ): void {
     const value = Bytes.of(entry.value);
     switch (entry.type) {
@@ -179,7 +179,7 @@ function applyKnownTlvToDataset(
     }
 }
 
-function encodeWithReplay(ds: OperationalDataset, originals: ReadonlyArray<BasicTlvEntry>): Uint8Array {
+function encodeWithReplay(ds: OperationalDataset, originals: ReadonlyArray<BasicTlvEntry>): Bytes {
     const seenKnownTypes = new Set<number>();
     const unknownCursor = new Map<number, number>();
     const out = new Array<BasicTlvEntry>();
@@ -230,7 +230,7 @@ function canonicalEntries(ds: OperationalDataset): BasicTlvEntry[] {
         out.push({ type: known.type, value: canonical });
     }
     for (const u of ds.unknownTlvs) {
-        out.push({ type: u.type, value: u.value.slice() });
+        out.push({ type: u.type, value: Bytes.of(u.value).slice() });
     }
     return out;
 }
@@ -242,7 +242,7 @@ function canonicalEntries(ds: OperationalDataset): BasicTlvEntry[] {
 interface KnownTlvHandler {
     type: number;
     /** Returns the canonical encoding of the named accessor, or undefined when unset. */
-    encodeCurrent(ds: OperationalDataset): Uint8Array | undefined;
+    encodeCurrent(ds: OperationalDataset): Bytes | undefined;
     /** Whether ds[field] structurally equals other[field]. Used for replay decisions. */
     equalsCurrent(ds: OperationalDataset, other: OperationalDataset): boolean;
 }
@@ -250,7 +250,7 @@ interface KnownTlvHandler {
 function handler<K extends keyof OperationalDataset>(
     type: number,
     field: K,
-    encodeValue: (value: OperationalDataset[K] & {}) => Uint8Array,
+    encodeValue: (value: OperationalDataset[K] & {}) => Bytes,
     equals: (a: OperationalDataset[K] & {}, b: OperationalDataset[K] & {}) => boolean,
 ): KnownTlvHandler {
     return {
@@ -271,7 +271,7 @@ function handler<K extends keyof OperationalDataset>(
 
 const eqNumber = (a: number, b: number): boolean => a === b;
 const eqString = (a: string, b: string): boolean => a === b;
-const eqBytes = (a: Uint8Array, b: Uint8Array): boolean => Bytes.areEqual(a, b);
+const eqBytes = (a: Bytes, b: Bytes): boolean => Bytes.areEqual(a, b);
 const eqSecurityPolicy = (a: SecurityPolicy, b: SecurityPolicy): boolean =>
     a.rotationTime === b.rotationTime && a.flags === b.flags;
 

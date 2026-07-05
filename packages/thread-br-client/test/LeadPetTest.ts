@@ -86,7 +86,7 @@ describe("LeadPet", () => {
     describe("round-trip", () => {
         it("buildRequest then parseResponse round-trips when simulating a server response", () => {
             const reqPayload = LeadPet.buildRequest("matter-server");
-            expect(reqPayload.length).to.be.greaterThan(0);
+            expect(Bytes.of(reqPayload).length).to.be.greaterThan(0);
 
             // Simulate the server responding with Accept + session ID.
             const respPayload = buildResponse(1, 42);

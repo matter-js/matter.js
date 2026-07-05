@@ -49,7 +49,7 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
      *
      * @param extPanId - 8-byte Extended PAN ID of the network to query.
      */
-    canQuery(extPanId: Uint8Array): boolean {
+    canQuery(extPanId: Bytes): boolean {
         return Bytes.areEqual(extPanId, this.#capability.extPanId);
     }
 

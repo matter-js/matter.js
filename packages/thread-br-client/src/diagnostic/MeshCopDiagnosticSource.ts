@@ -131,14 +131,14 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
     readonly #commissioner: Pick<Commissioner, "withSession">;
     readonly #coap: Pick<CoapClient, "request" | "listen">;
     readonly #entropy: Entropy;
-    readonly #mlPrefix?: Uint8Array;
+    readonly #mlPrefix?: Bytes;
     #innerMessageId: number;
 
     constructor(
         commissioner: Pick<Commissioner, "withSession">,
         coap: Pick<CoapClient, "request" | "listen">,
         environment: Environment,
-        mlPrefix?: Uint8Array,
+        mlPrefix?: Bytes,
     ) {
         this.#commissioner = commissioner;
         this.#coap = coap;
@@ -147,7 +147,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         this.#innerMessageId = this.#entropy.randomUint16;
     }
 
-    canQuery(_extPanId: Uint8Array): boolean {
+    canQuery(_extPanId: Bytes): boolean {
         return true;
     }
 
@@ -282,7 +282,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         return;
                     }
                     this.#ackInnerIfNeeded(inner);
-                    if (inner.message.payload.length === 0) return;
+                    if (Bytes.of(inner.message.payload).length === 0) return;
                     try {
                         const decoded = decodeResponse(inner.message.payload);
                         collected.push(decoded);
@@ -496,36 +496,32 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         });
     }
 
-    #encodeInnerDiag(type: "CON" | "NON", uriPath: string[], tlvTypes: number[], token: Uint8Array): Uint8Array {
+    #encodeInnerDiag(type: "CON" | "NON", uriPath: string[], tlvTypes: number[], token: Bytes): Bytes {
         return CoapMessage.encode({
             type,
             code: "0.02",
             messageId: this.#nextInnerMessageId(),
             token,
             uriPath,
-            payload: Bytes.of(
-                NetworkDiagnosticTlv.encode([
-                    { type: NetworkDiagTlvType.TYPE_LIST, value: TypeListTlv.encode(tlvTypes) },
-                ]),
-            ),
+            payload: NetworkDiagnosticTlv.encode([
+                { type: NetworkDiagTlvType.TYPE_LIST, value: TypeListTlv.encode(tlvTypes) },
+            ]),
         });
     }
 
     #wrapProxyTx(
-        targetAddr: Uint8Array,
-        innerCoapBytes: Uint8Array,
+        targetAddr: Bytes,
+        innerCoapBytes: Bytes,
         sourcePort = PROXY_SRC_PORT,
         destinationPort = TMF_PORT,
-    ): Uint8Array {
-        return Bytes.of(
-            BasicTlv.encode([
-                {
-                    type: MeshCopTlvType.UDP_ENCAPSULATION,
-                    value: UdpEncapsulationTlv.encode({ sourcePort, destinationPort, payload: innerCoapBytes }),
-                },
-                { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(targetAddr) },
-            ]),
-        );
+    ): Bytes {
+        return BasicTlv.encode([
+            {
+                type: MeshCopTlvType.UDP_ENCAPSULATION,
+                value: UdpEncapsulationTlv.encode({ sourcePort, destinationPort, payload: innerCoapBytes }),
+            },
+            { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(targetAddr) },
+        ]);
     }
 
     /**
@@ -557,13 +553,13 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         return id;
     }
 
-    #freshToken(): Uint8Array {
+    #freshToken(): Bytes {
         return Bytes.of(this.#entropy.randomBytes(4));
     }
 }
 
 interface ProxyRxInner {
-    sourceAddr: Uint8Array;
+    sourceAddr: Bytes;
     sourcePort: number;
     destinationPort: number;
     message: CoapMessage;
@@ -575,7 +571,7 @@ interface ProxyRxInner {
  * responder's source address. Returns `undefined` if the required TLVs are
  * absent or the inner CoAP message cannot be parsed.
  */
-function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
+function unwrapProxyRx(payload: Bytes): ProxyRxInner | undefined {
     let entries: ReturnType<typeof BasicTlv.walk>;
     try {
         entries = BasicTlv.walk(payload);
@@ -585,12 +581,12 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
     }
 
     let encap: ReturnType<typeof UdpEncapsulationTlv.decode> | undefined;
-    let sourceAddr: Uint8Array | undefined;
+    let sourceAddr: Bytes | undefined;
     for (const entry of entries) {
         if (entry.type === MeshCopTlvType.UDP_ENCAPSULATION) {
             encap = UdpEncapsulationTlv.decode(entry.value);
         } else if (entry.type === MeshCopTlvType.IPV6_ADDRESS) {
-            sourceAddr = Bytes.of(Ip6AddressTlv.decode(entry.value));
+            sourceAddr = Ip6AddressTlv.decode(entry.value);
         }
     }
     if (encap === undefined || sourceAddr === undefined) {
@@ -602,7 +598,7 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
 
     let inner: CoapMessage;
     try {
-        inner = CoapMessage.decode(Bytes.of(encap.payload));
+        inner = CoapMessage.decode(encap.payload);
     } catch (err) {
         logger.warn("[ThreadDiag] c/ur inner CoAP parse failed, dropping:", err);
         return undefined;
@@ -610,15 +606,17 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
     return { sourceAddr, sourcePort: encap.sourcePort, destinationPort: encap.destinationPort, message: inner };
 }
 
-function tokensEqual(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i]) return false;
+function tokensEqual(a: Bytes, b: Bytes): boolean {
+    const bufA = Bytes.of(a);
+    const bufB = Bytes.of(b);
+    if (bufA.length !== bufB.length) return false;
+    for (let i = 0; i < bufA.length; i++) {
+        if (bufA[i] !== bufB[i]) return false;
     }
     return true;
 }
 
-function encodeScanRequest(opts: EnergyScanOpts): Uint8Array {
+function encodeScanRequest(opts: EnergyScanOpts): Bytes {
     const mask = new Uint8Array(4);
     mask[0] = (opts.channelMask >> 24) & 0xff;
     mask[1] = (opts.channelMask >> 16) & 0xff;
@@ -633,17 +631,15 @@ function encodeScanRequest(opts: EnergyScanOpts): Uint8Array {
     scanDuration[0] = (opts.scanDuration >> 8) & 0xff;
     scanDuration[1] = opts.scanDuration & 0xff;
 
-    return Bytes.of(
-        BasicTlv.encode([
-            { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
-            { type: MeshCopTlvType.COUNT, value: count },
-            { type: MeshCopTlvType.PERIOD, value: period },
-            { type: MeshCopTlvType.SCAN_DURATION, value: scanDuration },
-        ]),
-    );
+    return BasicTlv.encode([
+        { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
+        { type: MeshCopTlvType.COUNT, value: count },
+        { type: MeshCopTlvType.PERIOD, value: period },
+        { type: MeshCopTlvType.SCAN_DURATION, value: scanDuration },
+    ]);
 }
 
-function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<EnergyScanEntry> {
+function decodeEnergyReport(payload: Bytes, channelMask: number): Array<EnergyScanEntry> {
     const entries = BasicTlv.walk(payload);
     const energyEntry = entries.find(e => e.type === MeshCopTlvType.ENERGY_LIST);
     if (energyEntry === undefined) {
@@ -664,7 +660,7 @@ function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<Ene
     return result;
 }
 
-function encodePanIdQuery(opts: PanIdQueryOpts): Uint8Array {
+function encodePanIdQuery(opts: PanIdQueryOpts): Bytes {
     const mask = new Uint8Array(4);
     mask[0] = (opts.channelMask >> 24) & 0xff;
     mask[1] = (opts.channelMask >> 16) & 0xff;
@@ -675,15 +671,13 @@ function encodePanIdQuery(opts: PanIdQueryOpts): Uint8Array {
     panId[0] = (opts.panId >> 8) & 0xff;
     panId[1] = opts.panId & 0xff;
 
-    return Bytes.of(
-        BasicTlv.encode([
-            { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
-            { type: MeshCopTlvType.PANID, value: panId },
-        ]),
-    );
+    return BasicTlv.encode([
+        { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
+        { type: MeshCopTlvType.PANID, value: panId },
+    ]);
 }
 
-function decodePanIdConflict(payload: Uint8Array, expectedPanId: number): PanIdConflict {
+function decodePanIdConflict(payload: Bytes, expectedPanId: number): PanIdConflict {
     const entries = BasicTlv.walk(payload);
     const maskEntry = entries.find(e => e.type === MeshCopTlvType.CHANNEL_MASK);
     if (maskEntry === undefined) {
@@ -728,14 +722,14 @@ export function missingRouterIds(responses: ReadonlyArray<DiagnosticResponse>): 
     return missing.sort((a, b) => a - b);
 }
 
-function decodeResponse(payload: Uint8Array): DiagnosticResponse {
+function decodeResponse(payload: Bytes): DiagnosticResponse {
     const entries = NetworkDiagnosticTlv.decode(payload);
-    const result: DiagnosticResponse = { unknown: new Array<{ type: number; value: Uint8Array }>() };
+    const result: DiagnosticResponse = { unknown: new Array<{ type: number; value: Bytes }>() };
 
     for (const entry of entries) {
         switch (entry.type) {
             case NetworkDiagTlvType.EXT_MAC_ADDRESS:
-                result.extMacAddress = Bytes.of(ExtMacAddress.decode(entry.value));
+                result.extMacAddress = ExtMacAddress.decode(entry.value);
                 break;
             case NetworkDiagTlvType.ADDRESS16:
                 result.rloc16 = Address16.decode(entry.value);
@@ -759,7 +753,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
                 result.networkData = NetworkData.decode(entry.value);
                 break;
             case NetworkDiagTlvType.IPV6_ADDRESS_LIST:
-                result.ipv6Addresses = Ipv6AddressList.decode(entry.value).map(a => Bytes.of(a));
+                result.ipv6Addresses = Ipv6AddressList.decode(entry.value);
                 break;
             case NetworkDiagTlvType.MAC_COUNTERS:
                 result.macCounters = MacCounters.decode(entry.value);
@@ -786,7 +780,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
                 result.maxChildTimeout = MaxChildTimeout.decode(entry.value);
                 break;
             case NetworkDiagTlvType.EUI64:
-                result.eui64 = Bytes.of(Eui64.decode(entry.value));
+                result.eui64 = Eui64.decode(entry.value);
                 break;
             case NetworkDiagTlvType.VERSION:
                 result.version = Version.decode(entry.value);
@@ -810,7 +804,7 @@ function decodeResponse(payload: Uint8Array): DiagnosticResponse {
                 result.vendorAppUrl = VendorAppUrl.decode(entry.value);
                 break;
             default:
-                result.unknown.push({ type: entry.type, value: Bytes.of(entry.value) });
+                result.unknown.push({ type: entry.type, value: entry.value });
                 break;
         }
     }

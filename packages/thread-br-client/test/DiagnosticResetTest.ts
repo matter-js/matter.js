@@ -22,7 +22,7 @@ import { NetworkDiagTlvType } from "../src/tlv/networkDiagTlvTypes.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
-type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
+type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Bytes };
 
 const ML_PREFIX = new Uint8Array([0xfd, 0xda, 0x3f, 0xb0, 0x2c, 0x67, 0x00, 0x00]);
 const environment = new Environment("test", Environment.default);
@@ -37,7 +37,7 @@ function ackMessage(): CoapMessage {
     return { type: "ACK", code: "2.04", messageId: 1, token: new Uint8Array(), payload: new Uint8Array() };
 }
 
-function unwrapProxyTx(proxyPayload: Uint8Array): {
+function unwrapProxyTx(proxyPayload: Bytes): {
     inner: CoapMessage;
     targetAddr: Uint8Array;
     sourcePort: number;
@@ -51,7 +51,7 @@ function unwrapProxyTx(proxyPayload: Uint8Array): {
     }
     const encap = UdpEncapsulationTlv.decode(encapEntry.value);
     return {
-        inner: CoapMessage.decode(Bytes.of(encap.payload)),
+        inner: CoapMessage.decode(encap.payload),
         targetAddr: Bytes.of(Ip6AddressTlv.decode(addrEntry.value)),
         sourcePort: encap.sourcePort,
         destinationPort: encap.destinationPort,

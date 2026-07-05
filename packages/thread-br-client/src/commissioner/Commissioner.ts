@@ -96,7 +96,9 @@ export class Commissioner {
             payload: LeadPet.buildRequest(Commissioner.COMMISSIONER_ID),
         });
 
-        logger.debug(`[ThreadDiag] COMM_PET response code=${response.code} payloadLen=${response.payload.length}`);
+        logger.debug(
+            `[ThreadDiag] COMM_PET response code=${response.code} payloadLen=${Bytes.of(response.payload).length}`,
+        );
         const parsed = LeadPet.parseResponse(response.payload);
 
         if (parsed.state === "accept") {
@@ -170,15 +172,13 @@ export class Commissioner {
             const sessionBytes = new Uint8Array(2);
             sessionBytes[0] = (sessionId >> 8) & 0xff;
             sessionBytes[1] = sessionId & 0xff;
-            const releasePayload = Bytes.of(
-                BasicTlv.encode([
-                    { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: sessionBytes },
-                    {
-                        type: MeshCopTlvType.COMMISSIONER_ID,
-                        value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID),
-                    },
-                ]),
-            );
+            const releasePayload = BasicTlv.encode([
+                { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: sessionBytes },
+                {
+                    type: MeshCopTlvType.COMMISSIONER_ID,
+                    value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID),
+                },
+            ]);
             await this.#coap.request({
                 type: "CON",
                 code: "0.02",

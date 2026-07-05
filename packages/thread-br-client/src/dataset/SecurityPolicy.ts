@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/general";
+import { Bytes, ImplementationError } from "@matter/general";
 import { ThreadDatasetError } from "./errors.js";
 
 /**
@@ -21,17 +21,18 @@ export interface SecurityPolicy {
 }
 
 export namespace SecurityPolicy {
-    export function decode(value: Uint8Array): SecurityPolicy {
-        if (value.length !== 4) {
-            throw new ThreadDatasetError(`Security policy must be 4 bytes, got ${value.length}`);
+    export function decode(value: Bytes): SecurityPolicy {
+        const buf = Bytes.of(value);
+        if (buf.length !== 4) {
+            throw new ThreadDatasetError(`Security policy must be 4 bytes, got ${buf.length}`);
         }
         return {
-            rotationTime: (value[0] << 8) | value[1],
-            flags: (value[2] << 8) | value[3],
+            rotationTime: (buf[0] << 8) | buf[1],
+            flags: (buf[2] << 8) | buf[3],
         };
     }
 
-    export function encode(policy: SecurityPolicy): Uint8Array {
+    export function encode(policy: SecurityPolicy): Bytes {
         if (policy.rotationTime < 0 || policy.rotationTime > 0xffff) {
             throw new ImplementationError(`Security policy rotationTime out of range: ${policy.rotationTime}`);
         }

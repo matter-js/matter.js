@@ -62,7 +62,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
     before(MockTime.enable);
 
     it("sends c/pq with CHANNEL_MASK and PAN_ID TLVs encoded correctly", async () => {
-        let capturedPayload: Uint8Array | undefined;
+        let capturedPayload: Bytes | undefined;
         let pcHandler: ((msg: CoapMessage) => void) | undefined;
 
         const coap: CoapLike = {

@@ -46,7 +46,7 @@ function requireNumber(record: Record<string, unknown>, key: string, where: stri
     return v;
 }
 
-function parseHexBytes(hex: string, where: string, expectedLen?: number): Uint8Array {
+function parseHexBytes(hex: string, where: string, expectedLen?: number): Bytes {
     if (!/^[0-9a-fA-F]*$/.test(hex)) {
         throw new OtbrRestError("rest_protocol", `${where}: not hex`);
     }
@@ -56,7 +56,7 @@ function parseHexBytes(hex: string, where: string, expectedLen?: number): Uint8A
     if (expectedLen !== undefined && hex.length !== expectedLen * 2) {
         throw new OtbrRestError("rest_protocol", `${where}: expected ${expectedLen} bytes, got ${hex.length / 2}`);
     }
-    return Bytes.of(Bytes.fromHex(hex));
+    return Bytes.fromHex(hex);
 }
 
 function translateMode(input: Record<string, unknown>): Mode {
@@ -192,7 +192,7 @@ function translateChildTable(input: unknown[]): ChildTableEntry[] {
  * compression. Does not handle IPv4-mapped (`::ffff:1.2.3.4`) or zone IDs
  * (`%`); OTBR `IP6AddressList` never returns either.
  */
-function parseIpv6(text: string): Uint8Array {
+function parseIpv6(text: string): Bytes {
     if (text.includes("%")) {
         throw new OtbrRestError("rest_protocol", `ipv6: zone ID not supported in ${text}`);
     }
@@ -250,7 +250,7 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
     if (!isRecord(json)) {
         throw new OtbrRestError("rest_protocol", "translateNodeJson: input is not an object");
     }
-    const result: DiagnosticResponse = { unknown: new Array<{ type: number; value: Uint8Array }>() };
+    const result: DiagnosticResponse = { unknown: new Array<{ type: number; value: Bytes }>() };
 
     const extAddress = asString(json["extAddress"]);
     if (extAddress !== undefined) {
@@ -282,7 +282,7 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
 
     const ip6Addresses = asArray(json["ip6AddressList"]);
     if (ip6Addresses !== undefined) {
-        const list = new Array<Uint8Array>();
+        const list = new Array<Bytes>();
         for (const entry of ip6Addresses) {
             const text = asString(entry);
             if (text === undefined) {
@@ -305,7 +305,7 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
     const channelPages = asString(json["channelPages"]);
     if (channelPages !== undefined) {
         const bytes = parseHexBytes(channelPages, "channelPages");
-        result.channelPages = Array.from(bytes);
+        result.channelPages = Array.from(Bytes.of(bytes));
     }
 
     const maxChildTimeout = asNumber(json["maxChildTimeout"]);

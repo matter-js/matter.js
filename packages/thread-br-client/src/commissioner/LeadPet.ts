@@ -15,15 +15,13 @@ export interface LeadPetResponse {
 }
 
 export namespace LeadPet {
-    export function buildRequest(commissionerId: string): Uint8Array {
-        return Bytes.of(
-            BasicTlv.encode([
-                { type: MeshCopTlvType.COMMISSIONER_ID, value: new TextEncoder().encode(commissionerId) },
-            ]),
-        );
+    export function buildRequest(commissionerId: string): Bytes {
+        return BasicTlv.encode([
+            { type: MeshCopTlvType.COMMISSIONER_ID, value: new TextEncoder().encode(commissionerId) },
+        ]);
     }
 
-    export function parseResponse(payload: Uint8Array): LeadPetResponse {
+    export function parseResponse(payload: Bytes): LeadPetResponse {
         const entries = BasicTlv.walk(payload);
         let state: "accept" | "reject" | "pending" | undefined;
         let sessionId: number | undefined;

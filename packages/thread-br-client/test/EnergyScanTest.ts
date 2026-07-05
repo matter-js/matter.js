@@ -16,7 +16,7 @@ import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
-type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
+type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Bytes };
 
 const environment = new Environment("test", Environment.default);
 

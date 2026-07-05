@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Observable } from "@matter/general";
+import type { Bytes, Observable } from "@matter/general";
 import { NetworkDiagTlvType } from "../tlv/networkDiagTlvTypes.js";
 import type { DiagnosticResponse } from "./DiagnosticResponse.js";
 
@@ -41,7 +41,7 @@ export interface QueryMulticastHandle {
 
 export interface DiagnosticSource {
     readonly kind: "meshcop" | "otbr-rest";
-    canQuery(extPanId: Uint8Array): boolean;
+    canQuery(extPanId: Bytes): boolean;
     queryUnicast(target: { rloc16?: number; ip?: string }, tlvTypes: number[]): Promise<DiagnosticResponse>;
     /**
      * Issue a multicast diagnostic query (DIAG_GET for MeshCoP, /diagnostics

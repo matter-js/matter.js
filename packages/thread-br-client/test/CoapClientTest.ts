@@ -56,7 +56,7 @@ class MockChannel implements DtlsChannel {
         }
     }
 
-    deliver(bytes: Uint8Array): void {
+    deliver(bytes: Bytes): void {
         const waiter = this.#waiter;
         if (waiter !== undefined) {
             this.#waiter = undefined;
