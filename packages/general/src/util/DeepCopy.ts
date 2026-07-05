@@ -7,7 +7,7 @@
 /**
  * Create a deep copy of a data structure.
  *
- * Only copies enumerable properties.  Handles typed arrays and graphs.
+ * Only copies enumerable properties.  Handles typed arrays, Sets, Maps and graphs.
  */
 export function deepCopy<T>(value: T): T {
     let clones: undefined | Map<unknown, unknown>;
@@ -28,6 +28,10 @@ export function deepCopy<T>(value: T): T {
             } else if (ArrayBuffer.isView(value)) {
                 const ViewType = value.constructor as unknown as { from(v: typeof value): typeof value };
                 clone = ViewType.from(value);
+            } else if (value instanceof Set) {
+                clone = new Set([...value].map(copy));
+            } else if (value instanceof Map) {
+                clone = new Map([...value].map(([k, v]) => [copy(k), copy(v)]));
             } else {
                 clone = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, copy(v)]));
             }

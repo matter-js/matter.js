@@ -6,6 +6,8 @@
 
 import { PhysicalDeviceProperties } from "#peer/PhysicalDeviceProperties.js";
 import { Instant, Seconds } from "@matter/general";
+import { GenericSwitchDt } from "@matter/model";
+import { DeviceTypeId } from "@matter/types";
 
 const { subscriptionIntervalBoundsFor } = PhysicalDeviceProperties;
 
@@ -23,19 +25,60 @@ const BASE_PROPERTIES: PhysicalDeviceProperties = {
 
 describe("PhysicalDeviceProperties", () => {
     describe("subscriptionIntervalBoundsFor", () => {
+        // specificationVersion encoding for Matter 1.3.0.
+        const SPEC_1_3 = 0x0103_0000;
+        const THREAD_PRE_1_3: PhysicalDeviceProperties = {
+            ...BASE_PROPERTIES,
+            supportsWifi: false,
+            supportsThread: true,
+            threadActive: true,
+        };
+
         describe("minIntervalFloor", () => {
-            it("defaults to 1 second when called with no arguments", () => {
+            it("defaults to Instant (0) when called with no arguments", () => {
                 const { minIntervalFloor } = subscriptionIntervalBoundsFor();
 
-                expect(minIntervalFloor).to.equal(Seconds(1));
+                expect(minIntervalFloor).to.equal(Instant);
             });
 
-            it("defaults to 1 second for a non-ICD device with no floor requested", () => {
+            it("defaults to Instant (0) for a non-Thread device with no floor requested", () => {
                 const { minIntervalFloor } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, isIntermittentlyConnected: false },
                 });
 
+                expect(minIntervalFloor).to.equal(Instant);
+            });
+
+            it("uses 1 second for a pre-1.3 Thread device with no floor requested", () => {
+                const { minIntervalFloor } = subscriptionIntervalBoundsFor({
+                    properties: THREAD_PRE_1_3,
+                });
+
                 expect(minIntervalFloor).to.equal(Seconds(1));
+            });
+
+            it("uses 1 second for a Thread device that only supports Thread but is not yet active", () => {
+                const { minIntervalFloor } = subscriptionIntervalBoundsFor({
+                    properties: { ...BASE_PROPERTIES, supportsWifi: false, supportsThread: true },
+                });
+
+                expect(minIntervalFloor).to.equal(Seconds(1));
+            });
+
+            it("uses Instant (0) for a Thread device on Matter 1.3 or later", () => {
+                const { minIntervalFloor } = subscriptionIntervalBoundsFor({
+                    properties: { ...THREAD_PRE_1_3, specificationVersion: SPEC_1_3 },
+                });
+
+                expect(minIntervalFloor).to.equal(Instant);
+            });
+
+            it("uses Instant (0) for a pre-1.3 Thread device that has a Generic Switch endpoint", () => {
+                const { minIntervalFloor } = subscriptionIntervalBoundsFor({
+                    properties: { ...THREAD_PRE_1_3, deviceTypes: new Set([DeviceTypeId(GenericSwitchDt.id)]) },
+                });
+
+                expect(minIntervalFloor).to.equal(Instant);
             });
 
             it("respects a custom floor requested for a non-ICD device", () => {

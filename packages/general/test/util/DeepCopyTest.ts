@@ -52,4 +52,33 @@ describe("DeepCopy", () => {
             expect(copiedArr[i]).to.not.equal(arr[i]);
         }
     });
+
+    it("should correctly copy Set values", () => {
+        const set = new Set([1, 2, 3]);
+        const copiedSet = deepCopy(set);
+        expect(copiedSet).to.be.instanceOf(Set);
+        expect([...copiedSet]).to.deep.equal([...set]);
+        expect(copiedSet).to.not.equal(set);
+    });
+
+    it("should deeply copy the members of a Set", () => {
+        const member = { a: 1 };
+        const set = new Set([member]);
+        const copiedSet = deepCopy(set);
+        const copiedMember = [...copiedSet][0];
+        expect(copiedMember).to.deep.equal(member);
+        expect(copiedMember).to.not.equal(member);
+    });
+
+    it("should correctly copy Map values", () => {
+        const map = new Map<string, { v: number }>([
+            ["a", { v: 1 }],
+            ["b", { v: 2 }],
+        ]);
+        const copiedMap = deepCopy(map);
+        expect(copiedMap).to.be.instanceOf(Map);
+        expect([...copiedMap]).to.deep.equal([...map]);
+        expect(copiedMap).to.not.equal(map);
+        expect(copiedMap.get("a")).to.not.equal(map.get("a"));
+    });
 });
