@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Millis, Seconds, Time, Timer } from "@matter/general";
+import { Bytes, Logger, Seconds } from "@matter/general";
 import type { OtbrRestCapability } from "./OtbrRestCapability.js";
 import { OtbrRestClient } from "./OtbrRestClient.js";
 import { OtbrRestError } from "./OtbrRestError.js";
@@ -14,16 +14,15 @@ const logger = Logger.get("OtbrRestProbe");
 const DEFAULT_PROBE_PORT = 8081;
 const DEFAULT_PROBE_TIMEOUT = Seconds(1);
 
-const HTTP_OK = 200;
-const HTTP_NOT_FOUND = 404;
-
 export class OtbrRestProbe {
     /**
      * Probe a host:port for OTBR REST. Returns the detected capability or
-     * `null` if the endpoint is not OTBR or not reachable within
-     * `timeoutMs`. Detection mirrors python-otbr-api: a 200 on
-     * `/api/actions` indicates the modern camelCase backend, a 404 the
-     * legacy pascalCase backend; everything else is "not OTBR".
+     * `null` if the endpoint is not OTBR or not reachable within `timeoutMs`.
+     *
+     * A single `GET /node` both confirms the endpoint is OTBR and reveals its
+     * key casing: legacy builds emit PascalCase keys, post-2024 builds
+     * camelCase. Anything that is not a JSON object carrying `networkName` and
+     * `extPanId` is treated as "not OTBR".
      */
     static async probe(
         host: string,
@@ -34,24 +33,12 @@ export class OtbrRestProbe {
         const baseUrl = client.baseUrl;
         logger.debug(`probe START ${baseUrl} timeout=${timeoutMs}ms`);
 
-        const keyFormat = await detectCase(baseUrl, timeoutMs);
-        if (keyFormat === null) {
-            logger.debug(`probe MISS ${baseUrl} (case detect failed)`);
-            return null;
-        }
-
         try {
-            const node = await client.getNode();
+            const { keyFormat, networkName, extPanId } = await client.probeNode();
             logger.debug(
-                `probe OK ${baseUrl} keyFormat=${keyFormat} xp=${Bytes.toHex(node.extPanId).toUpperCase()} network="${node.networkName}"`,
+                `probe OK ${baseUrl} keyFormat=${keyFormat} xp=${Bytes.toHex(extPanId).toUpperCase()} network="${networkName}"`,
             );
-            return {
-                baseUrl,
-                keyFormat,
-                probedAt: Date.now(),
-                networkName: node.networkName,
-                extPanId: node.extPanId,
-            };
+            return { baseUrl, keyFormat, probedAt: Date.now(), networkName, extPanId };
         } catch (err) {
             if (err instanceof OtbrRestError) {
                 logger.debug(`probe MISS ${baseUrl} /node ${err.code} (${err.message})`);
@@ -59,27 +46,5 @@ export class OtbrRestProbe {
             }
             throw err;
         }
-    }
-}
-
-async function detectCase(baseUrl: string, timeoutMs: number): Promise<"camel" | "pascal" | null> {
-    const controller = new AbortController();
-    const timer: Timer = Time.getTimer("otbr-probe-timeout", Millis(timeoutMs), () => controller.abort()).start();
-    try {
-        const response = await fetch(`${baseUrl}/api/actions`, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-            signal: controller.signal,
-        });
-        if (response.status === HTTP_OK) return "camel";
-        if (response.status === HTTP_NOT_FOUND) return "pascal";
-        logger.debug(`probe of ${baseUrl} rejected: /api/actions returned ${response.status}`);
-        return null;
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.debug(`probe of ${baseUrl} rejected: /api/actions ${message}`);
-        return null;
-    } finally {
-        timer.stop();
     }
 }

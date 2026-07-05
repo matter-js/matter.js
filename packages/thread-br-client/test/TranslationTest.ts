@@ -99,6 +99,15 @@ describe("translateNodeJson", () => {
         expect(decoded.maxChildTimeout).to.be.undefined;
     });
 
+    it("decodes hex-string rloc16 from post-2024 OTBR builds", () => {
+        expect(translateNodeJson({ rloc16: "0x4800" }).rloc16).to.equal(18432);
+    });
+
+    it("omits rloc16 when malformed rather than mis-decoding", () => {
+        expect(translateNodeJson({ rloc16: "0x10000" }).rloc16).to.be.undefined;
+        expect(translateNodeJson({ rloc16: "garbage" }).rloc16).to.be.undefined;
+    });
+
     it("returns response with empty unknown[] (rest never produces unknown TLVs)", () => {
         const list = loadDiagnosticsArray();
         const decoded = translateNodeJson(list[0]);

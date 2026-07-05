@@ -11,13 +11,11 @@ import type { Bytes } from "@matter/general";
  *
  * `keyFormat` reflects the case convention the BR's REST surface uses on the
  * wire (older OTBR builds = pascal, post-2024 builds = camel). The probe
- * detects this from the presence/absence of `/api/actions` — see
- * python-otbr-api `_async_detect_case`.
+ * detects this from the key casing of the `/node` response.
  */
 export interface OtbrRestCapability {
     baseUrl: string;
     keyFormat: "camel" | "pascal";
-    apiVersion?: string;
     probedAt: number;
     networkName: string;
     extPanId: Bytes;

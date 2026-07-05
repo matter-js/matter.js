@@ -19,6 +19,7 @@ function fixture(name: string): string {
 }
 
 const NODE_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node.json"), "utf8");
+const NODE_CAMEL_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node-camel.json"), "utf8");
 const DIAGNOSTICS_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8");
 
 // A valid, decodable active-dataset TLV blob (synthetic network "MockThread") — no real network data.
@@ -129,6 +130,55 @@ describe("OtbrRestClient", () => {
             expect(Bytes.toHex(node.baId)).to.equal("00112233445566778899aabbccddeeff");
             expect(node.leaderData.partitionId).to.equal(305419896);
             expect(node.leaderData.leaderRouterId).to.equal(61);
+        } finally {
+            restore();
+        }
+    });
+
+    it("getNode parses post-2024 camelCase /node payload (routerCount, hex-string rloc16)", async () => {
+        const restore = installFetch(async url => {
+            expect(url).to.equal("http://br.example:8081/node");
+            return new Response(NODE_CAMEL_FIXTURE, { status: 200, headers: { "Content-Type": "application/json" } });
+        });
+        try {
+            const client = new OtbrRestClient({ host: "br.example" });
+            const node = await client.getNode();
+            expect(node.networkName).to.equal("MockThread");
+            expect(node.state).to.equal("router");
+            expect(node.numOfRouter).to.equal(7);
+            expect(node.rloc16).to.equal(0x4800);
+            expect(Bytes.toHex(node.extPanId)).to.equal("1122334455667799");
+            expect(Bytes.toHex(node.extAddress)).to.equal("0011223344556602");
+            expect(Bytes.toHex(node.baId)).to.equal("0011223344556677889900aabbccddee");
+            expect(node.leaderData.leaderRouterId).to.equal(5);
+        } finally {
+            restore();
+        }
+    });
+
+    for (const bad of ["", "-5", "1e2", "0x10000", "99999", "0xzzzz", -1, 0x10000, 1.5] as const) {
+        it(`getNode rejects out-of-range/malformed rloc16 ${JSON.stringify(bad)}`, async () => {
+            const payload = JSON.parse(NODE_CAMEL_FIXTURE) as Record<string, unknown>;
+            payload.rloc16 = bad;
+            const restore = installFetch(async () => new Response(JSON.stringify(payload), { status: 200 }));
+            try {
+                const client = new OtbrRestClient({ host: "br.example" });
+                await expectRestError(client.getNode(), "rest_protocol");
+            } finally {
+                restore();
+            }
+        });
+    }
+
+    it("getNode leaves numOfRouter undefined when neither numOfRouter nor routerCount present", async () => {
+        const payload = JSON.parse(NODE_CAMEL_FIXTURE) as Record<string, unknown>;
+        delete payload.routerCount;
+        const restore = installFetch(async () => new Response(JSON.stringify(payload), { status: 200 }));
+        try {
+            const client = new OtbrRestClient({ host: "br.example" });
+            const node = await client.getNode();
+            expect(node.numOfRouter).to.be.undefined;
+            expect(node.networkName).to.equal("MockThread");
         } finally {
             restore();
         }

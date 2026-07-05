@@ -11,7 +11,8 @@ import { OtbrRestProbe } from "../src/otbr-rest/OtbrRestProbe.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
-const NODE_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node.json"), "utf8");
+const NODE_PASCAL_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node.json"), "utf8");
+const NODE_CAMEL_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node-camel.json"), "utf8");
 
 type FetchHandler = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -30,17 +31,16 @@ function installFetch(handler: FetchHandler): () => void {
 describe("OtbrRestProbe", () => {
     before(MockTime.enable);
 
-    it("returns capability with keyFormat=camel when /api/actions returns 200", async () => {
+    it("detects keyFormat=pascal from PascalCase /node keys", async () => {
         const restore = installFetch(async url => {
-            if (url.endsWith("/api/actions")) return new Response("[]", { status: 200 });
-            if (url.endsWith("/node")) return new Response(NODE_FIXTURE, { status: 200 });
+            if (url.endsWith("/node")) return new Response(NODE_PASCAL_FIXTURE, { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
         try {
             const cap = await OtbrRestProbe.probe("br.example", 8081, 500);
             expect(cap).to.not.be.null;
             if (cap === null) return;
-            expect(cap.keyFormat).to.equal("camel");
+            expect(cap.keyFormat).to.equal("pascal");
             expect(cap.networkName).to.equal("TestNet");
             expect(Bytes.toHex(cap.extPanId)).to.equal("1122334455667788");
             expect(cap.baseUrl).to.equal("http://br.example:8081");
@@ -50,37 +50,41 @@ describe("OtbrRestProbe", () => {
         }
     });
 
-    it("returns capability with keyFormat=pascal when /api/actions returns 404", async () => {
+    it("detects keyFormat=camel from camelCase /node keys", async () => {
         const restore = installFetch(async url => {
-            if (url.endsWith("/api/actions")) return new Response("not found", { status: 404 });
-            if (url.endsWith("/node")) return new Response(NODE_FIXTURE, { status: 200 });
+            if (url.endsWith("/node")) return new Response(NODE_CAMEL_FIXTURE, { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
         try {
             const cap = await OtbrRestProbe.probe("br.example", 8081, 500);
             expect(cap).to.not.be.null;
             if (cap === null) return;
-            expect(cap.keyFormat).to.equal("pascal");
+            expect(cap.keyFormat).to.equal("camel");
+            expect(cap.networkName).to.equal("MockThread");
+            expect(Bytes.toHex(cap.extPanId)).to.equal("1122334455667799");
         } finally {
             restore();
         }
     });
 
-    it("returns null when /api/actions network errors", async () => {
-        const restore = installFetch(async () => {
-            throw new TypeError("fetch failed");
+    it("never fetches /api/actions", async () => {
+        const seen = new Array<string>();
+        const restore = installFetch(async url => {
+            seen.push(url);
+            if (url.endsWith("/node")) return new Response(NODE_CAMEL_FIXTURE, { status: 200 });
+            throw new Error(`unexpected url: ${url}`);
         });
         try {
-            const cap = await OtbrRestProbe.probe("br.example", 8081, 500);
-            expect(cap).to.be.null;
+            await OtbrRestProbe.probe("br.example", 8081, 500);
+            expect(seen.some(u => u.includes("/api/actions"))).to.be.false;
+            expect(seen).to.deep.equal(["http://br.example:8081/node"]);
         } finally {
             restore();
         }
     });
 
     it("returns null when /node network errors", async () => {
-        const restore = installFetch(async url => {
-            if (url.endsWith("/api/actions")) return new Response("[]", { status: 200 });
+        const restore = installFetch(async () => {
             throw new TypeError("fetch failed");
         });
         try {
@@ -93,7 +97,6 @@ describe("OtbrRestProbe", () => {
 
     it("returns null when /node returns garbage shape", async () => {
         const restore = installFetch(async url => {
-            if (url.endsWith("/api/actions")) return new Response("[]", { status: 200 });
             if (url.endsWith("/node")) return new Response("not even json", { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
@@ -107,7 +110,6 @@ describe("OtbrRestProbe", () => {
 
     it("returns null when /node 200 but missing networkName/extPanId", async () => {
         const restore = installFetch(async url => {
-            if (url.endsWith("/api/actions")) return new Response("[]", { status: 200 });
             if (url.endsWith("/node")) return new Response(JSON.stringify({ foo: 1 }), { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
@@ -119,9 +121,22 @@ describe("OtbrRestProbe", () => {
         }
     });
 
-    it("returns null when /api/actions returns unexpected status (e.g. 500)", async () => {
+    it("returns null when /node returns an empty object", async () => {
         const restore = installFetch(async url => {
-            if (url.endsWith("/api/actions")) return new Response("err", { status: 500 });
+            if (url.endsWith("/node")) return new Response("{}", { status: 200 });
+            throw new Error(`unexpected url: ${url}`);
+        });
+        try {
+            const cap = await OtbrRestProbe.probe("br.example", 8081, 500);
+            expect(cap).to.be.null;
+        } finally {
+            restore();
+        }
+    });
+
+    it("returns null when /node returns a non-OTBR error status", async () => {
+        const restore = installFetch(async url => {
+            if (url.endsWith("/node")) return new Response("err", { status: 500 });
             throw new Error(`unexpected url: ${url}`);
         });
         try {

@@ -26,3 +26,22 @@ export function parseHexBytes(hex: string, where: string, expectedLen?: number):
     }
     return Bytes.fromHex(hex);
 }
+
+const RLOC16_MAX = 0xffff;
+const RLOC16_STRING = /^(?:0x[0-9a-fA-F]{1,4}|[0-9]{1,5})$/;
+
+/**
+ * Parse a 16-bit RLOC, accepting either a JSON number (legacy builds) or a hex
+ * string like `"0x4800"` (post-2024 builds). Returns `undefined` for absent,
+ * malformed, or out-of-16-bit-range input — callers decide whether that is an
+ * error (`/node`) or a skippable field (`/diagnostics`).
+ */
+export function parseRloc16(value: unknown): number | undefined {
+    const parsed =
+        typeof value === "number"
+            ? value
+            : typeof value === "string" && RLOC16_STRING.test(value)
+              ? Number(value)
+              : NaN;
+    return Number.isInteger(parsed) && parsed >= 0 && parsed <= RLOC16_MAX ? parsed : undefined;
+}
