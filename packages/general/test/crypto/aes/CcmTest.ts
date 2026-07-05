@@ -265,6 +265,15 @@ describe("configurable L (12-byte nonce, L=3, tag=8) self-consistency", () => {
         const back = ccm.decrypt({ nonce, adata: Bytes.of(adata), ct, micLength: 8 });
         expect(Bytes.areEqual(back, pt)).equals(true);
     });
+
+    it("round-trips an L=3 payload larger than the L=2 ciphertext cap (2^16)", () => {
+        const ccm = Ccm(key);
+        const pt = new Uint8Array(70000); // > 65536; rejected by the old L-unaware decrypt cap
+        for (let i = 0; i < pt.length; i++) pt[i] = (i * 31) & 0xff;
+        const ct = Bytes.of(ccm.encrypt({ nonce, adata: Bytes.of(adata), pt, micLength: 8 }));
+        const back = ccm.decrypt({ nonce, adata: Bytes.of(adata), ct, micLength: 8 });
+        expect(Bytes.areEqual(back, pt)).equals(true);
+    });
 });
 
 describe("NIST SP 800-38C Appendix C Example 3 (official KAT: L=3, 12-byte nonce, 8-byte tag)", () => {

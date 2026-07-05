@@ -98,16 +98,13 @@ export function Ccm(key: Bytes) {
             const micLength = input.micLength ?? CRYPTO_AEAD_MIC_LENGTH_BYTES;
             const L = bytesInLengthFor(input.nonce.length);
 
-            if (input.ct.length > MAX_CIPHERTEXT_LENGTH) {
-                throw new CryptoInputError(
-                    `Cannot decrypt ciphertext longer than maximum length of ${MAX_CIPHERTEXT_LENGTH}`,
-                );
-            }
-
             const ptLength = input.ct.length - micLength;
 
             if (ptLength < 0) {
                 throw new CryptoInputError(`Cannot decrypt ciphertext shorter than minimum length of ${micLength}`);
+            }
+            if (ptLength > maxPlaintextForL(L, micLength)) {
+                throw new CryptoInputError(`Cannot decrypt ciphertext exceeding maximum length for L=${L}`);
             }
 
             // Extract ciphertext (zero copy using a DataView) and load the received tag (micLength bytes, big-endian,
