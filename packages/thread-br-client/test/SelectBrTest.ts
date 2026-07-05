@@ -40,7 +40,7 @@ describe("selectBr", () => {
 
     it("prefers a link-local-bearing BR among entries with equal state score", () => {
         const a = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA1", addresses: ["192.168.1.1"] });
-        const b = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA2", addresses: ["fe80::1"] });
+        const b = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA2", addresses: ["fd00::9", "fe80::1"] });
         expect(selectBr([a, b])).to.equal(b);
     });
 
@@ -52,7 +52,7 @@ describe("selectBr", () => {
 
     it("picks the maximum combined score across mixed BRs", () => {
         // a: state=0 + ll=1 = 1
-        const a = makeBr({ extAddressHex: "1111111111111111", addresses: ["fe80::1"] });
+        const a = makeBr({ extAddressHex: "1111111111111111", addresses: ["fd00::a", "fe80::1"] });
         // b: state=0 + ll=0 = 0
         const b = makeBr({ extAddressHex: "2222222222222222", addresses: ["192.168.1.1"] });
         // c: state=2 + ll=0 = 2 (winner)
@@ -62,7 +62,7 @@ describe("selectBr", () => {
 
     it("ranks an active-but-not-primary BBR above an ordinary link-local router", () => {
         // a: state=0 + ll=1 = 1
-        const a = makeBr({ extAddressHex: "1111111111111111", addresses: ["fe80::1"] });
+        const a = makeBr({ extAddressHex: "1111111111111111", addresses: ["fd00::b", "fe80::1"] });
         // b: bbrActive but not primary → state score 2; no link-local → ll 0 = 2 (winner)
         const b = makeBr({ extAddressHex: "2222222222222222", stateBitmapHex: STATE_BBR_ACTIVE_ONLY });
         expect(selectBr([a, b])).to.equal(b);
@@ -84,9 +84,16 @@ describe("selectBr", () => {
     });
 
     it("link-local match is case-insensitive on the address prefix", () => {
-        const a = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA1", addresses: ["FE80::1"] });
+        const a = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA1", addresses: ["fd00::c", "FE80::1"] });
         const b = makeBr({ extAddressHex: "AAAAAAAAAAAAAAA2" });
         expect(selectBr([a, b])).to.equal(a);
+    });
+
+    it("excludes a BR whose only address is link-local (undialable)", () => {
+        const linkLocalOnly = makeBr({ extAddressHex: "1111111111111111", addresses: ["fe80::1"] });
+        const dialable = makeBr({ extAddressHex: "2222222222222222", addresses: ["fd00::1"] });
+        expect(rankBrs([linkLocalOnly, dialable])).to.deep.equal([dialable]);
+        expect(selectBr([linkLocalOnly])).to.equal(undefined);
     });
 
     it("excludes a BR with no addresses (undialable) from the ranking", () => {

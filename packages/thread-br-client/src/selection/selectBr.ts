@@ -37,11 +37,21 @@ export function decodeStateBitmap(hex: string | undefined): DecodedStateBitmap {
     };
 }
 
+function isLinkLocal(addr: string): boolean {
+    return addr.toLowerCase().startsWith("fe80:");
+}
+
 function hasLinkLocal(addresses: ReadonlyArray<string>): boolean {
-    for (const addr of addresses) {
-        if (addr.toLowerCase().startsWith("fe80:")) return true;
-    }
-    return false;
+    return addresses.some(isLinkLocal);
+}
+
+/**
+ * A BR is dialable only if it exposes at least one non-link-local address:
+ * `connectMeshcop` rejects link-local-only BRs (scope IDs are not preserved
+ * through every mDNS resolver path).
+ */
+function hasDialableAddress(addresses: ReadonlyArray<string>): boolean {
+    return addresses.some(addr => !isLinkLocal(addr));
 }
 
 function scoreOf(br: BorderRouterEntry): number {
@@ -66,13 +76,14 @@ export function selectBr(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEnt
 
 /**
  * Rank dialable candidate BRs best-first using the same priority as
- * {@link selectBr}. BRs with no resolved address are dropped — they can never
- * be dialed, so returning them would only waste a connect attempt. Callers fall
- * back to later entries when the preferred BR is unreachable.
+ * {@link selectBr}. BRs without a non-link-local address are dropped — they
+ * can never be dialed (see {@link hasDialableAddress}), so returning them would
+ * only waste a connect attempt. Callers fall back to later entries when the
+ * preferred BR is unreachable.
  */
 export function rankBrs(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEntry[] {
     return brs
-        .filter(br => br.addresses.length > 0)
+        .filter(br => hasDialableAddress(br.addresses))
         .sort((a, b) => {
             const byScore = scoreOf(b) - scoreOf(a);
             if (byScore !== 0) return byScore;

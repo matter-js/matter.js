@@ -250,6 +250,27 @@ describe("translateNodeJson", () => {
         expect(translateNodeJson({ mleCounters: base }).mleCounters!.trackedTime).to.equal(18446744073709551615n);
     });
 
+    it("rejects a negative numeric MLE counter (uint64 range enforced on all paths)", () => {
+        const base = {
+            disabledRole: 1,
+            detachedRole: 2,
+            childRole: 3,
+            routerRole: 4,
+            leaderRole: 5,
+            attachAttempts: 6,
+            partitionIdChanges: 7,
+            betterPartitionAttachAttempts: 8,
+            parentChanges: 9,
+            trackedTime: -1,
+            disabledTime: 0,
+            detachedTime: 0,
+            childTime: 0,
+            routerTime: 0,
+            leaderTime: 0,
+        };
+        expect(() => translateNodeJson({ mleCounters: base })).to.throw(/uint64/);
+    });
+
     it("rejects a malformed string MLE counter", () => {
         const base = {
             disabledRole: 1,
