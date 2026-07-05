@@ -51,7 +51,7 @@ describe("pbkdf2AesCmac", () => {
         const password = new TextEncoder().encode("prefix-test");
         const salt = new TextEncoder().encode("some-salt");
         const dk16 = pbkdf2AesCmac(crypto, { password, salt, iterations: 50, dkLen: 16 });
-        const dk32 = pbkdf2AesCmac(crypto, { password, salt, iterations: 50, dkLen: 32 });
+        const dk32 = Bytes.of(pbkdf2AesCmac(crypto, { password, salt, iterations: 50, dkLen: 32 }));
         expect(Bytes.toHex(dk32.subarray(0, 16))).to.equal(Bytes.toHex(dk16));
     });
 

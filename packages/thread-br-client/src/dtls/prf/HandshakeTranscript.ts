@@ -36,10 +36,11 @@ export class HandshakeTranscript {
      * Append a handshake message in DTLS 1.2 form
      * (`type(1) || length(3) || message_seq(2) || fragment_offset(3) || fragment_length(3) || body`).
      */
-    appendHandshakeMessage(messageBytes: Uint8Array): void {
-        if (messageBytes.length > 0) {
+    appendHandshakeMessage(messageBytes: Bytes): void {
+        const bytes = Bytes.of(messageBytes);
+        if (bytes.length > 0) {
             // Copy: the deferred digest() must not observe caller mutations after append.
-            this.#chunks.push(new Uint8Array(messageBytes));
+            this.#chunks.push(new Uint8Array(bytes));
         }
     }
 
@@ -48,7 +49,7 @@ export class HandshakeTranscript {
      * growing, so the same transcript yields Finished for both peers and keeps
      * absorbing later messages.
      */
-    async digest(): Promise<Uint8Array> {
+    async digest(): Promise<Bytes> {
         const out = Bytes.of(await this.#crypto.computeHash(this.#chunks));
         if (out.length !== SHA256_LEN) {
             throw new InternalError(`HandshakeTranscript digest length ${out.length} != ${SHA256_LEN}`);

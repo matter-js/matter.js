@@ -164,7 +164,7 @@ class MirrorServer {
         let p = 0;
         while (p < bytes.length) {
             const { record, consumed } = await DtlsRecord.decode(crypto, bytes.subarray(p), this.#cipherState);
-            out.push(record);
+            out.push({ ...record, fragment: Bytes.of(record.fragment) });
             p += consumed;
         }
         return out;
@@ -239,12 +239,14 @@ class MirrorServer {
                 messageSeq: 0,
                 body: hvrBody,
             });
-            const rec = await DtlsRecord.encode(crypto, {
-                type: ContentType.HANDSHAKE,
-                epoch: 0,
-                sequenceNumber: this.#recordSeq,
-                fragment: hvr,
-            });
+            const rec = Bytes.of(
+                await DtlsRecord.encode(crypto, {
+                    type: ContentType.HANDSHAKE,
+                    epoch: 0,
+                    sequenceNumber: this.#recordSeq,
+                    fragment: hvr,
+                }),
+            );
             this.#recordSeq += 1n;
             return [rec];
         }
@@ -365,12 +367,14 @@ class MirrorServer {
         flightBytes.set(skeHs, serverHelloHs.length);
         flightBytes.set(shdHs, serverHelloHs.length + skeHs.length);
 
-        const flightRecord = await DtlsRecord.encode(crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: flightBytes,
-        });
+        const flightRecord = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: flightBytes,
+            }),
+        );
         this.#recordSeq += 1n;
         return [flightRecord];
     }
@@ -439,7 +443,7 @@ class MirrorServer {
                 throw e;
             }
             if (record.type === ContentType.HANDSHAKE && record.epoch === 0) {
-                const { message } = HandshakeMessage.decode(record.fragment);
+                const { message } = HandshakeMessage.decode(Bytes.of(record.fragment));
                 if (message.msgType !== HandshakeType.CLIENT_KEY_EXCHANGE) {
                     throw new Error(`MirrorServer: expected CKE, got ${message.msgType}`);
                 }
@@ -453,13 +457,13 @@ class MirrorServer {
                 );
                 await this.#armCipherStateFromCke(message.body);
             } else if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
-                ChangeCipherSpec.parse(record.fragment);
+                ChangeCipherSpec.parse(Bytes.of(record.fragment));
                 sawCcs = true;
             } else if (record.type === ContentType.HANDSHAKE && record.epoch >= 1) {
                 if (!sawCke || !sawCcs) {
                     throw new Error("MirrorServer: encrypted handshake before CKE/CCS");
                 }
-                const { message } = HandshakeMessage.decode(record.fragment);
+                const { message } = HandshakeMessage.decode(Bytes.of(record.fragment));
                 if (message.msgType !== HandshakeType.FINISHED) {
                     throw new Error(`MirrorServer: expected Finished, got ${message.msgType}`);
                 }
@@ -495,34 +499,40 @@ class MirrorServer {
             }),
         );
         // Build server's CCS + Finished.
-        const ccsRecord = await DtlsRecord.encode(crypto, {
-            type: ContentType.CHANGE_CIPHER_SPEC,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: CHANGE_CIPHER_SPEC_BODY,
-        });
+        const ccsRecord = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.CHANGE_CIPHER_SPEC,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: CHANGE_CIPHER_SPEC_BODY,
+            }),
+        );
         this.#recordSeq += 1n;
         cipherState.advanceWriteEpoch();
-        const serverVerifyData = await TlsPrf.verifyData(crypto, {
-            masterSecret,
-            role: "server",
-            transcriptDigest: await this.#transcript.digest(),
-        });
+        const serverVerifyData = Bytes.of(
+            await TlsPrf.verifyData(crypto, {
+                masterSecret,
+                role: "server",
+                transcriptDigest: await this.#transcript.digest(),
+            }),
+        );
         const serverFinishedHs = HandshakeMessage.encode({
             msgType: HandshakeType.FINISHED,
             messageSeq: this.#handshakeMessageSeq++,
             body: FinishedMessage.build(serverVerifyData),
         });
         const finishedSeq = cipherState.nextWriteSeq();
-        const finishedRecord = await DtlsRecord.encode(
-            crypto,
-            {
-                type: ContentType.HANDSHAKE,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: finishedSeq,
-                fragment: serverFinishedHs,
-            },
-            cipherState,
+        const finishedRecord = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.HANDSHAKE,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: finishedSeq,
+                    fragment: serverFinishedHs,
+                },
+                cipherState,
+            ),
         );
         this.#seenClientFinished = true;
         return [ccsRecord, finishedRecord];
@@ -565,11 +575,13 @@ class MirrorServer {
             xm2: x4,
             s: this.#password,
         });
-        this.#masterSecret = await TlsPrf.masterSecret(crypto, {
-            premasterSecret: pms,
-            clientRandom,
-            serverRandom: this.#serverRandom,
-        });
+        this.#masterSecret = Bytes.of(
+            await TlsPrf.masterSecret(crypto, {
+                premasterSecret: pms,
+                clientRandom,
+                serverRandom: this.#serverRandom,
+            }),
+        );
         const keyBlock = await TlsPrf.keyBlock(crypto, {
             masterSecret: this.#masterSecret,
             clientRandom,

@@ -13,11 +13,12 @@ const ZERO_BLOCK = new Uint8Array(16);
  * first compressed via CMAC under an all-zero key. Built on {@link Crypto.cmac}.
  */
 export namespace AesCmacPrf128 {
-    export function compute(crypto: Crypto, key: Uint8Array, message: Uint8Array): Uint8Array {
-        if (key.length === 16) {
-            return Bytes.of(crypto.cmac(key, message));
+    export function compute(crypto: Crypto, key: Bytes, message: Bytes): Bytes {
+        const keyBytes = Bytes.of(key);
+        if (keyBytes.length === 16) {
+            return crypto.cmac(keyBytes, message);
         }
-        const derivedKey = Bytes.of(crypto.cmac(ZERO_BLOCK, key));
-        return Bytes.of(crypto.cmac(derivedKey, message));
+        const derivedKey = crypto.cmac(ZERO_BLOCK, keyBytes);
+        return crypto.cmac(derivedKey, message);
     }
 }

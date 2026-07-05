@@ -236,15 +236,17 @@ export class NobleDtlsChannel implements DtlsChannel {
             throw new InternalError("NobleDtlsChannel.send: missing cipher state or transport");
         }
         const seq = cipherState.nextWriteSeq();
-        const record = await DtlsRecord.encode(
-            crypto,
-            {
-                type: ContentType.APPLICATION_DATA,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: seq,
-                fragment: Bytes.of(bytes),
-            },
-            cipherState,
+        const record = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.APPLICATION_DATA,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: seq,
+                    fragment: Bytes.of(bytes),
+                },
+                cipherState,
+            ),
         );
         await this.#sendDatagram(udp, record);
     }
@@ -299,15 +301,17 @@ export class NobleDtlsChannel implements DtlsChannel {
         if (this.#connected && cipherState !== undefined && udp !== undefined && crypto !== undefined) {
             try {
                 const seq = cipherState.nextWriteSeq();
-                const alertRecord = await DtlsRecord.encode(
-                    crypto,
-                    {
-                        type: ContentType.ALERT,
-                        epoch: cipherState.writeEpoch,
-                        sequenceNumber: seq,
-                        fragment: Uint8Array.of(ALERT_LEVEL_WARNING, ALERT_DESC_CLOSE_NOTIFY),
-                    },
-                    cipherState,
+                const alertRecord = Bytes.of(
+                    await DtlsRecord.encode(
+                        crypto,
+                        {
+                            type: ContentType.ALERT,
+                            epoch: cipherState.writeEpoch,
+                            sequenceNumber: seq,
+                            fragment: Uint8Array.of(ALERT_LEVEL_WARNING, ALERT_DESC_CLOSE_NOTIFY),
+                        },
+                        cipherState,
+                    ),
                 );
                 await this.#sendDatagram(udp, alertRecord).catch(() => {});
             } catch {
@@ -445,16 +449,17 @@ export class NobleDtlsChannel implements DtlsChannel {
                 throw e;
             }
             if (record.type === ContentType.APPLICATION_DATA) {
-                this.#deliverPlaintext(record.fragment);
+                this.#deliverPlaintext(Bytes.of(record.fragment));
             } else if (record.type === ContentType.ALERT) {
+                const alertFragment = Bytes.of(record.fragment);
                 // close_notify (level=1, desc=0) ends the session; other alerts surface as errors.
-                if (record.fragment.length >= 2 && record.fragment[1] === ALERT_DESC_CLOSE_NOTIFY) {
+                if (alertFragment.length >= 2 && alertFragment[1] === ALERT_DESC_CLOSE_NOTIFY) {
                     this.#fail(new DtlsError("NobleDtlsChannel: peer sent close_notify"));
                     return;
                 }
                 this.#fail(
                     new DtlsError(
-                        `NobleDtlsChannel: peer alert level=${record.fragment[0] ?? -1} desc=${record.fragment[1] ?? -1}`,
+                        `NobleDtlsChannel: peer alert level=${alertFragment[0] ?? -1} desc=${alertFragment[1] ?? -1}`,
                     ),
                 );
                 return;

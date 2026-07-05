@@ -16,18 +16,14 @@ const VERIFY_DATA_LEN = 12;
 
 const ASCII_ENCODER = new TextEncoder();
 
-function expectLength(name: string, value: Uint8Array, expected: number): void {
-    if (value.length !== expected) {
-        throw new InternalError(`TlsPrf ${name} must be ${expected} bytes, got ${value.length}`);
+function expectLength(name: string, value: Bytes, expected: number): void {
+    const length = Bytes.of(value).length;
+    if (length !== expected) {
+        throw new InternalError(`TlsPrf ${name} must be ${expected} bytes, got ${length}`);
     }
 }
 
-async function pSha256(
-    crypto: Crypto,
-    secret: Uint8Array,
-    seed: Uint8Array,
-    outputLength: number,
-): Promise<Uint8Array> {
+async function pSha256(crypto: Crypto, secret: Bytes, seed: Bytes, outputLength: number): Promise<Uint8Array> {
     if (outputLength < 0) {
         throw new InternalError(`TlsPrf outputLength must be non-negative, got ${outputLength}`);
     }
@@ -35,9 +31,10 @@ async function pSha256(
     if (outputLength === 0) {
         return out;
     }
-    let a = Bytes.of(await crypto.signHmac(secret, seed));
-    const block = new Uint8Array(SHA256_LEN + seed.length);
-    block.set(seed, SHA256_LEN);
+    const seedBytes = Bytes.of(seed);
+    let a = Bytes.of(await crypto.signHmac(secret, seedBytes));
+    const block = new Uint8Array(SHA256_LEN + seedBytes.length);
+    block.set(seedBytes, SHA256_LEN);
     let written = 0;
     while (written < outputLength) {
         block.set(a, 0);
@@ -74,17 +71,18 @@ export namespace TlsPrf {
     export async function compute(
         crypto: Crypto,
         args: {
-            secret: Uint8Array;
+            secret: Bytes;
             label: string;
-            seed: Uint8Array;
+            seed: Bytes;
             outputLength: number;
         },
-    ): Promise<Uint8Array> {
+    ): Promise<Bytes> {
         const { secret, label, seed, outputLength } = args;
         const labelBytes = ASCII_ENCODER.encode(label);
-        const combined = new Uint8Array(labelBytes.length + seed.length);
+        const seedBytes = Bytes.of(seed);
+        const combined = new Uint8Array(labelBytes.length + seedBytes.length);
         combined.set(labelBytes, 0);
-        combined.set(seed, labelBytes.length);
+        combined.set(seedBytes, labelBytes.length);
         return pSha256(crypto, secret, combined, outputLength);
     }
 
@@ -96,17 +94,17 @@ export namespace TlsPrf {
     export async function masterSecret(
         crypto: Crypto,
         args: {
-            premasterSecret: Uint8Array;
-            clientRandom: Uint8Array;
-            serverRandom: Uint8Array;
+            premasterSecret: Bytes;
+            clientRandom: Bytes;
+            serverRandom: Bytes;
         },
-    ): Promise<Uint8Array> {
+    ): Promise<Bytes> {
         const { premasterSecret, clientRandom, serverRandom } = args;
         expectLength("clientRandom", clientRandom, RANDOM_LEN);
         expectLength("serverRandom", serverRandom, RANDOM_LEN);
         const seed = new Uint8Array(RANDOM_LEN * 2);
-        seed.set(clientRandom, 0);
-        seed.set(serverRandom, RANDOM_LEN);
+        seed.set(Bytes.of(clientRandom), 0);
+        seed.set(Bytes.of(serverRandom), RANDOM_LEN);
         return compute(crypto, {
             secret: premasterSecret,
             label: "master secret",
@@ -120,10 +118,10 @@ export namespace TlsPrf {
      * (AEAD, no MAC keys; RFC 6655 §3, RFC 5246 §6.3).
      */
     export interface KeyBlock {
-        clientWriteKey: Uint8Array;
-        serverWriteKey: Uint8Array;
-        clientWriteIv: Uint8Array;
-        serverWriteIv: Uint8Array;
+        clientWriteKey: Bytes;
+        serverWriteKey: Bytes;
+        clientWriteIv: Bytes;
+        serverWriteIv: Bytes;
     }
 
     /**
@@ -140,9 +138,9 @@ export namespace TlsPrf {
     export async function keyBlock(
         crypto: Crypto,
         args: {
-            masterSecret: Uint8Array;
-            clientRandom: Uint8Array;
-            serverRandom: Uint8Array;
+            masterSecret: Bytes;
+            clientRandom: Bytes;
+            serverRandom: Bytes;
         },
     ): Promise<KeyBlock> {
         const { masterSecret: ms, clientRandom, serverRandom } = args;
@@ -150,9 +148,11 @@ export namespace TlsPrf {
         expectLength("clientRandom", clientRandom, RANDOM_LEN);
         expectLength("serverRandom", serverRandom, RANDOM_LEN);
         const seed = new Uint8Array(RANDOM_LEN * 2);
-        seed.set(serverRandom, 0);
-        seed.set(clientRandom, RANDOM_LEN);
-        const block = await compute(crypto, { secret: ms, label: "key expansion", seed, outputLength: KEY_BLOCK_LEN });
+        seed.set(Bytes.of(serverRandom), 0);
+        seed.set(Bytes.of(clientRandom), RANDOM_LEN);
+        const block = Bytes.of(
+            await compute(crypto, { secret: ms, label: "key expansion", seed, outputLength: KEY_BLOCK_LEN }),
+        );
         return {
             clientWriteKey: block.slice(0, KEY_LEN),
             serverWriteKey: block.slice(KEY_LEN, KEY_LEN * 2),
@@ -173,11 +173,11 @@ export namespace TlsPrf {
     export async function verifyData(
         crypto: Crypto,
         args: {
-            masterSecret: Uint8Array;
+            masterSecret: Bytes;
             role: "client" | "server";
-            transcriptDigest: Uint8Array;
+            transcriptDigest: Bytes;
         },
-    ): Promise<Uint8Array> {
+    ): Promise<Bytes> {
         const { masterSecret: ms, role, transcriptDigest } = args;
         expectLength("masterSecret", ms, MASTER_SECRET_LEN);
         expectLength("transcriptDigest", transcriptDigest, SHA256_LEN);

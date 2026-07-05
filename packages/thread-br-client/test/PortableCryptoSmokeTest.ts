@@ -19,7 +19,7 @@ describe("portable crypto smoke (StandardCrypto only, no node:crypto)", () => {
         const aad = Bytes.of(Bytes.fromHex("00010203040506070800000000"));
         const plaintext = Bytes.of(Bytes.fromHex("deadbeefcafe"));
 
-        const ct = await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext });
+        const ct = Bytes.of(await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext }));
         expect(ct.length).to.equal(plaintext.length + 8);
 
         const back = await AesCcm8.decrypt(crypto, { key, nonce, aad, ciphertextWithTag: ct });
@@ -27,11 +27,13 @@ describe("portable crypto smoke (StandardCrypto only, no node:crypto)", () => {
     });
 
     it("PSKc derives via pure-JS AES-CMAC (PBKDF2)", () => {
-        const pskc = Pskc.derive(crypto, {
-            passphrase: "J01NME",
-            extPanId: Bytes.of(Bytes.fromHex("000db80000000000")),
-            networkName: "OpenThread",
-        });
+        const pskc = Bytes.of(
+            Pskc.derive(crypto, {
+                passphrase: "J01NME",
+                extPanId: Bytes.of(Bytes.fromHex("000db80000000000")),
+                networkName: "OpenThread",
+            }),
+        );
         expect(pskc.length).to.equal(16);
     }).timeout(20_000);
 });

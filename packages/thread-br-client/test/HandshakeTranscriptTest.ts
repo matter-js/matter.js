@@ -61,9 +61,9 @@ describe("HandshakeTranscript", () => {
 
     it("digest length is always 32 bytes", async () => {
         const t = new HandshakeTranscript(crypto);
-        expect((await t.digest()).length).to.equal(32);
+        expect(Bytes.of(await t.digest()).length).to.equal(32);
         t.appendHandshakeMessage(new Uint8Array(1024));
-        expect((await t.digest()).length).to.equal(32);
+        expect(Bytes.of(await t.digest()).length).to.equal(32);
     });
 
     it("appending an empty message is a no-op for the digest", async () => {

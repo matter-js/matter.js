@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, ImplementationError, InternalError } from "@matter/general";
+import { Bytes, Crypto, ImplementationError, InternalError } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 import { EcJpakePms } from "../ecjpake/EcJpakePms.js";
 import { ECJPAKE_ID_CLIENT, ECJPAKE_ID_SERVER, EcJpakeRound } from "../ecjpake/EcJpakeRound.js";
@@ -217,7 +217,7 @@ export class DtlsClient {
         let p = 0;
         while (p < bytes.length) {
             const { record, consumed } = await DtlsRecord.decode(this.#crypto, bytes.subarray(p), this.#cipherState);
-            out.push(record);
+            out.push({ ...record, fragment: Bytes.of(record.fragment) });
             p += consumed;
         }
         return out;
@@ -266,12 +266,14 @@ export class DtlsClient {
                 }),
             );
         }
-        const record = await DtlsRecord.encode(this.#crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: handshake,
-        });
+        const record = Bytes.of(
+            await DtlsRecord.encode(this.#crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: handshake,
+            }),
+        );
         this.#recordSeq += 1n;
         this.#handshakeMessageSeq += 1;
         this.#lastFlight = [record];
@@ -443,11 +445,13 @@ export class DtlsClient {
             xm2: this.#x2,
             s,
         });
-        const masterSecret = await TlsPrf.masterSecret(this.#crypto, {
-            premasterSecret: pms,
-            clientRandom: this.#clientRandom,
-            serverRandom: this.#serverRandom,
-        });
+        const masterSecret = Bytes.of(
+            await TlsPrf.masterSecret(this.#crypto, {
+                premasterSecret: pms,
+                clientRandom: this.#clientRandom,
+                serverRandom: this.#serverRandom,
+            }),
+        );
         this.#masterSecret = masterSecret;
         const keyBlock = await TlsPrf.keyBlock(this.#crypto, {
             masterSecret,
@@ -463,11 +467,13 @@ export class DtlsClient {
         this.#cipherState = cipherState;
 
         // Compute client Finished verify_data over the transcript (CH..SHD..CKE).
-        const verifyData = await TlsPrf.verifyData(this.#crypto, {
-            masterSecret,
-            role: "client",
-            transcriptDigest: await this.#transcript.digest(),
-        });
+        const verifyData = Bytes.of(
+            await TlsPrf.verifyData(this.#crypto, {
+                masterSecret,
+                role: "client",
+                transcriptDigest: await this.#transcript.digest(),
+            }),
+        );
         const finishedBody = FinishedMessage.build(verifyData);
         const finishedMsgSeq = this.#handshakeMessageSeq;
         const finishedHandshake = HandshakeMessage.encode({
@@ -486,31 +492,37 @@ export class DtlsClient {
             }),
         );
 
-        const ckeRecord = await DtlsRecord.encode(this.#crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: ckeHandshake,
-        });
+        const ckeRecord = Bytes.of(
+            await DtlsRecord.encode(this.#crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: ckeHandshake,
+            }),
+        );
         this.#recordSeq += 1n;
-        const ccsRecord = await DtlsRecord.encode(this.#crypto, {
-            type: ContentType.CHANGE_CIPHER_SPEC,
-            epoch: 0,
-            sequenceNumber: this.#recordSeq,
-            fragment: CHANGE_CIPHER_SPEC_BODY,
-        });
+        const ccsRecord = Bytes.of(
+            await DtlsRecord.encode(this.#crypto, {
+                type: ContentType.CHANGE_CIPHER_SPEC,
+                epoch: 0,
+                sequenceNumber: this.#recordSeq,
+                fragment: CHANGE_CIPHER_SPEC_BODY,
+            }),
+        );
         this.#recordSeq += 1n;
         cipherState.advanceWriteEpoch();
         const finishedSeq = cipherState.nextWriteSeq();
-        const finishedRecord = await DtlsRecord.encode(
-            this.#crypto,
-            {
-                type: ContentType.HANDSHAKE,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: finishedSeq,
-                fragment: finishedHandshake,
-            },
-            cipherState,
+        const finishedRecord = Bytes.of(
+            await DtlsRecord.encode(
+                this.#crypto,
+                {
+                    type: ContentType.HANDSHAKE,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: finishedSeq,
+                    fragment: finishedHandshake,
+                },
+                cipherState,
+            ),
         );
 
         const flight = [ckeRecord, ccsRecord, finishedRecord];
@@ -550,7 +562,7 @@ export class DtlsClient {
             const stateForDecode = epoch === 0 ? undefined : cipherState;
             const { record } = await DtlsRecord.decode(this.#crypto, recordBytes, stateForDecode);
             if (record.type === ContentType.CHANGE_CIPHER_SPEC) {
-                ChangeCipherSpec.parse(record.fragment);
+                ChangeCipherSpec.parse(Bytes.of(record.fragment));
                 cipherState.advanceReadEpoch();
                 sawCcs = true;
             } else if (record.type === ContentType.HANDSHAKE) {
@@ -562,9 +574,10 @@ export class DtlsClient {
                         `DtlsClient: server Finished record at epoch ${record.epoch}, expected ${cipherState.readEpoch}`,
                     );
                 }
+                const fragment = Bytes.of(record.fragment);
                 let q = 0;
-                while (q < record.fragment.length) {
-                    const { message, consumed } = HandshakeMessage.decode(record.fragment.subarray(q));
+                while (q < fragment.length) {
+                    const { message, consumed } = HandshakeMessage.decode(fragment.subarray(q));
                     if (message.msgType !== HandshakeType.FINISHED) {
                         throw new DtlsError(`DtlsClient: expected Finished, got msg_type=${message.msgType}`);
                     }
@@ -583,11 +596,13 @@ export class DtlsClient {
         // Snapshot the transcript BEFORE appending the server's Finished body — the server's
         // verify_data was computed over (CH..SHD..CKE..clientFinished), exactly the digest we
         // already hold from the previous append in #emitClientFlight.
-        const expected = await TlsPrf.verifyData(this.#crypto, {
-            masterSecret,
-            role: "server",
-            transcriptDigest: await this.#transcript.digest(),
-        });
+        const expected = Bytes.of(
+            await TlsPrf.verifyData(this.#crypto, {
+                masterSecret,
+                role: "server",
+                transcriptDigest: await this.#transcript.digest(),
+            }),
+        );
         const actual = FinishedMessage.parse(serverFinishedBody).verifyData;
         if (!constantTimeEqual(expected, actual)) {
             throw new DtlsError("DtlsClient: server Finished verify_data mismatch");

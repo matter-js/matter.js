@@ -71,12 +71,14 @@ for (const [cryptoName, crypto] of cryptos) {
 
         for (const vector of fixture.prfVectors) {
             it(`matches ${vector.name}`, async () => {
-                const out = await TlsPrf.compute(crypto, {
-                    secret: Bytes.of(Bytes.fromHex(vector.secretHex)),
-                    label: vector.label,
-                    seed: Bytes.of(Bytes.fromHex(vector.seedHex)),
-                    outputLength: vector.outputLen,
-                });
+                const out = Bytes.of(
+                    await TlsPrf.compute(crypto, {
+                        secret: Bytes.of(Bytes.fromHex(vector.secretHex)),
+                        label: vector.label,
+                        seed: Bytes.of(Bytes.fromHex(vector.seedHex)),
+                        outputLength: vector.outputLen,
+                    }),
+                );
                 expect(Bytes.toHex(out)).to.equal(vector.expectedHex);
                 expect(out.length).to.equal(vector.outputLen);
             });
@@ -85,7 +87,9 @@ for (const [cryptoName, crypto] of cryptos) {
         it("stream truncation: first N bytes of a long output equal the same call with outputLength=N", async () => {
             const secret = new Uint8Array(16).fill(0x42);
             const seed = new Uint8Array(32).fill(0x37);
-            const longOut = await TlsPrf.compute(crypto, { secret, label: "trunc test", seed, outputLength: 100 });
+            const longOut = Bytes.of(
+                await TlsPrf.compute(crypto, { secret, label: "trunc test", seed, outputLength: 100 }),
+            );
             for (const truncLen of [1, 16, 31, 32, 33, 64]) {
                 const shortOut = await TlsPrf.compute(crypto, {
                     secret,
@@ -98,12 +102,14 @@ for (const [cryptoName, crypto] of cryptos) {
         });
 
         it("outputLength = 0 returns an empty Uint8Array", async () => {
-            const out = await TlsPrf.compute(crypto, {
-                secret: new Uint8Array(16),
-                label: "anything",
-                seed: new Uint8Array(8),
-                outputLength: 0,
-            });
+            const out = Bytes.of(
+                await TlsPrf.compute(crypto, {
+                    secret: new Uint8Array(16),
+                    label: "anything",
+                    seed: new Uint8Array(8),
+                    outputLength: 0,
+                }),
+            );
             expect(out.length).to.equal(0);
         });
 
@@ -134,11 +140,13 @@ for (const [cryptoName, crypto] of cryptos) {
         const v = loadFixture().masterSecretVector;
 
         it("matches the synthesized PRF reference", async () => {
-            const ms = await TlsPrf.masterSecret(crypto, {
-                premasterSecret: Bytes.of(Bytes.fromHex(v.premasterSecretHex)),
-                clientRandom: Bytes.of(Bytes.fromHex(v.clientRandomHex)),
-                serverRandom: Bytes.of(Bytes.fromHex(v.serverRandomHex)),
-            });
+            const ms = Bytes.of(
+                await TlsPrf.masterSecret(crypto, {
+                    premasterSecret: Bytes.of(Bytes.fromHex(v.premasterSecretHex)),
+                    clientRandom: Bytes.of(Bytes.fromHex(v.clientRandomHex)),
+                    serverRandom: Bytes.of(Bytes.fromHex(v.serverRandomHex)),
+                }),
+            );
             expect(Bytes.toHex(ms)).to.equal(v.expectedMasterSecretHex);
             expect(ms.length).to.equal(48);
         });
@@ -177,10 +185,10 @@ for (const [cryptoName, crypto] of cryptos) {
             expect(Bytes.toHex(block.serverWriteKey)).to.equal(v.expectedServerWriteKeyHex);
             expect(Bytes.toHex(block.clientWriteIv)).to.equal(v.expectedClientWriteIvHex);
             expect(Bytes.toHex(block.serverWriteIv)).to.equal(v.expectedServerWriteIvHex);
-            expect(block.clientWriteKey.length).to.equal(16);
-            expect(block.serverWriteKey.length).to.equal(16);
-            expect(block.clientWriteIv.length).to.equal(4);
-            expect(block.serverWriteIv.length).to.equal(4);
+            expect(Bytes.of(block.clientWriteKey).length).to.equal(16);
+            expect(Bytes.of(block.serverWriteKey).length).to.equal(16);
+            expect(Bytes.of(block.clientWriteIv).length).to.equal(4);
+            expect(Bytes.of(block.serverWriteIv).length).to.equal(4);
         });
 
         it("uses the (server || client) seed order — swapping the randoms changes the output", async () => {
@@ -208,11 +216,13 @@ for (const [cryptoName, crypto] of cryptos) {
 
         for (const vector of fixture.finishedVectors) {
             it(`matches ${vector.role}-side Finished verify_data`, async () => {
-                const out = await TlsPrf.verifyData(crypto, {
-                    masterSecret: Bytes.of(Bytes.fromHex(vector.masterSecretHex)),
-                    role: vector.role,
-                    transcriptDigest: Bytes.of(Bytes.fromHex(vector.transcriptDigestHex)),
-                });
+                const out = Bytes.of(
+                    await TlsPrf.verifyData(crypto, {
+                        masterSecret: Bytes.of(Bytes.fromHex(vector.masterSecretHex)),
+                        role: vector.role,
+                        transcriptDigest: Bytes.of(Bytes.fromHex(vector.transcriptDigestHex)),
+                    }),
+                );
                 expect(Bytes.toHex(out)).to.equal(vector.expectedVerifyDataHex);
                 expect(out.length).to.equal(12);
             });

@@ -122,16 +122,16 @@ describe("AesCcm8 round-trip", () => {
     const aad = Bytes.of(Bytes.fromHex("00010203040506070800000000"));
 
     it("round-trips an empty plaintext", async () => {
-        const ct = await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext: new Uint8Array() });
+        const ct = Bytes.of(await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext: new Uint8Array() }));
         expect(ct.length).to.equal(8);
-        const pt = await AesCcm8.decrypt(crypto, { key, nonce, aad, ciphertextWithTag: ct });
+        const pt = Bytes.of(await AesCcm8.decrypt(crypto, { key, nonce, aad, ciphertextWithTag: ct }));
         expect(pt.length).to.equal(0);
     });
 
     it("round-trips a 1024-byte plaintext", async () => {
         const plaintext = new Uint8Array(1024);
         for (let i = 0; i < plaintext.length; i++) plaintext[i] = (i * 31) & 0xff;
-        const ct = await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext });
+        const ct = Bytes.of(await AesCcm8.encrypt(crypto, { key, nonce, aad, plaintext }));
         expect(ct.length).to.equal(plaintext.length + 8);
         const pt = await AesCcm8.decrypt(crypto, { key, nonce, aad, ciphertextWithTag: ct });
         expect(Bytes.areEqual(pt, plaintext)).to.equal(true);

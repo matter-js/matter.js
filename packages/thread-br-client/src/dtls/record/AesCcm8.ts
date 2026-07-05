@@ -22,36 +22,36 @@ const TAG_LEN = 8;
  */
 export namespace AesCcm8 {
     export interface EncryptArgs {
-        key: Uint8Array;
-        nonce: Uint8Array;
-        aad: Uint8Array;
-        plaintext: Uint8Array;
+        key: Bytes;
+        nonce: Bytes;
+        aad: Bytes;
+        plaintext: Bytes;
     }
 
     export interface DecryptArgs {
-        key: Uint8Array;
-        nonce: Uint8Array;
-        aad: Uint8Array;
-        ciphertextWithTag: Uint8Array;
+        key: Bytes;
+        nonce: Bytes;
+        aad: Bytes;
+        ciphertextWithTag: Bytes;
     }
 
-    export async function encrypt(crypto: Crypto, { key, nonce, aad, plaintext }: EncryptArgs): Promise<Uint8Array> {
-        if (key.length !== KEY_LEN) {
-            throw new InternalError(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${key.length}`);
+    export async function encrypt(crypto: Crypto, { key, nonce, aad, plaintext }: EncryptArgs): Promise<Bytes> {
+        const keyBytes = Bytes.of(key);
+        if (keyBytes.length !== KEY_LEN) {
+            throw new InternalError(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${keyBytes.length}`);
         }
-        return Bytes.of(crypto.encrypt(key, plaintext, nonce, aad, TAG_LEN));
+        return crypto.encrypt(keyBytes, plaintext, nonce, aad, TAG_LEN);
     }
 
-    export async function decrypt(
-        crypto: Crypto,
-        { key, nonce, aad, ciphertextWithTag }: DecryptArgs,
-    ): Promise<Uint8Array> {
-        if (key.length !== KEY_LEN) {
-            throw new InternalError(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${key.length}`);
+    export async function decrypt(crypto: Crypto, { key, nonce, aad, ciphertextWithTag }: DecryptArgs): Promise<Bytes> {
+        const keyBytes = Bytes.of(key);
+        if (keyBytes.length !== KEY_LEN) {
+            throw new InternalError(`AES-128-CCM-8 key must be ${KEY_LEN} bytes, got ${keyBytes.length}`);
         }
-        if (ciphertextWithTag.length < TAG_LEN) {
+        const ciphertextBytes = Bytes.of(ciphertextWithTag);
+        if (ciphertextBytes.length < TAG_LEN) {
             throw new DtlsError(`AES-128-CCM-8 input shorter than ${TAG_LEN}-byte tag`);
         }
-        return Bytes.of(crypto.decrypt(key, ciphertextWithTag, nonce, aad, TAG_LEN));
+        return crypto.decrypt(keyBytes, ciphertextBytes, nonce, aad, TAG_LEN);
     }
 }

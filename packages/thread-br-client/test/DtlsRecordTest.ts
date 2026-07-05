@@ -30,7 +30,7 @@ function buildStubState(): DtlsRecordCipherState {
         decryptParams: () => ({ key: writeKey, salt: writeSalt }),
         nonceFor(salt, epoch, seq) {
             const out = new Uint8Array(12);
-            out.set(salt, 0);
+            out.set(Bytes.of(salt), 0);
             out[4] = (epoch >>> 8) & 0xff;
             out[5] = epoch & 0xff;
             for (let i = 0; i < 6; i++) {
@@ -58,12 +58,14 @@ function buildStubState(): DtlsRecordCipherState {
 describe("DtlsRecord plaintext (epoch=0)", () => {
     it("round-trips a HANDSHAKE record with no cipher state", async () => {
         const fragment = Bytes.of(Bytes.fromHex("0102030405060708"));
-        const wire = await DtlsRecord.encode(crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: 0n,
-            fragment,
-        });
+        const wire = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: 0n,
+                fragment,
+            }),
+        );
         expect(wire.length).to.equal(DTLS_HEADER_LEN + fragment.length);
         // Header prefix matches the spec layout.
         expect(wire[0]).to.equal(ContentType.HANDSHAKE);
@@ -131,24 +133,28 @@ describe("DtlsRecord plaintext (epoch=0)", () => {
     });
 
     it("rejects a header that says version 1.0", async () => {
-        const wire = await DtlsRecord.encode(crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: 0n,
-            fragment: new Uint8Array(),
-        });
+        const wire = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: 0n,
+                fragment: new Uint8Array(),
+            }),
+        );
         wire[1] = 0xfe;
         wire[2] = 0xff;
         await expect(DtlsRecord.decode(crypto, wire)).to.be.rejectedWith(/version/);
     });
 
     it("rejects a fragment shorter than the length field claims", async () => {
-        const wire = await DtlsRecord.encode(crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: 0n,
-            fragment: new Uint8Array(8),
-        });
+        const wire = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: 0n,
+                fragment: new Uint8Array(8),
+            }),
+        );
         const truncated = wire.slice(0, wire.length - 1);
         await expect(DtlsRecord.decode(crypto, truncated)).to.be.rejectedWith(/truncated/);
     });
@@ -158,18 +164,22 @@ describe("DtlsRecord plaintext (epoch=0)", () => {
     });
 
     it("returns consumed=total so two records concatenated decode in sequence", async () => {
-        const a = await DtlsRecord.encode(crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: 0n,
-            fragment: Bytes.of(Bytes.fromHex("aaaa")),
-        });
-        const b = await DtlsRecord.encode(crypto, {
-            type: ContentType.HANDSHAKE,
-            epoch: 0,
-            sequenceNumber: 1n,
-            fragment: Bytes.of(Bytes.fromHex("bbbbbbbb")),
-        });
+        const a = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: 0n,
+                fragment: Bytes.of(Bytes.fromHex("aaaa")),
+            }),
+        );
+        const b = Bytes.of(
+            await DtlsRecord.encode(crypto, {
+                type: ContentType.HANDSHAKE,
+                epoch: 0,
+                sequenceNumber: 1n,
+                fragment: Bytes.of(Bytes.fromHex("bbbbbbbb")),
+            }),
+        );
         const concat = new Uint8Array(a.length + b.length);
         concat.set(a, 0);
         concat.set(b, a.length);
@@ -185,15 +195,17 @@ describe("DtlsRecord encrypted (epoch=1)", () => {
     it("round-trips an APPLICATION_DATA record using the stub cipher state", async () => {
         const state = buildStubState();
         const plaintext = Bytes.of(Bytes.fromHex("deadbeefcafebabe1122"));
-        const wire = await DtlsRecord.encode(
-            crypto,
-            {
-                type: ContentType.APPLICATION_DATA,
-                epoch: 1,
-                sequenceNumber: 42n,
-                fragment: plaintext,
-            },
-            state,
+        const wire = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.APPLICATION_DATA,
+                    epoch: 1,
+                    sequenceNumber: 42n,
+                    fragment: plaintext,
+                },
+                state,
+            ),
         );
         // Encrypted fragment = 8 explicit nonce + 10 ciphertext + 8 tag = 26 bytes
         expect(wire.length).to.equal(DTLS_HEADER_LEN + 8 + plaintext.length + 8);
@@ -207,15 +219,17 @@ describe("DtlsRecord encrypted (epoch=1)", () => {
 
     it("rejects a tampered tag during decode", async () => {
         const state = buildStubState();
-        const wire = await DtlsRecord.encode(
-            crypto,
-            {
-                type: ContentType.HANDSHAKE,
-                epoch: 1,
-                sequenceNumber: 5n,
-                fragment: Bytes.of(Bytes.fromHex("00112233")),
-            },
-            state,
+        const wire = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.HANDSHAKE,
+                    epoch: 1,
+                    sequenceNumber: 5n,
+                    fragment: Bytes.of(Bytes.fromHex("00112233")),
+                },
+                state,
+            ),
         );
         wire[wire.length - 1] ^= 0x01;
         await expect(DtlsRecord.decode(crypto, wire, state)).to.be.rejected;
@@ -223,15 +237,17 @@ describe("DtlsRecord encrypted (epoch=1)", () => {
 
     it("rejects when explicit nonce on wire disagrees with header", async () => {
         const state = buildStubState();
-        const wire = await DtlsRecord.encode(
-            crypto,
-            {
-                type: ContentType.HANDSHAKE,
-                epoch: 1,
-                sequenceNumber: 5n,
-                fragment: Bytes.of(Bytes.fromHex("00112233")),
-            },
-            state,
+        const wire = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.HANDSHAKE,
+                    epoch: 1,
+                    sequenceNumber: 5n,
+                    fragment: Bytes.of(Bytes.fromHex("00112233")),
+                },
+                state,
+            ),
         );
         // Explicit nonce begins at byte 13 of the wire image; flip its low seq byte.
         wire[DTLS_HEADER_LEN + 7] ^= 0x01;
