@@ -9,6 +9,7 @@ import {
     Crypto,
     type Duration,
     type Entropy,
+    errorOf,
     ImplementationError,
     InternalError,
     Logger,
@@ -359,9 +360,7 @@ export class NobleDtlsChannel implements DtlsChannel {
      * and keeps the queue alive — errors surface, never swallowed.
      */
     #enqueue(work: () => Promise<void>): void {
-        this.#inbound = this.#inbound
-            .then(work)
-            .catch(err => this.#fail(err instanceof Error ? err : new InternalError(String(err))));
+        this.#inbound = this.#inbound.then(work).catch(err => this.#fail(errorOf(err)));
     }
 
     async #startHandshake(): Promise<void> {
@@ -521,9 +520,7 @@ export class NobleDtlsChannel implements DtlsChannel {
             datagrams.push(concatBuffers(acc));
         }
         for (const dg of datagrams) {
-            void this.#sendDatagram(udp, dg).catch(e =>
-                this.#fail(e instanceof Error ? e : new InternalError(String(e))),
-            );
+            void this.#sendDatagram(udp, dg).catch(e => this.#fail(errorOf(e)));
         }
     }
 

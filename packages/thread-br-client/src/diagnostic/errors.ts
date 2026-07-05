@@ -6,5 +6,5 @@
 
 import { MatterError } from "@matter/general";
 
-/** Thrown when a MeshCoP diagnostic response carries malformed or missing TLVs. */
+/** Thrown when a MeshCoP diagnostic exchange fails — a malformed/missing TLV or a timed-out response. */
 export class ThreadDiagError extends MatterError {}

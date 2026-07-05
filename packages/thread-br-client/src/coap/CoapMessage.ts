@@ -17,7 +17,12 @@ export interface CoapMessage {
     payload: Bytes;
 }
 
-/** Thrown when a CoAP datagram cannot be decoded per RFC 7252 §3. */
+/**
+ * Thrown for CoAP-layer failures: a datagram that cannot be decoded per RFC
+ * 7252 §3, an RST response, or a clean close of the underlying channel while
+ * requests are still outstanding. A channel that fails with its own error
+ * propagates that error unchanged.
+ */
 export class CoapError extends MatterError {}
 
 const VERSION = 1;

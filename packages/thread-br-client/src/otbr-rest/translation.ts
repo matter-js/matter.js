@@ -121,12 +121,26 @@ function translateMacCounters(input: Record<string, unknown>): MacCounters {
     };
 }
 
+const UINT64_MAX = 18446744073709551615n;
+
 function requireBigInt(record: Record<string, unknown>, key: string, where: string): bigint {
     const v = record[key];
-    if (typeof v === "bigint") return v;
-    const n = asNumber(v);
-    if (n === undefined) throw new OtbrRestError("rest_protocol", `${where}: missing numeric ${key}`);
-    return BigInt(Math.trunc(n));
+    let n: bigint;
+    if (typeof v === "bigint") {
+        n = v;
+    } else if (typeof v === "string" && /^\d+$/.test(v)) {
+        // 64-bit counters exceed 2^53, so some producers emit them as decimal
+        // strings; decode those directly to preserve full precision.
+        n = BigInt(v);
+    } else {
+        const num = asNumber(v);
+        if (num === undefined) throw new OtbrRestError("rest_protocol", `${where}: missing numeric ${key}`);
+        n = BigInt(Math.trunc(num));
+    }
+    // These fields are defined as uint64; reject anything outside that range
+    // regardless of how it was encoded.
+    if (n < 0n || n > UINT64_MAX) throw new OtbrRestError("rest_protocol", `${where}: ${key} outside uint64 range`);
+    return n;
 }
 
 function translateMleCounters(input: Record<string, unknown>): MleCounters {

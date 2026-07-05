@@ -9,7 +9,8 @@ import { NetworkDiagTlvType } from "../../src/tlv/networkDiagTlvTypes.js";
 
 describe("DefaultTlvSet", () => {
     it("matches the spec §4.9 default request set plus topology+identity+health extensions", () => {
-        expect([...DefaultTlvSet]).to.deep.equal([
+        // Order is not spec-mandated — assert membership, not sequence.
+        expect([...DefaultTlvSet]).to.have.members([
             0, 1, 2, 4, 5, 6, 8, 16, 24, 25, 26, 27, 3, 9, 34, 14, 15, 19, 23, 28,
         ]);
     });

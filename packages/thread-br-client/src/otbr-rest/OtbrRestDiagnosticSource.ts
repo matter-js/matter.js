@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Observable } from "@matter/general";
+import { Bytes, errorOf, Logger, Observable } from "@matter/general";
 import type { DiagnosticResponse } from "../diagnostic/DiagnosticResponse.js";
 import type { DiagnosticSource, QueryMulticastHandle, QueryMulticastOptions } from "../diagnostic/DiagnosticSource.js";
 import { DEFAULT_RESET_TLV_TYPES } from "../diagnostic/DiagnosticSource.js";
@@ -126,7 +126,7 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
                 logger.debug(`REST /diagnostics OK nodes=${list.length} duration=${Date.now() - start}ms`);
                 resolveDone();
             } catch (err) {
-                const e = err instanceof Error ? err : new Error(String(err));
+                const e = errorOf(err);
                 onError.emit(e);
                 rejectDone(e);
             }
