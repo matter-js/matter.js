@@ -5,6 +5,7 @@
  */
 
 import { cmac } from "#crypto/aes/Cmac.js";
+import { CryptoInputError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 
 // RFC 4493 §4 test vectors (key K, examples 1–4).
@@ -31,4 +32,9 @@ describe("cmac (RFC 4493)", () => {
             expect(Bytes.toHex(out)).equals(v.mac);
         });
     }
+
+    it("rejects a non-16-byte key with CryptoInputError", () => {
+        expect(() => cmac(new Uint8Array(15), new Uint8Array())).throws(CryptoInputError);
+        expect(() => cmac(new Uint8Array(17), new Uint8Array())).throws(CryptoInputError);
+    });
 });

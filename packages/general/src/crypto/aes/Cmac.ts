@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#MatterError.js";
+import { CryptoInputError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Aes } from "./Aes.js";
 import { WordArray } from "./WordArray.js";
@@ -50,7 +50,7 @@ function generateSubkeys(aes: ReturnType<typeof Aes>): { k1: Uint8Array; k2: Uin
 /** AES-CMAC per RFC 4493. 128-bit key, 16-byte tag; empty messages supported. */
 export function cmac(key: Uint8Array, message: Uint8Array): Uint8Array {
     if (key.length !== 16) {
-        throw new ImplementationError(`AES-CMAC key must be 16 bytes, got ${key.length}`);
+        throw new CryptoInputError(`AES-CMAC key must be 16 bytes, got ${key.length}`);
     }
     const aes = Aes(Bytes.of(key));
     const { k1, k2 } = generateSubkeys(aes);
