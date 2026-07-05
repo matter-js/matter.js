@@ -199,13 +199,15 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 try {
                     resolveResponse(decodeResponse(inner.message.payload));
                 } catch (err) {
-                    rejectResponse(err instanceof Error ? err : new Error(String(err)));
+                    rejectResponse(err instanceof Error ? err : new ThreadDiagError(String(err)));
                 }
             });
 
             const timer = Time.getTimer("meshcop-unicast-timeout", DEFAULT_UNICAST_TIMEOUT, () => {
                 rejectResponse(
-                    new Error(`MeshCopDiagnosticSource: unicast diagnostic to ${formatIp6(targetAddr)} timed out`),
+                    new ThreadDiagError(
+                        `MeshCopDiagnosticSource: unicast diagnostic to ${formatIp6(targetAddr)} timed out`,
+                    ),
                 );
             }).start();
 
@@ -296,7 +298,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         onNode.emit(decoded);
                     } catch (err) {
                         logger.warn("failed to decode c/ur inner payload, dropping:", err);
-                        onError.emit(err instanceof Error ? err : new Error(String(err)));
+                        onError.emit(err instanceof Error ? err : new ThreadDiagError(String(err)));
                     }
                 });
 
@@ -318,7 +320,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     logger.debug(`c/ut ProxyTx (/d/dq -> ${scope}) sent`);
                 } catch (err) {
                     logger.warn(`c/ut ProxyTx send failed: ${err}`);
-                    onError.emit(err instanceof Error ? err : new Error(String(err)));
+                    onError.emit(err instanceof Error ? err : new ThreadDiagError(String(err)));
                 }
 
                 if (this.#mlPrefix !== undefined && !closed) {
@@ -361,7 +363,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 await teardownPromise;
             })
             .catch(err => {
-                onError.emit(err instanceof Error ? err : new Error(String(err)));
+                onError.emit(err instanceof Error ? err : new ThreadDiagError(String(err)));
                 teardown();
             });
 
@@ -426,14 +428,14 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             // timeout makes getTimer throw, and doing so first avoids leaking
             // the listener that a later throw would strand.
             const timer = Time.getTimer("energy-scan-timeout", opts.timeout ?? DEFAULT_SCAN_TIMEOUT, () => {
-                rejectReport(new Error("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
+                rejectReport(new ThreadDiagError("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
             }).start();
 
             const unsubscribe = this.#coap.listen(ENERGY_REPORT_URI, msg => {
                 try {
                     resolveReport(decodeEnergyReport(msg.payload, opts.channelMask));
                 } catch (err) {
-                    rejectReport(err instanceof Error ? err : new Error(String(err)));
+                    rejectReport(err instanceof Error ? err : new ThreadDiagError(String(err)));
                 }
             });
 
@@ -485,7 +487,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 try {
                     resolveReport(decodePanIdConflict(msg.payload, opts.panId));
                 } catch (err) {
-                    rejectReport(err instanceof Error ? err : new Error(String(err)));
+                    rejectReport(err instanceof Error ? err : new ThreadDiagError(String(err)));
                 }
             });
 

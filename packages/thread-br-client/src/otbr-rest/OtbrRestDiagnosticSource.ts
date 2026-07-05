@@ -126,7 +126,7 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
                 logger.debug(`REST /diagnostics OK nodes=${list.length} duration=${Date.now() - start}ms`);
                 resolveDone();
             } catch (err) {
-                const e = err instanceof Error ? err : new Error(String(err));
+                const e = err instanceof Error ? err : new OtbrRestError("rest_protocol", String(err));
                 onError.emit(e);
                 rejectDone(e);
             }

@@ -19,7 +19,7 @@ import {
     Timer,
 } from "@matter/general";
 import type { DtlsChannel } from "../dtls/channel/DtlsChannel.js";
-import { CoapMessage } from "./CoapMessage.js";
+import { CoapError, CoapMessage } from "./CoapMessage.js";
 
 const logger = Logger.get("CoapClient");
 
@@ -221,7 +221,7 @@ export class CoapClient {
                     scheduleRetransmit(initialDelay);
                 })
                 .catch(err => {
-                    state.reject(err instanceof Error ? err : new Error(String(err)));
+                    state.reject(err instanceof Error ? err : new CoapError(String(err)));
                 });
         });
     }
@@ -241,9 +241,9 @@ export class CoapClient {
                 await this.#dispatchInbound(msg);
             }
         } catch (err) {
-            channelError = err instanceof Error ? err : new Error(String(err));
+            channelError = err instanceof Error ? err : new CoapError(String(err));
         } finally {
-            const err = channelError ?? new Error("CoapClient: channel closed");
+            const err = channelError ?? new CoapError("CoapClient: channel closed");
             // Reject all outstanding requests (both maps reference the same PendingState entries).
             for (const state of this.#pendingByToken.values()) {
                 state.reject(err);
@@ -274,7 +274,7 @@ export class CoapClient {
         if (msg.type === "RST") {
             const state = this.#pendingByMsgId.get(msg.messageId);
             if (state !== undefined) {
-                state.reject(new Error(`CoAP RST received for messageId=${msg.messageId}`));
+                state.reject(new CoapError(`CoAP RST received for messageId=${msg.messageId}`));
             }
             return;
         }
