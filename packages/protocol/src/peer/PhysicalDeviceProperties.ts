@@ -77,7 +77,8 @@ export namespace PhysicalDeviceProperties {
         } = properties ?? {};
 
         if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
-            if (minIntervalFloor !== undefined) {
+            // Only announce the override when the caller supplied the floor; our own defaulting runs afterwards.
+            if (request?.minIntervalFloor !== undefined) {
                 logger.info(
                     `${description}: Overwriting minIntervalFloorSeconds for intermittently connected device to ${Duration.format(DEFAULT_SUBSCRIPTION_FLOOR_ICD)}`,
                 );
