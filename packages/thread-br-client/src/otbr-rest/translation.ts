@@ -121,7 +121,7 @@ function translateMacCounters(input: Record<string, unknown>): MacCounters {
     };
 }
 
-const UINT64_MAX = 0xffff_ffff_ffff_ffffn;
+const UINT64_MAX = 18446744073709551615n;
 
 function requireBigInt(record: Record<string, unknown>, key: string, where: string): bigint {
     const v = record[key];

@@ -10,6 +10,7 @@ import {
     type Duration,
     type Entropy,
     type Environment,
+    errorOf,
     ImplementationError,
     Logger,
     Millis,
@@ -199,7 +200,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 try {
                     resolveResponse(decodeResponse(inner.message.payload));
                 } catch (err) {
-                    rejectResponse(err instanceof Error ? err : new ThreadDiagError(String(err)));
+                    rejectResponse(errorOf(err));
                 }
             });
 
@@ -298,7 +299,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         onNode.emit(decoded);
                     } catch (err) {
                         logger.warn("failed to decode c/ur inner payload, dropping:", err);
-                        onError.emit(err instanceof Error ? err : new ThreadDiagError(String(err)));
+                        onError.emit(errorOf(err));
                     }
                 });
 
@@ -320,7 +321,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     logger.debug(`c/ut ProxyTx (/d/dq -> ${scope}) sent`);
                 } catch (err) {
                     logger.warn(`c/ut ProxyTx send failed: ${err}`);
-                    onError.emit(err instanceof Error ? err : new ThreadDiagError(String(err)));
+                    onError.emit(errorOf(err));
                 }
 
                 if (this.#mlPrefix !== undefined && !closed) {
@@ -363,7 +364,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 await teardownPromise;
             })
             .catch(err => {
-                onError.emit(err instanceof Error ? err : new ThreadDiagError(String(err)));
+                onError.emit(errorOf(err));
                 teardown();
             });
 
@@ -435,7 +436,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 try {
                     resolveReport(decodeEnergyReport(msg.payload, opts.channelMask));
                 } catch (err) {
-                    rejectReport(err instanceof Error ? err : new ThreadDiagError(String(err)));
+                    rejectReport(errorOf(err));
                 }
             });
 
@@ -487,7 +488,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 try {
                     resolveReport(decodePanIdConflict(msg.payload, opts.panId));
                 } catch (err) {
-                    rejectReport(err instanceof Error ? err : new ThreadDiagError(String(err)));
+                    rejectReport(errorOf(err));
                 }
             });
 

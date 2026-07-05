@@ -10,6 +10,7 @@ import {
     type Duration,
     type Entropy,
     type Environment,
+    errorOf,
     ImplementationError,
     Logger,
     Millis,
@@ -221,7 +222,7 @@ export class CoapClient {
                     scheduleRetransmit(initialDelay);
                 })
                 .catch(err => {
-                    state.reject(err instanceof Error ? err : new CoapError(String(err)));
+                    state.reject(errorOf(err));
                 });
         });
     }
@@ -241,7 +242,7 @@ export class CoapClient {
                 await this.#dispatchInbound(msg);
             }
         } catch (err) {
-            channelError = err instanceof Error ? err : new CoapError(String(err));
+            channelError = errorOf(err);
         } finally {
             const err = channelError ?? new CoapError("CoapClient: channel closed");
             // Reject all outstanding requests (both maps reference the same PendingState entries).
