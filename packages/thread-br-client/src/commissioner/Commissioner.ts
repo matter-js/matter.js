@@ -4,17 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    Bytes,
-    type Duration,
-    Logger,
-    MatterError,
-    Millis,
-    Seconds,
-    Time,
-    TimeoutError,
-    type Timer,
-} from "@matter/general";
+import { type Duration, Logger, MatterError, Millis, Seconds, Time, TimeoutError, type Timer } from "@matter/general";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
 import { BasicTlv } from "../tlv/BasicTlvCodec.js";
@@ -96,9 +86,7 @@ export class Commissioner {
             payload: LeadPet.buildRequest(Commissioner.COMMISSIONER_ID),
         });
 
-        logger.debug(
-            `[ThreadDiag] COMM_PET response code=${response.code} payloadLen=${Bytes.of(response.payload).length}`,
-        );
+        logger.debug(`COMM_PET response code=${response.code} payloadLen=${response.payload.byteLength}`);
         const parsed = LeadPet.parseResponse(response.payload);
 
         if (parsed.state === "accept") {

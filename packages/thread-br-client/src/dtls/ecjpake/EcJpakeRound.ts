@@ -78,7 +78,7 @@ function validateKeyKP(keyKP: EcJpakeKeyKP): void {
 }
 
 function keyKpEncodedLength(keyKP: EcJpakeKeyKP): number {
-    return 1 + POINT_LEN + 1 + POINT_LEN + 1 + Bytes.of(keyKP.zkp.r).length;
+    return 1 + POINT_LEN + 1 + POINT_LEN + 1 + keyKP.zkp.r.byteLength;
 }
 
 function writeKeyKP(keyKP: EcJpakeKeyKP, out: Uint8Array, offset: number): number {

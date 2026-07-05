@@ -51,7 +51,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
         throw new ImplementationError("connectMeshcop: BR has no meshcopPort and no opts.port override");
     }
 
-    logger.debug(`[ThreadDiag] connectMeshcop START ${address}:${port}`);
+    logger.debug(`connectMeshcop START ${address}:${port}`);
     const dtlsStart = Date.now();
     const channel = await (opts.makeConnect ?? connectDtls)({
         address,
@@ -60,7 +60,7 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
         type: address.includes(":") ? "udp6" : "udp4",
         environment: opts.environment,
     });
-    logger.debug(`[ThreadDiag] DTLS handshake OK ${address}:${port} duration=${Date.now() - dtlsStart}ms`);
+    logger.debug(`DTLS handshake OK ${address}:${port} duration=${Date.now() - dtlsStart}ms`);
 
     try {
         const coap = new CoapClient(channel, opts.environment);
@@ -69,12 +69,12 @@ export async function connectMeshcop(opts: ConnectMeshcopOpts): Promise<MeshcopH
         return {
             source,
             close: async () => {
-                logger.debug(`[ThreadDiag] connectMeshcop CLOSE ${address}:${port}`);
+                logger.debug(`connectMeshcop CLOSE ${address}:${port}`);
                 await coap.close();
             },
         };
     } catch (err) {
-        logger.warn(`[ThreadDiag] connectMeshcop post-DTLS setup FAIL ${address}:${port}: ${err}`);
+        logger.warn(`connectMeshcop post-DTLS setup FAIL ${address}:${port}: ${err}`);
         await channel.close().catch(() => {});
         throw err;
     }

@@ -181,13 +181,13 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             const unsubscribe = this.#coap.listen(PROXY_RX_URI, msg => {
                 const inner = unwrapProxyRx(msg.payload);
                 if (inner === undefined) {
-                    logger.debug("[ThreadDiag] unicast c/ur unwrap empty, dropping");
+                    logger.debug("unicast c/ur unwrap empty, dropping");
                     return;
                 }
                 this.#ackInnerIfNeeded(inner);
                 if (!tokensEqual(inner.message.token, token)) {
                     logger.debug(
-                        `[ThreadDiag] unicast c/ur token mismatch want=${Bytes.toHex(token)} got=${Bytes.toHex(inner.message.token)}, dropping`,
+                        `unicast c/ur token mismatch want=${Bytes.toHex(token)} got=${Bytes.toHex(inner.message.token)}, dropping`,
                     );
                     return;
                 }
@@ -251,7 +251,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             fillTimers = [];
             unsubscribe?.();
             logger.debug(
-                `[ThreadDiag] queryMulticast DONE nodes=${nodeCount} duration=${Date.now() - start}ms window=${windowMs}ms`,
+                `queryMulticast DONE nodes=${nodeCount} duration=${Date.now() - start}ms window=${windowMs}ms`,
             );
             resolveTeardown();
         };
@@ -264,7 +264,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         const sessionPromise = this.#commissioner
             .withSession(async () => {
                 if (closed) return;
-                logger.debug(`[ThreadDiag] queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
+                logger.debug(`queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
                 const collected = new Array<DiagnosticResponse>();
                 const probed = new Set<number>();
                 const seenProxyRx = new Set<string>();
@@ -278,19 +278,19 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     seenProxyRx.add(rawKey);
                     const inner = unwrapProxyRx(msg.payload);
                     if (inner === undefined) {
-                        logger.debug("[ThreadDiag] c/ur unwrap empty, dropping");
+                        logger.debug("c/ur unwrap empty, dropping");
                         return;
                     }
                     this.#ackInnerIfNeeded(inner);
-                    if (Bytes.of(inner.message.payload).length === 0) return;
+                    if (inner.message.payload.byteLength === 0) return;
                     try {
                         const decoded = decodeResponse(inner.message.payload);
                         collected.push(decoded);
                         nodeCount++;
-                        logger.debug(`[ThreadDiag] c/ur arrival from=${formatIp6(inner.sourceAddr)}`);
+                        logger.debug(`c/ur arrival from=${formatIp6(inner.sourceAddr)}`);
                         onNode.emit(decoded);
                     } catch (err) {
-                        logger.warn("[ThreadDiag] failed to decode c/ur inner payload, dropping:", err);
+                        logger.warn("failed to decode c/ur inner payload, dropping:", err);
                         onError.emit(err instanceof Error ? err : new Error(String(err)));
                     }
                 });
@@ -310,9 +310,9 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         uriPath: PROXY_TX_URI,
                         payload: proxyPayload,
                     });
-                    logger.debug(`[ThreadDiag] c/ut ProxyTx (/d/dq -> ${scope}) sent`);
+                    logger.debug(`c/ut ProxyTx (/d/dq -> ${scope}) sent`);
                 } catch (err) {
-                    logger.warn(`[ThreadDiag] c/ut ProxyTx send failed: ${err}`);
+                    logger.warn(`c/ut ProxyTx send failed: ${err}`);
                     onError.emit(err instanceof Error ? err : new Error(String(err)));
                 }
 
@@ -326,7 +326,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                             const target = deriveMeshLocalAddress(mlPrefix, (routerId << 10) & 0xffff);
                             const fillToken = this.#freshToken();
                             const fillInner = this.#encodeInnerDiag("CON", DIAG_GET_URI, opts.tlvTypes, fillToken);
-                            logger.debug(`[ThreadDiag] unicast-fill router=${routerId} target=${formatIp6(target)}`);
+                            logger.debug(`unicast-fill router=${routerId} target=${formatIp6(target)}`);
                             void this.#coap
                                 .request({
                                     type: "NON",
@@ -334,9 +334,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                                     uriPath: PROXY_TX_URI,
                                     payload: this.#wrapProxyTx(target, fillInner),
                                 })
-                                .catch(err =>
-                                    logger.warn(`[ThreadDiag] unicast-fill router=${routerId} send failed: ${err}`),
-                                );
+                                .catch(err => logger.warn(`unicast-fill router=${routerId} send failed: ${err}`));
                         }
                     };
                     fillTimers = [
@@ -352,7 +350,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         ).start(),
                     ];
                 } else {
-                    logger.debug("[ThreadDiag] unicast-fill skipped: no mesh-local prefix");
+                    logger.debug("unicast-fill skipped: no mesh-local prefix");
                 }
 
                 await teardownPromise;
@@ -544,7 +542,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         const proxyPayload = this.#wrapProxyTx(inner.sourceAddr, ackBytes, inner.destinationPort, inner.sourcePort);
         void this.#coap
             .request({ type: "NON", code: "0.02", uriPath: PROXY_TX_URI, payload: proxyPayload })
-            .catch(err => logger.debug("[ThreadDiag] inner ACK send failed:", err));
+            .catch(err => logger.debug("inner ACK send failed:", err));
     }
 
     #nextInnerMessageId(): number {
@@ -576,7 +574,7 @@ function unwrapProxyRx(payload: Bytes): ProxyRxInner | undefined {
     try {
         entries = BasicTlv.walk(payload);
     } catch (err) {
-        logger.warn("[ThreadDiag] c/ur outer TLV parse failed, dropping:", err);
+        logger.warn("c/ur outer TLV parse failed, dropping:", err);
         return undefined;
     }
 
@@ -591,7 +589,7 @@ function unwrapProxyRx(payload: Bytes): ProxyRxInner | undefined {
     }
     if (encap === undefined || sourceAddr === undefined) {
         logger.debug(
-            `[ThreadDiag] c/ur missing TLVs: encap=${encap !== undefined} ip6=${sourceAddr !== undefined} types=[${entries.map(e => e.type).join(",")}]`,
+            `c/ur missing TLVs: encap=${encap !== undefined} ip6=${sourceAddr !== undefined} types=[${entries.map(e => e.type).join(",")}]`,
         );
         return undefined;
     }
@@ -600,7 +598,7 @@ function unwrapProxyRx(payload: Bytes): ProxyRxInner | undefined {
     try {
         inner = CoapMessage.decode(encap.payload);
     } catch (err) {
-        logger.warn("[ThreadDiag] c/ur inner CoAP parse failed, dropping:", err);
+        logger.warn("c/ur inner CoAP parse failed, dropping:", err);
         return undefined;
     }
     return { sourceAddr, sourcePort: encap.sourcePort, destinationPort: encap.destinationPort, message: inner };
@@ -696,7 +694,7 @@ function decodePanIdConflict(payload: Bytes, expectedPanId: number): PanIdConfli
             const reportedPanId = (panIdValue[0] << 8) | panIdValue[1];
             if (reportedPanId !== expectedPanId) {
                 logger.warn(
-                    `[ThreadDiag] c/pc PAN-ID mismatch: expected=0x${expectedPanId.toString(16)} got=0x${reportedPanId.toString(16)}, ignoring`,
+                    `c/pc PAN-ID mismatch: expected=0x${expectedPanId.toString(16)} got=0x${reportedPanId.toString(16)}, ignoring`,
                 );
             }
         }

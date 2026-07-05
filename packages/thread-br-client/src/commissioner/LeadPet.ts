@@ -43,7 +43,7 @@ export namespace LeadPet {
             const tlvSummary =
                 entries.length === 0
                     ? "none"
-                    : entries.map(e => `t=0x${e.type.toString(16)}/${Bytes.of(e.value).length}b`).join(",");
+                    : entries.map(e => `t=0x${e.type.toString(16)}/${e.value.byteLength}b`).join(",");
             throw new CommissionerProtocolError(
                 `LeadPet: response missing STATE TLV (payload=${Bytes.toHex(payload)}, tlvs=[${tlvSummary}])`,
             );

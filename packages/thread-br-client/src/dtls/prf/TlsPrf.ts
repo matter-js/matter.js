@@ -17,7 +17,7 @@ const VERIFY_DATA_LEN = 12;
 const ASCII_ENCODER = new TextEncoder();
 
 function expectLength(name: string, value: Bytes, expected: number): void {
-    const length = Bytes.of(value).length;
+    const length = value.byteLength;
     if (length !== expected) {
         throw new InternalError(`TlsPrf ${name} must be ${expected} bytes, got ${length}`);
     }

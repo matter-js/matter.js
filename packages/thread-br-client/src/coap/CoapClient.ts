@@ -71,15 +71,6 @@ function pathsEqual(a: string[], b: string[]): boolean {
     return true;
 }
 
-function tokenHex(token: Bytes): string {
-    const buf = Bytes.of(token);
-    let out = "";
-    for (const b of buf) {
-        out += b.toString(16).padStart(2, "0");
-    }
-    return out;
-}
-
 export class CoapClient {
     #entropy: Entropy;
     #messageId: number;
@@ -153,7 +144,7 @@ export class CoapClient {
                 `CoapClient: messageId collision at ${msg.messageId} — too many concurrent CON requests`,
             );
         }
-        const reqTokenHex = tokenHex(msg.token);
+        const reqTokenHex = Bytes.toHex(msg.token);
         if (this.#pendingByToken.has(reqTokenHex)) {
             throw new ImplementationError(`CoapClient: token collision for ${reqTokenHex}`);
         }
@@ -269,7 +260,7 @@ export class CoapClient {
                 // Stray ACK (duplicate or for a request we no longer track) — ignore.
                 return;
             }
-            const isEmptyAck = msg.code === "0.00" && Bytes.of(msg.payload).length === 0;
+            const isEmptyAck = msg.code === "0.00" && msg.payload.byteLength === 0;
             if (isEmptyAck) {
                 // Separate response coming.
                 state.onEmptyAck();
@@ -290,7 +281,7 @@ export class CoapClient {
 
         // CON or NON. Check token first so a separate response is routed back to the
         // originating #sendCon call regardless of which Uri-Path the BR replied on.
-        const inboundTokenHex = tokenHex(msg.token);
+        const inboundTokenHex = Bytes.toHex(msg.token);
         const pending = this.#pendingByToken.get(inboundTokenHex);
         if (pending !== undefined) {
             if (msg.type === "CON") {
@@ -339,7 +330,7 @@ export class CoapClient {
         }
         if (delivered === 0) {
             logger.debug(
-                `CoAP inbound consumed by no request or listener: uri=${uri} type=${msg.type} code=${msg.code} payloadLen=${Bytes.of(msg.payload).length}`,
+                `CoAP inbound consumed by no request or listener: uri=${uri} type=${msg.type} code=${msg.code} payloadLen=${msg.payload.byteLength}`,
             );
         }
     }

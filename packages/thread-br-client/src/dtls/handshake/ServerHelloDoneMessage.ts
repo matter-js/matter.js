@@ -14,7 +14,7 @@ import { DtlsError } from "../channel/DtlsChannel.js";
  */
 export const ServerHelloDoneMessage = {
     parse(body: Bytes): void {
-        const length = Bytes.of(body).length;
+        const length = body.byteLength;
         if (length !== 0) {
             throw new DtlsError(`ServerHelloDone body must be empty, got ${length} bytes`);
         }

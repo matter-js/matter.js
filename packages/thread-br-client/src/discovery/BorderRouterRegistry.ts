@@ -335,9 +335,7 @@ export class BorderRouterRegistry {
                 // malformed; vendor stays unknown until/unless a `_meshcop` record arrives.
                 xaKey = deriveXaFromTrelInstance(name.qname);
                 if (xaKey !== undefined) {
-                    logger.info(
-                        `[ThreadDiag] TREL instance xa derived from instance name qname="${name.qname}" xa=${xaKey}`,
-                    );
+                    logger.info(`TREL instance xa derived from instance name qname="${name.qname}" xa=${xaKey}`);
                 }
             }
             if (xaKey === undefined) {
@@ -347,7 +345,7 @@ export class BorderRouterRegistry {
                 const nn = params.get("nn");
                 const vn = params.get("vn");
                 logger.info(
-                    `[ThreadDiag] BR instance dropped (no valid xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
+                    `BR instance dropped (no valid xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
                 );
                 return;
             }

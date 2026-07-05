@@ -15,6 +15,7 @@ import type { Mode } from "../tlv/diag/Mode.js";
 import { NetworkData } from "../tlv/diag/NetworkData.js";
 import type { Route64, Route64Entry } from "../tlv/diag/Route64.js";
 import { OtbrRestError } from "./OtbrRestError.js";
+import { parseHexBytes } from "./parseHexBytes.js";
 
 const TIMEOUT_EXP_MIN = 4;
 const IPV6_BYTES = 16;
@@ -44,19 +45,6 @@ function requireNumber(record: Record<string, unknown>, key: string, where: stri
     const v = asNumber(record[key]);
     if (v === undefined) throw new OtbrRestError("rest_protocol", `${where}: missing numeric ${key}`);
     return v;
-}
-
-function parseHexBytes(hex: string, where: string, expectedLen?: number): Bytes {
-    if (!/^[0-9a-fA-F]*$/.test(hex)) {
-        throw new OtbrRestError("rest_protocol", `${where}: not hex`);
-    }
-    if (hex.length % 2 !== 0) {
-        throw new OtbrRestError("rest_protocol", `${where}: odd hex length`);
-    }
-    if (expectedLen !== undefined && hex.length !== expectedLen * 2) {
-        throw new OtbrRestError("rest_protocol", `${where}: expected ${expectedLen} bytes, got ${hex.length / 2}`);
-    }
-    return Bytes.fromHex(hex);
 }
 
 function translateMode(input: Record<string, unknown>): Mode {

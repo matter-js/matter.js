@@ -57,7 +57,7 @@ export namespace BasicTlv {
             if (!Number.isInteger(entry.type) || entry.type < 0 || entry.type > 0xff) {
                 throw new InternalError(`Invalid TLV type ${entry.type}: must be 0..255`);
             }
-            const valueLen = Bytes.of(entry.value).length;
+            const valueLen = entry.value.byteLength;
             if (valueLen > 0xffff) {
                 throw new InternalError(`Invalid TLV length ${valueLen}: must be <= 0xFFFF`);
             }
