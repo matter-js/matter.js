@@ -58,6 +58,14 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
             return props().isThreadSleepyEndDevice;
         },
 
+        get specificationVersion() {
+            return props().specificationVersion;
+        },
+
+        get deviceTypes() {
+            return props().deviceTypes;
+        },
+
         get threadActive() {
             return props().threadActive;
         },

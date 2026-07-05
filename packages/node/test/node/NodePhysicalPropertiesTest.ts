@@ -7,8 +7,10 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { PowerSourceServer } from "#behaviors/power-source";
+import { SwitchServer } from "#behaviors/switch";
 import { ThreadNetworkDiagnosticsServer } from "#behaviors/thread-network-diagnostics";
 import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnostics";
+import { GenericSwitchDevice } from "#devices/generic-switch";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
@@ -17,9 +19,10 @@ import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-
 import { Node } from "#node/Node.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Minutes, Seconds } from "@matter/general";
+import { Instant, Minutes, Seconds } from "@matter/general";
 import { PhysicalDeviceProperties, Subscribe } from "@matter/protocol";
 import { PowerSource } from "@matter/types/clusters/power-source";
+import { Switch } from "@matter/types/clusters/switch";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -27,7 +30,7 @@ describe("NodePhysicalProperties", () => {
     it("chooses correct default intervals", async () => {
         const node = await MockServerNode.create();
         expectParams(node, {
-            minIntervalFloor: Seconds(1),
+            minIntervalFloor: Instant,
             maxIntervalCeiling: Minutes(1),
         });
     });
@@ -62,7 +65,7 @@ describe("NodePhysicalProperties", () => {
         const BatteryEndpoint = PowerSourceEndpoint.with(BatteryServer);
         await expectParamsWithCluster(BatteryServer, BatteryEndpoint, {
             maxIntervalCeiling: Minutes(10),
-            minIntervalFloor: Seconds(1),
+            minIntervalFloor: Instant,
         });
     });
 
@@ -81,7 +84,7 @@ describe("NodePhysicalProperties", () => {
         });
         expectParams(node, {
             maxIntervalCeiling: Minutes(1),
-            minIntervalFloor: Seconds(1),
+            minIntervalFloor: Instant,
         });
     });
 
@@ -89,7 +92,7 @@ describe("NodePhysicalProperties", () => {
         const WifiEndpoint = SecondaryNetworkInterfaceEndpoint.with(WiFiNetworkDiagnosticsServer);
         await expectParamsWithCluster(WiFiNetworkDiagnosticsServer, WifiEndpoint, {
             maxIntervalCeiling: Minutes(1),
-            minIntervalFloor: Seconds(1),
+            minIntervalFloor: Instant,
         });
     });
 
@@ -100,7 +103,7 @@ describe("NodePhysicalProperties", () => {
         const ThreadEndpoint = SecondaryNetworkInterfaceEndpoint.with(ThreadServer);
         await expectParamsWithCluster(ThreadServer, ThreadEndpoint, {
             maxIntervalCeiling: Minutes(3),
-            minIntervalFloor: Seconds(1),
+            minIntervalFloor: Instant,
         });
     });
 
@@ -108,8 +111,40 @@ describe("NodePhysicalProperties", () => {
         const ThreadEndpoint = SecondaryNetworkInterfaceEndpoint.with(ThreadNetworkDiagnosticsServer);
         await expectParamsWithCluster(ThreadNetworkDiagnosticsServer, ThreadEndpoint, {
             maxIntervalCeiling: Minutes(1),
-            minIntervalFloor: Seconds(1),
+            minIntervalFloor: Instant,
         });
+    });
+
+    it("reports the specification version and no Generic Switch by default", async () => {
+        const node = await MockServerNode.create();
+        const props = NodePhysicalProperties(node);
+
+        // A mock node reports the current (>= 1.3) specification version, which is why Thread devices above still
+        // receive a 0s floor.
+        expect(props.specificationVersion).to.be.at.least(0x0103_0000);
+        expect(props.deviceTypes).to.not.include(GenericSwitchDevice.deviceType);
+    });
+
+    it("collects the device types present on endpoints", async () => {
+        const node = await MockServerNode.create({
+            parts: [new Endpoint(GenericSwitchDevice.with(SwitchServer.with(Switch.Feature.MomentarySwitch)))],
+        });
+        const props = NodePhysicalProperties(node);
+
+        expect(props.deviceTypes).to.include(GenericSwitchDevice.deviceType);
+    });
+
+    it("collects device types behind an aggregator", async () => {
+        const node = await MockServerNode.create({
+            parts: [
+                new Endpoint(AggregatorEndpoint, {
+                    parts: [new Endpoint(GenericSwitchDevice.with(SwitchServer.with(Switch.Feature.MomentarySwitch)))],
+                }),
+            ],
+        });
+        const props = NodePhysicalProperties(node);
+
+        expect(props.deviceTypes).to.include(GenericSwitchDevice.deviceType);
     });
 });
 
@@ -139,7 +174,7 @@ async function expectParamsWithCluster(
         ],
     });
     expectParams(node, {
-        minIntervalFloor: Seconds(1),
+        minIntervalFloor: Instant,
         maxIntervalCeiling: Minutes(1),
     });
 }
