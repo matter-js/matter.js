@@ -13,7 +13,7 @@ import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
 import { Logger } from "../log/Logger.js";
 import { Ccm } from "./aes/Ccm.js";
-import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, ec, HashAlgorithm } from "./Crypto.js";
+import { Crypto, CRYPTO_AUTH_TAG_LENGTH, CRYPTO_SYMMETRIC_KEY_LENGTH, ec, HashAlgorithm } from "./Crypto.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { CurveType, Key, KeyType, PrivateKey, PublicKey } from "./Key.js";
@@ -82,7 +82,7 @@ export class StandardCrypto extends Crypto {
         return result;
     }
 
-    encrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes, tagLength = 16) {
+    encrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes, tagLength = CRYPTO_AUTH_TAG_LENGTH) {
         const ccm = Ccm(key);
         return ccm.encrypt({
             pt: Bytes.of(data),
@@ -92,7 +92,7 @@ export class StandardCrypto extends Crypto {
         });
     }
 
-    decrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes, tagLength = 16) {
+    decrypt(key: Bytes, data: Bytes, nonce: Bytes, associatedData?: Bytes, tagLength = CRYPTO_AUTH_TAG_LENGTH) {
         const ccm = Ccm(key);
         return ccm.decrypt({
             ct: Bytes.of(data),
