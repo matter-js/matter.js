@@ -13,6 +13,7 @@ import { Write } from "#action/request/Write.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
     asError,
     Bytes,
@@ -248,6 +249,42 @@ export class OperativeConnectionFailedError extends CommissioningError {}
 
 /** Error that throws when Commissioning fails but a process can be continued. */
 class RecoverableCommissioningError extends CommissioningError {}
+
+/** Error that throws when a supplied Thread network name contradicts the name inside the operational dataset. */
+export class ThreadNetworkNameMismatchError extends CommissioningError {}
+
+/**
+ * Resolve the Thread network name to commission with.
+ *
+ * Derives the name from the operational dataset when the caller omitted it, and verifies a caller-supplied name against
+ * the dataset — declining on mismatch so an ambiguous credential set cannot silently commission the wrong network. A
+ * dataset that cannot be decoded is left to the device to reject; the supplied name is kept as-is.
+ */
+export function resolveThreadNetworkName(threadNetwork: {
+    networkName?: string;
+    operationalDataset: string;
+}): string | undefined {
+    let datasetName: string | undefined;
+    try {
+        datasetName = OperationalDataset.decode(threadNetwork.operationalDataset).networkName;
+    } catch (error) {
+        logger.warn(
+            `Could not decode Thread operational dataset to derive/verify its network name: ${asError(error).message}`,
+        );
+        return threadNetwork.networkName || undefined;
+    }
+
+    const { networkName } = threadNetwork;
+    if (!networkName) {
+        return datasetName;
+    }
+    if (datasetName !== undefined && datasetName !== networkName) {
+        throw new ThreadNetworkNameMismatchError(
+            `Thread network name "${networkName}" does not match the name "${datasetName}" in the supplied operational dataset`,
+        );
+    }
+    return networkName;
+}
 
 const DEFAULT_FAILSAFE_TIME = Minutes.one;
 
@@ -1702,6 +1739,8 @@ export class ControllerCommissioningFlow {
             }
         }
 
+        const networkName = resolveThreadNetworkName(this.commissioningOptions.threadNetwork);
+
         logger.debug("Configuring Thread network ...");
         const [rawScanMaxTimeSeconds, rawConnectMaxTimeSeconds] = await this.#readConcreteAttributeValues(
             Read(
@@ -1718,7 +1757,7 @@ export class ControllerCommissioningFlow {
         const connectMaxTimeSeconds = Math.max(rawConnectMaxTimeSeconds ?? 0, MIN_NETWORK_CONNECT_TIMEOUT_SECONDS);
 
         let threadScanFailureHint: string | undefined;
-        if (!this.commissioningOptions.threadNetwork?.networkName) {
+        if (!networkName) {
             logger.info("Thread network name is not configured. Skip scanning for it.");
         } else if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
             // Only Scan when the device supports concurrent connections
@@ -1744,22 +1783,20 @@ export class ControllerCommissioningFlow {
             } else if (threadScanResults === undefined || threadScanResults.length === 0) {
                 threadScanFailureHint = `no Thread networks found in scan results`;
                 logger.warn(
-                    `Thread network scan returned no results for "${this.commissioningOptions.threadNetwork.networkName}" - attempting connection anyway`,
+                    `Thread network scan returned no results for "${networkName}" - attempting connection anyway`,
                 );
             } else {
                 const wantedNetworkFound = threadScanResults.find(
-                    ({ networkName }) => networkName === this.commissioningOptions.threadNetwork?.networkName,
+                    ({ networkName: scanned }) => scanned === networkName,
                 );
                 if (wantedNetworkFound === undefined) {
-                    threadScanFailureHint = `network "${this.commissioningOptions.threadNetwork.networkName}" not found in scan results`;
+                    threadScanFailureHint = `network "${networkName}" not found in scan results`;
                     logger.warn(
-                        `Thread network "${this.commissioningOptions.threadNetwork.networkName}" not found in scan results: ${Diagnostic.json(threadScanResults)} - attempting connection anyway`,
+                        `Thread network "${networkName}" not found in scan results: ${Diagnostic.json(threadScanResults)} - attempting connection anyway`,
                     );
                 } else {
                     logger.debug(
-                        `Commissionee found wanted Thread network ${
-                            this.commissioningOptions.threadNetwork.networkName
-                        }: ${Diagnostic.json(wantedNetworkFound)}`,
+                        `Commissionee found wanted Thread network ${networkName}: ${Diagnostic.json(wantedNetworkFound)}`,
                     );
                 }
             }
@@ -1793,7 +1830,7 @@ export class ControllerCommissioningFlow {
             throw new ThreadNetworkSetupFailedError(`Commissionee did not return network index`);
         }
         logger.debug(
-            `Commissionee added Thread network ${this.commissioningOptions.threadNetwork.networkName ?? "via operational dataset"} with network index ${networkIndex}`,
+            `Commissionee added Thread network ${networkName ?? "via operational dataset"} with network index ${networkIndex}`,
         );
 
         const [updatedNetworks] = await this.#readConcreteAttributeValues(

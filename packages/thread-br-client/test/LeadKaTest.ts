@@ -5,9 +5,8 @@
  */
 
 import { Bytes } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import { LeadKa } from "../src/commissioner/LeadKa.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 function buildStateResponse(state: number): Uint8Array {
     return Bytes.of(BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([state]) }]));

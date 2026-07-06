@@ -5,6 +5,7 @@
  */
 
 import { Bytes, Millis, Time } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import type { CoapMessage } from "../src/coap/CoapMessage.js";
 import {
@@ -13,8 +14,6 @@ import {
     CommissionerRejectedError,
     CommissionerTimeoutError,
 } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 // Thread spec Table 8-35: STATE TLV byte values.
 const STATE_ACCEPT = 0x01;

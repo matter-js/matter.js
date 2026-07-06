@@ -4,25 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { OperationalDataset } from "../src/dataset/OperationalDataset.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
+import { BasicTlv } from "#thread/BasicTlvCodec.js";
+import { OperationalDataset } from "#thread/OperationalDataset.js";
+import { Bytes } from "@matter/general";
 
-// Tests execute from `<pkg>/build/esm/test/`; the `../../..` hops up to the package root
-// where the source-tree fixtures live.
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/datasets");
+const SYNTHETIC_1_HEX =
+    "00010f02081122334455667788030a4f70656e5468726561640410000102030405060708090a0b0c0d0e0f0e080000000000010000";
 
-function loadFixture(name: string): Uint8Array {
-    const hex = readFileSync(resolve(FIXTURE_DIR, name), "utf8").trim();
-    return Bytes.of(Bytes.fromHex(hex));
+function synthetic1(): Uint8Array {
+    return Bytes.of(Bytes.fromHex(SYNTHETIC_1_HEX));
 }
 
 describe("OperationalDataset.decode", () => {
     it("decodes the synthetic-1 fixture into named fields", () => {
-        const blob = loadFixture("synthetic-1.hex");
+        const blob = synthetic1();
         const ds = OperationalDataset.decode(blob);
 
         expect(ds.channel).to.equal(0x0f);
@@ -33,7 +28,7 @@ describe("OperationalDataset.decode", () => {
     });
 
     it("accepts pre-parsed Bytes (ArrayBuffer) equivalently to a Uint8Array", () => {
-        const bytes = loadFixture("synthetic-1.hex");
+        const bytes = synthetic1();
         const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
         const ds = OperationalDataset.decode(arrayBuffer);
         expect(ds.networkName).to.equal("OpenThread");
@@ -41,7 +36,7 @@ describe("OperationalDataset.decode", () => {
     });
 
     it("preserves the original blob in `raw`", () => {
-        const blob = loadFixture("synthetic-1.hex");
+        const blob = synthetic1();
         const ds = OperationalDataset.decode(blob);
         expect(ds.raw).to.deep.equal(blob);
     });
@@ -79,7 +74,7 @@ describe("OperationalDataset.decode", () => {
 
 describe("OperationalDataset.encode", () => {
     it("round-trips the synthetic-1 fixture byte-identically", () => {
-        const blob = loadFixture("synthetic-1.hex");
+        const blob = synthetic1();
         const ds = OperationalDataset.decode(blob);
         expect(OperationalDataset.encode(ds)).to.deep.equal(blob);
     });
@@ -134,9 +129,6 @@ describe("OperationalDataset.encode", () => {
         expect(walked[2].value).to.deep.equal(new Uint8Array([0x42]));
     });
 });
-
-const SYNTHETIC_1_HEX =
-    "00010f02081122334455667788030a4f70656e5468726561640410000102030405060708090a0b0c0d0e0f0e080000000000010000";
 
 describe("OperationalDataset.decode hex input", () => {
     it("decodes a hex string identically to the byte form", () => {

@@ -40,7 +40,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
+    - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
+    - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset
     - Enhancement: Optimized Subscription minIntervalFloor: now defaults to 0s; only Thread devices older than Matter 1.3.0 keep a 1s floor, and any node with a Generic Switch endpoint opts back into 0s for faster switch events
+
+- @matter/thread-br-client
+    - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
 
 - @matter/types
     - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap

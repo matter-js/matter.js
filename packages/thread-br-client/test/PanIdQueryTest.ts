@@ -5,12 +5,11 @@
  */
 
 import { Bytes, Environment, Millis } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;

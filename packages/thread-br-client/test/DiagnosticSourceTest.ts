@@ -5,14 +5,13 @@
  */
 
 import { Bytes, Environment } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapTimeoutError } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import type { DiagnosticResponse } from "../src/diagnostic/DiagnosticResponse.js";
 import { MeshCopDiagnosticSource, missingRouterIds } from "../src/diagnostic/MeshCopDiagnosticSource.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 import { Ip6AddressTlv } from "../src/tlv/meshcop/Ip6AddressTlv.js";
 import { UdpEncapsulationTlv } from "../src/tlv/meshcop/UdpEncapsulationTlv.js";
 import { NetworkDiagnosticTlv } from "../src/tlv/NetworkDiagnosticTlv.js";

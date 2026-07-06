@@ -5,7 +5,7 @@
  */
 
 import { Bytes } from "@matter/general";
-import { ThreadTlvError } from "../BasicTlvCodec.js";
+import { ThreadTlvError } from "@matter/protocol";
 
 /**
  * IPv6 Address TLV value codec (MeshCoP TLV type 49).

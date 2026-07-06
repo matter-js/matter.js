@@ -5,9 +5,8 @@
  */
 
 import { type Duration, Logger, MatterError, Millis, Seconds, Time, TimeoutError, type Timer } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../coap/CoapClient.js";
-import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../tlv/BasicTlvCodec.js";
 import { LeadKa } from "./LeadKa.js";
 import { LeadPet } from "./LeadPet.js";
 

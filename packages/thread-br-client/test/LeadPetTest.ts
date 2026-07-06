@@ -5,10 +5,8 @@
  */
 
 import { Bytes } from "@matter/general";
+import { BasicTlv, type BasicTlvEntry, MeshCopTlvType } from "@matter/protocol";
 import { LeadPet } from "../src/commissioner/LeadPet.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
-import type { BasicTlvEntry } from "../src/tlv/BasicTlvCodec.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 function buildResponse(state: number, sessionId?: number): Uint8Array {
     const entries = new Array<BasicTlvEntry>();

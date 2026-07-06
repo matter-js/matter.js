@@ -5,7 +5,7 @@
  */
 
 import { Bytes, type Duration, ImplementationError, Millis, Seconds, Time, Timer } from "@matter/general";
-import { OperationalDataset } from "../dataset/OperationalDataset.js";
+import { OperationalDataset } from "@matter/protocol";
 import { detectKeyFormat, normalizeKeys } from "./caseNormalizer.js";
 import { OtbrRestError, type OtbrRestErrorCode } from "./OtbrRestError.js";
 import { parseHexBytes, parseRloc16 } from "./parseHexBytes.js";
