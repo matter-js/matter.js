@@ -5,8 +5,7 @@
  */
 
 import { Bytes } from "@matter/general";
-import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../tlv/BasicTlvCodec.js";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import { CommissionerProtocolError } from "./LeadKa.js";
 
 export interface LeadPetResponse {

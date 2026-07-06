@@ -5,10 +5,9 @@
  */
 
 import { Bytes } from "@matter/main";
+import { BasicTlv, OperationalDataset } from "@matter/protocol";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { OperationalDataset } from "../src/dataset/OperationalDataset.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/datasets");

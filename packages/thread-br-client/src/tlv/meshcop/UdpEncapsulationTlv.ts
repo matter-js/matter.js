@@ -5,7 +5,7 @@
  */
 
 import { Bytes, InternalError } from "@matter/general";
-import { ThreadTlvError } from "../BasicTlvCodec.js";
+import { ThreadTlvError } from "@matter/protocol";
 
 /**
  * UDP Encapsulation TLV value codec (MeshCoP TLV type 48).

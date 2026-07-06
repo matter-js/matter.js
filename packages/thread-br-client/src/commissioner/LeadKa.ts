@@ -5,8 +5,7 @@
  */
 
 import { Bytes, MatterError } from "@matter/general";
-import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../tlv/BasicTlvCodec.js";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 
 /** Thrown when a commissioner BR response (LeadKa/LeadPet) cannot be parsed. */
 export class CommissionerProtocolError extends MatterError {}

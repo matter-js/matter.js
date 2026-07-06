@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
+import { BasicTlv } from "#thread/BasicTlvCodec.js";
+import { Bytes } from "@matter/general";
 
 describe("BasicTlv", () => {
     describe("walk", () => {

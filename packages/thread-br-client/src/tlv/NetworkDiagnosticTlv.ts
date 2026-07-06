@@ -5,7 +5,7 @@
  */
 
 import type { Bytes } from "@matter/general";
-import { BasicTlv, type BasicTlvEntry } from "./BasicTlvCodec.js";
+import { BasicTlv, type BasicTlvEntry } from "@matter/protocol";
 
 /**
  * One Network Diagnostic TLV entry as walked from the response payload.

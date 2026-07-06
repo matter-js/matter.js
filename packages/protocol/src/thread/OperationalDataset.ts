@@ -5,7 +5,7 @@
  */
 
 import { Bytes } from "@matter/general";
-import { type BasicTlvEntry, BasicTlv } from "../tlv/BasicTlvCodec.js";
+import { type BasicTlvEntry, BasicTlv } from "./BasicTlvCodec.js";
 import { ThreadDatasetError } from "./errors.js";
 import { MeshCopTlvType } from "./meshcopTlvTypes.js";
 import { SecurityPolicy } from "./SecurityPolicy.js";

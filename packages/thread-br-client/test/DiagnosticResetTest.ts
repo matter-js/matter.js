@@ -6,16 +6,15 @@
 
 import { Environment } from "@matter/general";
 import { Bytes } from "@matter/main";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
 import type { OtbrRestCapability } from "../src/otbr-rest/OtbrRestCapability.js";
 import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestDiagnosticSource } from "../src/otbr-rest/OtbrRestDiagnosticSource.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 import { Ip6AddressTlv } from "../src/tlv/meshcop/Ip6AddressTlv.js";
 import { UdpEncapsulationTlv } from "../src/tlv/meshcop/UdpEncapsulationTlv.js";
 import { NetworkDiagTlvType } from "../src/tlv/networkDiagTlvTypes.js";

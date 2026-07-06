@@ -5,7 +5,7 @@
  */
 
 import { Bytes, ImplementationError, Observable } from "@matter/general";
-import type { OperationalDataset } from "../dataset/OperationalDataset.js";
+import type { OperationalDataset } from "@matter/protocol";
 import type { ThreadNetworkCredentials } from "./ThreadNetworkCredentials.js";
 
 /**

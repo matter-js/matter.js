@@ -5,9 +5,9 @@
  */
 
 import { Bytes } from "@matter/main";
+import { OperationalDataset } from "@matter/protocol";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { OperationalDataset } from "../src/dataset/OperationalDataset.js";
 import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
 

@@ -12,18 +12,9 @@
 export { BorderRouterRegistry } from "./discovery/index.js";
 export type { BorderRouterEntry } from "./discovery/index.js";
 
-export {
-    MeshCopTlvType,
-    MeshCopTlvTypeName,
-    OperationalDataset,
-    SecurityPolicy,
-    ThreadDatasetError,
-} from "./dataset/index.js";
-
 export { ThreadCredentialsRegistry } from "./credentials/index.js";
 export type { ThreadNetworkCredentials } from "./credentials/index.js";
 
-export { ThreadTlvError } from "./tlv/BasicTlvCodec.js";
 export { NetworkDiagTlvType, NetworkDiagTlvTypeName } from "./tlv/networkDiagTlvTypes.js";
 
 export {

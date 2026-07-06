@@ -19,11 +19,10 @@ import {
     Time,
     Timer,
 } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { CoapMessage } from "../coap/CoapMessage.js";
 import type { Commissioner } from "../commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../tlv/BasicTlvCodec.js";
 import { ChildIpv6AddressList } from "../tlv/diag/ChildIpv6AddressList.js";
 import { ChildTable } from "../tlv/diag/ChildTable.js";
 import { Connectivity } from "../tlv/diag/Connectivity.js";

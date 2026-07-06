@@ -5,11 +5,11 @@
  */
 
 import { Bytes } from "@matter/main";
+import { OperationalDataset } from "@matter/protocol";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ThreadCredentialsRegistry } from "../src/credentials/ThreadCredentialsRegistry.js";
 import type { ThreadNetworkCredentials } from "../src/credentials/ThreadNetworkCredentials.js";
-import { OperationalDataset } from "../src/dataset/OperationalDataset.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/datasets");
