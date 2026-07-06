@@ -100,7 +100,7 @@ describe("ClientNodeInteraction ICD hold", () => {
         let caught: unknown;
         const read = drainRead(peer1).catch(e => (caught = e));
 
-        // idleModeDuration (3600s) + AVAILABILITY_MARGIN (5s) + slack.
+        // idleModeDuration (3600s) + CHECK_IN_MARGIN (10s) + slack.
         await MockTime.advance(Seconds(3700));
         await MockTime.resolve(read, { macrotasks: true });
 

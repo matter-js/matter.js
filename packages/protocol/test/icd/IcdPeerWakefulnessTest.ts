@@ -42,7 +42,7 @@ describe("IcdPeerWakefulness", () => {
     it("available expires after idleModeDuration + margin", async () => {
         const w = lit();
         w.noteSignal();
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
         expect(w.available.value).equals(false);
     });
 
@@ -59,7 +59,7 @@ describe("IcdPeerWakefulness", () => {
     it("noteStayActive past the idle window keeps available true (awake => available)", async () => {
         const w = lit();
         w.noteStayActive(Seconds(60));
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
         expect(w.awake.value).equals(true);
         expect(w.available.value).equals(true);
         await MockTime.advance(Seconds(30));
@@ -97,47 +97,46 @@ describe("IcdPeerWakefulness", () => {
             fired++;
         });
         w.noteSignal();
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
         expect(w.available.value).equals(false);
         expect(fired).equals(1);
     });
 
-    it("sizes the availability window from the negotiated report interval while subscribed", async () => {
+    it("sizes the subscribed window from the report interval plus the injected report margin", async () => {
         const w = lit();
+        w.setTimings({ reportMargin: Seconds(20) });
         let fired = 0;
         w.checkInMissed.on(() => {
             fired++;
         });
-        w.noteSignal(); // idle-based window (30s + 5s margin)
-        w.setActiveReportInterval(Seconds(60)); // subscribed: reports arrive up to 60s
+        w.noteSignal(); // idle-based window (30s + 10s check-in margin)
+        w.setActiveReportInterval(Seconds(60)); // subscribed: window becomes 60s + 20s report margin = 80s
 
-        // Past idle + margin (35s) but before the report cadence + margin (65s): no spurious lapse.
-        await MockTime.advance(Millis(Seconds(40)));
+        // Past idle + check-in margin (40s) but before report interval + report margin (80s): no spurious lapse.
+        await MockTime.advance(Millis(Seconds(70)));
         expect(w.available.value).equals(true);
         expect(fired).equals(0);
 
-        // Past the report cadence + margin: the window finally lapses and reports the miss.
-        await MockTime.advance(Millis(Seconds(30)));
-        expect(w.available.value).equals(false);
-        expect(fired).equals(1);
-    });
-
-    it("sizes the availability window from an injected check-in delivery margin", async () => {
-        const w = lit();
-        w.setTimings({ checkInDeliveryMargin: Seconds(20) });
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
-        });
-        w.noteSignal(); // idle (30s) + injected margin (20s) = 50s window
-
-        // Past idle + old fixed 5s margin (35s) but before idle + injected margin (50s): no spurious lapse.
-        await MockTime.advance(Millis(Seconds(40)));
-        expect(w.available.value).equals(true);
-        expect(fired).equals(0);
-
-        // Past idle + injected margin: the window lapses.
+        // Past report interval + report margin: the window lapses and reports the miss.
         await MockTime.advance(Millis(Seconds(11)));
+        expect(w.available.value).equals(false);
+        expect(fired).equals(1);
+    });
+
+    it("falls back to the check-in margin for the subscribed window when no report margin is injected", async () => {
+        const w = lit();
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.noteSignal();
+        w.setActiveReportInterval(Seconds(60)); // 60s + CHECK_IN_MARGIN (10s) = 70s
+
+        await MockTime.advance(Millis(Seconds(65)));
+        expect(w.available.value).equals(true);
+        expect(fired).equals(0);
+
+        await MockTime.advance(Millis(Seconds(6)));
         expect(w.available.value).equals(false);
         expect(fired).equals(1);
     });
@@ -152,7 +151,7 @@ describe("IcdPeerWakefulness", () => {
         w.setActiveReportInterval(undefined); // subscription lost
         w.noteSignal(); // fresh Check-In -> idle-based window
 
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
         expect(w.available.value).equals(false);
         expect(fired).equals(1);
     });
@@ -190,7 +189,7 @@ describe("IcdPeerWakefulness", () => {
             fired++;
         });
         w.requiresAwait = false;
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
         expect(fired).equals(0);
     });
 

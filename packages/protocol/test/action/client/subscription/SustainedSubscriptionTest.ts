@@ -286,9 +286,9 @@ describe("SustainedSubscription", () => {
             await flush();
             expect(subscription.active.value).equal(true);
 
-            // Advance past the negotiated report cadence (fakePeerSub maxInterval 60s) + AVAILABILITY_MARGIN (5s) so
+            // Advance past the negotiated report cadence (fakePeerSub maxInterval 60s) + CHECK_IN_MARGIN (10s) so
             // `available` lapses even though the peer is subscribed.
-            await MockTime.advance(Millis(Seconds(60) + IcdPeerWakefulness.AVAILABILITY_MARGIN + Seconds(5)));
+            await MockTime.advance(Millis(Seconds(60) + IcdPeerWakefulness.CHECK_IN_MARGIN + Seconds(5)));
             await flush();
             expect(wakefulness.available.value).equal(false);
 
@@ -316,7 +316,7 @@ describe("SustainedSubscription", () => {
 
             // Past idleModeDuration (30s) + margin (5s) but before the negotiated report cadence (60s): a healthy
             // subscribed peer whose reports arrive up to maxInterval must not blip offline every idle cycle.
-            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + Seconds(5)));
+            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + Seconds(5)));
             await flush();
             expect(wakefulness.available.value).equal(true);
             expect(missed).equal(0);
@@ -342,7 +342,7 @@ describe("SustainedSubscription", () => {
             wakefulness.noteSignal(); // check-in arms the idle-based window; subscribe fails -> parks with no report cadence
             await flush();
 
-            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.AVAILABILITY_MARGIN + 1));
+            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
             await flush();
             expect(wakefulness.available.value).equal(false);
             expect(missed).equal(1);

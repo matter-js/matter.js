@@ -675,7 +675,7 @@ describe("IcdClient", () => {
                 peer1.eventsOf(IcdClient).available$Changed.once(() => resolve()),
             );
 
-            // idleModeDuration (3600s) + AVAILABILITY_MARGIN (5s) + slack.
+            // idleModeDuration (3600s) + CHECK_IN_MARGIN (10s) + slack.
             await MockTime.advance(Seconds(3700));
             await MockTime.resolve(changed, { macrotasks: true });
 
@@ -765,7 +765,7 @@ describe("IcdClient", () => {
                 }),
             );
 
-            // idleModeDuration (3600s) + AVAILABILITY_MARGIN (5s) + slack.
+            // idleModeDuration (3600s) + CHECK_IN_MARGIN (10s) + slack.
             await MockTime.advance(Seconds(3700));
             await MockTime.resolve(firstMiss, { macrotasks: true });
 

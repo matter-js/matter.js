@@ -24,19 +24,23 @@ import {
  *
  *   - {@link awake} — send-now. Window length is `activeModeThreshold`. Any inbound signal re-arms it; a StayActive
  *     promise extends it; expiry clears it.
- *   - {@link available} — not-offline. Longer window of `max(idleModeDuration, active report interval) +
- *     checkInDeliveryMargin`, the last being the peer's worst-case MRP delivery time (injected via {@link setTimings};
- *     defaults to {@link AVAILABILITY_MARGIN}) so a Check-In delayed by retransmission backoff does not lapse the
- *     window. While subscribed the peer suppresses Check-Ins and instead re-arms this window via
- *     subscription reports, which legitimately arrive as late as the negotiated `maxInterval` (idle + jitter); sizing
- *     from the report cadence avoids a spurious lapse mid-cycle. Expiry means an expected Check-In (or report) was
- *     missed, i.e. the peer is offline.
+ *   - {@link available} — not-offline. Longer window whose length depends on how the peer currently signals:
+ *     unsubscribed it is `idleModeDuration + CHECK_IN_MARGIN` — Check-Ins are unreliable (sessionless, unacknowledged,
+ *     no MRP backoff), so only device scheduling jitter needs slack. Subscribed the peer suppresses Check-Ins and
+ *     re-arms this window via reports, which are reliable (MRP) and can arrive as late as the subscription's own
+ *     liveness timeout, so the window becomes `reportInterval + reportMargin` (injected via {@link setTimings} to
+ *     mirror that timeout). Expiry means an expected Check-In (or report) was missed, i.e. the peer is offline.
  *
  * Invariant: `awake` implies `available` — a signal refreshes both. A non-LIT peer (`requiresAwait === false`) is
  * always awake and available with no timers.
  */
 export class IcdPeerWakefulness {
-    static readonly AVAILABILITY_MARGIN = Seconds(5);
+    /**
+     * Slack added to the Check-In cadence before the availability window lapses. A Check-In is an unreliable,
+     * unacknowledged sessionless message (no MRP, no retransmission backoff), so this only covers the device's
+     * scheduling jitter — a small fixed value, not an MRP round-trip.
+     */
+    static readonly CHECK_IN_MARGIN = Seconds(10);
     static readonly DEFAULT_SAT = Seconds(5);
     static readonly DEFAULT_IDLE = Seconds(30);
 
@@ -48,7 +52,7 @@ export class IcdPeerWakefulness {
     #requiresAwait = false;
     #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
     #idleModeDuration = IcdPeerWakefulness.DEFAULT_IDLE;
-    #checkInDeliveryMargin: Duration = IcdPeerWakefulness.AVAILABILITY_MARGIN;
+    #reportMargin?: Duration;
     #activeReportInterval?: Duration;
 
     #awakeUntil = Timestamp(0);
@@ -107,31 +111,26 @@ export class IcdPeerWakefulness {
         this.#operatingModeChanged.emit(value);
     }
 
-    setTimings(timings: {
-        activeModeThreshold?: Duration;
-        idleModeDuration?: Duration;
-        checkInDeliveryMargin?: Duration;
-    }) {
+    setTimings(timings: { activeModeThreshold?: Duration; idleModeDuration?: Duration; reportMargin?: Duration }) {
         if (timings.activeModeThreshold !== undefined) {
             this.#activeModeThreshold = timings.activeModeThreshold;
         }
         if (timings.idleModeDuration !== undefined) {
             this.#idleModeDuration = timings.idleModeDuration;
         }
-        if (timings.checkInDeliveryMargin !== undefined) {
-            this.#checkInDeliveryMargin = timings.checkInDeliveryMargin;
+        if (timings.reportMargin !== undefined) {
+            this.#reportMargin = timings.reportMargin;
         }
     }
 
     /**
      * Inform the availability window of the active subscription's negotiated report cadence (its `maxInterval`), or
-     * pass `undefined` when no subscription is held so the window reverts to the Check-In cadence
-     * (`idleModeDuration`). A running window sized from the shorter idle cadence at establish time is extended to the
-     * larger report cadence so a report arriving as late as `maxInterval` does not lapse it. Never truncates: clearing
-     * leaves the running window to expire on its own, so a genuine missed Check-In still fires {@link checkInMissed}.
-     * Tradeoff: a peer that dies exactly as its subscription drops is detected up to `maxInterval - idleModeDuration`
-     * later than the idle cadence would (bounded, never suppressed; converges to `idleModeDuration` on the next signal)
-     * — accepted to avoid an early/reentrant fire that truncating on clear would risk.
+     * pass `undefined` when no subscription is held so the window reverts to the Check-In cadence. While subscribed the
+     * peer suppresses Check-Ins and re-arms availability via reports instead; those are reliable (MRP), so the window
+     * is sized to mirror the subscription's own liveness timeout (see {@link setTimings} `reportMargin`). A running
+     * window is extended (never truncated) so a report arriving as late as the mirrored timeout does not lapse it;
+     * clearing leaves the running window to expire on its own so a genuine missed report still fires
+     * {@link checkInMissed}.
      */
     setActiveReportInterval(interval: Duration | undefined) {
         if (interval === this.#activeReportInterval) {
@@ -196,11 +195,15 @@ export class IcdPeerWakefulness {
     }
 
     #availabilityWindow(): Duration {
-        const cadence =
-            this.#activeReportInterval !== undefined
-                ? Duration.max(this.#idleModeDuration, this.#activeReportInterval)
-                : this.#idleModeDuration;
-        return Millis(cadence + this.#checkInDeliveryMargin);
+        // Subscribed: reports are reliable (MRP, retransmitted) and can arrive as late as the subscription's own
+        // liveness timeout (reportInterval + 2×maxPeerResponseTime). Mirror that via the injected reportMargin so
+        // availability lapses in step with the subscription, never before it (which would escalate a still-live sub).
+        if (this.#activeReportInterval !== undefined) {
+            return Millis(this.#activeReportInterval + (this.#reportMargin ?? IcdPeerWakefulness.CHECK_IN_MARGIN));
+        }
+        // Unsubscribed: the peer signals via unreliable, unacknowledged Check-Ins (no MRP backoff to accommodate), so
+        // a small fixed slack for device scheduling jitter is enough.
+        return Millis(this.#idleModeDuration + IcdPeerWakefulness.CHECK_IN_MARGIN);
     }
 
     #armAvailable(duration: Duration) {
@@ -214,6 +217,9 @@ export class IcdPeerWakefulness {
         this.#availableTimer = Time.getTimer("icd-peer-available", remaining, () => {
             this.#availableTimer?.stop();
             this.#availableTimer = undefined;
+            // Clear the deadline so availableUntil reports "no Check-In expected" until the next signal re-arms it,
+            // rather than a stale past timestamp.
+            this.#availableUntil = Timestamp(0);
             this.#setAvailable(false);
             this.#checkInMissed.emit();
         }).start();

@@ -27,7 +27,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { bool, field, nonvolatile, octstr, subjectId, systimeMs, uint32, uint8 } from "@matter/model";
-import { FabricManager, PeerAddress, PeerSet, type FabricIcd } from "@matter/protocol";
+import { FabricManager, PeerAddress, PeerSet, SUBSCRIPTION_PROCESSING_TIME, type FabricIcd } from "@matter/protocol";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdMultiAdminError } from "./IcdMultiAdminError.js";
@@ -116,6 +116,7 @@ export class IcdClient extends Behavior {
         // The subscription-established edge lands after the bootstrap read, so operatingMode is fresh when we decide;
         // the immediate check covers an already-active subscription.
         if (this.endpoint instanceof Node) {
+            this.reactTo(this.endpoint.lifecycle.online, this.#onPeerOnline);
             this.reactTo(
                 this.endpoint.eventsOf(NetworkClient).subscriptionStatusChanged,
                 this.#onSubscriptionStatusChanged,
@@ -124,6 +125,16 @@ export class IcdClient extends Behavior {
                 this.#ensureLitRegistration();
             }
         }
+    }
+
+    /**
+     * The peer coming online — a device-initiated reconnect (e.g. after a reboot) or our own — is live proof it is
+     * awake, so re-arm its wakefulness like a Check-In would; a no-op for a non-LIT or unfed peer. Fires on the online
+     * edge, after the session is adopted, so it never races an in-flight reconnect (signaling at raw session
+     * establishment did).
+     */
+    #onPeerOnline() {
+        this.#fedWakefulness()?.noteSignal();
     }
 
     #onSubscriptionStatusChanged(isActive: boolean) {
@@ -453,12 +464,19 @@ export class IcdClient extends Behavior {
         }
 
         const icdState = this.endpoint.maybeStateOf(IcdManagementClient);
+        // Subscribed availability mirrors the subscription's own liveness timeout (PeerSubscription.timeout =
+        // reportInterval + maxPeerResponseTime×2). Use the identical inputs — SUBSCRIPTION_PROCESSING_TIME, local leg
+        // only — so the injected reportMargin equals that slack exactly and availability never lapses before the
+        // subscription itself times out.
         const peer = this.env.get(PeerSet).get(this.internal.fedPeer);
         wakefulness.setTimings({
             activeModeThreshold:
                 icdState?.activeModeThreshold === undefined ? undefined : Millis(icdState.activeModeThreshold),
             idleModeDuration: icdState?.idleModeDuration === undefined ? undefined : Seconds(icdState.idleModeDuration),
-            checkInDeliveryMargin: peer?.exchangeProvider.maximumPeerResponseTime(Millis(0), true),
+            reportMargin:
+                peer === undefined
+                    ? undefined
+                    : Millis(peer.exchangeProvider.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME) * 2),
         });
         wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
 

@@ -12,6 +12,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import type { ClientNode } from "#node/ClientNode.js";
 import {
     Abort,
+    Diagnostic,
     Duration,
     ImplementationError,
     Lifecycle,
@@ -20,6 +21,7 @@ import {
     Millis,
     ObserverGroup,
     Seconds,
+    Time,
 } from "@matter/general";
 import {
     ClientBdxRequest,
@@ -299,18 +301,30 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             return undefined;
         }
 
-        // Default wait spans the peer's idle window plus the same reachability margin used for availability.
+        // A sleeping peer wakes on its next (unreliable) Check-In, so the default wait spans the idle Check-In cadence
+        // plus the same fixed jitter slack the availability window uses for that cadence.
         const idle = this.#node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
-        const margin =
-            this.#node.env.get(PeerSet).get(address)?.exchangeProvider.maximumPeerResponseTime(Millis(0), true) ??
-            IcdPeerWakefulness.AVAILABILITY_MARGIN;
         const effectiveTimeout =
-            timeout ?? Millis((idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) + margin);
+            timeout ??
+            Millis(
+                (idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) +
+                    IcdPeerWakefulness.CHECK_IN_MARGIN,
+            );
 
         return this.#awaitWake(wakefulness, address, effectiveTimeout);
     }
 
     async #awaitWake(wakefulness: IcdPeerWakefulness, address: PeerAddress, timeout: Duration) {
+        const nextCheckIn = wakefulness.availableUntil;
+        logger.info(
+            "Peer is a LIT ICD in idle mode; holding interaction until it wakes",
+            Diagnostic.dict({
+                peer: PeerAddress(address),
+                timeout: Duration.format(timeout),
+                nextCheckInWithin:
+                    nextCheckIn === undefined ? undefined : Duration.format(Millis(nextCheckIn - Time.nowMs)),
+            }),
+        );
         using abort = Abort.subtask(undefined, timeout);
         await abort.race(wakefulness.awake);
 
