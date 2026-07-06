@@ -9,7 +9,7 @@ import { TlvUInt32 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "../../tlv/TlvObject.js";
 import { TlvClusterPath } from "./TlvClusterPath.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.3 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.3 */
 
 export const TlvDataVersionFilter = TlvObject({
     // DataVersionFilterIB

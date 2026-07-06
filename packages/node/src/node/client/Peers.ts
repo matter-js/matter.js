@@ -15,6 +15,7 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
+import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
@@ -85,6 +86,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+        this.clusterInstalled(BridgedDeviceBasicInformationClient).on(
+            this.#instrumentBridgedConfigurationVersion.bind(this),
+        );
 
         const lifecycle = owner.lifecycle;
         lifecycle.online.on(this.#nodeOnline.bind(this));
@@ -481,6 +485,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).softwareVersion$Changed?.on((version, oldVersion) =>
             this.#onSoftwareVersionChanged(node, version, oldVersion),
         );
+        node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
     }
 
     async #onSoftwareVersionChanged(node: ClientNode, softwareVersion: number, oldVersion?: number) {
@@ -489,6 +494,16 @@ export class Peers extends EndpointContainer<ClientNode> {
             return;
         }
         await node.act(agent => node.lifecycle.softwareVersionChanged.emit(softwareVersion, agent.context));
+    }
+
+    /**
+     * Bridged endpoints carry their own `ConfigurationVersion` on `BridgedDeviceBasicInformation`; surface its changes
+     * through the same endpoint lifecycle event used for the node's `BasicInformation`.
+     */
+    #instrumentBridgedConfigurationVersion(endpoint: Endpoint, type: typeof BridgedDeviceBasicInformationClient) {
+        endpoint
+            .eventsOf(type)
+            .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {

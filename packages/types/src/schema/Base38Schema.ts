@@ -9,7 +9,7 @@ import { Schema } from "./Schema.js";
 
 const BASE38_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.";
 
-/** See {@link MatterSpecification.v10.Core} § 5.1.3.1 */
+/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 */
 class Base38Schema extends Schema<Bytes, string> {
     protected encodeInternal(data: Bytes): string {
         const bytes = Bytes.of(data);

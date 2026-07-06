@@ -14,7 +14,7 @@ import { TlvWrapper } from "../tlv/TlvWrapper.js";
  * product manufacturer, vendor, or group thereof. Each Vendor ID is statically allocated by the
  * Connectivity Standards Alliance (see [CSA Manufacturer Code Database]).
  *
- * @see {@link MatterSpecification.v10.Core} § 2.5.2
+ * @see {@link MatterSpecification.v16.Core} § 2.5.2
  */
 export type VendorId = Branded<number, "VendorId">;
 

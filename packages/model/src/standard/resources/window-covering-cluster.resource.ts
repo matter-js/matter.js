@@ -36,7 +36,7 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "Type", xref: "cluster§5.3.6.1",
+                tag: "attribute", name: "Type", xref: "cluster§5.3.6.2",
 
                 details: "This attribute shall identify the type of window covering." +
                     "\n" +
@@ -51,18 +51,18 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "NumberOfActuationsLift", xref: "cluster§5.3.6.2",
+                tag: "attribute", name: "NumberOfActuationsLift", xref: "cluster§5.3.6.3",
                 details: "Indicates the total number of lift/slide actuations applied to the window covering since the device " +
                     "was installed."
             },
             {
-                tag: "attribute", name: "NumberOfActuationsTilt", xref: "cluster§5.3.6.3",
+                tag: "attribute", name: "NumberOfActuationsTilt", xref: "cluster§5.3.6.4",
                 details: "Indicates the total number of tilt actuations applied to the window covering since the device was " +
                     "installed."
             },
 
             {
-                tag: "attribute", name: "ConfigStatus", xref: "cluster§5.3.6.4",
+                tag: "attribute", name: "ConfigStatus", xref: "cluster§5.3.6.5",
                 details: "This attribute specifies the configuration and status information of the window covering." +
                     "\n" +
                     "To change settings, devices shall write to the Mode attribute. The behavior causing the setting or " +
@@ -70,32 +70,32 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "CurrentPositionLiftPercentage", xref: "cluster§5.3.6.7",
+                tag: "attribute", name: "CurrentPositionLiftPercentage", xref: "cluster§5.3.6.8",
                 details: "Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute " +
                     "is equal to CurrentPositionLiftPercent100ths attribute divided by 100."
             },
             {
-                tag: "attribute", name: "CurrentPositionTiltPercentage", xref: "cluster§5.3.6.8",
+                tag: "attribute", name: "CurrentPositionTiltPercentage", xref: "cluster§5.3.6.9",
                 details: "Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute " +
                     "is equal to CurrentPositionTiltPercent100ths attribute divided by 100."
             },
             {
-                tag: "attribute", name: "OperationalStatus", xref: "cluster§5.3.6.11",
+                tag: "attribute", name: "OperationalStatus", xref: "cluster§5.3.6.12",
                 details: "Indicates the currently ongoing operations and applies to all type of devices."
             },
             {
-                tag: "attribute", name: "TargetPositionLiftPercent100ths", xref: "cluster§5.3.6.9",
+                tag: "attribute", name: "TargetPositionLiftPercent100ths", xref: "cluster§5.3.6.10",
                 details: "Indicates the position where the window covering lift will go or is moving to as a percentage (Unit " +
                     "0.01%)."
             },
             {
-                tag: "attribute", name: "TargetPositionTiltPercent100ths", xref: "cluster§5.3.6.10",
+                tag: "attribute", name: "TargetPositionTiltPercent100ths", xref: "cluster§5.3.6.11",
                 details: "Indicates the position where the window covering tilt will go or is moving to as a percentage (Unit " +
                     "0.01%)."
             },
 
             {
-                tag: "attribute", name: "EndProductType", xref: "cluster§5.3.6.12",
+                tag: "attribute", name: "EndProductType", xref: "cluster§5.3.6.13",
 
                 details: "This attribute SHOULD provide more detail about the product type than can be determined from the " +
                     "main category indicated by the Type attribute." +
@@ -113,18 +113,18 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "CurrentPositionLiftPercent100ths", xref: "cluster§5.3.6.5",
+                tag: "attribute", name: "CurrentPositionLiftPercent100ths", xref: "cluster§5.3.6.6",
                 details: "Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals " +
                     "100.00%."
             },
             {
-                tag: "attribute", name: "CurrentPositionTiltPercent100ths", xref: "cluster§5.3.6.6",
+                tag: "attribute", name: "CurrentPositionTiltPercent100ths", xref: "cluster§5.3.6.7",
                 details: "Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals " +
                     "100.00%."
             },
 
             {
-                tag: "attribute", name: "Mode", xref: "cluster§5.3.6.13",
+                tag: "attribute", name: "Mode", xref: "cluster§5.3.6.14",
 
                 details: "The Mode attribute allows configuration of the window covering, such as: reversing the motor " +
                     "direction, placing the window covering into calibration mode, placing the motor into maintenance " +
@@ -137,7 +137,7 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "SafetyStatus", xref: "cluster§5.3.6.14",
+                tag: "attribute", name: "SafetyStatus", xref: "cluster§5.3.6.15",
                 details: "The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing " +
                     "movements. By default for nominal operation all flags are cleared (0). A device might support none, " +
                     "one or several bit flags from this attribute (all optional)."

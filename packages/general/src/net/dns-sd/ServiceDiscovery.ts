@@ -49,7 +49,7 @@ export function discoverNames(names: DnssdNames, suffix: string, signal: AbortSi
         return lower === exactType || lower.endsWith(normalizedSuffix);
     };
 
-    names.filters.add(filter);
+    names.filters.add(filter, [exactType]);
 
     const observers = new ObserverGroup();
     const queue: DnssdName[] = [];

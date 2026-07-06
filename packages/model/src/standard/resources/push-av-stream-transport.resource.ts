@@ -453,21 +453,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "CencKey", xref: "cluster§11.7.7.10.6",
-                    details: "This field, if present, shall indicate the CENC key to be used to encrypt the CMAF data. When " +
-                        "absent, the CMAF data shall be sent without CENC encryption added. See CMAF Background for further " +
-                        "details on CMAF CENC encryption."
-                },
-
-                {
-                    tag: "field", name: "CencKeyId", xref: "cluster§11.7.7.10.7",
-                    details: "This field, if present, shall indicate the opaque CENC Key ID (KID) that represents the key in the " +
-                        "Controllers ecosystem. This fields maps to the KID value as specified in ISO 23001-7:2023 or later. " +
-                        "See CMAF Background for further details on CMAF CENC encryption."
-                },
-
-                {
-                    tag: "field", name: "MetadataEnabled", xref: "cluster§11.7.7.10.8",
+                    tag: "field", name: "MetadataEnabled", xref: "cluster§11.7.7.10.6",
 
                     details: "This field, if present and true, indicates that AVMetadataStruct based Metadata tracks and boxes may " +
                         "be included in the CMAF segments. If this field is not present or is false, metadata tracks and " +
@@ -534,7 +520,7 @@ Resource.add({
         {
             tag: "datatype", name: "TransportTriggerOptionsStruct", xref: "cluster§11.7.7.13",
             details: "This struct encodes the conditions and options that configures the trigger for the push transport. " +
-                "The transport shall only start transmitting AV Streams when it's associated trigger is activated.",
+                "The transport shall only start transmitting AV Streams when its associated trigger is activated.",
 
             children: [
                 {
@@ -545,8 +531,8 @@ Resource.add({
                 {
                     tag: "field", name: "MotionZones", xref: "cluster§11.7.7.13.2",
                     details: "This field shall be a list of TransportZoneOptionsStruct containing the Motion Zones to trigger on. " +
-                        "If this list is null, empty, or the Zone Management Cluster is not supported on this endpoint, then " +
-                        "motion anywhere shall cause the trigger to activate. The maximum size of this list is MaxZones."
+                        "If this list is null, empty, or if the Zone Management Cluster is not supported on this endpoint, " +
+                        "then motion anywhere shall cause the trigger to activate. The maximum size of this list is MaxZones"
                 },
 
                 {

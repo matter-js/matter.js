@@ -13,7 +13,7 @@ import { StringSchema } from "./TlvString.js";
 /**
  * Schema to encode a nullable value in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.6
+ * @see {@link MatterSpecification.v16.Core} § A.11.6
  */
 export class NullableSchema<T> extends TlvSchema<T | null> {
     readonly schema: TlvSchema<T>;
@@ -79,7 +79,7 @@ export class NullableSchema<T> extends TlvSchema<T | null> {
         const value = this.schema.decodeTlvInternalValue(reader, typeLength);
         // The Matter standard allows to send an empty string or Array for nullable elements that have a length.
         // This should be handled like null, so make sure to convert that correctly when decoding.
-        // @see {@link MatterSpecification.v12.Core} § 7.17.1
+        // @see {@link MatterSpecification.v16.Core} § 7.18.1
         if (
             value !== null &&
             (this.schema instanceof ArraySchema || this.schema instanceof StringSchema) &&

@@ -107,6 +107,12 @@ async function main() {
                             type: "boolean",
                             default: false,
                         },
+                        webAddress: {
+                            description:
+                                "Address the WebSocket/web server binds to. Defaults to loopback (127.0.0.1); pass e.g. 0.0.0.0 to expose on all interfaces.",
+                            type: "string",
+                            default: undefined,
+                        },
                     });
             },
             async argv => {
@@ -125,6 +131,7 @@ async function main() {
                     webSocketInterface,
                     webSocketPort,
                     webServer,
+                    webAddress,
                 } = argv;
 
                 theNode = new MatterNode(nodeNum, netInterface);
@@ -147,7 +154,7 @@ async function main() {
 
                 if (webSocketInterface) {
                     Logger.format = LogFormat.PLAIN;
-                    initializeWebPlumbing(theNode, nodeNum, webSocketPort, webServer); // set up but wait for connect to create Shell
+                    initializeWebPlumbing(theNode, nodeNum, webSocketPort, webServer, webAddress); // set up but wait for connect to create Shell
                 } else {
                     theShell = new Shell(theNode, nodeNum, PROMPT, process.stdin, process.stdout);
                 }

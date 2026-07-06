@@ -11,20 +11,23 @@ import { ClusterElement as Cluster, AttributeElement as Attribute } from "../../
 
 export const FlowMeasurement = Cluster(
     { name: "FlowMeasurement", id: 0x404, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "uint16", access: "R V", conformance: "M",
         constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "MinMeasuredValue", id: 0x1, type: "uint16", access: "R V", conformance: "M",
-        constraint: "max 65533", quality: "X"
+        constraint: "max 65533", quality: "X F"
     }),
     Attribute({
         name: "MaxMeasuredValue", id: 0x2, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min minMeasuredValue + 1", quality: "X"
+        constraint: "min minMeasuredValue + 1", quality: "X F"
     }),
-    Attribute({ name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048", default: 0 })
+    Attribute({
+        name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048",
+        default: 0, quality: "F"
+    })
 );
 
 MatterDefinition.children.push(FlowMeasurement);

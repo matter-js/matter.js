@@ -21,7 +21,7 @@ export namespace AttributePath {
     /**
      * Addresses a collection (struct or list) within an attribute.
      *
-     * @see {@link MatterSpecification.v11.Core} § 8.9.2.2
+     * @see {@link MatterSpecification.v16.Core} § 8.9.2.2
      */
     export type Nested = ({ field: FieldAddress } | { entry: EntryIndex })[];
 
@@ -29,7 +29,7 @@ export namespace AttributePath {
      * Addresses attribute data for read operations.  Note that if you specify the attribute you must also specify the
      * cluster except for global attributes.
      *
-     * @see {@link MatterSpecification.v11.Core} § 8.9.2.1 & 8.9.2.3
+     * @see {@link MatterSpecification.v16.Core} § 8.9.2.1 & 8.9.2.6
      */
     export type Read = BasePath.Read & {
         attribute?: Address;
@@ -39,7 +39,7 @@ export namespace AttributePath {
     /**
      * Addresses attribute data for write operations.
      *
-     * @see {@link MatterSpecification.v11.Core} § 8.9.2.1 & 8.9.2.4
+     * @see {@link MatterSpecification.v16.Core} § 8.9.2.1 & 8.9.2.7
      */
     export type Write = BasePath.Write & {
         attribute: Address;

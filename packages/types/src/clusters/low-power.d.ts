@@ -29,7 +29,7 @@ import type { MaybePromise } from "@matter/general";
  * > NOTE: We have considered a “DisableLowPowerMode” command but have not added it due to suspected issues with energy
  *   consumption regulations. This can be added in the future.
  *
- * @see {@link MatterSpecification.v151.Cluster} § 1.11
+ * @see {@link MatterSpecification.v16.Cluster} § 1.11
  */
 export declare namespace LowPower {
     /**
@@ -43,7 +43,7 @@ export declare namespace LowPower {
     export const name: "LowPower";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -61,7 +61,7 @@ export declare namespace LowPower {
         /**
          * This command shall put the device into low power mode.
          *
-         * @see {@link MatterSpecification.v151.Cluster} § 1.11.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.11.4.1
          */
         sleep(): MaybePromise;
     }

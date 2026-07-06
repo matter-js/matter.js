@@ -1402,6 +1402,7 @@ export class PairedNode {
             manualPairingCode: ManualPairingCodeCodec.encode({
                 discriminator: discriminator,
                 passcode: passcode,
+                flowType: CommissioningFlowType.Standard,
             }),
             qrPairingCode,
         };

@@ -11,39 +11,97 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/\*:
+    - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible.
+
+- @matter/general
+    - Enhancement: `deepCopy` now clones `Set` and `Map` values instead of turning them into empty objects
+
+- @matter/model
+    - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
+
 - @matter/node
+    - Feature: Implemented the newly-mandatory Matter 1.6 diagnostics attributes
+    - Feature: Enabled the BooleanState `StateChange` event by default via the new feature
+    - Feature: Emit the OccupancySensing `OccupancyChanged` event automatically when the `OccupancyEvent` feature is enabled
+    - Feature: Advertise the BasicInformation CapabilityMinima defaults and enforce the read/subscribe path-count ceiling
+    - Feature: Added a ConfigurationVersion increment convenience API and reject ConfigurationVersion bumps on bridged devices that do not enable the attribute
+    - Feature: Added a `configurationVersionChanged` endpoint/node lifecycle event that fires when a client peer's ConfigurationVersion changes (BasicInformation on the node, BridgedDeviceBasicInformation on bridged endpoints)
+    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
+    - Fix: Prune GroupKeyMap entries when a key set is removed
+    - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
+    - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
+
+- @matter/nodejs-shell
+    - Fix: Close a path-containment gap in the optional web server that let requests reach sibling directories sharing the web-root name prefix, and resolve symlinks before serving (reported by tonghuaroot)
+    - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
+
+- @matter/protocol
+    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
+    - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
+    - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset
+    - Enhancement: Optimized Subscription minIntervalFloor: now defaults to 0s; only Thread devices older than Matter 1.3.0 keep a 1s floor, and any node with a Generic Switch endpoint opts back into 0s for faster switch events
+
+- @matter/thread-br-client
+    - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
+
+- @matter/types
+    - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
+
+## 0.17.4 (2026-07-01)
+
+- @matter/general
+    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, reducing CPU usage on busy networks
+
+- @matter/node
+    - Enhancement: Optimizes incoming DataReport processing
     - Enhancement: Frees a behavior's persisted seed values from memory once the datasource has loaded them
     - Adjustment: Rejects an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
-    - Adjustment: A client write to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
+    - Adjustment: A client write interaction to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
     - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
     - Fix: Ensures that a peer's FeatureMap change rebuilds the affected client cluster behavior
     - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
+    - Fix: A client cluster the peer still serves data for but omits from its descriptor server list is no longer dropped when subsequent endpoint data is processed
     - Fix: Ensures that fabric-scoped attribute data (e.g. stale AccessControl ACL entries) is always sanitized at node startup
     - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
     - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
     - Fix: Aligned Thermostat atomic-write handling with the Matter specification
     - Fix: Ensures that client clusters are never exposed to incoming interactions
+    - Fix: The generated manual pairing code now reflects the configured commissioning flow, including Vendor ID and Product ID for non-Standard flows
     - Fix: Ensures that a rejected SetRegulatoryConfig leaves BasicInformation.location unchanged, instead of writing the country code before validating the regulatory config
+    - Fix: Diagnostics now log endpoint number 0 instead of "(unassigned)"
 
 - @matter/nodejs
     - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
 
 - @matter/protocol
-    - Enhancement: Unified peer device probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Enhancement: Caches attribute/event schema resolution while decoding incoming data reports to reduce decode time
+    - Enhancement: Incoming read/subscription data reports now tolerate signed/unsigned integer encoding mismatches within defined bounds. Such cases are still non-compliant and are logged
+    - Enhancement: Unified peer device-probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
     - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
-    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD
+    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD like in CHIP SDK
     - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
     - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
     - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
     - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
     - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
+    - Fix: Fabric-sensitive events are now always filtered to the accessing fabric on read and subscribe
     - Fix: A stray StatusReport arriving as an exchange's initial message (e.g. a retransmitted CASE/PASE completion) is now ignored instead of logging an "Unhandled error"
     - Fix: An invoke client now reports `NoCommandResponse` for sent commands that receive no response, and discards unexpected/unmatched response entries instead of throwing
     - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
     - Fix: Fixes encoding and decoding of a message payload header carrying a vendor Protocol ID
+    - Fix: Does not send error status messages when the message before was never delivered for PASE/CASE
+    - Fix: Clamps the outer interaction-model status to SUCCESS/FAILURE when a cluster-specific status is present
+    - Fix: Rejects a DataVersion on a group or wildcard write path
+    - Fix: Ensures that DataReports always contain data or a status for attributes and never the IsUrgent flag in event data 
 
 - @matter/types
     - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation
+    - Fix: Onboarding-payload version is validated on decode — a reserved QR version (≠ 0) or manual pairing code first digit (≥ 8) is rejected instead of being mis-parsed
+    - Fix: The manual pairing code codec now requires Vendor ID and Product ID for non-Standard commissioning flows
+    - Fix: The onboarding-payload TLV codec rejects reserved tags (0x05–0x7F; manufacturer-specific tags must use 0x80–0xFF) and requires the PBKDF iteration count and salt to be both present or both absent
 
 - @project-chip/matter.js
     - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
@@ -57,6 +115,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
+    - Fix: The conformance parser now rejects invalid choice and optionality constructs instead of mis-parsing them
 
 - @matter/node
     - Fix: Reading `CommissioningServer` pairing codes before commissioning is initialized now throws a clear error instead of emitting a placeholder code

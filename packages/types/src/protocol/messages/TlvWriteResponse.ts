@@ -10,7 +10,7 @@ import { TlvUInt8 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvAttributeStatus } from "../types/TlvAttributeStatus.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.7.7 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.7.7 */
 
 export const TlvWriteResponse = TlvObject({
     /** A list of zero or more concrete paths indicating errors or successes. */

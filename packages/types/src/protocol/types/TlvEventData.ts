@@ -12,7 +12,7 @@ import { TlvEnum, TlvPosixMs, TlvSysTimeMS } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvEventPath } from "./TlvEventPath.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.9 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.9 */
 
 export const TlvEventData = TlvObject({
     // EventDataIB

@@ -58,10 +58,7 @@ export namespace Decorator {
     };
 
     export type Property<This = unknown, Value = unknown> =
-        | ClassGetter<This, Value>
-        | ClassSetter<This, Value>
-        | ClassField<This, Value>
-        | ClassAccessor<This, Value>;
+        ClassGetter<This, Value> | ClassSetter<This, Value> | ClassField<This, Value> | ClassAccessor<This, Value>;
 
     export type PropertyContext<This = unknown, Value = unknown> =
         | ClassGetterDecoratorContext<This, Value>

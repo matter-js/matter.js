@@ -196,8 +196,7 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     protected abstract run(context: Advertisement.ActivityContext, event: Advertiser.BroadcastEvent): Promise<void>;
 
     isCommissioning(): this is
-        | Advertisement<ServiceDescription.Commissionable>
-        | Advertisement<ServiceDescription.Commissioner> {
+        Advertisement<ServiceDescription.Commissionable> | Advertisement<ServiceDescription.Commissioner> {
         return ServiceDescription.isCommissioning(this.description);
     }
 

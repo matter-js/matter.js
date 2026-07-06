@@ -13,6 +13,7 @@ import * as mod from "@noble/curves/abstract/modular.js";
 import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
 import { Entropy } from "../util/Entropy.js";
+import { cmac } from "./aes/Cmac.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
 
@@ -91,14 +92,22 @@ export abstract class Crypto extends Entropy {
     abstract implementationName: string;
 
     /**
-     * Encrypt using AES-CCM with constants limited to those required by Matter.
+     * Encrypt using AES-CCM. `tagLength` defaults to 16 (Matter AEAD); pass 8 for CCM-8.
      */
-    abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
+    abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
 
     /**
-     * Decrypt using AES-CCM with constants limited to those required by Matter.
+     * Decrypt using AES-CCM. `tagLength` defaults to 16; pass 8 for CCM-8.
      */
-    abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
+    abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
+
+    /**
+     * Compute an AES-CMAC (RFC 4493) tag.  Synchronous: the default pure-JS implementation drives
+     * iteration-heavy KDFs (e.g. Thread PSKc PBKDF2) that cannot tolerate per-block awaits.
+     */
+    cmac(key: Bytes, data: Bytes): Bytes {
+        return cmac(Bytes.of(key), Bytes.of(data));
+    }
 
     /**
      * Compute a cryptographic hash using the specified algorithm. If no algorithm is specified, SHA-256 is used.
@@ -116,7 +125,7 @@ export abstract class Crypto extends Entropy {
     /**
      * Create a key from a secret using HKDF. The length parameter defines the length in bytes.
      *
-     * @see {@link MatterSpecification.v151.Core} §3.8
+     * @see {@link MatterSpecification.v16.Core} §3.8
      */
     abstract createHkdfKey(secret: Bytes, salt: Bytes, info: Bytes, length?: number): MaybePromise<Bytes>;
 

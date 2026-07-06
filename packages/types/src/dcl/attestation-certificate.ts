@@ -15,7 +15,7 @@ export interface ApprovalOrRejectDetails {
 
 /**
  * Product Attestation Authority and Intermediate Certificate Schema
- * @see {@link MatterSpecification.v141.Core} § 11.23.4.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.4.
  * DCL Endpoints:
  *   * /dcl/pki/certificates
  *   * /dcl/pki/certificates/{subject}

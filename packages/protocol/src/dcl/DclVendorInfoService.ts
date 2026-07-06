@@ -220,7 +220,7 @@ export class DclVendorInfoService {
             });
             await this.#fetchPromise;
         } catch (error) {
-            logger.info("Error updating vendor information", error);
+            logger.info("Error updating vendor information", Diagnostic.errorMessage(asError(error)));
         }
     }
 

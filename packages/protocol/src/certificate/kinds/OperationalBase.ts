@@ -39,7 +39,7 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
 
     /**
      * Verifies general requirements a Matter certificate fields must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v12.Core} §6.5.x
+     * Rules for this are listed in @see {@link MatterSpecification.v16.Core} §6.5.x
      */
     generalVerify() {
         const cert = this.cert;

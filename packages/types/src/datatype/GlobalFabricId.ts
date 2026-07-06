@@ -16,7 +16,7 @@ const COMPRESSED_FABRIC_ID_INFO = Bytes.fromString("CompressedFabric");
  * This ID is computed by hashing the {@link FabricId} with the fabric CA's public key.  The spec calls it a "compressed
  * fabric ID" to differentiate from the full "uncompressed" CA key + fabric ID.
  *
- * @see {@link MatterSpecification.v14.Core} § 4.3.2.2
+ * @see {@link MatterSpecification.v16.Core} § 4.3.2.2
  */
 export type GlobalFabricId = Branded<bigint, "GlobalFabricId">;
 

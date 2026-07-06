@@ -221,24 +221,24 @@ export const NetworkCommissioning = Cluster(
 
     Datatype(
         { name: "WiFiInterfaceScanResultStruct", type: "struct" },
-        Field({ name: "Security", id: 0x0, type: "WiFiSecurityBitmap", conformance: "WI" }),
-        Field({ name: "Ssid", id: 0x1, type: "octstr", conformance: "WI", constraint: "max 32" }),
-        Field({ name: "Bssid", id: 0x2, type: "octstr", conformance: "WI", constraint: "6" }),
-        Field({ name: "Channel", id: 0x3, type: "uint16", conformance: "WI" }),
-        Field({ name: "WiFiBand", id: 0x4, type: "WiFiBandEnum", conformance: "[WI]" }),
-        Field({ name: "Rssi", id: 0x5, type: "int8", conformance: "[WI]" })
+        Field({ name: "Security", id: 0x0, type: "WiFiSecurityBitmap", conformance: "M" }),
+        Field({ name: "Ssid", id: 0x1, type: "octstr", conformance: "M", constraint: "max 32" }),
+        Field({ name: "Bssid", id: 0x2, type: "octstr", conformance: "M", constraint: "6" }),
+        Field({ name: "Channel", id: 0x3, type: "uint16", conformance: "M" }),
+        Field({ name: "WiFiBand", id: 0x4, type: "WiFiBandEnum", conformance: "O" }),
+        Field({ name: "Rssi", id: 0x5, type: "int8", conformance: "O" })
     ),
 
     Datatype(
         { name: "ThreadInterfaceScanResultStruct", type: "struct" },
-        Field({ name: "PanId", id: 0x0, type: "uint16", conformance: "TH", constraint: "max 65534" }),
-        Field({ name: "ExtendedPanId", id: 0x1, type: "uint64", conformance: "TH" }),
-        Field({ name: "NetworkName", id: 0x2, type: "string", conformance: "TH", constraint: "1 to 16" }),
-        Field({ name: "Channel", id: 0x3, type: "uint16", conformance: "TH" }),
-        Field({ name: "Version", id: 0x4, type: "uint8", conformance: "TH" }),
-        Field({ name: "ExtendedAddress", id: 0x5, type: "hwadr", conformance: "TH" }),
-        Field({ name: "Rssi", id: 0x6, type: "int8", conformance: "TH" }),
-        Field({ name: "Lqi", id: 0x7, type: "uint8", conformance: "TH" })
+        Field({ name: "PanId", id: 0x0, type: "uint16", conformance: "M", constraint: "max 65534" }),
+        Field({ name: "ExtendedPanId", id: 0x1, type: "uint64", conformance: "M" }),
+        Field({ name: "NetworkName", id: 0x2, type: "string", conformance: "M", constraint: "1 to 16" }),
+        Field({ name: "Channel", id: 0x3, type: "uint16", conformance: "M" }),
+        Field({ name: "Version", id: 0x4, type: "uint8", conformance: "M" }),
+        Field({ name: "ExtendedAddress", id: 0x5, type: "hwadr", conformance: "M" }),
+        Field({ name: "Rssi", id: 0x6, type: "int8", conformance: "M" }),
+        Field({ name: "Lqi", id: 0x7, type: "uint8", conformance: "M" })
     )
 );
 

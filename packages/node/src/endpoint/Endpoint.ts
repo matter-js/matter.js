@@ -904,14 +904,12 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         // String-keyed lookup avoids importing CommissioningClient/OperationalCredentialsClient: that would
         // form a cycle (Endpoint → CommissioningClient → ClientNode → Node → Endpoint).
         const commissioning = root.behaviors.maybeStateOf("commissioning") as
-            | { fabricIndexOnPeer?: FabricIndex }
-            | undefined;
+            { fabricIndexOnPeer?: FabricIndex } | undefined;
         if (commissioning?.fabricIndexOnPeer !== undefined) {
             return { fabricIndexOnPeer: commissioning.fabricIndexOnPeer };
         }
         const opcreds = root.behaviors.maybeStateOf("operationalCredentials") as
-            | { currentFabricIndex?: FabricIndex }
-            | undefined;
+            { currentFabricIndex?: FabricIndex } | undefined;
         const fallback = opcreds?.currentFabricIndex;
         if (fallback !== undefined && fallback !== FabricIndex.NO_FABRIC) {
             return { fabricIndexOnPeer: fallback };
@@ -1338,7 +1336,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     get #diagnosticProps() {
         const type = this.type;
         return {
-            "endpoint#": this.#number ? this.number : "(unassigned)",
+            "endpoint#": typeof this.#number === "number" ? this.number : "(unassigned)",
             type: `${type.name} (${
                 type.deviceType === EndpointType.UNKNOWN_DEVICE_TYPE
                     ? "unknown"

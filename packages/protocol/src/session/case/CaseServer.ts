@@ -79,7 +79,9 @@ export class CaseServer implements ProtocolHandler {
                 logger.warn(messenger.via, "Error establishing CASE session:", error);
             }
 
-            if (exchange.considerClosed) {
+            // Skip the error report when the exchange is closing or a sent message is still unacked: in either case
+            // the send cannot reach the peer and would only fail with a flow error.
+            if (exchange.considerClosed || exchange.hasUnackedMessage) {
                 return;
             }
 

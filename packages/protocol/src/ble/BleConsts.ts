@@ -6,7 +6,7 @@
 
 import { MAX_UDP_MESSAGE_SIZE, Millis, Seconds } from "@matter/general";
 
-/** @see {@link MatterSpecification.v11.Core} § 4.17.3.2 */
+/** @see {@link MatterSpecification.v16.Core} § 4.19 */
 export namespace MatterBle {
     /** Short 16-bit form of the Matter BLE service UUID. */
     export const SERVICE_UUID_SHORT = "fff6";

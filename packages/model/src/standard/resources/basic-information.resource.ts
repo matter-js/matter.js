@@ -388,6 +388,35 @@ Resource.add({
                         "\n" +
                         "This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, \"Subscribe " +
                         "Transaction\"."
+                },
+
+                {
+                    tag: "field", name: "SimultaneousInvocationsSupported", xref: "core§11.1.4.4.3",
+                    details: "This field shall indicate the actual maximum number of concurrent Invoke interactions that can be " +
+                        "processed simultaneously by the node before possibly returning a BUSY status code."
+                },
+                {
+                    tag: "field", name: "SimultaneousWritesSupported", xref: "core§11.1.4.4.4",
+                    details: "This field shall indicate the actual minimum number of concurrent Write interactions that can be " +
+                        "processed simultaneously by the node before possibly returning a BUSY status code."
+                },
+
+                {
+                    tag: "field", name: "ReadPathsSupported", xref: "core§11.1.4.4.5",
+                    details: "This field shall indicate the actual maximum number of read paths (i.e. the sum of lengths of the " +
+                        "lists of AttributePathIB and EventPathIB in the action) which a node guarantees being able to " +
+                        "process in any Read Request Action." +
+                        "\n" +
+                        "This is related to Section 2.11.2.1, \"Read Interaction Limits\"."
+                },
+
+                {
+                    tag: "field", name: "SubscribePathsSupported", xref: "core§11.1.4.4.6",
+                    details: "This field shall indicate the actual maximum number of subscription paths (i.e. the sum of lengths " +
+                        "of the lists of AttributePathIB and EventPathIB in the action) which a node guarantees being able to " +
+                        "process in any Subscribe Request Action." +
+                        "\n" +
+                        "This is related to Section 2.11.2.2, \"Subscribe Interaction Limits\"."
                 }
             ]
         }

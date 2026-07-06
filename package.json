@@ -14,6 +14,7 @@
         "packages/nodejs-ble",
         "packages/mqtt",
         "packages/main",
+        "packages/thread-br-client",
         "packages/nodejs-shell",
         "packages/react-native",
         "packages/cli-tool",
@@ -84,9 +85,9 @@
     },
     "devDependencies": {
         "c8": "^11.0.0",
-        "oxlint": "^1.70.0",
-        "oxlint-tsgolint": "^0.23.0",
-        "prettier": "^3.8.4",
+        "oxlint": "^1.72.0",
+        "oxlint-tsgolint": "^0.24.0",
+        "prettier": "^3.9.4",
         "prettier-plugin-organize-imports": "^4.3.0",
         "semver": "^7.8.5",
         "typescript": "~6.0.3"

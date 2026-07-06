@@ -22,6 +22,7 @@ Resource.add({
         { tag: "requirement", name: "RefrigeratorAndTemperatureControlledCabinetMode", xref: "device§13.4.4" },
         { tag: "requirement", name: "OvenMode", xref: "device§13.4.4" },
         { tag: "requirement", name: "OvenCavityOperationalState", xref: "device§13.4.4" },
+        { tag: "requirement", name: "TemperatureAlarm", xref: "device§13.4.4" },
         {
             tag: "condition", name: "Cooler", description: "The device has cooling functionality.",
             xref: "device§13.4.3"

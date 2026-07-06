@@ -14,7 +14,7 @@ import { Mei } from "./ManufacturerExtensibleIdentifier.js";
  * A "field ID" is an unsigned 32-bit integer that identifies a specific field
  * in a cluster struct type.
  *
- * @see {@link MatterSpecification.v11.Core} § 7.18.2.18
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2.32
  */
 export type FieldId = Branded<number, "FieldId">;
 

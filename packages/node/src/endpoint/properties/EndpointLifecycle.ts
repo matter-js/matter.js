@@ -30,6 +30,7 @@ export class EndpointLifecycle {
         this.emitError("changed", error),
     );
     #reset = AsyncObservable<[]>();
+    #configurationVersionChanged = Observable<[]>(error => this.emitError("configurationVersionChanged", error));
     #queuedUpdates?: Array<EndpointLifecycle.Change>;
 
     /**
@@ -86,6 +87,14 @@ export class EndpointLifecycle {
      */
     get reset() {
         return this.#reset;
+    }
+
+    /**
+     * Emitted when the endpoint's `ConfigurationVersion` changes — from `BasicInformation` on a node's root endpoint or
+     * `BridgedDeviceBasicInformation` on a bridged endpoint. Wired for client peers by {@link Peers}.
+     */
+    get configurationVersionChanged() {
+        return this.#configurationVersionChanged;
     }
 
     /**

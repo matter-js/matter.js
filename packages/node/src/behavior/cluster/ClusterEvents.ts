@@ -84,9 +84,8 @@ export namespace ClusterEvents {
         infer C extends ClusterType.Component,
         ...infer R extends ClusterType.Component[],
     ]
-        ?
-              | (S extends C["flags"] ? (C extends { attributes: infer A } ? RequiredKeysOf<A> : never) : never)
-              | MandatoryAttrKeys<R, S>
+        ? | (S extends C["flags"] ? (C extends { attributes: infer A } ? RequiredKeysOf<A> : never) : never)
+          | MandatoryAttrKeys<R, S>
         : never;
 
     /**
@@ -96,9 +95,8 @@ export namespace ClusterEvents {
         infer C extends ClusterType.Component,
         ...infer R extends ClusterType.Component[],
     ]
-        ?
-              | (S extends C["flags"] ? (C extends { attributes: infer A } ? keyof A & string : never) : never)
-              | ApplicableAttrKeys<R, S>
+        ? | (S extends C["flags"] ? (C extends { attributes: infer A } ? keyof A & string : never) : never)
+          | ApplicableAttrKeys<R, S>
         : never;
 
     /**
@@ -114,11 +112,15 @@ export namespace ClusterEvents {
      */
     type ChangingObservables<N extends ClusterTyping> = N extends { Attributes: infer A }
         ? {
-              [K in MandatoryAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
-                  keyof A as `${K & string}$Changing`]: ChangingObservable<A[K]>;
+              [
+                  K in MandatoryAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
+                      keyof A as `${K & string}$Changing`
+              ]: ChangingObservable<A[K]>;
           } & {
-              [K in OptionalAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
-                  keyof A as `${K & string}$Changing`]?: ChangingObservable<A[K]>;
+              [
+                  K in OptionalAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
+                      keyof A as `${K & string}$Changing`
+              ]?: ChangingObservable<A[K]>;
           }
         : {};
 
@@ -127,11 +129,15 @@ export namespace ClusterEvents {
      */
     type ChangedObservables<N extends ClusterTyping> = N extends { Attributes: infer A }
         ? {
-              [K in MandatoryAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
-                  keyof A as `${K & string}$Changed`]: ChangedObservable<A[K]>;
+              [
+                  K in MandatoryAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
+                      keyof A as `${K & string}$Changed`
+              ]: ChangedObservable<A[K]>;
           } & {
-              [K in OptionalAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
-                  keyof A as `${K & string}$Changed`]?: ChangedObservable<A[K]>;
+              [
+                  K in OptionalAttrKeys<ComponentsOf<N>, ClusterType.SupportedFeaturesOf<N>> &
+                      keyof A as `${K & string}$Changed`
+              ]?: ChangedObservable<A[K]>;
           }
         : {};
 

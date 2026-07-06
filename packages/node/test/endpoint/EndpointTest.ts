@@ -160,6 +160,7 @@ describe("Endpoint", () => {
                     privilege: AccessControl.AccessControlEntryPrivilege.Administer,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                 },
                 {
                     authMode: AccessControl.AccessControlEntryAuthMode.Case,
@@ -167,6 +168,7 @@ describe("Endpoint", () => {
                     privilege: AccessControl.AccessControlEntryPrivilege.Manage,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                 },
             ]);
         });
@@ -217,6 +219,7 @@ describe("Endpoint", () => {
                     privilege: AccessControl.AccessControlEntryPrivilege.Manage,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                 },
             ]);
         });

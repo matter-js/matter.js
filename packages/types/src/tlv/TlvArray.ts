@@ -12,7 +12,7 @@ import {
     ValidationOutOfBoundsError,
 } from "../common/ValidationError.js";
 import { TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
-import { TlvEncodingOptions, TlvReader, TlvSchema, TlvStream, TlvWriter } from "./TlvSchema.js";
+import { TlvDecodingOptions, TlvEncodingOptions, TlvReader, TlvSchema, TlvStream, TlvWriter } from "./TlvSchema.js";
 
 export type LengthConstraints = {
     minLength?: number;
@@ -29,7 +29,7 @@ export type ArrayAsChunked = ArrayChunkData[];
 /**
  * Schema to encode an array or string in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.2 and A.11.4
+ * @see {@link MatterSpecification.v16.Core} § A.11.2 and A.11.4
  */
 export class ArraySchema<T> extends TlvSchema<T[]> {
     constructor(
@@ -127,7 +127,7 @@ export class ArraySchema<T> extends TlvSchema<T[]> {
         });
     }
 
-    decodeFromChunkedArray(chunks: ArrayAsChunked, currentValue?: T[]): T[] {
+    decodeFromChunkedArray(chunks: ArrayAsChunked, currentValue?: T[], options?: TlvDecodingOptions): T[] {
         if (currentValue === undefined && chunks[0].listIndex !== undefined) {
             throw new UnexpectedDataError(
                 `When no current value is supplied the first chunked element needs to have a list index of undefined, but received ${chunks[0].listIndex}.`,
@@ -137,17 +137,17 @@ export class ArraySchema<T> extends TlvSchema<T[]> {
         for (const { listIndex, element } of chunks) {
             if (listIndex === undefined) {
                 // not set listIndex means "Override the whole array"
-                currentValue = this.decodeTlv(element);
+                currentValue = this.decodeTlv(element, options);
             } else if (listIndex === null) {
                 // null listIndex means "Append to the array"
-                const decodedElement = this.elementSchema.decodeTlv(element);
+                const decodedElement = this.elementSchema.decodeTlv(element, options);
                 currentValue.push(decodedElement);
             } else if (element[0].typeLength.type === TlvType.Null) {
                 // null element means "Remove from the array"
                 currentValue.splice(listIndex, 1);
             } else {
                 // otherwise, set the element at the given index
-                currentValue[listIndex] = this.elementSchema.decodeTlv(element);
+                currentValue[listIndex] = this.elementSchema.decodeTlv(element, options);
             }
         }
         return currentValue;

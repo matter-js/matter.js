@@ -76,7 +76,12 @@ export class PaseClient {
         } catch (error) {
             // Unlike CASE, for PASE we send InvalidParam even on abort. This signals the device to reset its
             // pairing state immediately, preventing a 60-second lockdown when cancelling parallel commissioning.
-            if (!causedBy(error, NetworkError, TransientPeerCommunicationError, RetransmissionLimitReachedError)) {
+            // Skip when a sent message is still unacked: the peer never acknowledged our prior message, so the
+            // device has no pairing state to reset and the send would only fail with a flow error.
+            if (
+                !exchange.hasUnackedMessage &&
+                !causedBy(error, NetworkError, TransientPeerCommunicationError, RetransmissionLimitReachedError)
+            ) {
                 try {
                     // Intentionally not passing the abort signal: we WANT to send InvalidParam even when
                     // aborting to signal the device to reset its pairing state immediately.  Passing an

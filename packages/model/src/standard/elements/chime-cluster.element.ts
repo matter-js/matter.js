@@ -31,12 +31,12 @@ export const Chime = Cluster(
     Attribute({ name: "SelectedChime", id: 0x1, type: "uint8", access: "RW VO", conformance: "M", quality: "N" }),
     Attribute({ name: "Enabled", id: 0x2, type: "bool", access: "RW VO", conformance: "M", quality: "N" }),
     Event(
-        { name: "ChimeStartedPlaying", id: 0x0, access: "V", conformance: "P, Rev >= v2", priority: "info" },
+        { name: "ChimeStartedPlaying", id: 0x0, access: "V", conformance: "Rev >= v2", priority: "info" },
         Field({ name: "ChimeId", id: 0x0, type: "uint8", conformance: "M" })
     ),
     Command(
         { name: "PlayChimeSound", id: 0x0, access: "O", conformance: "M", direction: "request" },
-        Field({ name: "ChimeId", id: 0x0, type: "uint8", conformance: "P, [Rev >= v2]" })
+        Field({ name: "ChimeId", id: 0x0, type: "uint8", conformance: "[Rev >= v2]" })
     ),
     Datatype(
         { name: "ChimeSoundStruct", type: "struct" },

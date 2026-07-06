@@ -98,6 +98,11 @@ describe("StandardCrypto", () => {
         expect(Bytes.toHex(hash)).equals("ab4a2b4fba653117");
     });
 
+    it("cmac matches RFC 4493 Example 2 via the Crypto abstraction", () => {
+        const out = crypto.cmac(b$`2b7e151628aed2a6abf7158809cf4f3c`, b$`6bc1bee22e409f96e93d7e117393172a`);
+        expect(Bytes.toHex(out)).equals("070a16b46b4d4144f79bdd9dd04a287c");
+    });
+
     it("computes correct DH shared secret", async () => {
         const key1 = await crypto.createKeyPair();
         const key2 = await crypto.createKeyPair();
@@ -201,5 +206,40 @@ describe("StandardCrypto", () => {
                 });
             });
         });
+    });
+});
+
+describe("StandardCrypto AES-CCM-8", () => {
+    // RFC 3610 Packet Vector #1 (13-byte nonce, 8-byte tag).
+    const key = b$`c0c1c2c3c4c5c6c7c8c9cacbcccdcecf`;
+    const nonce = b$`00000003020100a0a1a2a3a4a5`;
+    const aad = b$`0001020304050607`;
+    const pt = b$`08090a0b0c0d0e0f101112131415161718191a1b1c1d1e`;
+
+    it("encrypts with an 8-byte tag (nonce=13, L=2)", () => {
+        const ct = crypto.encrypt(Bytes.of(key), Bytes.of(pt), Bytes.of(nonce), Bytes.of(aad), 8);
+        expect(Bytes.toHex(ct)).equals("588c979a61c663d2f066d0c2c0f989806d5f6b61dac38417e8d12cfdf926e0");
+    });
+
+    it("round-trips tag-8 with a 12-byte nonce (L=3)", () => {
+        const n12 = new Uint8Array(12).fill(0x55);
+        const ct = crypto.encrypt(Bytes.of(key), Bytes.of(pt), n12, Bytes.of(aad), 8);
+        const back = crypto.decrypt(Bytes.of(key), ct, n12, Bytes.of(aad), 8);
+        expect(Bytes.toHex(back)).equals(Bytes.toHex(Bytes.of(pt)));
+    });
+
+    // NIST SP 800-38C Appendix C Example 3 (12-byte nonce, L=3, 8-byte tag).
+    it("encrypts/decrypts the NIST SP 800-38C Example 3 KAT (nonce=12, L=3, tag=8)", () => {
+        const nistKey = b$`404142434445464748494a4b4c4d4e4f`;
+        const nistNonce = b$`101112131415161718191a1b`;
+        const nistAad = b$`000102030405060708090a0b0c0d0e0f10111213`;
+        const nistPt = b$`202122232425262728292a2b2c2d2e2f3031323334353637`;
+        const expected = "e3b201a9f5b71a7a9b1ceaeccd97e70b6176aad9a4428aa5484392fbc1b09951";
+
+        const ct = crypto.encrypt(Bytes.of(nistKey), Bytes.of(nistPt), Bytes.of(nistNonce), Bytes.of(nistAad), 8);
+        expect(Bytes.toHex(ct)).equals(expected);
+
+        const back = crypto.decrypt(Bytes.of(nistKey), ct, Bytes.of(nistNonce), Bytes.of(nistAad), 8);
+        expect(Bytes.toHex(back)).equals(Bytes.toHex(Bytes.of(nistPt)));
     });
 });

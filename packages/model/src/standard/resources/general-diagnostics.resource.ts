@@ -117,6 +117,10 @@ Resource.add({
         },
 
         { tag: "attribute", name: "DoNotUse", xref: "core§11.12.6" },
+        {
+            tag: "attribute", name: "DeviceLoadStatus", xref: "core§11.12.6.10",
+            details: "Indicates the status of various resources used."
+        },
 
         {
             tag: "event", name: "HardwareFaultChange", xref: "core§11.12.8.1",
@@ -523,6 +527,50 @@ Resource.add({
                 {
                     tag: "field", name: "Type", xref: "core§11.12.5.6.8",
                     details: "This field shall indicate the type of the interface using the InterfaceTypeEnum."
+                }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DeviceLoadStruct", xref: "core§11.12.5.7",
+
+            details: "This structure describes some important resource utilization metrics for the Node, as provided in " +
+                "the DeviceLoadStatus attribute." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: For all the fields, the value shall remain at the maximum representable (clamp to max) if " +
+                "the maximum value is reached.",
+
+            children: [
+                {
+                    tag: "field", name: "CurrentSubscriptions", xref: "core§11.12.5.7.1",
+                    details: "This field shall indicate the number of currently-active Interaction Model subscriptions across all " +
+                        "fabrics on the node."
+                },
+                {
+                    tag: "field", name: "CurrentSubscriptionsForFabric", xref: "core§11.12.5.7.2",
+                    details: "This field shall indicate the number of currently-active Interaction Model subscriptions for the " +
+                        "accessing fabric only. If no accessing fabric is available, this field shall be set to zero."
+                },
+                {
+                    tag: "field", name: "TotalSubscriptionsEstablished", xref: "core§11.12.5.7.3",
+                    details: "This field shall indicate the total number of Interaction Model subscriptions successfully " +
+                        "established across all fabrics on the node since start-up."
+                },
+
+                {
+                    tag: "field", name: "TotalInteractionModelMessagesSent", xref: "core§11.12.5.7.4",
+                    details: "This field shall indicate the number of outgoing Interaction Model protocol messages sent since " +
+                        "start-up. These are messages that have the Protocol ID set to PROTOCOL_ID_INTERACTION_MODEL, " +
+                        "excluding any retries of such messages."
+                },
+
+                {
+                    tag: "field", name: "TotalInteractionModelMessagesReceived", xref: "core§11.12.5.7.5",
+                    details: "This field shall indicate the number of incoming Interaction Model protocol messages received since " +
+                        "start-up. These are messages that have the Protocol ID set to PROTOCOL_ID_INTERACTION_MODEL, " +
+                        "excluding any retries of such messages."
                 }
             ]
         }

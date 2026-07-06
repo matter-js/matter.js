@@ -205,7 +205,9 @@ export class PaseServer implements ProtocolHandler {
     }
 
     async cancelPairing(messenger: PaseServerMessenger, sendError = true) {
-        if (sendError) {
+        // Skip the error report when a sent message is still unacked: the peer never acknowledged our prior message,
+        // so the send would only fail with a flow error.
+        if (sendError && !messenger.exchange.hasUnackedMessage) {
             try {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             } catch (error) {

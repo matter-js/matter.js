@@ -23,15 +23,17 @@ const logger = Logger.get("GroupKeyManagementServer");
 
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 
+const GroupKeyManagementBase = GroupKeyManagementBehavior;
+
 // Enhance the schema by a fabric scoped structure for the GroupKeySetStruct to enable persistence
-const groupKeySetStruct = GroupKeyManagementBehavior.schema.datatypes.require("GroupKeySetStruct");
+const groupKeySetStruct = GroupKeyManagementBase.schema.datatypes.require("GroupKeySetStruct");
 const groupKeySetStructFS = groupKeySetStruct.extend(
     {
         name: "GroupKeySetStructFS",
     },
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
-const schema = GroupKeyManagementBehavior.schema.extend(
+const schema = GroupKeyManagementBase.schema.extend(
     {},
     groupKeySetStructFS,
     FieldElement(
@@ -49,13 +51,20 @@ const schema = GroupKeyManagementBehavior.schema.extend(
 /**
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
  */
-export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
+export class GroupKeyManagementServer extends GroupKeyManagementBase {
     declare readonly state: GroupKeyManagementServer.State;
     static override readonly schema = schema;
 
     override initialize() {
         if (this.features.cacheAndSync) {
             throw new ImplementationError("The CacheAndSync feature is provisional. Do not use it.");
+        }
+
+        // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
+        if (this.features.groupcast) {
+            throw new ImplementationError(
+                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
+            );
         }
 
         // Validate the state
@@ -163,6 +172,17 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     }
 
     #validateGroupKeyMap(groupKeyMap: GroupKeyManagement.GroupKeyMap[]) {
+        // When GCAST is active and the fabric has adopted Groupcast, GroupKeyMap is read-only
+        if (this.features.groupcast && hasRemoteActor(this.context)) {
+            const fabricIndex = this.context.session?.fabric?.fabricIndex;
+            if (fabricIndex !== undefined && this.#isGroupcastAdoptedForFabric(fabricIndex)) {
+                throw new StatusResponseError(
+                    "GroupKeyMap is read-only when GroupcastAdoption.GroupcastAdopted is true",
+                    Status.InvalidInState,
+                );
+            }
+        }
+
         const knownGroupKeys = new Set<string>();
         for (const keySetId of this.state.groupKeySets) {
             const { groupKeySetId, fabricIndex } = keySetId;
@@ -422,10 +442,10 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         }
         this.state.groupKeySets.splice(existingIndex, 1);
 
-        // If there exist any entries for the accessing fabric within the GroupKeyMap attribute that refer to the
-        // GroupKeySetID just removed, then these entries SHALL be removed from that list.
+        // Per core§11.2.7.4.1: GroupKeyMap entries for the accessing fabric that refer to the removed key set SHALL be
+        // removed from the list.
         this.state.groupKeyMap = this.state.groupKeyMap.filter(
-            ({ groupKeySetId: entryId }) => groupKeySetId !== entryId,
+            entry => entry.fabricIndex !== fabricIndex || entry.groupKeySetId !== groupKeySetId,
         );
 
         // Sync to Fabric group manager to remove too
@@ -517,10 +537,74 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         }
         return existing;
     }
+
+    #isGroupcastAdoptedForFabric(fabricIndex: FabricIndex): boolean {
+        if (!this.features.groupcast) return false;
+        if (!this.state.groupcastAdoption) return false;
+        return this.state.groupcastAdoption.some(entry => entry.fabricIndex === fabricIndex && entry.groupcastAdopted);
+    }
+
+    /**
+     * Returns whether a GroupKeySetId exists for a given fabric. Called by GroupcastServer to validate KeySetIDs.
+     */
+    validateKeySetId(fabricIndex: FabricIndex, keySetId: number): boolean {
+        if (keySetId === 0) {
+            // IPK key set always exists
+            return true;
+        }
+        return this.state.groupKeySets.some(
+            entry => entry.fabricIndex === fabricIndex && entry.groupKeySetId === keySetId,
+        );
+    }
+
+    /**
+     * Creates a new GroupKeySet for a Groupcast group key, bypassing normal KeySetWrite validation.
+     * Used by GroupcastServer when JoinGroup or UpdateGroupKey is called with a `key` parameter.
+     * The key set uses TrustFirst policy and epochStartTime0=IPK_DEFAULT_EPOCH_START_TIME (Matter epoch zero = Jan 1, 2000).
+     *
+     * @returns true on success, throws if the key set already exists or resources are exhausted
+     */
+    createKeySetForGroupcast(fabric: Fabric, keySetId: number, epochKey0: Uint8Array): Promise<void> {
+        const fabricIndex = fabric.fabricIndex;
+        const keySetsOfFabric = this.state.groupKeySets.filter(({ fabricIndex: fi }) => fi === fabricIndex).length + 1;
+        if (keySetsOfFabric >= this.state.maxGroupKeysPerFabric) {
+            throw new StatusResponseError(
+                `Too many group key sets for fabric ${fabricIndex}`,
+                Status.ResourceExhausted,
+            );
+        }
+        const groupKeySet: GroupKeyManagement.GroupKeySet & { fabricIndex: FabricIndex } = {
+            groupKeySetId: keySetId,
+            groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+            epochKey0,
+            epochStartTime0: IPK_DEFAULT_EPOCH_START_TIME, // Matter epoch zero
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+            fabricIndex,
+        };
+        this.state.groupKeySets.push(groupKeySet);
+        // Update the fabric group manager so the key is immediately usable
+        return fabric.groups.setFromGroupKeySet(groupKeySet);
+    }
+
+    setGroupcastAdopted(fabricIndex: FabricIndex, adopted: boolean) {
+        if (!this.state.groupcastAdoption) return;
+        const existing = this.state.groupcastAdoption.findIndex(e => e.fabricIndex === fabricIndex);
+        if (existing !== -1) {
+            this.state.groupcastAdoption[existing] = {
+                ...this.state.groupcastAdoption[existing],
+                groupcastAdopted: adopted,
+            };
+        } else {
+            this.state.groupcastAdoption.push({ fabricIndex, groupcastAdopted: adopted });
+        }
+    }
 }
 
 export namespace GroupKeyManagementServer {
-    export class State extends GroupKeyManagementBehavior.State {
+    export class State extends GroupKeyManagementBase.State {
         /**
          * Extended state to hold and persist the group key sets for this server. This structure contains all
          * GroupKeySet entries for all fabrics beside the fabric specific entries of the groupKeyset 0
@@ -529,6 +613,12 @@ export namespace GroupKeyManagementServer {
 
         // Overwrite defaults to allow more than 3 group keys and 4 groups per fabric, because we can
         override maxGroupKeysPerFabric = 20; // The Minimum would be 3;
-        override maxGroupsPerFabric = 21; // The Minimum would be 4;
+        override maxGroupsPerFabric = 22; // The Minimum would be 4. Aligned with Groupcast quota=floor(44/2).
+
+        /**
+         * Per-fabric Groupcast adoption state (provisional Matter 1.6 GCAST feature).  Only present when the Groupcast
+         * feature is enabled; the default server rejects it while provisional.
+         */
+        declare groupcastAdoption?: GroupKeyManagement.GroupcastAdoption[];
     }
 }
