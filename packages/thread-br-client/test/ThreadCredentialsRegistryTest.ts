@@ -217,5 +217,14 @@ describe("ThreadCredentialsRegistry", () => {
             snapshot.length = 0;
             expect(registry.list()).to.have.lengthOf(1);
         });
+
+        it("returns copies of the byte-array fields — mutating them does not reach the stored entry", () => {
+            registry.registerCredentials(makeCreds());
+            const entry = registry.list()[0];
+            Bytes.of(entry.extPanId)[0] ^= 0xff;
+            Bytes.of(entry.pskc)[0] ^= 0xff;
+            expect(registry.list()[0].extPanId).to.deep.equal(makeCreds().extPanId);
+            expect(registry.list()[0].pskc).to.deep.equal(makeCreds().pskc);
+        });
     });
 });

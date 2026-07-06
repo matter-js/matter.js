@@ -86,9 +86,9 @@ export class ThreadCredentialsRegistry {
         return this.#byExtPanId.get(keyOf(extPanId));
     }
 
-    /** Defensive snapshot — caller cannot mutate the registry through it. */
+    /** Defensive snapshot — caller cannot mutate the registry through it, including the byte-array fields. */
     list(): ReadonlyArray<ThreadNetworkCredentials> {
-        return Array.from(this.#byExtPanId.values());
+        return Array.from(this.#byExtPanId.values(), snapshot);
     }
 }
 

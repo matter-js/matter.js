@@ -765,6 +765,48 @@ describe("NobleDtlsChannel — UDP-bound EC-JPAKE handshake", () => {
         }
     });
 
+    it("drops a malformed inbound datagram instead of failing the session", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);
+        const server = await UdpMirrorServer.create(serverNetwork, { password: DEFAULT_PASSWORD });
+
+        const socket = new NobleDtlsChannel({
+            address: SERVER_IP,
+            port: server.port,
+            password: DEFAULT_PASSWORD,
+            type: "udp4",
+            random: makeFixedRandom(0xa6),
+            ephemeralScalar: makeScalarStream(0xbeefn),
+            connectTimeoutMs: 5000,
+            environment: mockEnvironment(simulator, "00:11:22:33:44:01", CLIENT_IP),
+        });
+        try {
+            await socket.connect();
+
+            let closed = false;
+            socket.onClose(() => {
+                closed = true;
+            });
+
+            // A truncated datagram (shorter than a DTLS record header) is discarded, not fatal.
+            await server.resendRaw(Bytes.of(Bytes.fromHex("00112233")));
+            await MockTime.macrotask;
+
+            expect(closed).to.equal(false);
+            expect(socket.isConnected()).to.equal(true);
+
+            // A fresh valid record still works — the session survived the bad datagram.
+            const reply = Bytes.of(Bytes.fromHex("616761696e"));
+            await server.sendAppData(reply);
+            const received = await socket[Symbol.asyncIterator]().next();
+            expect(received.done).to.equal(false);
+            expect(Bytes.toHex(Bytes.of(received.value))).to.equal(Bytes.toHex(reply));
+        } finally {
+            await socket.close();
+            await server.close();
+        }
+    });
+
     it("closes the channel when a for-await consumer breaks early", async () => {
         const simulator = new NetworkSimulator();
         const serverNetwork = new MockNetwork(simulator, "00:11:22:33:44:02", [SERVER_IP]);

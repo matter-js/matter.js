@@ -424,28 +424,33 @@ export class NobleDtlsChannel implements DtlsChannel {
         }
         let p = 0;
         while (p < bytes.length) {
+            // A framing error leaves no reliable next-record boundary, so drop the rest of the
+            // datagram rather than tear down the channel (RFC 6347 §4.1.2.7: bad records are discarded).
             if (bytes.length - p < DTLS_HEADER_LEN) {
-                throw new DtlsError("NobleDtlsChannel: short DTLS record header");
+                logger.info("Dropping DTLS datagram with a truncated record header");
+                return;
             }
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + DTLS_HEADER_LEN + length;
             if (recordEnd > bytes.length) {
-                throw new DtlsError("NobleDtlsChannel: DTLS record length overruns datagram");
+                logger.info("Dropping DTLS datagram: record length overruns the datagram");
+                return;
             }
             const slice = bytes.subarray(p, recordEnd);
             let record: DtlsRecord;
             try {
                 ({ record } = await DtlsRecord.decode(crypto, slice, cipherState));
             } catch (e) {
-                // RFC 6347 §4.1.2.6: a replayed/old-sequence record is benign (normal UDP
-                // duplication) — drop just this record and keep processing the datagram.
-                // Every other decode failure (AEAD, malformed) stays fatal.
+                // RFC 6347 §4.1.2.6/§4.1.2.7: a replayed/old-sequence record or one that fails to
+                // decrypt/decode (AEAD auth failure, malformed content) is discarded — drop just this
+                // record and keep processing rather than tear down a working channel.
                 if (e instanceof DtlsReplayError) {
                     logger.debug(`Dropping replayed DTLS record epoch=${e.epoch} seq=${e.sequenceNumber}`);
-                    p = recordEnd;
-                    continue;
+                } else {
+                    logger.info(`Dropping undecodable DTLS record: ${errorOf(e).message}`);
                 }
-                throw e;
+                p = recordEnd;
+                continue;
             }
             if (record.type === ContentType.APPLICATION_DATA) {
                 this.#deliverPlaintext(Bytes.of(record.fragment));
@@ -488,6 +493,9 @@ export class NobleDtlsChannel implements DtlsChannel {
             return;
         }
         const step = await client.onRetransmit();
+        if (this.#closed) {
+            return;
+        }
         this.#sendRecords(step.records);
     }
 
