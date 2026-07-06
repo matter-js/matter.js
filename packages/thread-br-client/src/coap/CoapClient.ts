@@ -10,6 +10,7 @@ import {
     type Duration,
     type Entropy,
     type Environment,
+    errorOf,
     ImplementationError,
     Logger,
     Millis,
@@ -19,7 +20,7 @@ import {
     Timer,
 } from "@matter/general";
 import type { DtlsChannel } from "../dtls/channel/DtlsChannel.js";
-import { CoapMessage } from "./CoapMessage.js";
+import { CoapError, CoapMessage } from "./CoapMessage.js";
 
 const logger = Logger.get("CoapClient");
 
@@ -71,14 +72,6 @@ function pathsEqual(a: string[], b: string[]): boolean {
     return true;
 }
 
-function tokenHex(token: Uint8Array): string {
-    let out = "";
-    for (const b of token) {
-        out += b.toString(16).padStart(2, "0");
-    }
-    return out;
-}
-
 export class CoapClient {
     #entropy: Entropy;
     #messageId: number;
@@ -110,7 +103,7 @@ export class CoapClient {
         type: "CON" | "NON";
         code: string;
         uriPath: string[];
-        payload?: Uint8Array;
+        payload?: Bytes;
     }): Promise<CoapMessage> {
         const messageId = this.#nextMessageId();
         const token = this.#randomToken();
@@ -152,7 +145,7 @@ export class CoapClient {
                 `CoapClient: messageId collision at ${msg.messageId} — too many concurrent CON requests`,
             );
         }
-        const reqTokenHex = tokenHex(msg.token);
+        const reqTokenHex = Bytes.toHex(msg.token);
         if (this.#pendingByToken.has(reqTokenHex)) {
             throw new ImplementationError(`CoapClient: token collision for ${reqTokenHex}`);
         }
@@ -229,7 +222,7 @@ export class CoapClient {
                     scheduleRetransmit(initialDelay);
                 })
                 .catch(err => {
-                    state.reject(err instanceof Error ? err : new Error(String(err)));
+                    state.reject(errorOf(err));
                 });
         });
     }
@@ -240,7 +233,7 @@ export class CoapClient {
             for await (const bytes of this.#channel) {
                 let msg: CoapMessage;
                 try {
-                    msg = CoapMessage.decode(Bytes.of(bytes));
+                    msg = CoapMessage.decode(bytes);
                 } catch (err) {
                     logger.debug(`CoAP inbound decode failed, dropping: ${err}`);
                     continue;
@@ -249,9 +242,9 @@ export class CoapClient {
                 await this.#dispatchInbound(msg);
             }
         } catch (err) {
-            channelError = err instanceof Error ? err : new Error(String(err));
+            channelError = errorOf(err);
         } finally {
-            const err = channelError ?? new Error("CoapClient: channel closed");
+            const err = channelError ?? new CoapError("CoapClient: channel closed");
             // Reject all outstanding requests (both maps reference the same PendingState entries).
             for (const state of this.#pendingByToken.values()) {
                 state.reject(err);
@@ -268,7 +261,7 @@ export class CoapClient {
                 // Stray ACK (duplicate or for a request we no longer track) — ignore.
                 return;
             }
-            const isEmptyAck = msg.code === "0.00" && msg.payload.length === 0;
+            const isEmptyAck = msg.code === "0.00" && msg.payload.byteLength === 0;
             if (isEmptyAck) {
                 // Separate response coming.
                 state.onEmptyAck();
@@ -282,14 +275,14 @@ export class CoapClient {
         if (msg.type === "RST") {
             const state = this.#pendingByMsgId.get(msg.messageId);
             if (state !== undefined) {
-                state.reject(new Error(`CoAP RST received for messageId=${msg.messageId}`));
+                state.reject(new CoapError(`CoAP RST received for messageId=${msg.messageId}`));
             }
             return;
         }
 
         // CON or NON. Check token first so a separate response is routed back to the
         // originating #sendCon call regardless of which Uri-Path the BR replied on.
-        const inboundTokenHex = tokenHex(msg.token);
+        const inboundTokenHex = Bytes.toHex(msg.token);
         const pending = this.#pendingByToken.get(inboundTokenHex);
         if (pending !== undefined) {
             if (msg.type === "CON") {
@@ -338,7 +331,7 @@ export class CoapClient {
         }
         if (delivered === 0) {
             logger.debug(
-                `CoAP inbound consumed by no request or listener: uri=${uri} type=${msg.type} code=${msg.code} payloadLen=${msg.payload.length}`,
+                `CoAP inbound consumed by no request or listener: uri=${uri} type=${msg.type} code=${msg.code} payloadLen=${msg.payload.byteLength}`,
             );
         }
     }
@@ -349,7 +342,7 @@ export class CoapClient {
         return id;
     }
 
-    #randomToken(): Uint8Array {
+    #randomToken(): Bytes {
         return Bytes.of(this.#entropy.randomBytes(4));
     }
 }

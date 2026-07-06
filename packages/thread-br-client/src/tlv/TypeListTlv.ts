@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 
 /**
  * Type List TLV value codec (Network Diagnostic TLV type 18).
@@ -20,7 +20,7 @@ import { InternalError } from "@matter/general";
  * `TlvInfo<kTypeList>`) and `network_diagnostic.cpp` request payload handling.
  */
 export namespace TypeListTlv {
-    export function encode(types: ReadonlyArray<number>): Uint8Array {
+    export function encode(types: ReadonlyArray<number>): Bytes {
         const out = new Uint8Array(types.length);
         for (let i = 0; i < types.length; i++) {
             const t = types[i];
@@ -32,7 +32,7 @@ export namespace TypeListTlv {
         return out;
     }
 
-    export function decode(value: Uint8Array): number[] {
-        return Array.from(value);
+    export function decode(value: Bytes): number[] {
+        return Array.from(Bytes.of(value));
     }
 }

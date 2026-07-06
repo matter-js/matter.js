@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import { LeadKa } from "../src/commissioner/LeadKa.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 function buildStateResponse(state: number): Uint8Array {
-    return BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([state]) }]);
+    return Bytes.of(BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([state]) }]));
 }
 
 describe("LeadKa", () => {
@@ -58,9 +58,11 @@ describe("LeadKa", () => {
         });
 
         it("throws when STATE TLV is missing", () => {
-            const payload = BasicTlv.encode([
-                { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: new Uint8Array([0x00, 0x07]) },
-            ]);
+            const payload = Bytes.of(
+                BasicTlv.encode([
+                    { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: new Uint8Array([0x00, 0x07]) },
+                ]),
+            );
             expect(() => LeadKa.parseResponse(payload)).to.throw(/STATE/i);
         });
     });
@@ -70,7 +72,8 @@ describe("LeadKa", () => {
             const sessionId = 1234;
             const payload = LeadKa.buildRequest(sessionId);
             const entries = BasicTlv.walk(payload);
-            const decoded = (entries[1].value[0] << 8) | entries[1].value[1];
+            const sessionIdValue = Bytes.of(entries[1].value);
+            const decoded = (sessionIdValue[0] << 8) | sessionIdValue[1];
             expect(decoded).to.equal(sessionId);
         });
     });

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ServerAddress } from "@matter/general";
 import type { BorderRouterEntry } from "../discovery/BorderRouterEntry.js";
 
 /**
@@ -38,10 +39,16 @@ export function decodeStateBitmap(hex: string | undefined): DecodedStateBitmap {
 }
 
 function hasLinkLocal(addresses: ReadonlyArray<string>): boolean {
-    for (const addr of addresses) {
-        if (addr.toLowerCase().startsWith("fe80:")) return true;
-    }
-    return false;
+    return addresses.some(ServerAddress.isIpv6LinkLocal);
+}
+
+/**
+ * A BR is dialable only if it exposes at least one non-link-local address:
+ * `connectMeshcop` rejects link-local-only BRs (scope IDs are not preserved
+ * through every mDNS resolver path).
+ */
+function hasDialableAddress(addresses: ReadonlyArray<string>): boolean {
+    return addresses.some(addr => !ServerAddress.isIpv6LinkLocal(addr));
 }
 
 function scoreOf(br: BorderRouterEntry): number {
@@ -54,10 +61,11 @@ function scoreOf(br: BorderRouterEntry): number {
 }
 
 /**
- * Pick the best BR per spec FR-12 priority:
+ * Pick the best dialable BR. BRs without a non-link-local address are excluded
+ * (see {@link rankBrs}); the rest are ordered by spec FR-12 priority:
  *   1. State bitmap "BBR Active + Primary" (bits 7 and 8) wins.
  *   2. Then BBR Active but not Primary.
- *   3. Among equals: BR with at least one IPv6 link-local (`fe80:`) address wins.
+ *   3. Among equals: BR with at least one IPv6 link-local (`fe80::/10`) address wins.
  *   4. Among equals: alphabetical `extAddressHex` ascending (deterministic tie-break).
  */
 export function selectBr(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEntry | undefined {
@@ -65,13 +73,18 @@ export function selectBr(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEnt
 }
 
 /**
- * Rank all candidate BRs best-first using the same priority as {@link selectBr}.
- * Callers fall back to later entries when the preferred BR is unreachable.
+ * Rank dialable candidate BRs best-first using the same priority as
+ * {@link selectBr}. BRs without a non-link-local address are dropped — they
+ * can never be dialed (see {@link hasDialableAddress}), so returning them would
+ * only waste a connect attempt. Callers fall back to later entries when the
+ * preferred BR is unreachable.
  */
 export function rankBrs(brs: ReadonlyArray<BorderRouterEntry>): BorderRouterEntry[] {
-    return [...brs].sort((a, b) => {
-        const byScore = scoreOf(b) - scoreOf(a);
-        if (byScore !== 0) return byScore;
-        return a.extAddressHex < b.extAddressHex ? -1 : a.extAddressHex > b.extAddressHex ? 1 : 0;
-    });
+    return brs
+        .filter(br => hasDialableAddress(br.addresses))
+        .sort((a, b) => {
+            const byScore = scoreOf(b) - scoreOf(a);
+            if (byScore !== 0) return byScore;
+            return a.extAddressHex < b.extAddressHex ? -1 : a.extAddressHex > b.extAddressHex ? 1 : 0;
+        });
 }

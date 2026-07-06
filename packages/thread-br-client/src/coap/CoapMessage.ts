@@ -12,12 +12,17 @@ export interface CoapMessage {
     type: CoapType;
     code: string;
     messageId: number;
-    token: Uint8Array;
+    token: Bytes;
     uriPath?: string[];
-    payload: Uint8Array;
+    payload: Bytes;
 }
 
-/** Thrown when a CoAP datagram cannot be decoded per RFC 7252 §3. */
+/**
+ * Thrown for CoAP-layer failures: a datagram that cannot be decoded per RFC
+ * 7252 §3, an RST response, or a clean close of the underlying channel while
+ * requests are still outstanding. A channel that fails with its own error
+ * propagates that error unchanged.
+ */
 export class CoapError extends MatterError {}
 
 const VERSION = 1;
@@ -75,8 +80,10 @@ function encodeOption(out: number[], delta: number, value: Uint8Array): void {
 }
 
 export namespace CoapMessage {
-    export function encode(msg: CoapMessage): Uint8Array {
-        const tokenLength = msg.token.length;
+    export function encode(msg: CoapMessage): Bytes {
+        const token = Bytes.of(msg.token);
+        const payload = Bytes.of(msg.payload);
+        const tokenLength = token.length;
         if (tokenLength > 8) {
             throw new CoapError(`CoAP token too long: ${tokenLength} (max 8)`);
         }
@@ -85,7 +92,7 @@ export namespace CoapMessage {
         out.push((VERSION << 6) | (TYPE_TO_BITS[msg.type] << 4) | tokenLength);
         out.push(encodeCode(msg.code));
         out.push((msg.messageId >> 8) & 0xff, msg.messageId & 0xff);
-        pushAll(out, msg.token);
+        pushAll(out, token);
 
         if (msg.uriPath !== undefined) {
             let lastOptionNumber = 0;
@@ -95,15 +102,16 @@ export namespace CoapMessage {
             }
         }
 
-        if (msg.payload.length > 0) {
+        if (payload.length > 0) {
             out.push(PAYLOAD_MARKER);
-            pushAll(out, msg.payload);
+            pushAll(out, payload);
         }
 
         return Uint8Array.from(out);
     }
 
-    export function decode(bytes: Uint8Array): CoapMessage {
+    export function decode(input: Bytes): CoapMessage {
+        const bytes = Bytes.of(input);
         if (bytes.length < 4) {
             throw new CoapError(`CoAP message too short: ${bytes.length} bytes`);
         }

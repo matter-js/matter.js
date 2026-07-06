@@ -9,6 +9,7 @@ import {
     Crypto,
     type Duration,
     type Entropy,
+    errorOf,
     ImplementationError,
     InternalError,
     Logger,
@@ -102,7 +103,15 @@ export class NobleDtlsChannel implements DtlsChannel {
 
     #udp: UdpSocket | undefined;
     #client: DtlsClient | undefined;
+    #crypto: Crypto | undefined;
     #retransmit: DtlsRetransmitTimer | undefined;
+
+    /**
+     * Serializes every DtlsClient / record-codec interaction. UDP `onData` fires
+     * sequentially but async handlers interleave at each `await`; chaining onto this
+     * promise guarantees datagrams and retransmits never re-enter the client concurrently.
+     */
+    #inbound: Promise<void> = Promise.resolve();
 
     /** Established cipher state (snapshot of the DtlsClient's after handshake). */
     #cipherState: DtlsCipherState | undefined;
@@ -153,14 +162,18 @@ export class NobleDtlsChannel implements DtlsChannel {
 
         const environment = this.#opts.environment;
         const network = environment.get(Network);
-        const entropy = environment.get(Crypto);
+        const crypto = environment.get(Crypto);
+        this.#crypto = crypto;
         const udp = await network.createUdpSocket({ type: this.#udpType, listeningPort: 0 });
         if (this.#closed) {
             await udp.close();
             throw new ImplementationError("NobleDtlsChannel.connect: closed");
         }
         this.#udp = udp;
-        udp.onData((_netInterface, _peerAddress, _peerPort, data) => this.#onDatagram(Bytes.of(data)));
+        udp.onData((_netInterface, _peerAddress, _peerPort, data) => {
+            const bytes = Bytes.of(data);
+            this.#enqueue(() => this.#onDatagram(bytes));
+        });
 
         const initialRetransmit: Duration =
             this.#opts.initialRetransmitMs !== undefined
@@ -170,9 +183,10 @@ export class NobleDtlsChannel implements DtlsChannel {
             this.#opts.maxRetransmitMs !== undefined ? Millis(this.#opts.maxRetransmitMs) : DEFAULT_MAX_RETRANSMIT;
 
         const clientCfg: DtlsClientConfig = {
+            crypto,
             password: this.#opts.password,
-            random: this.#opts.random ?? (() => defaultRandom(entropy)),
-            ephemeralScalar: this.#opts.ephemeralScalar ?? (() => defaultEphemeralScalar(entropy)),
+            random: this.#opts.random ?? (() => defaultRandom(crypto)),
+            ephemeralScalar: this.#opts.ephemeralScalar ?? (() => defaultEphemeralScalar(crypto)),
             initialRetransmitMs: initialRetransmit,
             maxRetransmitMs: maxRetransmit,
             mtu: this.#opts.mtu ?? DEFAULT_MTU,
@@ -184,7 +198,7 @@ export class NobleDtlsChannel implements DtlsChannel {
             initialMs: initialRetransmit,
             maxMs: maxRetransmit,
             maxRetransmits: this.#opts.maxRetransmits ?? DEFAULT_MAX_RETRANSMITS,
-            onRetransmit: () => this.#onRetransmit(),
+            onRetransmit: () => this.#enqueue(() => this.#onRetransmit()),
             onGiveUp: () => this.#fail(new DtlsError("NobleDtlsChannel: handshake gave up after max retransmits")),
         });
 
@@ -197,14 +211,9 @@ export class NobleDtlsChannel implements DtlsChannel {
             this.#fail(new TimeoutError(`NobleDtlsChannel: connect timed out after ${connectTimeout}ms`)),
         ).start();
 
-        // Drive the first flight.
-        try {
-            const step = client.start();
-            this.#sendRecords(step.records);
-            this.#retransmit.armNewFlight();
-        } catch (e) {
-            this.#fail(e instanceof Error ? e : new InternalError(String(e)));
-        }
+        // Drive the first flight on the same serialization queue as inbound/retransmit,
+        // so a datagram arriving mid-`start()` cannot re-enter the client concurrently.
+        this.#enqueue(() => this.#startHandshake());
 
         try {
             await connectPromise;
@@ -223,18 +232,22 @@ export class NobleDtlsChannel implements DtlsChannel {
         }
         const cipherState = this.#cipherState;
         const udp = this.#udp;
-        if (cipherState === undefined || udp === undefined) {
+        const crypto = this.#crypto;
+        if (cipherState === undefined || udp === undefined || crypto === undefined) {
             throw new InternalError("NobleDtlsChannel.send: missing cipher state or transport");
         }
         const seq = cipherState.nextWriteSeq();
-        const record = DtlsRecord.encode(
-            {
-                type: ContentType.APPLICATION_DATA,
-                epoch: cipherState.writeEpoch,
-                sequenceNumber: seq,
-                fragment: Bytes.of(bytes),
-            },
-            cipherState,
+        const record = Bytes.of(
+            await DtlsRecord.encode(
+                crypto,
+                {
+                    type: ContentType.APPLICATION_DATA,
+                    epoch: cipherState.writeEpoch,
+                    sequenceNumber: seq,
+                    fragment: Bytes.of(bytes),
+                },
+                cipherState,
+            ),
         );
         await this.#sendDatagram(udp, record);
     }
@@ -285,17 +298,21 @@ export class NobleDtlsChannel implements DtlsChannel {
         // Best-effort close_notify alert at epoch 1 if armed.
         const cipherState = this.#cipherState;
         const udp = this.#udp;
-        if (this.#connected && cipherState !== undefined && udp !== undefined) {
+        const crypto = this.#crypto;
+        if (this.#connected && cipherState !== undefined && udp !== undefined && crypto !== undefined) {
             try {
                 const seq = cipherState.nextWriteSeq();
-                const alertRecord = DtlsRecord.encode(
-                    {
-                        type: ContentType.ALERT,
-                        epoch: cipherState.writeEpoch,
-                        sequenceNumber: seq,
-                        fragment: Uint8Array.of(ALERT_LEVEL_WARNING, ALERT_DESC_CLOSE_NOTIFY),
-                    },
-                    cipherState,
+                const alertRecord = Bytes.of(
+                    await DtlsRecord.encode(
+                        crypto,
+                        {
+                            type: ContentType.ALERT,
+                            epoch: cipherState.writeEpoch,
+                            sequenceNumber: seq,
+                            fragment: Uint8Array.of(ALERT_LEVEL_WARNING, ALERT_DESC_CLOSE_NOTIFY),
+                        },
+                        cipherState,
+                    ),
                 );
                 await this.#sendDatagram(udp, alertRecord).catch(() => {});
             } catch {
@@ -337,28 +354,50 @@ export class NobleDtlsChannel implements DtlsChannel {
     // -----------------------------------------------------------------------
     // Internals
 
-    #onDatagram(bytes: Uint8Array): void {
+    /**
+     * Chain `work` onto the single serialization queue. The `.catch` routes any error to
+     * {@link #fail} (which rejects the pending connect / settles the channel error state)
+     * and keeps the queue alive — errors surface, never swallowed.
+     */
+    #enqueue(work: () => Promise<void>): void {
+        this.#inbound = this.#inbound.then(work).catch(err => this.#fail(errorOf(err)));
+    }
+
+    async #startHandshake(): Promise<void> {
+        const client = this.#client;
+        const retransmit = this.#retransmit;
+        if (client === undefined || retransmit === undefined) {
+            throw new InternalError("NobleDtlsChannel: start before client/timer initialised");
+        }
+        const step = await client.start();
         if (this.#closed) {
             return;
         }
-        try {
-            if (this.#connected) {
-                this.#handleAppDatagram(bytes);
-            } else {
-                this.#handleHandshakeDatagram(bytes);
-            }
-        } catch (e) {
-            this.#fail(e instanceof Error ? e : new InternalError(String(e)));
+        this.#sendRecords(step.records);
+        retransmit.armNewFlight();
+    }
+
+    async #onDatagram(bytes: Uint8Array): Promise<void> {
+        if (this.#closed) {
+            return;
+        }
+        if (this.#connected) {
+            await this.#handleAppDatagram(bytes);
+        } else {
+            await this.#handleHandshakeDatagram(bytes);
         }
     }
 
-    #handleHandshakeDatagram(bytes: Uint8Array): void {
+    async #handleHandshakeDatagram(bytes: Uint8Array): Promise<void> {
         const client = this.#client;
         const retransmit = this.#retransmit;
         if (client === undefined || retransmit === undefined) {
             throw new InternalError("NobleDtlsChannel: handshake datagram before client/timer initialised");
         }
-        const step = client.onDatagram(bytes);
+        const step = await client.onDatagram(bytes);
+        if (this.#closed) {
+            return;
+        }
         // RFC 6347 §4.2.4: receiving the next flight implicitly acknowledges the previous one.
         retransmit.cancel();
         if (step.records.length > 0) {
@@ -377,47 +416,54 @@ export class NobleDtlsChannel implements DtlsChannel {
         }
     }
 
-    #handleAppDatagram(bytes: Uint8Array): void {
+    async #handleAppDatagram(bytes: Uint8Array): Promise<void> {
         const cipherState = this.#cipherState;
-        if (cipherState === undefined) {
+        const crypto = this.#crypto;
+        if (cipherState === undefined || crypto === undefined) {
             throw new InternalError("NobleDtlsChannel: post-handshake datagram with no cipher state");
         }
         let p = 0;
         while (p < bytes.length) {
+            // A framing error leaves no reliable next-record boundary, so drop the rest of the
+            // datagram rather than tear down the channel (RFC 6347 §4.1.2.7: bad records are discarded).
             if (bytes.length - p < DTLS_HEADER_LEN) {
-                throw new DtlsError("NobleDtlsChannel: short DTLS record header");
+                logger.debug("Dropping DTLS datagram with a truncated record header");
+                return;
             }
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + DTLS_HEADER_LEN + length;
             if (recordEnd > bytes.length) {
-                throw new DtlsError("NobleDtlsChannel: DTLS record length overruns datagram");
+                logger.debug("Dropping DTLS datagram: record length overruns the datagram");
+                return;
             }
             const slice = bytes.subarray(p, recordEnd);
             let record: DtlsRecord;
             try {
-                ({ record } = DtlsRecord.decode(slice, cipherState));
+                ({ record } = await DtlsRecord.decode(crypto, slice, cipherState));
             } catch (e) {
-                // RFC 6347 §4.1.2.6: a replayed/old-sequence record is benign (normal UDP
-                // duplication) — drop just this record and keep processing the datagram.
-                // Every other decode failure (AEAD, malformed) stays fatal.
+                // RFC 6347 §4.1.2.6/§4.1.2.7: a replayed/old-sequence record or one that fails to
+                // decrypt/decode (AEAD auth failure, malformed content) is discarded — drop just this
+                // record and keep processing rather than tear down a working channel.
                 if (e instanceof DtlsReplayError) {
                     logger.debug(`Dropping replayed DTLS record epoch=${e.epoch} seq=${e.sequenceNumber}`);
-                    p = recordEnd;
-                    continue;
+                } else {
+                    logger.debug(`Dropping undecodable DTLS record: ${errorOf(e).message}`);
                 }
-                throw e;
+                p = recordEnd;
+                continue;
             }
             if (record.type === ContentType.APPLICATION_DATA) {
-                this.#deliverPlaintext(record.fragment);
+                this.#deliverPlaintext(Bytes.of(record.fragment));
             } else if (record.type === ContentType.ALERT) {
+                const alertFragment = Bytes.of(record.fragment);
                 // close_notify (level=1, desc=0) ends the session; other alerts surface as errors.
-                if (record.fragment.length >= 2 && record.fragment[1] === ALERT_DESC_CLOSE_NOTIFY) {
+                if (alertFragment.length >= 2 && alertFragment[1] === ALERT_DESC_CLOSE_NOTIFY) {
                     this.#fail(new DtlsError("NobleDtlsChannel: peer sent close_notify"));
                     return;
                 }
                 this.#fail(
                     new DtlsError(
-                        `NobleDtlsChannel: peer alert level=${record.fragment[0] ?? -1} desc=${record.fragment[1] ?? -1}`,
+                        `NobleDtlsChannel: peer alert level=${alertFragment[0] ?? -1} desc=${alertFragment[1] ?? -1}`,
                     ),
                 );
                 return;
@@ -441,20 +487,19 @@ export class NobleDtlsChannel implements DtlsChannel {
         }
     }
 
-    #onRetransmit(): void {
+    async #onRetransmit(): Promise<void> {
         const client = this.#client;
         if (client === undefined || this.#connected || this.#closed) {
             return;
         }
-        try {
-            const step = client.onRetransmit();
-            this.#sendRecords(step.records);
-        } catch (e) {
-            this.#fail(e instanceof Error ? e : new InternalError(String(e)));
+        const step = await client.onRetransmit();
+        if (this.#closed) {
+            return;
         }
+        this.#sendRecords(step.records);
     }
 
-    #sendRecords(records: Uint8Array[]): void {
+    #sendRecords(records: Bytes[]): void {
         const udp = this.#udp;
         if (udp === undefined) {
             throw new InternalError("NobleDtlsChannel: send before bind");
@@ -469,7 +514,8 @@ export class NobleDtlsChannel implements DtlsChannel {
         const datagrams = new Array<Uint8Array>();
         let acc = new Array<Uint8Array>();
         let accLen = 0;
-        for (const record of records) {
+        for (const rawRecord of records) {
+            const record = Bytes.of(rawRecord);
             if (accLen > 0 && accLen + record.length > mtu) {
                 datagrams.push(concatBuffers(acc));
                 acc = [];
@@ -482,9 +528,7 @@ export class NobleDtlsChannel implements DtlsChannel {
             datagrams.push(concatBuffers(acc));
         }
         for (const dg of datagrams) {
-            void this.#sendDatagram(udp, dg).catch(e =>
-                this.#fail(e instanceof Error ? e : new InternalError(String(e))),
-            );
+            void this.#sendDatagram(udp, dg).catch(e => this.#fail(errorOf(e)));
         }
     }
 

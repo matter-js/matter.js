@@ -19,39 +19,76 @@ let client: WebSocket;
 let server: Server;
 let wss: WebSocketServer;
 const socketLogger = "websocket";
+const logger = Logger.get("WebPlumbing");
+
+const DEFAULT_LISTEN_ADDRESS = "127.0.0.1";
 
 export function initializeWebPlumbing(
     theNode: MatterNode,
     nodeNum: number,
     webSocketPort: number,
     webServer: boolean,
+    listenAddress?: string,
 ): void {
+    const configuredAddress = listenAddress?.trim() || undefined;
+    const listenHost = configuredAddress ?? DEFAULT_LISTEN_ADDRESS;
+    if (configuredAddress === undefined) {
+        logger.warn(
+            `No listen address configured; binding the WebSocket/web server to loopback ${DEFAULT_LISTEN_ADDRESS} only. ` +
+                `Pass --webAddress <address> (e.g. 0.0.0.0) to expose it on other interfaces.`,
+        );
+    }
+
     if (webServer) {
-        const root: string = path.resolve(__dirname) ?? "./";
+        const resolvedRoot = path.resolve(__dirname);
+        let root: string;
+        try {
+            root = fs.realpathSync(resolvedRoot);
+        } catch (error) {
+            logger.warn(`Could not resolve web root real path (${resolvedRoot}): ${error}. Using unresolved path.`);
+            root = resolvedRoot;
+        }
+        const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+        // The trailing separator prevents sibling directories that merely share the root string as a
+        // prefix from passing the containment check.
+        const isContained = (candidate: string) => candidate === root || candidate.startsWith(rootWithSep);
 
         server = http
             .createServer((req, res) => {
                 const url = req.url ?? "/";
-                const safePath: string = path.normalize(
-                    path.join(root, decodeURIComponent(url === "/" ? "/index.html" : url)),
-                );
+                let decodedPath: string;
+                try {
+                    decodedPath = decodeURIComponent(url === "/" ? "/index.html" : url);
+                } catch {
+                    res.writeHead(400).end("Bad Request");
+                    return;
+                }
+                const safePath: string = path.normalize(path.join(root, decodedPath));
 
-                // Check that the resolved path is within the root directory
-                if (!safePath.startsWith(root)) {
+                if (!isContained(safePath)) {
                     res.writeHead(403).end("Forbidden");
                     return;
                 }
 
-                fs.readFile(safePath, (err, data) => {
-                    if (err) return res.writeHead(404).end("Not Found");
-                    res.writeHead(200).end(data);
+                // Resolve symlinks so a link inside the root cannot redirect reads outside of it.
+                fs.realpath(safePath, (realpathErr, resolvedPath) => {
+                    if (realpathErr) return res.writeHead(404).end("Not Found");
+                    if (!isContained(resolvedPath)) {
+                        res.writeHead(403).end("Forbidden");
+                        return;
+                    }
+
+                    fs.readFile(resolvedPath, (err, data) => {
+                        if (err) return res.writeHead(404).end("Not Found");
+                        res.writeHead(200).end(data);
+                    });
                 });
             })
-            .listen(webSocketPort);
+            .listen(webSocketPort, listenHost);
         wss = new WebSocketServer({ server });
-    } else wss = new WebSocketServer({ port: webSocketPort });
+    } else wss = new WebSocketServer({ port: webSocketPort, host: listenHost });
 
-    console.info(`WebSocket server running on ws://localhost:${webSocketPort}`);
+    console.info(`WebSocket server listening on ${listenHost} port ${webSocketPort}`);
 
     console.log =
         // console.debug = // too much traffic - kills the websocket

@@ -8,12 +8,14 @@ import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import {
     b$,
     Bytes,
+    CryptoInputError,
     DataReader,
     HASH_ALGORITHM_OUTPUT_LENGTHS,
     HashAlgorithm,
     Key,
     PrivateKey,
     PublicKey,
+    StandardCrypto,
 } from "@matter/general";
 import * as assert from "node:assert";
 import * as crypto from "node:crypto";
@@ -55,6 +57,39 @@ describe("NodeJsCrypto", () => {
             const result = cryptoNode.decrypt(KEY, ENCRYPTED_DATA, NONCE, ADDITIONAL_AUTH_DATA);
 
             assert.equal(Bytes.toHex(result), Bytes.toHex(PLAIN_DATA));
+        });
+    });
+
+    describe("AES-CCM-8", () => {
+        it("tag-8 L=3 output matches StandardCrypto byte-for-byte", () => {
+            const std = new StandardCrypto();
+            const key = new Uint8Array(16).fill(0x42);
+            const n12 = new Uint8Array(12).fill(0x55);
+            const aad = Bytes.fromHex("00010203040506070800000000");
+            const pt = new Uint8Array(40).map((_, i) => (i * 31) & 0xff);
+            const a = new NodeJsCrypto().encrypt(key, pt, n12, Bytes.of(aad), 8);
+            const b = std.encrypt(key, pt, n12, Bytes.of(aad), 8);
+            expect(Bytes.toHex(a)).equals(Bytes.toHex(b));
+
+            const back = new NodeJsCrypto().decrypt(key, a, n12, Bytes.of(aad), 8);
+            expect(Bytes.toHex(back)).equals(Bytes.toHex(pt));
+        });
+
+        it("rejects an illegal tagLength", () => {
+            for (const bad of [5, 17, 18]) {
+                expect(() => cryptoNode.encrypt(KEY_2, PLAIN_DATA_2, NONCE_2, ADDITIONAL_AUTH_DATA_2, bad)).to.throw(
+                    CryptoInputError,
+                );
+                expect(() => cryptoNode.decrypt(KEY, ENCRYPTED_DATA, NONCE, ADDITIONAL_AUTH_DATA, bad)).to.throw(
+                    CryptoInputError,
+                );
+            }
+        });
+
+        it("rejects ciphertext shorter than the tag", () => {
+            expect(() => cryptoNode.decrypt(KEY, new Uint8Array(7), NONCE, ADDITIONAL_AUTH_DATA, 8)).to.throw(
+                CryptoInputError,
+            );
         });
     });
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -60,27 +60,28 @@ function setRouterIdBit(mask: Uint8Array, routerId: number): void {
 }
 
 export namespace Route64 {
-    export function decode(value: Uint8Array): Route64 {
-        if (value.length < HEADER_BYTES) {
-            throw new ThreadDiagError(`Route64 TLV too short: ${value.length} bytes (need >=${HEADER_BYTES})`);
+    export function decode(value: Bytes): Route64 {
+        const buf = Bytes.of(value);
+        if (buf.length < HEADER_BYTES) {
+            throw new ThreadDiagError(`Route64 TLV too short: ${buf.length} bytes (need >=${HEADER_BYTES})`);
         }
-        const idSequence = value[0];
-        const mask = value.subarray(1, HEADER_BYTES);
+        const idSequence = buf[0];
+        const mask = buf.subarray(1, HEADER_BYTES);
 
         const allocatedIds = new Array<number>();
         for (let id = 0; id <= MAX_ROUTER_ID; id++) {
             if (isRouterIdSet(mask, id)) allocatedIds.push(id);
         }
 
-        if (value.length !== HEADER_BYTES + allocatedIds.length) {
+        if (buf.length !== HEADER_BYTES + allocatedIds.length) {
             throw new ThreadDiagError(
-                `Route64 TLV size mismatch: ${value.length} bytes for ${allocatedIds.length} allocated routers`,
+                `Route64 TLV size mismatch: ${buf.length} bytes for ${allocatedIds.length} allocated routers`,
             );
         }
 
         const entries = new Array<Route64Entry>();
         for (let i = 0; i < allocatedIds.length; i++) {
-            const data = value[HEADER_BYTES + i];
+            const data = buf[HEADER_BYTES + i];
             entries.push({
                 routerId: allocatedIds[i],
                 linkQualityOut: (data & LINK_QUALITY_OUT_MASK) >> LINK_QUALITY_OUT_SHIFT,
@@ -91,7 +92,7 @@ export namespace Route64 {
         return { idSequence, entries };
     }
 
-    export function encode(route: Route64): Uint8Array {
+    export function encode(route: Route64): Bytes {
         const sortedEntries = [...route.entries].sort((a, b) => a.routerId - b.routerId);
 
         const out = new Uint8Array(HEADER_BYTES + sortedEntries.length);

@@ -5,10 +5,9 @@
  */
 
 import { Bytes } from "@matter/main";
+import { BasicTlv, OperationalDataset } from "@matter/protocol";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { OperationalDataset } from "../src/dataset/OperationalDataset.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/datasets");
@@ -63,7 +62,7 @@ describe("OperationalDataset cross-validation against Agners' Python parser", ()
             const exp = expected[i];
             const got = walked[i];
             expect(got.type, `type mismatch at index ${i}`).to.equal(exp.type);
-            expect(got.value.length, `length mismatch at index ${i} (type ${exp.type})`).to.equal(exp.length);
+            expect(Bytes.of(got.value).length, `length mismatch at index ${i} (type ${exp.type})`).to.equal(exp.length);
             expect(
                 Bytes.areEqual(got.value, exp.value),
                 `value mismatch at index ${i} (type ${exp.type}): got ${Bytes.toHex(got.value)}, expected ${Bytes.toHex(exp.value)}`,

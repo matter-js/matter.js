@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ThreadTlvError } from "../BasicTlvCodec.js";
+import { Bytes } from "@matter/general";
+import { ThreadTlvError } from "@matter/protocol";
 
 /**
  * IPv6 Address TLV value codec (MeshCoP TLV type 49).
@@ -18,14 +19,16 @@ import { ThreadTlvError } from "../BasicTlvCodec.js";
  * `src/core/meshcop/meshcop_tlvs.hpp` `IPv6AddressTlv` (`kIPv6Address = 49`).
  */
 export namespace Ip6AddressTlv {
-    export function encode(addr: Uint8Array): Uint8Array {
-        assertLength(addr);
-        return addr.slice();
+    export function encode(addr: Bytes): Bytes {
+        const buf = Bytes.of(addr);
+        assertLength(buf);
+        return buf.slice();
     }
 
-    export function decode(bytes: Uint8Array): Uint8Array {
-        assertLength(bytes);
-        return bytes.slice();
+    export function decode(bytes: Bytes): Bytes {
+        const buf = Bytes.of(bytes);
+        assertLength(buf);
+        return buf.slice();
     }
 }
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/main";
+import { Bytes, StandardCrypto } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -13,6 +13,8 @@ import { EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
 
 const PACKAGE_ROOT = process.cwd();
 const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+
+const crypto = new StandardCrypto();
 
 interface MbedTlsVectors {
     password: { hex: string };
@@ -43,43 +45,43 @@ function pointBytes(scalar: bigint): Uint8Array {
 describe("EcJpakePms.derive (mbedTLS oracle)", () => {
     const vectors = loadVectors();
 
-    it("client side: PMS = mbedTLS test_pms when fed srv_two + own (x2, X4)", () => {
+    it("client side: PMS = mbedTLS test_pms when fed srv_two + own (x2, X4)", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.srv_two)), {
             expectEcParameters: true,
         }).X;
         const Xp2 = pointBytes(bigintFromHex(vectors.x4));
         const xm2 = bigintFromHex(vectors.x2);
         const s = bigintFromHex(vectors.password.hex);
-        const pms = EcJpakePms.derive({ Xp, Xp2, xm2, s });
+        const pms = await EcJpakePms.derive(crypto, { Xp, Xp2, xm2, s });
         expect(Bytes.toHex(pms)).to.equal(vectors.pms);
     });
 
-    it("server side: PMS = mbedTLS test_pms when fed cli_two + own (x4, X2)", () => {
+    it("server side: PMS = mbedTLS test_pms when fed cli_two + own (x4, X2)", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         }).X;
         const Xp2 = pointBytes(bigintFromHex(vectors.x2));
         const xm2 = bigintFromHex(vectors.x4);
         const s = bigintFromHex(vectors.password.hex);
-        const pms = EcJpakePms.derive({ Xp, Xp2, xm2, s });
+        const pms = await EcJpakePms.derive(crypto, { Xp, Xp2, xm2, s });
         expect(Bytes.toHex(pms)).to.equal(vectors.pms);
     });
 
-    it("PMS is exactly 32 bytes", () => {
+    it("PMS is exactly 32 bytes", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         }).X;
         const Xp2 = pointBytes(bigintFromHex(vectors.x2));
-        const pms = EcJpakePms.derive({
+        const pms = await EcJpakePms.derive(crypto, {
             Xp,
             Xp2,
             xm2: bigintFromHex(vectors.x4),
             s: bigintFromHex(vectors.password.hex),
         });
-        expect(pms.length).to.equal(32);
+        expect(Bytes.of(pms).length).to.equal(32);
     });
 
-    it("changes when the password changes", () => {
+    it("changes when the password changes", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         }).X;
@@ -87,27 +89,27 @@ describe("EcJpakePms.derive (mbedTLS oracle)", () => {
         const xm2 = bigintFromHex(vectors.x4);
         const sCorrect = bigintFromHex(vectors.password.hex);
         const sWrong = sCorrect ^ 1n;
-        const a = EcJpakePms.derive({ Xp, Xp2, xm2, s: sCorrect });
-        const b = EcJpakePms.derive({ Xp, Xp2, xm2, s: sWrong });
+        const a = await EcJpakePms.derive(crypto, { Xp, Xp2, xm2, s: sCorrect });
+        const b = await EcJpakePms.derive(crypto, { Xp, Xp2, xm2, s: sWrong });
         expect(Bytes.areEqual(a, b)).to.equal(false);
     });
 
-    it("rejects xm2 = 0 and xm2 >= n", () => {
+    it("rejects xm2 = 0 and xm2 >= n", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         }).X;
         const Xp2 = pointBytes(bigintFromHex(vectors.x2));
         const s = bigintFromHex(vectors.password.hex);
-        expect(() => EcJpakePms.derive({ Xp, Xp2, xm2: 0n, s })).to.throw(/xm2/);
-        expect(() => EcJpakePms.derive({ Xp, Xp2, xm2: N, s })).to.throw(/xm2/);
+        await expect(EcJpakePms.derive(crypto, { Xp, Xp2, xm2: 0n, s })).to.be.rejectedWith(/xm2/);
+        await expect(EcJpakePms.derive(crypto, { Xp, Xp2, xm2: N, s })).to.be.rejectedWith(/xm2/);
     });
 
-    it("rejects s = 0", () => {
+    it("rejects s = 0", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.cli_two)), {
             expectEcParameters: false,
         }).X;
         const Xp2 = pointBytes(bigintFromHex(vectors.x2));
         const xm2 = bigintFromHex(vectors.x4);
-        expect(() => EcJpakePms.derive({ Xp, Xp2, xm2, s: 0n })).to.throw(/s/);
+        await expect(EcJpakePms.derive(crypto, { Xp, Xp2, xm2, s: 0n })).to.be.rejectedWith(/s/);
     });
 });

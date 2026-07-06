@@ -7,8 +7,10 @@
 import {
     Bytes,
     Crypto,
+    type Duration,
     type Entropy,
     type Environment,
+    errorOf,
     ImplementationError,
     Logger,
     Millis,
@@ -17,11 +19,10 @@ import {
     Time,
     Timer,
 } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../coap/CoapClient.js";
 import { CoapMessage } from "../coap/CoapMessage.js";
 import type { Commissioner } from "../commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../tlv/BasicTlvCodec.js";
 import { ChildIpv6AddressList } from "../tlv/diag/ChildIpv6AddressList.js";
 import { ChildTable } from "../tlv/diag/ChildTable.js";
 import { Connectivity } from "../tlv/diag/Connectivity.js";
@@ -99,6 +100,8 @@ export interface EnergyScanOpts {
     count: number;
     period: number;
     scanDuration: number;
+    /** How long to wait for the `c/er` report before failing. Defaults to 30s. */
+    timeout?: Duration;
 }
 
 export interface EnergyScanEntry {
@@ -109,6 +112,8 @@ export interface EnergyScanEntry {
 export interface PanIdQueryOpts {
     panId: number;
     channelMask: number;
+    /** How long to wait for a `c/pc` conflict before resolving `undefined`. Defaults to 30s. */
+    timeout?: Duration;
 }
 
 export interface PanIdConflict {
@@ -131,14 +136,14 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
     readonly #commissioner: Pick<Commissioner, "withSession">;
     readonly #coap: Pick<CoapClient, "request" | "listen">;
     readonly #entropy: Entropy;
-    readonly #mlPrefix?: Uint8Array;
+    readonly #mlPrefix?: Bytes;
     #innerMessageId: number;
 
     constructor(
         commissioner: Pick<Commissioner, "withSession">,
         coap: Pick<CoapClient, "request" | "listen">,
         environment: Environment,
-        mlPrefix?: Uint8Array,
+        mlPrefix?: Bytes,
     ) {
         this.#commissioner = commissioner;
         this.#coap = coap;
@@ -147,7 +152,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         this.#innerMessageId = this.#entropy.randomUint16;
     }
 
-    canQuery(_extPanId: Uint8Array): boolean {
+    canQuery(_extPanId: Bytes): boolean {
         return true;
     }
 
@@ -181,26 +186,28 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             const unsubscribe = this.#coap.listen(PROXY_RX_URI, msg => {
                 const inner = unwrapProxyRx(msg.payload);
                 if (inner === undefined) {
-                    logger.debug("[ThreadDiag] unicast c/ur unwrap empty, dropping");
+                    logger.debug("unicast c/ur unwrap empty, dropping");
                     return;
                 }
                 this.#ackInnerIfNeeded(inner);
                 if (!tokensEqual(inner.message.token, token)) {
                     logger.debug(
-                        `[ThreadDiag] unicast c/ur token mismatch want=${Bytes.toHex(token)} got=${Bytes.toHex(inner.message.token)}, dropping`,
+                        `unicast c/ur token mismatch want=${Bytes.toHex(token)} got=${Bytes.toHex(inner.message.token)}, dropping`,
                     );
                     return;
                 }
                 try {
                     resolveResponse(decodeResponse(inner.message.payload));
                 } catch (err) {
-                    rejectResponse(err instanceof Error ? err : new Error(String(err)));
+                    rejectResponse(errorOf(err));
                 }
             });
 
             const timer = Time.getTimer("meshcop-unicast-timeout", DEFAULT_UNICAST_TIMEOUT, () => {
                 rejectResponse(
-                    new Error(`MeshCopDiagnosticSource: unicast diagnostic to ${formatIp6(targetAddr)} timed out`),
+                    new ThreadDiagError(
+                        `MeshCopDiagnosticSource: unicast diagnostic to ${formatIp6(targetAddr)} timed out`,
+                    ),
                 );
             }).start();
 
@@ -251,7 +258,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             fillTimers = [];
             unsubscribe?.();
             logger.debug(
-                `[ThreadDiag] queryMulticast DONE nodes=${nodeCount} duration=${Date.now() - start}ms window=${windowMs}ms`,
+                `queryMulticast DONE nodes=${nodeCount} duration=${Date.now() - start}ms window=${windowMs}ms`,
             );
             resolveTeardown();
         };
@@ -264,7 +271,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         const sessionPromise = this.#commissioner
             .withSession(async () => {
                 if (closed) return;
-                logger.debug(`[ThreadDiag] queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
+                logger.debug(`queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
                 const collected = new Array<DiagnosticResponse>();
                 const probed = new Set<number>();
                 const seenProxyRx = new Set<string>();
@@ -278,20 +285,20 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                     seenProxyRx.add(rawKey);
                     const inner = unwrapProxyRx(msg.payload);
                     if (inner === undefined) {
-                        logger.debug("[ThreadDiag] c/ur unwrap empty, dropping");
+                        logger.debug("c/ur unwrap empty, dropping");
                         return;
                     }
                     this.#ackInnerIfNeeded(inner);
-                    if (inner.message.payload.length === 0) return;
+                    if (inner.message.payload.byteLength === 0) return;
                     try {
                         const decoded = decodeResponse(inner.message.payload);
                         collected.push(decoded);
                         nodeCount++;
-                        logger.debug(`[ThreadDiag] c/ur arrival from=${formatIp6(inner.sourceAddr)}`);
+                        logger.debug(`c/ur arrival from=${formatIp6(inner.sourceAddr)}`);
                         onNode.emit(decoded);
                     } catch (err) {
-                        logger.warn("[ThreadDiag] failed to decode c/ur inner payload, dropping:", err);
-                        onError.emit(err instanceof Error ? err : new Error(String(err)));
+                        logger.warn("failed to decode c/ur inner payload, dropping:", err);
+                        onError.emit(errorOf(err));
                     }
                 });
 
@@ -310,10 +317,10 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         uriPath: PROXY_TX_URI,
                         payload: proxyPayload,
                     });
-                    logger.debug(`[ThreadDiag] c/ut ProxyTx (/d/dq -> ${scope}) sent`);
+                    logger.debug(`c/ut ProxyTx (/d/dq -> ${scope}) sent`);
                 } catch (err) {
-                    logger.warn(`[ThreadDiag] c/ut ProxyTx send failed: ${err}`);
-                    onError.emit(err instanceof Error ? err : new Error(String(err)));
+                    logger.warn(`c/ut ProxyTx send failed: ${err}`);
+                    onError.emit(errorOf(err));
                 }
 
                 if (this.#mlPrefix !== undefined && !closed) {
@@ -326,7 +333,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                             const target = deriveMeshLocalAddress(mlPrefix, (routerId << 10) & 0xffff);
                             const fillToken = this.#freshToken();
                             const fillInner = this.#encodeInnerDiag("CON", DIAG_GET_URI, opts.tlvTypes, fillToken);
-                            logger.debug(`[ThreadDiag] unicast-fill router=${routerId} target=${formatIp6(target)}`);
+                            logger.debug(`unicast-fill router=${routerId} target=${formatIp6(target)}`);
                             void this.#coap
                                 .request({
                                     type: "NON",
@@ -334,9 +341,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                                     uriPath: PROXY_TX_URI,
                                     payload: this.#wrapProxyTx(target, fillInner),
                                 })
-                                .catch(err =>
-                                    logger.warn(`[ThreadDiag] unicast-fill router=${routerId} send failed: ${err}`),
-                                );
+                                .catch(err => logger.warn(`unicast-fill router=${routerId} send failed: ${err}`));
                         }
                     };
                     fillTimers = [
@@ -352,13 +357,13 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                         ).start(),
                     ];
                 } else {
-                    logger.debug("[ThreadDiag] unicast-fill skipped: no mesh-local prefix");
+                    logger.debug("unicast-fill skipped: no mesh-local prefix");
                 }
 
                 await teardownPromise;
             })
             .catch(err => {
-                onError.emit(err instanceof Error ? err : new Error(String(err)));
+                onError.emit(errorOf(err));
                 teardown();
             });
 
@@ -419,17 +424,20 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 rejectReport = rej;
             });
 
+            // Start the timer before registering the listener: an out-of-range
+            // timeout makes getTimer throw, and doing so first avoids leaking
+            // the listener that a later throw would strand.
+            const timer = Time.getTimer("energy-scan-timeout", opts.timeout ?? DEFAULT_SCAN_TIMEOUT, () => {
+                rejectReport(new ThreadDiagError("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
+            }).start();
+
             const unsubscribe = this.#coap.listen(ENERGY_REPORT_URI, msg => {
                 try {
                     resolveReport(decodeEnergyReport(msg.payload, opts.channelMask));
                 } catch (err) {
-                    rejectReport(err instanceof Error ? err : new Error(String(err)));
+                    rejectReport(errorOf(err));
                 }
             });
-
-            const timer = Time.getTimer("energy-scan-timeout", DEFAULT_SCAN_TIMEOUT, () => {
-                rejectReport(new Error("MeshCopDiagnosticSource: energyScan timed out waiting for c/er"));
-            }).start();
 
             try {
                 await this.#coap.request({
@@ -468,18 +476,20 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 rejectReport = rej;
             });
 
+            // No conflict = no c/pc arrives; resolve undefined after timeout.
+            // Start the timer before the listener so an out-of-range timeout
+            // throws from getTimer without leaking the listener.
+            const timer = Time.getTimer("panid-query-timeout", opts.timeout ?? DEFAULT_SCAN_TIMEOUT, () => {
+                resolveReport(undefined);
+            }).start();
+
             const unsubscribe = this.#coap.listen(PANID_CONFLICT_URI, msg => {
                 try {
                     resolveReport(decodePanIdConflict(msg.payload, opts.panId));
                 } catch (err) {
-                    rejectReport(err instanceof Error ? err : new Error(String(err)));
+                    rejectReport(errorOf(err));
                 }
             });
-
-            // No conflict = no c/pc arrives; resolve undefined after timeout.
-            const timer = Time.getTimer("panid-query-timeout", DEFAULT_SCAN_TIMEOUT, () => {
-                resolveReport(undefined);
-            }).start();
 
             try {
                 await this.#coap.request({
@@ -496,7 +506,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         });
     }
 
-    #encodeInnerDiag(type: "CON" | "NON", uriPath: string[], tlvTypes: number[], token: Uint8Array): Uint8Array {
+    #encodeInnerDiag(type: "CON" | "NON", uriPath: string[], tlvTypes: number[], token: Bytes): Bytes {
         return CoapMessage.encode({
             type,
             code: "0.02",
@@ -510,11 +520,11 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
     }
 
     #wrapProxyTx(
-        targetAddr: Uint8Array,
-        innerCoapBytes: Uint8Array,
+        targetAddr: Bytes,
+        innerCoapBytes: Bytes,
         sourcePort = PROXY_SRC_PORT,
         destinationPort = TMF_PORT,
-    ): Uint8Array {
+    ): Bytes {
         return BasicTlv.encode([
             {
                 type: MeshCopTlvType.UDP_ENCAPSULATION,
@@ -544,7 +554,7 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         const proxyPayload = this.#wrapProxyTx(inner.sourceAddr, ackBytes, inner.destinationPort, inner.sourcePort);
         void this.#coap
             .request({ type: "NON", code: "0.02", uriPath: PROXY_TX_URI, payload: proxyPayload })
-            .catch(err => logger.debug("[ThreadDiag] inner ACK send failed:", err));
+            .catch(err => logger.debug("inner ACK send failed:", err));
     }
 
     #nextInnerMessageId(): number {
@@ -553,13 +563,13 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
         return id;
     }
 
-    #freshToken(): Uint8Array {
+    #freshToken(): Bytes {
         return Bytes.of(this.#entropy.randomBytes(4));
     }
 }
 
 interface ProxyRxInner {
-    sourceAddr: Uint8Array;
+    sourceAddr: Bytes;
     sourcePort: number;
     destinationPort: number;
     message: CoapMessage;
@@ -571,17 +581,17 @@ interface ProxyRxInner {
  * responder's source address. Returns `undefined` if the required TLVs are
  * absent or the inner CoAP message cannot be parsed.
  */
-function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
+function unwrapProxyRx(payload: Bytes): ProxyRxInner | undefined {
     let entries: ReturnType<typeof BasicTlv.walk>;
     try {
         entries = BasicTlv.walk(payload);
     } catch (err) {
-        logger.warn("[ThreadDiag] c/ur outer TLV parse failed, dropping:", err);
+        logger.warn("c/ur outer TLV parse failed, dropping:", err);
         return undefined;
     }
 
     let encap: ReturnType<typeof UdpEncapsulationTlv.decode> | undefined;
-    let sourceAddr: Uint8Array | undefined;
+    let sourceAddr: Bytes | undefined;
     for (const entry of entries) {
         if (entry.type === MeshCopTlvType.UDP_ENCAPSULATION) {
             encap = UdpEncapsulationTlv.decode(entry.value);
@@ -591,7 +601,7 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
     }
     if (encap === undefined || sourceAddr === undefined) {
         logger.debug(
-            `[ThreadDiag] c/ur missing TLVs: encap=${encap !== undefined} ip6=${sourceAddr !== undefined} types=[${entries.map(e => e.type).join(",")}]`,
+            `c/ur missing TLVs: encap=${encap !== undefined} ip6=${sourceAddr !== undefined} types=[${entries.map(e => e.type).join(",")}]`,
         );
         return undefined;
     }
@@ -600,21 +610,23 @@ function unwrapProxyRx(payload: Uint8Array): ProxyRxInner | undefined {
     try {
         inner = CoapMessage.decode(encap.payload);
     } catch (err) {
-        logger.warn("[ThreadDiag] c/ur inner CoAP parse failed, dropping:", err);
+        logger.warn("c/ur inner CoAP parse failed, dropping:", err);
         return undefined;
     }
     return { sourceAddr, sourcePort: encap.sourcePort, destinationPort: encap.destinationPort, message: inner };
 }
 
-function tokensEqual(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i]) return false;
+function tokensEqual(a: Bytes, b: Bytes): boolean {
+    const bufA = Bytes.of(a);
+    const bufB = Bytes.of(b);
+    if (bufA.length !== bufB.length) return false;
+    for (let i = 0; i < bufA.length; i++) {
+        if (bufA[i] !== bufB[i]) return false;
     }
     return true;
 }
 
-function encodeScanRequest(opts: EnergyScanOpts): Uint8Array {
+function encodeScanRequest(opts: EnergyScanOpts): Bytes {
     const mask = new Uint8Array(4);
     mask[0] = (opts.channelMask >> 24) & 0xff;
     mask[1] = (opts.channelMask >> 16) & 0xff;
@@ -637,13 +649,13 @@ function encodeScanRequest(opts: EnergyScanOpts): Uint8Array {
     ]);
 }
 
-function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<EnergyScanEntry> {
+function decodeEnergyReport(payload: Bytes, channelMask: number): Array<EnergyScanEntry> {
     const entries = BasicTlv.walk(payload);
     const energyEntry = entries.find(e => e.type === MeshCopTlvType.ENERGY_LIST);
     if (energyEntry === undefined) {
         throw new ThreadDiagError("MeshCopDiagnosticSource: c/er missing ENERGY_LIST TLV");
     }
-    const energyBytes = energyEntry.value;
+    const energyBytes = Bytes.of(energyEntry.value);
     const result = new Array<EnergyScanEntry>();
     let byteIndex = 0;
     for (let ch = 0; ch < 32; ch++) {
@@ -658,7 +670,7 @@ function decodeEnergyReport(payload: Uint8Array, channelMask: number): Array<Ene
     return result;
 }
 
-function encodePanIdQuery(opts: PanIdQueryOpts): Uint8Array {
+function encodePanIdQuery(opts: PanIdQueryOpts): Bytes {
     const mask = new Uint8Array(4);
     mask[0] = (opts.channelMask >> 24) & 0xff;
     mask[1] = (opts.channelMask >> 16) & 0xff;
@@ -675,25 +687,28 @@ function encodePanIdQuery(opts: PanIdQueryOpts): Uint8Array {
     ]);
 }
 
-function decodePanIdConflict(payload: Uint8Array, expectedPanId: number): PanIdConflict {
+function decodePanIdConflict(payload: Bytes, expectedPanId: number): PanIdConflict {
     const entries = BasicTlv.walk(payload);
     const maskEntry = entries.find(e => e.type === MeshCopTlvType.CHANNEL_MASK);
     if (maskEntry === undefined) {
         throw new ThreadDiagError("MeshCopDiagnosticSource: c/pc missing CHANNEL_MASK TLV");
     }
-    const mv = maskEntry.value;
+    const mv = Bytes.of(maskEntry.value);
     if (mv.length < 4) {
         throw new ThreadDiagError(`MeshCopDiagnosticSource: c/pc CHANNEL_MASK too short (${mv.length} bytes)`);
     }
     const conflictChannelMask = ((mv[0] << 24) | (mv[1] << 16) | (mv[2] << 8) | mv[3]) >>> 0;
 
     const panIdEntry = entries.find(e => e.type === MeshCopTlvType.PANID);
-    if (panIdEntry !== undefined && panIdEntry.value.length >= 2) {
-        const reportedPanId = (panIdEntry.value[0] << 8) | panIdEntry.value[1];
-        if (reportedPanId !== expectedPanId) {
-            logger.warn(
-                `[ThreadDiag] c/pc PAN-ID mismatch: expected=0x${expectedPanId.toString(16)} got=0x${reportedPanId.toString(16)}, ignoring`,
-            );
+    if (panIdEntry !== undefined) {
+        const panIdValue = Bytes.of(panIdEntry.value);
+        if (panIdValue.length >= 2) {
+            const reportedPanId = (panIdValue[0] << 8) | panIdValue[1];
+            if (reportedPanId !== expectedPanId) {
+                logger.warn(
+                    `c/pc PAN-ID mismatch: expected=0x${expectedPanId.toString(16)} got=0x${reportedPanId.toString(16)}, ignoring`,
+                );
+            }
         }
     }
 
@@ -717,9 +732,9 @@ export function missingRouterIds(responses: ReadonlyArray<DiagnosticResponse>): 
     return missing.sort((a, b) => a - b);
 }
 
-function decodeResponse(payload: Uint8Array): DiagnosticResponse {
+function decodeResponse(payload: Bytes): DiagnosticResponse {
     const entries = NetworkDiagnosticTlv.decode(payload);
-    const result: DiagnosticResponse = { unknown: new Array<{ type: number; value: Uint8Array }>() };
+    const result: DiagnosticResponse = { unknown: new Array<{ type: number; value: Bytes }>() };
 
     for (const entry of entries) {
         switch (entry.type) {

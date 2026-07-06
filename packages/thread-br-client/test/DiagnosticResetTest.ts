@@ -6,23 +6,22 @@
 
 import { Environment } from "@matter/general";
 import { Bytes } from "@matter/main";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
 import type { OtbrRestCapability } from "../src/otbr-rest/OtbrRestCapability.js";
 import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestDiagnosticSource } from "../src/otbr-rest/OtbrRestDiagnosticSource.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 import { Ip6AddressTlv } from "../src/tlv/meshcop/Ip6AddressTlv.js";
 import { UdpEncapsulationTlv } from "../src/tlv/meshcop/UdpEncapsulationTlv.js";
 import { NetworkDiagTlvType } from "../src/tlv/networkDiagTlvTypes.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
-type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
+type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Bytes };
 
 const ML_PREFIX = new Uint8Array([0xfd, 0xda, 0x3f, 0xb0, 0x2c, 0x67, 0x00, 0x00]);
 const environment = new Environment("test", Environment.default);
@@ -37,7 +36,7 @@ function ackMessage(): CoapMessage {
     return { type: "ACK", code: "2.04", messageId: 1, token: new Uint8Array(), payload: new Uint8Array() };
 }
 
-function unwrapProxyTx(proxyPayload: Uint8Array): {
+function unwrapProxyTx(proxyPayload: Bytes): {
     inner: CoapMessage;
     targetAddr: Uint8Array;
     sourcePort: number;
@@ -52,7 +51,7 @@ function unwrapProxyTx(proxyPayload: Uint8Array): {
     const encap = UdpEncapsulationTlv.decode(encapEntry.value);
     return {
         inner: CoapMessage.decode(encap.payload),
-        targetAddr: Ip6AddressTlv.decode(addrEntry.value),
+        targetAddr: Bytes.of(Ip6AddressTlv.decode(addrEntry.value)),
         sourcePort: encap.sourcePort,
         destinationPort: encap.destinationPort,
     };

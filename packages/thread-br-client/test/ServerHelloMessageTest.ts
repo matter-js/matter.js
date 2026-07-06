@@ -79,7 +79,7 @@ describe("ServerHelloMessage.parse", () => {
         });
         const parsed = ServerHelloMessage.parse(body);
         body[2] = 0xee;
-        expect(parsed.serverRandom[0]).to.equal(1);
+        expect(Bytes.of(parsed.serverRandom)[0]).to.equal(1);
     });
 
     it("tolerates and skips unknown extensions while still extracting ecjpake_kkpp", () => {

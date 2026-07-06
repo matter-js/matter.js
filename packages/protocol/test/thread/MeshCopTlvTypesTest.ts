@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MeshCopTlvType, MeshCopTlvTypeName } from "../src/dataset/meshcopTlvTypes.js";
+import { MeshCopTlvType, MeshCopTlvTypeName } from "#thread/meshcopTlvTypes.js";
 
 describe("MeshCopTlvType", () => {
     it("exposes the canonical numeric values", () => {

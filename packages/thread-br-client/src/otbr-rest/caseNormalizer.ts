@@ -30,6 +30,23 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Classify an OTBR REST response object by its key casing: legacy builds emit
+ * PascalCase (`NetworkName`), post-2024 builds camelCase (`networkName`). Any
+ * uppercase-first key marks the object as pascal; a non-empty object with only
+ * lowercase-first keys is camel. An empty object yields `null` — no signal.
+ */
+export function detectKeyFormat(raw: Record<string, unknown>): "camel" | "pascal" | null {
+    let sawKey = false;
+    for (const key of Object.keys(raw)) {
+        if (key.length === 0) continue;
+        sawKey = true;
+        const first = key.charCodeAt(0);
+        if (first >= 65 && first <= 90) return "pascal";
+    }
+    return sawKey ? "camel" : null;
+}
+
+/**
  * Recursively rewrites object keys from PascalCase (or already-camelCase) to
  * camelCase. Idempotent — running it twice yields identical output. Arrays,
  * primitives and `null` pass through unchanged.

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
+import { Bytes, InternalError } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -103,30 +103,31 @@ function writeU64BE(bytes: Uint8Array, offset: number, value: bigint): void {
 const U64_MAX = (1n << 64n) - 1n;
 
 export namespace MleCounters {
-    export function decode(value: Uint8Array): MleCounters {
-        if (value.length !== TOTAL_BYTES) {
-            throw new ThreadDiagError(`MleCounters TLV must be ${TOTAL_BYTES} bytes, got ${value.length}`);
+    export function decode(value: Bytes): MleCounters {
+        const buf = Bytes.of(value);
+        if (buf.length !== TOTAL_BYTES) {
+            throw new ThreadDiagError(`MleCounters TLV must be ${TOTAL_BYTES} bytes, got ${buf.length}`);
         }
         return {
-            disabledRole: readU16BE(value, 0),
-            detachedRole: readU16BE(value, 2),
-            childRole: readU16BE(value, 4),
-            routerRole: readU16BE(value, 6),
-            leaderRole: readU16BE(value, 8),
-            attachAttempts: readU16BE(value, 10),
-            partitionIdChanges: readU16BE(value, 12),
-            betterPartitionAttachAttempts: readU16BE(value, 14),
-            parentChanges: readU16BE(value, 16),
-            trackedTime: readU64BE(value, 18),
-            disabledTime: readU64BE(value, 26),
-            detachedTime: readU64BE(value, 34),
-            childTime: readU64BE(value, 42),
-            routerTime: readU64BE(value, 50),
-            leaderTime: readU64BE(value, 58),
+            disabledRole: readU16BE(buf, 0),
+            detachedRole: readU16BE(buf, 2),
+            childRole: readU16BE(buf, 4),
+            routerRole: readU16BE(buf, 6),
+            leaderRole: readU16BE(buf, 8),
+            attachAttempts: readU16BE(buf, 10),
+            partitionIdChanges: readU16BE(buf, 12),
+            betterPartitionAttachAttempts: readU16BE(buf, 14),
+            parentChanges: readU16BE(buf, 16),
+            trackedTime: readU64BE(buf, 18),
+            disabledTime: readU64BE(buf, 26),
+            detachedTime: readU64BE(buf, 34),
+            childTime: readU64BE(buf, 42),
+            routerTime: readU64BE(buf, 50),
+            leaderTime: readU64BE(buf, 58),
         };
     }
 
-    export function encode(counters: MleCounters): Uint8Array {
+    export function encode(counters: MleCounters): Bytes {
         const out = new Uint8Array(TOTAL_BYTES);
         for (let i = 0; i < U16_FIELDS.length; i++) {
             const v = counters[U16_FIELDS[i]];

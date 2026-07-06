@@ -5,7 +5,7 @@
  */
 
 import { Bytes, ImplementationError, Observable } from "@matter/general";
-import type { OperationalDataset } from "../dataset/OperationalDataset.js";
+import type { OperationalDataset } from "@matter/protocol";
 import type { ThreadNetworkCredentials } from "./ThreadNetworkCredentials.js";
 
 /**
@@ -19,7 +19,7 @@ export class ThreadCredentialsRegistry {
     readonly #byExtPanId = new Map<string, ThreadNetworkCredentials>();
     readonly events = {
         registered: new Observable<[creds: ThreadNetworkCredentials]>(),
-        unregistered: new Observable<[extPanId: Uint8Array]>(),
+        unregistered: new Observable<[extPanId: Bytes]>(),
     };
 
     /**
@@ -62,10 +62,10 @@ export class ThreadCredentialsRegistry {
      */
     registerCredentials(creds: ThreadNetworkCredentials): void {
         const stored: ThreadNetworkCredentials = {
-            extPanId: creds.extPanId.slice(),
+            extPanId: Bytes.of(creds.extPanId).slice(),
             networkName: creds.networkName,
-            pskc: creds.pskc.slice(),
-            meshLocalPrefix: creds.meshLocalPrefix?.slice(),
+            pskc: Bytes.of(creds.pskc).slice(),
+            meshLocalPrefix: creds.meshLocalPrefix === undefined ? undefined : Bytes.of(creds.meshLocalPrefix).slice(),
             activeTimestamp: creds.activeTimestamp,
         };
         this.#byExtPanId.set(keyOf(stored.extPanId), stored);
@@ -74,41 +74,42 @@ export class ThreadCredentialsRegistry {
     }
 
     /** Remove an entry. No-op if absent. */
-    unregister(extPanId: Uint8Array): void {
+    unregister(extPanId: Bytes): void {
         const key = keyOf(extPanId);
         if (!this.#byExtPanId.has(key)) return;
         this.#byExtPanId.delete(key);
-        this.events.unregistered.emit(extPanId.slice());
+        this.events.unregistered.emit(Bytes.of(extPanId).slice());
     }
 
-    /** Lookup by extPanId. Comparison is by Uint8Array equality, not reference. */
-    getCredentials(extPanId: Uint8Array): ThreadNetworkCredentials | undefined {
+    /** Lookup by extPanId. Comparison is by byte equality, not reference. */
+    getCredentials(extPanId: Bytes): ThreadNetworkCredentials | undefined {
         return this.#byExtPanId.get(keyOf(extPanId));
     }
 
-    /** Defensive snapshot — caller cannot mutate the registry through it. */
+    /** Defensive snapshot — caller cannot mutate the registry through it, including the byte-array fields. */
     list(): ReadonlyArray<ThreadNetworkCredentials> {
-        return Array.from(this.#byExtPanId.values());
+        return Array.from(this.#byExtPanId.values(), snapshot);
     }
 }
 
-function keyOf(extPanId: Uint8Array): string {
+function keyOf(extPanId: Bytes): string {
     return Bytes.toHex(extPanId);
 }
 
 function snapshot(creds: ThreadNetworkCredentials): ThreadNetworkCredentials {
     return {
-        extPanId: creds.extPanId.slice(),
+        extPanId: Bytes.of(creds.extPanId).slice(),
         networkName: creds.networkName,
-        pskc: creds.pskc.slice(),
-        meshLocalPrefix: creds.meshLocalPrefix?.slice(),
+        pskc: Bytes.of(creds.pskc).slice(),
+        meshLocalPrefix: creds.meshLocalPrefix === undefined ? undefined : Bytes.of(creds.meshLocalPrefix).slice(),
         activeTimestamp: creds.activeTimestamp,
     };
 }
 
 // matter.js exposes `Bytes.fromBigInt` but no inverse `Bytes.toBigInt` yet —
 // dataset's activeTimestamp is a fixed-width 8-byte BE field so the loop is safe.
-function bytesToBigint(bytes: Uint8Array): bigint {
+function bytesToBigint(input: Bytes): bigint {
+    const bytes = Bytes.of(input);
     let result = 0n;
     for (const b of bytes) {
         result = (result << 8n) | BigInt(b);

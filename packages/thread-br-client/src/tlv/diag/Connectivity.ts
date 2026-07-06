@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -73,32 +74,31 @@ function parentPriorityTo2Bit(prio: ParentPriority): number {
 }
 
 export namespace Connectivity {
-    export function decode(value: Uint8Array): Connectivity {
-        if (value.length !== MIN_SIZE && value.length !== FULL_SIZE) {
-            throw new ThreadDiagError(
-                `Connectivity TLV must be ${MIN_SIZE} or ${FULL_SIZE} bytes, got ${value.length}`,
-            );
+    export function decode(value: Bytes): Connectivity {
+        const buf = Bytes.of(value);
+        if (buf.length !== MIN_SIZE && buf.length !== FULL_SIZE) {
+            throw new ThreadDiagError(`Connectivity TLV must be ${MIN_SIZE} or ${FULL_SIZE} bytes, got ${buf.length}`);
         }
-        const priorityBits = (value[0] & FLAGS_PARENT_PRIORITY_MASK) >> FLAGS_PARENT_PRIORITY_SHIFT;
+        const priorityBits = (buf[0] & FLAGS_PARENT_PRIORITY_MASK) >> FLAGS_PARENT_PRIORITY_SHIFT;
         const partial: Connectivity = {
             parentPriority: parentPriorityFrom2Bit(priorityBits),
-            linkQuality3: value[1],
-            linkQuality2: value[2],
-            linkQuality1: value[3],
-            leaderCost: value[4],
-            idSequence: value[5],
-            activeRouters: value[6],
+            linkQuality3: buf[1],
+            linkQuality2: buf[2],
+            linkQuality1: buf[3],
+            leaderCost: buf[4],
+            idSequence: buf[5],
+            activeRouters: buf[6],
             sedBufferSize: DEFAULT_SED_BUFFER_SIZE,
             sedDatagramCount: DEFAULT_SED_DATAGRAM_COUNT,
         };
-        if (value.length === FULL_SIZE) {
-            partial.sedBufferSize = (value[7] << 8) | value[8];
-            partial.sedDatagramCount = value[9];
+        if (buf.length === FULL_SIZE) {
+            partial.sedBufferSize = (buf[7] << 8) | buf[8];
+            partial.sedDatagramCount = buf[9];
         }
         return partial;
     }
 
-    export function encode(c: Connectivity): Uint8Array {
+    export function encode(c: Connectivity): Bytes {
         const out = new Uint8Array(FULL_SIZE);
         out[0] = (parentPriorityTo2Bit(c.parentPriority) << FLAGS_PARENT_PRIORITY_SHIFT) & FLAGS_PARENT_PRIORITY_MASK;
         out[1] = c.linkQuality3 & 0xff;

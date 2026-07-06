@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { ThreadDiagError } from "../../diagnostic/errors.js";
 
 /**
@@ -29,11 +30,12 @@ const FLAG_FULL_THREAD_DEVICE = 1 << 1;
 const FLAG_FULL_NETWORK_DATA = 1 << 0;
 
 export namespace Mode {
-    export function decode(value: Uint8Array): Mode {
-        if (value.length !== 1) {
-            throw new ThreadDiagError(`Mode TLV must be 1 byte, got ${value.length}`);
+    export function decode(value: Bytes): Mode {
+        const buf = Bytes.of(value);
+        if (buf.length !== 1) {
+            throw new ThreadDiagError(`Mode TLV must be 1 byte, got ${buf.length}`);
         }
-        const raw = value[0];
+        const raw = buf[0];
         return {
             rxOnWhenIdle: (raw & FLAG_RX_ON_WHEN_IDLE) !== 0,
             fullThreadDevice: (raw & FLAG_FULL_THREAD_DEVICE) !== 0,
@@ -41,7 +43,7 @@ export namespace Mode {
         };
     }
 
-    export function encode(mode: Mode): Uint8Array {
+    export function encode(mode: Mode): Bytes {
         // The reserved bit must be set on transmit per Thread spec / OpenThread `DeviceMode::Set`.
         let raw = FLAG_RESERVED;
         if (mode.rxOnWhenIdle) raw |= FLAG_RX_ON_WHEN_IDLE;

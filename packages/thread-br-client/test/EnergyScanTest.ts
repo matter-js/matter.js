@@ -4,19 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/general";
+import { Bytes, Environment, Millis } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
 import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
-type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
+type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Bytes };
 
 const environment = new Environment("test", Environment.default);
 
@@ -35,7 +34,9 @@ function ackMessage(): CoapMessage {
  * Energy bytes are one signed byte per channel in channel-number order within the mask.
  */
 function buildEnergyReport(energyBytes: number[]): CoapMessage {
-    const payload = BasicTlv.encode([{ type: MeshCopTlvType.ENERGY_LIST, value: new Uint8Array(energyBytes) }]);
+    const payload = Bytes.of(
+        BasicTlv.encode([{ type: MeshCopTlvType.ENERGY_LIST, value: new Uint8Array(energyBytes) }]),
+    );
     return {
         type: "NON",
         code: "0.02",
@@ -122,6 +123,28 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
         expect(result[3]).to.deep.equal({ channel: 14, energy: -75 });
     });
 
+    it("rejects on an injected timeout shorter than the default", async () => {
+        const coap: CoapLike = {
+            listen: () => () => {},
+            request: async () => ackMessage(),
+        };
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
+        const scanPromise = source.energyScan({
+            channelMask: 0x00007800,
+            count: 2,
+            period: 64,
+            scanDuration: 8,
+            timeout: Millis(500),
+        });
+        const settled = scanPromise.then(
+            () => "resolved",
+            (e: Error) => e.message,
+        );
+        await MockTime.yield();
+        await MockTime.advance(500);
+        expect(await settled).to.include("timed out");
+    });
+
     it("registers c/er listener BEFORE sending c/es", async () => {
         const events = new Array<string>();
         let erHandler: ((msg: CoapMessage) => void) | undefined;
@@ -178,7 +201,9 @@ describe("MeshCopDiagnosticSource.energyScan", () => {
             },
             request: async () => {
                 // Send c/er with a different TLV type (no ENERGY_LIST)
-                const payload = BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([0x01]) }]);
+                const payload = Bytes.of(
+                    BasicTlv.encode([{ type: MeshCopTlvType.STATE, value: new Uint8Array([0x01]) }]),
+                );
                 erHandler!({
                     type: "NON",
                     code: "0.02",

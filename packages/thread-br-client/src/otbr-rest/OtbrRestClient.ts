@@ -5,9 +5,10 @@
  */
 
 import { Bytes, type Duration, ImplementationError, Millis, Seconds, Time, Timer } from "@matter/general";
-import { OperationalDataset } from "../dataset/OperationalDataset.js";
-import { normalizeKeys } from "./caseNormalizer.js";
+import { OperationalDataset } from "@matter/protocol";
+import { detectKeyFormat, normalizeKeys } from "./caseNormalizer.js";
 import { OtbrRestError, type OtbrRestErrorCode } from "./OtbrRestError.js";
+import { parseHexBytes, parseRloc16 } from "./parseHexBytes.js";
 
 export interface OtbrLeaderData {
     partitionId: number;
@@ -18,15 +19,16 @@ export interface OtbrLeaderData {
 }
 
 export interface OtbrNodeInfo {
-    baId: Uint8Array;
+    baId: Bytes;
     state: string;
-    numOfRouter: number;
+    /** Router count. Undefined on builds that omit both `numOfRouter` and its post-2024 alias `routerCount`. */
+    numOfRouter?: number;
     rlocAddress: string;
-    extAddress: Uint8Array;
+    extAddress: Bytes;
     networkName: string;
     rloc16: number;
     leaderData: OtbrLeaderData;
-    extPanId: Uint8Array;
+    extPanId: Bytes;
 }
 
 export interface OtbrDatasetHex {
@@ -80,6 +82,7 @@ function errorCodeForStatus(status: number): OtbrRestErrorCode {
 interface FetchedJson {
     status: number;
     body: unknown;
+    keyFormat: "camel" | "pascal" | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -102,22 +105,29 @@ function expectNumber(record: Record<string, unknown>, key: string, where: strin
     return value;
 }
 
+/** First finite number found under any of `keys`, else `undefined`. */
+function optionalNumber(record: Record<string, unknown>, ...keys: string[]): number | undefined {
+    for (const key of keys) {
+        const value = record[key];
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+    }
+    return undefined;
+}
+
+function expectRloc16(record: Record<string, unknown>, where: string): number {
+    const parsed = parseRloc16(record["rloc16"]);
+    if (parsed === undefined) {
+        throw new OtbrRestError("rest_protocol", `${where}: missing or invalid field rloc16`);
+    }
+    return parsed;
+}
+
 function expectRecord(record: Record<string, unknown>, key: string, where: string): Record<string, unknown> {
     const value = record[key];
     if (!isRecord(value)) {
         throw new OtbrRestError("rest_protocol", `${where}: missing or non-object field ${key}`);
     }
     return value;
-}
-
-function parseHexBytes(hex: string, expectedLen: number, where: string): Uint8Array {
-    if (!/^[0-9a-fA-F]*$/.test(hex)) {
-        throw new OtbrRestError("rest_protocol", `${where}: not hex`);
-    }
-    if (hex.length !== expectedLen * 2) {
-        throw new OtbrRestError("rest_protocol", `${where}: expected ${expectedLen} bytes, got ${hex.length / 2}`);
-    }
-    return Bytes.of(Bytes.fromHex(hex));
 }
 
 /**
@@ -155,7 +165,7 @@ export class OtbrRestClient {
     /**
      * Fetch the current node summary from the OTBR `/node` endpoint.
      *
-     * @returns Parsed node info with typed fields (binary fields as `Uint8Array`).
+     * @returns Parsed node info with typed fields (binary fields as `Bytes`).
      * @throws {@link OtbrRestError} with code `"rest_unreachable"` on network error or timeout.
      * @throws {@link OtbrRestError} with code `"rest_protocol"` when the response is
      *   not a valid JSON object or a required field is missing or has the wrong type.
@@ -175,15 +185,39 @@ export class OtbrRestClient {
             leaderRouterId: expectNumber(leaderRaw, "leaderRouterId", `${where}.leaderData`),
         };
         return {
-            baId: parseHexBytes(expectString(body, "baId", where), 16, `${where}.baId`),
+            baId: parseHexBytes(expectString(body, "baId", where), `${where}.baId`, 16),
             state: expectString(body, "state", where),
-            numOfRouter: expectNumber(body, "numOfRouter", where),
+            numOfRouter: optionalNumber(body, "numOfRouter", "routerCount"),
             rlocAddress: expectString(body, "rlocAddress", where),
-            extAddress: parseHexBytes(expectString(body, "extAddress", where), 8, `${where}.extAddress`),
+            extAddress: parseHexBytes(expectString(body, "extAddress", where), `${where}.extAddress`, 8),
             networkName: expectString(body, "networkName", where),
-            rloc16: expectNumber(body, "rloc16", where),
+            rloc16: expectRloc16(body, where),
             leaderData,
-            extPanId: parseHexBytes(expectString(body, "extPanId", where), 8, `${where}.extPanId`),
+            extPanId: parseHexBytes(expectString(body, "extPanId", where), `${where}.extPanId`, 8),
+        };
+    }
+
+    /**
+     * Lightweight probe of the `/node` endpoint for {@link OtbrRestProbe}.
+     *
+     * Fetches `/node` once and returns only the fields needed to identify an
+     * OTBR REST surface — the observed key casing plus the network name and
+     * Extended PAN ID. Unlike {@link getNode} it does not validate the full
+     * node schema, so a build that reshapes non-essential fields still probes
+     * cleanly.
+     *
+     * @throws {@link OtbrRestError} `"rest_protocol"` when the response is not an
+     *   OTBR node object or lacks `networkName`/`extPanId`.
+     */
+    async probeNode(): Promise<{ keyFormat: "camel" | "pascal"; networkName: string; extPanId: Bytes }> {
+        const { body, keyFormat } = await this.#fetchJson("/node");
+        if (!isRecord(body) || keyFormat === null) {
+            throw new OtbrRestError("rest_protocol", "/node did not return an OTBR node object");
+        }
+        return {
+            keyFormat,
+            networkName: expectString(body, "networkName", "/node"),
+            extPanId: parseHexBytes(expectString(body, "extPanId", "/node"), "/node.extPanId", 8),
         };
     }
 
@@ -268,15 +302,15 @@ export class OtbrRestClient {
     /**
      * Fetch the 8-byte IEEE EUI-64 extended address from `/node/ext-address`.
      */
-    async getExtAddress(): Promise<Uint8Array> {
-        return parseHexBytes(await this.#getJsonString("/node/ext-address"), 8, "/node/ext-address");
+    async getExtAddress(): Promise<Bytes> {
+        return parseHexBytes(await this.#getJsonString("/node/ext-address"), "/node/ext-address", 8);
     }
 
     /**
      * Fetch the 8-byte Extended PAN ID from `/node/ext-panid`.
      */
-    async getExtPanId(): Promise<Uint8Array> {
-        return parseHexBytes(await this.#getJsonString("/node/ext-panid"), 8, "/node/ext-panid");
+    async getExtPanId(): Promise<Bytes> {
+        return parseHexBytes(await this.#getJsonString("/node/ext-panid"), "/node/ext-panid", 8);
     }
 
     /**
@@ -284,8 +318,8 @@ export class OtbrRestClient {
      *
      * @throws {@link OtbrRestError} `"rest_unsupported"` on older firmware that lacks this endpoint (404).
      */
-    async getBorderAgentId(): Promise<Uint8Array> {
-        return parseHexBytes(await this.#getJsonString("/node/ba-id"), 16, "/node/ba-id");
+    async getBorderAgentId(): Promise<Bytes> {
+        return parseHexBytes(await this.#getJsonString("/node/ba-id"), "/node/ba-id", 16);
     }
 
     /**
@@ -555,7 +589,7 @@ export class OtbrRestClient {
     async #fetchJson(path: string): Promise<FetchedJson> {
         const response = await this.#doFetch(path, "application/json");
         if (response.status === HTTP_NO_CONTENT) {
-            return { status: response.status, body: null };
+            return { status: response.status, body: null, keyFormat: null };
         }
         if (!response.ok) {
             throw new OtbrRestError(errorCodeForStatus(response.status), `GET ${path} returned ${response.status}`, {
@@ -570,7 +604,8 @@ export class OtbrRestClient {
                 cause: err instanceof Error ? err : undefined,
             });
         }
-        return { status: response.status, body: normalizeKeys(parsed) };
+        const keyFormat = isRecord(parsed) ? detectKeyFormat(parsed) : null;
+        return { status: response.status, body: normalizeKeys(parsed), keyFormat };
     }
 
     async #fetchText(path: string): Promise<string | undefined> {

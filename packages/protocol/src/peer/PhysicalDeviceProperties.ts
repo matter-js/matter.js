@@ -5,11 +5,22 @@
  */
 
 import { Duration, Instant, Logger, Millis, Minutes, Seconds, UINT16_MAX } from "@matter/general";
+import { GenericSwitchDt } from "@matter/model";
+import { DeviceTypeId } from "@matter/types";
 
 const logger = Logger.get("PhysicalDeviceProperties");
 
-const DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT = Seconds(1);
+const DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT = Instant;
+const DEFAULT_SUBSCRIPTION_FLOOR_THREAD_LEGACY = Seconds(1);
 const DEFAULT_SUBSCRIPTION_FLOOR_ICD = Instant;
+
+// specificationVersion encoding for Matter 1.3.0; the attribute was introduced in 1.3, so an absent/lower value means
+// the peer predates 1.3.
+const SPEC_VERSION_1_3 = 0x0103_0000;
+
+// A Generic Switch endpoint opts a legacy-Thread device back into a 0s floor so switch events are delivered without
+// delay.
+const GENERIC_SWITCH_DEVICE_TYPE = DeviceTypeId(GenericSwitchDt.id);
 const DEFAULT_SUBSCRIPTION_CEILING_WIFI = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY = Minutes(3);
@@ -34,6 +45,10 @@ export interface PhysicalDeviceProperties {
     idleModeDuration?: Duration;
 
     isThreadSleepyEndDevice: boolean;
+    specificationVersion?: number;
+
+    /** Device type IDs present on any endpoint of the node. */
+    deviceTypes?: Set<DeviceTypeId>;
     threadActive?: boolean;
     threadPan?: bigint;
     threadChannel?: number;
@@ -65,10 +80,14 @@ export namespace PhysicalDeviceProperties {
             supportsThread,
             isThreadSleepyEndDevice,
             idleModeDuration,
+            threadActive,
+            specificationVersion,
+            deviceTypes,
         } = properties ?? {};
 
         if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
-            if (minIntervalFloor !== undefined) {
+            // Only announce the override when the caller supplied the floor; our own defaulting runs afterwards.
+            if (request?.minIntervalFloor !== undefined) {
                 logger.info(
                     `${description}: Overwriting minIntervalFloorSeconds for intermittently connected device to ${Duration.format(DEFAULT_SUBSCRIPTION_FLOOR_ICD)}`,
                 );
@@ -76,7 +95,17 @@ export namespace PhysicalDeviceProperties {
             minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_ICD;
         }
         if (minIntervalFloor === undefined) {
-            minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT;
+            // Only pre-1.3 Thread devices keep a 1s floor to spare the mesh; a Generic Switch endpoint opts back into a
+            // 0s floor so switch events are delivered without delay.
+            const onThread =
+                threadActive === true ||
+                (threadActive === undefined && (supportsThread === true || isThreadSleepyEndDevice === true));
+            const preMatter13 = (specificationVersion ?? 0) < SPEC_VERSION_1_3;
+            const hasGenericSwitch = deviceTypes?.has(GENERIC_SWITCH_DEVICE_TYPE) ?? false;
+            minIntervalFloor =
+                onThread && preMatter13 && !hasGenericSwitch
+                    ? DEFAULT_SUBSCRIPTION_FLOOR_THREAD_LEGACY
+                    : DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT;
         }
 
         const isIcdCeiling = isIntermittentlyConnected && idleModeDuration !== undefined;

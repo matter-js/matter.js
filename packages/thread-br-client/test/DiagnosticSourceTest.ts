@@ -4,15 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/general";
+import { Bytes, Environment } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapTimeoutError } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import type { DiagnosticResponse } from "../src/diagnostic/DiagnosticResponse.js";
 import { MeshCopDiagnosticSource, missingRouterIds } from "../src/diagnostic/MeshCopDiagnosticSource.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 import { Ip6AddressTlv } from "../src/tlv/meshcop/Ip6AddressTlv.js";
 import { UdpEncapsulationTlv } from "../src/tlv/meshcop/UdpEncapsulationTlv.js";
 import { NetworkDiagnosticTlv } from "../src/tlv/NetworkDiagnosticTlv.js";
@@ -21,7 +20,7 @@ import { ALL_THREAD_ROUTERS_REALM_LOCAL, deriveMeshLocalAddress } from "../src/u
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
-type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Uint8Array };
+type RequestOpts = { type: "CON" | "NON"; code: string; uriPath: string[]; payload?: Bytes };
 
 const ML_PREFIX = new Uint8Array([0xfd, 0xda, 0x3f, 0xb0, 0x2c, 0x67, 0x00, 0x00]);
 const environment = new Environment("test", Environment.default);
@@ -37,12 +36,12 @@ function ackMessage(): CoapMessage {
 }
 
 function buildDiagPayload(type: number, value: Uint8Array): Uint8Array {
-    return BasicTlv.encode([{ type, value }]);
+    return Bytes.of(BasicTlv.encode([{ type, value }]));
 }
 
 /** Decode the outer ProxyTx TLVs the source built, returning the inner CoAP
  *  message and the target IPv6 address. */
-function unwrapProxyTx(proxyPayload: Uint8Array): {
+function unwrapProxyTx(proxyPayload: Bytes): {
     inner: CoapMessage;
     targetAddr: Uint8Array;
     sourcePort: number;
@@ -57,7 +56,7 @@ function unwrapProxyTx(proxyPayload: Uint8Array): {
     const encap = UdpEncapsulationTlv.decode(encapEntry.value);
     return {
         inner: CoapMessage.decode(encap.payload),
-        targetAddr: Ip6AddressTlv.decode(addrEntry.value),
+        targetAddr: Bytes.of(Ip6AddressTlv.decode(addrEntry.value)),
         sourcePort: encap.sourcePort,
         destinationPort: encap.destinationPort,
     };
@@ -66,9 +65,9 @@ function unwrapProxyTx(proxyPayload: Uint8Array): {
 /** Build a `c/ur` (ProxyRx) reply that wraps a diagnostic answer with the given
  *  inner CoAP token and source address. */
 function buildProxyRxReply(
-    innerToken: Uint8Array,
+    innerToken: Bytes,
     diagPayload: Uint8Array,
-    sourceAddr: Uint8Array,
+    sourceAddr: Bytes,
     innerType: "CON" | "NON" = "NON",
     innerMessageId = 0x1234,
 ): CoapMessage {
@@ -80,13 +79,15 @@ function buildProxyRxReply(
         uriPath: ["d", "da"],
         payload: diagPayload,
     });
-    const proxyPayload = BasicTlv.encode([
-        {
-            type: MeshCopTlvType.UDP_ENCAPSULATION,
-            value: UdpEncapsulationTlv.encode({ sourcePort: 61631, destinationPort: 49152, payload: innerCoap }),
-        },
-        { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(sourceAddr) },
-    ]);
+    const proxyPayload = Bytes.of(
+        BasicTlv.encode([
+            {
+                type: MeshCopTlvType.UDP_ENCAPSULATION,
+                value: UdpEncapsulationTlv.encode({ sourcePort: 61631, destinationPort: 49152, payload: innerCoap }),
+            },
+            { type: MeshCopTlvType.IPV6_ADDRESS, value: Ip6AddressTlv.encode(sourceAddr) },
+        ]),
+    );
     return {
         type: "NON",
         code: "0.02",
@@ -330,7 +331,7 @@ describe("MeshCopDiagnosticSource", () => {
     });
 
     it("queryMulticast sends a NON /d/dq inner query to the all-routers group", async () => {
-        let capturedPayload: Uint8Array | undefined;
+        let capturedPayload: Bytes | undefined;
         const coap: CoapLike = {
             request: async opts => {
                 capturedPayload = opts.payload;
@@ -541,10 +542,15 @@ describe("MeshCopDiagnosticSource", () => {
         }
 
         const diagFor = (rloc16: number, refRouterIds: number[]): Uint8Array =>
-            NetworkDiagnosticTlv.encode([
-                { type: NetworkDiagTlvType.ADDRESS16, value: new Uint8Array([(rloc16 >> 8) & 0xff, rloc16 & 0xff]) },
-                { type: NetworkDiagTlvType.ROUTE64, value: encodeRoute64(refRouterIds) },
-            ]);
+            Bytes.of(
+                NetworkDiagnosticTlv.encode([
+                    {
+                        type: NetworkDiagTlvType.ADDRESS16,
+                        value: new Uint8Array([(rloc16 >> 8) & 0xff, rloc16 & 0xff]),
+                    },
+                    { type: NetworkDiagTlvType.ROUTE64, value: encodeRoute64(refRouterIds) },
+                ]),
+            );
 
         const proxyTxTargets = new Array<Uint8Array>();
         let urHandler: ((msg: CoapMessage) => void) | undefined;
@@ -573,7 +579,7 @@ describe("MeshCopDiagnosticSource", () => {
             ),
         );
         await Promise.all([MockTime.advance(80), handle.done]);
-        const want = deriveMeshLocalAddress(ML_PREFIX, (29 << 10) & 0xffff);
+        const want = Bytes.of(deriveMeshLocalAddress(ML_PREFIX, (29 << 10) & 0xffff));
         expect(proxyTxTargets.some(t => t.length === want.length && t.every((b, i) => b === want[i]))).to.equal(true);
     });
 });

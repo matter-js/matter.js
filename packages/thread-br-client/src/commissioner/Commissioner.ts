@@ -5,9 +5,8 @@
  */
 
 import { type Duration, Logger, MatterError, Millis, Seconds, Time, TimeoutError, type Timer } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../coap/CoapClient.js";
-import { MeshCopTlvType } from "../dataset/meshcopTlvTypes.js";
-import { BasicTlv } from "../tlv/BasicTlvCodec.js";
 import { LeadKa } from "./LeadKa.js";
 import { LeadPet } from "./LeadPet.js";
 
@@ -86,7 +85,7 @@ export class Commissioner {
             payload: LeadPet.buildRequest(Commissioner.COMMISSIONER_ID),
         });
 
-        logger.debug(`[ThreadDiag] COMM_PET response code=${response.code} payloadLen=${response.payload.length}`);
+        logger.debug(`COMM_PET response code=${response.code} payloadLen=${response.payload.byteLength}`);
         const parsed = LeadPet.parseResponse(response.payload);
 
         if (parsed.state === "accept") {
@@ -162,7 +161,10 @@ export class Commissioner {
             sessionBytes[1] = sessionId & 0xff;
             const releasePayload = BasicTlv.encode([
                 { type: MeshCopTlvType.COMMISSIONER_SESSION_ID, value: sessionBytes },
-                { type: MeshCopTlvType.COMMISSIONER_ID, value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID) },
+                {
+                    type: MeshCopTlvType.COMMISSIONER_ID,
+                    value: new TextEncoder().encode(Commissioner.COMMISSIONER_ID),
+                },
             ]);
             await this.#coap.request({
                 type: "CON",

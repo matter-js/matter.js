@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Environment } from "@matter/general";
+import type { Bytes, Environment } from "@matter/general";
 
 /**
  * Connection parameters consumed by {@link connectDtls}. The `random` and
@@ -19,7 +19,7 @@ export interface DtlsConnectOpts {
     port: number;
 
     /** EC-JPAKE password (PSKc — 16 bytes for Thread MeshCoP). */
-    password: Uint8Array;
+    password: Bytes;
 
     /** Override the IPv4/IPv6 binding hint; default inferred from `address`. */
     type?: "udp4" | "udp6";
@@ -40,7 +40,7 @@ export interface DtlsConnectOpts {
     connectTimeoutMs?: number;
 
     /** Override `random()` for deterministic testing. Production: CSPRNG. */
-    random?: () => Uint8Array;
+    random?: () => Bytes;
 
     /** Override `ephemeralScalar()` for deterministic testing. Production: CSPRNG-backed. */
     ephemeralScalar?: () => bigint;

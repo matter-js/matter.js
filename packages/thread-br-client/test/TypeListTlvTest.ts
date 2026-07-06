@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { NetworkDiagnosticTlv } from "../src/tlv/NetworkDiagnosticTlv.js";
 import { NetworkDiagTlvType } from "../src/tlv/networkDiagTlvTypes.js";
 import { TypeListTlv } from "../src/tlv/TypeListTlv.js";
@@ -26,7 +27,7 @@ describe("TypeListTlv", () => {
     it("supports the maximum 256 distinct type bytes", () => {
         const types = new Array<number>();
         for (let i = 0; i < 256; i++) types.push(i);
-        const encoded = TypeListTlv.encode(types);
+        const encoded = Bytes.of(TypeListTlv.encode(types));
         expect(encoded.length).to.equal(256);
         expect(TypeListTlv.decode(encoded)).to.deep.equal(types);
     });

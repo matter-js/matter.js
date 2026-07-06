@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/general";
+import { Bytes, Environment, Millis } from "@matter/general";
+import { BasicTlv, MeshCopTlvType } from "@matter/protocol";
 import type { CoapClient } from "../src/coap/CoapClient.js";
 import { CoapMessage } from "../src/coap/CoapMessage.js";
 import type { Commissioner } from "../src/commissioner/Commissioner.js";
-import { MeshCopTlvType } from "../src/dataset/meshcopTlvTypes.js";
 import { MeshCopDiagnosticSource } from "../src/diagnostic/MeshCopDiagnosticSource.js";
-import { BasicTlv } from "../src/tlv/BasicTlvCodec.js";
 
 type CommissionerLike = Pick<Commissioner, "withSession">;
 type CoapLike = Pick<CoapClient, "request" | "listen">;
@@ -42,10 +41,12 @@ function buildPanIdConflict(conflictChannelMask: number, panId: number): CoapMes
     panIdBytes[0] = (panId >> 8) & 0xff;
     panIdBytes[1] = panId & 0xff;
 
-    const payload = BasicTlv.encode([
-        { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
-        { type: MeshCopTlvType.PANID, value: panIdBytes },
-    ]);
+    const payload = Bytes.of(
+        BasicTlv.encode([
+            { type: MeshCopTlvType.CHANNEL_MASK, value: mask },
+            { type: MeshCopTlvType.PANID, value: panIdBytes },
+        ]),
+    );
     return {
         type: "NON",
         code: "0.02",
@@ -60,7 +61,7 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
     before(MockTime.enable);
 
     it("sends c/pq with CHANNEL_MASK and PAN_ID TLVs encoded correctly", async () => {
-        let capturedPayload: Uint8Array | undefined;
+        let capturedPayload: Bytes | undefined;
         let pcHandler: ((msg: CoapMessage) => void) | undefined;
 
         const coap: CoapLike = {
@@ -136,6 +137,18 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
         await MockTime.advance(30_000);
         const result = await queryPromise;
         expect(result).to.be.undefined;
+    });
+
+    it("honors an injected timeout shorter than the default", async () => {
+        const coap: CoapLike = {
+            listen: () => () => {},
+            request: async () => ackMessage(),
+        };
+        const source = new MeshCopDiagnosticSource(mockCommissioner(), coap, environment);
+        const queryPromise = source.panIdQuery({ panId: 0x1234, channelMask: 0x00007800, timeout: Millis(500) });
+        await MockTime.yield();
+        await MockTime.advance(500);
+        expect(await queryPromise).to.be.undefined;
     });
 
     it("resolves the conflict when c/pc arrives asynchronously after the request", async () => {
@@ -216,7 +229,9 @@ describe("MeshCopDiagnosticSource.panIdQuery", () => {
             },
             request: async () => {
                 // Send c/pc without a CHANNEL_MASK TLV
-                const payload = BasicTlv.encode([{ type: MeshCopTlvType.PANID, value: new Uint8Array([0x12, 0x34]) }]);
+                const payload = Bytes.of(
+                    BasicTlv.encode([{ type: MeshCopTlvType.PANID, value: new Uint8Array([0x12, 0x34]) }]),
+                );
                 pcHandler!({
                     type: "NON",
                     code: "0.02",

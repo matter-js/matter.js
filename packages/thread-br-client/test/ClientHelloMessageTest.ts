@@ -27,7 +27,7 @@ describe("ClientHelloMessage.build", () => {
         const random = fillRange(0, 32);
         const cookie = new Uint8Array(0);
         const ecjpakeKkpp = Bytes.of(Bytes.fromHex("aabb"));
-        const body = ClientHelloMessage.build({ random, cookie, ecjpakeKkpp });
+        const body = Bytes.of(ClientHelloMessage.build({ random, cookie, ecjpakeKkpp }));
 
         let p = 0;
         // version DTLS 1.2
@@ -85,18 +85,20 @@ describe("ClientHelloMessage.build", () => {
         const random = new Uint8Array(32).fill(0x11);
         const cookie = Bytes.of(Bytes.fromHex("0102030405060708"));
         const ecjpakeKkpp = new Uint8Array(0);
-        const body = ClientHelloMessage.build({ random, cookie, ecjpakeKkpp });
+        const body = Bytes.of(ClientHelloMessage.build({ random, cookie, ecjpakeKkpp }));
         // version(2) + random(32) + session_id_len(1) = 35
         expect(body[35]).to.equal(cookie.length);
         expect(Bytes.areEqual(body.subarray(36, 36 + cookie.length), cookie)).to.equal(true);
     });
 
     it("uses cipher suite 0xC0FF and compression 0x00 (the only ones we support)", () => {
-        const body = ClientHelloMessage.build({
-            random: new Uint8Array(32),
-            cookie: new Uint8Array(0),
-            ecjpakeKkpp: new Uint8Array(0),
-        });
+        const body = Bytes.of(
+            ClientHelloMessage.build({
+                random: new Uint8Array(32),
+                cookie: new Uint8Array(0),
+                ecjpakeKkpp: new Uint8Array(0),
+            }),
+        );
         // After version(2) + random(32) + session_id_len(1)+0 + cookie_len(1)+0
         // = 36 bytes, we have cipher_suites length(2) + suite(2) + compression(1)+0x00.
         const offset = 36;
@@ -111,11 +113,13 @@ describe("ClientHelloMessage.build", () => {
 
     it("places the ecjpake_kkpp extension type as 0x0100 with a 2-byte data length prefix", () => {
         const ecjpakeKkpp = fillRange(0x40, 200);
-        const body = ClientHelloMessage.build({
-            random: new Uint8Array(32),
-            cookie: new Uint8Array(0),
-            ecjpakeKkpp,
-        });
+        const body = Bytes.of(
+            ClientHelloMessage.build({
+                random: new Uint8Array(32),
+                cookie: new Uint8Array(0),
+                ecjpakeKkpp,
+            }),
+        );
         // Locate extensions block at: body length - (block payload + 2 length prefix)
         // ecjpake_kkpp = 4 + 200 = 204; supported_groups = 8; ec_point_formats = 6
         const ecjpakeEntryLen = 4 + 200;

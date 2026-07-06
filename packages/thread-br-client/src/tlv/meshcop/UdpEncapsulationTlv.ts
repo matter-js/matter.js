@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/general";
-import { ThreadTlvError } from "../BasicTlvCodec.js";
+import { Bytes, InternalError } from "@matter/general";
+import { ThreadTlvError } from "@matter/protocol";
 
 /**
  * UDP Encapsulation TLV value codec (MeshCoP TLV type 48).
@@ -22,30 +22,32 @@ import { ThreadTlvError } from "../BasicTlvCodec.js";
 export interface UdpEncapsulation {
     sourcePort: number;
     destinationPort: number;
-    payload: Uint8Array;
+    payload: Bytes;
 }
 
 export namespace UdpEncapsulationTlv {
-    export function encode({ sourcePort, destinationPort, payload }: UdpEncapsulation): Uint8Array {
+    export function encode({ sourcePort, destinationPort, payload }: UdpEncapsulation): Bytes {
         assertPort(sourcePort, "sourcePort");
         assertPort(destinationPort, "destinationPort");
-        const out = new Uint8Array(4 + payload.length);
+        const payloadBytes = Bytes.of(payload);
+        const out = new Uint8Array(4 + payloadBytes.length);
         out[0] = (sourcePort >> 8) & 0xff;
         out[1] = sourcePort & 0xff;
         out[2] = (destinationPort >> 8) & 0xff;
         out[3] = destinationPort & 0xff;
-        out.set(payload, 4);
+        out.set(payloadBytes, 4);
         return out;
     }
 
-    export function decode(bytes: Uint8Array): UdpEncapsulation {
-        if (bytes.length < 4) {
-            throw new ThreadTlvError(`UdpEncapsulationTlv: value must be at least 4 bytes, got ${bytes.length}`);
+    export function decode(bytes: Bytes): UdpEncapsulation {
+        const buf = Bytes.of(bytes);
+        if (buf.length < 4) {
+            throw new ThreadTlvError(`UdpEncapsulationTlv: value must be at least 4 bytes, got ${buf.length}`);
         }
         return {
-            sourcePort: (bytes[0] << 8) | bytes[1],
-            destinationPort: (bytes[2] << 8) | bytes[3],
-            payload: bytes.slice(4),
+            sourcePort: (buf[0] << 8) | buf[1],
+            destinationPort: (buf[2] << 8) | buf[3],
+            payload: buf.slice(4),
         };
     }
 }

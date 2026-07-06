@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { DtlsError } from "../channel/DtlsChannel.js";
 
 /**
@@ -12,9 +13,10 @@ import { DtlsError } from "../channel/DtlsChannel.js";
  * a single place to fail loudly if a future BR ever sends payload bytes here.
  */
 export const ServerHelloDoneMessage = {
-    parse(body: Uint8Array): void {
-        if (body.length !== 0) {
-            throw new DtlsError(`ServerHelloDone body must be empty, got ${body.length} bytes`);
+    parse(body: Bytes): void {
+        const length = body.byteLength;
+        if (length !== 0) {
+            throw new DtlsError(`ServerHelloDone body must be empty, got ${length} bytes`);
         }
     },
 } as const;

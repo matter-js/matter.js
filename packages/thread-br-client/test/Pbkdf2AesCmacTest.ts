@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -27,6 +28,8 @@ function loadJson<T>(name: string): T {
     return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), "utf8")) as T;
 }
 
+const crypto = new StandardCrypto();
+
 describe("pbkdf2AesCmac", () => {
     const fixture = loadJson<PbkdfFixture>("pbkdf2-aescmac-vectors.json");
 
@@ -34,7 +37,7 @@ describe("pbkdf2AesCmac", () => {
         it(`matches cross-validated vector: ${vector.name}`, () => {
             const password = Bytes.of(Bytes.fromHex(vector.passwordHex));
             const salt = Bytes.of(Bytes.fromHex(vector.saltHex));
-            const dk = pbkdf2AesCmac({
+            const dk = pbkdf2AesCmac(crypto, {
                 password,
                 salt,
                 iterations: vector.iterations,
@@ -47,23 +50,38 @@ describe("pbkdf2AesCmac", () => {
     it("dkLen=32 prefix equals dkLen=16 output for the same inputs", () => {
         const password = new TextEncoder().encode("prefix-test");
         const salt = new TextEncoder().encode("some-salt");
-        const dk16 = pbkdf2AesCmac({ password, salt, iterations: 50, dkLen: 16 });
-        const dk32 = pbkdf2AesCmac({ password, salt, iterations: 50, dkLen: 32 });
+        const dk16 = pbkdf2AesCmac(crypto, { password, salt, iterations: 50, dkLen: 16 });
+        const dk32 = Bytes.of(pbkdf2AesCmac(crypto, { password, salt, iterations: 50, dkLen: 32 }));
         expect(Bytes.toHex(dk32.subarray(0, 16))).to.equal(Bytes.toHex(dk16));
     });
 
     it("rejects non-positive iterations", () => {
         expect(() =>
-            pbkdf2AesCmac({ password: new Uint8Array([1]), salt: new Uint8Array([2]), iterations: 0, dkLen: 16 }),
+            pbkdf2AesCmac(crypto, {
+                password: new Uint8Array([1]),
+                salt: new Uint8Array([2]),
+                iterations: 0,
+                dkLen: 16,
+            }),
         ).to.throw(/iterations/);
         expect(() =>
-            pbkdf2AesCmac({ password: new Uint8Array([1]), salt: new Uint8Array([2]), iterations: -1, dkLen: 16 }),
+            pbkdf2AesCmac(crypto, {
+                password: new Uint8Array([1]),
+                salt: new Uint8Array([2]),
+                iterations: -1,
+                dkLen: 16,
+            }),
         ).to.throw(/iterations/);
     });
 
     it("rejects non-positive dkLen", () => {
         expect(() =>
-            pbkdf2AesCmac({ password: new Uint8Array([1]), salt: new Uint8Array([2]), iterations: 1, dkLen: 0 }),
+            pbkdf2AesCmac(crypto, {
+                password: new Uint8Array([1]),
+                salt: new Uint8Array([2]),
+                iterations: 1,
+                dkLen: 0,
+            }),
         ).to.throw(/dkLen/);
     });
 });

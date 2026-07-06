@@ -14,8 +14,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/\*:
     - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible.
 
-- @matter/types
-    - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
+- @matter/general
+    - Enhancement: `deepCopy` now clones `Set` and `Map` values instead of turning them into empty objects
 
 - @matter/model
     - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
@@ -33,9 +33,22 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
 
+- @matter/nodejs-shell
+    - Fix: Close a path-containment gap in the optional web server that let requests reach sibling directories sharing the web-root name prefix, and resolve symlinks before serving (reported by tonghuaroot)
+    - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
+
 - @matter/protocol
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
+    - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
+    - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset
+    - Enhancement: Optimized Subscription minIntervalFloor: now defaults to 0s; only Thread devices older than Matter 1.3.0 keep a 1s floor, and any node with a Generic Switch endpoint opts back into 0s for faster switch events
+
+- @matter/thread-br-client
+    - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
+
+- @matter/types
+    - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
 
 ## 0.17.4 (2026-07-01)
 
