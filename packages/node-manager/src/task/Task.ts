@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { ChangeEntry, TaskPhase, TaskState, TaskStatus } from "./types.js";
+import { ChangeEntry, PlannedChange, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
     type: string;
@@ -53,6 +53,11 @@ export abstract class Task<P = unknown> {
             revertTaskId: this.revertTaskId,
             revertOf: this.revertOf,
         };
+    }
+
+    /** Intents this task will create, derived from params, for pre-flight capacity admission. Removals omit. */
+    plannedChanges(): PlannedChange[] {
+        return new Array<PlannedChange>();
     }
 
     /** Deterministic internal id from type + params. Subclasses override with their own key. */

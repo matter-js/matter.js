@@ -7,14 +7,14 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Logger, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { Agent, Behavior, ClientNode, Node, ServerNode } from "@matter/node";
-import { TaskCancelledSignal, TaskSuspendedSignal } from "./errors.js";
+import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
+import { TaskCancelledSignal, TaskCapacityExceededError, TaskSuspendedSignal } from "./errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { Task, TaskPersistence } from "./Task.js";
 import { TaskCtor, TaskRegistry } from "./TaskRegistry.js";
-import { TaskState, TaskStatus } from "./types.js";
+import { PlannedChange, TaskState, TaskStatus } from "./types.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled"]);
 
@@ -213,8 +213,49 @@ export class TaskManagerBehavior extends Behavior {
         gate.wake.emit();
     }
 
+    /**
+     * Reject a task before any node mutation if its planned changes would overflow a target's device capacity.
+     * Runs before the first persist/phase; the thrown error ends the task `failed` with an empty changeSet.
+     */
+    async #admit(task: Task): Promise<void> {
+        const planned = task.plannedChanges();
+        if (planned.length === 0) {
+            return;
+        }
+        const byNodeKind = new Map<string, PlannedChange[]>();
+        for (const pc of planned) {
+            const k = `${pc.peerId}\0${pc.kind}`;
+            let group = byNodeKind.get(k);
+            if (group === undefined) {
+                group = new Array<PlannedChange>();
+                byNodeKind.set(k, group);
+            }
+            group.push(pc);
+        }
+        for (const group of byNodeKind.values()) {
+            const { peerId, kind } = group[0];
+            const peer = this.resolvePeerNode(peerId);
+            if (peer === undefined) {
+                continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
+            }
+            const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind));
+            const capacity = await itemKind?.capacity?.(peer);
+            if (capacity === undefined) {
+                continue; // kind reports no capacity limit (e.g. groupKey) — the device write is the gate
+            }
+            const items = peer.stateOf(DesiredStateBehavior).items;
+            const added = group.filter(pc => items[itemMapKey(pc.kind, pc.key)] === undefined).length;
+            if (capacity.used + added > capacity.limit) {
+                throw new TaskCapacityExceededError(
+                    `Task ${task.id}: ${kind} on ${peerId} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
+                );
+            }
+        }
+    }
+
     async #drive(task: Task): Promise<void> {
         try {
+            await this.#admit(task); // fail-fast before any node is touched
             // Persist before first phase so a crash-resume sees the task.
             await this.#persist(task);
             while (task.progress.phaseIndex < task.phases.length && task.progress.state === "running") {

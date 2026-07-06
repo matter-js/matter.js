@@ -25,6 +25,14 @@ export interface ChangeEntry {
     prior?: { intent: unknown; mode: ItemMode };
 }
 
+/** An intent a task will create, derived from its params, for pre-flight capacity admission. */
+export interface PlannedChange {
+    peerId: string;
+    kind: string;
+    key: string;
+    intent: unknown;
+}
+
 export interface TaskPhase {
     name: string;
     run(ctx: TaskContext): Promise<void>;

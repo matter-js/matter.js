@@ -7,7 +7,7 @@
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { Task } from "../Task.js";
-import { TaskContext, TaskPhase } from "../types.js";
+import { PlannedChange, TaskContext, TaskPhase } from "../types.js";
 import { membershipKey } from "./keys.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
@@ -39,12 +39,28 @@ export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
         return [{ name: "provision", run: ctx => this.#provision(ctx) }];
     }
 
-    async #provision(ctx: TaskContext): Promise<void> {
+    override plannedChanges(): PlannedChange[] {
         const p = this.params;
-        const peer = ctx.resolvePeer(p.peerId);
-        const groupId = GroupId(p.groupId);
+        return [
+            { peerId: p.peerId, kind: "groupKey", key: String(p.groupKeySetId), intent: this.#keySet() },
+            {
+                peerId: p.peerId,
+                kind: "groupKeyMap",
+                key: String(p.groupId),
+                intent: { groupId: GroupId(p.groupId), groupKeySetId: p.groupKeySetId },
+            },
+            {
+                peerId: p.peerId,
+                kind: "endpointGroupMembership",
+                key: membershipKey(p.groupId, p.endpoint),
+                intent: { localEndpoint: p.endpoint, groupId: GroupId(p.groupId), groupName: p.groupName },
+            },
+        ];
+    }
 
-        const keySet = {
+    #keySet() {
+        const p = this.params;
+        return {
             groupKeySetId: p.groupKeySetId,
             groupKeySecurityPolicy: p.groupKeySecurityPolicy,
             epochKey0: p.epochKey0,
@@ -54,8 +70,14 @@ export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
             epochKey2: null,
             epochStartTime2: null,
         };
+    }
 
-        await ctx.setIntent(peer, "groupKey", String(p.groupKeySetId), keySet, "converge");
+    async #provision(ctx: TaskContext): Promise<void> {
+        const p = this.params;
+        const peer = ctx.resolvePeer(p.peerId);
+        const groupId = GroupId(p.groupId);
+
+        await ctx.setIntent(peer, "groupKey", String(p.groupKeySetId), this.#keySet(), "converge");
         await ctx.setIntent(
             peer,
             "groupKeyMap",
