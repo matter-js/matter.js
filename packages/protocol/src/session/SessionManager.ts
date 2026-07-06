@@ -123,7 +123,16 @@ export interface ActiveSessionInformation {
 export interface GroupMessageEventInfo {
     result: Groupcast.GroupcastTestResult;
     fabric?: Fabric;
+
+    /** Authenticated group id.  Only set when the message decoded successfully for a known fabric. */
     groupId?: GroupId;
+
+    /**
+     * Group id taken from the unauthenticated wire header of a message that failed decode.  Suitable to derive the
+     * multicast destination address for reporting, but must not be reported as the authenticated GroupID.
+     */
+    headerGroupId?: GroupId;
+
     sourceIp?: string;
     destIp?: string;
     endpointId?: EndpointNumber;
@@ -632,18 +641,32 @@ export class SessionManager {
      * Note that the resulting session is non-operational in the sense that attempting outbound communication will
      * result in an error.
      */
-    groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
+    groupSessionFromPacket(packet: DecodedPacket, aad: Bytes, sourceIp?: string) {
         this.#construction.assert();
         let decoded;
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
         } catch (error) {
             // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
-            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.
+            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.  The
+            // unauthenticated header group id is passed separately so the listener can derive the multicast address
+            // (unavailable when privacy obfuscates the header).
+            const headerGroupId =
+                !packet.header.hasPrivacyEnhancements && packet.header.destGroupId !== undefined
+                    ? GroupId(packet.header.destGroupId)
+                    : undefined;
             if (causedBy(error, GroupSessionNoKeyError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey });
+                this.#onGroupMessage.emit({
+                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
+                    headerGroupId,
+                    sourceIp,
+                });
             } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth });
+                this.#onGroupMessage.emit({
+                    result: Groupcast.GroupcastTestResult.FailedAuth,
+                    headerGroupId,
+                    sourceIp,
+                });
             }
             throw error;
         }

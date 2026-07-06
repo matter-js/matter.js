@@ -25,6 +25,7 @@ import {
     DataReport,
     DataReportPayloadIterator,
     ExchangeManager,
+    GroupSession,
     InteractionRecipient,
     InteractionServerMessenger,
     InvokeRequest,
@@ -943,7 +944,12 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (isGroupSession) {
             const rawGroupId = message.packetHeader.destGroupId;
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
-            const fabric = exchange.session.associatedFabric;
+            const session = exchange.session;
+            const fabric = session.associatedFabric;
+            // Inbound group sessions have no channel, so source/destination come from the session itself
+            const groupSession = GroupSession.is(session) ? session : undefined;
+            const destIp = groupSession?.multicastAddress;
+            const sourceIp = groupSession?.receivedFrom;
             let emitted = false;
             for await (const chunk of results) {
                 for (const data of chunk) {
@@ -955,6 +961,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         result: Groupcast.GroupcastTestResult.Success,
                         fabric,
                         groupId,
+                        sourceIp,
+                        destIp,
                         endpointId: data.path.endpointId,
                         clusterId: data.path.clusterId,
                         elementId: data.path.commandId,
@@ -972,6 +980,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
                         groupId,
+                        sourceIp,
+                        destIp,
                         endpointId: commandPath.endpointId,
                         clusterId: commandPath.clusterId,
                         elementId: commandPath.commandId,

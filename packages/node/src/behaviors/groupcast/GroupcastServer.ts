@@ -7,7 +7,18 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, deepCopy, ImplementationError, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
+import {
+    Bytes,
+    deepCopy,
+    ImplementationError,
+    ipv6ToBytes,
+    isIPv6,
+    Logger,
+    ObservableValue,
+    Seconds,
+    Time,
+    Timer,
+} from "@matter/general";
 import { AccessLevel, DataModelPath } from "@matter/model";
 import {
     AccessControl,
@@ -26,6 +37,19 @@ const logger = Logger.get("GroupcastServer");
 
 /** Membership.KeySetId sentinel indicating the referenced key set no longer exists in GKM. */
 const UNMAPPED_KEYSET_ID = 0xffff;
+
+/**
+ * Converts an IP address string to the 16-byte ipv6adr representation of the GroupcastTesting event, stripping any
+ * IPv6 zone suffix ("%eth0").  Returns undefined for non-IPv6 input (e.g. a group message received via IPv4).
+ */
+function toIpv6EventAddress(ip: string | undefined) {
+    if (ip === undefined) {
+        return undefined;
+    }
+    const zoneIndex = ip.indexOf("%");
+    const address = zoneIndex === -1 ? ip : ip.substring(0, zoneIndex);
+    return isIPv6(address) ? ipv6ToBytes(address) : undefined;
+}
 
 /**
  * This is the default server implementation of {@link GroupcastBehavior}.
@@ -394,19 +418,39 @@ export class GroupcastServer extends GroupcastBehavior {
     }
 
     #onGroupMessage(info: GroupMessageEventInfo) {
-        // Only emit for the fabric under test
-        if (info.fabric === undefined || info.fabric.fabricIndex !== this.state.fabricUnderTest) {
+        const fabricUnderTest = this.state.fabricUnderTest;
+        if (fabricUnderTest === FabricIndex.NO_FABRIC) {
             return;
         }
+
+        // Authenticated messages report only for the fabric under test.  Decode failures are unauthenticated
+        // (no fabric) and are reported on the fabric under test per the GroupcastTesting spec.
+        if (info.fabric !== undefined && info.fabric.fabricIndex !== fabricUnderTest) {
+            return;
+        }
+
+        // The datagram destination is not available from the socket, so derive the multicast group address the
+        // message was received on from the group id (the header group id for unauthenticated failures).
+        let destIp = info.destIp;
+        const groupIdForAddress = info.groupId ?? info.headerGroupId;
+        if (destIp === undefined && groupIdForAddress !== undefined) {
+            const fabrics = this.env.get(FabricManager);
+            if (fabrics.has(fabricUnderTest)) {
+                destIp = fabrics.for(fabricUnderTest).groups.multicastAddressFor(groupIdForAddress);
+            }
+        }
+
         this.events.groupcastTesting?.emit(
             {
+                sourceIpAddress: toIpv6EventAddress(info.sourceIp),
+                destinationIpAddress: toIpv6EventAddress(destIp),
                 groupId: info.groupId,
                 endpointId: info.endpointId,
                 clusterId: info.clusterId,
                 elementId: info.elementId,
                 accessAllowed: info.accessAllowed,
                 groupcastTestResult: info.result,
-                fabricIndex: info.fabric.fabricIndex,
+                fabricIndex: fabricUnderTest,
             },
             this.context,
         );

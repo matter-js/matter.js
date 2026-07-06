@@ -98,6 +98,12 @@ export class GroupSession extends SecureSession {
     }
 
     /**
+     * Source IP address of the most recently received datagram on this session.  Inbound group sessions have no
+     * channel, so the receive path records this for Groupcast testing event reporting.
+     */
+    receivedFrom?: string;
+
+    /**
      * Create an outbound group session.
      */
     static async create(options: {

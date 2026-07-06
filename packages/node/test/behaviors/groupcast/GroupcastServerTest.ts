@@ -7,8 +7,9 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
+import { ipv6ToBytes } from "@matter/general";
 import { AccessLevel } from "@matter/model";
-import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS } from "@matter/protocol";
+import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MockExchange } from "../../node/mock-exchange.js";
@@ -665,6 +666,74 @@ describe("GroupcastServer", () => {
             );
 
             expect(observedAddress).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+        });
+    });
+
+    describe("groupcastTesting events", () => {
+        it("derives multicast destination and source addresses for testing events", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            await node.online({ exchange, command: true }, agent =>
+                (
+                    agent.get(GroupcastServer) as unknown as {
+                        groupcastTesting: (r: Groupcast.GroupcastTestingRequest) => void;
+                    }
+                ).groupcastTesting({
+                    testOperation: Groupcast.GroupcastTesting.EnableListenerTesting,
+                    durationSeconds: 60,
+                }),
+            );
+
+            const events = new Array<Groupcast.GroupcastTestingEvent>();
+            node.eventsOf(GroupcastServer).groupcastTesting?.on(payload => {
+                events.push(payload);
+            });
+
+            const sessions = node.env.get(SessionManager);
+            const fabricObj = node.env.get(FabricManager).for(fi);
+
+            // Authenticated success: destination derived from the group's multicast policy
+            sessions.emitGroupMessage({
+                result: Groupcast.GroupcastTestResult.Success,
+                fabric: fabricObj,
+                groupId: GroupId(0x0001),
+                sourceIp: "fd00::1",
+                endpointId: EndpointNumber(1),
+                accessAllowed: true,
+            });
+
+            // Unauthenticated decode failure: destination derived from the header group id, no GroupID reported
+            sessions.emitGroupMessage({
+                result: Groupcast.GroupcastTestResult.NoAvailableKey,
+                headerGroupId: GroupId(0x0001),
+                sourceIp: "fe80::1%en0",
+            });
+
+            await MockTime.yield3();
+
+            expect(events).length(2);
+            expect(events[0].groupcastTestResult).equal(Groupcast.GroupcastTestResult.Success);
+            expect(events[0].groupId).equal(0x0001);
+            expect(events[0].accessAllowed).true;
+            expect(events[0].sourceIpAddress).deep.equal(ipv6ToBytes("fd00::1"));
+            expect(events[0].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+            expect(events[1].groupcastTestResult).equal(Groupcast.GroupcastTestResult.NoAvailableKey);
+            expect(events[1].groupId).equal(undefined);
+            expect(events[1].sourceIpAddress).deep.equal(ipv6ToBytes("fe80::1"));
+            expect(events[1].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
         });
     });
 });

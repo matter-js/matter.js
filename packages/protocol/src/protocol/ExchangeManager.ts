@@ -8,7 +8,6 @@ import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/Messa
 import { Mark } from "#common/Mark.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { GroupSession } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager, ShutdownError } from "#session/SessionManager.js";
@@ -27,6 +26,7 @@ import {
     hex,
     ImplementationError,
     isConnectionOrientedTransport,
+    isIpNetworkChannel,
     Lifetime,
     Logger,
     MatterFlowError,
@@ -259,8 +259,15 @@ export class ExchangeManager implements Transport.Provider {
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;
 
-            let key: Bytes;
-            ({ session, message, key } = this.#sessions.groupSessionFromPacket(packet, aad));
+            const sourceIp = isIpNetworkChannel(channel) ? channel.networkAddress.ip : undefined;
+            const {
+                session: groupSession,
+                message: groupMessage,
+                key,
+            } = this.#sessions.groupSessionFromPacket(packet, aad, sourceIp);
+            session = groupSession;
+            message = groupMessage;
+            groupSession.receivedFrom = sourceIp;
 
             const sourceNodeId = message.packetHeader.sourceNodeId;
             if (sourceNodeId === undefined) {
@@ -276,11 +283,13 @@ export class ExchangeManager implements Transport.Provider {
                 // Report replay for Groupcast testing — observable is a no-op without listeners.
                 this.#sessions.emitGroupMessage({
                     result: Groupcast.GroupcastTestResult.MessageReplay,
-                    fabric: (session as GroupSession).fabric,
+                    fabric: groupSession.fabric,
                     groupId:
                         message.packetHeader.destGroupId !== undefined
                             ? GroupId(message.packetHeader.destGroupId)
                             : undefined,
+                    sourceIp,
+                    destIp: groupSession.multicastAddress,
                 });
             }
         } else {

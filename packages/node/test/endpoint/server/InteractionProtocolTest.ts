@@ -2041,6 +2041,23 @@ describe("InteractionProtocol", () => {
             expect(onOffState).equals(false);
         });
 
+        it("invoke command as group message completes dispatch without touching the exchange channel", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            // Inbound group sessions have no channel; group dispatch must not read exchange.channel (which throws).
+            // The dummy exchange has no channel either, so any such access fails this test.
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                messenger,
+                interaction.BarelyMockedGroupMessage,
+            );
+
+            expect(onOffState).equals(true);
+        });
+
         it("invoke command with with timed interaction success", async () => {
             let timedInteractionCleared = false;
             const exchange = await createDummyMessageExchange(node, undefined, true, false, undefined, () => {
