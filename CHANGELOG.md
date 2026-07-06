@@ -43,6 +43,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
     - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset
     - Enhancement: Optimized Subscription minIntervalFloor: now defaults to 0s; only Thread devices older than Matter 1.3.0 keep a 1s floor, and any node with a Generic Switch endpoint opts back into 0s for faster switch events
+    - Fix: Single-command invokes no longer sending a commandRef on the wire nor require one echoed in the response
+    - Fix: Single commands skip auto-batching when the peer accepts only one path per invoke or the response is suppressed
+    - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
 
 - @matter/thread-br-client
     - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
