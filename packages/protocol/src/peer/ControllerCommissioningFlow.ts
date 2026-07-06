@@ -271,7 +271,7 @@ export function resolveThreadNetworkName(threadNetwork: {
         logger.warn(
             `Could not decode Thread operational dataset to derive/verify its network name: ${asError(error).message}`,
         );
-        return threadNetwork.networkName;
+        return threadNetwork.networkName || undefined;
     }
 
     const { networkName } = threadNetwork;
