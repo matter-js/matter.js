@@ -27,9 +27,6 @@ const logger = Logger.get("GroupcastServer");
 /** Membership.KeySetId sentinel indicating the referenced key set no longer exists in GKM. */
 const UNMAPPED_KEYSET_ID = 0xffff;
 
-/** TODO: remove once the Groupcast cluster leaves provisional state in the Matter specification. */
-const GROUPCAST_IS_PROVISIONAL = true;
-
 /**
  * This is the default server implementation of {@link GroupcastBehavior}.
  *
@@ -41,7 +38,6 @@ const GROUPCAST_IS_PROVISIONAL = true;
  * - Drives {@link FabricGroups} with group-to-key-set mappings and multicast address policy.
  * - Registers an {@link AccessControlServer.AuxAclObservable} to supply synthetic ACL entries for groups
  *   with `hasAuxiliaryAcl=true`. AccessControlServer calls back to collect entries when needed.
- * - On first use by a fabric, marks the fabric as "GroupcastAdopted" in GKM, making GroupKeyMap read-only.
  * - Migrates legacy group data from the Groups cluster on startup.
  */
 export class GroupcastServer extends GroupcastBehavior {
@@ -51,20 +47,24 @@ export class GroupcastServer extends GroupcastBehavior {
     #testingTimer?: Timer;
 
     override initialize() {
-        // TODO: remove this guard once the Groupcast cluster leaves provisional state in the Matter specification
-        if (GROUPCAST_IS_PROVISIONAL) {
-            throw new ImplementationError(
-                "The Groupcast cluster is provisional in Matter 1.6. Do not add it to a node.",
-            );
-        }
-
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         this.reactTo(lifecycle.online, this.#online);
     }
 
     async #online() {
+        const acl = this.agent.get(AccessControlServer);
+
+        // Spec core§11.27.7.1.5: a Listener generates AuxiliaryACL entries in the AccessControl cluster, which
+        // requires the Auxiliary feature.  Without it the synthetic entries would grant access that the node does not
+        // advertise and clients cannot inspect.
+        if (this.features.listener && !acl.features.auxiliary) {
+            throw new ImplementationError(
+                'The Groupcast Listener feature requires the AccessControl Auxiliary feature. Use AccessControlServer.with("Extension", "Auxiliary").',
+            );
+        }
+
         // Register the aux ACL observable with AccessControlServer so it can subscribe for updates
-        this.agent.get(AccessControlServer).registerAuxAclProvider(this.internal.auxAcl);
+        acl.registerAuxAclProvider(this.internal.auxAcl);
 
         const fabrics = this.env.get(FabricManager);
 
@@ -223,7 +223,7 @@ export class GroupcastServer extends GroupcastBehavior {
         this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
         this.#emitAuxAcl();
 
-        /* Provisional in Matter 1.6.0:
+        /* The GroupKeyManagement GroupcastAdoption attribute is not supported by the default server:
         const gkm = this.agent.get(GroupKeyManagementServer);
         gkm.setGroupcastAdopted(fabricIndex, true);
         */
@@ -617,7 +617,7 @@ export class GroupcastServer extends GroupcastBehavior {
 
             this.state.membership = [...this.state.membership, ...newEntries];
             this.#syncFabricGroups(fabric);
-            /* Provisional in Matter 1.6.0:
+            /* The GroupKeyManagement GroupcastAdoption attribute is not supported by the default server:
             const gkm = this.agent.get(GroupKeyManagementServer);
             gkm.setGroupcastAdopted(fi, true);
             */

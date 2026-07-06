@@ -60,13 +60,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             throw new ImplementationError("The CacheAndSync feature is provisional. Do not use it.");
         }
 
-        // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
-        if (this.features.groupcast) {
-            throw new ImplementationError(
-                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
-            );
-        }
-
         // Validate the state
         this.reactTo(this.events.groupKeyMap$Changing, this.#validateGroupKeyMap);
         this.reactTo(this.events.groupTable$Changing, this.#validateGroupTable);
@@ -616,8 +609,8 @@ export namespace GroupKeyManagementServer {
         override maxGroupsPerFabric = 22; // The Minimum would be 4. Aligned with Groupcast quota=floor(44/2).
 
         /**
-         * Per-fabric Groupcast adoption state (provisional Matter 1.6 GCAST feature).  Only present when the Groupcast
-         * feature is enabled; the default server rejects it while provisional.
+         * Per-fabric Groupcast adoption state.  Only present when the Groupcast feature is enabled and the optional
+         * GroupcastAdoption attribute is defined; the default server never populates it.
          */
         declare groupcastAdoption?: GroupKeyManagement.GroupcastAdoption[];
     }

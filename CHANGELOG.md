@@ -27,7 +27,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Advertise the BasicInformation CapabilityMinima defaults and enforce the read/subscribe path-count ceiling
     - Feature: Added a ConfigurationVersion increment convenience API and reject ConfigurationVersion bumps on bridged devices that do not enable the attribute
     - Feature: Added a `configurationVersionChanged` endpoint/node lifecycle event that fires when a client peer's ConfigurationVersion changes (BasicInformation on the node, BridgedDeviceBasicInformation on bridged endpoints)
-    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Groupcast support (Matter 1.6.1): Groupcast cluster server, AccessControl Auxiliary feature and GroupKeyManagement Groupcast feature; the GroupKeyManagement GroupcastAdoption attribute remains unsupported by the default server
     - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
@@ -38,7 +38,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
 
 - @matter/protocol
-    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Groupcast support (Matter 1.6.1): group session handling for multicast send and receive including Groupcast testing events
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
     - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
     - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset

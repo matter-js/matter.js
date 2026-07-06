@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
 import { AccessLevel } from "@matter/model";
@@ -13,10 +14,11 @@ import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
-/** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup) and GKM (GCAST feature) installed. */
+/** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup), GKM (GCAST feature) and auxiliary ACLs. */
 const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupcastServer.with("Listener", "Sender", "PerGroup"),
     GroupKeyManagementServer.with("Groupcast"),
+    AccessControlServer.with("Extension", "Auxiliary"),
 );
 
 /** 16-byte test key for creating key sets via JoinGroup/UpdateGroupKey. */
@@ -371,6 +373,20 @@ describe("GroupcastServer", () => {
             const gcastInternal = node.agentFor({ session: { fabricIndex: fi } as any } as any).get(GroupcastServer)
                 .internal as unknown as { auxAcl: { value: unknown[] } };
             expect(gcastInternal.auxAcl.value.filter((e: any) => e.fabricIndex === fi)).to.have.length(1);
+
+            // Verify the synthetic entry propagated into AccessControlServer state
+            const auxiliaryAcl = node.stateOf(AccessControlServer).auxiliaryAcl;
+            expect(auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
+        });
+
+        it("rejects the Listener feature when AccessControl lacks the Auxiliary feature", async () => {
+            const endpointType = MockServerNode.RootEndpoint.with(
+                GroupcastServer.with("Listener", "Sender", "PerGroup"),
+                GroupKeyManagementServer.with("Groupcast"),
+            );
+            await expect(MockServerNode.createOnline(endpointType, { device: undefined })).rejectedWith(
+                "requires the AccessControl Auxiliary feature",
+            );
         });
     });
 

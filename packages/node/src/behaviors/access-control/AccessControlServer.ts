@@ -7,15 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import {
-    Bytes,
-    deepCopy,
-    ImplementationError,
-    InternalError,
-    isDeepEqual,
-    Logger,
-    ObservableValue,
-} from "@matter/general";
+import { Bytes, deepCopy, InternalError, isDeepEqual, Logger, ObservableValue } from "@matter/general";
 import {
     AccessControl,
     AclEndpointContext,
@@ -62,13 +54,6 @@ export class AccessControlServer extends AccessControlBase {
     declare readonly events: AccessControlServer.Events;
 
     override initialize() {
-        // TODO: remove this guard once the Auxiliary feature leaves provisional state in the Matter specification
-        if (this.features.auxiliary) {
-            throw new ImplementationError(
-                "The Auxiliary feature of AccessControl is provisional in Matter 1.6. Do not enable it.",
-            );
-        }
-
         // Spec 1.5.1 tightened constraints to "4 to 65534" / "3 to 65534" — ensure valid defaults
         if (!this.state.subjectsPerAccessControlEntry) {
             this.state.subjectsPerAccessControlEntry = 4;
@@ -694,13 +679,13 @@ export namespace AccessControlServer {
     export class State extends AccessControlBase.State {
         /**
          * Synthesized read-only ACL entries supplied by auxiliary providers (e.g. Groupcast).  Only present when the
-         * provisional Auxiliary feature is enabled.
+         * Auxiliary feature is enabled.
          */
         declare auxiliaryAcl?: AccessControlTypes.AccessControlEntry[];
     }
 
     export class Events extends AccessControlBase.Events {
-        /** Emitted when auxiliary ACL entries change.  Only present when the provisional Auxiliary feature is enabled. */
+        /** Emitted when auxiliary ACL entries change.  Only present when the Auxiliary feature is enabled. */
         declare auxiliaryAccessUpdated?: OnlineEvent<
             [payload: AccessControlTypes.AuxiliaryAccessUpdatedEvent, context: ActionContext]
         >;
