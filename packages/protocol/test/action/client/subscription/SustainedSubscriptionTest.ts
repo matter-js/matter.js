@@ -521,6 +521,38 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
+        it("chains a caller-provided keepaliveReceived after the wakefulness re-arm", async () => {
+            const wakefulness = litWakefulness();
+            let callerCalls = 0;
+            let capturedKeepalive: SustainedClientSubscribe["keepaliveReceived"];
+            const subscription = build({
+                request: {
+                    sustain: true,
+                    updated: async () => {},
+                    keepaliveReceived: () => {
+                        callerCalls++;
+                    },
+                } as unknown as SustainedClientSubscribe,
+                wakefulness: () => wakefulness,
+                subscribe: async (request: Subscribe) => {
+                    capturedKeepalive = (request as SustainedClientSubscribe).keepaliveReceived;
+                    return fakePeerSub();
+                },
+            });
+
+            wakefulness.noteSignal();
+            await flush();
+            expect(subscription.active.value).equal(true);
+
+            capturedKeepalive?.();
+            // The caller's handler must still run (chained), and wakefulness must be re-armed.
+            expect(callerCalls).equal(1);
+            expect(wakefulness.awake.value).equal(true);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
         it("close() resolves done cleanly while parked", async () => {
             const wakefulness = litWakefulness();
             const subscription = build({ wakefulness: () => wakefulness });

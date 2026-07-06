@@ -129,9 +129,14 @@ export class SustainedSubscription extends ClientSubscription {
                     };
                 }
                 // An empty keepalive report carries no data and so never reaches updated(); re-arm wakefulness from it
-                // too so a subscribed LIT peer's heartbeat keeps it reachable between data changes.
+                // too so a subscribed LIT peer's heartbeat keeps it reachable between data changes. Chain the caller's
+                // handler rather than replace it.
                 if (this.#wakefulness !== undefined) {
-                    request.keepaliveReceived = () => this.#wakefulness?.()?.noteSignal();
+                    const bound = this.#request.keepaliveReceived?.bind(request);
+                    request.keepaliveReceived = () => {
+                        this.#wakefulness?.()?.noteSignal();
+                        return bound?.();
+                    };
                 }
                 const closed = new Promise<void>(resolve => {
                     request.closed = () => {
@@ -159,7 +164,11 @@ export class SustainedSubscription extends ClientSubscription {
                         if (this.#active.value) {
                             await this.#reportNotLive();
                         }
-                        await this.#awaitAwake(wakefulnessBefore);
+                        // Re-check after the #reportNotLive await: a wake that landed during it is the edge we would
+                        // park for, and #awaitAwake's observer only fires on the *next* emit, so skip the park.
+                        if (!wakefulnessBefore.awake.value) {
+                            await this.#awaitAwake(wakefulnessBefore);
+                        }
                     }
                     if (this.abort.aborted) {
                         break;
