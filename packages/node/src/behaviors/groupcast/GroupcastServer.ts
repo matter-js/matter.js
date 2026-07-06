@@ -35,7 +35,7 @@ import { GroupcastBehavior } from "./GroupcastBehavior.js";
 
 const logger = Logger.get("GroupcastServer");
 
-/** Membership.KeySetId sentinel indicating the referenced key set no longer exists in GKM. */
+/** Membership.KeySetId sentinel indicating the group has no usable GroupKeyMap link in GKM. */
 const UNMAPPED_KEYSET_ID = 0xffff;
 
 /**
@@ -100,7 +100,7 @@ export class GroupcastServer extends GroupcastBehavior {
         // Migrate legacy Groups cluster data to Groupcast Membership
         await this.#migrate();
 
-        // Reconcile key sets that may have been removed via GKM somehow
+        // Reconcile membership KeySetIds with GroupKeyMap links that may have changed via GKM
         this.#reconcileUnmappedKeys();
 
         // Update the derived state once after all sync/migration is done
@@ -111,8 +111,7 @@ export class GroupcastServer extends GroupcastBehavior {
         this.reactTo(fabrics.events.added, this.#handleFabricAdded);
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
 
-        // When GKM key sets are removed, groupKeyMap is also cleaned up — use that as trigger
-        // to reconcile membership entries whose key set no longer exists (mark as UNMAPPED_KEYSET_ID)
+        // Membership.KeySetId mirrors the GroupKeyMap link, so any map change re-derives it
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
         this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys);
 
@@ -477,10 +476,13 @@ export class GroupcastServer extends GroupcastBehavior {
             fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
         }
 
-        // Rebuild group→keySet map
+        // Rebuild group→keySet map.  Unmapped groups are absent so key lookup fails cleanly and the multicast
+        // membership is dropped, rather than pointing at the nonexistent sentinel key set.
         const groupKeyIdMap = new Map<GroupId, number>();
         for (const m of fabricMemberships) {
-            groupKeyIdMap.set(m.groupId, m.keySetId);
+            if (m.keySetId !== UNMAPPED_KEYSET_ID) {
+                groupKeyIdMap.set(m.groupId, m.keySetId);
+            }
         }
         fabric.groups.groupKeyIdMap = groupKeyIdMap;
 
@@ -524,8 +526,9 @@ export class GroupcastServer extends GroupcastBehavior {
     }
 
     /**
-     * Mark membership entries as unmapped (KeySetId=UNMAPPED_KEYSET_ID) when their referenced key set no longer exists in GKM.
-     * Runs at startup to reconcile state after potential GKM KeySetRemove operations.
+     * Keep Membership.KeySetId in sync with the GKM GroupKeyMap link.  An entry whose group has no GroupKeyMap mapping
+     * (or whose mapped key set no longer exists) reports UNMAPPED_KEYSET_ID; when the mapping (re)appears the KeySetId
+     * is restored from it.  Runs at startup and whenever GroupKeyMap changes.
      */
     #reconcileUnmappedKeys() {
         const gkmState = this.endpoint.stateOf(GroupKeyManagementServer);
@@ -533,14 +536,19 @@ export class GroupcastServer extends GroupcastBehavior {
         let dirty = false;
 
         for (const m of membership) {
-            if (m.keySetId !== UNMAPPED_KEYSET_ID && m.keySetId !== 0) {
-                const exists = gkmState.groupKeySets.some(
-                    ks => ks.fabricIndex === m.fabricIndex && ks.groupKeySetId === m.keySetId,
-                );
-                if (!exists) {
-                    m.keySetId = UNMAPPED_KEYSET_ID;
-                    dirty = true;
-                }
+            const mapping = gkmState.groupKeyMap.find(e => e.fabricIndex === m.fabricIndex && e.groupId === m.groupId);
+            // Key set 0 is the fabric IPK, which always exists but is never stored in groupKeySets
+            const keySetId =
+                mapping !== undefined &&
+                (mapping.groupKeySetId === 0 ||
+                    gkmState.groupKeySets.some(
+                        ks => ks.fabricIndex === m.fabricIndex && ks.groupKeySetId === mapping.groupKeySetId,
+                    ))
+                    ? mapping.groupKeySetId
+                    : UNMAPPED_KEYSET_ID;
+            if (m.keySetId !== keySetId) {
+                m.keySetId = keySetId;
+                dirty = true;
             }
         }
 

@@ -419,6 +419,76 @@ describe("GroupcastServer", () => {
             expect(keySet?.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + BigInt(1));
         });
 
+        it("membership KeySetId follows the GroupKeyMap link", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            // Clearing GroupKeyMap severs the link: membership reports the unmapped sentinel
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [];
+            });
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).membership[0].keySetId).equal(0xffff);
+
+            // Restoring the mapping restores the KeySetId
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [
+                    { groupId: GroupId(0x0001), groupKeySetId: 1, fabricIndex: fi },
+                ];
+            });
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).membership[0].keySetId).equal(1);
+        });
+
+        it("keeps unmapped groups out of the operational group key map", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            const join = (groupId: number, endpoints: number[], key?: Uint8Array) =>
+                node.online({ exchange, command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId: GroupId(groupId),
+                        endpoints: endpoints.map(ep => EndpointNumber(ep)),
+                        keySetId: 1,
+                        key,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                );
+            await join(0x0001, [1], TEST_KEY);
+            await join(0x0002, [1]);
+
+            // Sever the GroupKeyMap link of group 2 only
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [
+                    { groupId: GroupId(0x0001), groupKeySetId: 1, fabricIndex: fi },
+                ];
+            });
+            await MockTime.yield3();
+            expect(node.stateOf(GroupcastServer).membership.find(m => m.groupId === 0x0002)?.keySetId).equal(0xffff);
+
+            // An unrelated membership change re-syncs the fabric: the unmapped group must not reappear in the
+            // operational key map pointing at the sentinel
+            await join(0x0001, [1, 2]);
+            await MockTime.yield3();
+            expect(realFabric.groups.groupKeyIdMap.has(GroupId(0x0001))).equal(true);
+            expect(realFabric.groups.groupKeyIdMap.has(GroupId(0x0002))).equal(false);
+        });
+
         it("Groupcast per-fabric cap aligns with GKM maxGroupsPerFabric", async () => {
             await using node = await createGroupcastNode();
             const gkmCap = node.stateOf(GroupKeyManagementServer).maxGroupsPerFabric;
