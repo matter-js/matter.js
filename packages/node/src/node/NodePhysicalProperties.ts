@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { litSupported } from "#behavior/system/icd/litSupported.js";
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { IcdManagementClient } from "#behaviors/icd-management";
@@ -27,7 +27,7 @@ import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-
 export function NodePhysicalProperties(node: Node) {
     const rootEndpointServerList = [...(node.maybeStateOf(DescriptorClient)?.serverList ?? [])];
 
-    const supportsLit = litSupported(node);
+    const supportsLit = IcdClient.litSupported(node);
     const operatingMode = node.maybeStateOf(IcdManagementClient)?.operatingMode;
     const idleModeDuration = node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
 

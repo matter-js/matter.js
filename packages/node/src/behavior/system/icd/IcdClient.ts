@@ -8,8 +8,10 @@ import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { BasicInformationClient } from "#behaviors/basic-information";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { Node } from "#node/Node.js";
 import {
     AsyncObservable,
@@ -31,7 +33,6 @@ import { FabricManager, PeerAddress, PeerSet, SUBSCRIPTION_PROCESSING_TIME, type
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdMultiAdminError } from "./IcdMultiAdminError.js";
-import { litSupported } from "./litSupported.js";
 
 const logger = Logger.get("IcdClient");
 
@@ -59,7 +60,7 @@ export class IcdClient extends Behavior {
 
     /** Whether the peer is LIT-capable (LongIdleTimeSupport feature and specification version >= 1.4.0). */
     get peerSupportsLit() {
-        return litSupported(this.endpoint);
+        return IcdClient.litSupported(this.endpoint);
     }
 
     /**
@@ -194,7 +195,7 @@ export class IcdClient extends Behavior {
                     icd.state.registered ||
                     !(icd.endpoint instanceof Node) ||
                     !icd.endpoint.lifecycle.isOnline ||
-                    !litSupported(icd.endpoint)
+                    !IcdClient.litSupported(icd.endpoint)
                 ) {
                     return;
                 }
@@ -613,6 +614,22 @@ export class IcdClient extends Behavior {
 }
 
 export namespace IcdClient {
+    /** Minimum device Matter specification version (BasicInformation, encoded 0xMMmmpprr) for trustworthy LIT behavior. */
+    export const MIN_LIT_SPECIFICATION_VERSION = 0x01040000; // 1.4.0
+
+    /**
+     * Whether a peer is LIT-capable: advertises LongIdleTimeSupport AND reports Matter specification version >= 1.4.0.
+     * Devices below 1.4.0 (or not reporting a version) are treated as non-LIT regardless of the feature flag.
+     */
+    export function litSupported(endpoint: Endpoint): boolean {
+        if (endpoint.maybeFeaturesOf(IcdManagementClient)?.longIdleTimeSupport !== true) {
+            return false;
+        }
+        return (
+            (endpoint.maybeStateOf(BasicInformationClient)?.specificationVersion ?? 0) >= MIN_LIT_SPECIFICATION_VERSION
+        );
+    }
+
     export class Internal {
         /** Retained across re-registrations so the protocol RX path stays armed without creating a second closure. */
         checkInHandler?: FabricIcd.CheckInHandler;

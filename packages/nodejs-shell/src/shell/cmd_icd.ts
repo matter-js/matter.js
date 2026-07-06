@@ -5,7 +5,7 @@
  */
 
 import { Duration, Millis, ObserverGroup } from "@matter/general";
-import { IcdClient, IcdMultiAdminError, litSupported } from "@matter/node";
+import { IcdClient, IcdMultiAdminError } from "@matter/node";
 import { IcdManagementClient } from "@matter/node/behaviors/icd-management";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
@@ -25,7 +25,7 @@ async function printStatus(paired: PairedNode) {
     }
     const icd = clientNode.stateOf(IcdClient);
     const mgmt = clientNode.maybeStateOf(IcdManagementClient);
-    const supportsLit = litSupported(clientNode);
+    const supportsLit = IcdClient.litSupported(clientNode);
     const awake = await clientNode.act(agent => agent.get(IcdClient).awake);
     const operatingModeLabel =
         mgmt === undefined
