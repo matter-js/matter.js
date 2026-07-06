@@ -40,7 +40,7 @@ export class RemoveNodeFromGroup extends Task<RemoveNodeFromGroupParams> {
             return; // decommissioned: intent is GC'd with the node
         }
 
-        // Read the key-set id from the live map intent before removing the map.
+        // The keyset id is unreadable once the map intent is gone, so capture it before removal.
         const keySetId = this.#mappedKeySetId(peer, p.groupId);
 
         const removed = new Array<{ kind: string; key: string }>();
