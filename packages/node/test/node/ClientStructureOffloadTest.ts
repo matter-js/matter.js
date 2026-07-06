@@ -9,8 +9,8 @@ import { OnOffClient } from "#behaviors/on-off";
 import { SwitchClient, SwitchServer } from "#behaviors/switch";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
-import { Switch } from "@matter/types/clusters/switch";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { Switch } from "@matter/types/clusters/switch";
 
 describe("ClientStructureOffload", () => {
     before(() => {
