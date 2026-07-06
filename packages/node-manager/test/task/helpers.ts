@@ -5,16 +5,20 @@
  */
 
 import { Task } from "#task/Task.js";
-import { TaskPhase } from "#task/types.js";
+import { PlannedChange, TaskPhase } from "#task/types.js";
 import { Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 
 /** A synthetic task whose phases are supplied inline; for unit-testing the manager/driver. */
 export class SyntheticTask extends Task<{ tag: string }> {
     static phasesByTag: Record<string, TaskPhase[]> = {};
+    static plannedChangesByTag: Record<string, PlannedChange[]> = {};
     override readonly type = "synthetic";
     override get phases() {
         return SyntheticTask.phasesByTag[this.params.tag] ?? new Array<TaskPhase>();
+    }
+    override plannedChanges(): PlannedChange[] {
+        return SyntheticTask.plannedChangesByTag[this.params.tag] ?? new Array<PlannedChange>();
     }
     static override idFor(params: { tag: string }) {
         return `synthetic:${params.tag}`;

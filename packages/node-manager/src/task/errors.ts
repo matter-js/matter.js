@@ -14,6 +14,9 @@ export class TaskPeerUnavailableError extends TaskError {}
 /** A task's forward work failed terminally; the manager spawns a revert task to roll back its changeSet. */
 export class TaskFailedError extends TaskError {}
 
+/** A task's planned changes would exceed a node's device capacity for some item kind. */
+export class TaskCapacityExceededError extends TaskError {}
+
 /** Internal signal a running gate throws when cancel is requested, so #drive stops cleanly (not "failed"). */
 export class TaskCancelledSignal extends TaskError {}
 
