@@ -174,6 +174,21 @@ describe("MRP", () => {
 
             expect(interval).to.equal(maximumFor(Millis(500), 1));
         });
+
+        it("includes additionalDelay (amplified) and fixedBackoff (flat) so the maximum upper-bounds real sends", () => {
+            const ADD = Seconds(1.5);
+            const FIXED = Seconds(0.2);
+            const withPad = MRP.maxRetransmissionIntervalOf({
+                transmissionNumber: 1,
+                sessionParameters,
+                isPeerActive: false,
+                additionalDelay: ADD,
+                fixedBackoff: FIXED,
+            });
+
+            expect(withPad).to.equal(maximumFor(Seconds(10) + ADD, 1) + FIXED);
+            expect(withPad).to.be.greaterThan(maximumFor(Seconds(10), 1));
+        });
     });
 
     describe("maxPeerResponseTimeOf", () => {
@@ -250,6 +265,23 @@ describe("MRP", () => {
 
                 // 4229 (return, active) + 2000 (processing) + 5000 (buffer)
                 expect(timeout).to.equal(Millis(11229));
+            });
+
+            it("adds our sender-side fixedBackoff to the local return leg only", () => {
+                const base = MRP.maxPeerResponseTimeOf({
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: true,
+                });
+                const withPad = MRP.maxPeerResponseTimeOf({
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: true,
+                    localFixedBackoff: Millis(200),
+                });
+
+                // The flat pad lands on each of the return leg's transmissions; the peer leg (absent here) is untouched.
+                expect(withPad - base).to.equal(MRP.MAX_TRANSMISSIONS * Millis(200));
             });
         });
 

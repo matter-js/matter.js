@@ -489,6 +489,8 @@ export class ExchangeManager implements Transport.Provider {
             this.#sessions.sessionParameters,
             expectedProcessingTime,
             includeMaximumSendingTime,
+            this.#sessions.localAdditionalMrpDelay,
+            this.#sessions.localFixedMrpBackoff,
         );
     }
 

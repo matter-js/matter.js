@@ -729,6 +729,9 @@ export class MessageExchange {
                 this.session.parameters,
                 this.context.localSessionParameters,
                 options?.expectedProcessingTime,
+                undefined,
+                this.#sendAdditionalDelay,
+                this.#context.localFixedMrpBackoff,
             );
         }
 
@@ -772,6 +775,9 @@ export class MessageExchange {
                         this.session.parameters,
                         this.context.localSessionParameters,
                         expectedProcessingTime,
+                        undefined,
+                        this.#sendAdditionalDelay,
+                        this.#context.localFixedMrpBackoff,
                     ) - (this.#retransmissionTimer?.interval ?? Instant),
                 );
                 if (finalWaitTime > 0) {
@@ -974,7 +980,14 @@ export class MessageExchange {
         let maxResubmissionTime = Instant;
         for (let i = this.#retransmissionCounter; i <= MRP.MAX_TRANSMISSIONS; i++) {
             maxResubmissionTime = Millis(
-                maxResubmissionTime + this.channel.getMrpResubmissionBackOffTime(i, undefined, true),
+                maxResubmissionTime +
+                    this.channel.getMrpResubmissionBackOffTime(
+                        i,
+                        undefined,
+                        true,
+                        this.#sendAdditionalDelay,
+                        this.#context.localFixedMrpBackoff,
+                    ),
             );
         }
         this.#closeTimer = Time.getTimer(
@@ -1031,6 +1044,11 @@ export class MessageExchange {
         return this.#backOffFor(this.#retransmissionCounter);
     }
 
+    /** Amplified backoff addition applied to our sends: the larger of our own and the peer's network-profile delay. */
+    get #sendAdditionalDelay() {
+        return Duration.max(this.#context.localAdditionalMrpDelay, this.#peerAdditionalMrpDelay ?? Millis(0));
+    }
+
     /**
      * Scheduled MRP backoff for a given (re)transmission number, after the send-option overrides.
      *
@@ -1038,15 +1056,11 @@ export class MessageExchange {
      * maxRetransmissionTime must not be retried faster than its own idle cadence.
      */
     #backOffFor(retransmissionCount: number) {
-        const additionalDelay = Duration.max(
-            this.#context.localAdditionalMrpDelay,
-            this.#peerAdditionalMrpDelay ?? Millis(0),
-        );
         let backOff = this.channel.getMrpResubmissionBackOffTime(
             retransmissionCount,
             undefined,
             false,
-            additionalDelay,
+            this.#sendAdditionalDelay,
             this.#context.localFixedMrpBackoff,
         );
         if (this.#sendOptions.initialRetransmissionTime !== undefined) {

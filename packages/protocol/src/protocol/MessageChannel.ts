@@ -199,6 +199,8 @@ export class MessageChannel implements Channel<Message> {
         localSessionParameters: SessionParameters,
         expectedProcessingTime?: Duration,
         includeMaximumSendingTime?: boolean,
+        localAdditionalDelay?: Duration,
+        localFixedBackoff?: Duration,
     ): Duration {
         return MRP.maxPeerResponseTimeOf({
             peerSessionParameters: includeMaximumSendingTime ? peerSessionParameters : undefined,
@@ -207,6 +209,8 @@ export class MessageChannel implements Channel<Message> {
             isPeerActive: this.session.isPeerActive,
             usesMrp: this.session.usesMrp,
             expectedProcessingTime,
+            localAdditionalDelay,
+            localFixedBackoff,
         });
     }
 
