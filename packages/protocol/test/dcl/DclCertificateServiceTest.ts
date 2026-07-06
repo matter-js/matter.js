@@ -5,13 +5,18 @@
  */
 
 import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
+import { Paa } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
     Crypto,
     Days,
+    Diagnostic,
     Environment,
+    LogFormat,
+    Logger,
+    LogLevel,
     Minutes,
     MockFetch,
     MockStorageService,
@@ -497,6 +502,50 @@ describe("DclCertificateService", () => {
             await service.construction;
 
             await expect(service.getCertificateAsPem("NONEXISTENT")).to.be.rejected;
+
+            await service.close();
+        });
+
+        const NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
+
+        async function corruptStoredCertificate(skid: string) {
+            const storage = await environment.get(StorageService).open("certificates");
+            await storage.createContext("root").set(skid, Bytes.fromHex("3003010203"));
+        }
+
+        it("force re-fetches a corrupted cached certificate and returns valid DER", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const good = await service.getCertificateAsDer(NOVID_SKID);
+            expect(() => Paa.fromAsn1(good)).to.not.throw();
+
+            await corruptStoredCertificate(NOVID_SKID);
+
+            const healed = await service.getCertificateAsDer(NOVID_SKID);
+            expect(Bytes.areEqual(healed, good)).to.be.true;
+            expect(() => Paa.fromAsn1(healed)).to.not.throw();
+
+            await service.close();
+        });
+
+        it("returns the original bytes when a corrupted cache cannot be re-fetched", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+            await service.getCertificateAsDer(NOVID_SKID);
+
+            const corrupt = Bytes.fromHex("3003010203");
+            await corruptStoredCertificate(NOVID_SKID);
+            // Empty root list wins on reverse-order match, so the re-fetch finds no replacement.
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Recovery fails, so the original (corrupt) bytes are returned unchanged for the caller's
+            // normal validation to surface the parse failure rather than masking it here.
+            const result = await service.getCertificateAsDer(NOVID_SKID);
+            expect(Bytes.areEqual(result, corrupt)).to.be.true;
+            expect(() => Paa.fromAsn1(result)).to.throw();
 
             await service.close();
         });
@@ -1681,12 +1730,23 @@ describe("DclCertificateService", () => {
         const TEST_PAA_NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
         const TEST_PAA_FFF1_SKID = "6AFD22771F511FECBF1641976710DCDC31A1717E";
 
+        const EMPTY_DCL_CERT_LIST = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
+        const PROD_ROOT_LIST_URL = "on.dcl.csa-iot.org/dcl/pki/root-certificates";
+        const TEST_ROOT_LIST_URL = "on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates";
+        const GITHUB_PAA_DIR_URL =
+            "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs";
+
+        let service: DclCertificateService | undefined;
+
+        afterEach(async () => {
+            await service?.close();
+            service = undefined;
+        });
+
         // Set up storage with two test PAAs cached from a prior `fetchTestCertificates: true` run.
         async function seedStorageWithTestPaas() {
-            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
-            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+            fetchMock.addResponse(TEST_ROOT_LIST_URL, mockDclRootCertificateList);
             fetchMock.addResponse(
                 "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
                 mockDclCertificateNoVID,
@@ -1695,10 +1755,7 @@ describe("DclCertificateService", () => {
                 "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
                 mockDclCertificateFFF1,
             );
-            fetchMock.addResponse(
-                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
-                [],
-            );
+            fetchMock.addResponse(GITHUB_PAA_DIR_URL, []);
             fetchMock.install();
 
             const seed = new DclCertificateService(environment, { fetchTestCertificates: true });
@@ -1711,70 +1768,54 @@ describe("DclCertificateService", () => {
             fetchMock = new MockFetch();
         }
 
-        it("hides cached test certificates from getCertificate when fetchTestCertificates is disabled", async () => {
-            await seedStorageWithTestPaas();
-
-            // Reopen with test fetching disabled — cached test certs must not surface.
-            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
+        // Open the service after seeding. Mocks empty DCL endpoints so the construction-time
+        // update completes without populating the store. The caller-supplied `fetchTestCertificates`
+        // flag determines which endpoints are reached and therefore which mocks are required.
+        async function openServiceAfterSeed(
+            fetchTestCertificates: boolean,
+            extraOptions?: Partial<DclCertificateService.Options>,
+        ) {
+            fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+            if (fetchTestCertificates) {
+                fetchMock.addResponse(TEST_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+                fetchMock.addResponse(GITHUB_PAA_DIR_URL, []);
+            }
             fetchMock.install();
 
-            const service = new DclCertificateService(environment, { fetchTestCertificates: false });
+            service = new DclCertificateService(environment, { fetchTestCertificates, ...extraOptions });
             await service.construction;
+            return service;
+        }
 
-            expect(service.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
-            expect(service.getCertificate(TEST_PAA_FFF1_SKID)).to.be.undefined;
+        it("hides cached test certificates from getCertificate when fetchTestCertificates is disabled", async () => {
+            await seedStorageWithTestPaas();
+            const svc = await openServiceAfterSeed(false);
+
+            expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+            expect(svc.getCertificate(TEST_PAA_FFF1_SKID)).to.be.undefined;
             // Raw enumeration still exposes the cached entries for management commands.
-            expect(service.certificates.length).to.equal(2);
-
-            await service.close();
+            expect(svc.certificates.length).to.equal(2);
         });
 
         it("returns cached test certificates again when fetchTestCertificates is re-enabled", async () => {
             await seedStorageWithTestPaas();
+            const svc = await openServiceAfterSeed(true);
 
-            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
-            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
-            fetchMock.addResponse(
-                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
-                [],
-            );
-            fetchMock.install();
-
-            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
-            await service.construction;
-
-            expect(service.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
-            expect(service.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
-
-            await service.close();
+            expect(svc.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+            expect(svc.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
         });
 
         it("rejects DER/PEM lookups for hidden test certificates", async () => {
             await seedStorageWithTestPaas();
+            const svc = await openServiceAfterSeed(false);
 
-            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
-            fetchMock.install();
-
-            const service = new DclCertificateService(environment, { fetchTestCertificates: false });
-            await service.construction;
-
-            await expect(service.getCertificateAsDer(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
-            await expect(service.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
-
-            await service.close();
+            await expect(svc.getCertificateAsDer(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+            await expect(svc.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
         });
 
         it("does not affect production certificates", async () => {
             // Seed a production cert (no test fetching needed).
-            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(PROD_ROOT_LIST_URL, mockDclRootCertificateList);
             fetchMock.addResponse(
                 "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
                 mockDclCertificateNoVID,
@@ -1785,11 +1826,213 @@ describe("DclCertificateService", () => {
             );
             fetchMock.install();
 
-            const service = new DclCertificateService(environment, { fetchTestCertificates: false });
+            service = new DclCertificateService(environment, { fetchTestCertificates: false });
             await service.construction;
 
             expect(service.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.true;
             expect(service.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.true;
+        });
+
+        describe("considerTestCertificates per-call override", () => {
+            it("returns cached test certificate when override is true and fetchTestCertificates is disabled", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })).to.deep.include({
+                    isProduction: false,
+                });
+            });
+
+            it("filters cached test certificate when override is false even if fetchTestCertificates is enabled", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true);
+
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.not.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: false })).to.be.undefined;
+            });
+
+            it("getCertificateAsDer returns DER when override is true", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                await expect(svc.getCertificateAsDer(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+                const der = await svc.getCertificateAsDer(TEST_PAA_NOVID_SKID, { considerTestCertificates: true });
+                expect(der.byteLength).to.be.greaterThan(0);
+            });
+
+            it("getCertificateAsDer throws when explicit override is false even if fetchTestCertificates is on", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true);
+
+                await expect(
+                    svc.getCertificateAsDer(TEST_PAA_NOVID_SKID, { considerTestCertificates: false }),
+                ).to.be.rejectedWith(/Certificate not found/);
+            });
+
+            it("getCertificateAsPem returns PEM when override is true", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                await expect(svc.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+                const pem = await svc.getCertificateAsPem(TEST_PAA_NOVID_SKID, { considerTestCertificates: true });
+                expect(pem).to.include("-----BEGIN CERTIFICATE-----");
+            });
+
+            it("getOrFetchCertificate respects the considerTestCertificates override on local hits", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                expect(await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(
+                    await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true }),
+                ).to.deep.include({ isProduction: false });
+            });
+
+            it("getOrFetchCertificate filters a post-fetch test cert per the considerTestCertificates override", async () => {
+                fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+                fetchMock.addResponse(TEST_ROOT_LIST_URL, mockDclRootCertificateList);
+                fetchMock.addResponse(
+                    "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                    mockDclCertificateNoVID,
+                );
+                fetchMock.install();
+
+                service = new DclCertificateService(environment, {
+                    fetchTestCertificates: false,
+                    updateInterval: null,
+                });
+                await service.construction;
+
+                expect(service.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })).to.be.undefined;
+
+                expect(await service.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { isProduction: false })).to.be
+                    .undefined;
+                expect(
+                    await service.getOrFetchCertificate(TEST_PAA_NOVID_SKID, {
+                        isProduction: false,
+                        considerTestCertificates: true,
+                    }),
+                ).to.deep.include({ isProduction: false });
+            });
+        });
+
+        describe("acceptTestCertificates trust policy", () => {
+            it("defaults acceptsTestCertificates to false when neither flag is set", async () => {
+                const svc = await openServiceAfterSeed(false);
+                expect(svc.acceptsTestCertificates).to.be.false;
+            });
+
+            it("defaults acceptsTestCertificates to fetchTestCertificates when only fetch is set", async () => {
+                const svc = await openServiceAfterSeed(true);
+                expect(svc.acceptsTestCertificates).to.be.true;
+            });
+
+            it("accepts (and makes visible) test certificates without fetching them", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false, { acceptTestCertificates: true });
+
+                expect(svc.acceptsTestCertificates).to.be.true;
+                // Trust policy alone makes cached test PAAs visible to the default lookup.
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+                expect(svc.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+            });
+
+            it("fetches but does not accept test certificates when acceptTestCertificates is false", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true, { acceptTestCertificates: false });
+
+                expect(svc.acceptsTestCertificates).to.be.false;
+                // Fetched and cached, yet hidden from the default trust lookup.
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })?.isProduction).to.be
+                    .false;
+            });
+        });
+    });
+
+    describe("GitHub rate-limit logging", () => {
+        async function captureLogs(fn: () => Promise<unknown>) {
+            const dest = Logger.destinations.default;
+            const { format, write } = dest;
+            const captured = new Array<{ level: LogLevel; message: string }>();
+            try {
+                dest.format = LogFormat.formats.plain;
+                dest.write = (message: string, { level }: Diagnostic.Message) => {
+                    captured.push({ level, message });
+                };
+                await fn();
+                return captured;
+            } finally {
+                dest.format = format;
+                dest.write = write;
+            }
+        }
+
+        // Empty DCL responses so the cached set is controlled solely by the test, with GitHub rate-limited (403).
+        function mockDclWithGithubRateLimited() {
+            const emptyRootList = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("api.github.com", {}, { status: 403 });
+            fetchMock.install();
+        }
+
+        it("logs the GitHub fetch failure at info when no test certificate is cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("logs the GitHub fetch failure at debug when a test certificate is already cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA");
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.DEBUG);
+
+            await service.close();
+        });
+
+        it("logs the GitHub fetch failure at info when only a production certificate is cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: true });
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("skips the remaining GitHub fetches for the run after a rate-limit response", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            // The PAA listing rate-limits, so the CD signer listing is skipped: a single GitHub call for the run.
+            const githubCalls = fetchMock.getCallLog().filter(call => call.url.includes("api.github.com"));
+            expect(githubCalls.length).to.equal(1);
+
+            // A later run is not blocked; it retries GitHub from scratch.
+            fetchMock.clearCallLog();
+            await service.update(true);
+            expect(fetchMock.getCallLog().filter(call => call.url.includes("api.github.com")).length).to.equal(1);
 
             await service.close();
         });

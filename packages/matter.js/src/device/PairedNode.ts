@@ -5,6 +5,8 @@
  */
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
+import { ClusterClientObj } from "#cluster/client/ClusterClientTypes.js";
+import { DecodedAttributeReportValue, DecodedEventReportValue } from "#cluster/client/DecodedDataReport.js";
 import { InteractionClient, UnknownNodeError } from "#cluster/client/InteractionClient.js";
 import {
     AsyncObservable,
@@ -12,6 +14,7 @@ import {
     camelize,
     Construction,
     Crypto,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Diagnostic,
     Immutable,
     ImplementationError,
@@ -41,21 +44,12 @@ import {
     ClusterBehavior,
     Commands,
     EndpointLifecycle,
+    IcdClient,
     NetworkClient,
     type GlobalAttributeState,
 } from "@matter/node";
 import { DescriptorClient } from "@matter/node/behaviors/descriptor";
-import {
-    ClusterClientObj,
-    DecodedAttributeReportValue,
-    DecodedEventReportValue,
-    PaseClient,
-    Peer,
-    PeerAddress,
-    Read,
-    SustainedSubscription,
-    Val,
-} from "@matter/protocol";
+import { PaseClient, Peer, PeerAddress, Read, SustainedSubscription, Val } from "@matter/protocol";
 import {
     AttributeId,
     CaseAuthenticatedTag,
@@ -347,6 +341,14 @@ export class PairedNode {
             this.#handleSubscriptionAlive.bind(this),
         );
 
+        // A missed Check-In escalates a held Reconnecting; a parked subscription alone must not.
+        if (this.#clientNode.behaviors.has(IcdClient)) {
+            this.#observers.on(
+                this.#clientNode.eventsOf(IcdClient).checkInMissed,
+                this.#handleIcdCheckInMissed.bind(this),
+            );
+        }
+
         this.#observers.on(peer.service.changed, () => {
             if (!peer.service.addresses.size && this.#connectionState === NodeStates.Reconnecting) {
                 this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
@@ -390,7 +392,7 @@ export class PairedNode {
                 if (this.#options.autoSubscribe === false) {
                     // No subscription desired -- do a one-time wildcard read to populate state
                     this.#initializeWithRead().catch(error => {
-                        logger.info(this.#peerAddress, `Error during read-only initialization`, error);
+                        logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
                     });
                 } else {
                     // Activate the sustained subscription on NetworkClient
@@ -504,7 +506,7 @@ export class PairedNode {
         try {
             await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
         } catch (error) {
-            logger.info(this.#peerAddress, `Error updating fabric label`, error);
+            logger.warn(this.#peerAddress, `Error updating fabric label`, error);
         }
     }
 
@@ -521,12 +523,41 @@ export class PairedNode {
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
+        this.#connect(connectOptions).catch(error => logger.warn(this.#peerAddress, `Error connecting to node`, error));
+    }
+
+    async #connect(connectOptions?: CommissioningControllerNodeOptions) {
+        // Per-connect subscription intervals must reach the NetworkClient that drives the subscription; the
+        // create-time path only applies them when passed to getNode()/connectNode().
+        await this.#applyDefaultSubscription(connectOptions);
+
+        // disconnect() disables the underlying node; re-enable it so the node restarts and NetworkClient can
+        // (re)subscribe.  Without this a connect() after disconnect() is a no-op because isDisabled stays set.
+        if (this.#clientNode.stateOf(NetworkClient).isDisabled) {
+            await this.#clientNode.enable();
+        }
+
         if (this.#options.autoSubscribe === false) {
-            this.#initializeWithRead().catch(error => {
-                logger.info(this.#peerAddress, `Error during read-only initialization`, error);
-            });
+            await this.#initializeWithRead();
         } else {
             this.#activateSubscription();
+        }
+    }
+
+    /** Push per-connect subscription intervals onto the NetworkClient that drives the sustained subscription. */
+    async #applyDefaultSubscription(connectOptions?: CommissioningControllerNodeOptions) {
+        if (connectOptions === undefined) {
+            return;
+        }
+        const defaultSubscription: Record<string, unknown> = {};
+        if (connectOptions.subscribeMinIntervalFloorSeconds !== undefined) {
+            defaultSubscription.minIntervalFloor = Seconds(connectOptions.subscribeMinIntervalFloorSeconds);
+        }
+        if (connectOptions.subscribeMaxIntervalCeilingSeconds !== undefined) {
+            defaultSubscription.maxIntervalCeiling = Seconds(connectOptions.subscribeMaxIntervalCeilingSeconds);
+        }
+        if (Object.keys(defaultSubscription).length > 0) {
+            await this.#clientNode.set({ network: { defaultSubscription } });
         }
     }
 
@@ -776,13 +807,20 @@ export class PairedNode {
                 try {
                     await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
                 } catch (error) {
-                    logger.info(this.#peerAddress, `Error updating fabric label`, error);
+                    logger.warn(this.#peerAddress, `Error updating fabric label`, error);
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
             // Subscription is not active anymore, and we were connected before, we use Reconnecting as state
             // When all sessions disconnect, we go to WaitingForDiscovery
             this.#setConnectionState(NodeStates.Reconnecting);
+        }
+    }
+
+    /** Escalate a held Reconnecting when a registered LIT peer misses its expected Check-In; recovery stays with the liveness handler. */
+    #handleIcdCheckInMissed() {
+        if (this.#connectionState === NodeStates.Reconnecting && !this.#closing && !this.#decommissioned) {
+            this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
         }
     }
 
@@ -912,13 +950,13 @@ export class PairedNode {
             return;
         }
         if (!this.#clientNode.endpoints.has(endpointId)) {
-            logger.info(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
+            logger.debug(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
             return;
         }
         const endpoint = this.#clientNode.endpoints.for(endpointId);
         const descriptorData = endpoint.maybeStateOf(DescriptorClient);
         if (descriptorData === undefined) {
-            logger.info(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
+            logger.debug(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
             return;
         }
         collectedData.set(endpointId, endpoint);
@@ -1178,7 +1216,7 @@ export class PairedNode {
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.info(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
+            logger.debug(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
             throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
         }
 
@@ -1348,7 +1386,7 @@ export class PairedNode {
         const discriminator = PaseClient.generateRandomDiscriminator(this.#crypto);
         const passcode = PaseClient.generateRandomPasscode(this.#crypto);
         const salt = this.#crypto.randomBytes(32);
-        const iterations = 1_000; // Minimum 1_000, Maximum 100_000
+        const iterations = CRYPTO_PBKDF_ITERATIONS_MIN;
         const pakePasscodeVerifier = await PaseClient.generatePakePasscodeVerifier(this.#crypto, passcode, {
             iterations,
             salt,
@@ -1380,14 +1418,18 @@ export class PairedNode {
             manualPairingCode: ManualPairingCodeCodec.encode({
                 discriminator: discriminator,
                 passcode: passcode,
+                flowType: CommissioningFlowType.Standard,
             }),
             qrPairingCode,
         };
     }
 
-    /** Closes the current session, ends the subscription and disconnects the device. */
+    /** Closes the current session, ends the subscription and disconnects the device. The node can be reconnected via connect(). */
     async disconnect() {
-        this.close();
+        // Unlike close() this keeps the instance (observers, construction) intact so connect() can reconnect it; the
+        // node is disabled via disconnectNode() which ends the subscription.
+        this.#updateEndpointStructureTimer.stop();
+        this.#setConnectionState(NodeStates.Disconnected);
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
 

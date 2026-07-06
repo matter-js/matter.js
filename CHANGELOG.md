@@ -11,8 +11,225 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/\*:
+    - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible.
+
+- @matter/general
+    - Enhancement: `deepCopy` now clones `Set` and `Map` values instead of turning them into empty objects
+
+- @matter/model
+    - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
+
+- @matter/node
+    - Feature: Implemented the newly-mandatory Matter 1.6 diagnostics attributes
+    - Feature: Enabled the BooleanState `StateChange` event by default via the new feature
+    - Feature: Emit the OccupancySensing `OccupancyChanged` event automatically when the `OccupancyEvent` feature is enabled
+    - Feature: Advertise the BasicInformation CapabilityMinima defaults and enforce the read/subscribe path-count ceiling
+    - Feature: Added a ConfigurationVersion increment convenience API and reject ConfigurationVersion bumps on bridged devices that do not enable the attribute
+    - Feature: Added a `configurationVersionChanged` endpoint/node lifecycle event that fires when a client peer's ConfigurationVersion changes (BasicInformation on the node, BridgedDeviceBasicInformation on bridged endpoints)
+    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
+    - Fix: Prune GroupKeyMap entries when a key set is removed
+    - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
+    - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
+
+- @matter/nodejs-shell
+    - Fix: Close a path-containment gap in the optional web server that let requests reach sibling directories sharing the web-root name prefix, and resolve symlinks before serving (reported by tonghuaroot)
+    - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
+
+- @matter/protocol
+    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
+    - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
+    - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset
+    - Enhancement: Optimized Subscription minIntervalFloor: now defaults to 0s; only Thread devices older than Matter 1.3.0 keep a 1s floor, and any node with a Generic Switch endpoint opts back into 0s for faster switch events
+
+- @matter/thread-br-client
+    - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
+
+- @matter/types
+    - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
+
+## 0.17.4 (2026-07-01)
+
+- @matter/general
+    - Enhancement: Inbound mDNS packets are dropped before a full decode when none of the names any subscriber registered appear in them, reducing CPU usage on busy networks
+
+- @matter/node
+    - Enhancement: Optimizes incoming DataReport processing
+    - Enhancement: Frees a behavior's persisted seed values from memory once the datasource has loaded them
+    - Adjustment: Rejects an invalid Basic Information VendorID (0 or above 0xFFF4) or ProductID (0) as a device identity
+    - Adjustment: A client write interaction to a peer no longer rejects conformance violations locally; the value is forwarded so the device decides, while value-range and datatype errors still fail fast
+    - Fix: A peer's mDNS advertisement at the 1-hour SII/SAI cap no longer lowers a higher CASE-negotiated idle/active interval already on record
+    - Fix: Ensures that a peer's FeatureMap change rebuilds the affected client cluster behavior
+    - Fix: A peer reporting an empty AttributeList no longer breaks client cluster schema generation; the discovered schema falls back to the attributes actually received
+    - Fix: A client cluster the peer still serves data for but omits from its descriptor server list is no longer dropped when subsequent endpoint data is processed
+    - Fix: Ensures that fabric-scoped attribute data (e.g. stale AccessControl ACL entries) is always sanitized at node startup
+    - Fix: A misconfigured environment/configuration value for a behavior (unknown property or unconvertible value) is now logged and skipped instead of crashing endpoint initialization
+    - Fix: An invoke with SuppressResponse still returns the Invoke Response when a command produces response data, instead of suppressing it unconditionally
+    - Fix: Aligned Thermostat atomic-write handling with the Matter specification
+    - Fix: Ensures that client clusters are never exposed to incoming interactions
+    - Fix: The generated manual pairing code now reflects the configured commissioning flow, including Vendor ID and Product ID for non-Standard flows
+    - Fix: Ensures that a rejected SetRegulatoryConfig leaves BasicInformation.location unchanged, instead of writing the country code before validating the regulatory config
+    - Fix: Diagnostics now log endpoint number 0 instead of "(unassigned)"
+
+- @matter/nodejs
+    - Fix: On `process.exit`, verifies all storages were properly closed and removes orphaned lock files otherwise, so a forgotten close no longer blocks the next startup
+
+- @matter/protocol
+    - Enhancement: Caches attribute/event schema resolution while decoding incoming data reports to reduce decode time
+    - Enhancement: Incoming read/subscription data reports now tolerate signed/unsigned integer encoding mismatches within defined bounds. Such cases are still non-compliant and are logged
+    - Enhancement: Unified peer device-probing across the mDNS address-change and subscription-liveness cases so they no longer probe independently
+    - Adjustment: A GitHub rate-limit response while downloading certificates now skips the remaining GitHub fetches for that run, and is logged at debug instead of info when matching test certificates are already cached
+    - Fix: CASE/PASE session parameters with idle/active intervals above one hour are now accepted instead of declining the session; the one-hour cap is applied only when advertising over DNS-SD like in CHIP SDK
+    - Fix: A local Session Active Threshold above its 65535ms (uint16) maximum is now rejected up front with a clear error instead of failing later during message encoding
+    - Fix: The operational (fallback) address now updates when the session channel follows a peer's new source address, instead of going stale
+    - Fix: Certificate SubjectKeyIdentifier and AuthorityKeyIdentifier are derived as 160-bit SHA-1
+    - Fix: Certificates are rejected on decode when exceeding the size limits (400 bytes TLV for the NOC chain and VVSC, 600 bytes DER for the NOC and DAC chains)
+    - Fix: OTA image digest type identifiers follow the IANA Named Information Hash Algorithm Registry (RFC 6920), and the digest algorithm is validated when reading an image
+    - Fix: Fabric-sensitive events are now always filtered to the accessing fabric on read and subscribe
+    - Fix: A stray StatusReport arriving as an exchange's initial message (e.g. a retransmitted CASE/PASE completion) is now ignored instead of logging an "Unhandled error"
+    - Fix: An invoke client now reports `NoCommandResponse` for sent commands that receive no response, and discards unexpected/unmatched response entries instead of throwing
+    - Fix: The BLE Extended-Announcement flag is only set during the extended-announcement period, no longer when private details are omitted outside that window
+    - Fix: Fixes encoding and decoding of a message payload header carrying a vendor Protocol ID
+    - Fix: Does not send error status messages when the message before was never delivered for PASE/CASE
+    - Fix: Clamps the outer interaction-model status to SUCCESS/FAILURE when a cluster-specific status is present
+    - Fix: Rejects a DataVersion on a group or wildcard write path
+    - Fix: Ensures that DataReports always contain data or a status for attributes and never the IsUrgent flag in event data 
+
+- @matter/types
+    - Fix: TLV character strings are truncated at the first Information Separator 1 (0x1F) on decode, and a character string containing IS1 is rejected on validation
+    - Fix: Onboarding-payload version is validated on decode — a reserved QR version (≠ 0) or manual pairing code first digit (≥ 8) is rejected instead of being mis-parsed
+    - Fix: The manual pairing code codec now requires Vendor ID and Product ID for non-Standard commissioning flows
+    - Fix: The onboarding-payload TLV codec rejects reserved tags (0x05–0x7F; manufacturer-specific tags must use 0x80–0xFF) and requires the PBKDF iteration count and salt to be both present or both absent
+
+- @project-chip/matter.js
+    - Fix: `PairedNode.connect()` now applies the subscription interval options passed to it, instead of ignoring them
+
+## 0.17.3 (2026-06-17)
+
+- @matter/general
+    - Fix: `log.level` (e.g. `MATTER_LOG_LEVEL`) now accepts string level names like `info` again, not just numeric values
+    - Fix: A failed UDP multicast send now evicts and rebuilds the broadcast channel instead of caching a dead socket
+    - Fix: SPAKE2+ now samples the ephemeral scalar bounded by the group order `n` instead of the field prime `p`
+
+- @matter/model
+    - Fix: Changed interaction model revision back to 12 because revision 13 only includes a provisional feature
+    - Fix: The conformance parser now rejects invalid choice and optionality constructs instead of mis-parsing them
+
+- @matter/node
+    - Fix: Reading `CommissioningServer` pairing codes before commissioning is initialized now throws a clear error instead of emitting a placeholder code
+    - Fix: Ensures that the negotiated subscription MaxInterval stays at or above the requested MinIntervalFloor when the floor exceeds the 60-minute publisher limit
+    - Fix: Ensures that a repeated atomic-write BeginWrite from the same client on a cluster/endpoint returns INVALID_IN_STATE for any attributes
+
+- @matter/protocol
+    - Fix: Ensures that the peer-medium-specific `additionalMrpDelay` is also used for executed commands, and added an optional per-request `additionalMrpDelay` override
+    - Adjustment: MRP now selects the active/idle retransmission interval by peer activity for every transmission including the first, instead of forcing the first transmission to the idle interval
+    - Fix: Prevents a crash when a PASE pairing timeout fires while a previous message is still awaiting acknowledgement
+    - Fix: A discovery kick no longer restarts an in-flight CASE handshake when a restart would barely shorten the next retransmission, avoiding needless teardown of a sleepy peer's exchange
+    - Fix: The MRP retransmission interval is no longer capped below the peer's idle interval
+    - Fix: The connection fallback address is now compared by value, so a rediscovered last-known address is no longer mistaken for an address change
+    - Fix: Ensures that subscriptions established through an interaction are closed when the interaction closes (e.g. node disable/disconnect or decommission)
+    - Fix: Ensures spec-compliant read/subscribe/write/invoke responses for a model-known but absent high-privilege attribute, event or command
+    - Fix: Decodes VendorID/ProductID from the "fallback method" (`Mvid:`/`Mpid:` in the commonName) of attestation certificates
+
+- @matter/types
+    - Enhancement: Added `isValidPasscode()`/`assertValidPasscode()` for onboarding passcode validation
+    - Fix: Ensure that passcodes are valid when encoding or decoding pairing codes
+    - Fix: Ensures that the most-significant bit of a nullable bitmap is reserved for NULL as defined in the Matter specification
+
+- @project-chip/matter.js
+    - Fix: Ensure that `PairedNode.connect()` reconnects a node that was previously disconnected
+
+## 0.17.2 (2026-06-09)
+
+- @matter/general
+    - Fix: An empty mDNS TXT record is now encoded as a single zero byte as required by RFC 6763 §6.1
+    - Fix: AES-CCM encryption now honors the `byteOffset` of subarray inputs for plaintext and AAD
+    - Fix: Ensure that variable name sanitization does not throw on special characters adjacent to dots (e.g. node IDs like `Dyson360VisNav™`)
+
+- @matter/node
+    - Fix: Ensure that Self-bindings also detect cluster servers added to an endpoint at runtime via `behaviors.require` and ignore client clusters on the endpoint
+    - Fix: OnOff timed-off handling now honors the `0xFFFF` "hold indefinitely" value for OnTime/OffWaitTime
+    - Fix: Peers commissioned with a custom id via `commission({ id })` are now restored correctly from storage on restart
+    - Fix: Writing a bitmap attribute with reserved (undefined) bits set now returns ConstraintError instead of being silently accepted
+    - Fix: A TCP-enabled server now reports TCP support in its session parameters (not only in mDNS), so peers learn it during PASE/CASE
+    - Fix: Claim the peer node ID only once a candidate wins PASE, to avoid spurious "peer address already in use" conflicts across parallel commissioning attempts
+    - Fix: Refreshing a discovered node's metadata while it is being commissioned no longer crashes the process with a synchronous transaction conflict
+    - Fix: Ensure that decommissioning removes a node locally even when the device drops the RemoveFabric response after closing the session, and no longer stalls shutdown
+    - Fix: Ensure that probing a node during teardown reports it unreachable instead of throwing
+
+- @matter/protocol
+    - Enhancement: Implemented Matter message privacy (header obfuscation) for group messages; receiving is always supported, sending is opt-in per session and off by default. Unicast messages carrying the privacy flag are dropped like in CHIP SDK
+    - Enhancement: SII/SAI/SAT keys are now omitted from advertised DNS-SD TXT records when at their default values, matching CHIP SDK behavior
+    - Enhancement: MRP retransmission additive delay is now a tunable per-`NetworkProfile.additionalMrpDelay` instead of a fixed constant
+    - Enhancement: Subscription maxIntervalCeiling now lengthens by up to +max(10%, 10s) one-sided jitter for all device types (previously only Thread-active devices)
+    - Enhancement: Prefer TCP for operational connections when the peer advertises TCP-server support via its session parameters or mDNS; a negotiated TCP session is declined only on an explicit no-TCP report
+    - Enhancement: Lengthened the BTP handshake-response timeout (5s → 15s) and central idle timeout (30s → 60s) to match CHIP
+    - Enhancement: Added `PeerMessageMissingError` (subtype of `PeerUnresponsiveError`) thrown when an expected message does not arrive on an active exchange, distinguishing it from a request that was never acknowledged
+    - Fix: Ignore announced TCP support for peers reporting Matter spec version < 1.5.0
+    - Fix: Corrected the Session Active Threshold limit to 65535 milliseconds (was wrongly checked against 65535 seconds)
+    - Fix: Invalid or out-of-range SII/SAI/SAT values in discovered DNS-SD TXT records are now ignored so MRP defaults apply, as required by the Matter spec
+    - Fix: Added size checks for Message Extensions and Secured Extensions length fields on message decode
+    - Fix: MRP retransmissions now use the idle interval when the peer left its active window mid-exchange, matching CHIP SDK behavior
+    - Fix: A failed operational reconnect caused by a network-layer send error (e.g. ENETUNREACH on a stale persisted address) now triggers mDNS rediscovery instead of retrying the unreachable address indefinitely
+    - Fix: TcpChannel now closes the connection on a zero-length stream frame instead of silently skipping it, preventing a peer from holding a connection slot open indefinitely
+    - Fix: A forward message-counter jump of exactly the window size no longer retains stale replay-bitmap bits, which could wrongly reject a later legitimate message as duplicate
+    - Fix: When the per-session concurrent-exchange limit is exceeded, the least-recently-active exchange is now closed instead of the oldest-created one
+    - Fix: A Sigma1 carrying only one of `resumptionId`/`initiatorResumeMic` is now rejected with INVALID_PARAMETER instead of being treated as a fresh handshake
+    - Fix: Group-send epoch-key selection no longer fails when a future-dated epoch key is installed during key rotation
+    - Fix: Group data message counters are now a single node-global counter (per Matter spec) instead of per operational key; former per-key counters are properly migrated to prevent nonce reuse
+    - Fix: Ensure that the default `regulatoryCountryCode` ("XX") is applied when commissioning a Wi-Fi/Thread device without an explicit value
+    - Fix: BTP central now advertises the negotiated ATT_MTU minus the 3-byte GATT header as its segment size, so a peer no longer selects fragments that overflow the link
+    - Fix: BTP window accounting now counts outstanding packets by modular distance, fixing a miscount across the sequence-number wrap
+    - Fix: BTP now reserves the remote receive window's last slot for an acknowledgement and sends a stand-alone ack proactively once its own receive window runs low
+    - Fix: BTP now resumes a stalled send queue when an incoming acknowledgement reopens the window
+    - Fix: BTP now closes the session if reassembly exceeds the declared message length
+    - Fix: BTP commits the acknowledged sequence number before awaiting the write so a stand-alone ack and a concurrent data send no longer acknowledge the same sequence twice (a duplicate ack is rejected by spec-compliant peers)
+    - Fix: BTP no longer issues a stand-alone ack into a full remote receive window or concurrently with an in-flight fragment write
+    - Fix: A corrupted PAA in the local DCL certificate cache is now re-fetched from DCL once before failing, recovering from broken storage
+    - Fix: Unexpected errors during device attestation validation (e.g. an unrecoverably corrupt trust-store certificate) are now surfaced as an attestation finding for the `onAttestationFailure` policy to judge, instead of aborting commissioning outside the findings mechanism
+
+- @matter/node
+    - Enhancement: Added `network.ownNetworkProfileId` to set the local network's MRP additive margin, and exposed `additionalMrpDelay` and `probeAddress` in network profile config
+
+- @matter/nodejs-shell
+    - Fix: Stored Wi-Fi/Thread credentials are only applied during commissioning when their values are non-empty, so an empty operational dataset no longer fails commissioning of IP-only devices
+    - Fix: `config wifi/thread set` now rejects empty credential values
+
+## 0.17.1 (2026-06-03)
+
+- @matter/\*
+    - Enhancement: Standardized log levels across all packages against a new logging guideline (see `docs/LOGGING.md`)
+
 - @matter/general
     - Fix: `causedBy`/`asError`/`errorOf`/`repackErrorAs` no longer crash with "undefined is not an object" when invoked with `undefined`/`null` as error object
+    - Fix: IpService now also emits changed event when the TXT reconrd changes to ensure updates of the descriptor
+
+- @matter/model
+    - Fix: Remove invalid FabricIndex field from four commands
+    - Fix: Correct the Device type revision of Room Air Conditioner
+
+- @matter/node
+  - Fix: Roll back assigned Fabric from PASE session on AddNOC/UpdateNOC failure
+
+- @matter/nodejs-shell
+    - Feature: Added `--fabric-filtered` flag (default `true`) to the attribute read commands to control fabric filtering
+
+- @matter/protocol
+    - Feature: New `TrustedAsTestCertificate` attestation finding lets `onAttestationFailure` decide whether to accept devices whose PAA is only in the trust store as a test certificate; previously these failed with `PaaNotTrusted`. Adds per-call `considerTestCertificates` and a separate `acceptTestCertificates` trust policy on `DclCertificateService`
+    - Feature: `OnAttestationFailure` callback may return a `string` (wraps the underlying error as `cause` of a new `CommissioningError`) or throw to propagate verbatim
+    - Adjustment: Default-accept policies (`onAttestationFailure === true`/`undefined`) now commission test-PAA-only devices that previously failed; upgrade the policy to keep rejecting
+    - Deprecation: Internally used `DecodedDataReport`, `DecodedAttributeReport{Value,Status,Entry}`, `DecodedEventReport{Value,Status,Entry}`, `DecodedEventData`, and the `normalize*` / `normalizeAndDecode*` helpers moved to `@project-chip/matter.js/cluster`. Scheduled for removal in 0.18
+    - Enhancement: `ReadResult.EventValue` exposes the four wire timestamp variants (`epochTimestamp`, `systemTimestamp`, `deltaEpochTimestamp`, `deltaSystemTimestamp`) alongside the existing collapsed `timestamp: number`
+    - Adjustment: `ReadResult.Chunk` may now be an async iterable (`InputChunk` is an async generator); consumers iterate chunk contents with `for await … of chunk`. Mainly internal
+    - Fix: Fixes message counter rollover logic
+    - Fix: Event reports are now decoded in wire (EventNumber) order
+    - Fix: Allows CSRs with an empty subject as per Matter spec
+    - Fix: Corrects BTP handshake decoding of version field
+
+- @matter/types
+    - Fix: Remove invalid FabricIndex field from four commands
 
 ## 0.17.0 (2026-05-20)
 

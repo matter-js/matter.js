@@ -74,12 +74,14 @@ export class CaseServer implements ProtocolHandler {
                     ShutdownError,
                 )
             ) {
-                logger.error(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
+                logger.info(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
             } else {
-                logger.error(messenger.via, "Error establishing CASE session:", error);
+                logger.warn(messenger.via, "Error establishing CASE session:", error);
             }
 
-            if (exchange.considerClosed) {
+            // Skip the error report when the exchange is closing or a sent message is still unacked: in either case
+            // the send cannot reach the peer and would only fail with a flow error.
+            if (exchange.considerClosed || exchange.hasUnackedMessage) {
                 return;
             }
 
@@ -101,6 +103,12 @@ export class CaseServer implements ProtocolHandler {
 
         // Initialize context with information from a peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();
+
+        // Spec §4.14.2.3.4 step 1: resumptionID and initiatorResumeMIC are present together or not at all
+        if ((sigma1.resumptionId === undefined) !== (sigma1.initiatorResumeMic === undefined)) {
+            throw new UnexpectedDataError("Sigma1 must carry both resumptionId and initiatorResumeMic or neither.");
+        }
+
         const resumptionRecord =
             sigma1.resumptionId !== undefined && sigma1.initiatorResumeMic !== undefined
                 ? this.#sessions.findResumptionRecordById(sigma1.resumptionId)

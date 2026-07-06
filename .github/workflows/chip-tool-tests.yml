@@ -29,7 +29,7 @@ jobs:
       head-commit-message: ${{ steps.get_head_commit_message.outputs.headCommitMsg }}
     steps:
       - name: Get repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Print head git commit message
@@ -50,7 +50,7 @@ jobs:
       chip-slowapp-tests-required: ${{ steps.check-long-tests.outputs.chip-slowapp-tests-required || steps.check-slowapp-tests.outputs.chip-slowapp-tests-required }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: dorny/paths-filter@v4
         id: changes
@@ -143,7 +143,7 @@ jobs:
           remove-haskell: 'true'
 
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare chip tests and rebuild chip-tool if needed
         uses: ./.github/actions/prepare-chip-testing
@@ -158,7 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -209,7 +209,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -261,7 +261,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -299,7 +299,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -333,7 +333,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -370,7 +370,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -405,7 +405,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -436,7 +436,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -470,7 +470,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -484,7 +484,7 @@ jobs:
           echo "ALL_CLUSTERS_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_LOCK_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "ENERGY_MANAGEMENT_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
-          echo "LIT_ICD_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
+          echo "LIT_ICD_APP: ../support/chip-testing/dist/esm/IcdTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_MICROWAVE_OVEN_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_RVC_APP: ../support/chip-testing/dist/esm/RvcTestApp.js" >> /tmp/test_env.yaml
           echo "NETWORK_MANAGEMENT_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
@@ -551,5 +551,16 @@ jobs:
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_OPCREDS_3_8.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_SC_3_6.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_SC_7_1.py'
+          # ICD tests present on chip master but not yet in our pinned docker image; they run against the lit-icd app
+          # (LIT_ICD_APP above) via the master checkout the python-repl path uses.
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_2_1_2_2.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_2_3.py'
+          # TC_ICDB_2_4 disabled on this python-repl path: its post-subscription-shutdown wait (one active-idle-active
+          # cycle) is too short to cover MaxInterval + MRP delivery-failure detection, so a check-in lands just outside
+          # the window here while it passes in the docker harness. Upstream test bug, tracked in
+          # https://github.com/project-chip/connectedhomeip/issues/72668
+          #          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_2_4.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_3_1.py'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_ICDB_3_2.py'
 
   #        scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_CADMIN_1_19.py'

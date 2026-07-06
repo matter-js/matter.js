@@ -11,26 +11,26 @@ interface BdxCounterOnly {
     blockCounter: number;
 }
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.6.2 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.6.2 */
 export interface BdxBlockQuery extends BdxCounterOnly {}
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.6.6 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.6.6 */
 export interface BdxBlockAck extends BdxCounterOnly {}
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.6.7 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.6.7 */
 export interface BdxBlockAckEof extends BdxCounterOnly {}
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.6.3 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.6.3 */
 export interface BdxBlockQueryWithSkip extends BdxCounterOnly {
     bytesToSkip: number | bigint;
 }
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.6.4 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.6.4 */
 export interface BdxBlock extends BdxCounterOnly {
     data: Bytes;
 }
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.6.5 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.6.5 */
 export interface BdxBlockEof extends BdxBlock {}
 
 /** Schema for BDX messages that only contain a block counter: BlockQuery, BlockAck, BlockAckEof. */

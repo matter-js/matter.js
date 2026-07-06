@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ec } from "#crypto/Crypto.js";
 import { Spake2p } from "#crypto/Spake2p.js";
 import { MockCrypto } from "#index.js";
 import { Bytes } from "#util/Bytes.js";
@@ -59,6 +60,28 @@ describe("Spake2p", () => {
             expect(Bytes.toHex(result.hAY)).equals(Bytes.toHex(hAY));
             expect(Bytes.toHex(result.hBX)).equals(Bytes.toHex(hBX));
         }).timeout(20000);
+    });
+
+    describe("ephemeral scalar", () => {
+        it("samples bounded by the group order n, not the field prime p", () => {
+            const context = Bytes.fromString("SPAKE2+-P256-SHA256-HKDF draft-01");
+            const w0 = BigInt("0xe6887cf9bdfb7579c69bf47928a84514b5e355ac034863f7ffaf4390e67d798c");
+            const curve = ec.p256.Point.CURVE();
+
+            let capturedBound: bigint | undefined;
+            const original = crypto.randomBigInt;
+            crypto.randomBigInt = (size, maxValue) => {
+                capturedBound = maxValue;
+                return original.call(crypto, size, maxValue);
+            };
+            try {
+                Spake2p.create(crypto, context, w0);
+            } finally {
+                crypto.randomBigInt = original;
+            }
+
+            expect(capturedBound).equals(curve.n);
+        });
     });
 
     describe("context hash test", () => {

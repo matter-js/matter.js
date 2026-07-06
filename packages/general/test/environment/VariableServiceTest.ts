@@ -92,6 +92,20 @@ describe("VariableService", () => {
         expect(vars.get("bar-", 42)).equals(42);
     });
 
+    it("fallback lookup resolves names with special chars adjacent to dots", () => {
+        const vars = new VariableService(new Environment("test"));
+        vars.set("nodes.dyson360visnav.plugins", "value");
+        expect(vars.get("nodes.Dyson360VisNav™.plugins")).equals("value");
+        expect(vars.get("nodes.Dyson 360.plugins", "default")).equals("default");
+    });
+
+    it("fallback lookup does not throw on interior empty segments", () => {
+        const vars = new VariableService(new Environment("test"));
+        expect(vars.get("a.™.b")).equals(undefined);
+        expect(vars.get("a._b", "default")).equals("default");
+        expect(vars.get("™", 42)).equals(42);
+    });
+
     it("fallback lookup adds sanitized name to usage collectors", () => {
         const vars = new VariableService(new Environment("test"));
         vars.set("some.key", "initial");

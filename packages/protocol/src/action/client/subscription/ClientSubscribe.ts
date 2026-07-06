@@ -1,4 +1,7 @@
 import { Subscribe } from "#action/request/Subscribe.js";
+import type { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
+import type { Observable } from "@matter/general";
+import type { NodeId } from "@matter/types";
 import { ClientRequest } from "../ClientRequest.js";
 
 export interface PlainClientSubscribe extends Subscribe, ClientRequest {
@@ -29,6 +32,21 @@ export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
      * This is mainly used to update the Dataversion filters in the request for sustained subscriptions.
      */
     refreshRequest?: (request: SustainedClientSubscribe) => SustainedClientSubscribe;
+
+    /**
+     * Live provider of the peer's {@link IcdPeerWakefulness}.  Read on each sustained-subscription loop decision: when
+     * it returns a wakefulness in await mode the subscription parks on the peer's wake signal instead of running a
+     * timed retry/probe; otherwise it behaves as a non-ICD sustained subscription.  Attached by the node layer, which
+     * resolves the peer's wakefulness live so a peer registered after subscribe, or flipped SIT⇄LIT, is honored.
+     */
+    icdWakefulness?: () => IcdPeerWakefulness | undefined;
+
+    /**
+     * Live provider of the fabric ICD registry's "peer fed" signal (emits the peer node ID on registration).  A
+     * subscription established before its peer was fed races this so the first registration-induced SIT⇄LIT flip
+     * recreates the subscription for the new mode.  Attached by the node layer alongside {@link icdWakefulness}.
+     */
+    icdPeerFed?: () => Observable<[NodeId]> | undefined;
 }
 
 export type ClientSubscribe = PlainClientSubscribe | SustainedClientSubscribe;

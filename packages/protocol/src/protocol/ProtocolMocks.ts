@@ -22,6 +22,7 @@ import {
     ImplementationError,
     MAX_UDP_MESSAGE_SIZE,
     MaybePromise,
+    Millis,
     MockCrypto,
     Observable,
     ServerAddress,
@@ -253,6 +254,8 @@ export namespace ProtocolMocks {
                     localSessionParameters: SessionParameters(
                         context?.localSessionParameters ?? SessionParameters.defaults,
                     ),
+                    localAdditionalMrpDelay: context?.localAdditionalMrpDelay ?? Millis(0),
+                    localFixedMrpBackoff: context?.localFixedMrpBackoff ?? Millis(0),
                     async peerLost() {},
                     retry() {},
                 },

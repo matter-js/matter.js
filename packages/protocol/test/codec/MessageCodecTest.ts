@@ -108,6 +108,17 @@ describe("MessageCodec", () => {
             });
         });
 
+        it("rejects message extension length exceeding remaining bytes", () => {
+            // Same as ENCODED_WITH_PRIVACY_EXTENSION but extension length field set to 0xffff
+            const malformed = Bytes.of(ENCODED_WITH_PRIVACY_EXTENSION).slice();
+            malformed[16] = 0xff;
+            malformed[17] = 0xff;
+
+            expect(() => MessageCodec.decodePacket(malformed)).throws(
+                /Message extension length \d+ exceeds remaining message size \d+\./,
+            );
+        });
+
         it("decodes message with secured extension", () => {
             const result = MessageCodec.decodePayload(MessageCodec.decodePacket(ENCODED_WITH_SECURED_EXTENSION));
 
@@ -122,6 +133,91 @@ describe("MessageCodec", () => {
 
             expect(result).deep.equal(DECODED_WITH_SECURED_EXTENSION);
         });
+
+        it("rejects secured extension length exceeding remaining bytes", () => {
+            // Same as ENCODED_WITH_SECURED_EXTENSION but extension length field set to 0xffff
+            const malformed = Bytes.of(ENCODED_WITH_SECURED_EXTENSION).slice();
+            malformed[22] = 0xff;
+            malformed[23] = 0xff;
+
+            expect(() => MessageCodec.decodePayload(MessageCodec.decodePacket(malformed))).throws(
+                /Secured extension length \d+ exceeds remaining message size \d+\./,
+            );
+        });
+
+        it("decodes the cleartext prefix of a privacy-enhanced group packet (CHIP vector)", () => {
+            // "private group message" vector from CHIP TestSessionManagerDispatch.cpp
+            const wire = Bytes.fromHex(
+                "067ddb81d926afce24c8a0981bdd44f4e7302b2f915a66c9596290ebe4408217b3c0c921a2fca4e1",
+            );
+            const packet = MessageCodec.decodePacket(wire);
+
+            expect(packet.header.hasPrivacyEnhancements).equals(true);
+            expect(packet.header.sessionId).equals(0xdb7d);
+            expect(packet.header.securityFlags).equals(0x81);
+            expect(packet.header.sessionType).equals(1); // group
+            // Obfuscated fields are not yet decoded:
+            expect(packet.header.messageId).equals(0);
+            expect(packet.header.sourceNodeId).equals(undefined);
+            expect(packet.header.destGroupId).equals(undefined);
+            // The obfuscated region is exposed for the session to deobfuscate (4 + 8 + 2 = 14 bytes):
+            expect(Bytes.toHex(packet.privacyHeader!)).equals("d926afce24c8a0981bdd44f4e730");
+            // Application payload = ciphertext + MIC (6 + 16 = 22 bytes):
+            expect(packet.applicationPayload.byteLength).equals(22);
+        });
+
+        it("rejects a privacy-enhanced packet truncated below the MIC length", () => {
+            // Same CHIP vector but truncated to an 18-byte header + only 8 payload bytes (< 16-byte MIC).
+            const wire = Bytes.fromHex("067ddb81d926afce24c8a0981bdd44f4e7302b2f915a66c95962");
+            expect(() => MessageCodec.decodePacket(wire)).throws(/too short to contain a MIC/);
+        });
+
+        it("decodes obfuscated header fields once deobfuscated", () => {
+            const messageFlags = 0x06; // version 0, source node id + dest group id present
+            const region = Bytes.fromHex("7956341201000000000000000200");
+            const fields = MessageCodec.decodeObfuscatedHeaderFields(messageFlags, region);
+            expect(fields.messageId).equals(0x12345679);
+            expect(fields.sourceNodeId).equals(NodeId(1n));
+            expect(fields.destNodeId).equals(undefined);
+            expect(fields.destGroupId).equals(2);
+        });
+    });
+
+    describe("encode privacy", () => {
+        it("sets the privacy bit in the encoded packet header", () => {
+            const headerBytes = MessageCodec.encodePacketHeader({
+                sessionId: 0xdb7d,
+                sessionType: 1, // group
+                messageId: 0x12345679,
+                destGroupId: 2,
+                sourceNodeId: NodeId(1n),
+                hasPrivacyEnhancements: true,
+                isControlMessage: false,
+                hasMessageExtensions: false,
+            });
+            // security flags byte (index 3) = group (0x01) | privacy (0x80) = 0x81
+            expect(Bytes.of(headerBytes)[3]).equals(0x81);
+        });
+
+        it("encodePacket uses pre-serialized headerBytes when present", () => {
+            const headerBytes = Bytes.fromHex("067ddb81d926afce24c8a0981bdd44f4e730");
+            const applicationPayload = Bytes.fromHex("2b2f915a66c9596290ebe44082177b3c0c921a2fca4e10");
+            const result = MessageCodec.encodePacket({
+                header: {
+                    sessionId: 0xdb7d,
+                    sessionType: 1,
+                    messageId: 0x12345679,
+                    destGroupId: 2,
+                    sourceNodeId: NodeId(1n),
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                headerBytes,
+                applicationPayload,
+            });
+            expect(Bytes.toHex(result)).equals(Bytes.toHex(Bytes.concat(headerBytes, applicationPayload)));
+        });
     });
 
     describe("encode", () => {
@@ -135,6 +231,24 @@ describe("MessageCodec", () => {
             const result = MessageCodec.encodePacket(MessageCodec.encodePayload(DECODED_2));
 
             expect(result).deep.equal(ENCODED_2);
+        });
+
+        it("writes vendor id before protocol id and round-trips (§4.4.3.4)", () => {
+            const message = {
+                ...DECODED,
+                payloadHeader: { ...DECODED.payloadHeader, protocolId: 0xfff11234 },
+            } as Message;
+
+            const { applicationPayload } = MessageCodec.encodePayload(message);
+
+            // flags[0] type[1] exchangeId[2..3] vendorId[4..5] protocolId[6..7], all little-endian.
+            // Vendor id has its high bit set to also guard decode against sign-extension.
+            expect(Bytes.toHex(Bytes.of(applicationPayload).slice(4, 8))).equals("f1ff3412");
+
+            const decoded = MessageCodec.decodePayload(
+                MessageCodec.decodePacket(MessageCodec.encodePacket(MessageCodec.encodePayload(message))),
+            );
+            expect(decoded.payloadHeader.protocolId).equals(0xfff11234);
         });
 
         it("throws when encoding a message with securityExtensions data", () => {

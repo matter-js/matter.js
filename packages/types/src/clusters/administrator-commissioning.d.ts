@@ -42,7 +42,7 @@ import type { Status } from "../globals/Status.js";
  *
  *   - The attributes shall indicate the state of the node that is represented by the Bridged Node.
  *
- * @see {@link MatterSpecification.v151.Core} § 11.19
+ * @see {@link MatterSpecification.v16.Core} § 11.19
  */
 export declare namespace AdministratorCommissioning {
     /**
@@ -56,7 +56,7 @@ export declare namespace AdministratorCommissioning {
     export const name: "AdministratorCommissioning";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -83,7 +83,7 @@ export declare namespace AdministratorCommissioning {
          *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
          *   commissioning.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.7.1
+         * @see {@link MatterSpecification.v16.Core} § 11.19.7.1
          */
         windowStatus: CommissioningWindowStatus;
 
@@ -97,7 +97,7 @@ export declare namespace AdministratorCommissioning {
          *
          * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.7.2
+         * @see {@link MatterSpecification.v16.Core} § 11.19.7.2
          */
         adminFabricIndex: FabricIndex | null;
 
@@ -110,7 +110,7 @@ export declare namespace AdministratorCommissioning {
          *
          * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.7.3
+         * @see {@link MatterSpecification.v16.Core} § 11.19.7.3
          */
         adminVendorId: VendorId | null;
     }
@@ -134,7 +134,7 @@ export declare namespace AdministratorCommissioning {
          *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
          *   commissioning.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.7.1
+         * @see {@link MatterSpecification.v16.Core} § 11.19.7.1
          */
         windowStatus: CommissioningWindowStatus;
 
@@ -148,7 +148,7 @@ export declare namespace AdministratorCommissioning {
          *
          * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.7.2
+         * @see {@link MatterSpecification.v16.Core} § 11.19.7.2
          */
         adminFabricIndex: FabricIndex | null;
 
@@ -161,7 +161,7 @@ export declare namespace AdministratorCommissioning {
          *
          * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.7.3
+         * @see {@link MatterSpecification.v16.Core} § 11.19.7.3
          */
         adminVendorId: VendorId | null;
     }
@@ -202,7 +202,7 @@ export declare namespace AdministratorCommissioning {
          *
          * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.1
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.1
          */
         openCommissioningWindow(request: OpenCommissioningWindowRequest): MaybePromise;
 
@@ -211,7 +211,7 @@ export declare namespace AdministratorCommissioning {
          * "OpenCommissioningWindow" or Section 11.19.8.2, "OpenBasicCommissioningWindow" command. This is an idempotent
          * command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.3
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.3
          */
         revokeCommissioning(): MaybePromise;
     }
@@ -239,7 +239,7 @@ export declare namespace AdministratorCommissioning {
          * "CommissioningComplete" command, see Section 5.5, "Commissioning Flows". The new Administrator shall discover
          * the Node on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.2
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.2
          */
         openBasicCommissioningWindow(request: OpenBasicCommissioningWindowRequest): MaybePromise;
     }
@@ -261,7 +261,7 @@ export declare namespace AdministratorCommissioning {
     /**
      * These are optional features supported by AdministratorCommissioningCluster.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.19.4
+     * @see {@link MatterSpecification.v16.Core} § 11.19.4
      */
     export enum Feature {
         /**
@@ -273,7 +273,7 @@ export declare namespace AdministratorCommissioning {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.19.5.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.5.1
      */
     export enum CommissioningWindowStatus {
         /**
@@ -322,7 +322,7 @@ export declare namespace AdministratorCommissioning {
      *
      * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.19.8.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.8.1
      */
     export class OpenCommissioningWindowRequest {
         constructor(values?: Partial<OpenCommissioningWindowRequest>);
@@ -334,7 +334,7 @@ export declare namespace AdministratorCommissioning {
          * commissioning sessions; it does not apply to abortion of connections, i.e., a commissioning session SHOULD
          * NOT abort prematurely upon expiration of this timeout.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.1
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.1.1
          */
         commissioningTimeout: number;
 
@@ -347,7 +347,7 @@ export declare namespace AdministratorCommissioning {
          * expiration of the OpenCommissioningWindow command, and shall be deleted by the existing Administrator after
          * sending it to the Node(s).
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.2
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.1.2
          */
         pakePasscodeVerifier: Bytes;
 
@@ -356,7 +356,7 @@ export declare namespace AdministratorCommissioning {
          * "TXT key for discriminator (D)") for discovery by the new Administrator. The new Administrator can find and
          * filter DNS-SD records by long discriminator to locate and initiate commissioning with the appropriate Node.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.3
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.1.3
          */
         discriminator: number;
 
@@ -367,7 +367,7 @@ export declare namespace AdministratorCommissioning {
          * range of values shall match the range specified in Section 3.9, "Password-Based Key Derivation Function
          * (PBKDF)", within the definition of the Crypto_PBKDFParameterSet.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.4
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.1.4
          */
         iterations: number;
 
@@ -389,7 +389,7 @@ export declare namespace AdministratorCommissioning {
          *
          *   - There is an armed fail-safe timer.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.5
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.1.5
          */
         salt: Bytes;
     }
@@ -413,7 +413,7 @@ export declare namespace AdministratorCommissioning {
      * "CommissioningComplete" command, see Section 5.5, "Commissioning Flows". The new Administrator shall discover the
      * Node on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.19.8.2
+     * @see {@link MatterSpecification.v16.Core} § 11.19.8.2
      */
     export class OpenBasicCommissioningWindowRequest {
         constructor(values?: Partial<OpenBasicCommissioningWindowRequest>);
@@ -432,13 +432,13 @@ export declare namespace AdministratorCommissioning {
          *
          *   - There is an armed fail-safe timer.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.19.8.2.1
+         * @see {@link MatterSpecification.v16.Core} § 11.19.8.2.1
          */
         commissioningTimeout: number;
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 11.19.6.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.6.1
      */
     export enum StatusCode {
         /**
@@ -460,7 +460,7 @@ export declare namespace AdministratorCommissioning {
     /**
      * Thrown for cluster status code {@link StatusCode.Busy}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.19.6.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.6.1
      */
     export class BusyError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -469,7 +469,7 @@ export declare namespace AdministratorCommissioning {
     /**
      * Thrown for cluster status code {@link StatusCode.PakeParameterError}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.19.6.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.6.1
      */
     export class PakeParameterError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -478,7 +478,7 @@ export declare namespace AdministratorCommissioning {
     /**
      * Thrown for cluster status code {@link StatusCode.WindowNotOpen}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.19.6.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.6.1
      */
     export class WindowNotOpenError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)

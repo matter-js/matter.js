@@ -12,7 +12,11 @@ export function readAttr(node: MockServerNode, ...args: Parameters<typeof Read>)
     return readAttrRaw(node, request);
 }
 
-export async function readAttrRaw(node: MockServerNode, data: Partial<Read.Attributes>) {
+export async function readAttrRaw(
+    node: MockServerNode,
+    data: Partial<Read.Attributes>,
+    accessLevel = AccessLevel.Administer,
+) {
     const request = {
         isFabricFiltered: false,
         interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
@@ -21,7 +25,7 @@ export async function readAttrRaw(node: MockServerNode, data: Partial<Read.Attri
     if (!Read.containsAttribute(request)) {
         throw new Error("Expected an attribute request");
     }
-    return node.online({ accessLevel: AccessLevel.Administer }, ({ context }) => {
+    return node.online({ accessLevel }, ({ context }) => {
         const response = new AttributeReadResponse(node.protocol, context);
         const data = [...response.process(request)];
         data.forEach(chunks => {
@@ -53,10 +57,10 @@ export async function readAllAttrs(node: MockServerNode) {
     });
 }
 
-export function countAttrs(chunks: ReadResult.Chunk[]) {
+export async function countAttrs(chunks: ReadResult.Chunk[]) {
     const counts = {} as Record<EndpointNumber, Record<ClusterId, number>>;
     for (const chunk of chunks) {
-        for (const report of chunk) {
+        for await (const report of chunk) {
             if (report.kind !== "attr-value") {
                 throw new Error("Only attribute values expected");
             }

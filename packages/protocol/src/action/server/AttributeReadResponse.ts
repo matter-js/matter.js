@@ -12,7 +12,7 @@ import { AccessControl, hasLocalActor, hasRemoteActor } from "#action/server/Acc
 import { DataResponse, FallbackLimits, WildcardPathFlagsCodec } from "#action/server/DataResponse.js";
 import { Val } from "#action/Val.js";
 import { InternalError, Logger, serialize } from "@matter/general";
-import { AttributeModel, DataModelPath, ElementTag } from "@matter/model";
+import { AccessLevel, AttributeModel, DataModelPath, ElementTag } from "@matter/model";
 import {
     AttributePath,
     ClusterId,
@@ -131,10 +131,24 @@ export class AttributeReadResponse<
     }
 
     /**
+     * Read the node's current BasicInformation ConfigurationVersion (endpoint 0, cluster 0x28, attribute 0x18), or
+     * undefined when the attribute is not present.
+     */
+    #currentConfigurationVersion(): number | undefined {
+        const endpoint = this.node[0];
+        const cluster = endpoint?.[0x28];
+        if (cluster === undefined) {
+            return undefined;
+        }
+        return cluster.readState(this.session)[0x18] as number | undefined;
+    }
+
+    /**
      * Validate a wildcard path and update internal state.
      */
     protected addWildcard(path: AttributePath) {
-        const { nodeId, endpointId, clusterId, attributeId, wildcardPathFlags } = path;
+        const { nodeId, endpointId, clusterId, attributeId, wildcardPathFlags, wildcardFilterConfigurationVersion } =
+            path;
 
         if (clusterId === undefined && attributeId !== undefined && !GlobalAttrIds.has(attributeId)) {
             throw new StatusResponseError(
@@ -147,7 +161,21 @@ export class AttributeReadResponse<
             return;
         }
 
-        const wpf = wildcardPathFlags ? WildcardPathFlagsCodec.encode(wildcardPathFlags) : 0;
+        let wpf = wildcardPathFlags ? WildcardPathFlagsCodec.encode(wildcardPathFlags) : 0;
+
+        // WildcardPathFlags only suppress paths while the client's WildcardFilterConfigurationVersion is current.  Once
+        // the node's ConfigurationVersion has advanced past it the configuration changed, so the flags no longer apply
+        // and all paths are reported.  An omitted filter (or 0xFFFFFFFF) is treated as the current version.
+        if (
+            wpf !== 0 &&
+            wildcardFilterConfigurationVersion !== undefined &&
+            wildcardFilterConfigurationVersion !== 0xffffffff
+        ) {
+            const current = this.#currentConfigurationVersion();
+            if (current !== undefined && wildcardFilterConfigurationVersion < current) {
+                wpf = 0;
+            }
+        }
 
         if (endpointId === undefined) {
             this.#addProducer(function* (this: AttributeReadResponse) {
@@ -204,8 +232,10 @@ export class AttributeReadResponse<
             limits = attribute.limits;
         }
 
+        // Order prescribed by core spec 8.4.3.2: a View-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the data.
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
             // We need some fallback location if cluster is not defined
             const location: AccessControl.Location = {
                 ...(cluster?.location ?? {
@@ -215,23 +245,10 @@ export class AttributeReadResponse<
                 }),
                 owningFabric: this.session.fabric,
             };
+            access = { session: this.session, location };
 
-            const permission = this.session.authorityAt(limits.readLevel, location);
-
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
-
-                case AccessControl.Authority.Unauthorized:
-                    this.addStatus(path, Status.UnsupportedAccess);
-                    return;
-
-                case AccessControl.Authority.Restricted:
-                    this.addStatus(path, Status.AccessRestricted);
-                    return;
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            if (!this.#authorize(access.session, path, AccessLevel.View, location)) {
+                return;
             }
         }
 
@@ -249,6 +266,10 @@ export class AttributeReadResponse<
         }
         if (!limits.readable) {
             this.addStatus(path, Status.UnsupportedRead);
+            return;
+        }
+
+        if (access !== undefined && !this.#authorize(access.session, path, limits.readLevel, access.location)) {
             return;
         }
 
@@ -431,6 +452,34 @@ export class AttributeReadResponse<
             this.#chunk.push(report);
         } else {
             this.#chunk = [report];
+        }
+    }
+
+    /**
+     * Validate access at {@link level}.  Returns true if granted; otherwise records the appropriate status and
+     * returns false.
+     */
+    #authorize(
+        session: AccessControl.RemoteActorSession,
+        path: ReadResult.ConcreteAttributePath,
+        level: AccessLevel,
+        location: AccessControl.Location,
+    ) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return true;
+
+            case AccessControl.Authority.Unauthorized:
+                this.addStatus(path, Status.UnsupportedAccess);
+                return false;
+
+            case AccessControl.Authority.Restricted:
+                this.addStatus(path, Status.AccessRestricted);
+                return false;
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
         }
     }
 

@@ -22,7 +22,7 @@ import type { SubjectId } from "../datatype/SubjectId.js";
  * This cluster is used to add or remove Node Operational credentials on a Commissionee or already-configured Node, as
  * well as manage the associated Fabrics.
  *
- * @see {@link MatterSpecification.v151.Core} § 11.18
+ * @see {@link MatterSpecification.v16.Core} § 11.18
  */
 export declare namespace OperationalCredentials {
     /**
@@ -36,7 +36,7 @@ export declare namespace OperationalCredentials {
     export const name: "OperationalCredentials";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v151.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 2;
 
@@ -61,7 +61,7 @@ export declare namespace OperationalCredentials {
          *
          * The number of entries in this list shall match the number of entries in the Fabrics attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.1
          */
         nocs: Noc[];
 
@@ -75,7 +75,7 @@ export declare namespace OperationalCredentials {
          *
          * The number of entries in this list shall match the number of entries in the NOCs attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.2
          */
         fabrics: FabricDescriptor[];
 
@@ -83,7 +83,7 @@ export declare namespace OperationalCredentials {
          * Indicates the number of Fabrics that are supported by the device. This value is fixed for a particular
          * device.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.3
          */
         supportedFabrics: number;
 
@@ -97,7 +97,7 @@ export declare namespace OperationalCredentials {
          *
          * Upon Factory Data Reset, this attribute shall be set to a default value of 0.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.4
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.4
          */
         commissionedFabrics: number;
 
@@ -116,7 +116,7 @@ export declare namespace OperationalCredentials {
          *
          * Upon Factory Data Reset, this attribute shall be set to a default value whereby the list is empty.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.5
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.5
          */
         trustedRootCertificates: Bytes[];
 
@@ -126,7 +126,7 @@ export declare namespace OperationalCredentials {
          * This attribute is useful to contextualize Fabric-Scoped entries obtained from response commands or attribute
          * reads, since a given Fabric may be referenced by a different Fabric Index locally on a remote Node.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.6
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.6
          */
         currentFabricIndex: FabricIndex;
     }
@@ -145,7 +145,7 @@ export declare namespace OperationalCredentials {
          *
          * The number of entries in this list shall match the number of entries in the Fabrics attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.1
          */
         nocs: Noc[];
 
@@ -159,7 +159,7 @@ export declare namespace OperationalCredentials {
          *
          * The number of entries in this list shall match the number of entries in the NOCs attribute.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.2
          */
         fabrics: FabricDescriptor[];
 
@@ -167,7 +167,7 @@ export declare namespace OperationalCredentials {
          * Indicates the number of Fabrics that are supported by the device. This value is fixed for a particular
          * device.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.3
          */
         supportedFabrics: number;
 
@@ -181,7 +181,7 @@ export declare namespace OperationalCredentials {
          *
          * Upon Factory Data Reset, this attribute shall be set to a default value of 0.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.4
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.4
          */
         commissionedFabrics: number;
 
@@ -200,7 +200,7 @@ export declare namespace OperationalCredentials {
          *
          * Upon Factory Data Reset, this attribute shall be set to a default value whereby the list is empty.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.5
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.5
          */
         trustedRootCertificates: Bytes[];
 
@@ -210,7 +210,7 @@ export declare namespace OperationalCredentials {
          * This attribute is useful to contextualize Fabric-Scoped entries obtained from response commands or attribute
          * reads, since a given Fabric may be referenced by a different Fabric Index locally on a remote Node.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.5.6
+         * @see {@link MatterSpecification.v16.Core} § 11.18.5.6
          */
         currentFabricIndex: FabricIndex;
     }
@@ -227,7 +227,7 @@ export declare namespace OperationalCredentials {
          * command with a Status Code of INVALID_COMMAND. The AttestationNonce field shall be used in the computation of
          * the Attestation Information.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.1
          */
         attestationRequest(request: AttestationRequest): MaybePromise<AttestationResponse>;
 
@@ -237,7 +237,7 @@ export declare namespace OperationalCredentials {
          * If the CertificateType is not a valid value per CertificateChainTypeEnum then the command shall fail with a
          * Status Code of INVALID_COMMAND.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.3
          */
         certificateChainRequest(request: CertificateChainRequest): MaybePromise<CertificateChainResponse>;
 
@@ -269,7 +269,7 @@ export declare namespace OperationalCredentials {
          * to collide with an existing key pair already previously generated and installed, and that check had been
          * executed, then this command shall fail with a FAILURE status code sent back to the initiator.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.5
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.5
          */
         csrRequest(request: CsrRequest): MaybePromise<CsrResponse>;
 
@@ -286,7 +286,7 @@ export declare namespace OperationalCredentials {
          *
          * A Commissioner or Administrator SHOULD issue this command after performing the Attestation Procedure.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.8
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.8
          */
         addNoc(request: AddNocRequest): MaybePromise<NocResponse>;
 
@@ -302,7 +302,7 @@ export declare namespace OperationalCredentials {
          *
          * A Commissioner or Administrator SHOULD issue this command after performing the Attestation Procedure.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.9
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.9
          */
         updateNoc(request: UpdateNocRequest): MaybePromise<NocResponse>;
 
@@ -322,7 +322,7 @@ export declare namespace OperationalCredentials {
          * Administrators to provide additional per-fabric context when operations such as RemoveFabric are considered
          * or used.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.11
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.11
          */
         updateFabricLabel(request: UpdateFabricLabelRequest): MaybePromise<NocResponse>;
 
@@ -354,7 +354,7 @@ export declare namespace OperationalCredentials {
          *   malicious fabric administrator from re-adding themselves through an open commissioning window after being
          *   removed.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.12
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.12
          */
         removeFabric(request: RemoveFabricRequest): MaybePromise<NocResponse>;
 
@@ -385,7 +385,7 @@ export declare namespace OperationalCredentials {
          * Note that the only method of removing a trusted root is by removing the Fabric that uses it as its root of
          * trust using the RemoveFabric command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.13
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.13
          */
         addTrustedRootCertificate(request: AddTrustedRootCertificateRequest): MaybePromise;
 
@@ -405,7 +405,7 @@ export declare namespace OperationalCredentials {
          * This command shall only operate against the Fabrics and NOCs attribute entries associated with the accessing
          * fabric index.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.14
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.14
          */
         setVidVerificationStatement(request: SetVidVerificationStatementRequest): MaybePromise;
 
@@ -421,7 +421,7 @@ export declare namespace OperationalCredentials {
          * The ClientChallenge field shall contain a client-provided random challenge to be used during the signature
          * procedure.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.15
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.15
          */
         signVidVerificationRequest(request: SignVidVerificationRequest): MaybePromise<SignVidVerificationResponse>;
     }
@@ -448,7 +448,7 @@ export declare namespace OperationalCredentials {
      * > NOTE: The Trusted Root CA Certificate (RCAC) is not included in this structure. The roots are available in the
      *   TrustedRootCertificates attribute under the same associated fabric as the one for the NOCStruct entry.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.4.4
+     * @see {@link MatterSpecification.v16.Core} § 11.18.4.4
      */
     export class Noc {
         constructor(values?: Partial<Noc>);
@@ -457,7 +457,7 @@ export declare namespace OperationalCredentials {
          * This field shall contain the NOC for the struct's associated fabric, encoded using Matter Certificate
          * Encoding.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.4.1
          */
         noc: Bytes;
 
@@ -465,7 +465,7 @@ export declare namespace OperationalCredentials {
          * This field shall contain the ICAC for the struct's associated fabric, encoded using Matter Certificate
          * Encoding. If no ICAC is present in the chain, this field shall be set to null.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.4.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.4.2
          */
         icac: Bytes | null;
 
@@ -475,7 +475,7 @@ export declare namespace OperationalCredentials {
          * there shall NOT be a value present, not even an empty octet string). If the ICAC field is non-null, this
          * field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.4.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.4.3
          */
         vvsc?: Bytes;
 
@@ -485,7 +485,7 @@ export declare namespace OperationalCredentials {
     /**
      * This structure encodes a Fabric Reference for a fabric within which a given Node is currently commissioned.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.4.5
+     * @see {@link MatterSpecification.v16.Core} § 11.18.4.5
      */
     export class FabricDescriptor {
         constructor(values?: Partial<FabricDescriptor>);
@@ -496,7 +496,7 @@ export declare namespace OperationalCredentials {
          * for the key shall be the same as that used in the ec-pub-key field of the Matter Certificate Encoding for the
          * root in the operational certificate chain.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.5.1
          */
         rootPublicKey: Bytes;
 
@@ -512,7 +512,7 @@ export declare namespace OperationalCredentials {
          * Clients shall consider the VendorID field value to be untrustworthy until the Fabric Table Vendor ID
          * Verification Procedure has been executed against the fabric entry having this VendorID.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.5.2
          */
         vendorId: VendorId;
 
@@ -521,7 +521,7 @@ export declare namespace OperationalCredentials {
          * match the value found in the matter-fabric-id field from the operational certificate providing the
          * operational identity under this Fabric.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.5.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.5.3
          */
         fabricId: FabricId;
 
@@ -530,7 +530,7 @@ export declare namespace OperationalCredentials {
          * match the value found in the matter-node-id field from the operational certificate providing this operational
          * identity.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.5.4
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.5.4
          */
         nodeId: NodeId;
 
@@ -538,7 +538,7 @@ export declare namespace OperationalCredentials {
          * This field shall contain a commissioner-set label for the fabric referenced by FabricIndex. This field is set
          * by the UpdateFabricLabel command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.5.5
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.5.5
          */
         label: string;
 
@@ -547,7 +547,7 @@ export declare namespace OperationalCredentials {
          * value (see Section 6.4.10, "Fabric Table Vendor ID Verification Procedure") for the fabric referenced by
          * FabricIndex. This field is set by the SetVIDVerificationStatement command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.4.5.6
+         * @see {@link MatterSpecification.v16.Core} § 11.18.4.5.6
          */
         vidVerificationStatement?: Bytes;
 
@@ -562,7 +562,7 @@ export declare namespace OperationalCredentials {
      * with a Status Code of INVALID_COMMAND. The AttestationNonce field shall be used in the computation of the
      * Attestation Information.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.1
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.1
      */
     export class AttestationRequest {
         constructor(values?: Partial<AttestationRequest>);
@@ -578,7 +578,7 @@ export declare namespace OperationalCredentials {
      *
      * See Section F.2, "Device Attestation Response test vector" for an example computation of an AttestationResponse.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.2
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.2
      */
     export class AttestationResponse {
         constructor(values?: Partial<AttestationResponse>);
@@ -586,7 +586,7 @@ export declare namespace OperationalCredentials {
         /**
          * This field shall contain the octet string of the serialized attestation_elements_message.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.2.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.2.1
          */
         attestationElements: Bytes;
 
@@ -594,7 +594,7 @@ export declare namespace OperationalCredentials {
          * This field shall contain the octet string of the necessary attestation_signature as described in Section
          * 11.18.4.7, "Attestation Information".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.2.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.2.2
          */
         attestationSignature: Bytes;
     }
@@ -605,7 +605,7 @@ export declare namespace OperationalCredentials {
      * If the CertificateType is not a valid value per CertificateChainTypeEnum then the command shall fail with a
      * Status Code of INVALID_COMMAND.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.3
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.3
      */
     export class CertificateChainRequest {
         constructor(values?: Partial<CertificateChainRequest>);
@@ -616,7 +616,7 @@ export declare namespace OperationalCredentials {
      * This command is used to report the results of the CertificateChainRequest command. This command shall be
      * generated in response to a CertificateChainRequest command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.4
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.4
      */
     export class CertificateChainResponse {
         constructor(values?: Partial<CertificateChainResponse>);
@@ -625,7 +625,7 @@ export declare namespace OperationalCredentials {
          * This field shall be the DER encoded certificate corresponding to the CertificateType field in the
          * CertificateChainRequest command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.4.1
          */
         certificate: Bytes;
     }
@@ -658,7 +658,7 @@ export declare namespace OperationalCredentials {
      * collide with an existing key pair already previously generated and installed, and that check had been executed,
      * then this command shall fail with a FAILURE status code sent back to the initiator.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.5
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.5
      */
     export class CsrRequest {
         constructor(values?: Partial<CsrRequest>);
@@ -675,7 +675,7 @@ export declare namespace OperationalCredentials {
      *
      * See Section F.3, "Node Operational CSR Response test vector" for an example computation of a CSRResponse.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.6
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.6
      */
     export class CsrResponse {
         constructor(values?: Partial<CsrResponse>);
@@ -683,7 +683,7 @@ export declare namespace OperationalCredentials {
         /**
          * This field shall contain the octet string of the serialized nocsr_elements_message.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.6.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.6.1
          */
         nocsrElements: Bytes;
 
@@ -691,7 +691,7 @@ export declare namespace OperationalCredentials {
          * This field shall contain the octet string of the necessary attestation_signature as described in Section
          * 11.18.4.9, "NOCSR Information".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.6.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.6.2
          */
         attestationSignature: Bytes;
     }
@@ -709,7 +709,7 @@ export declare namespace OperationalCredentials {
      *
      * A Commissioner or Administrator SHOULD issue this command after performing the Attestation Procedure.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.8
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.8
      */
     export class AddNocRequest {
         constructor(values?: Partial<AddNocRequest>);
@@ -728,7 +728,7 @@ export declare namespace OperationalCredentials {
          * fabric as the accessing fabric and with the following argument fields (assuming KeySetWrite allowed a
          * GroupKeySetID set to 0):
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.8.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.8.1
          */
         ipkValue: Bytes;
 
@@ -750,7 +750,7 @@ export declare namespace OperationalCredentials {
          *   both of which need to eventually add an "Administer Node over CASE" Access Control Entry to finalize new
          *   Fabric configuration and subsequently be able to call the CommissioningComplete command.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.8.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.8.2
          */
         caseAdminSubject: SubjectId;
 
@@ -758,7 +758,7 @@ export declare namespace OperationalCredentials {
          * This field shall be set to the Vendor ID of the entity issuing the AddNOC command. This value shall NOT be
          * one of the reserved Vendor ID values defined in Table 1, "Vendor ID Allocations".
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.8.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.8.3
          */
         adminVendorId: VendorId;
     }
@@ -778,7 +778,7 @@ export declare namespace OperationalCredentials {
      *
      * It provides status information about the success or failure of those commands.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.10
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.10
      */
     export class NocResponse {
         constructor(values?: Partial<NocResponse>);
@@ -786,14 +786,14 @@ export declare namespace OperationalCredentials {
         /**
          * This field shall contain an NOCStatus value representing the status of an operation involving a NOC.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.10.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.10.1
          */
         statusCode: NodeOperationalCertStatus;
 
         /**
          * If present, it shall contain the Fabric Index of the Fabric last added, removed or updated.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.10.2
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.10.2
          */
         fabricIndex?: FabricIndex;
 
@@ -802,7 +802,7 @@ export declare namespace OperationalCredentials {
          * presented to user interfaces in any way. Its purpose is to help developers in troubleshooting errors and the
          * contents may go into logs or crash reports.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.10.3
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.10.3
          */
         debugText?: string;
     }
@@ -819,13 +819,12 @@ export declare namespace OperationalCredentials {
      *
      * A Commissioner or Administrator SHOULD issue this command after performing the Attestation Procedure.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.9
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.9
      */
     export class UpdateNocRequest {
         constructor(values?: Partial<UpdateNocRequest>);
         nocValue: Bytes;
         icacValue?: Bytes;
-        fabricIndex: FabricIndex;
     }
 
     /**
@@ -843,7 +842,7 @@ export declare namespace OperationalCredentials {
      * Administrators to provide additional per-fabric context when operations such as RemoveFabric are considered or
      * used.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.11
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.11
      */
     export class UpdateFabricLabelRequest {
         constructor(values?: Partial<UpdateFabricLabelRequest>);
@@ -851,11 +850,9 @@ export declare namespace OperationalCredentials {
         /**
          * This field shall contain the label to set for the fabric associated with the current secure session.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.11.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.11.1
          */
         label: string;
-
-        fabricIndex: FabricIndex;
     }
 
     /**
@@ -884,7 +881,7 @@ export declare namespace OperationalCredentials {
      *   successful, also after the removal of the fabric. This serves as a security measure to prevent a malicious
      *   fabric administrator from re-adding themselves through an open commissioning window after being removed.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.12
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.12
      */
     export class RemoveFabricRequest {
         constructor(values?: Partial<RemoveFabricRequest>);
@@ -893,7 +890,7 @@ export declare namespace OperationalCredentials {
          * This field shall contain the Fabric Index reference (see Section 7.19.2.23, "Fabric Index") associated with
          * the Fabric which is to be removed from the device.
          *
-         * @see {@link MatterSpecification.v151.Core} § 11.18.6.12.1
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.12.1
          */
         fabricIndex: FabricIndex;
     }
@@ -925,7 +922,7 @@ export declare namespace OperationalCredentials {
      * Note that the only method of removing a trusted root is by removing the Fabric that uses it as its root of trust
      * using the RemoveFabric command.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.13
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.13
      */
     export class AddTrustedRootCertificateRequest {
         constructor(values?: Partial<AddTrustedRootCertificateRequest>);
@@ -948,7 +945,7 @@ export declare namespace OperationalCredentials {
      * This command shall only operate against the Fabrics and NOCs attribute entries associated with the accessing
      * fabric index.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.14
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.14
      */
     export class SetVidVerificationStatementRequest {
         constructor(values?: Partial<SetVidVerificationStatementRequest>);
@@ -968,7 +965,7 @@ export declare namespace OperationalCredentials {
      * The ClientChallenge field shall contain a client-provided random challenge to be used during the signature
      * procedure.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.15
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.15
      */
     export class SignVidVerificationRequest {
         constructor(values?: Partial<SignVidVerificationRequest>);
@@ -1012,7 +1009,7 @@ export declare namespace OperationalCredentials {
      *     present. If there is no such field in the Fabrics attribute for the fabric_index specified, this field shall
      *     be omitted from the vendor_id_verification_tbs message.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.6.16
+     * @see {@link MatterSpecification.v16.Core} § 11.18.6.16
      */
     export class SignVidVerificationResponse {
         constructor(values?: Partial<SignVidVerificationResponse>);
@@ -1025,7 +1022,7 @@ export declare namespace OperationalCredentials {
      * This enumeration is used by the CertificateChainRequest command to convey which certificate from the device
      * attestation certificate chain to transmit back to the client.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.4.2
+     * @see {@link MatterSpecification.v16.Core} § 11.18.4.2
      */
     export enum CertificateChainType {
         /**
@@ -1043,7 +1040,7 @@ export declare namespace OperationalCredentials {
      * This enumeration is used by the NOCResponse common response command to convey detailed outcome of several of this
      * cluster's operations.
      *
-     * @see {@link MatterSpecification.v151.Core} § 11.18.4.3
+     * @see {@link MatterSpecification.v16.Core} § 11.18.4.3
      */
     export enum NodeOperationalCertStatus {
         /**

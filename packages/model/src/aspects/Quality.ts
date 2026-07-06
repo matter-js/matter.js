@@ -12,7 +12,7 @@ import { Aspect } from "./Aspect.js";
  * "Other qualities" are defined behaviors of data fields and cluster elements that do not involve access or
  * conformance.
  *
- * See {@link MatterSpecification.v14} § 7.7
+ * See {@link MatterSpecification.v16} § 7.7
  */
 export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
     /**
@@ -146,6 +146,7 @@ export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
             quieter: other.quieter ?? this.quieter,
             largeMessage: other.largeMessage ?? this.largeMessage,
             diagnostics: other.diagnostics ?? this.diagnostics,
+            atomic: other.atomic ?? this.atomic,
             disallowed: other.disallowed ?? this.disallowed,
         });
     }

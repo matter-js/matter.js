@@ -5,6 +5,7 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { AccessLevel } from "@matter/model";
 import { Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -13,8 +14,8 @@ import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     29: 9,
-    31: 11,
-    40: 21,
+    31: 10,
+    40: 22,
     48: 10,
     51: 11,
     60: 8,
@@ -156,6 +157,42 @@ describe("AttributeReadResponse", () => {
         expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
     });
 
+    // Spec 8.4.3.2 step 1: a View-privilege subject may learn element existence, so a model-known but
+    // absent attribute whose actual read privilege exceeds View resolves to UNSUPPORTED_ATTRIBUTE (existence),
+    // not UNSUPPORTED_ACCESS (the View pass grants before the existence check fires).
+    it("reads model-known absent high-privilege attribute as unsupported attribute for view-only subject", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await readAttrRaw(
+            node,
+            {
+                attributeRequests: [
+                    {
+                        // GeneralCommissioning.TcAcceptedVersion: read privilege Administer, absent when TC feature is off
+                        endpointId: EndpointNumber(0),
+                        clusterId: ClusterId(48),
+                        attributeId: AttributeId(5),
+                    },
+                ],
+            },
+            AccessLevel.View,
+        );
+
+        expect(response.data).deep.equals([
+            [
+                {
+                    kind: "attr-status",
+                    path: {
+                        attributeId: 5,
+                        clusterId: 48,
+                        endpointId: 0,
+                    },
+                    status: Status.UnsupportedAttribute,
+                },
+            ],
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+    });
+
     it("reads wildcard endpoint & attributes", async () => {
         const response = await readAttr(
             await MockServerNode.createOnline(),
@@ -164,12 +201,12 @@ describe("AttributeReadResponse", () => {
             }),
         );
 
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: {
-                40: 21,
+                40: 22,
             },
         });
-        expect(response.counts).deep.equals({ status: 0, success: 21, existent: 21 });
+        expect(response.counts).deep.equals({ status: 0, success: 22, existent: 22 });
     });
 
     it("reads full wildcard", async () => {
@@ -177,7 +214,7 @@ describe("AttributeReadResponse", () => {
             await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined }),
             Read.Attribute(),
         );
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
     });
@@ -188,7 +225,7 @@ describe("AttributeReadResponse", () => {
         const endpoint = await node.add(OnOffLightDevice);
 
         const responseWithLight = await readAttr(node, Read.Attribute());
-        expect(countAttrs(responseWithLight.data)).deep.equals({
+        expect(await countAttrs(responseWithLight.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
             1: {
                 3: 7,
@@ -206,7 +243,7 @@ describe("AttributeReadResponse", () => {
         await endpoint.close();
 
         const responseAfterRemove = await readAttr(node, Read.Attribute());
-        expect(countAttrs(responseAfterRemove.data)).deep.equals({
+        expect(await countAttrs(responseAfterRemove.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
         expect(responseAfterRemove.counts).deep.equals({
@@ -223,7 +260,7 @@ describe("AttributeReadResponse", () => {
                 attributes: "attributeList",
             }),
         );
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: {
                 29: 1,
                 31: 1,

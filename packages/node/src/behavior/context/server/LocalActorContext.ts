@@ -67,7 +67,7 @@ export const LocalActorContext = {
         // Must fire after commit but before transaction disposal so datasource references remain valid.
         context.transaction.onShared(() => {
             function handleErr(err: unknown) {
-                logger.error("interactionComplete observer failed", Diagnostic.error(err));
+                logger.warn("interactionComplete observer failed", Diagnostic.error(err));
             }
             if (interactionComplete.isObserved) {
                 try {

@@ -196,7 +196,7 @@ Resource.add({
                 {
                     tag: "field", name: "ModeTags", xref: "cluster§1.10.5.2.3",
 
-                    details: "This field shall contain a list of tags that are associated with the mode option. This may be used " +
+                    details: "This field shall contain a list of tags that are associated with the mode option. This can be used " +
                         "by clients to determine the full or the partial semantics of a certain mode, depending on which tags " +
                         "they understand, using standard definitions and/or manufacturer specific namespace definitions." +
                         "\n" +

@@ -19,7 +19,7 @@ export interface Test {
     container: Container;
     edit(...editors: edit.Editor[]): Promise<void>;
     initializeSubject(subject: Subject): Promise<void>;
-    invoke(subject: Subject, step: (title: string) => void, args: string[]): Promise<void>;
+    invoke(subject: Subject, step: (title: string) => void, args: string[], uncommissioned: boolean): Promise<void>;
 }
 
 export abstract class BaseTest implements Test {
@@ -54,7 +54,12 @@ export abstract class BaseTest implements Test {
     }
 
     abstract initializeSubject(subject: Subject): Promise<void>;
-    abstract invoke(subject: Subject, step: (title: string) => void, args: string[]): Promise<void>;
+    abstract invoke(
+        subject: Subject,
+        step: (title: string) => void,
+        args: string[],
+        uncommissioned: boolean,
+    ): Promise<void>;
 }
 
 export namespace Test {

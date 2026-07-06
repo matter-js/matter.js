@@ -8,7 +8,7 @@ import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Channel, ChannelType, Transport } from "@matter/general";
+import { Bytes, Channel, ChannelType, Millis, Transport } from "@matter/general";
 import { SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 /**
@@ -95,6 +95,8 @@ function createExchange(session: Session) {
         {
             session,
             localSessionParameters: SessionParameters(SessionParameters.defaults),
+            localAdditionalMrpDelay: Millis(0),
+            localFixedMrpBackoff: Millis(0),
             async peerLost() {},
             retry() {},
         },

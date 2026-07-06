@@ -559,7 +559,7 @@ export class LevelControlBaseServer extends LevelControlBase {
      *
      * By default we set the current level to the onLevel value when the device is turned on.
      *
-     * Other fading up/down logic required by the {@link MatterSpecification.v12.Cluster} §1.6.4.1.1 needs to be
+     * Other fading up/down logic required by the {@link MatterSpecification.v16.Cluster} §1.6.4.1.1 needs to be
      * implemented in a specialized implementation if needed.
      *
      * @param onOff The new onOff state

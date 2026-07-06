@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
+import { Bytes, Crypto, Diagnostic, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
@@ -31,11 +31,15 @@ export enum DeviceAttestationCheck {
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
+    TrustedAsTestCertificate = "TrustedAsTestCertificate",
+
+    /** An unexpected error during validation (e.g. an unrecoverably corrupt trust-store certificate). */
+    ValidationError = "ValidationError",
 }
 
 /** A single finding from the attestation validation process. */
 export interface AttestationFinding {
-    /** Severity: "error" stops validation immediately, "warning"/"info" are collected. */
+    /** Severity. "error" aborts validation unless the check is recoverable (collected instead). */
     level: "error" | "warning" | "info";
 
     /** The specific check that produced this finding. */
@@ -53,6 +57,10 @@ export class DeviceAttestationError extends CommissioningError {
     ) {
         super(message);
     }
+}
+
+function idHex(id?: number) {
+    return id === undefined ? "undefined" : `0x${Diagnostic.hex(id, 4).toUpperCase()}`;
 }
 
 export namespace DeviceAttestationValidator {
@@ -87,12 +95,19 @@ export namespace DeviceAttestationValidator {
 
     /**
      * Controls behavior when attestation findings occur.
-     * - `true`: always proceed (warnings/info are logged)
-     * - `false`: reject on any finding (error, warning, or info)
+     * - `true`: always proceed (warnings/info logged)
+     * - `false`: reject on any finding
      * - `undefined`: backward-compatible accept with logging
-     * - function: receives all findings, returns whether to proceed
+     * - function: receives all findings; may
+     *     - return `true` to proceed
+     *     - return `false` to reject with the underlying error (the original
+     *       {@link DeviceAttestationError} on hard-failure findings, or a fresh
+     *       {@link CommissioningError} on collected-finding rejection)
+     *     - return a `string` to reject with a new {@link CommissioningError} whose message is
+     *       that string and whose `cause` is the underlying error
+     *     - throw any error to reject by rethrowing that error verbatim (no wrapping)
      */
-    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean>);
+    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean | string>);
 
     /**
      * Validates device attestation per Matter spec Section 6.2.3.1.
@@ -101,8 +116,10 @@ export namespace DeviceAttestationValidator {
      * (PAA trust store, chain verification, revocation) only run when dclCertificateService
      * is provided.
      *
-     * Errors (hard failures) throw immediately via {@link DeviceAttestationError}.
-     * Warnings and info findings are collected and returned for the caller to evaluate.
+     * Most error-level failures throw immediately via {@link DeviceAttestationError}. A small
+     * set of recoverable error cases (currently {@link DeviceAttestationCheck.TrustedAsTestCertificate})
+     * are collected in `findings` so the caller can decide via `onFailure` whether to proceed.
+     * Warning and info findings are always collected.
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
         const { crypto, dclCertificateService } = context;
@@ -118,7 +135,7 @@ export namespace DeviceAttestationValidator {
         if (dac.cert.subject.vendorId !== pai.cert.subject.vendorId) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.VendorIdMismatch,
-                `DAC vendorId ${dac.cert.subject.vendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
+                `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match PAI vendorId ${idHex(pai.cert.subject.vendorId)}`,
             );
         }
 
@@ -159,14 +176,24 @@ export namespace DeviceAttestationValidator {
                     "Register DclCertificateService in the environment for full attestation.",
             });
         } else {
-            // Step 2: PAA Trust Store lookup
+            // Step 2: PAA Trust Store lookup — probe both production and test scope
             const paiAkid = pai.cert.extensions.authorityKeyIdentifier;
-            const paaMetadata = dclCertificateService.getCertificate(paiAkid);
+            const paaMetadata = dclCertificateService.getCertificate(paiAkid, { considerTestCertificates: true });
             if (paaMetadata === undefined) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.PaaNotTrusted,
                     `PAA not found in trust store for authority key identifier ${Bytes.toHex(paiAkid)}`,
                 );
+            }
+
+            if (!paaMetadata.isProduction && !dclCertificateService.acceptsTestCertificates) {
+                findings.push({
+                    level: "error",
+                    type: DeviceAttestationCheck.TrustedAsTestCertificate,
+                    message:
+                        `PAA ${Bytes.toHex(paiAkid)} is a test/development certificate; ` +
+                        `device presented a valid test attestation but production trust policy is in effect`,
+                });
             }
 
             // Step 2b: Time-based trust store check (SHOULD per spec 6.2.3.1)
@@ -185,7 +212,7 @@ export namespace DeviceAttestationValidator {
             }
 
             // Step 3: Certificate chain signature verification
-            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid);
+            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid, { considerTestCertificates: true });
             paa = Paa.fromAsn1(paaDer);
 
             try {
@@ -247,7 +274,7 @@ export namespace DeviceAttestationValidator {
             if (paaVendorId !== undefined && paaVendorId !== pai.cert.subject.vendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.VendorIdMismatch,
-                    `PAA vendorId ${paaVendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
+                    `PAA vendorId ${idHex(paaVendorId)} does not match PAI vendorId ${idHex(pai.cert.subject.vendorId)}`,
                 );
             }
 
@@ -333,7 +360,7 @@ export namespace DeviceAttestationValidator {
         if (cdContent.vendorId !== data.vendorId) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                `CD vendor_id ${cdContent.vendorId} does not match BasicInformation VendorID ${data.vendorId}`,
+                `CD vendor_id ${idHex(cdContent.vendorId)} does not match BasicInformation VendorID ${idHex(data.vendorId)}`,
             );
         }
 
@@ -341,7 +368,7 @@ export namespace DeviceAttestationValidator {
         if (!cdContent.produceIdArray.includes(data.productId)) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                `CD product_id_array does not contain BasicInformation ProductID ${data.productId}`,
+                `CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}] does not contain BasicInformation ProductID ${idHex(data.productId)}`,
             );
         }
 
@@ -360,27 +387,27 @@ export namespace DeviceAttestationValidator {
             if (dac.cert.subject.vendorId !== cdContent.dacOriginVendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC vendorId does not match CD dac_origin_vendor_id",
+                    `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match CD dac_origin_vendor_id ${idHex(cdContent.dacOriginVendorId)}`,
                 );
             }
             if (pai.cert.subject.vendorId !== cdContent.dacOriginVendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI vendorId does not match CD dac_origin_vendor_id",
+                    `PAI vendorId ${idHex(pai.cert.subject.vendorId)} does not match CD dac_origin_vendor_id ${idHex(cdContent.dacOriginVendorId)}`,
                 );
             }
             const dacProductId = dac.cert.subject.productId;
             if (dacProductId !== undefined && dacProductId !== cdContent.dacOriginProductId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC productId does not match CD dac_origin_product_id",
+                    `DAC productId ${idHex(dacProductId)} does not match CD dac_origin_product_id ${idHex(cdContent.dacOriginProductId)}`,
                 );
             }
             const paiProductId = pai.cert.subject.productId;
             if (paiProductId !== undefined && paiProductId !== cdContent.dacOriginProductId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI productId does not match CD dac_origin_product_id",
+                    `PAI productId ${idHex(paiProductId)} does not match CD dac_origin_product_id ${idHex(cdContent.dacOriginProductId)}`,
                 );
             }
         } else {
@@ -388,27 +415,27 @@ export namespace DeviceAttestationValidator {
             if (dac.cert.subject.vendorId !== cdContent.vendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC vendorId does not match CD vendor_id",
+                    `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match CD vendor_id ${idHex(cdContent.vendorId)}`,
                 );
             }
             if (pai.cert.subject.vendorId !== cdContent.vendorId) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI vendorId does not match CD vendor_id",
+                    `PAI vendorId ${idHex(pai.cert.subject.vendorId)} does not match CD vendor_id ${idHex(cdContent.vendorId)}`,
                 );
             }
             const dacProductId = dac.cert.subject.productId;
             if (dacProductId !== undefined && !cdContent.produceIdArray.includes(dacProductId)) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "DAC productId not found in CD product_id_array",
+                    `DAC productId ${idHex(dacProductId)} not found in CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}]`,
                 );
             }
             const paiProductId = pai.cert.subject.productId;
             if (paiProductId !== undefined && !cdContent.produceIdArray.includes(paiProductId)) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAI productId not found in CD product_id_array",
+                    `PAI productId ${idHex(paiProductId)} not found in CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}]`,
                 );
             }
         }

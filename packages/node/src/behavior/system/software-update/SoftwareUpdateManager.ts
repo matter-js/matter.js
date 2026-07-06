@@ -185,7 +185,7 @@ export class SoftwareUpdateManager extends Behavior {
         if (!ownFabric) {
             // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
             logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
-            fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
+            this.reactTo(fabricAuthority.fabricAdded, this.#nodeOnline, { once: true });
             return;
         }
         this.internal.announcements = new OtaAnnouncements(this.endpoint, ownFabric);
@@ -221,7 +221,7 @@ export class SoftwareUpdateManager extends Behavior {
         try {
             await this.#checkAvailableUpdates();
         } catch (error) {
-            logger.error(`Error during initial OTA update check:`, error);
+            logger.notice(`Error during initial OTA update check:`, error);
         }
 
         this.internal.checkForUpdateTimer.stop();
@@ -822,7 +822,7 @@ export class SoftwareUpdateManager extends Behavior {
         const nextEntry = this.internal.updateQueue[0];
         if (nextEntry) {
             this.#triggerUpdateOnNode(nextEntry).catch(error => {
-                logger.error(`Error while triggering OTA update on node ${nextEntry.peerAddress.toString()}:`, error);
+                logger.warn(`Error while triggering OTA update on node ${nextEntry.peerAddress.toString()}:`, error);
             });
             if (!this.internal.updateQueueTimer?.isRunning) {
                 // Start a periodic timer to check for stalled updates
@@ -866,7 +866,7 @@ export class SoftwareUpdateManager extends Behavior {
                 entry.lastProgressUpdateTime = Time.nowMs;
             }
         } catch (error) {
-            logger.error(`Failed to announce OTA provider to node ${peerAddress.toString()}:`, error);
+            logger.warn(`Failed to announce OTA provider to node ${peerAddress.toString()}:`, error);
             // Reset entry state so the queue doesn't stay blocked
             entry.lastProgressUpdateTime = undefined;
             entry.lastProgressStatus = OtaUpdateStatus.Unknown;

@@ -6,7 +6,7 @@
 
 import { OtaImageReader } from "#ota/OtaImageReader.js";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
-import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId, StandardCrypto } from "@matter/general";
+import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithmId, StandardCrypto } from "@matter/general";
 
 describe("OtaImageWriter", () => {
     const crypto = new StandardCrypto();
@@ -384,7 +384,7 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-256"]);
+            expect(header.imageDigestType).to.equal(HashAlgorithmId["SHA-256"]);
         });
 
         it("uses custom imageDigestType when specified", async () => {
@@ -409,7 +409,7 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-512"]);
+            expect(header.imageDigestType).to.equal(HashAlgorithmId["SHA-512"]);
 
             // Verify the digest is actually SHA-512 (64 bytes = 128 hex chars)
             expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-512"]);
@@ -460,7 +460,7 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-256"]);
+            expect(header.imageDigestType).to.equal(HashAlgorithmId["SHA-256"]);
             expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-256"]); // SHA-256 = 32 bytes = 64 hex chars
 
             // Verify full file checksum

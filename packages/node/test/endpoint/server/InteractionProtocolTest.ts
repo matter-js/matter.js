@@ -57,6 +57,7 @@ import {
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
@@ -67,6 +68,53 @@ const TlvBootReasonEvent = TlvOfModel(GeneralDiagnostics.events.bootReason);
 const TlvOpenBasicCommissioningWindowRequest = TlvOfModel(
     AdministratorCommissioning.commands.openBasicCommissioningWindow,
 );
+const TlvArmFailSafeRequest = TlvOfModel(GeneralCommissioning.commands.armFailSafe);
+
+// GeneralCommissioning.armFailSafe (cluster 0x30, command 0) returns an ArmFailSafeResponse CommandDataIB.
+const INVOKE_ARM_FAILSAFE_SUPPRESSED: InvokeRequest = {
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+    suppressResponse: true,
+    timedRequest: false,
+    invokeRequests: [
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x30), commandId: CommandId(0) },
+            commandFields: TlvArmFailSafeRequest.encodeTlv({ expiryLengthSeconds: 60, breadcrumb: 0 }),
+        },
+    ],
+};
+
+// OnOff.on (cluster 6, command 1) returns only a success CommandStatusIB.
+const INVOKE_ON_OFF_SUPPRESSED: InvokeRequest = {
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+    suppressResponse: true,
+    timedRequest: false,
+    invokeRequests: [
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(6), commandId: CommandId(1) },
+            commandFields: TlvNoArguments.encodeTlv(undefined),
+        },
+    ],
+};
+
+// A suppressed batch where a status-only command precedes a data-returning one: the held status must be flushed
+// together with the forcing CommandDataIB.
+const INVOKE_STATUS_THEN_DATA_SUPPRESSED: InvokeRequest = {
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+    suppressResponse: true,
+    timedRequest: false,
+    invokeRequests: [
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(6), commandId: CommandId(1) },
+            commandFields: TlvNoArguments.encodeTlv(undefined),
+            commandRef: 0,
+        },
+        {
+            commandPath: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x30), commandId: CommandId(0) },
+            commandFields: TlvArmFailSafeRequest.encodeTlv({ expiryLengthSeconds: 60, breadcrumb: 0 }),
+            commandRef: 1,
+        },
+    ],
+};
 
 /**
  * Helper to decode pre-encoded InvokeResponseForSend back to InvokeResponse for test comparison.
@@ -991,37 +1039,37 @@ const wildcardTestCases: {
     wildcardPathFilter?: TypeFromPartialBitSchema<typeof WildcardPathFlagsBitmap>;
     count: number;
 }[] = [
-    { testCase: "no", clusterId: ClusterId(0x28), wildcardPathFilter: undefined, count: 22 },
+    { testCase: "no", clusterId: ClusterId(0x28), wildcardPathFilter: undefined, count: 23 },
     { testCase: "skipRootNode", clusterId: ClusterId(0x28), wildcardPathFilter: { skipRootNode: true }, count: 0 }, // all sorted out
     {
         testCase: "skipGlobalAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipGlobalAttributes: true },
-        count: 19,
+        count: 20,
     }, // 3 less
     {
         testCase: "skipAttributeList",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipAttributeList: true },
-        count: 21,
+        count: 22,
     }, // 1 less
     {
         testCase: "skipCommandLists",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipCommandLists: true },
-        count: 20,
+        count: 21,
     }, // 2 less
     {
         testCase: "skipFixedAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipFixedAttributes: true },
-        count: 3,
+        count: 4,
     }, // 19 less
     {
         testCase: "skipChangesOmittedAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipChangesOmittedAttributes: true },
-        count: 22,
+        count: 23,
     }, // nothing filtered
     {
         testCase: "no for WiFiDiag",
@@ -1214,6 +1262,49 @@ describe("InteractionProtocol", () => {
                 expect((await fillIterableDataReport(result)).attributeReportsPayload?.length || 0).equals(count);
             });
         }
+
+        async function readBasicInformationWithFilter(wildcardFilterConfigurationVersion?: number) {
+            const result = await interactionProtocol.handleReadRequest(
+                await createDummyMessageExchange(node),
+                {
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                    isFabricFiltered: true,
+                    attributeRequests: [
+                        {
+                            endpointId: undefined,
+                            clusterId: ClusterId(0x28), // BasicInformation
+                            attributeId: undefined,
+                            wildcardPathFlags: { skipGlobalAttributes: true },
+                            wildcardFilterConfigurationVersion,
+                        },
+                    ],
+                },
+                interaction.BarelyMockedMessage,
+            );
+            return (await fillIterableDataReport(result)).attributeReportsPayload?.length || 0;
+        }
+
+        // ConfigurationVersion defaults to 1; skipGlobalAttributes drops 3 of the 23 BasicInformation attributes.
+        it("applies WildcardPathFlags when the filter version is current", async () => {
+            expect(await readBasicInformationWithFilter(undefined)).equals(20); // omitted == current
+            expect(await readBasicInformationWithFilter(1)).equals(20); // equal to current
+        });
+
+        it("ignores WildcardPathFlags when the configuration changed past the filter version", async () => {
+            expect(await readBasicInformationWithFilter(0)).equals(23); // stale filter -> flags do not apply
+        });
+
+        it("rejects a read exceeding the path ceiling with PathsExhausted", async () => {
+            const attributeRequests = Array.from({ length: 10_001 }, () => READ_REQUEST.attributeRequests![0]);
+
+            await expect(
+                interactionProtocol.handleReadRequest(
+                    await createDummyMessageExchange(node),
+                    { ...READ_REQUEST, attributeRequests, eventRequests: undefined },
+                    interaction.BarelyMockedMessage,
+                ),
+            ).rejectedWith(StatusResponseError, /exceeds maximum of 10000/);
+        });
     });
 
     describe("handleSubscribeRequest", () => {
@@ -1245,6 +1336,23 @@ describe("InteractionProtocol", () => {
             );
             expect(statusSent).equals(128);
             expect(closed).equals(true);
+        });
+
+        it("rejects a subscribe exceeding the path ceiling with PathsExhausted", async () => {
+            const attributeRequests = Array.from(
+                { length: 10_001 },
+                () => INVALID_SUBSCRIBE_REQUEST.attributeRequests![0],
+            );
+            const exchange = await createDummyMessageExchange(node);
+
+            await expect(
+                interactionProtocol.handleSubscribeRequest(
+                    exchange,
+                    { ...INVALID_SUBSCRIBE_REQUEST, attributeRequests, eventRequests: undefined },
+                    new InteractionServerMessenger(exchange),
+                    interaction.BarelyMockedMessage,
+                ),
+            ).rejectedWith(StatusResponseError, /exceeds maximum of 10000/);
         });
     });
 
@@ -1769,6 +1877,58 @@ describe("InteractionProtocol", () => {
             expect(triggeredOn).equals(true);
             expect(triggeredOff).equals(true);
             expect(onOffState).equals(false);
+        });
+
+        it("sends no response under SuppressResponse when only a status is generated", async () => {
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse, getChunks } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_ON_OFF_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            expect(getResponse()).equals(undefined);
+            expect(getChunks().length).equals(0);
+            expect(onOffState).equals(true);
+        });
+
+        it("sends the response under SuppressResponse when a CommandDataIB is generated", async () => {
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_ARM_FAILSAFE_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            const response = getResponse();
+            expect(response).not.equals(undefined);
+            const decoded = decodeInvokeResponse(response!);
+            expect(decoded.invokeResponses.length).equals(1);
+            expect(decoded.invokeResponses[0].command?.commandPath).deep.equals({
+                endpointId: EndpointNumber(0),
+                clusterId: ClusterId(0x30),
+                commandId: CommandId(1),
+            });
+        });
+
+        it("under SuppressResponse, flushes a held status alongside the forcing CommandDataIB", async () => {
+            const exchange = await createDummyMessageExchange(node);
+            const { messenger, getResponse } = createMockInvokeMessenger();
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_STATUS_THEN_DATA_SUPPRESSED,
+                messenger,
+                interaction.BarelyMockedMessage,
+            );
+
+            const decoded = decodeInvokeResponse(getResponse()!);
+            expect(decoded.invokeResponses.length).equals(2);
+            expect(decoded.invokeResponses[0].status?.commandRef).equals(0);
+            expect(decoded.invokeResponses[1].command?.commandRef).equals(1);
         });
 
         it("throws on multi invoke commands with one same commands", async () => {

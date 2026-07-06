@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterClientObj, ClusterClientObjInternal } from "@matter/protocol";
+import { ClusterClientObj, ClusterClientObjInternal } from "#cluster/client/ClusterClientTypes.js";
 
 export function asClusterClientInternal(obj: ClusterClientObj): ClusterClientObjInternal {
     if (obj._type !== "ClusterClient") {

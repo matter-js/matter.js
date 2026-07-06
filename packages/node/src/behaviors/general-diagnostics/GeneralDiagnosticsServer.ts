@@ -455,12 +455,11 @@ export namespace GeneralDiagnosticsServer {
                 },
 
                 /**
-                 * Dynamically compute device load metrics from InteractionServer counters and SessionManager.
-                 * Quality "C" means changes are not pushed to subscribers; clients must re-read.
+                 * Dynamically compute device load metrics (Matter 1.6, cluster rev 3) from InteractionServer counters
+                 * and SessionManager.  Quality "C" means changes are not pushed to subscribers; clients re-read.
                  *
-                 * Returns a zeroed struct before the interaction server is online (so the attribute appears in
-                 * attributeList). Throws StatusResponseError if the node is online but the required services are
-                 * unexpectedly absent.
+                 * Returns a zeroed struct before the interaction server is online (so the attribute appears in the
+                 * attributeList).  Throws if the node is online but the required services are unexpectedly absent.
                  */
                 get deviceLoadStatus() {
                     const isOnline = (endpoint.lifecycle as NodeLifecycle).isOnline;
@@ -472,8 +471,6 @@ export namespace GeneralDiagnosticsServer {
                                 Status.Failure,
                             );
                         }
-                        // During initialization the interaction server is not yet registered; return zeroed struct so
-                        // the attribute is included in the attributeList once the server comes online.
                         return {
                             currentSubscriptions: 0,
                             currentSubscriptionsForFabric: 0,
@@ -485,7 +482,6 @@ export namespace GeneralDiagnosticsServer {
 
                     const sessionManager = endpoint.env.get(SessionManager);
                     const { counters } = endpoint.env.get(InteractionServer);
-
                     const accessingFabric = session.fabric ?? FabricIndex.NO_FABRIC;
 
                     let currentSubscriptions = 0;

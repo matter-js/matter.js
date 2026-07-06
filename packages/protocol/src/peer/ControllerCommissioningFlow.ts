@@ -13,9 +13,11 @@ import { Write } from "#action/request/Write.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
     asError,
     Bytes,
+    CanceledError,
     causedBy,
     ChannelType,
     Diagnostic,
@@ -24,7 +26,6 @@ import {
     ImplementationError,
     Instant,
     Logger,
-    MaybePromise,
     Millis,
     Minutes,
     NoResponseTimeoutError,
@@ -58,11 +59,11 @@ import { TimeSynchronization } from "@matter/types/clusters/time-synchronization
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import {
     AttestationFinding,
+    DeviceAttestationCheck,
     DeviceAttestationError,
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
@@ -129,7 +130,12 @@ export type ControllerCommissioningFlowOptions = {
          * Controls behavior when attestation produces findings.
          * - `false`: reject on any finding
          * - `true`: always accept with info logging
-         * - callback: receives `AttestationFinding[]`, return `true` to proceed, `false` to reject
+         * - callback: receives `AttestationFinding[]` and decides the outcome; may
+         *   - return `true` to proceed
+         *   - return `false` to reject with the underlying error
+         *   - return a `string` to reject with a new {@link CommissioningError} whose message is
+         *     that string and whose `cause` is the underlying error
+         *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
          * The callback receives either:
@@ -137,14 +143,16 @@ export type ControllerCommissioningFlowOptions = {
          *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
          *   whether to proceed despite the failure.
          * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data). These are
-         *   informational and the commissioner can inspect them for detailed decisions.
+         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
+         *   These are informational and the commissioner can inspect them for detailed decisions.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
         onFailure?: DeviceAttestationValidator.OnAttestationFailure;
     };
 };
+
+type AttestationDecision = { proceed: true } | { proceed: false; reason?: string };
 
 /** Types representation of a general commissioning response. */
 type CommissioningSuccessFailureResponse = {
@@ -242,6 +250,42 @@ export class OperativeConnectionFailedError extends CommissioningError {}
 /** Error that throws when Commissioning fails but a process can be continued. */
 class RecoverableCommissioningError extends CommissioningError {}
 
+/** Error that throws when a supplied Thread network name contradicts the name inside the operational dataset. */
+export class ThreadNetworkNameMismatchError extends CommissioningError {}
+
+/**
+ * Resolve the Thread network name to commission with.
+ *
+ * Derives the name from the operational dataset when the caller omitted it, and verifies a caller-supplied name against
+ * the dataset — declining on mismatch so an ambiguous credential set cannot silently commission the wrong network. A
+ * dataset that cannot be decoded is left to the device to reject; the supplied name is kept as-is.
+ */
+export function resolveThreadNetworkName(threadNetwork: {
+    networkName?: string;
+    operationalDataset: string;
+}): string | undefined {
+    let datasetName: string | undefined;
+    try {
+        datasetName = OperationalDataset.decode(threadNetwork.operationalDataset).networkName;
+    } catch (error) {
+        logger.warn(
+            `Could not decode Thread operational dataset to derive/verify its network name: ${asError(error).message}`,
+        );
+        return threadNetwork.networkName || undefined;
+    }
+
+    const { networkName } = threadNetwork;
+    if (!networkName) {
+        return datasetName;
+    }
+    if (datasetName !== undefined && datasetName !== networkName) {
+        throw new ThreadNetworkNameMismatchError(
+            `Thread network name "${networkName}" does not match the name "${datasetName}" in the supplied operational dataset`,
+        );
+    }
+    return networkName;
+}
+
 const DEFAULT_FAILSAFE_TIME = Minutes.one;
 
 /** When we execute longer actions like network connections or reconnection, we need to keep the BTP session alive */
@@ -270,7 +314,6 @@ export class ControllerCommissioningFlow {
     protected readonly commissioningOptions: ControllerCommissioningFlowOptions;
     protected readonly commissioningSteps = new Array<CommissioningStep>();
     protected readonly commissioningStepResults = new Map<string, CommissioningStepResult>();
-    readonly #clusterClients = new Map<ClusterId, ClusterClientObj>();
     #commissioningStartedTime: Timestamp | undefined;
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
@@ -360,7 +403,7 @@ export class ControllerCommissioningFlow {
                     /**
                      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
                      * timeout within 60 seconds of the completion of a PASE session establishment, using the ArmFailSafe
-                     * command (see Section 11.9.6.2, “ArmFailSafe Command”)
+                     * command (see Section 11.10.7.2, “ArmFailSafe Command”)
                      */
                     const timeLeft = Timespan(Time.nowMs, this.#currentFailSafeEndTime).duration;
                     if (timeLeft < this.#defaultFailSafeTime / 2) {
@@ -435,7 +478,7 @@ export class ControllerCommissioningFlow {
             attributeMap.set(`${endpointId}-${clusterId}-${attributeId}`, undefined);
         }
         for await (const data of this.interaction.read(request)) {
-            for (const entry of data) {
+            for await (const entry of data) {
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -482,7 +525,7 @@ export class ControllerCommissioningFlow {
 
     /**
      * Initialize commissioning steps and add them in the default order as defined by
-     * @see {@link MatterSpecification.v13.Core} § 5.5
+     * @see {@link MatterSpecification.v16.Core} § 5.5
      */
     #initializeCommissioningSteps() {
         this.commissioningSteps.push({
@@ -745,7 +788,7 @@ export class ControllerCommissioningFlow {
         const otaRequestors = new Array<EndpointNumber>();
 
         for await (const data of networkData) {
-            for (const entry of data) {
+            for await (const entry of data) {
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -787,9 +830,9 @@ export class ControllerCommissioningFlow {
      * Step 7
      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
      * timeout within 60 seconds of the completion of a PASE session establishment, using the
-     * ArmFailSafe command (see Section 11.10.6.2, “ArmFailSafe Command”). A Commissioner MAY
+     * ArmFailSafe command (see Section 11.10.7.2, “ArmFailSafe Command”). A Commissioner MAY
      * collect device information including guidance on the fail-safe value from the Commissionee by
-     * reading BasicCommissioningInfo attribute (see Section 11.10.5.2, “BasicCommissioningInfo
+     * reading BasicCommissioningInfo attribute (see Section 11.10.6.2, “BasicCommissioningInfo
      * Attribute”) before invoking the ArmFailSafe command.
      */
     async #armFailsafe(time?: Duration) {
@@ -1174,6 +1217,8 @@ export class ControllerCommissioningFlow {
 
         const { attestation } = this.commissioningOptions;
 
+        let findings: AttestationFinding[];
+        let baseError: Error | undefined;
         try {
             const result = await DeviceAttestationValidator.validate(
                 {
@@ -1191,34 +1236,40 @@ export class ControllerCommissioningFlow {
                     productId: this.collectedCommissioningData.productId!,
                 },
             );
-
-            if (result.findings.length > 0) {
-                const proceed = await this.#resolveAttestationFindings(result.findings);
-                if (!proceed) {
-                    throw new CommissioningError(
-                        `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
-                    );
-                }
-                logger.info(
-                    `Device attestation successfully verified with ${result.findings.length} accepted finding(s)`,
-                );
-            } else {
-                logger.info("Device attestation successfully verified");
-            }
+            findings = result.findings;
         } catch (error) {
-            if (error instanceof DeviceAttestationError) {
-                const errorFinding: AttestationFinding = {
-                    level: "error",
-                    type: error.failure,
-                    message: error.message,
-                };
-                const proceed = await this.#resolveAttestationFindings([errorFinding]);
-                if (!proceed) {
-                    throw error;
-                }
-            } else {
+            // A cancellation (e.g. shutdown/close while the DCL service is consulted) must propagate
+            // cleanly rather than be downgraded to an attestation finding.
+            if (causedBy(error, CanceledError)) {
                 throw error;
             }
+            baseError = asError(error);
+            if (error instanceof DeviceAttestationError) {
+                findings = [{ level: "error", type: error.failure, message: error.message }];
+            } else {
+                // Unexpected validation error (e.g. an unrecoverably corrupt trust-store certificate).
+                // Surface it as an error finding so the onFailure policy can still judge it, instead of
+                // hard-aborting commissioning outside the findings mechanism.
+                findings = [
+                    { level: "error", type: DeviceAttestationCheck.ValidationError, message: baseError.message },
+                ];
+            }
+        }
+
+        if (findings.length > 0) {
+            const decision = await this.#resolveAttestationFindings(findings);
+            if (!decision.proceed) {
+                baseError ??= new CommissioningError(
+                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                );
+                if (decision.reason !== undefined) {
+                    throw new CommissioningError(decision.reason, { cause: baseError });
+                }
+                throw baseError;
+            }
+            logger.info(`Device attestation successfully verified with ${findings.length} accepted finding(s)`);
+        } else {
+            logger.info("Device attestation successfully verified");
         }
 
         // Extract DAC public key for CSR signature verification in #certificates()
@@ -1231,11 +1282,15 @@ export class ControllerCommissioningFlow {
     }
 
     /** Resolve attestation findings according to the configured policy. */
-    #resolveAttestationFindings(findings: AttestationFinding[]): MaybePromise<boolean> {
+    async #resolveAttestationFindings(findings: AttestationFinding[]): Promise<AttestationDecision> {
         const policy = this.commissioningOptions.attestation.onFailure;
 
         if (typeof policy === "function") {
-            return policy(findings);
+            // Throws from the callback propagate to the caller unchanged.
+            const result = await policy(findings);
+            if (result === true) return { proceed: true };
+            if (typeof result === "string") return { proceed: false, reason: result };
+            return { proceed: false };
         }
 
         for (const f of findings) {
@@ -1253,7 +1308,7 @@ export class ControllerCommissioningFlow {
             }
         }
 
-        return policy !== false;
+        return { proceed: policy !== false };
     }
 
     // TODO consider Distributed Compliance Ledger Info about Commissioning Flow
@@ -1359,7 +1414,7 @@ export class ControllerCommissioningFlow {
     /**
      * Step 13-2 (we do as 99 at the end because)
      * The Administrator having established a CASE session with the Commissionee over the operational network in the
-     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.9.6.6,
+     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.10.7.6,
      * “CommissioningComplete Command”). A success response after invocation of the CommissioningComplete command ends
      * the commissioning process.
      */
@@ -1381,7 +1436,6 @@ export class ControllerCommissioningFlow {
                     command: "updateFabricLabel",
                     fields: {
                         label: this.fabric.label,
-                        fabricIndex,
                     },
                 }),
             );
@@ -1414,14 +1468,14 @@ export class ControllerCommissioningFlow {
     /**
      * Step 16-17
      * 16: If the Commissionee both supports it and requires it, the Commissioner SHALL configure the operational network
-     *     at the Commissionee using commands such as AddOrUpdateWiFiNetwork (see Section 11.8.7.3, “AddOrUpdateWiFiNetwork
-     *     Command”) and AddOrUpdateThreadNetwork (see Section 11.8.7.4, “AddOrUpdateThreadNetwork Command”).
+     *     at the Commissionee using commands such as AddOrUpdateWiFiNetwork (see Section 11.9.7.3, “AddOrUpdateWiFiNetwork
+     *     Command”) and AddOrUpdateThreadNetwork (see Section 11.9.7.4, “AddOrUpdateThreadNetwork Command”).
      *     A Commissionee requires network commissioning if it is not already on the desired operational network.
      *     A Commissionee supports network commissioning if it has any NetworkCommissioning cluster instances.
      *     A Commissioner MAY learn about the networks visible to the Commissionee using ScanNetworks command
-     *     (see Section 11.8.7.1, “ScanNetworks Command”).
+     *     (see Section 11.9.7.1, “ScanNetworks Command”).
      * 17: The Commissioner SHALL trigger the Commissionee to connect to the operational network using ConnectNetwork
-     *     command (see Section 11.8.7.9, “ConnectNetwork Command”) unless the Commissionee is already on the desired
+     *     command (see Section 11.9.7.8, “ConnectNetwork Command”) unless the Commissionee is already on the desired
      *     operational network.
      */
     async #validateNetwork() {
@@ -1685,6 +1739,8 @@ export class ControllerCommissioningFlow {
             }
         }
 
+        const networkName = resolveThreadNetworkName(this.commissioningOptions.threadNetwork);
+
         logger.debug("Configuring Thread network ...");
         const [rawScanMaxTimeSeconds, rawConnectMaxTimeSeconds] = await this.#readConcreteAttributeValues(
             Read(
@@ -1701,7 +1757,7 @@ export class ControllerCommissioningFlow {
         const connectMaxTimeSeconds = Math.max(rawConnectMaxTimeSeconds ?? 0, MIN_NETWORK_CONNECT_TIMEOUT_SECONDS);
 
         let threadScanFailureHint: string | undefined;
-        if (!this.commissioningOptions.threadNetwork?.networkName) {
+        if (!networkName) {
             logger.info("Thread network name is not configured. Skip scanning for it.");
         } else if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
             // Only Scan when the device supports concurrent connections
@@ -1727,22 +1783,20 @@ export class ControllerCommissioningFlow {
             } else if (threadScanResults === undefined || threadScanResults.length === 0) {
                 threadScanFailureHint = `no Thread networks found in scan results`;
                 logger.warn(
-                    `Thread network scan returned no results for "${this.commissioningOptions.threadNetwork.networkName}" - attempting connection anyway`,
+                    `Thread network scan returned no results for "${networkName}" - attempting connection anyway`,
                 );
             } else {
                 const wantedNetworkFound = threadScanResults.find(
-                    ({ networkName }) => networkName === this.commissioningOptions.threadNetwork?.networkName,
+                    ({ networkName: scanned }) => scanned === networkName,
                 );
                 if (wantedNetworkFound === undefined) {
-                    threadScanFailureHint = `network "${this.commissioningOptions.threadNetwork.networkName}" not found in scan results`;
+                    threadScanFailureHint = `network "${networkName}" not found in scan results`;
                     logger.warn(
-                        `Thread network "${this.commissioningOptions.threadNetwork.networkName}" not found in scan results: ${Diagnostic.json(threadScanResults)} - attempting connection anyway`,
+                        `Thread network "${networkName}" not found in scan results: ${Diagnostic.json(threadScanResults)} - attempting connection anyway`,
                     );
                 } else {
                     logger.debug(
-                        `Commissionee found wanted Thread network ${
-                            this.commissioningOptions.threadNetwork.networkName
-                        }: ${Diagnostic.json(wantedNetworkFound)}`,
+                        `Commissionee found wanted Thread network ${networkName}: ${Diagnostic.json(wantedNetworkFound)}`,
                     );
                 }
             }
@@ -1776,7 +1830,7 @@ export class ControllerCommissioningFlow {
             throw new ThreadNetworkSetupFailedError(`Commissionee did not return network index`);
         }
         logger.debug(
-            `Commissionee added Thread network ${this.commissioningOptions.threadNetwork.networkName ?? "via operational dataset"} with network index ${networkIndex}`,
+            `Commissionee added Thread network ${networkName ?? "via operational dataset"} with network index ${networkIndex}`,
         );
 
         const [updatedNetworks] = await this.#readConcreteAttributeValues(
@@ -1836,7 +1890,7 @@ export class ControllerCommissioningFlow {
      * 18: Finalization of the Commissioning process begins. An Administrator configured in the ACL of the Commissionee
      *     by the Commissioner SHALL use Operational Discovery to discover the Commissionee. This Administrator MAY be
      *     the Commissioner itself, or another Node to which the Commissioner has delegated the task.
-     * 19: The Administrator SHALL open a CASE (see Section 4.13.2, “Certificate Authenticated Session Establishment
+     * 19: The Administrator SHALL open a CASE (see Section 4.14.2, “Certificate Authenticated Session Establishment
      *     (CASE)”) session with the Commissionee over the operational network.
      */
     async #reconnectWithDevice() {
@@ -1885,8 +1939,6 @@ export class ControllerCommissioningFlow {
         await this.interaction.close();
         this.interaction = transitionResult;
 
-        this.#clusterClients.clear();
-
         logger.debug("Successfully reconnected with device ...");
 
         return {
@@ -1898,7 +1950,7 @@ export class ControllerCommissioningFlow {
     /**
      * Step 20
      * The Administrator having established a CASE session with the Commissionee over the operational network in the
-     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.9.6.6,
+     * previous steps SHALL invoke the CommissioningComplete command (see Section 11.10.7.6,
      * “CommissioningComplete Command”). A success response after invocation of the CommissioningComplete command ends
      * the commissioning process.
      */

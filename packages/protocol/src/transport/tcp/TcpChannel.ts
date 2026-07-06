@@ -209,7 +209,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
 
         // Receive buffer cap — prevent memory exhaustion from slow/malicious peers
         if (this.#receiveLength > this.#maxReceiveBufferSize) {
-            logger.error(
+            logger.warn(
                 `Receive buffer exceeded ${this.#maxReceiveBufferSize} bytes without completing a message, closing`,
             );
             this.#workers.add(this.close());
@@ -253,14 +253,17 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
             const flat = this.#flatten();
             const messageLength = Bytes.dataViewOf(flat).getUint32(0, true);
 
-            // Zero-length frames have no payload but are valid — consume the header and continue
+            // A zero-length frame can never hold the mandatory §4.4 Message Header, so it is never a valid Matter
+            // message. Reject-and-close to deny a peer a way to hold the connection slot open with an endless stream
+            // of empty headers (matches matter.js BTP and CHIP TCP behavior).
             if (messageLength === 0) {
-                this.#consume(flat, FRAMING_HEADER_SIZE);
-                continue;
+                logger.warn("Received zero-length TCP frame, closing");
+                this.#workers.add(this.close());
+                return;
             }
 
             if (messageLength > this.maxMessageSize) {
-                logger.error(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
+                logger.warn(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
                 // TODO: Send MESSAGE_TOO_LARGE status report before closing (spec §4.15.2.3)
                 this.#workers.add(this.close());
                 return;

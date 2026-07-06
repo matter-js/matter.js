@@ -330,10 +330,9 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
      * Determine whether this element applies to a specific revision.
      */
     appliesTo(revision: Specification.Revision) {
-        // Stick to simple string comparison for now as it is efficient; update if versioning ever gets more complex
-        // (or Matter reaches version 10)
         return (
-            (this.asOf === undefined || revision >= this.asOf) && (this.until === undefined || revision < this.until)
+            (this.asOf === undefined || Specification.compareRevisions(revision, this.asOf) >= 0) &&
+            (this.until === undefined || Specification.compareRevisions(revision, this.until) < 0)
         );
     }
 

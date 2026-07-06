@@ -17,7 +17,7 @@ import { Identify } from "@matter/types/clusters/identify";
 import { MockSite } from "../node/mock-site.js";
 
 async function readDescriptorAttribute(
-    peer: { interaction: { read(req: Read): AsyncIterable<Iterable<ReadResult.Report>> } },
+    peer: { interaction: { read(req: Read): AsyncIterable<ReadResult.Chunk> } },
     endpoint: EndpointNumber,
     attribute: "clientList" | "serverList",
 ): Promise<ClusterId[]> {
@@ -31,7 +31,7 @@ async function readDescriptorAttribute(
 
     const reports = new Array<ReadResult.Report>();
     for await (const chunk of peer.interaction.read(readRequest)) {
-        for (const report of chunk) {
+        for await (const report of chunk) {
             reports.push(report);
         }
     }

@@ -36,7 +36,7 @@ export class HttpEndpointGroup implements HttpEndpoint {
         try {
             await MatterAggregateError.allSettled(this.#endpoints.map(endpoint => endpoint.close()));
         } catch (e) {
-            logger.error("Error closing HTTP endpoints", e);
+            logger.warn("Error closing HTTP endpoints", e);
         }
         this.#endpoints = [];
     }

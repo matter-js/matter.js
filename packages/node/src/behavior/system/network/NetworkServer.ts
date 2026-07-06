@@ -110,11 +110,17 @@ export namespace NetworkServer {
 
         @field(duration)
         timeout?: Duration;
+
+        @field(duration)
+        additionalMrpDelay?: Duration;
     }
 
     export class LimitsConfig extends ConcreteLimitsConfig {
         @field(ConcreteLimitsConfig)
         connect?: ConcreteLimitsConfig;
+
+        @field(ConcreteLimitsConfig)
+        probeAddress?: ConcreteLimitsConfig;
     }
 
     export class ProfilesConfig implements NetworkProfiles.PartialOptions {
@@ -155,6 +161,12 @@ export namespace NetworkServer {
          * Preferred transport for outgoing connections. Defaults to UDP when not set.
          */
         transportPreference?: "tcp" | "udp";
+
+        /**
+         * Network profile describing our own (local) network — the sender-side MRP additive-delay
+         * axis.  Defaults to "fast"; set to "thread" on a Thread device.
+         */
+        ownNetworkProfileId: keyof NetworkProfiles.Templates = "fast";
 
         @field(TimingConfig)
         timing?: TimingConfig;

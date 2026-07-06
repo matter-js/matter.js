@@ -11,7 +11,7 @@ import { TlvUInt8 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvInvokeResponseData } from "../types/TlvInvokeResponseData.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.7.10 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.7.10 */
 
 export const TlvInvokeResponse = TlvObject({
     /** Deprecated and ignored by client, but required for backward compatibility reasons. */

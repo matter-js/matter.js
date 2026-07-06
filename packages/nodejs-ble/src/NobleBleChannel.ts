@@ -204,7 +204,7 @@ export class NobleBleCentralInterface implements Transport {
                         // so chance is high also disconnect does not work reliably for now
                         peripheral
                             .disconnectAsync()
-                            .catch(error => logger.error(`Ignored error while disconnecting`, error));
+                            .catch(error => logger.debug(`Ignored error while disconnecting`, error));
                     }
                     rejectOnce(new BleError(`Timeout while interviewing peripheral ${peripheralAddress}`));
                 }),
@@ -451,7 +451,7 @@ export class NobleBleCentralInterface implements Transport {
                 logger.debug(`Peripheral ${peripheral.address}: Disconnect from peripheral while closing central`);
                 peripheral
                     .disconnectAsync()
-                    .catch(error => logger.error(`Peripheral ${peripheral.address}: Error while disconnecting`, error));
+                    .catch(error => logger.warn(`Peripheral ${peripheral.address}: Error while disconnecting`, error));
             }
         }
         this.#openChannels.clear();
@@ -474,12 +474,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<NobleBleChannel> {
         const { address: peripheralAddress } = peripheral;
-        let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
-            mtu = MatterBle.MAXIMUM_BTP_MTU;
-        }
+        const mtu = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
         logger.debug(
-            `Peripheral ${peripheralAddress}: Using MTU=${mtu} bytes (Peripheral supports up to ${peripheral.mtu} bytes)`,
+            `Peripheral ${peripheralAddress}: Using BTP segment size=${mtu} bytes (Peripheral ATT_MTU up to ${peripheral.mtu} bytes)`,
         );
 
         const {
@@ -509,7 +506,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             if (peripheral.state === "connected") {
                 await characteristicC2ForSubscribe.unsubscribeAsync().catch(error => {
                     if (!isNobleDisconnectError(error)) {
-                        logger.error(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error);
+                        logger.warn(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error);
                     }
                 });
             }
@@ -727,7 +724,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         if (this.connected) {
             this.peripheral.disconnectAsync().catch(error => {
                 if (!isNobleDisconnectError(error)) {
-                    logger.error(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error);
+                    logger.warn(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error);
                 }
             });
         }

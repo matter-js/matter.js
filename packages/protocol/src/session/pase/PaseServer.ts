@@ -7,6 +7,7 @@
 import { Mark } from "#common/Mark.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
+    asError,
     Bytes,
     causedBy,
     Channel,
@@ -124,7 +125,9 @@ export class PaseServer implements ProtocolHandler {
         logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
         this.#pairingTimer = Time.getTimer("PASE pairing timeout", PASE_PAIRING_TIMEOUT, () =>
-            this.cancelPairing(messenger),
+            this.cancelPairing(messenger).catch(error =>
+                logger.warn("Error cancelling PASE pairing after timeout:", Diagnostic.errorMessage(asError(error))),
+            ),
         ).start();
 
         // Read pbkdfRequest and send pbkdfResponse
@@ -202,8 +205,17 @@ export class PaseServer implements ProtocolHandler {
     }
 
     async cancelPairing(messenger: PaseServerMessenger, sendError = true) {
-        if (sendError) {
-            await messenger.sendError(SecureChannelStatusCode.InvalidParam);
+        // Skip the error report when a sent message is still unacked: the peer never acknowledged our prior message,
+        // so the send would only fail with a flow error.
+        if (sendError && !messenger.exchange.hasUnackedMessage) {
+            try {
+                await messenger.sendError(SecureChannelStatusCode.InvalidParam);
+            } catch (error) {
+                logger.info(
+                    "Could not send pairing-cancellation status report to peer:",
+                    Diagnostic.errorMessage(asError(error)),
+                );
+            }
         }
         await messenger.close();
     }

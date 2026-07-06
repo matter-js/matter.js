@@ -22,12 +22,6 @@ import type { ServerNode } from "@matter/node";
 import { ClientNodeInteraction } from "@matter/node";
 import {
     ClientInteraction,
-    DecodedAttributeReportStatus,
-    DecodedAttributeReportValue,
-    DecodedDataReport,
-    DecodedEventData,
-    DecodedEventReportStatus,
-    DecodedEventReportValue,
     DedicatedChannelExchangeProvider,
     DiscoveryData,
     ExchangeManager,
@@ -62,6 +56,18 @@ import {
     TypeFromSchema,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import {
+    DecodedAttributeReportStatus,
+    DecodedAttributeReportValue,
+    DecodedDataReport,
+    DecodedEventData,
+    DecodedEventReportStatus,
+    DecodedEventReportValue,
+    toDecodedAttributeReportStatus,
+    toDecodedAttributeReportValue,
+    toDecodedEventReportStatus,
+    toDecodedEventReportValue,
+} from "./DecodedDataReport.js";
 
 const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
@@ -472,33 +478,6 @@ export class InteractionClient {
         return await this.#processReadResult(read, { attributeListener });
     }
 
-    #convertAttributePath(entry: ReadResult.ConcreteAttributePath) {
-        const { endpointId, clusterId, attributeId } = entry;
-
-        const clusterModel = Matter.clusters(clusterId);
-        const attribute = clusterModel?.attributes(attributeId);
-
-        return {
-            endpointId,
-            clusterId,
-            attributeId,
-            attributeName: attribute ? attribute.propertyName : `Unknown (${Diagnostic.hex(attributeId)})`,
-        };
-    }
-
-    #convertEventPath(entry: ReadResult.ConcreteEventPath) {
-        const { endpointId, clusterId, eventId } = entry;
-        const clusterModel = Matter.clusters(clusterId);
-        const event = clusterModel?.events(eventId);
-
-        return {
-            endpointId,
-            clusterId,
-            eventId,
-            eventName: event ? event.propertyName : `Unknown (${Diagnostic.hex(eventId)})`,
-        };
-    }
-
     async #processReadResult(
         report: ReadResult<ReadResult.Chunk>,
         listeners: {
@@ -513,52 +492,26 @@ export class InteractionClient {
         const eventStatus = new Array<DecodedEventReportStatus>();
 
         for await (const chunks of report) {
-            for (const entry of chunks) {
+            for await (const entry of chunks) {
                 switch (entry.kind) {
                     case "attr-value": {
-                        const { path, value, version } = entry;
-                        const reportValue: DecodedAttributeReportValue<any> = {
-                            path: this.#convertAttributePath(path),
-                            value,
-                            version,
-                        };
+                        const reportValue = toDecodedAttributeReportValue(entry);
                         attributeReports.push(reportValue);
                         attributeListener?.(reportValue);
                         break;
                     }
-
-                    case "attr-status": {
-                        const { path, status, clusterStatus } = entry;
-                        const reportStatus: DecodedAttributeReportStatus = {
-                            path: this.#convertAttributePath(path),
-                            status,
-                            clusterStatus,
-                        };
-                        attributeStatus.push(reportStatus);
+                    case "attr-status":
+                        attributeStatus.push(toDecodedAttributeReportStatus(entry));
                         break;
-                    }
-
                     case "event-value": {
-                        const { path, number, timestamp, priority, value } = entry;
-                        const reportValue: DecodedEventReportValue<any> = {
-                            path: this.#convertEventPath(path),
-                            events: [{ eventNumber: number, epochTimestamp: timestamp, priority, data: value }],
-                        };
+                        const reportValue = toDecodedEventReportValue(entry);
                         eventReports.push(reportValue);
                         eventListener?.(reportValue);
                         break;
                     }
-
-                    case "event-status": {
-                        const { path, status, clusterStatus } = entry;
-                        const reportStatus: DecodedEventReportStatus = {
-                            path: this.#convertEventPath(path),
-                            status,
-                            clusterStatus,
-                        };
-                        eventStatus.push(reportStatus);
+                    case "event-status":
+                        eventStatus.push(toDecodedEventReportStatus(entry));
                         break;
-                    }
                 }
             }
         }

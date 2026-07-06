@@ -19,6 +19,13 @@ export class PeerCommunicationError extends MatterError {}
 export class TransientPeerCommunicationError extends PeerCommunicationError {}
 
 /**
+ * Thrown when a session is established over TCP but the peer's negotiated session parameters report no TCP server
+ * support. Not transient so {@link CaseClient.pair} reports it to the peer as InvalidParam; the connect path then
+ * falls back to UDP.
+ */
+export class TcpUnsupportedError extends PeerCommunicationError {}
+
+/**
  * Thrown when an operation aborts because session establishment times out.
  */
 export class PeerUnreachableError extends TransientPeerCommunicationError {
@@ -37,6 +44,17 @@ export class PeerUnresponsiveError extends TransientPeerCommunicationError {
         );
     }
 }
+
+/**
+ * Thrown when an expected message did not arrive on an active exchange before the timeout.
+ *
+ * Subtype of {@link PeerUnresponsiveError}, distinguished from the bare error which is raised when our own outbound
+ * message was never acknowledged (the peer may never have received it).  This subtype means the exchange was live but
+ * the awaited message — a command response or a subscription/server report — never came.  It does not by itself imply
+ * our request was delivered; a caller that reads strictly after a successful (acked) send may additionally infer
+ * delivery from that ordering.
+ */
+export class PeerMessageMissingError extends PeerUnresponsiveError {}
 
 /**
  * Thrown when a session is closed due to peer shutdown.

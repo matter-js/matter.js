@@ -11,7 +11,7 @@ import { InvokeResult } from "#action/response/InvokeResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger } from "@matter/general";
-import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
+import { AccessLevel, CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     CommandPath,
     EndpointNumber,
@@ -61,7 +61,7 @@ export class CommandInvokeResponse<
         this.#fabricIndex = session.fabric ?? FabricIndex.NO_FABRIC;
     }
 
-    async *process<T extends Invoke>({ invokeRequests, suppressResponse }: T): InvokeResult {
+    async *process<T extends Invoke>({ invokeRequests }: T): InvokeResult {
         using _invoking = this.join("invoking");
         const multipleInvokes = invokeRequests.length > 1;
 
@@ -94,16 +94,14 @@ export class CommandInvokeResponse<
         if (this.#invokers) {
             for (const invoker of this.#invokers) {
                 for await (const chunk of invoker.apply(this)) {
-                    if (!suppressResponse) {
-                        yield chunk;
-                    }
+                    yield chunk;
                 }
             }
         }
 
         // We emit chunks lazily when the endpoint changes so there may be one remaining chunk.  There may also be a
         // chunk with errors even if there are no data producers
-        if (!suppressResponse && this.#chunk !== undefined) {
+        if (this.#chunk !== undefined) {
             yield this.#chunk;
         }
     }
@@ -214,9 +212,10 @@ export class CommandInvokeResponse<
             limits = command.limits;
         }
 
-        // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
+        // Order prescribed by core spec 8.8.3.2: an Operate-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the invoke.
         // We need some fallback location if cluster is not defined
-        const location = {
+        const location: AccessControl.Location = {
             ...(cluster?.location ?? {
                 path: DataModelPath.none,
                 endpoint: endpointId,
@@ -225,20 +224,13 @@ export class CommandInvokeResponse<
             owningFabric: this.session.fabric,
         };
 
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            const permission = this.session.authorityAt(limits.writeLevel, location);
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
+            access = { session: this.session, location };
 
-                case AccessControl.Authority.Unauthorized:
-                    return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
-
-                case AccessControl.Authority.Restricted:
-                    return this.#addStatus(path, commandRef, Status.AccessRestricted);
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            const denial = this.#authorize(access.session, AccessLevel.Operate, location);
+            if (denial !== undefined) {
+                return this.#addStatus(path, commandRef, denial);
             }
         }
 
@@ -250,6 +242,14 @@ export class CommandInvokeResponse<
         }
         if (command === undefined || !cluster.type.commands[command.id]) {
             return this.#addStatus(path, commandRef, Status.UnsupportedCommand);
+        }
+
+        if (access !== undefined) {
+            const denial = this.#authorize(access.session, limits.writeLevel, access.location);
+            if (denial !== undefined) {
+                this.#errorCount++;
+                return this.#addStatus(path, commandRef, denial);
+            }
         }
 
         if (hasRemoteActor(this.session)) {
@@ -369,6 +369,26 @@ export class CommandInvokeResponse<
         }
     }
 
+    /**
+     * Validate access at {@link level}.  Returns undefined if granted; otherwise the status to report.
+     */
+    #authorize(session: AccessControl.RemoteActorSession, level: AccessLevel, location: AccessControl.Location) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return undefined;
+
+            case AccessControl.Authority.Unauthorized:
+                return Status.UnsupportedAccess;
+
+            case AccessControl.Authority.Restricted:
+                return Status.AccessRestricted;
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
+        }
+    }
+
     #addResponse(chunk: InvokeResult.Data) {
         if (this.#chunk) {
             this.#chunk.push(chunk);
@@ -386,6 +406,11 @@ export class CommandInvokeResponse<
         status: Status,
         clusterStatus?: number,
     ) {
+        // Spec 1.6 §7.10.7: when a cluster-specific status is present the outer IM status SHALL be SUCCESS or FAILURE.
+        if (clusterStatus !== undefined && status !== Status.Success) {
+            status = Status.Failure;
+        }
+
         if (status !== Status.Success) {
             logger.info(
                 () =>

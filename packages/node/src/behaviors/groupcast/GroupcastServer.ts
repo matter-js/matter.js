@@ -7,7 +7,7 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, deepCopy, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
+import { Bytes, deepCopy, ImplementationError, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
 import { AccessLevel, DataModelPath } from "@matter/model";
 import {
     AccessControl,
@@ -26,6 +26,9 @@ const logger = Logger.get("GroupcastServer");
 
 /** Membership.KeySetId sentinel indicating the referenced key set no longer exists in GKM. */
 const UNMAPPED_KEYSET_ID = 0xffff;
+
+/** TODO: remove once the Groupcast cluster leaves provisional state in the Matter specification. */
+const GROUPCAST_IS_PROVISIONAL = true;
 
 /**
  * This is the default server implementation of {@link GroupcastBehavior}.
@@ -48,6 +51,13 @@ export class GroupcastServer extends GroupcastBehavior {
     #testingTimer?: Timer;
 
     override initialize() {
+        // TODO: remove this guard once the Groupcast cluster leaves provisional state in the Matter specification
+        if (GROUPCAST_IS_PROVISIONAL) {
+            throw new ImplementationError(
+                "The Groupcast cluster is provisional in Matter 1.6. Do not add it to a node.",
+            );
+        }
+
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         this.reactTo(lifecycle.online, this.#online);
     }

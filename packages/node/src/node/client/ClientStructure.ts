@@ -22,6 +22,7 @@ import {
     Lifecycle,
     Logger,
     MaybePromise,
+    Mutex,
     Observable,
 } from "@matter/general";
 import {
@@ -43,6 +44,14 @@ import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
 
 const logger = Logger.get("ClientStructure");
+
+/** Max deferred persist/emit jobs allowed in flight before the decode loop applies back-pressure. */
+const MAX_PENDING_JOBS = 100;
+
+interface MutateContext {
+    enqueue(job: () => Promise<void>): void;
+    endpointsWithData: Set<EndpointNumber>;
+}
 
 const DESCRIPTOR_ID = Descriptor.id;
 const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.attributes.deviceTypeList.id;
@@ -76,6 +85,7 @@ export class ClientStructure {
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
     #pendingStructureEvents = Array<PendingEvent>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
+    #clustersWithDataThisInteraction = new Set<ClusterStructure>();
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #commandFactory?: ClusterBehaviorType.CommandFactory;
@@ -212,42 +222,84 @@ export class ClientStructure {
      * Update the node structure by applying attribute changes from a Matter protocol interaction.
      */
     async *mutate(request: Read, changes: ReadResult) {
+        // Track which clusters the peer sends data for so a descriptor omitting them doesn't delete them.  Reset at the
+        // start so a prior interaction that threw mid-stream can't leave stale entries blocking a legitimate deletion.
+        this.#clustersWithDataThisInteraction.clear();
+
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
+        // Serial FIFO for deferred persist/emit so Status.Success is not gated on internal and consumer data processing.
+        // Ordering is preserved by insertion order; the Mutex runs one job at a time.
+        const queue = new Mutex(this);
+        const jobErrors = new Array<unknown>();
+        let pendingJobs = 0;
+        const q: MutateContext = {
+            endpointsWithData: new Set<EndpointNumber>(),
+            enqueue: job => {
+                pendingJobs++;
+                queue.run(async () => {
+                    try {
+                        await job();
+                    } catch (error) {
+                        jobErrors.push(error);
+                        logger.warn("Deferred data report job failed:", error);
+                    } finally {
+                        pendingJobs--;
+                    }
+                });
+            },
+        };
+
         // Apply changes
         const scope = ReadScope(request);
-        for await (const chunk of changes) {
-            const chunkData = new Array<ReadResult.Report>();
-            for (const change of chunk) {
-                chunkData.push(change);
-                switch (change.kind) {
-                    case "attr-value":
-                        currentUpdates = await this.#mutateAttribute(change, scope, currentUpdates);
-                        break;
+        try {
+            for await (const chunk of changes) {
+                const chunkData = new Array<ReadResult.Report>();
+                for await (const change of chunk) {
+                    chunkData.push(change);
+                    switch (change.kind) {
+                        case "attr-value":
+                            currentUpdates = this.#mutateAttribute(change, scope, currentUpdates, q);
+                            break;
 
-                    case "event-value":
-                        await this.#emitEvent(change, currentUpdates);
-                        break;
+                        case "event-value":
+                            this.#emitEvent(change, q);
+                            break;
 
-                    case "attr-status":
-                    case "event-status":
-                        logger.debug(
-                            "Received status for",
-                            change.kind === "attr-status" ? "attribute" : "event",
-                            Diagnostic.strong(Diagnostic.dict(change.path)),
-                            `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
-                        );
-                        break;
+                        case "attr-status":
+                        case "event-status":
+                            logger.debug(
+                                "Received status for",
+                                change.kind === "attr-status" ? "attribute" : "event",
+                                Diagnostic.strong(Diagnostic.dict(change.path)),
+                                `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
+                            );
+                            break;
+                    }
+
+                    if (pendingJobs > MAX_PENDING_JOBS) {
+                        await queue;
+                    }
                 }
+
+                yield chunkData;
             }
 
-            yield chunkData;
+            // The last cluster still needs its changes applied
+            if (currentUpdates) {
+                const toFlush = currentUpdates;
+                q.enqueue(() => this.#updateCluster(toFlush));
+            }
+        } finally {
+            // Drain deferred jobs on every exit path (normal completion, consumer break/throw, or a `changes`
+            // error) so no enqueued persist/emit work runs detached after the interaction ends.  Structural changes
+            // below read #pendingChanges, which the drained #updateCluster jobs populate.
+            await queue;
         }
 
-        // The last cluster still needs its changes applied
-        if (currentUpdates) {
-            await this.#updateCluster(currentUpdates);
+        if (jobErrors.length) {
+            logger.warn(`${jobErrors.length} deferred data report job(s) failed during interaction`);
         }
 
         // We don't apply structural changes until we've processed all attribute data if a.) listeners might otherwise
@@ -280,6 +332,8 @@ export class ClientStructure {
      * Values are keyed by property name (not attribute ID).
      */
     async applyWireChanges(changes: StateStream.WireChange[]) {
+        this.#clustersWithDataThisInteraction.clear();
+
         for (const change of changes) {
             switch (change.kind) {
                 case "update": {
@@ -292,6 +346,9 @@ export class ClientStructure {
                     if (typeof change.version === "number") {
                         values.set(DatasourceCache.VERSION_KEY, change.version);
                     }
+
+                    this.#clustersWithDataThisInteraction.add(cluster);
+                    this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
                     await cluster.store.externalSet(values);
                     this.#synchronizeCluster(endpoint, cluster);
@@ -342,8 +399,7 @@ export class ClientStructure {
                 const state = this.#node.state as Record<string, unknown>;
                 const network = state?.network as undefined | Record<string, unknown>;
                 const defaultSubscription = network?.defaultSubscription as
-                    | undefined
-                    | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
+                    undefined | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
                 if (defaultSubscription) {
                     this.#subscribedFabricFiltered =
                         ("isFabricFiltered" in defaultSubscription
@@ -366,11 +422,12 @@ export class ClientStructure {
         return this.#subscribedFabricFiltered;
     }
 
-    async #mutateAttribute(
+    #mutateAttribute(
         change: ReadResult.AttributeValue,
         scope: ReadScope,
         currentUpdates: undefined | AttributeUpdates,
-    ) {
+        q: MutateContext,
+    ): AttributeUpdates | undefined {
         // We only store values when an initial subscription is defined and the fabric filter matches
         if (this.subscribedFabricFiltered !== scope.isFabricFiltered) {
             return currentUpdates;
@@ -378,10 +435,14 @@ export class ClientStructure {
 
         const { endpointId, clusterId, attributeId } = change.path;
 
-        // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update
-        // set
+        // Record synchronously so #emitEvent can classify events against data touched this interaction,
+        // independent of the now-deferred #pendingChanges population.
+        q.endpointsWithData.add(endpointId);
+
+        // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update set
         if (currentUpdates && (currentUpdates.endpointId !== endpointId || currentUpdates.clusterId !== clusterId)) {
-            await this.#updateCluster(currentUpdates);
+            const toFlush = currentUpdates;
+            q.enqueue(() => this.#updateCluster(toFlush));
             currentUpdates = undefined;
         }
 
@@ -405,22 +466,27 @@ export class ClientStructure {
         return currentUpdates;
     }
 
-    async #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
-        if (!this.eventEmitter) {
+    #emitEvent(occurrence: ReadResult.EventValue, q: MutateContext): void {
+        const emitter = this.eventEmitter;
+        if (!emitter) {
             return;
         }
 
-        const { endpointId, clusterId } = occurrence.path;
+        const { endpointId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
-        // If we are building updates on the current cluster or endpoint has pending changes, delay event emission
+        // Delay emission until end-of-interaction (after persist + structural changes) when this endpoint received
+        // attribute data this interaction, has a pending structural change, or is not yet installed — events must not
+        // arrive before the endpoint exists or before its own attribute state is applied.
         if (
-            (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
-            (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
+            endpoint === undefined ||
+            !endpoint.endpoint.lifecycle.isInstalled ||
+            q.endpointsWithData.has(endpointId) ||
+            this.#pendingChanges?.has(endpoint)
         ) {
             this.#delayedClusterEvents.push(occurrence);
         } else {
-            await this.eventEmitter(occurrence);
+            q.enqueue(() => Promise.resolve(emitter(occurrence)));
         }
     }
 
@@ -444,6 +510,24 @@ export class ClientStructure {
     }
 
     /**
+     * Cancel a deletion scheduled for a cluster the peer is still sending data for.
+     *
+     * A peer that omits a cluster from its descriptor server list but continues to report the cluster's attributes is
+     * buggy, but we tolerate it by keeping the cluster — aka "Schrödinger's cluster".
+     */
+    #preserveAbsentCluster(endpoint: Endpoint, cluster: ClusterStructure) {
+        if (!cluster.pendingDelete) {
+            return;
+        }
+
+        logger.info(
+            `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from descriptor server list but peer` +
+                " sent attribute data for it; keeping cluster",
+        );
+        delete cluster.pendingDelete;
+    }
+
+    /**
      * Apply new attribute values for a specific endpoint / cluster.
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
@@ -451,6 +535,12 @@ export class ClientStructure {
     async #updateCluster(attrs: AttributeUpdates) {
         const endpoint = this.#endpointFor(attrs.endpointId);
         const cluster = this.#clusterFor(endpoint, attrs.clusterId);
+
+        // Receiving attribute data for a cluster is authoritative evidence the peer still has it, even when its
+        // descriptor server list omits it.  Record this and cancel any deletion already scheduled by a descriptor
+        // processed earlier in this same interaction — "Schrödinger's cluster".
+        this.#clustersWithDataThisInteraction.add(cluster);
+        this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
         if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
             if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
@@ -460,11 +550,14 @@ export class ClientStructure {
 
         if (cluster.behavior && attrs.values.has(AttributeList.id)) {
             const attributeList = attrs.values.get(AttributeList.id);
+            // A non-empty AttributeList is authoritative: rebuilding on any difference honors both added and removed
+            // attributes.  An empty list is ignored here so it doesn't churn against the received-attribute fallback.
             if (
                 Array.isArray(attributeList) &&
+                attributeList.length &&
                 !isDeepEqual(
                     cluster.attributes,
-                    attributeList.sort((a, b) => a - b),
+                    [...attributeList].sort((a, b) => a - b),
                 )
             ) {
                 cluster.behavior = undefined;
@@ -477,7 +570,7 @@ export class ClientStructure {
                 Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
                     cluster.commands,
-                    acceptedCommands.sort((a, b) => a - b),
+                    [...acceptedCommands].sort((a, b) => a - b),
                 )
             ) {
                 cluster.behavior = undefined;
@@ -501,9 +594,8 @@ export class ClientStructure {
 
         // Generate a behavior if enough information is available
         if (cluster.behavior === undefined) {
-            if (cluster.store.initialValues) {
-                const values = cluster.store.initialValues;
-
+            const values = cluster.store.currentValues;
+            if (values) {
                 const clusterRevision = getStoreValue(values, ClusterRevision.id, "clusterRevision");
                 const features = getStoreValue(values, FeatureMap.id, "featureMap");
                 const attributeList = getStoreValue(values, AttributeList.id, "attributeList");
@@ -518,10 +610,20 @@ export class ClientStructure {
                     cluster.features = features as FeatureBitmap;
                 }
 
-                if (Array.isArray(attributeList)) {
+                if (Array.isArray(attributeList) && attributeList.length) {
                     cluster.attributes = (attributeList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
                         (a, b) => a - b,
                     );
+                } else {
+                    // Some devices report an empty (or omit the) AttributeList despite returning attribute data.  Fall
+                    // back to the attribute IDs we actually received so the discovered schema reflects the device
+                    // rather than "supports nothing", which would mark mandatory globals unsupported.
+                    const received = Object.keys(values)
+                        .map(Number)
+                        .filter(id => Number.isInteger(id) && id >= 0) as AttributeId[];
+                    if (received.length) {
+                        cluster.attributes = received.sort((a, b) => a - b);
+                    }
                 }
 
                 if (Array.isArray(commandList)) {
@@ -553,15 +655,7 @@ export class ClientStructure {
 
                 if (endpoint.lifecycle.isInstalled) {
                     cluster.pendingBehavior = behaviorType;
-                    if (cluster.pendingDelete) {
-                        // Peer sent data for a cluster absent from its descriptor server list; the device is buggy, but
-                        // we tolerate it by cancelling the pending deletion, aka "Schrödinger's cluster".
-                        logger.warn(
-                            `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from` +
-                                " descriptor server list but peer sent attribute data for it; keeping cluster",
-                        );
-                        delete cluster.pendingDelete;
-                    }
+                    this.#preserveAbsentCluster(endpoint, cluster);
                     this.#scheduleStructureChange(
                         structure,
                         endpoint.behaviors.supported[behaviorType.id] ? "rebuild" : "install",
@@ -579,7 +673,7 @@ export class ClientStructure {
             if (cluster.behavior && endpoint.behaviors.isActive(cluster.behavior.id)) {
                 attrs = endpoint.stateOf(cluster.behavior);
             } else {
-                attrs = cluster.store.initialValues ?? {};
+                attrs = cluster.store.currentValues ?? {};
             }
             this.#synchronizeDescriptor(structure, attrs);
         }
@@ -589,8 +683,7 @@ export class ClientStructure {
         const { endpoint } = structure;
 
         const deviceTypeList = getStoreValue(attrs, DEVICE_TYPE_LIST_ATTR_ID, DEVICE_TYPE_LIST_ATTR_NAME) as
-            | Descriptor.DeviceType[]
-            | undefined;
+            Descriptor.DeviceType[] | undefined;
         if (Array.isArray(deviceTypeList)) {
             const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {
@@ -647,10 +740,14 @@ export class ClientStructure {
                 let anyPendingDelete = false;
                 for (const id of currentlySupported) {
                     const clusterStructure = this.#clusterFor(structure, id);
-                    // Only delete it when peer did not sent attribute data for this cluster in the same interaction
+                    // Only delete it when peer did not send attribute data for this cluster in the same interaction
                     // despite it not being in the server list; a device is buggy but we tolerate it by skipping the
-                    // deletion, aka "Schrödinger's cluster"
-                    if (!clusterStructure.pendingBehavior) {
+                    // deletion, aka "Schrödinger's cluster".  Data arriving later in the interaction cancels the
+                    // deletion via #preserveAbsentCluster; data already seen is skipped here.
+                    if (
+                        !clusterStructure.pendingBehavior &&
+                        !this.#clustersWithDataThisInteraction.has(clusterStructure)
+                    ) {
                         clusterStructure.pendingDelete = true;
                         anyPendingDelete = true;
                     }
@@ -845,7 +942,7 @@ export class ClientStructure {
         try {
             await endpoint.delete();
         } catch (e) {
-            logger.error(`Error erasing peer endpoint ${endpoint}:`, e);
+            logger.warn(`Error erasing peer endpoint ${endpoint}:`, e);
         }
     }
 
@@ -876,7 +973,7 @@ export class ClientStructure {
                         ).erase?.(),
                     );
                 } catch (e) {
-                    logger.error("Error clearing cluster storage:", e);
+                    logger.warn("Error clearing cluster storage:", e);
                 }
 
                 this.#pendingStructureEvents.push({

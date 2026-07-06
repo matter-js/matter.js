@@ -14,7 +14,7 @@ import {
     BdxTransferControlSchema,
 } from "./BdxInitMessagesSchema.js";
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.5.2 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.5.2 */
 export interface BdxSendAccept {
     /**
      * Transfer control details
@@ -37,7 +37,7 @@ export interface BdxSendAccept {
     metaData?: Bytes;
 }
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.5.3 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.5.3 */
 export interface BdxReceiveAccept extends BdxSendAccept {
     /**
      * Specifies a predetermined definite length for the transfer

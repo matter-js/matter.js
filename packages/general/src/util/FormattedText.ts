@@ -54,14 +54,12 @@ export function looksLikeListItem(text: string) {
 
 type Block = {
     kind: BlockKind;
-    indentWidth: number;
     sourceIndent?: number;
     entries: (string | Block)[];
 };
 
 const Empty: Block = {
     kind: BlockKind.Simple,
-    indentWidth: 0,
     entries: [],
 };
 
@@ -131,7 +129,6 @@ function detectBlock(text: string, breadcrumb: Block[]) {
         // Need to start a new block
         const block: Block = {
             kind,
-            indentWidth: (breadcrumb[breadcrumb.length - 1]?.indentWidth ?? 0) + kind === BlockKind.Quote ? 0 : 2,
             sourceIndent,
             entries: [],
         };
@@ -290,7 +287,7 @@ function formatBlock(block: Block, width: number) {
 
 function visibleWidthOf(text: string) {
     let length = 0;
-    for (let i = 0; i < text.length; ) {
+    for (let i = 0; i < text.length;) {
         switch (text[i]) {
             case `\u001b`:
                 // Escape

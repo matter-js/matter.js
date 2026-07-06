@@ -101,7 +101,7 @@ export const BasicInformation = Cluster(
         constraint: "min 1", default: 1, quality: "F"
     }),
     Attribute({
-        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "P, Rev >= v5",
+        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "Rev >= v6",
         constraint: "min 1", default: 1, quality: "N"
     }),
     Event(
@@ -170,12 +170,18 @@ export const BasicInformation = Cluster(
             default: 3
         }),
         Field({
-            name: "SimultaneousInvocationsSupported", id: 0x2, type: "uint16", conformance: "desc",
+            name: "SimultaneousInvocationsSupported", id: 0x2, type: "uint16", conformance: "Rev >= v6",
             constraint: "1 to 10000"
         }),
-        Field({ name: "SimultaneousWritesSupported", id: 0x3, type: "uint16", conformance: "desc", constraint: "1 to 10000" }),
-        Field({ name: "ReadPathsSupported", id: 0x4, type: "uint16", conformance: "desc", constraint: "9 to 10000" }),
-        Field({ name: "SubscribePathsSupported", id: 0x5, type: "uint16", conformance: "desc", constraint: "3 to 10000" })
+        Field({
+            name: "SimultaneousWritesSupported", id: 0x3, type: "uint16", conformance: "Rev >= v6",
+            constraint: "1 to 10000"
+        }),
+        Field({ name: "ReadPathsSupported", id: 0x4, type: "uint16", conformance: "Rev >= v6", constraint: "9 to 10000" }),
+        Field({
+            name: "SubscribePathsSupported", id: 0x5, type: "uint16", conformance: "Rev >= v6",
+            constraint: "3 to 10000"
+        })
     )
 );
 

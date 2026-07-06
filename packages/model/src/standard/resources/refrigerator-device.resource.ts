@@ -19,6 +19,7 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§13.2.7" },
         { tag: "requirement", name: "RefrigeratorAndTemperatureControlledCabinetMode", xref: "device§13.2.7" },
         { tag: "requirement", name: "RefrigeratorAlarm", xref: "device§13.2.7" },
+        { tag: "requirement", name: "ActivatedCarbonFilterMonitoring", xref: "device§13.2.7" },
         { tag: "requirement", name: "TemperatureControlledCabinet", xref: "device§13.2.6" }
     ]
 });

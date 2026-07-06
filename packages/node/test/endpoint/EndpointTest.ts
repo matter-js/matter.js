@@ -156,19 +156,19 @@ describe("Endpoint", () => {
             expect(node.state.accessControl.acl).deep.equals([
                 {
                     authMode: AccessControl.AccessControlEntryAuthMode.Pase,
-                    auxiliaryType: undefined,
                     fabricIndex: 1,
                     privilege: AccessControl.AccessControlEntryPrivilege.Administer,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                 },
                 {
                     authMode: AccessControl.AccessControlEntryAuthMode.Case,
-                    auxiliaryType: undefined,
                     fabricIndex: 1,
                     privilege: AccessControl.AccessControlEntryPrivilege.Manage,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                 },
             ]);
         });
@@ -215,11 +215,11 @@ describe("Endpoint", () => {
             expect(node.state.accessControl.acl).deep.equals([
                 {
                     authMode: AccessControl.AccessControlEntryAuthMode.Group,
-                    auxiliaryType: undefined,
                     fabricIndex: 1,
                     privilege: AccessControl.AccessControlEntryPrivilege.Manage,
                     subjects: null,
                     targets: null,
+                    auxiliaryType: undefined,
                 },
             ]);
         });

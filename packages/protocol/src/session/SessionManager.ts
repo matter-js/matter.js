@@ -24,11 +24,13 @@ import {
     Duration,
     Environment,
     Environmental,
+    ImplementationError,
     InternalError,
     Lifecycle,
     Logger,
     MatterAggregateError,
     MatterFlowError,
+    Millis,
     Mutex,
     Observable,
     ObserverGroup,
@@ -43,14 +45,27 @@ import {
 import { CaseAuthenticatedTag, ClusterId, EndpointNumber, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
-import { MessageCounter } from "../protocol/MessageCounter.js";
+import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
 import type { Session } from "./Session.js";
+import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
 
 const logger = Logger.get("SessionManager");
+
+/**
+ * Reject a locally-configured Session Active Threshold that cannot be encoded: SAT is a uint16 millisecond value on the
+ * wire. SII/SAI are uint32 and intentionally not bounded here.
+ */
+function assertActiveThreshold(activeThreshold: Duration) {
+    if (activeThreshold > SessionIntervals.maxActiveThreshold) {
+        throw new ImplementationError(
+            `Session Active Threshold ${activeThreshold}ms exceeds the maximum of ${SessionIntervals.maxActiveThreshold}ms`,
+        );
+    }
+}
 
 /** Resumption record without a fabric reference but relevant lookup data used internally in SessionManager */
 interface InternalResumptionRecord {
@@ -141,6 +156,16 @@ export interface SessionManagerContext {
 
 const ID_SPACE_UPPER_BOUND = 0xffff;
 
+/** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
+const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
+
+/**
+ * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
+ * is persisted this far ahead so an unclean restart never rolls it back.
+ * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+ */
+const GROUP_DATA_COUNTER_RESERVE = 1000;
+
 /**
  * Thrown when communication terminates due node shutdown.
  */
@@ -161,7 +186,20 @@ export class SessionManager {
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
+    #groupDataMessageCounter!: PersistedMessageCounter;
     #sessionParameters: SessionParameters;
+
+    /**
+     * Additive MRP retransmission margin for our own (sender-side) network.  Derived from the
+     * configured "own" network profile; defaults to 0 (treated as a low-latency local network).
+     */
+    localAdditionalMrpDelay: Duration = Millis(0);
+
+    /**
+     * Fixed sender-side MRP backoff pad added after the exponential backoff (so it is not amplified).
+     * Used to mirror an ICD server's fast-polling-interval grace; defaults to 0.
+     */
+    localFixedMrpBackoff: Duration = Millis(0);
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
@@ -177,6 +215,7 @@ export class SessionManager {
             fabrics: { crypto },
         } = context;
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
+        assertActiveThreshold(this.#sessionParameters.activeThreshold);
         this.#nextSessionId = crypto.randomUint16;
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
@@ -229,6 +268,15 @@ export class SessionManager {
     }
 
     /**
+     * The single node-global Group Encrypted Data Message Counter shared by all group sessions.
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     */
+    get groupDataMessageCounter() {
+        this.#construction.assert();
+        return this.#groupDataMessageCounter;
+    }
+
+    /**
      * Active secure sessions.
      */
     get sessions() {
@@ -264,6 +312,9 @@ export class SessionManager {
      * sessions.
      */
     set sessionParameters(parameters: Partial<SessionParameters>) {
+        if (parameters.activeThreshold !== undefined) {
+            assertActiveThreshold(parameters.activeThreshold);
+        }
         this.#sessionParameters = {
             ...this.#sessionParameters,
             ...parameters,
@@ -397,7 +448,7 @@ export class SessionManager {
 
         let oldestSession: NodeSession | undefined = undefined;
         for (const session of this.#sessions) {
-            if (!oldestSession || session.activeTimestamp < oldestSession.activeTimestamp) {
+            if (!oldestSession || session.timestamp < oldestSession.timestamp) {
                 oldestSession = session;
             }
         }
@@ -544,6 +595,7 @@ export class SessionManager {
      * Returns the session for the current group epoch key.  The source is this node and the peer is the group.
      */
     async groupSessionForAddress(address: PeerAddress, transports: Transport.Provider) {
+        this.#construction.assert();
         const groupId = GroupId.fromNodeId(address.nodeId);
         GroupId.assertGroupId(groupId);
 
@@ -568,6 +620,7 @@ export class SessionManager {
             keySetId,
             operationalGroupKey: key,
             groupNodeId: address.nodeId,
+            messageCounter: this.#groupDataMessageCounter,
         });
     }
 
@@ -580,27 +633,30 @@ export class SessionManager {
      * result in an error.
      */
     groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
-        const rawGroupId = packet.header.destGroupId;
+        this.#construction.assert();
+        let decoded;
+        try {
+            decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
+        } catch (error) {
+            // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
+            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.
+            if (causedBy(error, GroupSessionNoKeyError)) {
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey });
+            } else if (causedBy(error, GroupSessionDecodeError)) {
+                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth });
+            }
+            throw error;
+        }
+
+        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = decoded;
+
+        // The group id is only authoritative after decode, since privacy obfuscates it in the wire header.
+        const rawGroupId = message.packetHeader.destGroupId;
         if (rawGroupId === undefined) {
             throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
         }
         const groupId = GroupId(rawGroupId);
         GroupId.assertGroupId(groupId);
-
-        let decoded;
-        try {
-            decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
-        } catch (error) {
-            // Emit Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.
-            if (causedBy(error, GroupSessionNoKeyError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey, groupId });
-            } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth, groupId });
-            }
-            throw error;
-        }
-
-        const { message, key, sessionId, sourceNodeId, keySetId, fabric } = decoded;
 
         let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
         if (session === undefined) {
@@ -610,8 +666,10 @@ export class SessionManager {
                 fabric,
                 keySetId,
                 operationalGroupKey: key,
+                operationalPrivacyKey: privacyKey,
                 peerNodeId: sourceNodeId,
                 multicastAddress: fabric.groups.multicastAddressFor(groupId),
+                messageCounter: this.#groupDataMessageCounter,
             });
         }
 
@@ -731,6 +789,8 @@ export class SessionManager {
     async #initialize() {
         await this.#context.fabrics.construction;
 
+        this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
+
         const storedResumptionRecords = await this.#context.storage.get<ResumptionStorageRecord[]>(
             "resumptionRecords",
             [],
@@ -777,6 +837,40 @@ export class SessionManager {
         );
     }
 
+    /**
+     * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
+     * model, seed it above every value any per-key counter could already have used so it never rolls back below a
+     * value already sent with a surviving key; then clear the legacy entries.
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     */
+    async #createGroupDataMessageCounter() {
+        const storage = this.#context.storage;
+
+        const migrating = !(await storage.has(GROUP_DATA_COUNTER_KEY));
+        const seed = migrating ? await this.#context.fabrics.legacyGroupDataCounterMax() : undefined;
+
+        const counter = await PersistedMessageCounter.create(this.crypto, storage, GROUP_DATA_COUNTER_KEY, {
+            reserve: GROUP_DATA_COUNTER_RESERVE,
+            seed,
+            // Presence of the callback lets the counter roll over to 0 (matching CHIP) rather than throwing. The node
+            // cannot rotate group epoch keys itself (the Administrator does, §4.17.3.3); for now we only warn near
+            // exhaustion (spec §4.6.4).
+            // TODO Expose this "group epoch keys must be rotated" signal to external logic instead of only logging, so
+            //  the controller key-management layer can act on it.
+            aboutToRolloverCallback: async () => {
+                logger.warn(
+                    "Group data message counter is approaching rollover; group epoch keys should be rotated to avoid message counter reuse.",
+                );
+            },
+        });
+
+        if (migrating) {
+            await this.#context.fabrics.clearLegacyGroupDataCounters();
+        }
+
+        return counter;
+    }
+
     getActiveSessionInformation(): ActiveSessionInformation[] {
         this.#construction.assert();
         return [...this.#sessions]
@@ -809,6 +903,7 @@ export class SessionManager {
         await this.closeAllSessions();
         await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
+        this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
 
     async closeAllSessions() {
@@ -841,7 +936,7 @@ export class SessionManager {
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
-            logger.error(error),
+            logger.warn("Error closing sessions:", error),
         );
     }
 

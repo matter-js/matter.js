@@ -503,8 +503,8 @@ async function doWifiCredentials(
             );
             break;
         case "set":
-            if (wifiSsid === undefined || wifiPassword === undefined) {
-                console.log(`Cannot change Wi-Fi credentials: New values not provided`);
+            if (!wifiSsid || !wifiPassword) {
+                console.log(`Cannot change Wi-Fi credentials: values must be non-empty`);
                 return;
             }
             await theNode.Store.set("WiFiSsid", wifiSsid);
@@ -545,8 +545,8 @@ async function doThreadCredentials(
             );
             break;
         case "set":
-            if (threadName === undefined || threadOperationalDataset === undefined) {
-                console.log(`Cannot change Thread network credentials: New values not provided`);
+            if (!threadName || !threadOperationalDataset) {
+                console.log(`Cannot change Thread network credentials: values must be non-empty`);
                 return;
             }
             await theNode.Store.set("ThreadName", threadName);

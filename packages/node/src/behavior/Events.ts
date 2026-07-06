@@ -159,7 +159,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
     #occurrenceTrigger?: (payload: any) => void;
 
     protected override handleError(error: Error, observer: Observer) {
-        logger.error(`Error in ${descriptionOf(this, observer)}`, error);
+        logger.warn(`Error in ${descriptionOf(this, observer)}`, error);
     }
 
     constructor(schema: S, owner: Events) {

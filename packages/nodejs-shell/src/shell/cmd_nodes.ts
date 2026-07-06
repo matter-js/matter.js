@@ -5,52 +5,46 @@
  */
 
 import { capitalize, ChannelType, decamelize, Diagnostic, ServerAddress } from "@matter/general";
-import { ClientNode, NetworkClient, SoftwareUpdateManager } from "@matter/node";
+import { ClientNode, CommissioningClient, NetworkClient, SoftwareUpdateManager } from "@matter/node";
 import { PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
-import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
+import { NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode.js";
+import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
 
-export function createDiagnosticCallbacks(): Partial<CommissioningControllerNodeOptions> {
-    return {
-        attributeChangedCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
-            console.log(
-                `attributeChangedCallback ${peerNodeId}: Attribute ${nodeId}/${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
-                    value,
-                )}`,
-            ),
-        eventTriggeredCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, eventName }, events }) =>
-            console.log(
-                `eventTriggeredCallback ${peerNodeId}: Event ${nodeId}/${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
-                    events,
-                )}`,
-            ),
-        stateInformationCallback: (peerNodeId, info) => {
-            switch (info) {
-                case NodeStateInformation.Connected:
-                    console.log(`stateInformationCallback Node ${peerNodeId} connected`);
-                    break;
-                case NodeStateInformation.Disconnected:
-                    console.log(`stateInformationCallback Node ${peerNodeId} disconnected`);
-                    break;
-                case NodeStateInformation.Reconnecting:
-                    console.log(`stateInformationCallback Node ${peerNodeId} reconnecting`);
-                    break;
-                case NodeStateInformation.WaitingForDeviceDiscovery:
-                    console.log(
-                        `stateInformationCallback Node ${peerNodeId} waiting that device gets discovered again`,
-                    );
-                    break;
-                case NodeStateInformation.StructureChanged:
-                    console.log(`stateInformationCallback Node ${peerNodeId} structure changed`);
-                    break;
-                case NodeStateInformation.Decommissioned:
-                    console.log(`stateInformationCallback Node ${peerNodeId} decommissioned`);
-                    break;
-            }
-        },
-    };
+/** Parse a `udp://host:port` / `tcp://host:port` URL (IPv6 host in brackets) into a {@link ServerAddress}. */
+function parseFallbackAddress(input: string): ServerAddress {
+    const match = /^(udp|tcp):\/\/(.+)$/i.exec(input);
+    if (!match) {
+        throw new Error(`Invalid address "${input}". Expected udp://<host>:<port> or tcp://<host>:<port>`);
+    }
+    const type = match[1].toLowerCase() === "tcp" ? "tcp" : "udp";
+    const rest = match[2];
+
+    let ip: string;
+    let portStr: string;
+    if (rest.startsWith("[")) {
+        const end = rest.indexOf("]");
+        if (end === -1 || rest[end + 1] !== ":") {
+            throw new Error(`Invalid IPv6 address "${input}". Expected ${type}://[<ipv6>]:<port>`);
+        }
+        ip = rest.slice(1, end);
+        portStr = rest.slice(end + 2);
+    } else {
+        const idx = rest.lastIndexOf(":");
+        if (idx === -1) {
+            throw new Error(`Missing port in "${input}". Expected ${type}://<host>:<port>`);
+        }
+        ip = rest.slice(0, idx);
+        portStr = rest.slice(idx + 1);
+    }
+
+    const port = Number(portStr);
+    if (!ip.length || !Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error(`Invalid host/port in "${input}". Expected ${type}://<host>:<port> with port 1-65535`);
+    }
+
+    return { ip, port, type };
 }
 
 export default function commands(theNode: MatterNode) {
@@ -59,7 +53,6 @@ export default function commands(theNode: MatterNode) {
         describe: "Manage nodes",
         builder: (yargs: Argv) =>
             yargs
-                // Pair
                 .command(
                     ["*", "list [status]"],
                     "List all commissioned nodes",
@@ -332,8 +325,9 @@ export default function commands(theNode: MatterNode) {
                                 demandOption: true,
                             })
                             .positional("preference", {
-                                describe: "tcp preference: on/off (on = prefer TCP, off = prefer UDP)",
-                                choices: ["on", "off"],
+                                describe:
+                                    "tcp preference: on (prefer TCP) / off (prefer UDP) / clear (inherit controller default)",
+                                choices: ["on", "off", "clear"],
                                 demandOption: true,
                                 type: "string",
                             });
@@ -348,7 +342,7 @@ export default function commands(theNode: MatterNode) {
                         const nodeId = NodeId(BigInt(nodeIdStr));
                         const node = await theNode.commissioningController.getNode(nodeId);
 
-                        const pref = preference === "on" ? "tcp" : "udp";
+                        const pref = preference === "on" ? "tcp" : preference === "off" ? "udp" : undefined;
                         await node.node.setStateOf(NetworkClient, { transportPreference: pref });
 
                         // Also update the protocol-level peer preference
@@ -360,8 +354,89 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         console.log(
-                            `Transport preference for node ${nodeIdStr} set to ${pref.toUpperCase()}. Reconnect to the  node to take effect.`,
+                            `Transport preference for node ${nodeIdStr} set to ${pref?.toUpperCase() ?? "CLEARED (inherit controller default)"}. Reconnect to the node to take effect.`,
                         );
+                    },
+                )
+                .command(
+                    "fallback",
+                    "Get or set the fallback (commissioning) addresses used to reach a node",
+                    yargs =>
+                        yargs
+                            .command(
+                                "get <node-id>",
+                                "Print the fallback addresses currently stored for a node",
+                                yargs => {
+                                    return yargs.positional("node-id", {
+                                        describe: "node id",
+                                        type: "string",
+                                        demandOption: true,
+                                    });
+                                },
+                                async argv => {
+                                    const { nodeId: nodeIdStr } = argv;
+                                    await theNode.start();
+                                    if (theNode.commissioningController === undefined) {
+                                        throw new Error("CommissioningController not initialized");
+                                    }
+
+                                    const nodeId = NodeId(BigInt(nodeIdStr));
+                                    const node = await theNode.commissioningController.getNode(nodeId);
+                                    const addresses = node.node.state.commissioning.addresses;
+
+                                    if (!addresses?.length) {
+                                        console.log(`Node ${nodeIdStr} has no fallback addresses stored`);
+                                        return;
+                                    }
+
+                                    console.log(`Fallback addresses for node ${nodeIdStr}:`);
+                                    for (const address of addresses) {
+                                        console.log(`  ${ServerAddress.urlFor(address)}`);
+                                    }
+                                },
+                            )
+                            .command(
+                                "set <node-id> <address>",
+                                "Set or drop the fallback address for a node (udp://host:port, tcp://host:port, or 'drop')",
+                                yargs => {
+                                    return yargs
+                                        .positional("node-id", {
+                                            describe: "node id",
+                                            type: "string",
+                                            demandOption: true,
+                                        })
+                                        .positional("address", {
+                                            describe: "udp://<host>:<port>, tcp://<host>:<port>, or 'drop' to remove",
+                                            type: "string",
+                                            demandOption: true,
+                                        });
+                                },
+                                async argv => {
+                                    const { nodeId: nodeIdStr, address: addressStr } = argv;
+                                    await theNode.start();
+                                    if (theNode.commissioningController === undefined) {
+                                        throw new Error("CommissioningController not initialized");
+                                    }
+
+                                    const nodeId = NodeId(BigInt(nodeIdStr));
+                                    const node = await theNode.commissioningController.getNode(nodeId);
+
+                                    if (addressStr === "drop") {
+                                        await node.node.setStateOf(CommissioningClient, { addresses: undefined });
+                                        console.log(`Fallback address for node ${nodeIdStr} dropped`);
+                                        return;
+                                    }
+
+                                    const address = parseFallbackAddress(addressStr);
+                                    await node.node.setStateOf(CommissioningClient, { addresses: [address] });
+                                    console.log(
+                                        `Fallback address for node ${nodeIdStr} set to ${ServerAddress.urlFor(address)}`,
+                                    );
+                                },
+                            )
+                            .demandCommand(1, "Please specify 'get' or 'set'"),
+                    async (argv: any) => {
+                        argv.unhandled = true;
                     },
                 )
                 .command(

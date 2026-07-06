@@ -13,6 +13,7 @@
         "packages/nodejs-ble",
         "packages/mqtt",
         "packages/main",
+        "packages/thread-br-client",
         "packages/nodejs-shell",
         "packages/react-native",
         "packages/cli-tool",
@@ -83,22 +84,22 @@
     },
     "devDependencies": {
         "c8": "^11.0.0",
-        "oxlint": "^1.65.0",
-        "oxlint-tsgolint": "^0.22.0",
-        "prettier": "^3.8.3",
+        "oxlint": "^1.72.0",
+        "oxlint-tsgolint": "^0.24.0",
+        "prettier": "^3.9.4",
         "prettier-plugin-organize-imports": "^4.3.0",
-        "semver": "^7.8.0",
+        "semver": "^7.8.5",
         "typescript": "~6.0.3"
     },
     "overrides": {
         "brorand": "npm:@matter.js/brorand@1.1.0",
         "mocha": {
-            "diff": "^8.0.3",
-            "serialize-javascript": "^7.0.4"
+            "diff": "^9.0.0",
+            "serialize-javascript": "^7.0.5"
         }
     },
     "dependencies": {
         "@nacho-iot/js-tools": "^0.1.7",
-        "memlab": "^2.0.2"
+        "memlab": "^2.0.3"
     }
 }

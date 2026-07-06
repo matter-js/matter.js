@@ -9,7 +9,7 @@ import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvCommandPath } from "./TlvCommandPath.js";
 import { TlvStatus } from "./TlvStatus.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.14 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.14 */
 
 export const TlvCommandStatus = TlvObject({
     // CommandStatusIB

@@ -295,6 +295,12 @@ describe("DnsCodec", () => {
             expect(Bytes.areEqual(reEncoded, wire)).to.equal(true);
         });
 
+        it("encodes an empty TXT record as a single zero byte per RFC 6763 §6.1", () => {
+            const wire = DnsCodec.encodeTxtRecord([]);
+            expect(Bytes.toHex(wire)).equal("00");
+            expect(DnsCodec.decodeTxtRecord(wire)).to.have.length(1);
+        });
+
         it("truncates entries longer than 255 bytes per RFC 6763 §6.1", () => {
             const oversize = new Uint8Array(300).fill(0x41);
             const wire = DnsCodec.encodeTxtRecord([oversize]);

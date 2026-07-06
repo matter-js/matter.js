@@ -193,6 +193,12 @@ export namespace Datasource {
         consumer?: ExternallyMutableStore.Consumer;
 
         /**
+         * Current values, preferring the live consumer over {@link Store.initialValues}.  Reflects up-to-date
+         * data while a consumer is attached, where {@link Store.initialValues} may be absent.
+         */
+        currentValues?: Val.Struct;
+
+        /**
          * The current version of the data.
          */
         version: number;
@@ -212,6 +218,11 @@ export namespace Datasource {
              * Read current values for the specified keys.
              */
             readValues(keys: Set<string>): Val.Struct;
+
+            /**
+             * Read a non-destructive copy of all current values.
+             */
+            snapshot(): Val.Struct;
 
             /**
              * Release all values from the datasource, transferring ownership back to the store.
@@ -340,6 +351,11 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.persistentFields = options.supervisor.persistentKeys(options.primaryKey);
 
         this.#configureExternalChanges();
+
+        // Seed consumed into #values; release the store's copy (client stores already drop theirs on consumer attach).
+        if (this.store) {
+            this.store.initialValues = undefined;
+        }
     }
 
     // -- Datasource interface --
@@ -424,7 +440,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         const location = this.location;
 
         function handleObserverError(error: any) {
-            logger.error(`Error in ${location.path} observer:`, error);
+            logger.warn(`Error in ${location.path} observer:`, error);
         }
 
         if (this.events?.interactionEnd?.isObserved) {
@@ -557,6 +573,10 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         return result;
     }
 
+    snapshot() {
+        return { ...this.#values };
+    }
+
     releaseValues() {
         const { values } = this;
         this.values = {};
@@ -602,7 +622,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 try {
                     this.rollback();
                 } catch (e) {
-                    logger.error(
+                    logger.warn(
                         `Error resetting reference to ${this.#internals.location.path} after reset of transaction ${transaction.via}:`,
                         e,
                     );
@@ -654,7 +674,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 this.#expired = true;
                 this.#refreshSubrefs();
             } catch (e) {
-                logger.error(
+                logger.warn(
                     `Error detaching reference to ${this.#internals.location.path} from closed transaction ${transaction.via}:`,
                     e,
                 );
@@ -893,7 +913,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             if (emitBegin && this.#internals.events?.interactionBegin?.isObserved) {
                 const location = this.#internals.location;
                 function handleBeginObserverError(error: any) {
-                    logger.error(`Error in ${location.path} observer:`, error);
+                    logger.warn(`Error in ${location.path} observer:`, error);
                 }
                 try {
                     const result = this.#internals.events?.interactionBegin?.emit(this.#session);

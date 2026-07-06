@@ -1,0 +1,187 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Bytes, Crypto, InternalError } from "@matter/general";
+
+const SHA256_LEN = 32;
+const MASTER_SECRET_LEN = 48;
+const RANDOM_LEN = 32;
+const KEY_LEN = 16;
+const IV_LEN = 4;
+const KEY_BLOCK_LEN = KEY_LEN * 2 + IV_LEN * 2;
+const VERIFY_DATA_LEN = 12;
+
+const ASCII_ENCODER = new TextEncoder();
+
+function expectLength(name: string, value: Bytes, expected: number): void {
+    const length = value.byteLength;
+    if (length !== expected) {
+        throw new InternalError(`TlsPrf ${name} must be ${expected} bytes, got ${length}`);
+    }
+}
+
+async function pSha256(crypto: Crypto, secret: Bytes, seed: Bytes, outputLength: number): Promise<Uint8Array> {
+    if (outputLength < 0) {
+        throw new InternalError(`TlsPrf outputLength must be non-negative, got ${outputLength}`);
+    }
+    const out = new Uint8Array(outputLength);
+    if (outputLength === 0) {
+        return out;
+    }
+    const seedBytes = Bytes.of(seed);
+    let a = Bytes.of(await crypto.signHmac(secret, seedBytes));
+    const block = new Uint8Array(SHA256_LEN + seedBytes.length);
+    block.set(seedBytes, SHA256_LEN);
+    let written = 0;
+    while (written < outputLength) {
+        block.set(a, 0);
+        const next = Bytes.of(await crypto.signHmac(secret, block));
+        const copyLen = Math.min(SHA256_LEN, outputLength - written);
+        out.set(next.subarray(0, copyLen), written);
+        written += copyLen;
+        if (written < outputLength) {
+            a = Bytes.of(await crypto.signHmac(secret, a));
+        }
+    }
+    return out;
+}
+
+/**
+ * TLS 1.2 pseudo-random function (RFC 5246 §5) using HMAC-SHA256 — the only PRF
+ * permitted for `TLS_ECJPAKE_WITH_AES_128_CCM_8` (RFC 6655 §3). Mirrors mbedTLS
+ * v3.6.6 `tls_prf_sha256` / `tls_prf_generic`.
+ *
+ * Internal to `dtls/`; not re-exported from the package public API surface.
+ */
+export namespace TlsPrf {
+    /**
+     * P_SHA256 expansion as defined in RFC 5246 §5:
+     *
+     *   P_hash(secret, seed) = HMAC_hash(secret, A(1) || seed) ||
+     *                          HMAC_hash(secret, A(2) || seed) || ...
+     *
+     * with `A(0) = seed`, `A(i) = HMAC_hash(secret, A(i-1))`. The TLS 1.2 PRF
+     * over (label, seed) is `P_SHA256(secret, label || seed)` — label bytes are
+     * concatenated with the seed (no length prefix). The label is ASCII per
+     * RFC 5246; we encode it as UTF-8 which coincides for ASCII-only input.
+     */
+    export async function compute(
+        crypto: Crypto,
+        args: {
+            secret: Bytes;
+            label: string;
+            seed: Bytes;
+            outputLength: number;
+        },
+    ): Promise<Bytes> {
+        const { secret, label, seed, outputLength } = args;
+        const labelBytes = ASCII_ENCODER.encode(label);
+        const seedBytes = Bytes.of(seed);
+        const combined = new Uint8Array(labelBytes.length + seedBytes.length);
+        combined.set(labelBytes, 0);
+        combined.set(seedBytes, labelBytes.length);
+        return pSha256(crypto, secret, combined, outputLength);
+    }
+
+    /**
+     * `master_secret = PRF(pre_master_secret, "master secret",
+     *                      ClientHello.random || ServerHello.random)[0..47]`
+     * (RFC 5246 §8.1).
+     */
+    export async function masterSecret(
+        crypto: Crypto,
+        args: {
+            premasterSecret: Bytes;
+            clientRandom: Bytes;
+            serverRandom: Bytes;
+        },
+    ): Promise<Bytes> {
+        const { premasterSecret, clientRandom, serverRandom } = args;
+        expectLength("clientRandom", clientRandom, RANDOM_LEN);
+        expectLength("serverRandom", serverRandom, RANDOM_LEN);
+        const seed = new Uint8Array(RANDOM_LEN * 2);
+        seed.set(Bytes.of(clientRandom), 0);
+        seed.set(Bytes.of(serverRandom), RANDOM_LEN);
+        return compute(crypto, {
+            secret: premasterSecret,
+            label: "master secret",
+            seed,
+            outputLength: MASTER_SECRET_LEN,
+        });
+    }
+
+    /**
+     * Slices of the 40-byte key block for `TLS_ECJPAKE_WITH_AES_128_CCM_8`
+     * (AEAD, no MAC keys; RFC 6655 §3, RFC 5246 §6.3).
+     */
+    export interface KeyBlock {
+        clientWriteKey: Bytes;
+        serverWriteKey: Bytes;
+        clientWriteIv: Bytes;
+        serverWriteIv: Bytes;
+    }
+
+    /**
+     * `key_block = PRF(master_secret, "key expansion",
+     *                  ServerHello.random || ClientHello.random)[0..39]`
+     * (RFC 5246 §6.3). Note the seed order is REVERSED relative to
+     * {@link masterSecret} (server then client) — see mbedTLS ssl_tls.c v3.6.6
+     * "Swap the client and server random values" (RFC 5246 6.3 vs 8.1).
+     *
+     * For `TLS_ECJPAKE_WITH_AES_128_CCM_8` the layout is:
+     * `client_write_key (16) || server_write_key (16) ||
+     *  client_write_IV (4)  || server_write_IV (4)`.
+     */
+    export async function keyBlock(
+        crypto: Crypto,
+        args: {
+            masterSecret: Bytes;
+            clientRandom: Bytes;
+            serverRandom: Bytes;
+        },
+    ): Promise<KeyBlock> {
+        const { masterSecret: ms, clientRandom, serverRandom } = args;
+        expectLength("masterSecret", ms, MASTER_SECRET_LEN);
+        expectLength("clientRandom", clientRandom, RANDOM_LEN);
+        expectLength("serverRandom", serverRandom, RANDOM_LEN);
+        const seed = new Uint8Array(RANDOM_LEN * 2);
+        seed.set(Bytes.of(serverRandom), 0);
+        seed.set(Bytes.of(clientRandom), RANDOM_LEN);
+        const block = Bytes.of(
+            await compute(crypto, { secret: ms, label: "key expansion", seed, outputLength: KEY_BLOCK_LEN }),
+        );
+        return {
+            clientWriteKey: block.slice(0, KEY_LEN),
+            serverWriteKey: block.slice(KEY_LEN, KEY_LEN * 2),
+            clientWriteIv: block.slice(KEY_LEN * 2, KEY_LEN * 2 + IV_LEN),
+            serverWriteIv: block.slice(KEY_LEN * 2 + IV_LEN, KEY_BLOCK_LEN),
+        };
+    }
+
+    /**
+     * Finished `verify_data` (RFC 5246 §7.4.9):
+     *
+     *   verify_data = PRF(master_secret, finished_label,
+     *                     Hash(handshake_messages))[0..11]
+     *
+     * with `finished_label = "client finished"` for the client-sent Finished
+     * and `"server finished"` for the server-sent one.
+     */
+    export async function verifyData(
+        crypto: Crypto,
+        args: {
+            masterSecret: Bytes;
+            role: "client" | "server";
+            transcriptDigest: Bytes;
+        },
+    ): Promise<Bytes> {
+        const { masterSecret: ms, role, transcriptDigest } = args;
+        expectLength("masterSecret", ms, MASTER_SECRET_LEN);
+        expectLength("transcriptDigest", transcriptDigest, SHA256_LEN);
+        const label = role === "client" ? "client finished" : "server finished";
+        return compute(crypto, { secret: ms, label, seed: transcriptDigest, outputLength: VERIFY_DATA_LEN });
+    }
+}

@@ -5,9 +5,21 @@
  */
 
 import { Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
+import { Fabric } from "#fabric/Fabric.js";
+import { FabricManager } from "#fabric/FabricManager.js";
+import { MessageCounter } from "#protocol/MessageCounter.js";
+import { GroupSession } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
-import { b$, Bytes, StandardCrypto } from "@matter/general";
-import { NodeId } from "@matter/types";
+import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
+import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
+
+const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
+    "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
+);
+const TEST_IDENTITY_PROTECTION_KEY = Bytes.fromHex("9bc61cd9c62a2df6d64dfcaa9dc472d4");
+const SEC1_KEY = Bytes.fromHex(
+    "30770201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075a00a06082a8648ce3d030107a144034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba",
+);
 
 const ENCRYPT_KEY = b$`66951379d0a6d151cf5472cccf13f360`;
 const DECRYPT_KEY = b$`bacb178b2588443d5d5b1e4559e7accc`;
@@ -71,6 +83,103 @@ describe("SecureSession", () => {
             const result = secureSession().encode(MESSAGE);
 
             expect(Bytes.toHex(result.applicationPayload)).to.deep.equal(Bytes.toHex(ENCRYPTED_BYTES));
+        });
+    });
+
+    describe("group privacy", () => {
+        async function groupFabric() {
+            const crypto = new StandardCrypto();
+            const fabric = new Fabric(crypto, {
+                fabricIndex: FabricIndex(1),
+                fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
+                nodeId: NodeId(1),
+                rootNodeId: NodeId(1),
+                globalId: GlobalFabricId(0),
+                keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
+                rootPublicKey: TEST_ROOT_PUBLIC_KEY,
+                rootVendorId: VendorId(0),
+                rootCert: new Uint8Array(),
+                identityProtectionKey: new Uint8Array(),
+                operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
+                intermediateCACert: new Uint8Array(),
+                operationalCert: new Uint8Array(),
+                label: "",
+            });
+
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            fabric.storage = new StorageContext(storage, ["fabric"]);
+
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            fabricManager.addFabric(fabric);
+
+            await fabric.groups.setFromGroupKeySet({
+                groupKeySetId: 1,
+                groupKeySecurityPolicy: 0,
+                epochKey0: b$`000102030405060708090a0b0c0d0e0f`,
+                epochStartTime0: 1,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+                groupKeyMulticastPolicy: 0,
+            });
+
+            return { fabric, fabricManager };
+        }
+
+        it("round-trips a group message with privacy enabled", async () => {
+            const { fabric, fabricManager } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const groupId = 2;
+            const session = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0000n | BigInt(groupId)),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(groupId)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            const message: Message = {
+                packetHeader: {
+                    sessionId: current.sessionId!,
+                    sessionType: SessionType.Group,
+                    messageId: 0x12345679,
+                    destGroupId: groupId,
+                    sourceNodeId: fabric.nodeId,
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                payloadHeader: {
+                    isInitiatorMessage: true,
+                    requiresAck: false,
+                    messageType: 0x05,
+                    exchangeId: 0x1234,
+                    protocolId: 0x0001,
+                    ackedMessageId: undefined,
+                    hasSecuredExtension: false,
+                },
+                payload: b$`00112233`,
+            };
+
+            const packet = session.encode(message);
+            const wire = MessageCodec.encodePacket(packet);
+
+            expect(Bytes.of(wire)[3] & 0x80).equals(0x80);
+
+            const decodedPacket = MessageCodec.decodePacket(wire);
+            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+            const result = GroupSession.decode(fabricManager, decodedPacket, aad);
+
+            expect(Bytes.toHex(result.message.payload)).equals("00112233");
+            expect(result.sourceNodeId).equals(fabric.nodeId);
+            expect(result.message.packetHeader.destGroupId).equals(groupId);
+            expect(result.message.packetHeader.messageId).equals(0x12345679);
         });
     });
 });

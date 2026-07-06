@@ -210,7 +210,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * If this is inappropriate for your application, you may override to alter the behavior.  Matter requires that all
      * "security- and privacy-related data and key material" is removed on factory reset.
      *
-     * @see {@link MatterSpecification.v12.Core} § 13.4
+     * @see {@link MatterSpecification.v16.Core} § 13.4
      */
     protected async resetStorage() {
         await this.env.get(SessionManager).clear();

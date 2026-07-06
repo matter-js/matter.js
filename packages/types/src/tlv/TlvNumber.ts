@@ -18,6 +18,7 @@ import {
     INT8_MAX,
     INT8_MIN,
     ImplementationError,
+    Logger,
     Seconds,
     UINT16_MAX,
     UINT24_MAX,
@@ -35,6 +36,10 @@ import { Schema } from "../schema/Schema.js";
 import { TlvCodec, TlvLength, TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
 import { TlvWrapper } from "./TlvWrapper.js";
+
+const logger = Logger.get("TlvCodec");
+
+const isIntegerType = (type: TlvType) => type === TlvType.SignedInt || type === TlvType.UnsignedInt;
 
 const numericTypeByMax = new Map<number | bigint, string>([
     [UINT8_MAX, "uint8"],
@@ -55,7 +60,7 @@ const boundCache = new WeakMap<TlvNumericSchema<any>, Map<string, TlvNumericSche
 /**
  * Schema to encode an unsigned integer in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.1
+ * @see {@link MatterSpecification.v16.Core} § A.11.1
  */
 export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
     #min?: T;
@@ -116,8 +121,23 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
     }
 
     override decodeTlvInternalValue(reader: TlvReader, typeLength: TlvTypeLength): T {
-        if (typeLength.type !== this.type)
-            throw new UnexpectedDataError(`Unexpected type ${typeLength.type}, was expecting ${this.type}.`);
+        if (typeLength.type !== this.type) {
+            if (
+                !reader.options?.relaxNumberTypeChecks ||
+                !isIntegerType(this.type) ||
+                !isIntegerType(typeLength.type)
+            ) {
+                throw new UnexpectedDataError(`Unexpected type ${typeLength.type}, was expecting ${this.type}.`);
+            }
+            // Tolerate signed/unsigned mismatch from non-compliant devices; the boundary check below rejects values
+            // that do not fit the schema (e.g. a negative value for an unsigned field).
+            const value = reader.readPrimitive<TlvTypeLength, T>(typeLength);
+            this.validateBoundaries(value);
+            logger.info(
+                `Relaxed integer decode: accepted ${TlvType[typeLength.type]} for ${TlvType[this.type]} schema (value ${value}). Still non-compliant, report to vendor.`,
+            );
+            return value;
+        }
         return reader.readPrimitive(typeLength);
     }
 
@@ -273,6 +293,34 @@ export const TlvUInt64 = new TlvLongNumberSchema(
 // We use internally 32bit here - in fact encoding is done by real value length anyway
 export const TlvEnum = <T>() => TlvUInt32 as TlvSchema<number> as TlvSchema<T>;
 
+/**
+ * TLV wrapper for a bitmap. Tracks the underlying numeric schema and the bit schema so a nullable
+ * variant can reserve the most-significant bit per spec.
+ */
+export class BitmapWrapper<D> extends TlvWrapper<D, number> {
+    constructor(
+        readonly numericSchema: TlvNumericSchema<number>,
+        private readonly bitmapSchema: Schema<D, number>,
+    ) {
+        super(
+            numericSchema,
+            bitmapData => bitmapSchema.encode(bitmapData),
+            value => bitmapSchema.decode(value),
+        );
+    }
+
+    /**
+     * Returns a variant that reserves the most-significant bit (it encodes NULL for nullable
+     * bitmaps, shrinking the usable range).
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.19.1.2
+     */
+    withReservedMsb(): BitmapWrapper<D> {
+        const { baseTypeMax } = this.numericSchema;
+        return new BitmapWrapper(this.numericSchema.bound({ max: Math.floor(baseTypeMax / 2) }), this.bitmapSchema);
+    }
+}
+
 export const TlvBitmap = <T extends BitSchema>(underlyingSchema: TlvNumberSchema, bitSchema: T) => {
     // BitmapSchema supports encoding partial bit schemas but specifies its
     // type as TypeFromBitSchema.  Changing to TypeFromPartialBitSchema there
@@ -284,11 +332,7 @@ export const TlvBitmap = <T extends BitSchema>(underlyingSchema: TlvNumberSchema
     // only used in places where we want to support partial bitmaps.
     const bitmapSchema = BitmapSchema(bitSchema) as Schema<TypeFromPartialBitSchema<T>, number>;
 
-    return new TlvWrapper(
-        underlyingSchema,
-        (bitmapData: TypeFromPartialBitSchema<T>) => bitmapSchema.encode(bitmapData),
-        value => bitmapSchema.decode(value),
-    );
+    return new BitmapWrapper(underlyingSchema, bitmapSchema);
 };
 
 // Relative Number types

@@ -5,6 +5,7 @@
  */
 
 import {
+    asError,
     AsyncCache,
     Bytes,
     Construction,
@@ -12,15 +13,17 @@ import {
     Days,
     DerCodec,
     DerNode,
+    DerTag,
+    DerType,
     Diagnostic,
     Duration,
     EcdsaSignature,
     Environment,
     Github,
-    HashAlgorithm,
-    HashFipsAlgorithmId,
+    hashAlgorithmForId,
     Hours,
     Logger,
+    LogLevel,
     Pem,
     PublicKey,
     Seconds,
@@ -29,7 +32,6 @@ import {
     StorageService,
     Time,
     Timer,
-    asError,
 } from "@matter/general";
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
@@ -54,6 +56,7 @@ export class DclCertificateService {
     #storage?: StorageContext;
     #certificateIndex = new Map<string, DclCertificateService.CertificateMetadata>();
     #updateTimer?: Timer;
+    #githubRateLimited = false;
     #closed = false;
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
@@ -71,6 +74,7 @@ export class DclCertificateService {
                 prod: options.dclConfig?.url ?? DclConfig.production.url,
                 test: options.fetchTestCertificates ? (options.testDclConfig?.url ?? DclConfig.test.url) : undefined,
                 github: options.fetchTestCertificates && options.fetchGithubCertificates ? "yes" : undefined,
+                flags: Diagnostic.asFlags({ acceptTest: this.acceptsTestCertificates }),
             }),
         );
 
@@ -119,24 +123,26 @@ export class DclCertificateService {
 
     /**
      * Whether a stored entry is relevant under the current trust policy. Production certificates
-     * are always relevant. Test PAAs are only relevant when `fetchTestCertificates` is enabled,
-     * so cached test PAAs left in storage from a previous run are ignored once the option is
-     * turned off without requiring a storage purge. CD signer certificates are managed
-     * separately and are always relevant.
+     * are always relevant. Test PAAs are only relevant when the test-certificate policy allows
+     * them. CD signer certificates are managed separately and are always relevant.
      */
-    #isRelevant(metadata: DclCertificateService.CertificateMetadata) {
+    #isRelevant(
+        metadata: DclCertificateService.CertificateMetadata,
+        options?: DclCertificateService.GetCertificateOptions,
+    ) {
         const kind = metadata.kind ?? "PAA";
-        return kind !== "PAA" || metadata.isProduction || !!this.#options.fetchTestCertificates;
+        const considerTestCertificates = options?.considerTestCertificates ?? this.acceptsTestCertificates;
+        return kind !== "PAA" || metadata.isProduction || considerTestCertificates;
     }
 
     /**
      * Get certificate metadata by subject key identifier. Returns undefined if not found or if the
-     * entry is a test certificate while `fetchTestCertificates` is disabled.
+     * entry is filtered by the effective trust policy.
      */
-    getCertificate(subjectKeyId: Bytes | string) {
+    getCertificate(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
         const metadata = this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
-        if (metadata === undefined || !this.#isRelevant(metadata)) {
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
             return undefined;
         }
         return metadata;
@@ -152,41 +158,161 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate as PEM string.
-     * @throws {MatterDclError} if certificate not found
+     * Whether the service trusts test (non-production) certificates as valid trust anchors.
+     *
+     * Independent of {@link Options.fetchTestCertificates} (which only governs whether test certs are
+     * downloaded). Defaults to {@link Options.acceptTestCertificates}, falling back to
+     * `fetchTestCertificates` when the trust policy is not set explicitly.
      */
-    async getCertificateAsPem(subjectKeyId: Bytes | string) {
+    get acceptsTestCertificates(): boolean {
+        return this.#options.acceptTestCertificates ?? this.#options.fetchTestCertificates ?? false;
+    }
+
+    /**
+     * Get certificate as PEM string.
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
+     */
+    async getCertificateAsPem(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
-
-        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
-        const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata)) {
-            throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
-        }
-
-        // Retrieve DER certificate from storage
-        const derBytes = await this.#storage!.get<Bytes>(normalizedId);
-        if (!derBytes || derBytes.byteLength === 0) {
-            throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
-        }
-
-        return Pem.encode(derBytes);
+        return Pem.encode(await this.#getCertificateDer(subjectKeyId, options));
     }
 
     /**
      * Get certificate as DER bytes.
-     * @throws {MatterDclError} if certificate not found
+     *
+     * Self-heals a corrupted local cache: if the stored certificate no longer parses (e.g. a
+     * truncated or mangled storage entry), make one best-effort re-fetch from DCL so a broken cache
+     * entry cannot permanently break attestation for an otherwise-valid trust anchor. If recovery
+     * fails the original bytes are returned unchanged, leaving the caller's normal validation to
+     * surface the parse failure rather than masking it with a different error here.
+     *
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
      */
-    async getCertificateAsDer(subjectKeyId: Bytes | string) {
+    async getCertificateAsDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         this.construction.assert();
-        return this.#getCertificateDer(subjectKeyId);
+
+        const der = await this.#getCertificateDer(subjectKeyId, options);
+        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
+        const metadata = this.#certificateIndex.get(normalizedId);
+
+        const parseError = this.#certificateParseError(der, metadata?.kind);
+        if (parseError === undefined) {
+            return der;
+        }
+
+        logger.notice(
+            `Cached certificate failed to parse; attempting one re-fetch from DCL to recover`,
+            Diagnostic.dict({ skid: normalizedId }),
+            Diagnostic.errorMessage(parseError),
+        );
+        const refetched = await this.#tryRefetchRootCertificate(normalizedId, metadata?.isProduction ?? true, options);
+        if (refetched !== undefined) {
+            const refetchParseError = this.#certificateParseError(refetched, metadata?.kind);
+            if (refetchParseError === undefined) {
+                return refetched;
+            }
+            logger.warn(
+                `Re-fetched certificate also failed to parse`,
+                Diagnostic.dict({ skid: normalizedId }),
+                Diagnostic.errorMessage(refetchParseError),
+            );
+        }
+
+        return der;
+    }
+
+    /** Parse error of a DER certificate, or undefined if it parses, using the extension set for its kind. */
+    #certificateParseError(der: Bytes, kind?: DclCertificateService.CertificateKind): Error | undefined {
+        try {
+            Certificate.parseAsn1Certificate(
+                der,
+                (kind ?? "PAA") === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+            );
+            return undefined;
+        } catch (error) {
+            return asError(error);
+        }
+    }
+
+    /**
+     * Best-effort force re-fetch of a single root certificate from DCL, overwriting the cached copy
+     * to recover from a corrupted local storage entry. Never throws: returns the freshly stored DER,
+     * or undefined if the certificate could not be re-fetched (not a root cert, absent from DCL, or
+     * any fetch error).
+     */
+    async #tryRefetchRootCertificate(
+        normalizedId: string,
+        isProduction: boolean,
+        options?: DclCertificateService.GetCertificateOptions,
+    ): Promise<Bytes | undefined> {
+        if (this.#fetchPromise !== undefined) {
+            await this.#fetchPromise;
+        }
+
+        try {
+            if (!(await this.#fetchAndStoreRootCertificateBySkid(normalizedId, isProduction, true, this.#options))) {
+                return undefined;
+            }
+        } catch (error) {
+            logger.warn(
+                `Re-fetch of certificate ${normalizedId} from DCL failed`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return undefined;
+        }
+
+        const metadata = this.#certificateIndex.get(normalizedId);
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
+            return undefined;
+        }
+
+        const der = await this.#storage!.get<Bytes>(normalizedId);
+        return der && der.byteLength > 0 ? Bytes.of(der) : undefined;
+    }
+
+    /**
+     * Fetch a single root certificate from DCL by SubjectKeyIdentifier and store it. Returns true if
+     * a matching root certificate was found and stored, false if DCL has no such root certificate.
+     * Throws on DCL/network errors; callers decide how to handle them.
+     */
+    async #fetchAndStoreRootCertificateBySkid(
+        normalizedId: string,
+        isProduction: boolean,
+        force: boolean,
+        options?: DclClient.Options,
+    ): Promise<boolean> {
+        const config = isProduction
+            ? (this.#options.dclConfig ?? DclConfig.production)
+            : (this.#options.testDclConfig ?? DclConfig.test);
+        const dclClient = new DclClient(config);
+        const certRefs = await dclClient.fetchRootCertificateList(options);
+
+        const skidWithColons = normalizedId
+            .match(/.{1,2}/g)
+            ?.join(":")
+            .toUpperCase();
+        const certRef = certRefs.find(ref => ref.subjectKeyId === skidWithColons);
+        if (!certRef) {
+            return false;
+        }
+
+        await this.#fetchAndStoreCertificate(
+            this.#storage!,
+            dclClient,
+            certRef,
+            isProduction,
+            force,
+            options ?? this.#options,
+        );
+        await this.#saveIndex();
+        return true;
     }
 
     /** Internal DER retrieval without construction assert (safe during init). */
-    async #getCertificateDer(subjectKeyId: Bytes | string) {
+    async #getCertificateDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata || !this.#isRelevant(metadata)) {
+        if (!metadata || !this.#isRelevant(metadata, options)) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
@@ -247,46 +373,31 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
-     * undefined if not found.
+     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage.
+     * Returns undefined if not found or if the entry is filtered by the effective trust policy.
      */
     async getOrFetchCertificate(
         subjectKeyId: Bytes | string,
-        options?: DclClient.Options & { isProduction?: boolean },
+        options?: DclClient.Options & { isProduction?: boolean } & DclCertificateService.GetCertificateOptions,
     ) {
         this.construction.assert();
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
 
-        // First check if certificate is in the index
         const existing = this.#certificateIndex.get(normalizedId);
-        if (existing) {
+        if (existing && this.#isRelevant(existing, options)) {
             return existing;
         }
 
         if (this.#fetchPromise !== undefined) {
-            // Wait for ongoing fetch process to complete, return whatever is in the index afterward
             await this.#fetchPromise;
-            return this.#certificateIndex.get(normalizedId);
+            const afterFetch = this.#certificateIndex.get(normalizedId);
+            return afterFetch && this.#isRelevant(afterFetch, options) ? afterFetch : undefined;
         }
 
         try {
             const isProduction = options?.isProduction ?? true;
-            // Fetch the root certificate list to find the certificate reference
-            const config = isProduction
-                ? (this.#options.dclConfig ?? DclConfig.production)
-                : (this.#options.testDclConfig ?? DclConfig.test);
-            const dclClient = new DclClient(config);
-            const certRefs = await dclClient.fetchRootCertificateList(options);
-
-            // Find the certificate reference with matching subject key ID (with colons for comparison)
-            const subjectKeyIdWithColons = normalizedId
-                .match(/.{1,2}/g)
-                ?.join(":")
-                .toUpperCase();
-            const certRef = certRefs.find(ref => ref.subjectKeyId === subjectKeyIdWithColons);
-
-            if (!certRef) {
+            if (!(await this.#fetchAndStoreRootCertificateBySkid(normalizedId, isProduction, false, options))) {
                 logger.debug(
                     `Certificate not found in DCL`,
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
@@ -294,26 +405,14 @@ export class DclCertificateService {
                 return;
             }
 
-            // Use existing method to fetch and store the certificate
-            await this.#fetchAndStoreCertificate(
-                this.#storage!,
-                dclClient,
-                certRef,
-                isProduction,
-                false,
-                options ?? this.#options,
-            );
-
-            // After fetching, retrieve from index (it should be there now if fetch was successful)
             const fetched = this.#certificateIndex.get(normalizedId);
             if (fetched) {
-                await this.#saveIndex();
                 logger.info(
                     `Fetched and stored certificate from DCL`,
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
                 );
             }
-            return fetched;
+            return fetched && this.#isRelevant(fetched, options) ? fetched : undefined;
         } catch (error) {
             MatterDclError.accept(error);
             logger.debug(`Failed to fetch certificate ${normalizedId} from DCL: ${error.message}`);
@@ -464,7 +563,7 @@ export class DclCertificateService {
                 this.#certificateIndex.set(metadata.subjectKeyId, metadata);
                 validCount++;
             } else {
-                logger.info(
+                logger.warn(
                     `Certificate referenced in index but not found in storage`,
                     Diagnostic.dict({ skid: metadata.subjectKeyId }),
                 );
@@ -520,6 +619,7 @@ export class DclCertificateService {
         }
 
         const initialSize = this.#certificateIndex.size;
+        this.#githubRateLimited = false;
 
         // Always fetch production certificates from DCL
         await this.#fetchDclCertificates(storage, true, force);
@@ -666,10 +766,38 @@ export class DclCertificateService {
         }
     }
 
+    #hasTestCertificatesOfKind(kind: DclCertificateService.CertificateKind) {
+        for (const metadata of this.#certificateIndex.values()) {
+            if (!metadata.isProduction && (metadata.kind ?? "PAA") === kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Log a GitHub fetch failure. GitHub only serves test certificates, so a rate-limit error is only debug-worthy
+     * once we already hold test certificates of the affected kind: the cached data remains usable, making the failed
+     * refresh not actionable for the operator. A rate-limit response also flags the rest of the current fetch run to
+     * skip GitHub rather than repeating the same failing request.
+     */
+    #logGithubFetchFailure(message: string, error: unknown, kind: DclCertificateService.CertificateKind) {
+        const rateLimited = error instanceof Github.HttpError && error.isRateLimit;
+        if (rateLimited) {
+            this.#githubRateLimited = true;
+        }
+        const level = rateLimited && this.#hasTestCertificatesOfKind(kind) ? LogLevel.DEBUG : LogLevel.INFO;
+        logger.log(level, message, Diagnostic.errorMessage(asError(error)));
+    }
+
     /**
      * Fetch development certificates from GitHub repository.
      */
     async #fetchGitHubCertificates(storage: StorageContext, force: boolean) {
+        if (this.#githubRateLimited) {
+            logger.debug("Skipping GitHub certificate fetch, GitHub is rate-limiting this run");
+            return;
+        }
         try {
             logger.debug("Fetching development certificates from GitHub");
 
@@ -692,7 +820,7 @@ export class DclCertificateService {
                 await this.#fetchGitHubCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch certificates from GitHub", Diagnostic.errorMessage(asError(error)));
+            this.#logGithubFetchFailure("Failed to fetch certificates from GitHub", error, "PAA");
         }
     }
 
@@ -701,6 +829,10 @@ export class DclCertificateService {
      * Stores each as a CDSigner entry with isProduction=false (user may promote via addCertificate).
      */
     async #fetchGitHubCdSignerCertificates(storage: StorageContext, force: boolean) {
+        if (this.#githubRateLimited) {
+            logger.debug("Skipping GitHub CD signer fetch, GitHub is rate-limiting this run");
+            return;
+        }
         try {
             logger.debug("Fetching CD signer certificates from GitHub");
 
@@ -719,7 +851,7 @@ export class DclCertificateService {
                 await this.#fetchGitHubCdSignerCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch CD signer certificates from GitHub", Diagnostic.errorMessage(asError(error)));
+            this.#logGithubFetchFailure("Failed to fetch CD signer certificates from GitHub", error, "CDSigner");
         }
     }
 
@@ -901,12 +1033,12 @@ export class DclCertificateService {
                     });
                     inserted.push(skidFromDer);
                 } catch (err) {
-                    logger.error("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
+                    logger.warn("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
                     break;
                 }
             }
         } catch (err) {
-            logger.error("seed: stream failed", Diagnostic.errorMessage(asError(err)));
+            logger.warn("seed: stream failed", Diagnostic.errorMessage(asError(err)));
         }
 
         if (inserted.length > 0) {
@@ -1015,7 +1147,7 @@ export class DclCertificateService {
             }
         }
         if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
-            const algorithm = HashFipsAlgorithmId[point.dataDigestType] as HashAlgorithm | undefined;
+            const algorithm = hashAlgorithmForId(point.dataDigestType);
             if (algorithm !== undefined) {
                 const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes, algorithm));
                 if (actualDigest !== point.dataDigest) {
@@ -1098,6 +1230,8 @@ export class DclCertificateService {
         if (signerAkid !== undefined) {
             const signerAkidNorm = this.#normalizeSubjectKeyId(signerAkid);
 
+            // CRL signer trust anchor honors test PAAs that the validator already accepted upstream.
+            const trustAllPaas: DclCertificateService.GetCertificateOptions = { considerTestCertificates: true };
             let issuerPublicKey: Bytes | undefined;
             if (delegatorCert !== undefined) {
                 // Delegated signer: verify delegator is signed by a trusted PAA
@@ -1108,7 +1242,7 @@ export class DclCertificateService {
                 ) {
                     throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
                 }
-                const paaDer = await this.#getCertificateDer(delegatorAkid);
+                const paaDer = await this.#getCertificateDer(delegatorAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
                 await this.#crypto.verifyEcdsa(
                     PublicKey(paa.cert.ellipticCurvePublicKey),
@@ -1117,7 +1251,7 @@ export class DclCertificateService {
                 );
                 issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
             } else if (this.#certificateIndex.has(signerAkidNorm)) {
-                const paaDer = await this.#getCertificateDer(signerAkid);
+                const paaDer = await this.#getCertificateDer(signerAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
                 issuerPublicKey = paa.cert.ellipticCurvePublicKey;
             }
@@ -1169,35 +1303,35 @@ export class DclCertificateService {
         // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
         let idx = 0;
         // version is optional: if present it's an INTEGER
-        if (tbsElements[idx]?._tag === 0x02) {
+        if (tbsElements[idx]?._tag === DerType.Integer) {
             idx++;
         }
         // signature algorithm: SEQUENCE
-        if (tbsElements[idx]?._tag === 0x30) {
+        if (tbsElements[idx]?._tag === DerTag.Sequence) {
             idx++;
         }
         // issuer Name: SEQUENCE — hash its raw DER bytes for use as composite revocation key
         let issuerDnDerHex: string | undefined;
-        if (tbsElements[idx]?._tag === 0x30) {
+        if (tbsElements[idx]?._tag === DerTag.Sequence) {
             const issuerNode = tbsElements[idx];
             issuerDnDerHex = Bytes.toHex(DerCodec.encode(issuerNode)).toUpperCase();
             idx++;
         }
 
-        // thisUpdate: UTCTime (0x17) or GeneralizedTime (0x18) — skip
-        if (tbsElements[idx]?._tag === 0x17 || tbsElements[idx]?._tag === 0x18) {
+        // thisUpdate: UTCTime or GeneralizedTime — skip
+        if (tbsElements[idx]?._tag === DerType.UtcDate || tbsElements[idx]?._tag === DerType.GeneralizedTime) {
             idx++;
         }
 
-        // nextUpdate: UTCTime (0x17) or GeneralizedTime (0x18) — parse if present
+        // nextUpdate: UTCTime or GeneralizedTime — parse if present
         let nextUpdateMs: number | undefined;
-        if (tbsElements[idx]?._tag === 0x17 || tbsElements[idx]?._tag === 0x18) {
+        if (tbsElements[idx]?._tag === DerType.UtcDate || tbsElements[idx]?._tag === DerType.GeneralizedTime) {
             try {
                 const dateStr = Bytes.toString(tbsElements[idx]._bytes);
                 // UTCTime: YYMMDDHHMMSSZ, GeneralizedTime: YYYYMMDDHHMMSSZ
                 let year: number;
                 let rest: string;
-                if (tbsElements[idx]._tag === 0x17) {
+                if (tbsElements[idx]._tag === DerType.UtcDate) {
                     const yy = parseInt(dateStr.slice(0, 2));
                     year = yy >= 50 ? 1900 + yy : 2000 + yy;
                     rest = dateStr.slice(2);
@@ -1255,13 +1389,13 @@ export class DclCertificateService {
         // Find the revokedCertificates sequence
         let revokedCertsNode: DerNode | undefined;
         for (const element of tbsElements) {
-            if (element._tag === 0x30 && element._elements) {
+            if (element._tag === DerTag.Sequence && element._elements) {
                 const firstChild = element._elements[0];
                 if (
                     firstChild &&
-                    firstChild._tag === 0x30 &&
+                    firstChild._tag === DerTag.Sequence &&
                     firstChild._elements &&
-                    firstChild._elements[0]?._tag === 0x02
+                    firstChild._elements[0]?._tag === DerType.Integer
                 ) {
                     revokedCertsNode = element;
                     break;
@@ -1274,9 +1408,9 @@ export class DclCertificateService {
         }
 
         for (const entry of revokedCertsNode._elements) {
-            if (entry._tag !== 0x30 || !entry._elements || entry._elements.length < 1) continue;
+            if (entry._tag !== DerTag.Sequence || !entry._elements || entry._elements.length < 1) continue;
             const serialNode = entry._elements[0];
-            if (serialNode._tag !== 0x02) continue;
+            if (serialNode._tag !== DerType.Integer) continue;
             const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
             serials.add(serialHex);
         }
@@ -1291,9 +1425,26 @@ export class DclCertificateService {
 }
 
 export namespace DclCertificateService {
+    /** Per-call options for certificate retrieval. */
+    export interface GetCertificateOptions {
+        /**
+         * Whether the lookup should also return test (non-production) certificates.
+         * Defaults to the service-wide `fetchTestCertificates` flag passed at construction.
+         */
+        considerTestCertificates?: boolean;
+    }
+
     export interface Options {
         /** Whether to fetch test certificates in addition to production ones. Default is false. */
         fetchTestCertificates?: boolean;
+
+        /**
+         * Whether to trust test (non-production) certificates as valid trust anchors. Controls whether a
+         * matched test PAA is accepted during device attestation or flagged via a
+         * `TrustedAsTestCertificate` finding. Independent of `fetchTestCertificates`. Defaults to the value
+         * of `fetchTestCertificates` when not set.
+         */
+        acceptTestCertificates?: boolean;
 
         /** Whether to fetch development certificates from GitHub. Default is true (when fetchTestCertificates is true). */
         fetchGithubCertificates?: boolean;

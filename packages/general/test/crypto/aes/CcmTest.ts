@@ -5,6 +5,7 @@
  */
 
 import { Ccm } from "#crypto/aes/Ccm.js";
+import { CryptoDecryptError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 
 /**
@@ -177,4 +178,124 @@ describe("Ccm", () => {
             });
         });
     }
+
+    describe("byte offset handling", () => {
+        // NIST tcId 10 has 16-byte adata (>14 bytes), exercising the multi-block adata path that also builds a DataView.
+        const v = vectors.find(entry => entry.name === "NIST tcId 10")!;
+
+        it("encrypts plaintext and adata supplied at a non-zero byteOffset", () => {
+            const ccm = Ccm(Bytes.fromHex(v.key));
+
+            const ptView = Bytes.of(Bytes.concat(Bytes.fromHex("aabbcc"), Bytes.fromHex(v.pt))).subarray(3);
+            const aadView = Bytes.of(Bytes.concat(Bytes.fromHex("ddeeff"), Bytes.fromHex(v.adata))).subarray(3);
+
+            const result = Bytes.toHex(
+                ccm.encrypt({ nonce: Bytes.of(Bytes.fromHex(v.nonce)), adata: aadView, pt: ptView }),
+            );
+
+            expect(result).equals(v.ct + v.tag);
+        });
+    });
+
+    describe("tag verification", () => {
+        // A wrong key (or any tampered tag) must surface as CryptoDecryptError so the group-session multi-key
+        // candidate loop treats it as "wrong key, try next" rather than propagating an uncaught error.
+        const v = vectors.find(entry => entry.name === "NIST tcId 10")!;
+        const ccm = Ccm(Bytes.fromHex(v.key));
+        const input = { adata: Bytes.of(Bytes.fromHex(v.adata)), nonce: Bytes.of(Bytes.fromHex(v.nonce)) };
+
+        const ctLength = Bytes.of(Bytes.fromHex(v.ct)).length;
+        const tagLength = Bytes.of(Bytes.fromHex(v.tag)).length;
+
+        // Flip one byte in each 32-bit tag word so a comparison that only checked some words would not catch them all.
+        for (let word = 0; word < tagLength / 4; word++) {
+            it(`throws CryptoDecryptError on a tag tampered in word ${word}`, () => {
+                const corrupted = Bytes.of(Bytes.fromHex(v.ct + v.tag));
+                corrupted[ctLength + word * 4] ^= 0xff;
+
+                expect(() => ccm.decrypt({ ...input, ct: corrupted })).throws(CryptoDecryptError);
+            });
+        }
+
+        it("throws CryptoDecryptError when decrypting with the wrong key", () => {
+            const wrongCcm = Ccm(Bytes.fromHex("ffffffffffffffffffffffffffffffff"));
+
+            expect(() => wrongCcm.decrypt({ ...input, ct: Bytes.of(Bytes.fromHex(v.ct + v.tag)) })).throws(
+                CryptoDecryptError,
+            );
+        });
+    });
+});
+
+describe("configurable tag length (RFC 3610, tag=8, nonce=13, L=2)", () => {
+    // RFC 3610 §8 Packet Vector #1: 13-byte nonce, 8-byte MIC.
+    const key = Bytes.fromHex("c0c1c2c3c4c5c6c7c8c9cacbcccdcecf");
+    const nonce = Bytes.fromHex("00000003020100a0a1a2a3a4a5");
+    const adata = Bytes.fromHex("0001020304050607");
+    const pt = Bytes.fromHex("08090a0b0c0d0e0f101112131415161718191a1b1c1d1e");
+    const expected = "588c979a61c663d2f066d0c2c0f989806d5f6b61dac384" + "17e8d12cfdf926e0";
+
+    it("encrypts with an 8-byte tag", () => {
+        const ccm = Ccm(key);
+        const ct = ccm.encrypt({ nonce: Bytes.of(nonce), adata: Bytes.of(adata), pt: Bytes.of(pt), micLength: 8 });
+        expect(Bytes.toHex(ct)).equals(expected);
+    });
+
+    it("round-trips with an 8-byte tag", () => {
+        const ccm = Ccm(key);
+        const ct = Bytes.of(
+            ccm.encrypt({ nonce: Bytes.of(nonce), adata: Bytes.of(adata), pt: Bytes.of(pt), micLength: 8 }),
+        );
+        const back = ccm.decrypt({ nonce: Bytes.of(nonce), adata: Bytes.of(adata), ct, micLength: 8 });
+        expect(Bytes.toHex(back)).equals(Bytes.toHex(Bytes.of(pt)));
+    });
+});
+
+describe("configurable L (12-byte nonce, L=3, tag=8) self-consistency", () => {
+    const key = new Uint8Array(16).fill(0x42);
+    const nonce = new Uint8Array(12).fill(0x55);
+    const adata = Bytes.fromHex("00010203040506070800000000");
+
+    it("round-trips a 12-byte-nonce/tag-8 payload", () => {
+        const ccm = Ccm(key);
+        const pt = new Uint8Array(40);
+        for (let i = 0; i < pt.length; i++) pt[i] = (i * 31) & 0xff;
+        const ct = Bytes.of(ccm.encrypt({ nonce, adata: Bytes.of(adata), pt, micLength: 8 }));
+        expect(ct.length).equals(pt.length + 8);
+        const back = ccm.decrypt({ nonce, adata: Bytes.of(adata), ct, micLength: 8 });
+        expect(Bytes.areEqual(back, pt)).equals(true);
+    });
+
+    it("round-trips an L=3 payload larger than the L=2 ciphertext cap (2^16)", () => {
+        const ccm = Ccm(key);
+        const pt = new Uint8Array(70000); // > 65536; rejected by the old L-unaware decrypt cap
+        for (let i = 0; i < pt.length; i++) pt[i] = (i * 31) & 0xff;
+        const ct = Bytes.of(ccm.encrypt({ nonce, adata: Bytes.of(adata), pt, micLength: 8 }));
+        const back = ccm.decrypt({ nonce, adata: Bytes.of(adata), ct, micLength: 8 });
+        expect(Bytes.areEqual(back, pt)).equals(true);
+    });
+});
+
+describe("NIST SP 800-38C Appendix C Example 3 (official KAT: L=3, 12-byte nonce, 8-byte tag)", () => {
+    // Klen=128, Tlen=64 (8-byte tag), Nlen=96 (12-byte nonce → L=3), Alen=160, Plen=192.
+    const key = Bytes.fromHex("404142434445464748494a4b4c4d4e4f");
+    const nonce = Bytes.fromHex("101112131415161718191a1b");
+    const adata = Bytes.fromHex("000102030405060708090a0b0c0d0e0f10111213");
+    const pt = Bytes.fromHex("202122232425262728292a2b2c2d2e2f3031323334353637");
+    const expected = "e3b201a9f5b71a7a9b1ceaeccd97e70b6176aad9a4428aa5484392fbc1b09951";
+
+    it("encrypts to the NIST reference ciphertext+tag", () => {
+        const ct = Ccm(key).encrypt({ nonce: Bytes.of(nonce), adata: Bytes.of(adata), pt: Bytes.of(pt), micLength: 8 });
+        expect(Bytes.toHex(ct)).equals(expected);
+    });
+
+    it("decrypts the NIST reference ciphertext+tag back to the plaintext", () => {
+        const back = Ccm(key).decrypt({
+            nonce: Bytes.of(nonce),
+            adata: Bytes.of(adata),
+            ct: Bytes.of(Bytes.fromHex(expected)),
+            micLength: 8,
+        });
+        expect(Bytes.toHex(back)).equals(Bytes.toHex(Bytes.of(pt)));
+    });
 });

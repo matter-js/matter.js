@@ -117,16 +117,17 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
     /**
      * Called immediately after PASE is established, before the main commissioning flow begins.
      *
-     * Return `true` to proceed with commissioning (this candidate won the race).
-     * Return `false` to abort — the PASE session is closed and commissioning is skipped.
+     * Returns the {@link NodeId} to assign this device, reserved at win-time so the operational identity is
+     * claimed only once a candidate has won the PASE race.  Returns `undefined` to abort — the PASE session is
+     * closed and commissioning is skipped.
      *
-     * This is the hook used by {@link CommissioningDiscovery} for multi-candidate parallel flows:
-     * the first candidate to establish PASE returns `true` and signals the others (via {@link abort})
-     * to stop.  Any candidate that establishes PASE after another has already won returns `false` here
-     * and cleans up.  In the single-device located-node path this callback is unnecessary and need not
-     * be provided.
+     * This is the hook used by {@link CommissioningDiscovery} for multi-candidate parallel flows: the first
+     * candidate to establish PASE claims and returns its node ID (and signals the others via {@link abort} to
+     * stop).  Any candidate that establishes PASE after another has already won returns `undefined` here and
+     * cleans up.  In the single-device located-node path this callback is unnecessary; provide {@link nodeId}
+     * (or leave it undefined for an automatically assigned ID) instead.
      */
-    continueCommissioningAfterPase?: () => boolean;
+    claimNodeIdAfterPase?: () => MaybePromise<NodeId | undefined>;
 }
 
 /**
@@ -217,7 +218,7 @@ export class ControllerCommissioner {
             fabric,
             nodeId,
             abort,
-            continueCommissioningAfterPase,
+            claimNodeIdAfterPase,
             timeout = Seconds(30),
         } = options;
 
@@ -236,17 +237,33 @@ export class ControllerCommissioner {
             abort,
         });
 
-        // Check with the caller whether to proceed.  In parallel commissioning this callback atomically
-        // determines the winner: the first call returns true (and fires the abort signal to stop others);
-        // any subsequent call from a later PASE returns false and we clean up this session.
-        if (continueCommissioningAfterPase !== undefined && !continueCommissioningAfterPase()) {
-            await session.initiateForceClose({
-                cause: new CommissioningError("PASE established but other device connected faster"),
-            });
-            throw new CommissioningError("Commissioning cancelled: another device was already successfully connected");
+        // Claim the operational identity only after PASE; undefined means another candidate already won the race.
+        // We own the ephemeral session until #commissionConnectedNode takes over and force-closes it, so on any
+        // early exit here (lost race, or a claim error such as a node ID conflict) close it ourselves.
+        let assignedNodeId = nodeId;
+        if (claimNodeIdAfterPase !== undefined) {
+            try {
+                assignedNodeId = await claimNodeIdAfterPase();
+            } catch (error) {
+                // Close the ephemeral session but let the original claim error surface, not a close failure.
+                await session
+                    .initiateForceClose({ cause: new CommissioningError("Claiming the node ID failed after PASE") })
+                    .catch(closeError =>
+                        logger.info("Error closing PASE session after failed node ID claim:", closeError),
+                    );
+                throw error;
+            }
+            if (assignedNodeId === undefined) {
+                await session.initiateForceClose({
+                    cause: new CommissioningError("PASE established but other device connected faster"),
+                });
+                throw new CommissioningError(
+                    "Commissioning cancelled: another device was already successfully connected",
+                );
+            }
         }
 
-        return await this.#commissionConnectedNode(session, options, discoveryData);
+        return await this.#commissionConnectedNode(session, { ...options, nodeId: assignedNodeId }, discoveryData);
     }
 
     /**
@@ -479,13 +496,11 @@ export class ControllerCommissioner {
         } = options;
 
         const commissioningOptions = {
-            regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Most restrictive default if not specified
-            regulatoryCountryCode: "XX",
             ...options,
+            regulatoryLocation: options.regulatoryLocation ?? GeneralCommissioning.RegulatoryLocationType.Outdoor,
+            regulatoryCountryCode: options.regulatoryCountryCode ?? "XX",
         };
 
-        // TODO: Create the fabric only when needed before commissioning (to do when refactoring MatterController away)
-        // TODO also move certificateManager and other parts into that class to get rid of them here
         // TODO Depending on the Error type during commissioning we can do a retry ...
         /*
             Whenever the Fail-Safe timer is armed, Commissioners and Administrators SHALL NOT consider any cluster
@@ -537,7 +552,7 @@ export class ControllerCommissioner {
                             // Already-closed races with our force-close — the session shut down
                             // via another path, no action needed.  Anything else is a real bug.
                             if (error instanceof SessionClosedError) return;
-                            logger.error("Error while force-closing PASE session on BLE close", error);
+                            logger.warn("Error while force-closing PASE session on BLE close", error);
                         });
                 });
             }
@@ -583,6 +598,9 @@ export class ControllerCommissioner {
 
                 const peer = this.#context.peers.for(address);
                 peer.descriptor.discoveryData = discoveryData;
+                // PASE already negotiated the device's session parameters; seed them so the initial operational CASE
+                // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
+                peer.descriptor.sessionParameters = ephemeralSession.parameters;
                 await peer.connect({
                     // 4m15s allows two ~2-minute server-side retry windows to complete before we abort.
                     connectionTimeout: Seconds(255),

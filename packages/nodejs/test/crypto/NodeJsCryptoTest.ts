@@ -8,12 +8,14 @@ import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import {
     b$,
     Bytes,
+    CryptoInputError,
     DataReader,
     HASH_ALGORITHM_OUTPUT_LENGTHS,
     HashAlgorithm,
     Key,
     PrivateKey,
     PublicKey,
+    StandardCrypto,
 } from "@matter/general";
 import * as assert from "node:assert";
 import * as crypto from "node:crypto";
@@ -58,6 +60,39 @@ describe("NodeJsCrypto", () => {
         });
     });
 
+    describe("AES-CCM-8", () => {
+        it("tag-8 L=3 output matches StandardCrypto byte-for-byte", () => {
+            const std = new StandardCrypto();
+            const key = new Uint8Array(16).fill(0x42);
+            const n12 = new Uint8Array(12).fill(0x55);
+            const aad = Bytes.fromHex("00010203040506070800000000");
+            const pt = new Uint8Array(40).map((_, i) => (i * 31) & 0xff);
+            const a = new NodeJsCrypto().encrypt(key, pt, n12, Bytes.of(aad), 8);
+            const b = std.encrypt(key, pt, n12, Bytes.of(aad), 8);
+            expect(Bytes.toHex(a)).equals(Bytes.toHex(b));
+
+            const back = new NodeJsCrypto().decrypt(key, a, n12, Bytes.of(aad), 8);
+            expect(Bytes.toHex(back)).equals(Bytes.toHex(pt));
+        });
+
+        it("rejects an illegal tagLength", () => {
+            for (const bad of [5, 17, 18]) {
+                expect(() => cryptoNode.encrypt(KEY_2, PLAIN_DATA_2, NONCE_2, ADDITIONAL_AUTH_DATA_2, bad)).to.throw(
+                    CryptoInputError,
+                );
+                expect(() => cryptoNode.decrypt(KEY, ENCRYPTED_DATA, NONCE, ADDITIONAL_AUTH_DATA, bad)).to.throw(
+                    CryptoInputError,
+                );
+            }
+        });
+
+        it("rejects ciphertext shorter than the tag", () => {
+            expect(() => cryptoNode.decrypt(KEY, new Uint8Array(7), NONCE, ADDITIONAL_AUTH_DATA, 8)).to.throw(
+                CryptoInputError,
+            );
+        });
+    });
+
     describe("sign & verify with raw keys", () => {
         it("signs data with known private key", () => {
             const result = cryptoNode.signEcdsa(PrivateKey(PRIVATE_KEY), ENCRYPTED_DATA);
@@ -72,12 +107,14 @@ describe("NodeJsCrypto", () => {
         it("signs data with known sec1 key", () => {
             const result = cryptoNode.signEcdsa(Key({ sec1: SEC1_KEY }), ENCRYPTED_DATA);
 
-            const privateKeyObject = crypto.createPrivateKey({
-                key: Buffer.from(Bytes.of(SEC1_KEY)),
-                format: "der",
-                type: "sec1",
-            });
-            const publicKey = crypto.createPublicKey(privateKeyObject).export({ format: "der", type: "spki" });
+            const privateKeyPem = crypto
+                .createPrivateKey({
+                    key: Buffer.from(Bytes.of(SEC1_KEY)),
+                    format: "der",
+                    type: "sec1",
+                })
+                .export({ format: "pem", type: "sec1" });
+            const publicKey = crypto.createPublicKey(privateKeyPem).export({ format: "der", type: "spki" });
 
             cryptoNode.verifyEcdsa(Key({ spki: Bytes.of(publicKey) }), ENCRYPTED_DATA, result);
         });

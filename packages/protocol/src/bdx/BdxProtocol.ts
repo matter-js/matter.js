@@ -135,7 +135,7 @@ export class BdxProtocol implements ProtocolHandler {
                     try {
                         await bdxSession.processTransfer();
                     } catch (error) {
-                        logger.error(`Error processing BDX transfer:`, error);
+                        logger.warn(`Error processing BDX transfer:`, error);
                     }
                 } catch (error) {
                     BdxError.accept(error);

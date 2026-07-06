@@ -19,10 +19,7 @@ export interface Token {
  * The base token produced by the tokenizer.
  */
 export type BasicToken<KW extends readonly string[] = []> =
-    | BasicToken.Special
-    | BasicToken.Word
-    | BasicToken.Number
-    | BasicToken.Keyword<KW>;
+    BasicToken.Special | BasicToken.Word | BasicToken.Number | BasicToken.Keyword<KW>;
 
 /**
  * A {@link BasicToken} with additional keywords.

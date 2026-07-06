@@ -13,8 +13,11 @@ import { ContinuousDiscovery } from "#behavior/system/controller/discovery/Conti
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
+import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
@@ -85,6 +88,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+        this.clusterInstalled(IcdManagementClient).on(this.#installIcdClient.bind(this));
+        this.clusterInstalled(BridgedDeviceBasicInformationClient).on(
+            this.#instrumentBridgedConfigurationVersion.bind(this),
+        );
 
         const lifecycle = owner.lifecycle;
         lifecycle.online.on(this.#nodeOnline.bind(this));
@@ -255,8 +262,20 @@ export class Peers extends EndpointContainer<ClientNode> {
             throw new ImplementationError("Cannot register a peer address for a fabric we do not belong to");
         }
 
-        let node = this.get(peerAddress);
-        if (!node) {
+        const existing = this.get(peerAddress);
+        if (existing) {
+            return existing;
+        }
+
+        // Serialize creation through the same mutex the cull/leave paths use. Two concurrent callers for the same
+        // address would otherwise both pass the check and both create a ClientNode (the awaits below yield between
+        // the check and the add).
+        return this.#mutex.produce(async () => {
+            let node = this.get(peerAddress);
+            if (node) {
+                return node;
+            }
+
             if (options.id !== undefined) {
                 // We want to initialize a node with a provided id. This could be an injected node, so ensure the
                 // ClientNodeStore is constructed. Without id the storage is empty anyway because id is newly assigned
@@ -276,9 +295,9 @@ export class Peers extends EndpointContainer<ClientNode> {
             await node.set({
                 commissioning: { peerAddress: PeerAddress(peerAddress) },
             });
-        }
 
-        return node;
+            return node;
+        });
     }
 
     override async close() {
@@ -387,7 +406,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.#mutex.run(() =>
             this.#cullExpiredNodesAndAddresses()
                 .catch(error => {
-                    logger.error("Error culling expired nodes", error);
+                    logger.warn("Error culling expired nodes", error);
                 })
                 .finally(() => {
                     this.#manageExpiration();
@@ -466,6 +485,25 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
+        node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
+    }
+
+    /**
+     * Bridged endpoints carry their own `ConfigurationVersion` on `BridgedDeviceBasicInformation`; surface its changes
+     * through the same endpoint lifecycle event used for the node's `BasicInformation`.
+     */
+    #instrumentBridgedConfigurationVersion(endpoint: Endpoint, type: typeof BridgedDeviceBasicInformationClient) {
+        endpoint
+            .eventsOf(type)
+            .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
+    }
+
+    #installIcdClient(node: Endpoint) {
+        if (!(node instanceof ClientNode) || node.behaviors.has(IcdClient)) {
+            return;
+        }
+
+        node.behaviors.inject(IcdClient);
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {

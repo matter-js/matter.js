@@ -1090,7 +1090,7 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "OFFONLY", conformance: "[!LT | DF]", constraint: "2", title: "OffOnly",
+                name: "OFFONLY", conformance: "[!(LT | DF)]", constraint: "2", title: "OffOnly",
                 xref: "cluster§1.5.4.3",
 
                 details: "When this feature is supported, the Off command shall be supported and the On and Toggle commands " +
@@ -38658,8 +38658,7 @@ export const SpecMatter = Matter(
                 name: "TrustedTimeSource", id: 0x0, type: "FabricScopedTrustedTimeSourceStruct", access: "F",
                 conformance: "M", quality: "X", xref: "core§11.17.9.2.1",
                 details: "This field contains the Node ID and endpoint of a trusted time source on the accessing fabric."
-            }),
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            })
         ),
 
         Command(
@@ -39283,8 +39282,7 @@ export const SpecMatter = Matter(
             },
 
             Field({ name: "NocValue", id: 0x0, type: "octstr", access: "F", conformance: "M", constraint: "max 400" }),
-            Field({ name: "IcacValue", id: 0x1, type: "octstr", access: "F", conformance: "O", constraint: "max 400" }),
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            Field({ name: "IcacValue", id: 0x1, type: "octstr", access: "F", conformance: "O", constraint: "max 400" })
         ),
 
         Command(
@@ -39352,8 +39350,7 @@ export const SpecMatter = Matter(
                 name: "Label", id: 0x0, type: "string", access: "F", conformance: "M", constraint: "max 32",
                 xref: "core§11.18.6.11.1",
                 details: "This field shall contain the label to set for the fabric associated with the current secure session."
-            }),
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            })
         ),
 
         Command(
@@ -40626,9 +40623,7 @@ export const SpecMatter = Matter(
                     "Update Provider cluster server on the ProviderNodeID. This is provided to avoid having to do " +
                     "discovery of the location of that endpoint by walking over all endpoints and checking their " +
                     "Descriptor Cluster."
-            }),
-
-            Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+            })
         ),
 
         Datatype(
@@ -45232,7 +45227,7 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 4 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 3 } ], element: "attribute" })
         ),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§13.3.6" }),
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }),

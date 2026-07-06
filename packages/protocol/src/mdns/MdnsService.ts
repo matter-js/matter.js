@@ -21,6 +21,10 @@ import { MdnsServer } from "../mdns/MdnsServer.js";
 
 const logger = Logger.get("MDNS");
 
+/** DNS-SD service-type suffixes matter.js discovers (operational, commissionable, commissioner), leading dot included
+ * so the ingress filter can `endsWith` them directly. */
+const MATTER_SERVICE_SUFFIXES = ["._matter._tcp.local", "._matterc._udp.local", "._matterd._udp.local"];
+
 export class MdnsService {
     readonly #entropy: Entropy;
     readonly #construction: Construction<MdnsService>;
@@ -73,12 +77,9 @@ export class MdnsService {
                 entropy: this.#entropy,
                 filter: ({ name }) => {
                     const lower = name.toLowerCase();
-                    return (
-                        lower.endsWith("._matter._tcp.local") ||
-                        lower.endsWith("._matterc._udp.local") ||
-                        lower.endsWith("._matterd._udp.local")
-                    );
+                    return MATTER_SERVICE_SUFFIXES.some(suffix => lower.endsWith(suffix));
                 },
+                filterNames: MATTER_SERVICE_SUFFIXES.map(suffix => suffix.slice(1)),
             });
         }
         return this.#names;
@@ -100,7 +101,7 @@ export class MdnsService {
                     "Error disposing MDNS services",
                 );
             } catch (e) {
-                logger.error(e);
+                logger.warn("Error disposing MDNS services", e);
             }
 
             if (this.#socket) {

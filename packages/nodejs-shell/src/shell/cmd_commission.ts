@@ -9,8 +9,7 @@ import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, Qr
 import { BasicInformation, Descriptor, GeneralCommissioning } from "@matter/types/clusters";
 import { NodeCommissioningOptions } from "@project-chip/matter.js";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode.js";
-import { createDiagnosticCallbacks } from "./cmd_nodes.js";
+import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
 
 const logger = Logger.get("Commission");
 
@@ -161,22 +160,19 @@ export default function commands(theNode: MatterNode) {
 
                                     await theNode.certificateService();
 
-                                    if (theNode.Store.has("WiFiSsid") && theNode.Store.has("WiFiPassword")) {
-                                        options.commissioning.wifiNetwork = {
-                                            wifiSsid: await theNode.Store.get<string>("WiFiSsid", ""),
-                                            wifiCredentials: await theNode.Store.get<string>("WiFiPassword", ""),
-                                        };
+                                    const wifiSsid = await theNode.Store.get<string>("WiFiSsid", "");
+                                    const wifiCredentials = await theNode.Store.get<string>("WiFiPassword", "");
+                                    if (wifiSsid.length > 0 && wifiCredentials.length > 0) {
+                                        options.commissioning.wifiNetwork = { wifiSsid, wifiCredentials };
                                     }
-                                    if (
-                                        theNode.Store.has("ThreadName") &&
-                                        theNode.Store.has("ThreadOperationalDataset")
-                                    ) {
+                                    const threadOperationalDataset = await theNode.Store.get<string>(
+                                        "ThreadOperationalDataset",
+                                        "",
+                                    );
+                                    if (threadOperationalDataset.length > 0) {
                                         options.commissioning.threadNetwork = {
                                             networkName: await theNode.Store.get<string>("ThreadName", ""),
-                                            operationalDataset: await theNode.Store.get<string>(
-                                                "ThreadOperationalDataset",
-                                                "",
-                                            ),
+                                            operationalDataset: threadOperationalDataset,
                                         };
                                     }
 

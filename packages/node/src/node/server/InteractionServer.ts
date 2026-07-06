@@ -29,6 +29,7 @@ import {
     InteractionServerMessenger,
     InvokeRequest,
     InvokeResponseForSend,
+    InvokeResult,
     Mark,
     Message,
     MessageExchange,
@@ -49,7 +50,9 @@ import {
 } from "@matter/protocol";
 import {
     AttributeData,
+    AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    EventPath,
     GroupId,
     INTERACTION_PROTOCOL_ID,
     InvokeResponseData,
@@ -57,9 +60,7 @@ import {
     Status,
     StatusResponseError,
     TlvAny,
-    TlvAttributePath,
     TlvClusterPath,
-    TlvEventPath,
     TlvInvokeResponseData,
     TlvInvokeResponseForSend,
     TlvSubscribeResponse,
@@ -72,13 +73,19 @@ import { ServerSubscription, ServerSubscriptionConfig, ServerSubscriptionContext
 
 const logger = Logger.get("InteractionServer");
 
+// Hard acceptance ceiling for paths in a single read/subscribe interaction, set to the upper bound of the
+// CapabilityMinimaStruct field constraints in the data model.  Separate from the advertised CapabilityMinima defaults:
+// we advertise a guaranteed floor and accept up to this ceiling, blocking only beyond it.
+const MAX_READ_PATHS = 10_000;
+const MAX_SUBSCRIBE_PATHS = 10_000;
+
 export interface PeerSubscription {
     subscriptionId: number;
     peerAddress: PeerAddress;
     minIntervalFloor: Duration;
     maxIntervalCeiling: Duration;
-    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[];
-    eventRequests?: TypeFromSchema<typeof TlvEventPath>[];
+    attributeRequests?: AttributePath[];
+    eventRequests?: EventPath[];
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
@@ -91,10 +98,7 @@ export interface InteractionCounters {
     totalInteractionModelMessagesReceived: number;
 }
 
-function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
-    }
+function validateReadAttributesPath(path: AttributePath) {
     const { clusterId, attributeId } = path;
     if (clusterId === undefined && attributeId !== undefined) {
         if (!GLOBAL_IDS.has(attributeId)) {
@@ -106,14 +110,17 @@ function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath
     }
 }
 
-function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGroupSession = false) {
+function validateReadEventPath(path: EventPath) {
     const { clusterId, eventId } = path;
     if (clusterId === undefined && eventId !== undefined) {
         throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
     }
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", Status.InvalidAction);
-    }
+}
+
+/** Per Matter §8.4.3.2, Read and Subscribe share one valid-path algorithm. */
+function validateReadPaths(attributeRequests?: AttributePath[], eventRequests?: EventPath[]) {
+    attributeRequests?.forEach(path => validateReadAttributesPath(path));
+    eventRequests?.forEach(path => validateReadEventPath(path));
 }
 
 function clusterPathToId({ nodeId, endpointId, clusterId }: TypeFromSchema<typeof TlvClusterPath>) {
@@ -211,28 +218,39 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return await this.clientHandler.onNewExchange(exchange, message);
         }
 
+        // Count the initiating message (received before the exchange notifier could be attached) then track all
+        // further sends/receipts on this exchange (chunked DataReports, StatusResponse acks, etc.)
         this.#counters.totalInteractionModelMessagesReceived++;
+        this.#countExchangeMessages(exchange);
 
         // Activity tracking.  This provides diagnostic information and prevents the server from shutting down whilst
         // the exchange is active
         using activity = this.#activity.begin(`session#${exchange.session.id.toString(16)}`);
         (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey] = activity;
 
-        // Count all subsequent IM messages received on this exchange (e.g. StatusResponse acks for ReportData)
+        // Delegate to InteractionServerMessenger
+        try {
+            return await new InteractionServerMessenger(exchange).handleRequest(this);
+        } finally {
+            delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
+        }
+    }
+
+    /**
+     * Attach per-message counters to an exchange so DeviceLoadStatus reflects every IM message sent and received.
+     * Excludes MRP retransmissions (only the initial transmission of each message counts) and duplicate receipts.
+     */
+    #countExchangeMessages(exchange: MessageExchange) {
+        exchange.onSend = (_, retransmission) => {
+            if (retransmission === 0) {
+                this.#counters.totalInteractionModelMessagesSent++;
+            }
+        };
         exchange.onReceive = (_, duplicate) => {
             if (!duplicate) {
                 this.#counters.totalInteractionModelMessagesReceived++;
             }
         };
-
-        // Delegate to InteractionServerMessenger
-        try {
-            const result = await new InteractionServerMessenger(exchange).handleRequest(this);
-            this.#counters.totalInteractionModelMessagesSent++;
-            return result;
-        } finally {
-            delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
-        }
     }
 
     get aclServer() {
@@ -287,7 +305,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const readContext = this.#prepareOnlineContext(exchange, message, readRequest.isFabricFiltered);
 
         for await (const chunk of this.#serverInteraction.read(readRequest, readContext)) {
-            for (const report of chunk) {
+            for await (const report of chunk) {
                 yield InteractionServerMessenger.convertServerInteractionReport(report);
             }
         }
@@ -336,6 +354,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw new StatusResponseError(
                 "Reads are only allowed on unicast sessions", // Means "No groups"
                 Status.InvalidAction,
+            );
+        }
+
+        validateReadPaths(attributeRequests, eventRequests);
+
+        const readPathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (readPathsCount > MAX_READ_PATHS) {
+            throw new StatusResponseError(
+                `Read request with ${readPathsCount} paths exceeds maximum of ${MAX_READ_PATHS}`,
+                Status.PathsExhausted,
             );
         }
 
@@ -565,6 +593,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
         }
 
+        const subscribePathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (subscribePathsCount > MAX_SUBSCRIBE_PATHS) {
+            throw new StatusResponseError(
+                `Subscribe request with ${subscribePathsCount} paths exceeds maximum of ${MAX_SUBSCRIBE_PATHS}`,
+                Status.PathsExhausted,
+            );
+        }
+
         NodeSession.assert(exchange.session, "Subscriptions are only implemented on secure sessions");
         const session = exchange.session;
         const fabric = session.fabric;
@@ -621,9 +657,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        // Validate of the paths before proceeding
-        attributeRequests?.forEach(path => validateReadAttributesPath(path));
-        eventRequests?.forEach(path => validateReadEventPath(path));
+        validateReadPaths(attributeRequests, eventRequests);
 
         if (minIntervalFloorSeconds < 0) {
             throw new StatusResponseError(
@@ -659,7 +693,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 message,
             );
         } catch (error) {
-            logger.error(
+            logger.warn(
                 `Subscription ${Subscription.idStrOf(subscriptionId)} for session ${session.via}: Error while sending initial data reports:`,
                 error instanceof MatterError ? error.message : error,
             );
@@ -708,10 +742,15 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     }
 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
-        if (addressOrSession instanceof Session) {
-            return this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId);
-        }
-        return this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+        const exchange =
+            addressOrSession instanceof Session
+                ? this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId)
+                : this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+
+        // Count subscription report messages we push and the acks we receive in response
+        this.#countExchangeMessages(exchange);
+
+        return exchange;
     }
 
     async #establishSubscription(
@@ -745,7 +784,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw error;
         }
 
-        logger.info(
+        logger.notice(
             "Subscribe successful",
             Mark.OUTBOUND,
             exchange.via,
@@ -773,13 +812,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }: PeerSubscription,
         session: NodeSession,
     ) {
-        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID, {
-            onReceive: (_, duplicate) => {
-                if (!duplicate) {
-                    this.#counters.totalInteractionModelMessagesReceived++;
-                }
-            },
-        });
+        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID);
 
         logger.info(
             `Reestablish subscription`,
@@ -826,7 +859,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             subscription.activate();
             this.#counters.totalSubscriptionsEstablished++;
 
-            logger.info(
+            logger.notice(
                 `Subscription successfully reestablished`,
                 Mark.OUTBOUND,
                 exchange.via,
@@ -949,12 +982,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return;
         }
 
-        // For suppressResponse: just consume the iterator without sending responses
-        if (suppressResponse) {
-            for await (const _chunk of results);
-            return;
-        }
-
         // Track accumulated responses for the current message
         const currentChunkResponses = new Array<InvokeResponseData>();
         const emptyInvokeResponse: InvokeResponseForSend = {
@@ -1002,7 +1029,20 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             messageSize += invokeResponseBytes;
         };
 
-        // Process all invoke results
+        const toInvokeResponseData = (data: InvokeResult.Data): InvokeResponseData => {
+            if (data.kind === "cmd-response") {
+                const { path: commandPath, commandRef, data: commandFields } = data;
+                return { command: { commandPath, commandFields, commandRef } };
+            }
+            const { path: commandPath, commandRef, status, clusterStatus } = data;
+            return { status: { commandPath, status: { status, clusterStatus }, commandRef } };
+        };
+
+        // Per spec §8.8.3.2.1 a SuppressResponse invoke still sends a response if a CommandDataIB is generated. Until
+        // one is seen we hold generated statuses back; the first CommandDataIB flushes the held statuses and the rest
+        // stream normally. Non-suppressed responses stream from the start.
+        let suppressedBuffer: InvokeResponseData[] | undefined = suppressResponse ? [] : undefined;
+
         for await (const chunk of results) {
             if (chunkedTransmissionTerminated) {
                 // Client terminated the chunked series, continue consuming but don't send
@@ -1010,28 +1050,28 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }
 
             for (const data of chunk) {
-                switch (data.kind) {
-                    case "cmd-response": {
-                        const { path: commandPath, commandRef, data: commandFields } = data;
-                        await sendChunkIfNeeded({
-                            command: {
-                                commandPath,
-                                commandFields,
-                                commandRef,
-                            },
-                        });
-                        break;
-                    }
+                const responseData = toInvokeResponseData(data);
 
-                    case "cmd-status": {
-                        const { path, commandRef, status, clusterStatus } = data;
-                        await sendChunkIfNeeded({
-                            status: { commandPath: path, status: { status, clusterStatus }, commandRef },
-                        });
-                        break;
+                if (suppressedBuffer !== undefined) {
+                    if (data.kind !== "cmd-response") {
+                        suppressedBuffer.push(responseData);
+                        continue;
                     }
+                    // First CommandDataIB: commit to sending. Flush the held statuses, then stream the rest.
+                    for (const held of suppressedBuffer) {
+                        await sendChunkIfNeeded(held);
+                    }
+                    suppressedBuffer = undefined;
                 }
+
+                await sendChunkIfNeeded(responseData);
             }
+        }
+
+        // SuppressResponse and no CommandDataIB was generated — send nothing.
+        if (suppressedBuffer !== undefined) {
+            logger.debug("Invoke (suppressed)", Mark.OUTBOUND, exchange.via, Diagnostic.weak("no response sent"));
+            return;
         }
 
         // Send the final response if not already terminated

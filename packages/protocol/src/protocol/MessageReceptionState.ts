@@ -62,18 +62,16 @@ export class MessageReceptionStateEncryptedWithoutRollover extends MessageRecept
     private calculateMessageCounterBitmap(messageCounterBitmap: number, diff: number) {
         if (diff < 0) {
             // negative value means the new message counter is smaller than the current maximum
-            if (diff < -MSG_COUNTER_WINDOW_SIZE) {
-                throw new InternalError(`Message counter difference too large: ${diff}`);
-            }
-            // set the corresponding bit
             const bit = 1 << (-diff - 1);
             messageCounterBitmap |= bit;
         } else if (diff > 0) {
             // positive value means new message counter is larger than the current maximum
             if (diff <= MSG_COUNTER_WINDOW_SIZE) {
-                // shift the bitmap and set the bit for the previous maximum
-                const bit = 1 << (diff - 1);
-                messageCounterBitmap = ((messageCounterBitmap << diff) >>> 0) | bit;
+                // shift the bitmap and set the bit for the previous maximum.
+                // `x << 32` is a no-op in JS (shift count is taken mod 32), so a jump of exactly the
+                // window size must clear all prior bits explicitly, leaving only the old-max bit.
+                const shifted = diff < MSG_COUNTER_WINDOW_SIZE ? (messageCounterBitmap << diff) >>> 0 : 0;
+                messageCounterBitmap = shifted | (1 << (diff - 1));
             } else {
                 // diff is larger than the window size, so no previous message counter is known
                 messageCounterBitmap = 0;
@@ -91,16 +89,13 @@ export class MessageReceptionStateEncryptedWithoutRollover extends MessageRecept
 
         this.messageCounterBitmap = this.calculateMessageCounterBitmap(this.messageCounterBitmap, diff);
 
-        if (diff > 0 || diff < -MSG_COUNTER_WINDOW_SIZE) {
+        if (diff > 0) {
             this.maximumMessageCounter = messageCounter;
         }
     }
 
     /** Check if the message counter is known in the bitmap. */
     private isCounterKnownInBitmap(diff: number) {
-        if (diff < -MSG_COUNTER_WINDOW_SIZE || diff >= 0) {
-            throw new InternalError(`Invalid Message counter difference for check: ${diff}`);
-        }
         const bit = 1 << (-diff - 1);
         return (this.messageCounterBitmap & bit) !== 0;
     }
@@ -198,7 +193,7 @@ export class MessageReceptionStateUnencryptedWithRollover extends MessageRecepti
         } else if (diff < 0) {
             // negative value means the new message counter is smaller than the current maximum
             if (diff < -MSG_COUNTER_WINDOW_SIZE) {
-                return MAX_COUNTER_VALUE_32BIT + diff;
+                return MAX_COUNTER_VALUE_32BIT + 1 + diff;
             }
             return diff;
         }

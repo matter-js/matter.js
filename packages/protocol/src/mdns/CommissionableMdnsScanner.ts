@@ -93,7 +93,7 @@ export class CommissionableMdnsScanner implements Scanner {
             return lower === base1 || lower.endsWith(suffix1) || lower === base2 || lower.endsWith(suffix2);
         };
 
-        names.filters.add(this.#filter);
+        names.filters.add(this.#filter, [base1, base2]);
         this.#observers.on(names.discovered, this.#onDiscovered.bind(this));
 
         this.#speculativeCleanupTimer = Time.getPeriodicTimer(
@@ -321,7 +321,7 @@ export class CommissionableMdnsScanner implements Scanner {
                                 this.#speculativeTargets.delete(targetKey);
                                 target.off(this.#speculativeObserver);
                                 if (!(error instanceof AbortedError)) {
-                                    logger.error(`Speculative discovery for ${target.qname} failed:`, error);
+                                    logger.warn(`Speculative discovery for ${target.qname} failed:`, error);
                                 }
                             });
                     }

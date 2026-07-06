@@ -19,7 +19,7 @@ import {
     TypeFromSchema,
 } from "@matter/types";
 
-/** @see {@link MatterSpecification.v13.Core} § 4.12.8 */
+/** @see {@link MatterSpecification.v16.Core} § 4.13.1 */
 export const TlvSessionParameters = TlvObject({
     /** Maximum sleep interval of node when in idle mode. */
     idleInterval: TlvOptionalField(1, TlvUInt32) /* default: SESSION_IDLE_INTERVAL */,
@@ -60,7 +60,7 @@ export type WithDurationSessionParameters<T, K extends keyof T> = Omit<T, K> & {
     [P in K]?: SessionParametersWithDurations;
 };
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.1.2 */
 export const TlvPbkdfParamRequest = TlvObject({
     initiatorRandom: TlvField(1, TlvByteString.bound({ length: 32 })),
     initiatorSessionId: TlvField(2, TlvUInt16), // Specs: range: 16bits
@@ -73,7 +73,7 @@ export type PbkdfParamRequest = WithDurationSessionParameters<
     "initiatorSessionParams"
 >;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.1.2 */
 export const TlvPbkdfParamResponse = TlvObject({
     initiatorRandom: TlvField(1, TlvByteString.bound({ length: 32 })),
     responderRandom: TlvField(2, TlvByteString.bound({ length: 32 })),
@@ -92,20 +92,20 @@ export type PbkdfParamResponse = WithDurationSessionParameters<
     "responderSessionParams"
 >;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.1.2 */
 export const TlvPasePake1 = TlvObject({
     x: TlvField(1, TlvByteString.bound({ length: CRYPTO_PUBLIC_KEY_SIZE_BYTES })), // pA
 });
 export type PasePake1 = TypeFromSchema<typeof TlvPasePake1>;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.1.2 */
 export const TlvPasePake2 = TlvObject({
     y: TlvField(1, TlvByteString.bound({ length: CRYPTO_PUBLIC_KEY_SIZE_BYTES })), // pB
     verifier: TlvField(2, TlvByteString.bound({ length: CRYPTO_HASH_LEN_BYTES })), // cB
 });
 export type PasePake2 = TypeFromSchema<typeof TlvPasePake2>;
 
-/** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
+/** @see {@link MatterSpecification.v16.Core} § 4.14.1.2 */
 export const TlvPasePake3 = TlvObject({
     verifier: TlvField(1, TlvByteString.bound({ length: CRYPTO_HASH_LEN_BYTES })), // cA
 });

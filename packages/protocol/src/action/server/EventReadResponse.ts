@@ -12,7 +12,7 @@ import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { NumberedOccurrence } from "#events/Occurrence.js";
 import { InternalError, isObject, Logger } from "@matter/general";
-import { DataModelPath, ElementTag, EventModel } from "@matter/model";
+import { AccessLevel, DataModelPath, ElementTag, EventModel } from "@matter/model";
 import {
     EventNumber,
     EventPath,
@@ -39,8 +39,10 @@ export class EventReadResponse<
     // Normalized Event Filter to just our node-id
     #eventMinVersion?: EventNumber;
 
-    // The Fabric filtering is done when we read the data from OccurrenceManager, so we can determine the parameter once
-    #filteredForFabricIndex?: FabricIndex;
+    // Accessing fabric of the read.  Fabric-sensitive event records are always filtered to this fabric; fabric-scoped
+    // records are filtered to it only when the read requests fabric filtering (core §8.4.3.2)
+    #accessingFabricIndex: FabricIndex = FabricIndex.NO_FABRIC;
+    #isFabricFiltered = false;
 
     // The following state updates as data producers execute.  This serves both to convey state between functions and as
     // a cache between producers that touch the same endpoint and/or cluster
@@ -48,7 +50,7 @@ export class EventReadResponse<
     #currentCluster?: ClusterProtocol;
 
     // Collected allowed and existing event paths to consider when reading events
-    #allowedEventPaths = new Map<string, TlvSchema<unknown>>();
+    #allowedEventPaths = new Map<string, { tlv: TlvSchema<unknown>; fabricSensitive: boolean }>();
 
     // Count how many events status (on error) and event values (on success) we have emitted
     #statusCount = 0;
@@ -74,9 +76,8 @@ export class EventReadResponse<
             }
         }
 
-        if (isFabricFiltered) {
-            this.#filteredForFabricIndex = this.session.fabric ?? FabricIndex.NO_FABRIC;
-        }
+        this.#accessingFabricIndex = this.session.fabric ?? FabricIndex.NO_FABRIC;
+        this.#isFabricFiltered = isFabricFiltered;
 
         // This path contributes an event value
         // Register paths
@@ -185,10 +186,12 @@ export class EventReadResponse<
             limits = event.limits;
         }
 
-        // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
-        // We need some fallback location if cluster is not defined
+        // Order prescribed by core spec 8.4.3.2: a View-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the data.
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            const location = {
+            // We need some fallback location if cluster is not defined
+            const location: AccessControl.Location = {
                 ...(cluster?.location ?? {
                     path: DataModelPath.none,
                     endpoint: endpointId,
@@ -196,19 +199,11 @@ export class EventReadResponse<
                 }),
                 owningFabric: this.session.fabric,
             };
-            const permission = this.session.authorityAt(limits.readLevel, location);
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
+            access = { session: this.session, location };
 
-                case AccessControl.Authority.Unauthorized:
-                    return this.#asStatus(path, Status.UnsupportedAccess);
-
-                case AccessControl.Authority.Restricted:
-                    return this.#asStatus(path, Status.AccessRestricted);
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            const denied = this.#authorize(access.session, path, AccessLevel.View, location);
+            if (denied !== undefined) {
+                return denied;
             }
         }
 
@@ -220,6 +215,13 @@ export class EventReadResponse<
         }
         if (event === undefined || !cluster.type.events[event.id]) {
             return this.#asStatus(path, Status.UnsupportedEvent);
+        }
+
+        if (access !== undefined) {
+            const denied = this.#authorize(access.session, path, limits.readLevel, access.location);
+            if (denied !== undefined) {
+                return denied;
+            }
         }
 
         if (this.#currentEndpoint !== endpoint) {
@@ -318,6 +320,7 @@ export class EventReadResponse<
 
     #registerEventPath(path: ReadResult.ConcreteEventPath) {
         const { eventId } = path;
+        const event = this.#guardedCurrentCluster.type.events[eventId]!;
         this.#allowedEventPaths.set(
             this.#createEventKey({
                 ...path,
@@ -325,32 +328,66 @@ export class EventReadResponse<
                 clusterId: this.#guardedCurrentCluster.type.id,
                 eventId,
             }),
-            this.#guardedCurrentCluster.type.events[eventId]!.tlv,
+            { tlv: event.tlv, fabricSensitive: event.limits.fabricSensitive },
         );
     }
 
     async *#readAllowedEvents() {
         for await (const event of this.node.eventHandler.get(this.#eventMinVersion)) {
-            const tlv = this.#allowedEventPaths.get(this.#createEventKey(event));
-            if (tlv === undefined) {
+            const allowed = this.#allowedEventPaths.get(this.#createEventKey(event));
+            if (allowed === undefined) {
                 // This event is not in the allowed list, so skip it
                 continue;
             }
-            // Filter out if we need to do fabric filtering and the event is not for the current fabric
-            // TODO adjust this to get the information correctly out of the Model bits when model is enhanced
-            // Right now it works because the ObjectSchema analyzes the fields and sets this whenever the FabricIndex
-            // field is included as fieldId 0xfe
-            if (this.#filteredForFabricIndex !== undefined && tlv instanceof ObjectSchema && tlv.isFabricScoped) {
+            const { tlv, fabricSensitive } = allowed;
+
+            if (fabricSensitive) {
+                // Fabric-sensitive event records are always filtered to the accessing fabric (core §8.4.3.2),
+                // independent of the read's FabricFiltered flag.  We fail closed: a record whose associated fabric
+                // cannot be positively matched to the accessing fabric is never disclosed.
+                const { payload } = event;
+                const fabricIndex = isObject(payload) ? payload.fabricIndex : undefined;
+                if (fabricIndex !== this.#accessingFabricIndex) {
+                    continue;
+                }
+            } else if (this.#isFabricFiltered && tlv instanceof ObjectSchema && tlv.isFabricScoped) {
+                // Fabric-scoped (but not fabric-sensitive) records are filtered only when the read requests fabric
+                // filtering.  isFabricScoped is set by ObjectSchema whenever the FabricIndex field 0xfe is present.
                 const { payload } = event;
                 if (!isObject(payload)) {
-                    throw new InternalError("Fabric sensitive event payload is not an object. Should never happen.");
+                    throw new InternalError("Fabric scoped event payload is not an object. Should never happen.");
                 }
                 const { fabricIndex } = payload;
-                if (fabricIndex !== undefined && fabricIndex !== this.#filteredForFabricIndex) {
+                if (fabricIndex !== undefined && fabricIndex !== this.#accessingFabricIndex) {
                     continue;
                 }
             }
             yield this.#asValue(event, tlv);
+        }
+    }
+
+    /**
+     * Validate access at {@link level}.  Returns undefined if granted; otherwise a status report to return.
+     */
+    #authorize(
+        session: AccessControl.RemoteActorSession,
+        path: ReadResult.ConcreteEventPath,
+        level: AccessLevel,
+        location: AccessControl.Location,
+    ) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return undefined;
+
+            case AccessControl.Authority.Unauthorized:
+                return this.#asStatus(path, Status.UnsupportedAccess);
+
+            case AccessControl.Authority.Restricted:
+                return this.#asStatus(path, Status.AccessRestricted);
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
         }
     }
 

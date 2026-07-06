@@ -7,12 +7,14 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
+import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import type { ClientNode } from "#node/ClientNode.js";
-import { IdentityService } from "#node/server/IdentityService.js";
+import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
+    causedBy,
     ClassExtends,
     Diagnostic,
     Duration,
@@ -56,11 +58,14 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
+    FabricRemovedError,
     LocatedNodeCommissioningOptions,
     OperationalAddress,
     Peer,
     PeerAddress,
+    PeerInitiatedCloseError,
     PeerLeftError,
+    PeerMessageMissingError,
     PeerSet,
     PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
@@ -203,20 +208,43 @@ export class CommissioningClient extends Behavior {
             throw new ImplementationError(`Cannot commission ${node} because the node has not been located`);
         }
 
+        const identity = this.env.get(IdentityService);
+
+        // Reservation is deferred to the post-PASE gate below, so fast-fail an explicit node ID that is already
+        // taken (a commissioned peer or the controller's own identity) here instead of only after discovery+PASE.
+        if (
+            opts.nodeId !== undefined &&
+            identity.peerAddressInUse({ fabricIndex: fabric.fabricIndex, nodeId: opts.nodeId })
+        ) {
+            throw new IdentityConflictError(
+                `Cannot assign NodeId ${opts.nodeId} on fabric ${fabric.fabricIndex}: the peer address is already in use`,
+            );
+        }
+
         const commissioner = node.env.get(ControllerCommissioner);
 
-        const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
+        // Claim the node ID only once a candidate wins PASE.  Parallel candidates share one supplied node ID, so
+        // reserving before PASE would fail every loser with an identity conflict; only the winner reserves here.
+        const raceGate = options.continueCommissioningAfterPase;
+        let allocatedAddress: PeerAddress | undefined;
+        const claimNodeIdAfterPase = async () => {
+            if (raceGate !== undefined && !raceGate()) {
+                return undefined;
+            }
+            allocatedAddress = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
+            return allocatedAddress.nodeId;
+        };
 
         const commissioningOptions: LocatedNodeCommissioningOptions = {
             addresses: addresses.map(ServerAddress),
             fabric,
-            nodeId: address.nodeId,
+            nodeId: opts.nodeId,
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
             onAttestationFailure: options.onAttestationFailure,
             abort: options.abort,
-            continueCommissioningAfterPase: options.continueCommissioningAfterPase,
+            claimNodeIdAfterPase,
             wifiNetwork: options.wifiNetwork,
             threadNetwork: options.threadNetwork,
             regulatoryLocation: options.regulatoryLocation,
@@ -244,7 +272,7 @@ export class CommissioningClient extends Behavior {
         }
 
         try {
-            const { fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
+            const { address, fabricIndexOnPeer } = await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
             this.state.commissionedAt = Time.nowMs;
             this.state.fabricIndexOnPeer = fabricIndexOnPeer;
@@ -252,7 +280,9 @@ export class CommissioningClient extends Behavior {
             // Apply changes from the peer
             await this.#update(this.env.get(PeerSet).for(address));
         } catch (e) {
-            this.env.get(IdentityService).releasePeerAddress(address);
+            if (allocatedAddress !== undefined) {
+                identity.releasePeerAddress(allocatedAddress);
+            }
             throw e;
         }
 
@@ -264,6 +294,7 @@ export class CommissioningClient extends Behavior {
         network.state.defaultSubscription = opts.defaultSubscription;
         // Nodes we commission are auto-subscribed by default, unless disabled explicitly
         network.state.autoSubscribe = opts.autoSubscribe !== false;
+        network.state.autoStateInitialize = opts.autoStateInitialize;
 
         network.internal.isNewlyCommissioned = true;
 
@@ -303,36 +334,73 @@ export class CommissioningClient extends Behavior {
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
         const fabricIndex = opcreds.state.currentFabricIndex;
-        logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
 
-        const result = await opcreds.removeFabric({ fabricIndex });
+        // Removing the fabric we communicate over destroys the session the NocResponse must travel on, so the response
+        // is frequently lost.  Treat the command as confirmed if it was delivered (transient peer error) or if a
+        // matching leave event arrives.  Arm the listener before sending so a fast leave cannot be missed.
+        let leaveSeen = false;
+        const leaveEvents = this.endpoint.eventsOf(BasicInformationClient).leave;
+        const onLeave = ({ fabricIndex: leftFabricIndex }: { fabricIndex: FabricIndex }) => {
+            // Ignore leaves replayed during subscription establishment; they may be stale events from a prior
+            // commissioning with the same identifier, matching the guard in Peers#onLeave.
+            if (leftFabricIndex === fabricIndex && this.agent.get(NetworkClient).subscriptionActive) {
+                leaveSeen = true;
+            }
+        };
+        leaveEvents?.on(onLeave);
 
-        if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
-            throw new MatterError(
-                `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
-            );
-        }
-
-        // Must run before commit unbinds Peer via peerAddress$Changed.
-        const node = this.endpoint as ClientNode;
         try {
-            await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
-        } catch (error) {
-            logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
+            logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
+
+            // A non-Ok status is an explicit refusal and must never be overridden by a leave event.
+            let nonOkFailure: MatterError | undefined;
+            try {
+                const result = await opcreds.removeFabric({ fabricIndex });
+                if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+                    nonOkFailure = new MatterError(
+                        `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
+                    );
+                }
+            } catch (error) {
+                if (
+                    leaveSeen ||
+                    causedBy(error, PeerMessageMissingError, PeerLeftError, FabricRemovedError, PeerInitiatedCloseError)
+                ) {
+                    logger.info(
+                        `Node ${formerAddress} removal confirmed without response`,
+                        `(${leaveSeen ? "leave event" : "session closed"})`,
+                    );
+                } else {
+                    throw error;
+                }
+            }
+            if (nonOkFailure !== undefined) {
+                throw nonOkFailure;
+            }
+
+            // Removal confirmed.  Must run before commit unbinds Peer via peerAddress$Changed.
+            const node = this.endpoint as ClientNode;
+            try {
+                await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+            } catch (error) {
+                logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
+            }
+
+            this.state.peerAddress = undefined;
+            this.state.commissionedAt = undefined;
+            this.state.fabricIndexOnPeer = undefined;
+
+            await this.context.transaction.commit();
+
+            logger.info(
+                "Decommissioned",
+                Diagnostic.strong(this.endpoint.id),
+                "formerly",
+                Diagnostic.strong(formerAddress),
+            );
+        } finally {
+            leaveEvents?.off(onLeave);
         }
-
-        this.state.peerAddress = undefined;
-        this.state.commissionedAt = undefined;
-        this.state.fabricIndexOnPeer = undefined;
-
-        await this.context.transaction.commit();
-
-        logger.info(
-            "Decommissioned",
-            Diagnostic.strong(this.endpoint.id),
-            "formerly",
-            Diagnostic.strong(formerAddress),
-        );
     }
 
     /**
@@ -893,6 +961,13 @@ export namespace CommissioningClient {
          * Matter.js will not subscribe automatically if set to false.
          */
         autoSubscribe?: boolean;
+
+        /**
+         * By default a newly-commissioned node performs a one-time read of its structure so its state is available
+         * immediately, even when {@link autoSubscribe} is false.  Set to false to skip this read and leave the node
+         * uninitialized until a later subscription or read.
+         */
+        autoStateInitialize?: boolean;
 
         /**
          * Case Authenticated Tags (CATs)

@@ -10,6 +10,7 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { AccessControlClient } from "#behaviors/access-control";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import {
@@ -23,10 +24,13 @@ import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import {
     b$,
     Bytes,
@@ -43,17 +47,37 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { Specification } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterRevision,
+    FeatureMap,
+    GeneratedCommandList,
+    Specification,
+} from "@matter/model";
 import {
     CommissioningError,
     ControllerCommissioner,
     FabricAuthority,
     FabricManager,
     PeerSet,
+    Read,
+    ReadResult,
     Val,
+    ValidateError,
 } from "@matter/protocol";
-import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
+import {
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    FabricIndex,
+    NodeId,
+    Status,
+    StatusResponseError,
+    TlvAny,
+} from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -240,6 +264,93 @@ describe("ClientNode", () => {
         expect(controller.peers.size).equals(1);
     });
 
+    it("initializes a newly-commissioned node with autoSubscribe:false without a manual reconnect", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({ passcode, discriminator, timeout: Seconds(90), autoSubscribe: false }),
+            { macrotasks: true },
+        );
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+        expect(peer1.stateOf(NetworkClient).autoSubscribe).equals(false);
+
+        // The one-time post-commission read populated cluster state and endpoint structure without a manual reconnect
+        expect(peer1.maybeStateOf(BasicInformationBehavior)?.vendorName).equals("Matter.js Test Vendor");
+        expect(peer1.parts.size).equals(1);
+    });
+
+    it("skips the post-commission read when autoStateInitialize is false", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+            }),
+            { macrotasks: true },
+        );
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        // Opting out leaves the node uninitialized: no post-commission read, so no cluster state and no endpoint structure
+        expect(peer1.maybeStateOf(BasicInformationBehavior)).equals(undefined);
+        expect(peer1.parts.size).equals(0);
+    });
+
+    it("commissions with an explicit id and restores the peer under that id after restart", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({ id: "device", passcode, discriminator, timeout: Seconds(90) }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).equals(1);
+        expect([...controller.peers].map(n => n.id)).deep.equals(["device"]);
+        expect(controller.peers.get("device")).not.undefined;
+
+        // *** RESTART controller (models the two-process commission-then-toggle flow) ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+
+        expect(controllerB.peers.size).equals(1);
+        expect([...controllerB.peers].map(n => n.id)).deep.equals(["device"]);
+        expect(controllerB.peers.get("device")).not.undefined;
+    });
+
     it("rejects node-level commissioning without known addresses", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addUncommissionedPair();
@@ -341,6 +452,82 @@ describe("ClientNode", () => {
         expect(wrongPasscodeDevice.state.commissioning.commissioned).equals(false);
         expect(matchingPasscodeDevice.state.commissioning.commissioned).equals(true);
         expect(controller.peers.size).at.least(1);
+    });
+
+    it("commissions same-discriminator devices with an explicit node ID without a peer-address conflict", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const wrongPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 20202021,
+            },
+        });
+        const matchingPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 22223333,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const wrongDeviceCrypto = wrongPasscodeDevice.env.get(Crypto) as MockCrypto;
+        const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
+
+        await controller.start();
+
+        // A caller-supplied node ID is shared by every parallel candidate.  Allocation must happen only after a
+        // candidate wins PASE, otherwise the losing candidate reserves the ID first and the winner fails with an
+        // identity conflict before it can commission.
+        const explicitNodeId = NodeId(88n);
+        const commissioned = await MockTime.resolve(
+            controller.peers.commission({
+                passcode: 22223333,
+                discriminator: 1234,
+                nodeId: explicitNodeId,
+                timeout: Seconds(90),
+            }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
+
+        expect(commissioned).not.undefined;
+        expect(wrongPasscodeDevice.state.commissioning.commissioned).equals(false);
+        expect(matchingPasscodeDevice.state.commissioning.commissioned).equals(true);
+        expect(commissioned.state.commissioning.peerAddress?.nodeId).equals(explicitNodeId);
+    });
+
+    it("rejects commissioning with an explicit node ID that is already in use before establishing PASE", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const device = await site.addDevice({
+            commissioning: {
+                discriminator: 999,
+                passcode: 22223333,
+            },
+        });
+
+        // The node ID already assigned to the commissioned peer is reserved and must be refused.
+        const usedNodeId = controller.peers.get("peer1")!.peerAddress!.nodeId;
+
+        const discovered = await MockTime.resolve(
+            controller.peers.discover({ longDiscriminator: 999, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        // Use a wrong passcode: the conflict must be reported before PASE, so we expect "already in use"
+        // rather than a PASE failure that would result if the check ran only at post-PASE allocation.
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode: 11112222, discriminator: 999, nodeId: usedNodeId })).rejectedWith(
+                /already in use/i,
+            ),
+        );
+
+        expect(device.state.commissioning.commissioned).equals(false);
     });
 
     it("commissions via known-address flow even when first address has invalid credentials", async () => {
@@ -715,6 +902,37 @@ describe("ClientNode", () => {
             expect(caught).instanceOf(StatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
             expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+    });
+
+    describe("forwards a model-invalid write so the peer device adjudicates", () => {
+        // A value the local model rejects on conformance/spec grounds (here an enum value not defined in the model) is
+        // forwarded to the peer rather than rejected during local validation.  The device declines it via its own
+        // validation, the rejection surfaces to the caller as the device's status, and the local cache is rolled back.
+
+        it("device rejects the value and the local cache is compensated", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+            const before = ep1Server.state.onOff.startUpOnOff;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(OnOffClient, { startUpOnOff: 99 as OnOff.StartUpOnOff }),
+            );
+
+            // The rejection is the device's write-response status, not a local ValidateError, proving the value was
+            // forwarded to the device rather than rejected during local validation (which would throw before any
+            // exchange and never contact the device).
+            expect(caught).instanceOf(StatusResponseError);
+            expect(caught).not.instanceOf(ValidateError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+
+            // The device did not apply the value and the local cache was rolled back to match.
+            expect(ep1Server.state.onOff.startUpOnOff).equals(before);
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
         });
     });
 
@@ -1113,6 +1331,36 @@ describe("ClientNode", () => {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("forAddress returns the same node for concurrent calls", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peerAddress = controller.peers.get("peer1")!.peerAddress!;
+        expect(peerAddress).not.undefined;
+
+        await MockTime.resolve(controller.peers.get("peer1")!.delete());
+        expect(controller.peers.size).equals(0);
+
+        const [a, b] = await MockTime.resolve(
+            Promise.all([controller.peers.forAddress(peerAddress), controller.peers.forAddress(peerAddress)]),
+            { macrotasks: true },
+        );
+
+        expect(a).equals(b);
+        expect(controller.peers.size).equals(1);
+    });
+
+    it("refuses to allocate a peer address whose NodeId is already in use", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const { fabricIndex, nodeId } = controller.peers.get("peer1")!.peerAddress!;
+
+        await expect(
+            controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabricIndex, nodeId)),
+        ).rejectedWith(/already in use/i);
+    });
+
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
@@ -1234,6 +1482,14 @@ describe("ClientNode", () => {
             tilt: true,
             positionAwareTilt: true,
         });
+
+        // featuresOf reflects the installed behavior's schema, so a stale rebuild seeded from the bind-time
+        // snapshot would still report the old Lift-only feature set here even though the featureMap value updated.
+        const features = clientEp1.featuresOf(WindowCoveringClient);
+        expect(features.lift).equals(true);
+        expect(features.positionAwareLift).equals(true);
+        expect(features.tilt).equals(true);
+        expect(features.positionAwareTilt).equals(true);
 
         sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
         await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLiftPercent100ths: 1200 });
@@ -1692,6 +1948,142 @@ describe("ClientNode", () => {
             expect(peer1.state.commissioning).to.be.undefined;
         });
     });
+
+    describe("Schrödinger's cluster", () => {
+        // A manufacturer-specific cluster the peer serves attribute data for but omits from its descriptor serverList.
+        const NEO = 0x125dfc11 as ClusterId;
+        const EP1 = EndpointNumber(1);
+
+        // EP1's real serverList from EP1_STATE (identify, groups, onOff, scenesManagement, descriptor) - notably
+        // without NEO.
+        const EP1_SERVER_LIST = [3, 4, 6, 0x62, 0x1d];
+
+        function attr(clusterId: ClusterId, attributeId: number, value: unknown, version: number): ReadResult.Report {
+            return {
+                kind: "attr-value",
+                path: { endpointId: EP1, clusterId, attributeId: attributeId as AttributeId },
+                value,
+                version,
+                tlv: TlvAny,
+            };
+        }
+
+        function neoReports(version: number): ReadResult.Report[] {
+            return [
+                attr(NEO, ClusterRevision.id, 1, version),
+                attr(NEO, FeatureMap.id, {}, version),
+                attr(
+                    NEO,
+                    AttributeList.id,
+                    [
+                        0,
+                        GeneratedCommandList.id,
+                        AcceptedCommandList.id,
+                        AttributeList.id,
+                        FeatureMap.id,
+                        ClusterRevision.id,
+                    ],
+                    version,
+                ),
+                attr(NEO, AcceptedCommandList.id, [], version),
+                attr(NEO, GeneratedCommandList.id, [], version),
+                attr(NEO, 0, 1234, version),
+            ];
+        }
+
+        function descriptorServerListReport(version: number): ReadResult.Report[] {
+            return [attr(Descriptor.id, Descriptor.attributes.serverList.id, EP1_SERVER_LIST, version)];
+        }
+
+        async function* readResult(...chunks: ReadResult.Report[][]): ReadResult {
+            for (const chunk of chunks) {
+                yield chunk;
+            }
+        }
+
+        async function drain(updates: AsyncGenerator<unknown>) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            for await (const _ of updates) {
+            }
+        }
+
+        it("survives a re-interview where the descriptor precedes the absent cluster's data", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoBehaviorId = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                      )?.id;
+            };
+
+            // *** ESTABLISH SCHRÖDINGER STATE ***
+
+            // First interaction delivers data for NEO while the descriptor omits it.  Because NEO isn't yet an active
+            // behavior, it is kept (matches the startup loadCache path).
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+
+            expect(neoBehaviorId(), "NEO should be active after the initial interaction").not.undefined;
+
+            // *** RE-INTERVIEW ***
+
+            // Full wildcard read where the descriptor chunk (serverList without NEO) arrives before NEO's attribute
+            // data.  NEO must survive because the peer still serves its data.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11), neoReports(11))));
+
+            expect(neoBehaviorId(), "NEO must survive a re-interview that serves its data").not.undefined;
+        });
+
+        it("erases persisted storage when the peer genuinely drops the cluster", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const buffer = controller.env.get(ClientCacheBuffer);
+
+            const neoStorageKeys = () =>
+                Object.keys(site.storageFor("controller1")).filter(key => key.includes(NEO.toString()));
+
+            const neoActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                    )
+                );
+            };
+
+            // *** ESTABLISH AND PERSIST NEO ***
+
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+            await MockTime.resolve(buffer.flush());
+            expect(neoActive(), "NEO should be active").true;
+            expect(neoStorageKeys(), "NEO data should be persisted").not.empty;
+
+            // *** PEER DROPS NEO ***
+
+            // The descriptor still omits NEO and no attribute data is served this interaction, so NEO is genuinely
+            // gone and must be removed from both memory and storage.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
+            await MockTime.resolve(buffer.flush());
+
+            expect(neoActive(), "NEO behavior should be dropped").false;
+            expect(neoStorageKeys(), "NEO storage should be erased").empty;
+        });
+    });
 });
 
 const GLOBAL_ATTRS = [0xfff8, 0xfff9, 0xfffb, 0xfffc, 0xfffd];
@@ -1740,9 +2132,9 @@ const PEER1_STATE = {
         sessionParameters: {
             activeInterval: 300,
             activeThreshold: 4000,
-            dataModelRevision: 19,
+            dataModelRevision: Specification.DATA_MODEL_REVISION,
             idleInterval: 500,
-            interactionModelRevision: 13,
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             maxPathsPerInvoke: 10,
             maxTcpMessageSize: undefined,
             specificationVersion: Specification.SPECIFICATION_VERSION,
@@ -1755,6 +2147,7 @@ const PEER1_STATE = {
     },
     network: {
         autoSubscribe: true,
+        autoStateInitialize: undefined,
         isDisabled: false,
         port: 0x15a4,
         operationalPort: -1,
@@ -1764,7 +2157,7 @@ const PEER1_STATE = {
     },
     basicInformation: {
         clusterRevision: 6,
-        configurationVersion: undefined,
+        configurationVersion: 1,
         dataModelRevision: Specification.DATA_MODEL_REVISION,
         vendorName: "Matter.js Test Vendor",
         vendorId: 0xfff1,
@@ -1787,23 +2180,23 @@ const PEER1_STATE = {
         capabilityMinima: {
             caseSessionsPerFabric: 3,
             subscriptionsPerFabric: 3,
-            simultaneousInvocationsSupported: 6,
-            simultaneousWritesSupported: 4,
-            readPathsSupported: 9,
-            subscribePathsSupported: 3,
+            simultaneousInvocationsSupported: 20,
+            simultaneousWritesSupported: 20,
+            readPathsSupported: 20,
+            subscribePathsSupported: 20,
         },
         productAppearance: undefined,
         specificationVersion: Specification.SPECIFICATION_VERSION,
         maxPathsPerInvoke: 10,
         featureMap: {},
-        attributeList: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, ...GLOBAL_ATTRS],
+        attributeList: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, 0x18, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
     },
     accessControl: {
         clusterRevision: 3,
-        featureMap: { extension: true, managedDevice: false, auxiliary: true },
+        featureMap: { extension: true, managedDevice: false, auxiliary: false },
         acl: [
             {
                 privilege: 5,
@@ -1815,24 +2208,25 @@ const PEER1_STATE = {
             },
         ],
         extension: [],
-        auxiliaryAcl: [],
+        auxiliaryAcl: undefined,
         subjectsPerAccessControlEntry: 4,
         targetsPerAccessControlEntry: 4,
         accessControlEntriesPerFabric: 4,
         commissioningArl: undefined,
         arl: undefined,
-        attributeList: [0, 1, 2, 3, 4, 7, ...GLOBAL_ATTRS],
+        attributeList: [0, 1, 2, 3, 4, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
     },
     groupKeyManagement: {
         clusterRevision: 3,
-        featureMap: { cacheAndSync: false, groupcast: true },
+        featureMap: { cacheAndSync: false, groupcast: false },
         groupKeyMap: [],
         groupTable: [],
         maxGroupsPerFabric: 0x16,
         maxGroupKeysPerFabric: 0x14,
+        groupcastAdoption: undefined,
         attributeList: [0, 1, 2, 3, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 1, 3, 4],

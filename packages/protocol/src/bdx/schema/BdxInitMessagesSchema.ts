@@ -14,7 +14,7 @@ export const BDX_VERSION = 0;
  * BDX Transfer protocol bitmap definition
  * Bit 7 is reserved for future use
  *
- * @see {@link MatterSpecification.v141.Core}, section 11.22.5.1
+ * @see {@link MatterSpecification.v16.Core}, section 11.22.5.1
  */
 export const BdxTransferControlBitmap = {
     /** Protocol Version, Only allowed version is 0.0 for now */
@@ -38,7 +38,7 @@ export const BdxTransferControlSchema = BitmapSchema(BdxTransferControlBitmap);
  * BDX Range control bitmap definition
  * Bits 2-3 and 5-7 is reserved for future use
  *
- * @see {@link MatterSpecification.v141.Core}, section 11.22.5.1
+ * @see {@link MatterSpecification.v16.Core}, section 11.22.5.1
  */
 export const BdxRangeControlBitmap = {
     /** Indicates if the transfer has a definite length */
@@ -55,7 +55,7 @@ export const BdxRangeControlBitmap = {
 };
 export const BdxRangeControlSchema = BitmapSchema(BdxRangeControlBitmap);
 
-/** @see {@link MatterSpecification.v141.Core}, section 11.22.5.1 */
+/** @see {@link MatterSpecification.v16.Core}, section 11.22.5.1 */
 export type BdxInit = {
     /**
      * Transfer protocol details

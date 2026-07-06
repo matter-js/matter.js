@@ -21,12 +21,19 @@ import {
     ec,
     HashAlgorithm,
 } from "./Crypto.js";
-import { CryptoDecryptError, CryptoVerifyError } from "./CryptoError.js";
+import { CryptoDecryptError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
 
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
+
+/** Matches the tag length range NIST SP 800-38C permits, enforced identically in aes/Ccm.ts. */
+function assertValidTagLength(tagLength: number) {
+    if (tagLength < 4 || tagLength > 16 || tagLength % 2 !== 0) {
+        throw new CryptoInputError("Tag length must be an even value between 4 and 16 bytes");
+    }
+}
 
 /**
  * A crypto API implemented in the style of Node.js.
@@ -154,9 +161,10 @@ export class NodeJsStyleCrypto extends Crypto {
         this.#crypto = (crypto ?? NodeJsStyleCrypto.detectedCrypto)!;
     }
 
-    encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes {
+    encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength = CRYPTO_AUTH_TAG_LENGTH): Bytes {
+        assertValidTagLength(tagLength);
         const cipher = this.#crypto.createCipheriv(CRYPTO_ENCRYPT_ALGORITHM, Bytes.of(key), Bytes.of(nonce), {
-            authTagLength: CRYPTO_AUTH_TAG_LENGTH,
+            authTagLength: tagLength,
         });
         if (aad !== undefined) {
             cipher.setAAD(Bytes.of(aad), { plaintextLength: data.byteLength });
@@ -166,12 +174,16 @@ export class NodeJsStyleCrypto extends Crypto {
         return Bytes.concat(Bytes.of(encrypted), Bytes.of(cipher.getAuthTag()));
     }
 
-    decrypt(key: Bytes, encrypted: Bytes, nonce: Bytes, aad?: Bytes): Bytes {
+    decrypt(key: Bytes, encrypted: Bytes, nonce: Bytes, aad?: Bytes, tagLength = CRYPTO_AUTH_TAG_LENGTH): Bytes {
+        assertValidTagLength(tagLength);
         const cipher = this.#crypto.createDecipheriv(CRYPTO_ENCRYPT_ALGORITHM, Bytes.of(key), Bytes.of(nonce), {
-            authTagLength: CRYPTO_AUTH_TAG_LENGTH,
+            authTagLength: tagLength,
         });
         const data = Bytes.of(encrypted);
-        const plaintextLength = data.length - CRYPTO_AUTH_TAG_LENGTH;
+        const plaintextLength = data.length - tagLength;
+        if (plaintextLength < 0) {
+            throw new CryptoInputError(`Cannot decrypt ciphertext shorter than tag length of ${tagLength}`);
+        }
         if (aad !== undefined) {
             cipher.setAAD(Bytes.of(aad), { plaintextLength });
         }

@@ -11,13 +11,14 @@ import {
     ClusterElement as Cluster,
     AttributeElement as Attribute,
     FieldElement as Field,
+    EventElement as Event,
     CommandElement as Command,
     DatatypeElement as Datatype
 } from "../../elements/index.js";
 
 export const Thermostat = Cluster(
     { name: "Thermostat", id: 0x201, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 10 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 11 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -28,7 +29,9 @@ export const Thermostat = Cluster(
         Field({ name: "AUTO", conformance: "O", constraint: "5", title: "AutoMode" }),
         Field({ name: "LTNE", conformance: "O", constraint: "6", title: "LocalTemperatureNotExposed" }),
         Field({ name: "MSCH", conformance: "O", constraint: "7", title: "MatterScheduleConfiguration" }),
-        Field({ name: "PRES", conformance: "O", constraint: "8", title: "Presets" })
+        Field({ name: "PRES", conformance: "O", constraint: "8", title: "Presets" }),
+        Field({ name: "TEVT", conformance: "P, O", constraint: "9", title: "Events" }),
+        Field({ name: "TSUGGEST", conformance: "[PRES]", constraint: "10", title: "ThermostatSuggestions" })
     ),
 
     Attribute({ name: "LocalTemperature", id: 0x0, type: "temperature", access: "R V", conformance: "M", quality: "X" }),
@@ -113,7 +116,7 @@ export const Thermostat = Cluster(
     }),
     Attribute({
         name: "ThermostatRunningMode", id: 0x1e, type: "ThermostatRunningModeEnum", access: "R V",
-        conformance: "[AUTO]", constraint: "desc", default: 0
+        conformance: "TEVT & AUTO, [AUTO]", constraint: "desc", default: 0
     }),
     Attribute({
         name: "TemperatureSetpointHold", id: 0x23, type: "TemperatureSetpointHoldEnum", access: "RW VM",
@@ -237,6 +240,79 @@ export const Thermostat = Cluster(
         name: "SetpointHoldExpiryTimestamp", id: 0x52, type: "epoch-s", access: "R V", conformance: "O",
         default: null, quality: "X N"
     }),
+    Attribute({
+        name: "MaxThermostatSuggestions", id: 0x53, type: "uint8", access: "R V", conformance: "TSUGGEST",
+        constraint: "min 5", quality: "F"
+    }),
+
+    Attribute(
+        {
+            name: "ThermostatSuggestions", id: 0x54, type: "list", access: "R V", conformance: "TSUGGEST",
+            constraint: "max maxThermostatSuggestions", quality: "N"
+        },
+        Field({ name: "entry", type: "ThermostatSuggestionStruct" })
+    ),
+
+    Attribute({
+        name: "CurrentThermostatSuggestion", id: 0x55, type: "ThermostatSuggestionStruct", access: "R V",
+        conformance: "TSUGGEST", quality: "X"
+    }),
+    Attribute({
+        name: "ThermostatSuggestionNotFollowingReason", id: 0x56,
+        type: "ThermostatSuggestionNotFollowingReasonBitmap", access: "R V", conformance: "TSUGGEST",
+        quality: "X"
+    }),
+    Event(
+        { name: "SystemModeChange", id: 0x0, access: "V", conformance: "P, TEVT", priority: "info" },
+        Field({ name: "PreviousSystemMode", id: 0x0, type: "SystemModeEnum", conformance: "O" }),
+        Field({ name: "CurrentSystemMode", id: 0x1, type: "SystemModeEnum", conformance: "M" })
+    ),
+    Event(
+        { name: "LocalTemperatureChange", id: 0x1, access: "V", conformance: "P, TEVT & !LTNE", priority: "info" },
+        Field({ name: "CurrentLocalTemperature", id: 0x0, type: "temperature", conformance: "M", quality: "X" })
+    ),
+    Event(
+        { name: "OccupancyChange", id: 0x2, access: "V", conformance: "P, TEVT & OCC", priority: "info" },
+        Field({ name: "PreviousOccupancy", id: 0x0, type: "OccupancyBitmap", conformance: "O" }),
+        Field({ name: "CurrentOccupancy", id: 0x1, type: "OccupancyBitmap", conformance: "M" })
+    ),
+
+    Event(
+        { name: "SetpointChange", id: 0x3, access: "V", conformance: "P, TEVT", priority: "info" },
+        Field({ name: "SystemMode", id: 0x0, type: "SystemModeEnum", conformance: "M", constraint: "heat, cool" }),
+        Field({ name: "Occupancy", id: 0x1, type: "OccupancyBitmap", conformance: "OCC", default: 1 }),
+        Field({ name: "PreviousSetpoint", id: 0x2, type: "temperature", conformance: "O" }),
+        Field({ name: "CurrentSetpoint", id: 0x3, type: "temperature", conformance: "M" })
+    ),
+
+    Event(
+        { name: "RunningStateChange", id: 0x4, access: "V", conformance: "P, TEVT", priority: "info" },
+        Field({ name: "PreviousRunningState", id: 0x0, type: "RelayStateBitmap", conformance: "O" }),
+        Field({ name: "CurrentRunningState", id: 0x1, type: "RelayStateBitmap", conformance: "M" })
+    ),
+    Event(
+        { name: "RunningModeChange", id: 0x5, access: "V", conformance: "P, TEVT & AUTO", priority: "info" },
+        Field({ name: "PreviousRunningMode", id: 0x0, type: "ThermostatRunningModeEnum", conformance: "O" }),
+        Field({ name: "CurrentRunningMode", id: 0x1, type: "ThermostatRunningModeEnum", conformance: "M" })
+    ),
+
+    Event(
+        { name: "ActiveScheduleChange", id: 0x6, access: "V", conformance: "P, TEVT & MSCH", priority: "info" },
+        Field({
+            name: "PreviousScheduleHandle", id: 0x0, type: "octstr", conformance: "O", constraint: "max 16",
+            quality: "X"
+        }),
+        Field({
+            name: "CurrentScheduleHandle", id: 0x1, type: "octstr", conformance: "M", constraint: "max 16",
+            quality: "X"
+        })
+    ),
+
+    Event(
+        { name: "ActivePresetChange", id: 0x7, access: "V", conformance: "P, TEVT & PRES", priority: "info" },
+        Field({ name: "PreviousPresetHandle", id: 0x0, type: "octstr", conformance: "O", constraint: "max 16", quality: "X" }),
+        Field({ name: "CurrentPresetHandle", id: 0x1, type: "octstr", conformance: "M", constraint: "max 16", quality: "X" })
+    ),
 
     Command(
         {
@@ -261,6 +337,29 @@ export const Thermostat = Cluster(
             response: "status"
         },
         Field({ name: "PresetHandle", id: 0x0, type: "octstr", conformance: "M", constraint: "max 16", quality: "X" })
+    ),
+
+    Command(
+        {
+            name: "AddThermostatSuggestion", id: 0x7, access: "M", conformance: "TSUGGEST",
+            direction: "request", response: "AddThermostatSuggestionResponse"
+        },
+        Field({ name: "PresetHandle", id: 0x0, type: "octstr", conformance: "M", constraint: "max 16" }),
+        Field({ name: "EffectiveTime", id: 0x1, type: "epoch-s", conformance: "M", constraint: "desc", quality: "X" }),
+        Field({ name: "ExpirationInMinutes", id: 0x2, type: "uint16", conformance: "M", constraint: "30 to 1440" })
+    ),
+
+    Command(
+        { name: "AddThermostatSuggestionResponse", id: 0x2, conformance: "TSUGGEST", direction: "response" },
+        Field({ name: "UniqueId", id: 0x0, type: "uint8", conformance: "M" })
+    ),
+
+    Command(
+        {
+            name: "RemoveThermostatSuggestion", id: 0x8, access: "M", conformance: "TSUGGEST",
+            direction: "request", response: "status"
+        },
+        Field({ name: "UniqueId", id: 0x0, type: "uint8", conformance: "M" })
     ),
 
     Command(
@@ -358,6 +457,19 @@ export const Thermostat = Cluster(
         Field({ name: "HeatSetpointPresent", constraint: "0" }),
         Field({ name: "CoolSetpointPresent", constraint: "1" })
     ),
+
+    Datatype(
+        { name: "ThermostatSuggestionNotFollowingReasonBitmap", type: "map16" },
+        Field({ name: "DemandResponseEvent", constraint: "0" }),
+        Field({ name: "OngoingHold", constraint: "1" }),
+        Field({ name: "Schedule", constraint: "2" }),
+        Field({ name: "Occupancy", constraint: "3" }),
+        Field({ name: "VacationMode", constraint: "4" }),
+        Field({ name: "TimeOfUseCostSavings", constraint: "5" }),
+        Field({ name: "PreCoolingOrPreHeating", constraint: "6" }),
+        Field({ name: "ConflictingSuggestions", constraint: "7" })
+    ),
+
     Datatype({ name: "ACCapacityFormatEnum", type: "enum8" }, Field({ name: "BtUh", id: 0x0, conformance: "O" })),
 
     Datatype(
@@ -535,6 +647,14 @@ export const Thermostat = Cluster(
             name: "ScheduleTypeFeatures", id: 0x2, type: "ScheduleTypeFeaturesBitmap", conformance: "M",
             constraint: "desc", default: 0
         })
+    ),
+
+    Datatype(
+        { name: "ThermostatSuggestionStruct", type: "struct" },
+        Field({ name: "UniqueId", id: 0x0, type: "uint8", conformance: "M" }),
+        Field({ name: "PresetHandle", id: 0x1, type: "octstr", conformance: "M", constraint: "max 16" }),
+        Field({ name: "EffectiveTime", id: 0x2, type: "epoch-s", conformance: "M" }),
+        Field({ name: "ExpirationTime", id: 0x3, type: "epoch-s", conformance: "M" })
     ),
 
     Datatype({ name: "TemperatureDifference", type: "int16" }),

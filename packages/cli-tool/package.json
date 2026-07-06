@@ -39,11 +39,11 @@
         "@matter/model": "*",
         "@matter/node": "*",
         "@matter/protocol": "*",
-        "@nacho-iot/js-tools": "^0.1.5",
+        "@nacho-iot/js-tools": "^0.1.7",
         "@matter/types": "*",
         "@matter/nodejs": "*",
         "@types/escodegen": "^0.0.10",
-        "acorn": "^8.16.0",
+        "acorn": "^8.17.0",
         "ansi-colors": "^4.1.3",
         "escodegen": "^2.1.0"
     },

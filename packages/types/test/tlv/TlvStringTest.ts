@@ -50,6 +50,24 @@ describe("TlvString", () => {
 
             expect(result).equal("testè");
         });
+
+        it("truncates a character string at the first Information Separator 1 (0x1F)", () => {
+            const result = TlvString.decode(Bytes.fromHex("0c0561621f6364"));
+
+            expect(result).equal("ab");
+        });
+
+        it("returns an empty string when Information Separator 1 (0x1F) is the first code point", () => {
+            const result = TlvString.decode(Bytes.fromHex("0c031f6364"));
+
+            expect(result).equal("");
+        });
+
+        it("enforces maxLength against the raw on-wire string, not the truncated prefix", () => {
+            const Bounded = TlvString.bound({ maxLength: 4 });
+
+            expect(() => Bounded.decode(Bytes.fromHex("0c0661621f636465"))).throw(ValidationError, "too long");
+        });
     });
 
     describe("calculate byte size", () => {
@@ -96,6 +114,12 @@ describe("TlvByteString", () => {
 
             expect(Bytes.toHex(result)).equal("0001");
         });
+
+        it("does not truncate a byte string at 0x1F (IS1 rule is character-string only)", () => {
+            const result = TlvByteString.decode(Bytes.fromHex("1003001f02"));
+
+            expect(Bytes.toHex(result)).equal("001f02");
+        });
     });
 
     describe("validate ByteString", () => {
@@ -121,6 +145,17 @@ describe("TlvByteString", () => {
 
         it("throws an error if the value is not a String", () => {
             expect(() => TlvString.validate(true as any)).throw(ValidationError, "Expected string, got boolean.");
+        });
+
+        it("throws an error if a character string contains Information Separator 1 (0x1F)", () => {
+            expect(() => TlvString.validate("ab\u001fcd")).throw(
+                ValidationError,
+                "Character string must not contain Information Separator 1 (0x1F).",
+            );
+        });
+
+        it("does not reject a byte string containing 0x1F", () => {
+            expect(() => TlvByteString.validate(Bytes.fromHex("001f02"))).not.throw();
         });
     });
 });

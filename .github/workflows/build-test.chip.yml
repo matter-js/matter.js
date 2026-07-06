@@ -11,7 +11,7 @@
 #
 #   * It will build a new image if:
 #
-#     * The commit message includes [rebuild-chip]
+#     * The head commit message includes [rebuild-chip] (works on both push and pull_request)
 #
 #     * A PR modifies the workflow file or files under matter.js/chip change
 #
@@ -20,7 +20,8 @@
 #   * It runs CHIP tests.  If a new image was built, it tests that image.  Otherwise it tests the latest image in the
 #     registry
 #
-#   * It publishes the new image if tests pass after nightly runs
+#   * It publishes the new image (and PRs the new CHIP SHA) only on the nightly/manual jobs.  Builds triggered by a
+#     push or pull_request are test-only and never published.
 
 name: CHIP Image - Build and Test
 
@@ -53,9 +54,12 @@ jobs:
     outputs:
       build-needed: ${{ steps.check-rebuild.outputs.build-needed }}
       controllers: ${{ steps.controllers.outputs.controllers }}
+      rebuild-marker: ${{ steps.marker.outputs.present }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: dorny/paths-filter@v4
         id: changes
@@ -65,6 +69,26 @@ jobs:
             src:
               - "support/chip/**"
 
+      # head_commit is only populated on push events, so the marker would never match on pull_request.  Scan the PR's
+      # commit messages (so any commit in the PR may carry the marker), and the head commit message on push.
+      - name: Detect rebuild marker
+        id: marker
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -n "$PR_BASE_SHA" ]; then
+            msg="$(git log --format=%B "$PR_BASE_SHA".."$PR_HEAD_SHA")"
+          else
+            msg="$PUSH_MSG"
+          fi
+          if printf '%s' "$msg" | grep -qF '[rebuild-chip]'; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Docker rebuild needed
         if: >-
               github.event_name == 'schedule' ||
@@ -73,15 +97,16 @@ jobs:
                 steps.changes.outputs.src == 'true'
               ) ||
               github.event_name == 'workflow_dispatch'||
-              contains(github.event.head_commit.message, '[rebuild-chip]') == true
+              steps.marker.outputs.present == 'true'
         id: check-rebuild
         run: echo "build-needed=true" >> $GITHUB_OUTPUT
 
-      # Run the additional matter.js WebSocket controller variant only on scheduled/manual runs to keep PR cycles fast
+      # Run the additional matter.js WebSocket controller variant on scheduled/manual runs and whenever CHIP image
+      # files change; otherwise stick to chiptool only to keep PR cycles fast
       - name: Determine controllers to test
         id: controllers
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.src }}" = "true" ]; then
             echo 'controllers=["chiptool","matterjs"]' >> $GITHUB_OUTPUT
           else
             echo 'controllers=["chiptool"]' >> $GITHUB_OUTPUT
@@ -97,18 +122,27 @@ jobs:
     steps:
       - name: Check out matter.js
         if: needs.workflow-conditions.outputs.build-needed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
+      # A [rebuild-chip] rebuild exists to test against the current CHIP master, so refresh the SHA before building.
+      # The resulting sha.txt is used only for this run's build; it is never committed on push/pull_request (see
+      # publish-image), so no SHA bump leaks into the PR.
       - name: Increment CHIP SHA
         id: increment-sha
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.updateChipSha)
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && inputs.updateChipSha) ||
+          needs.workflow-conditions.outputs.rebuild-marker == 'true'
         run: |
           cd support/chip
           ./bin/update-version
 
       - name: Get CHIP SHA
         id: get-sha
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: >-
+          github.event_name == 'schedule' ||
+          github.event_name == 'workflow_dispatch' ||
+          needs.workflow-conditions.outputs.rebuild-marker == 'true'
         run: |
           cd support/chip
           echo chip-sha=$(cat sha.txt) >> $GITHUB_OUTPUT
@@ -135,7 +169,7 @@ jobs:
         controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/run-chip-tests
         with:
@@ -152,7 +186,7 @@ jobs:
         controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/run-chip-tests
         with:
@@ -169,7 +203,7 @@ jobs:
         controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/run-chip-tests
         with:
@@ -186,7 +220,7 @@ jobs:
         controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/run-chip-tests
         with:
@@ -203,12 +237,29 @@ jobs:
         controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image.outputs.source }}
           test-group: app-cc-2
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
+
+  test-icd:
+    needs: [workflow-conditions, chip-image]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/run-chip-tests
+        with:
+          image-source: ${{ needs.chip-image.outputs.source }}
+          test-group: icd
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
   # Publish if this is nightly run or triggered manually
@@ -222,7 +273,8 @@ jobs:
       test-app-fast,
       test-app-slow,
       test-app-cc-1,
-      test-app-cc-2
+      test-app-cc-2,
+      test-icd
     ]
     if: >-
       needs.chip-image.outputs.source == 'artifact' &&
@@ -232,7 +284,7 @@ jobs:
       )
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Login to GitHub Docker Registry
         uses: docker/login-action@v4

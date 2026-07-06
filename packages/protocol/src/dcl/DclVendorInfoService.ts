@@ -220,7 +220,7 @@ export class DclVendorInfoService {
             });
             await this.#fetchPromise;
         } catch (error) {
-            logger.info("Error updating vendor information", error);
+            logger.info("Error updating vendor information", Diagnostic.errorMessage(asError(error)));
         }
     }
 
@@ -416,15 +416,12 @@ export class DclVendorInfoService {
                         creator: entry.creator ?? "",
                     });
                 } catch (err) {
-                    logger.error(
-                        "seed: malformed vendor entry, aborting stream",
-                        Diagnostic.errorMessage(asError(err)),
-                    );
+                    logger.warn("seed: malformed vendor entry, aborting stream", Diagnostic.errorMessage(asError(err)));
                     break;
                 }
             }
         } catch (err) {
-            logger.error("seed: vendor stream failed", Diagnostic.errorMessage(asError(err)));
+            logger.warn("seed: vendor stream failed", Diagnostic.errorMessage(asError(err)));
             return;
         }
 

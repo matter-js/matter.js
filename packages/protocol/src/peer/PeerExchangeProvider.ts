@@ -5,7 +5,7 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
+import { ExchangeProvider, NewExchangeOptions, type ReachabilityReason } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
 import { ChannelType, Duration, InternalError } from "@matter/general";
@@ -31,6 +31,14 @@ export class PeerExchangeProvider extends ExchangeProvider {
         return this.#peer.sessionParameters.maxPathsPerInvoke;
     }
 
+    override get readPathsSupported() {
+        return this.#peer.limits.readPathsSupported ?? super.readPathsSupported;
+    }
+
+    override get subscribePathsSupported() {
+        return this.#peer.limits.subscribePathsSupported ?? super.subscribePathsSupported;
+    }
+
     get peerAddress() {
         return this.#peer.address;
     }
@@ -51,10 +59,15 @@ export class PeerExchangeProvider extends ExchangeProvider {
         await this.#peer.connect({
             abort: options?.abort,
             network: options?.network,
+            additionalMrpDelay: options?.additionalMrpDelay,
             connectionTimeout: options?.connectionTimeout,
             requiredTransport: options?.requiredTransport,
             preferredTransport: options?.preferredTransport,
         });
+    }
+
+    override verifyReachability(options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        return this.#peer.verifyReachability(options);
     }
 
     override async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
@@ -72,6 +85,8 @@ export class PeerExchangeProvider extends ExchangeProvider {
             }
 
             const network = this.#context.networks.select(this.#peer, options?.network);
+            const peerAdditionalMrpDelay =
+                options?.additionalMrpDelay ?? this.#context.networks.forPeer(this.#peer).additionalMrpDelay;
             const slot = await network.semaphore.obtainSlot(abort);
 
             try {
@@ -112,6 +127,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     this.#context.exchanges,
                     session,
                     network,
+                    peerAdditionalMrpDelay,
                     options?.protocol ?? INTERACTION_PROTOCOL_ID,
                     options?.addressOverride,
                 );
@@ -135,6 +151,8 @@ export class PeerExchangeProvider extends ExchangeProvider {
             localSessionParameters: this.#context.sessions.sessionParameters,
             peerSessionParameters: includeMaximumSendingTime ? this.#peer.sessionParameters : undefined,
             expectedProcessingTime,
+            localAdditionalDelay: this.#context.sessions.localAdditionalMrpDelay,
+            localFixedBackoff: this.#context.sessions.localFixedMrpBackoff,
         });
     }
 }

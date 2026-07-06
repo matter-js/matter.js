@@ -14,6 +14,7 @@ import { OperationalBase } from "./OperationalBase.js";
 export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Vvsc {
+        Vvsc.assertTlvSize(tlv);
         return new Vvsc(OperationalCertificate.TlvVvsc.decode(tlv));
     }
 
@@ -39,7 +40,7 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
 
     /**
      * Verify requirements a Matter Intermediate CA certificate must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v12.Core} §6.5.x
+     * Rules for this are listed in @see {@link MatterSpecification.v16.Core} §6.5.x
      * // TODO ADD Verification once we know more about the chain
      */
     async verify(_crypto: Crypto) {
