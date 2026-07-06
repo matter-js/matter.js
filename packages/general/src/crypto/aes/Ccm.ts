@@ -362,7 +362,7 @@ function validateNonceAndAdata(input: Ccm.Input) {
     }
 
     if (input.adata && input.adata.length > 0xffff) {
-        throw new CryptoInputError(`Associated adata exceeds maximum length of ${MAX_PLAINTEXT_LENGTH}`);
+        throw new CryptoInputError(`Associated adata exceeds maximum length of ${0xffff}`);
     }
 }
 
