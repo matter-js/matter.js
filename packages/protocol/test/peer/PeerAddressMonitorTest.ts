@@ -93,7 +93,7 @@ function makeFixture(opts: {
         interaction,
         service: { addresses: ServerAddressSet<ServerAddressIp>(opts.discovered) },
         network: { id: "test", probeAddress: { id: "test:probe" } },
-        fabric: { icd },
+        fabric: { icd, icdActive: icd !== undefined },
     };
     const abort = new Abort();
     let trackWorkCount = 0;
