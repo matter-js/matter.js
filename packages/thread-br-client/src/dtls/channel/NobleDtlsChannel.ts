@@ -427,13 +427,13 @@ export class NobleDtlsChannel implements DtlsChannel {
             // A framing error leaves no reliable next-record boundary, so drop the rest of the
             // datagram rather than tear down the channel (RFC 6347 §4.1.2.7: bad records are discarded).
             if (bytes.length - p < DTLS_HEADER_LEN) {
-                logger.info("Dropping DTLS datagram with a truncated record header");
+                logger.debug("Dropping DTLS datagram with a truncated record header");
                 return;
             }
             const length = (bytes[p + 11] << 8) | bytes[p + 12];
             const recordEnd = p + DTLS_HEADER_LEN + length;
             if (recordEnd > bytes.length) {
-                logger.info("Dropping DTLS datagram: record length overruns the datagram");
+                logger.debug("Dropping DTLS datagram: record length overruns the datagram");
                 return;
             }
             const slice = bytes.subarray(p, recordEnd);
@@ -447,7 +447,7 @@ export class NobleDtlsChannel implements DtlsChannel {
                 if (e instanceof DtlsReplayError) {
                     logger.debug(`Dropping replayed DTLS record epoch=${e.epoch} seq=${e.sequenceNumber}`);
                 } else {
-                    logger.info(`Dropping undecodable DTLS record: ${errorOf(e).message}`);
+                    logger.debug(`Dropping undecodable DTLS record: ${errorOf(e).message}`);
                 }
                 p = recordEnd;
                 continue;
