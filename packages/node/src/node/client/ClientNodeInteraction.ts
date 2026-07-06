@@ -5,10 +5,24 @@
  */
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
+import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { ImplementationError, Lifecycle, Logger, MatterAggregateError, ObserverGroup } from "@matter/general";
+import {
+    Abort,
+    Diagnostic,
+    Duration,
+    ImplementationError,
+    Lifecycle,
+    Logger,
+    MatterAggregateError,
+    Millis,
+    ObserverGroup,
+    Seconds,
+    Time,
+} from "@matter/general";
 import {
     ClientBdxRequest,
     ClientBdxResponse,
@@ -21,8 +35,12 @@ import {
     ClientSubscriptions,
     ClientWrite,
     DecodedInvokeResult,
+    type FabricIcd,
+    FabricManager,
+    IcdPeerWakefulness,
     Interactable,
     OperationalAddressChangedError,
+    PeerAddress,
     PeerSet,
     PhysicalDeviceProperties,
     ReadResult,
@@ -30,7 +48,7 @@ import {
     Val,
     WriteResult,
 } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { EndpointNumber, NodeId } from "@matter/types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
 import { ClientNodePhysicalProperties } from "./ClientNodePhysicalProperties.js";
 
@@ -44,13 +62,18 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     #observers = new ObserverGroup();
     #interactable?: ClientInteraction;
     #interactableClosed?: Promise<unknown>;
+    #icd?: FabricIcd;
+    #icdPeerNodeId?: NodeId;
 
     constructor(node: ClientNode) {
         this.#node = node;
 
-        this.#observers.on(this.#node.events.commissioning.peerAddress$Changed, () =>
-            this.#closeInteraction(new OperationalAddressChangedError()),
-        );
+        this.#observers.on(this.#node.events.commissioning.peerAddress$Changed, () => {
+            // The cached fabric.icd is keyed to the prior peer address; a new commissioning invalidates it.
+            this.#icd = undefined;
+            this.#icdPeerNodeId = undefined;
+            this.#closeInteraction(new OperationalAddressChangedError());
+        });
         this.#observers.on(this.#node.owner?.lifecycle.goingOffline, () => this.#closeInteraction(new ShutdownError()));
     }
 
@@ -66,6 +89,12 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * request to skip version injection and always receive a full response from the server.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
+        // Hold for a LIT peer to wake before the first yield* so we never transmit into a sleeping radio.
+        const hold = this.#holdUntilAwake(request.icdAwaitTimeout);
+        if (hold !== undefined) {
+            await hold;
+        }
+
         if (
             !request.includeKnownVersions &&
             (request.isFabricFiltered ?? true) === this.#structure.subscribedFabricFiltered
@@ -79,8 +108,6 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Subscribe to remote events and attributes as defined by {@link request}.
-     *
-     * matter.js updates local state
      *
      * By default, matter.js subscribes to all attributes and events of the peer and updates {@link ClientNode} state
      * automatically.  So you normally do not need to subscribe manually.
@@ -120,6 +147,14 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             },
 
             closed: request.closed?.bind(request),
+
+            // Resolved live so a peer registered after subscribe, or flipped SIT⇄LIT at runtime, is honored without
+            // re-subscribing.
+            icdWakefulness: () => this.#icdWakefulness(),
+
+            // A subscription established before its peer was fed holds no wakefulness to observe the first
+            // registration-induced flip on; the feed signal lets it recreate on that flip.
+            icdPeerFed: () => this.#peerIcd()?.icd.peerFed,
         };
 
         return this.#interaction.subscribe(intermediateRequest, context);
@@ -130,6 +165,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * The returned attribute write status information is returned.
      */
     async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
+        const hold = this.#holdUntilAwake(request.icdAwaitTimeout);
+        if (hold !== undefined) {
+            await hold;
+        }
         return this.#interaction.write(request, context);
     }
 
@@ -146,6 +185,12 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         // For commands, by default ignore the queue because the user is responsible for managing that themselves
         if (request.network === undefined) {
             request.network = "unlimited";
+        }
+
+        // Hold for a LIT peer to wake before the first yield* so we never transmit into a sleeping radio.
+        const hold = this.#holdUntilAwake(request.icdAwaitTimeout);
+        if (hold !== undefined) {
+            await hold;
         }
 
         yield* this.#interaction.invoke(request, context);
@@ -231,6 +276,89 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     get #structure() {
         return (this.#node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+    }
+
+    /**
+     * Hold a one-shot operation until an idle LIT peer wakes, bounded by a timeout.
+     *
+     * Returns `undefined` for the common passthrough cases (non-LIT peer, unregistered peer, or an already-awake LIT
+     * peer) so callers add no latency and no microtask boundary on the hot path — important for same-tick invoke
+     * batching.  Returns a promise only when the operation must actually park; it resolves when a Check-In re-arms the
+     * awake window and rejects with {@link IcdPeerAsleepError} if the timeout elapses first.
+     */
+    #holdUntilAwake(timeout?: Duration): Promise<void> | undefined {
+        // requiresAwait is the live LIT classification (kept current through DSLS flips by IcdClient), so it gates the
+        // hold without rebuilding physical properties on every interaction.
+        const wakefulness = this.#icdWakefulness();
+        if (wakefulness === undefined || !wakefulness.requiresAwait || wakefulness.awake.value === true) {
+            return undefined;
+        }
+
+        const address = this.#node.state.commissioning.peerAddress;
+        if (address === undefined) {
+            return undefined;
+        }
+
+        // A sleeping peer wakes on its next (unreliable) Check-In, so the default wait spans the idle Check-In cadence
+        // plus the same fixed jitter slack the availability window uses for that cadence.
+        const idle = this.#node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
+        const effectiveTimeout =
+            timeout ??
+            Millis(
+                (idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) +
+                    IcdPeerWakefulness.CHECK_IN_MARGIN,
+            );
+
+        return this.#awaitWake(wakefulness, address, effectiveTimeout);
+    }
+
+    async #awaitWake(wakefulness: IcdPeerWakefulness, address: PeerAddress, timeout: Duration) {
+        const nextCheckIn = wakefulness.availableUntil;
+        logger.info(
+            "Peer is a LIT ICD in idle mode; holding interaction until it wakes",
+            Diagnostic.dict({
+                peer: PeerAddress(address),
+                timeout: Duration.format(timeout),
+                nextCheckInWithin:
+                    nextCheckIn === undefined ? undefined : Duration.format(Millis(nextCheckIn - Time.nowMs)),
+            }),
+        );
+        using abort = Abort.subtask(undefined, timeout);
+        await abort.race(wakefulness.awake);
+
+        if (abort.aborted) {
+            throw new IcdPeerAsleepError(address, timeout);
+        }
+    }
+
+    /**
+     * Wakefulness of a LIT peer, or undefined when the peer is uncommissioned or has no registered ICD entry yet.  An
+     * undefined result routes the subscription to the non-LIT path rather than throwing.
+     */
+    #icdWakefulness() {
+        const icd = this.#peerIcd();
+        return icd?.icd.wakefulnessFor(icd.nodeId);
+    }
+
+    /**
+     * The peer's {@link FabricIcd} and node ID, cached because the fabric backing a commissioned peer is stable for its
+     * lifetime.  Cleared on `peerAddress$Changed`; a not-yet-loaded fabric is not cached, so it is retried next access.
+     */
+    #peerIcd(): { icd: FabricIcd; nodeId: NodeId } | undefined {
+        if (this.#icd !== undefined && this.#icdPeerNodeId !== undefined) {
+            return { icd: this.#icd, nodeId: this.#icdPeerNodeId };
+        }
+        const address = this.#node.state.commissioning.peerAddress;
+        if (address === undefined) {
+            return undefined;
+        }
+        const icd = this.#node.env.get(FabricManager).maybeFor(address.fabricIndex)?.icd;
+        if (icd === undefined) {
+            return undefined;
+        }
+        this.#icd = icd;
+        this.#icdPeerNodeId = address.nodeId;
+        return { icd, nodeId: address.nodeId };
     }
 
     /**

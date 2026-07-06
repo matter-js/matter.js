@@ -4,10 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
 import { DataReadQueue, Millis, Seconds } from "@matter/general";
 import { MessageExchange, NodeSession } from "@matter/protocol";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
+import { LIT_CONFIG } from "./icd-helpers.js";
 import { MockServerNode } from "./mock-server-node.js";
+
+const RootWithLitIcd = MockServerNode.RootEndpoint.with(
+    IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport, IcdManagement.Feature.LongIdleTimeSupport),
+);
 
 describe("ServerSubscription", () => {
     before(() => {
@@ -17,8 +24,8 @@ describe("ServerSubscription", () => {
     // Shared helper to create a minimal subscription for unit-testing handlePeerCancel.
     // Uses a real NodeSession (from the mock node) so session.subscriptions and session.join() work,
     // but stubs the node and initiateExchange to the minimum needed.
-    async function createSubscription(
-        node: MockServerNode,
+    async function createSubscription<T extends MockServerNode.RootEndpoint>(
+        node: MockServerNode<T>,
         makeExchange: () => MessageExchange,
         overrides?: {
             minIntervalFloorSeconds?: number;
@@ -82,6 +89,50 @@ describe("ServerSubscription", () => {
         });
 
         expect(subscription.maxInterval).to.be.at.least(Seconds(floorSeconds));
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("grants LIT ICD publisher maxInterval === idleModeDuration when the client requests a higher ceiling", async () => {
+        const node = await MockServerNode.createOnline({ type: RootWithLitIcd, icdManagement: LIT_CONFIG });
+
+        const subscription = await createSubscription(node, () => ({}) as any, {
+            minIntervalFloorSeconds: 0,
+            maxIntervalCeilingSeconds: 7200, // above idleModeDuration (3600 s)
+            negotiateIntervals: true,
+        });
+
+        expect(subscription.maxInterval).equals(Seconds(LIT_CONFIG.idleModeDuration));
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("grants LIT ICD publisher maxInterval === idleModeDuration when the client requests a lower ceiling", async () => {
+        const node = await MockServerNode.createOnline({ type: RootWithLitIcd, icdManagement: LIT_CONFIG });
+
+        const subscription = await createSubscription(node, () => ({}) as any, {
+            minIntervalFloorSeconds: 0,
+            maxIntervalCeilingSeconds: 1800, // below idleModeDuration (3600 s)
+            negotiateIntervals: true,
+        });
+
+        expect(subscription.maxInterval).equals(Seconds(LIT_CONFIG.idleModeDuration));
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("uses the generic (non-ICD) interval calculation for a non-ICD publisher", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const subscription = await createSubscription(node, () => ({}) as any, {
+            minIntervalFloorSeconds: 0,
+            maxIntervalCeilingSeconds: 60,
+            negotiateIntervals: true,
+        });
+
+        // Generic path: min(configured 3 min, ceiling 60 s) + up to 10 s randomization, never idleModeDuration.
+        expect(subscription.maxInterval).to.be.at.least(Seconds(60));
+        expect(subscription.maxInterval).to.be.below(Seconds(70));
 
         await MockTime.resolve(node.close());
     });

@@ -78,7 +78,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [ -n "$PR_HEAD_SHA" ]; then
+          if [ -n "$PR_BASE_SHA" ]; then
             msg="$(git log --format=%B "$PR_BASE_SHA".."$PR_HEAD_SHA")"
           else
             msg="$PUSH_MSG"
@@ -245,6 +245,23 @@ jobs:
           test-group: app-cc-2
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
+  test-icd:
+    needs: [workflow-conditions, chip-image]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJson(needs.workflow-conditions.outputs.controllers) }}
+    steps:
+      - name: Check out matter.js
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/run-chip-tests
+        with:
+          image-source: ${{ needs.chip-image.outputs.source }}
+          test-group: icd
+          use-local-controller: ${{ matrix.controller == 'matterjs' }}
+
   # Publish if this is nightly run or triggered manually
   # TODO - create PR to commit SHA from chip-image action?
   publish-image:
@@ -256,7 +273,8 @@ jobs:
       test-app-fast,
       test-app-slow,
       test-app-cc-1,
-      test-app-cc-2
+      test-app-cc-2,
+      test-icd
     ]
     if: >-
       needs.chip-image.outputs.source == 'artifact' &&

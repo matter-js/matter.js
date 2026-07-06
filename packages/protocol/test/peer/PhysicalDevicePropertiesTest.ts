@@ -5,7 +5,7 @@
  */
 
 import { PhysicalDeviceProperties } from "#peer/PhysicalDeviceProperties.js";
-import { Instant, Seconds } from "@matter/general";
+import { Instant, Minutes, Seconds, UINT16_MAX } from "@matter/general";
 import { GenericSwitchDt } from "@matter/model";
 import { DeviceTypeId } from "@matter/types";
 
@@ -20,10 +20,17 @@ const BASE_PROPERTIES: PhysicalDeviceProperties = {
     isMainsPowered: true,
     isBatteryPowered: false,
     isIntermittentlyConnected: false,
+    isLongIdleTimeOperating: false,
     isThreadSleepyEndDevice: false,
 };
 
 describe("PhysicalDeviceProperties", () => {
+    describe("isLongIdleTimeOperating", () => {
+        it("defaults to false in BASE_PROPERTIES", () => {
+            expect(BASE_PROPERTIES.isLongIdleTimeOperating).to.equal(false);
+        });
+    });
+
     describe("subscriptionIntervalBoundsFor", () => {
         // specificationVersion encoding for Matter 1.3.0.
         const SPEC_1_3 = 0x0103_0000;
@@ -187,6 +194,14 @@ describe("PhysicalDeviceProperties", () => {
                 expectJittered(maxIntervalCeiling, 60);
             });
 
+            it("applies jitter when Thread is not active", () => {
+                const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                    properties: { ...BASE_PROPERTIES, supportsThread: true, threadActive: false },
+                });
+
+                expectJittered(maxIntervalCeiling, 60);
+            });
+
             it("applies jitter for an ICD device while keeping the Instant floor", () => {
                 const { minIntervalFloor, maxIntervalCeiling } = subscriptionIntervalBoundsFor({
                     properties: { ...BASE_PROPERTIES, isIntermittentlyConnected: true },
@@ -194,6 +209,73 @@ describe("PhysicalDeviceProperties", () => {
 
                 expect(minIntervalFloor).to.equal(Instant);
                 expectJittered(maxIntervalCeiling, 60);
+            });
+
+            describe("ICD idle-synced ceiling", () => {
+                it("uses idleModeDuration exactly as the ceiling for an ICD peer, with no jitter", () => {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        properties: {
+                            ...BASE_PROPERTIES,
+                            isIntermittentlyConnected: true,
+                            idleModeDuration: Seconds(60),
+                        },
+                    });
+                    expect(maxIntervalCeiling).to.equal(Seconds(60));
+                });
+
+                it("scales the ceiling to a long idleModeDuration, with no jitter", () => {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        properties: {
+                            ...BASE_PROPERTIES,
+                            isIntermittentlyConnected: true,
+                            idleModeDuration: Minutes(60),
+                        },
+                    });
+                    expect(maxIntervalCeiling).to.equal(Seconds(3600));
+                });
+
+                it("prefers idleModeDuration over the battery ceiling for a battery-powered ICD, with no jitter", () => {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        properties: {
+                            ...BASE_PROPERTIES,
+                            isBatteryPowered: true,
+                            isMainsPowered: false,
+                            isIntermittentlyConnected: true,
+                            idleModeDuration: Seconds(60),
+                        },
+                    });
+                    expect(maxIntervalCeiling).to.equal(Seconds(60));
+                });
+
+                it("clamps a huge idleModeDuration to the uint16 wire max, with no jitter", () => {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        properties: {
+                            ...BASE_PROPERTIES,
+                            isIntermittentlyConnected: true,
+                            idleModeDuration: Seconds(100_000),
+                        },
+                    });
+                    expect(maxIntervalCeiling).to.equal(Seconds(UINT16_MAX));
+                });
+
+                it("passes an explicitly requested ceiling through unchanged for an ICD peer, with no jitter", () => {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        properties: {
+                            ...BASE_PROPERTIES,
+                            isIntermittentlyConnected: true,
+                            idleModeDuration: Seconds(60),
+                        },
+                        request: { maxIntervalCeiling: Seconds(45) },
+                    });
+                    expect(maxIntervalCeiling).to.equal(Seconds(45));
+                });
+
+                it("falls back to the generic ICD ceiling when idleModeDuration is unknown", () => {
+                    const { maxIntervalCeiling } = subscriptionIntervalBoundsFor({
+                        properties: { ...BASE_PROPERTIES, isIntermittentlyConnected: true },
+                    });
+                    expectJittered(maxIntervalCeiling, 60);
+                });
             });
         });
     });

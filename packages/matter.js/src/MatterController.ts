@@ -535,6 +535,8 @@ export class MatterController {
                 commissioningFlowImpl,
                 caseAuthenticatedTags,
                 autoSubscribe: false,
+                // PairedNode performs its own one-time read, so suppress the NetworkClient post-commission read here
+                autoStateInitialize: false,
                 wifiNetwork: options.commissioning.wifiNetwork,
                 threadNetwork: options.commissioning.threadNetwork,
                 regulatoryLocation: options.commissioning.regulatoryLocation,
@@ -553,6 +555,8 @@ export class MatterController {
                 commissioningFlowImpl,
                 caseAuthenticatedTags,
                 autoSubscribe: false,
+                // PairedNode performs its own one-time read, so suppress the NetworkClient post-commission read here
+                autoStateInitialize: false,
                 timeout,
                 discoveryCapabilities,
                 finalizeCommissioning,

@@ -78,7 +78,7 @@ function peerAddressDiagnostic(session: Session | undefined) {
 const MAX_COMMAND_REF = 0xffff;
 
 /** Higher processing time to give devices a bit more time to send updates. */
-const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
+export const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
 
 /**
  * Probe commands in a {@link ClientInvoke} for the Matter "Large Message Quality" ("L") flag.
@@ -1019,6 +1019,8 @@ export class ClientInteraction<
                         ? // TCP evicts the session when its connection drops, so no liveness probe is needed.
                           Promise.resolve(true)
                         : this.#exchangeProvider.verifyReachability({ reason: "session-suspect", abort }),
+                wakefulness: request.icdWakefulness,
+                peerFed: request.icdPeerFed,
             });
         } else {
             subscription = await subscribe(request);

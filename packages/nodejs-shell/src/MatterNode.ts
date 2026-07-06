@@ -6,6 +6,7 @@
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import {
+    Diagnostic,
     Environment,
     Filesystem,
     Logger,
@@ -17,8 +18,59 @@ import {
 import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
-import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
+import {
+    CommissioningControllerNodeOptions,
+    Endpoint,
+    NodeStateInformation,
+    PairedNode,
+} from "@project-chip/matter.js/device";
 import { join } from "node:path";
+
+/**
+ * The shell's default per-node diagnostic callbacks — state-information, attribute-change and event logging. Applied by
+ * default to every {@link MatterNode.connectAndGetNodes} connection so any command that reaches a node (not just
+ * `nodes connect`) gets the same logging regardless of which command touched the node first.
+ */
+export function createDiagnosticCallbacks(): Partial<CommissioningControllerNodeOptions> {
+    return {
+        attributeChangedCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
+            console.log(
+                `attributeChangedCallback ${peerNodeId}: Attribute ${nodeId}/${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
+                    value,
+                )}`,
+            ),
+        eventTriggeredCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, eventName }, events }) =>
+            console.log(
+                `eventTriggeredCallback ${peerNodeId}: Event ${nodeId}/${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
+                    events,
+                )}`,
+            ),
+        stateInformationCallback: (peerNodeId, info) => {
+            switch (info) {
+                case NodeStateInformation.Connected:
+                    console.log(`stateInformationCallback Node ${peerNodeId} connected`);
+                    break;
+                case NodeStateInformation.Disconnected:
+                    console.log(`stateInformationCallback Node ${peerNodeId} disconnected`);
+                    break;
+                case NodeStateInformation.Reconnecting:
+                    console.log(`stateInformationCallback Node ${peerNodeId} reconnecting`);
+                    break;
+                case NodeStateInformation.WaitingForDeviceDiscovery:
+                    console.log(
+                        `stateInformationCallback Node ${peerNodeId} waiting that device gets discovered again`,
+                    );
+                    break;
+                case NodeStateInformation.StructureChanged:
+                    console.log(`stateInformationCallback Node ${peerNodeId} structure changed`);
+                    break;
+                case NodeStateInformation.Decommissioned:
+                    console.log(`stateInformationCallback Node ${peerNodeId} decommissioned`);
+                    break;
+            }
+        },
+    };
+}
 
 const logger = Logger.get("Node");
 
@@ -197,12 +249,16 @@ export class MatterNode {
             throw new Error("CommissioningController not initialized");
         }
 
+        // Default the shell's diagnostic callbacks so a node reached via any command (icd, cluster-*, subscribe, …),
+        // not just `nodes connect`, gets the same logging. A caller-supplied option still wins.
+        const options = { ...createDiagnosticCallbacks(), ...connectOptions };
+
         if (nodeId === undefined) {
-            return await this.commissioningController.connect(connectOptions);
+            return await this.commissioningController.connect(options);
         }
 
         const node = await this.commissioningController.connectNode(nodeId, {
-            ...connectOptions /*autoConnect: false*/,
+            ...options /*autoConnect: false*/,
         });
         if (!node.initialized) {
             await node.events.initialized;

@@ -39,6 +39,7 @@ function makeFixture(opts: {
     stabilizationDelay?: Duration;
     cooldown?: { minimum: Duration; maximum: Duration };
     gate?: Promise<boolean>; // when set, the current-address probe resolves with this (to hold a run in flight)
+    icdAwait?: boolean; // when set, the peer's fabric reports a LIT ICD whose `requiresAwait` is this value
 }) {
     const probeCalls = new Array<ProbeCall>();
     let closedPeer = false;
@@ -84,6 +85,7 @@ function makeFixture(opts: {
             },
         },
     };
+    const icd = opts.icdAwait === undefined ? undefined : { wakefulnessFor: () => ({ requiresAwait: opts.icdAwait }) };
     const peer = {
         address: { fabricIndex: 1, nodeId: 1n },
         hasSession: true,
@@ -91,6 +93,7 @@ function makeFixture(opts: {
         interaction,
         service: { addresses: ServerAddressSet<ServerAddressIp>(opts.discovered) },
         network: { id: "test", probeAddress: { id: "test:probe" } },
+        fabric: { icd, icdActive: icd !== undefined },
     };
     const abort = new Abort();
     let trackWorkCount = 0;
@@ -272,6 +275,71 @@ describe("PeerAddressMonitor.verifyReachability", () => {
 
         expect(result).equal(false); // the caller bailed on its own abort
         expect(f.probeCalls.length).equal(1); // the run still issued its probe (owned by the peer abort, not the caller's)
+    });
+
+    it("sleeping LIT ICD whose address left mDNS: adopts a discovered address on trust, no probe", async () => {
+        const f = makeFixture({
+            currentIp: "fd00::1",
+            discovered: [udp("fd00::2")],
+            reachable: new Set(), // nothing answers — proves we never probe
+            icdAwait: true,
+        });
+
+        const result = await f.monitor.verifyReachability({ reason: "address-change" });
+        f.stop();
+
+        expect(result).equal(true);
+        expect(f.probeCalls.length).equal(0); // never probe a sleeping ICD
+        expect(f.channel.networkAddress.ip).equal("fd00::2"); // adopted on trust
+        expect(f.peerLoss).equal(false); // healthy session preserved
+    });
+
+    it("sleeping LIT ICD prefers a discovered address in the session's IP family", async () => {
+        const f = makeFixture({
+            currentIp: "fd00::1",
+            discovered: [udp("10.0.0.5"), udp("fd00::2")], // IPv4 first, but session is IPv6
+            reachable: new Set(),
+            icdAwait: true,
+        });
+
+        const result = await f.monitor.verifyReachability({ reason: "address-change" });
+        f.stop();
+
+        expect(result).equal(true);
+        expect(f.channel.networkAddress.ip).equal("fd00::2"); // same family as the session, not the first candidate
+    });
+
+    it("sleeping LIT ICD still in mDNS: keeps its address untouched, no probe", async () => {
+        const f = makeFixture({
+            currentIp: "fd00::1",
+            discovered: [udp("fd00::1")],
+            reachable: new Set(),
+            icdAwait: true,
+        });
+
+        const result = await f.monitor.verifyReachability({ reason: "address-change" });
+        f.stop();
+
+        expect(result).equal(true);
+        expect(f.probeCalls.length).equal(0);
+        expect(f.channel.networkAddress.ip).equal("fd00::1");
+        expect(f.peerLoss).equal(false);
+    });
+
+    it("session-suspect on a sleeping LIT ICD never probes or closes the session", async () => {
+        const f = makeFixture({
+            currentIp: "fd00::1",
+            discovered: [udp("fd00::1")],
+            reachable: new Set(),
+            icdAwait: true,
+        });
+
+        const result = await f.monitor.verifyReachability({ reason: "session-suspect" });
+        f.stop();
+
+        expect(result).equal(true);
+        expect(f.probeCalls.length).equal(0);
+        expect(f.peerLoss).equal(false);
     });
 });
 

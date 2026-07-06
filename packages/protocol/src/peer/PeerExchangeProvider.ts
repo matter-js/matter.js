@@ -151,6 +151,8 @@ export class PeerExchangeProvider extends ExchangeProvider {
             localSessionParameters: this.#context.sessions.sessionParameters,
             peerSessionParameters: includeMaximumSendingTime ? this.#peer.sessionParameters : undefined,
             expectedProcessingTime,
+            localAdditionalDelay: this.#context.sessions.localAdditionalMrpDelay,
+            localFixedBackoff: this.#context.sessions.localFixedMrpBackoff,
         });
     }
 }
