@@ -15,13 +15,23 @@ import {
     hasRemoteActor,
     IPK_DEFAULT_EPOCH_START_TIME,
 } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, GroupId, Status, StatusResponseError } from "@matter/types";
+import {
+    EndpointNumber,
+    FabricIndex,
+    GroupId,
+    MATTER_EPOCH_OFFSET_US,
+    Status,
+    StatusResponseError,
+} from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
 const logger = Logger.get("GroupKeyManagementServer");
 
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
+
+/** Per core§11.27.7.1.4 a Groupcast-created GroupKeySet has EpochStartTime0=1 (internal times are unix-epoch based). */
+const GROUPCAST_KEY_EPOCH_START_TIME = MATTER_EPOCH_OFFSET_US + BigInt(1);
 
 const GroupKeyManagementBase = GroupKeyManagementBehavior;
 
@@ -553,7 +563,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
     /**
      * Creates a new GroupKeySet for a Groupcast group key, bypassing normal KeySetWrite validation.
      * Used by GroupcastServer when JoinGroup or UpdateGroupKey is called with a `key` parameter.
-     * The key set uses TrustFirst policy and epochStartTime0=IPK_DEFAULT_EPOCH_START_TIME (Matter epoch zero = Jan 1, 2000).
+     * The key set uses TrustFirst policy and EpochStartTime0=1 as required by core§11.27.7.1.4.
      *
      * @returns true on success, throws if the key set already exists or resources are exhausted
      */
@@ -570,7 +580,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             groupKeySetId: keySetId,
             groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
             epochKey0,
-            epochStartTime0: IPK_DEFAULT_EPOCH_START_TIME, // Matter epoch zero
+            epochStartTime0: GROUPCAST_KEY_EPOCH_START_TIME,
             epochKey1: null,
             epochStartTime1: null,
             epochKey2: null,

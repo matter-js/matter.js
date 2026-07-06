@@ -9,7 +9,7 @@ import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
 import { AccessLevel } from "@matter/model";
 import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
+import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -410,6 +410,12 @@ describe("GroupcastServer", () => {
             expect(gkmMap.filter(e => e.fabricIndex === fi)).deep.equal([
                 { groupId: 0x0001, groupKeySetId: 1, fabricIndex: fi },
             ]);
+
+            // Auto-created key set has EpochStartTime0=1 per core§11.27.7.1.4 (internal times are unix-epoch based)
+            const keySet = node
+                .stateOf(GroupKeyManagementServer)
+                .groupKeySets.find(ks => ks.fabricIndex === fi && ks.groupKeySetId === 1);
+            expect(keySet?.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + BigInt(1));
         });
 
         it("Groupcast per-fabric cap aligns with GKM maxGroupsPerFabric", async () => {
