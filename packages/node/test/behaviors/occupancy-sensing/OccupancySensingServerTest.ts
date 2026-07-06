@@ -6,10 +6,10 @@
 
 import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
 import { OccupancySensorDevice } from "#devices/occupancy-sensor";
+import { MockServerNode } from "@matter/node/testing";
 import { Val } from "@matter/protocol";
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
-import { MockServerNode } from "@matter/node/testing";
 
 // Detector-type and OccupancyEvent features are selected explicitly.
 const PirOccupancySensing = OccupancySensingServer.with("PassiveInfrared", "OccupancyEvent");
