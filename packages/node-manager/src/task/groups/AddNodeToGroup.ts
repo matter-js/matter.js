@@ -8,6 +8,7 @@ import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { Task } from "../Task.js";
 import { TaskContext, TaskPhase } from "../types.js";
+import { membershipKey } from "./keys.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
 
@@ -31,7 +32,7 @@ export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
     readonly type = ADD_NODE_TO_GROUP_TYPE;
 
     static override idFor(params: AddNodeToGroupParams): string {
-        return `${ADD_NODE_TO_GROUP_TYPE}:${params.peerId}:${params.groupId}`;
+        return `${ADD_NODE_TO_GROUP_TYPE}:${params.peerId}:${params.groupId}:${params.endpoint}`;
     }
 
     get phases(): TaskPhase[] {
@@ -65,7 +66,7 @@ export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
         await ctx.setIntent(
             peer,
             "endpointGroupMembership",
-            String(p.groupId),
+            membershipKey(p.groupId, p.endpoint),
             { localEndpoint: p.endpoint, groupId, groupName: p.groupName },
             "converge",
         );
@@ -73,7 +74,7 @@ export class AddNodeToGroup extends Task<AddNodeToGroupParams> {
         await ctx.awaitCommitted([
             { peer, kind: "groupKey", key: String(p.groupKeySetId) },
             { peer, kind: "groupKeyMap", key: String(p.groupId) },
-            { peer, kind: "endpointGroupMembership", key: String(p.groupId) },
+            { peer, kind: "endpointGroupMembership", key: membershipKey(p.groupId, p.endpoint) },
         ]);
     }
 }
