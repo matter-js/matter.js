@@ -35,7 +35,7 @@ const PARAMS: AddNodeToGroupParams = {
     epochStartTime0: 946684800000001n, // must be > IPK_DEFAULT_EPOCH_START_TIME
 };
 
-const TASK_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}`;
+const TASK_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
 
 const FAILING_TYPE = "failingProvision";
 const FAILING_ID = `${FAILING_TYPE}:peer1:${0x101}`;
@@ -97,9 +97,9 @@ class FailingProvision extends Task<AddNodeToGroupParams> {
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 
-function isMember(device: ServerNode): boolean {
+function isMember(device: ServerNode, endpoint: EndpointNumber = LOCAL_EP): boolean {
     const { groupTable } = device.stateOf(GroupKeyManagementServer);
-    return groupTable.some(e => e.groupId === GROUP && e.endpoints.includes(LOCAL_EP));
+    return groupTable.some(e => e.groupId === GROUP && e.endpoints.includes(endpoint));
 }
 
 function keySetCount(device: ServerNode, id: number): number {
@@ -179,7 +179,7 @@ describe("Rollback task integration (single peer)", () => {
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals(undefined);
-        expect(itemState(peer, "endpointGroupMembership", String(GROUP))).equals(undefined);
+        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:${PARAMS.endpoint}`)).equals(undefined);
         expect(isMember(device)).equals(false);
 
         const status = await controller.act(agent => agent.get(TaskManagerBehavior).get(TASK_ID)?.status);
@@ -258,5 +258,47 @@ describe("Rollback task integration (single peer)", () => {
         expect(itemState(peer2, "groupKeyMap", String(GROUP))).equals(undefined);
         expect(itemState(peer2, "endpointGroupMembership", String(GROUP))).equals(undefined);
         expect(isMember(device)).equals(false);
+    });
+
+    it("cancelling one endpoint's membership leaves the other endpoint and the shared items intact", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: { type: ControllerRoot },
+            device: {
+                type: MockServerNode.RootEndpoint,
+                parts: [
+                    { type: OnOffLightSwitchDevice.with(GroupsServer), number: 1 },
+                    { type: OnOffLightSwitchDevice.with(GroupsServer), number: 2 },
+                ],
+            },
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
+        const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:2`;
+
+        await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(ADD_NODE_TO_GROUP_TYPE, { ...PARAMS, endpoint: 1 }),
+        );
+        await awaitState(controller, idEp1, "completed");
+        await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(ADD_NODE_TO_GROUP_TYPE, { ...PARAMS, endpoint: 2 }),
+        );
+        await awaitState(controller, idEp2, "completed");
+
+        await MockTime.resolve(
+            controller.act(agent => agent.get(TaskManagerBehavior).cancel(idEp1)),
+            {
+                macrotasks: true,
+            },
+        );
+        await awaitState(controller, `revert:${idEp1}`, "completed");
+
+        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:1`)).equals(undefined);
+        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:2`)).equals("committed");
+        expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
+        expect(itemState(peer, "groupKeyMap", String(GROUP))).equals("committed");
+        expect(isMember(device, EndpointNumber(1))).equals(false);
+        expect(isMember(device, EndpointNumber(2))).equals(true);
     });
 });
