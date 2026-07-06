@@ -29,11 +29,15 @@ export class IcdMultiAdminError extends ImplementationError {
 export namespace IcdMultiAdminError {
     /**
      * Default allowlist of admin VendorIds whose fabrics are not counted as co-admins by the ICD registration safety
-     * check — ecosystem vendors known to coexist safely with a Check-In client (their management/ecosystem fabrics
-     * don't represent an independent administrator whose reachability we'd degrade). Pre-filled with Apple (whose Home
-     * adds a separate management fabric); apps extend it with other known-cooperative ecosystems (e.g. Samsung).
+     * check — ecosystem vendors that support ICD and coexist safely with a Check-In client (their management/ecosystem
+     * fabrics don't represent an independent administrator whose reachability we'd degrade). Pre-filled with Apple and
+     * Samsung SmartThings, which each add a separate management fabric; apps extend it with other known-cooperative
+     * ecosystems.
      */
-    export const TRUSTED_ECOSYSTEM_VENDORS: readonly VendorId[] = [VendorId(0x1349) /* Apple */];
+    export const TRUSTED_ECOSYSTEM_VENDORS: readonly VendorId[] = [
+        VendorId(0x1384) /* Apple */,
+        VendorId(0x110a) /* Samsung SmartThings */,
+    ];
 
     /**
      * Throws unless the peer has at most one administrator besides the ignored ecosystem vendors. Registering a

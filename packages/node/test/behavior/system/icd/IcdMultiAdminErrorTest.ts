@@ -55,14 +55,15 @@ describe("IcdMultiAdminError.assertSingleAdmin", () => {
     });
 
     it("ignores a trusted ecosystem vendor", () => {
-        assertSingleAdmin([v(0xfff1), v(0x1349)], TRUSTED_ECOSYSTEM_VENDORS, false);
+        assertSingleAdmin([v(0xfff1), v(0x1384)], TRUSTED_ECOSYSTEM_VENDORS, false);
     });
 
     it("allowMultiAdmin overrides the throw", () => {
         assertSingleAdmin([v(0xfff1), v(0xfff2)], TRUSTED_ECOSYSTEM_VENDORS, true);
     });
 
-    it("defaults include Apple 0x1349", () => {
-        expect(TRUSTED_ECOSYSTEM_VENDORS.map(Number)).contains(0x1349);
+    it("defaults include Apple and Samsung SmartThings", () => {
+        expect(TRUSTED_ECOSYSTEM_VENDORS.map(Number)).contains(0x1384); // Apple
+        expect(TRUSTED_ECOSYSTEM_VENDORS.map(Number)).contains(0x110a); // Samsung SmartThings
     });
 });
