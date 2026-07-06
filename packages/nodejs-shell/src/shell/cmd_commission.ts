@@ -9,8 +9,7 @@ import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, Qr
 import { BasicInformation, Descriptor, GeneralCommissioning } from "@matter/types/clusters";
 import { NodeCommissioningOptions } from "@project-chip/matter.js";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode.js";
-import { createDiagnosticCallbacks } from "./cmd_nodes.js";
+import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
 
 const logger = Logger.get("Commission");
 

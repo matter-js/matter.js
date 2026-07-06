@@ -8,50 +8,9 @@ import { capitalize, ChannelType, decamelize, Diagnostic, ServerAddress } from "
 import { ClientNode, CommissioningClient, NetworkClient, SoftwareUpdateManager } from "@matter/node";
 import { PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
-import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
+import { NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode.js";
-
-export function createDiagnosticCallbacks(): Partial<CommissioningControllerNodeOptions> {
-    return {
-        attributeChangedCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
-            console.log(
-                `attributeChangedCallback ${peerNodeId}: Attribute ${nodeId}/${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
-                    value,
-                )}`,
-            ),
-        eventTriggeredCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, eventName }, events }) =>
-            console.log(
-                `eventTriggeredCallback ${peerNodeId}: Event ${nodeId}/${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
-                    events,
-                )}`,
-            ),
-        stateInformationCallback: (peerNodeId, info) => {
-            switch (info) {
-                case NodeStateInformation.Connected:
-                    console.log(`stateInformationCallback Node ${peerNodeId} connected`);
-                    break;
-                case NodeStateInformation.Disconnected:
-                    console.log(`stateInformationCallback Node ${peerNodeId} disconnected`);
-                    break;
-                case NodeStateInformation.Reconnecting:
-                    console.log(`stateInformationCallback Node ${peerNodeId} reconnecting`);
-                    break;
-                case NodeStateInformation.WaitingForDeviceDiscovery:
-                    console.log(
-                        `stateInformationCallback Node ${peerNodeId} waiting that device gets discovered again`,
-                    );
-                    break;
-                case NodeStateInformation.StructureChanged:
-                    console.log(`stateInformationCallback Node ${peerNodeId} structure changed`);
-                    break;
-                case NodeStateInformation.Decommissioned:
-                    console.log(`stateInformationCallback Node ${peerNodeId} decommissioned`);
-                    break;
-            }
-        },
-    };
-}
+import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
 
 /** Parse a `udp://host:port` / `tcp://host:port` URL (IPv6 host in brackets) into a {@link ServerAddress}. */
 function parseFallbackAddress(input: string): ServerAddress {
