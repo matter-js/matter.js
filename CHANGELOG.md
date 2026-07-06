@@ -39,6 +39,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Fix: Single-command invokes no longer send a commandRef on the wire nor require one echoed in the response
+    - Fix: Single commands skip auto-batching when the peer accepts only one path per invoke or the response is suppressed
+    - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
     - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
     - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset

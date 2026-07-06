@@ -28,6 +28,7 @@ import type { Session } from "#session/Session.js";
 import {
     Abort,
     AbortedError,
+    asError,
     AsyncIterator,
     BasicSet,
     ChannelType,
@@ -164,6 +165,7 @@ export class ClientInteraction<
     readonly #batchMutex: Mutex;
     #batchTimer?: Timer;
     #nextCommandRef = 1;
+    #closeReason?: Error;
 
     constructor({ environment, abort, sustainRetries, exchangeProvider, address, network }: ClientInteractionContext) {
         this.#environment = environment;
@@ -196,6 +198,7 @@ export class ClientInteraction<
         if (reason === undefined) {
             reason = new ClosedError("Interaction component closed");
         }
+        this.#closeReason = reason;
 
         using _closing = this.#lifetime.closing();
 
@@ -217,9 +220,10 @@ export class ClientInteraction<
             pending.reject(reason);
         }
         this.#pendingCommands.clear();
-        await this.#batchMutex.close();
 
+        // Abort before draining the mutex so an in-flight batch cancels instead of running to completion
         this.#abort(reason);
+        await this.#batchMutex.close();
 
         while (this.#interactions.size) {
             await this.#interactions.deleted;
@@ -429,8 +433,17 @@ export class ClientInteraction<
             request,
         );
 
+        // Per spec, commandRef is only defined for multi-command messages; servers without batch-invoke
+        // support do not echo it, so keep it off the wire and correlate single commands by position.
+        const isSingleCommand = request.invokeRequests.length === 1;
+        const singleCommandRef = isSingleCommand ? request.invokeRequests[0].commandRef : undefined;
+        let wireRequest = request;
+        if (singleCommandRef !== undefined) {
+            wireRequest = { ...request, invokeRequests: [{ ...request.invokeRequests[0], commandRef: undefined }] };
+        }
+
         const { expectedProcessingTime, useExtendedFailSafeMessageResponseTimeout } = request;
-        const result = await messenger.sendInvokeCommand(request, {
+        const result = await messenger.sendInvokeCommand(wireRequest, {
             expectedProcessingTime:
                 expectedProcessingTime ??
                 (useExtendedFailSafeMessageResponseTimeout
@@ -445,9 +458,10 @@ export class ClientInteraction<
                 if (response.command !== undefined) {
                     const {
                         commandPath: { endpointId, clusterId, commandId },
-                        commandRef,
+                        commandRef: responseRef,
                         commandFields,
                     } = response.command;
+                    const commandRef = isSingleCommand ? singleCommandRef : responseRef;
                     const cmd = request.commands.get(commandRef);
                     if (!cmd) {
                         logger.warn(
@@ -494,9 +508,10 @@ export class ClientInteraction<
                 } else if (response.status !== undefined) {
                     const {
                         commandPath: { endpointId, clusterId, commandId },
-                        commandRef,
+                        commandRef: responseRef,
                         status: { status, clusterStatus },
                     } = response.status;
+                    const commandRef = isSingleCommand ? singleCommandRef : responseRef;
                     const cmd = request.commands.get(commandRef);
                     if (cmd) {
                         logger.info(
@@ -615,7 +630,8 @@ export class ClientInteraction<
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         if (request.largeMessage === undefined && inferLargeMessage(request)) {
-            request.largeMessage = true;
+            // Copy instead of mutating the caller-owned request
+            request = { ...request, largeMessage: true };
         }
 
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
@@ -624,8 +640,15 @@ export class ClientInteraction<
         // peer's MaxPathsPerInvoke — splitting propagates largeMessage to each sub-batch, which
         // in turn forces TCP transport via #begin.
         if (!request.largeMessage) {
-            // Single command with batching support — auto-batch
-            if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
+            // Single command with batching support — auto-batch.  Batching buys nothing when the peer
+            // only accepts one path per invoke, so send directly in that case.  The batch path always
+            // requests responses, so suppressResponse commands go directly too.
+            if (
+                request.invokeRequests.length === 1 &&
+                request.batchDuration !== false &&
+                maxPathsPerInvoke > 1 &&
+                !request.suppressResponse
+            ) {
                 const endpointId = request.invokeRequests[0].commandPath.endpointId;
                 if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
                     yield* this.#invokeWithBatching(request, session);
@@ -680,8 +703,7 @@ export class ClientInteraction<
         if (abortSignal) {
             if (abortSignal.aborted) {
                 this.#pendingCommands.delete(commandRef);
-                pending.reject(new AbortedError());
-                return;
+                throw new AbortedError();
             }
 
             const onAbort = () => {
@@ -755,9 +777,10 @@ export class ClientInteraction<
                     await this.#executeBatch(batch);
                 });
             } catch (error) {
-                // Mutex may be closed during shutdown — reject remaining commands
+                // Mutex may be closed during shutdown — reject remaining commands with the close reason
+                const reason = this.#closeReason ?? asError(error);
                 for (const [, pending] of batch) {
-                    pending.reject(error as Error);
+                    pending.reject(reason);
                 }
             }
         }
@@ -809,14 +832,9 @@ export class ClientInteraction<
             }
 
             const commandList = [...commands.values()];
+            const invokeRequests = commandList.map(c => c.request);
 
-            // For single commands, don't include commandRef (optimization)
-            const isSingleCommand = commandList.length === 1;
-            const invokeRequests = isSingleCommand
-                ? [{ ...commandList[0].request, commandRef: undefined }]
-                : commandList.map(c => c.request);
-
-            logger.debug(`Executing ${invokeRequests.length} command(s)${isSingleCommand ? "" : " (batched)"}`);
+            logger.debug(`Executing ${invokeRequests.length} command(s)`);
 
             // Preserve the network profile from the queued commands (all commands in a batch share the same
             // ClientInteraction so they will normally have the same network; pick the first defined value)
@@ -841,23 +859,16 @@ export class ClientInteraction<
 
             for await (const chunk of chunks) {
                 for (const entry of chunk) {
-                    let pending: PendingCommand | undefined;
-
-                    if (isSingleCommand) {
-                        pending = commandList[0];
-                        commands.clear();
-                    } else {
-                        pending = commands.get(entry.commandRef!);
-                        if (!pending) {
-                            if (entry.commandRef !== undefined) {
-                                logger.info(`Response for aborted commandRef ${entry.commandRef} discarded`);
-                            } else {
-                                logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
-                            }
-                            continue;
+                    const pending = commands.get(entry.commandRef!);
+                    if (!pending) {
+                        if (entry.commandRef !== undefined) {
+                            logger.info(`Response for aborted commandRef ${entry.commandRef} discarded`);
+                        } else {
+                            logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
                         }
-                        commands.delete(entry.commandRef!);
+                        continue;
                     }
+                    commands.delete(entry.commandRef!);
 
                     if (pending.aborted) {
                         logger.info(`Response for aborted command discarded`);
@@ -877,7 +888,7 @@ export class ClientInteraction<
         } catch (error) {
             for (const [, pending] of commands) {
                 if (!pending.aborted) {
-                    pending.reject(error as Error);
+                    pending.reject(asError(error));
                 }
             }
         }
