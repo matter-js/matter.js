@@ -169,12 +169,13 @@ export class IcdClient extends Behavior {
         // Gate on capability, not the cached mode: a stale cached SIT must not skip the fresh read that would reveal LIT.
         // Require an established subscription: register() needs one anyway, and this suppresses a doomed attempt (and its
         // warn) when operatingMode$Changed fires during the pre-subscription bootstrap read.
-        if (
-            !this.peerSupportsLit ||
-            !this.agent.get(NetworkClient).subscriptionActive ||
-            this.state.registered ||
-            this.internal.autoRegister !== undefined
-        ) {
+        if (!this.peerSupportsLit || !this.agent.get(NetworkClient).subscriptionActive || this.state.registered) {
+            return;
+        }
+        if (this.internal.autoRegister !== undefined) {
+            // A trigger during an in-flight attempt (e.g. a SIT→LIT flip mid-run) would decide on a stale snapshot;
+            // remember it so #autoRegister re-evaluates on completion instead of dropping it.
+            this.internal.autoRegisterPending = true;
             return;
         }
         this.internal.autoRegister = this.#autoRegister();
@@ -198,9 +199,11 @@ export class IcdClient extends Behavior {
                     return;
                 }
                 // Fresh read (mirrors #readPeerFabrics): the cached mode may be stale, so only register on LIT confirmed
-                // by the peer itself.
+                // by the peer itself. A DSLS peer forced to SIT while it already serves Check-In clients on other
+                // fabrics behaves as a shared ICD, so register there too — its OperatingMode reads SIT and would
+                // otherwise skip us.
                 const { operatingMode } = await icd.endpoint.getStateOf(IcdManagementClient, ["operatingMode"]);
-                if (operatingMode !== IcdManagement.OperatingMode.Lit) {
+                if (operatingMode !== IcdManagement.OperatingMode.Lit && !(await icd.#dslsPeerHasRegistrations())) {
                     return;
                 }
                 await icd.register({ allowMultiAdmin: true });
@@ -210,6 +213,28 @@ export class IcdClient extends Behavior {
         } finally {
             this.internal.autoRegister = undefined;
         }
+        // A trigger arrived mid-run, so its decision snapshot may now be stale (e.g. the mode flipped to LIT while we
+        // ran on the pre-flip SIT snapshot); re-run once. #autoRegister re-opens its own transaction and re-checks
+        // every condition, so the tail touches only #internal (no transactional this.state, which has exited here).
+        if (this.internal.autoRegisterPending) {
+            this.internal.autoRegisterPending = undefined;
+            this.internal.autoRegister = this.#autoRegister();
+        }
+    }
+
+    /**
+     * True when the peer supports DSLS and already has at least one registered Check-In client. Read non-fabric-scoped
+     * because a co-admin's registration lives on its own fabric; combined with a SIT operating mode this identifies a
+     * DSLS peer forced to SIT that nonetheless serves other admins as an ICD, so we register alongside them.
+     */
+    async #dslsPeerHasRegistrations() {
+        if (this.endpoint.maybeFeaturesOf(IcdManagementClient)?.dynamicSitLitSupport !== true) {
+            return false;
+        }
+        const { registeredClients } = await this.endpoint.getStateOf(IcdManagementClient, ["registeredClients"], {
+            fabricFilter: false,
+        });
+        return (registeredClients?.length ?? 0) > 0;
     }
 
     /** The {@link IcdPeerWakefulness} for the currently fed peer, or undefined when no peer is fed. */
@@ -597,6 +622,9 @@ export namespace IcdClient {
 
         /** In-flight LIT auto-registration; tracked so overlapping triggers can't double-register and teardown can await it. */
         autoRegister?: Promise<void>;
+
+        /** Set when a trigger arrives while {@link autoRegister} is in flight, so its decision (made on a mode snapshot that may now be stale, e.g. a SIT→LIT flip mid-run) is re-evaluated once it completes. */
+        autoRegisterPending?: boolean;
 
         /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */
         fedPeer?: PeerAddress;
