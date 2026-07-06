@@ -18,8 +18,8 @@ const logger = Logger.get("FabricIcd");
  *
  * Populated by owning behaviors at init; persistence stays with those behaviors.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.16.6.4 (device-role registrations)
- * @see {@link MatterSpecification.v151.Core} § 4.22.4.2 (controller-role trial decryption)
+ * @see {@link MatterSpecification.v16.Core} § 9.16.6.4 (device-role registrations)
+ * @see {@link MatterSpecification.v16.Core} § 4.22.4.2 (controller-role trial decryption)
  */
 export class FabricIcd {
     readonly #crypto: Crypto;
@@ -104,7 +104,7 @@ export class FabricIcd {
      *
      * Returns true if a key matched (even when the counter was a replay), false when no key decrypted the payload.
      *
-     * @see {@link MatterSpecification.v151.Core} § 4.22.4.2
+     * @see {@link MatterSpecification.v16.Core} § 4.22.4.2
      */
     async processCheckIn(payload: Bytes): Promise<boolean> {
         for (const { peer, handler, wakefulness } of this.#peers.values()) {
@@ -146,7 +146,7 @@ export namespace FabricIcd {
     /**
      * A registered check-in client entry (mirrors IcdManagement RegisteredClients).
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.16.6.4
+     * @see {@link MatterSpecification.v16.Core} § 9.16.6.4
      */
     export interface Registration {
         checkInNodeId: NodeId;

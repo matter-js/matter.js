@@ -12,9 +12,9 @@ export enum IcdMode {
 }
 
 export interface IcdModeStateOptions {
-    /** Minimum active-window length after entering Active mode. @see {@link MatterSpecification.v151.Core} § 9.16.6.2 */
+    /** Minimum active-window length after entering Active mode. @see {@link MatterSpecification.v16.Core} § 9.16.6.2 */
     activeModeDuration: Duration;
-    /** Active-window extension granted per network activity. @see {@link MatterSpecification.v151.Core} § 9.16.6.3 */
+    /** Active-window extension granted per network activity. @see {@link MatterSpecification.v16.Core} § 9.16.6.3 */
     activeModeThreshold: Duration;
     /** Entered Active mode — initial power-up or an idle→active wake. The Check-In send point. */
     onActiveEntered: () => void;
@@ -32,7 +32,7 @@ export interface IcdModeStateOptions {
  * only signals `onMayEnterIdle`; all transitions are driven by {@link start}/{@link stop}, {@link enterIdle},
  * {@link requestActive}, and {@link noteActivity}. Distinct from the ICD SIT/LIT OperatingMode.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
  */
 export class IcdModeState {
     readonly #activeModeDuration: Duration;

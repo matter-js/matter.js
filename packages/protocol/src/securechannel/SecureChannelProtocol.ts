@@ -159,7 +159,7 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
      * invokes the matching peer handler, then closes the exchange.  The handler itself never sends a response;
      * conformant Check-Ins are unreliable (R=0) so no acknowledgement is generated either.
      *
-     * @see {@link MatterSpecification.v151.Core} § 4.22 (Check-In Protocol), § 9.15.1.3.3
+     * @see {@link MatterSpecification.v16.Core} § 4.22 (Check-In Protocol), § 9.15.1.3.3
      */
     async #handleIcdCheckIn(exchange: MessageExchange, message: Message) {
         try {

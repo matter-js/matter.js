@@ -33,7 +33,7 @@ export interface IcdCheckInRequest {
  * Best-effort transport: returns false (does not throw) when the peer is unresolvable or the send fails. Encode-time
  * and programmer errors are NOT transport failures and propagate.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1
  */
 export class IcdCheckInSender {
     readonly #context: IcdCheckInSenderContext;

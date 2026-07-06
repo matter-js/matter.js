@@ -143,7 +143,7 @@ export class PeerAddressMonitor {
         // A sleeping LIT ICD won't answer a probe, and a failed probe would close a healthy session — so never
         // probe it. If its address leaves mDNS, adopt a discovered one on trust instead, preferring the session's
         // IP family since the unreachable family can't be ruled out without a probe.
-        // @see {@link MatterSpecification.v151.Core} § 4.12.2.1
+        // @see {@link MatterSpecification.v16.Core} § 4.12.2.1
         if (this.#peer.fabric.icd?.wakefulnessFor(this.#peer.address.nodeId)?.requiresAwait) {
             const icdAddress = channel.networkAddress;
             const discovered = this.#peer.service.addresses;

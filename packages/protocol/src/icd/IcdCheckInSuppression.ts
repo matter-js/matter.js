@@ -19,7 +19,7 @@ export interface SubscriptionSubject {
  * True when any subscription subject matches `monitoredSubject` (node id or CAT version compare). When covered, the ICD
  * suppresses the Check-In for that registration.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.16.5.3.2
+ * @see {@link MatterSpecification.v16.Core} § 9.16.5.3.2
  */
 export function isMonitoredSubjectCovered(monitoredSubject: SubjectId, subjects: SubscriptionSubject[]): boolean {
     for (const subject of subjects) {

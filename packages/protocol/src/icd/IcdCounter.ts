@@ -11,7 +11,7 @@ import { Crypto, Observable } from "@matter/general";
  * nonce) if more than this many increments are lost unpersisted at crash. Must exceed the most Check-Ins one wake pass
  * can send — at most (fabrics × Permanent clients per fabric) — which stays far below this. The spec example uses 1000.
  *
- * @see {@link MatterSpecification.v151.Core} § 4.6.3
+ * @see {@link MatterSpecification.v16.Core} § 4.6.3
  */
 const BOOT_BUMP = 1000;
 
@@ -26,8 +26,8 @@ const BOOT_BUMP = 1000;
  * uint32 wrap-around is harmless: clients apply mod-2³² offset arithmetic and refresh their keys before the offset
  * reaches 2³¹.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.16.6.5 (ICDCounter attribute)
- * @see {@link MatterSpecification.v151.Core} § 4.6.3 (Check-In Counter — boot-bump persistence strategy)
+ * @see {@link MatterSpecification.v16.Core} § 9.16.6.5 (ICDCounter attribute)
+ * @see {@link MatterSpecification.v16.Core} § 4.6.3 (Check-In Counter — boot-bump persistence strategy)
  */
 export class IcdCounter {
     #value: number;
@@ -40,8 +40,8 @@ export class IcdCounter {
      * Randomizing the start widens the counter space traversed before key refresh and avoids cross-device counter
      * correlation, since the counter is bound into the Check-In AES-CCM nonce together with the ICD key.
      *
-     * @see {@link MatterSpecification.v151.Core} § 4.6.1.1 (Message Counter Initialization)
-     * @see {@link MatterSpecification.v151.Core} § 4.6.3 (Check-In Counter — randomize on factory reset)
+     * @see {@link MatterSpecification.v16.Core} § 4.6.1.1 (Message Counter Initialization)
+     * @see {@link MatterSpecification.v16.Core} § 4.6.3 (Check-In Counter — randomize on factory reset)
      */
     static randomInitialValue(crypto: Crypto): number {
         return (crypto.randomUint32 >>> 4) + 1;

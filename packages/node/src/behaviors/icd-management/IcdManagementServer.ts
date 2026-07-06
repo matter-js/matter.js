@@ -48,7 +48,7 @@ import { IcdModeState } from "./IcdMode.js";
  * MRP backoff addend applied while operating as an ICD. An ICD in Active Mode polls for the acknowledgement only at
  * its fast-poll cadence, so the sender pads its retransmission backoff by one such interval. Mirrors the default of
  * CHIP's `ICDConfigurationData::GetFastPollingInterval()`.
- * @see {@link MatterSpecification.v151.Core} § 4.12.2.1
+ * @see {@link MatterSpecification.v16.Core} § 4.12.2.1
  */
 export const ICD_FAST_POLLING_INTERVAL = Millis(200);
 
@@ -86,14 +86,14 @@ const IcdManagementLogicBase = IcdManagementBehavior.for(IcdManagement, IcdManag
 /**
  * Minimum ActiveModeThreshold a LIT ICD must use.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1.6.2
  */
 const MIN_LIT_ACTIVE_MODE_THRESHOLD = Seconds(5);
 
 /**
  * The promised StayActiveRequest duration is at least `min(this, requested)` — i.e. this caps the guaranteed minimum.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
+ * @see {@link MatterSpecification.v16.Core} § 9.16.7.5.1.1
  */
 const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
 
@@ -101,7 +101,7 @@ const STAY_ACTIVE_PROMISE_FLOOR = Seconds(30);
  * UserActiveModeTriggerHint bits that require a non-empty UserActiveModeTriggerInstruction. The `*LightsBlink` bits also
  * depend on the instruction but may leave it empty, so they are excluded.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
+ * @see {@link MatterSpecification.v16.Core} § 9.16.6.7
  */
 const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
     "customInstruction",
@@ -175,7 +175,7 @@ const INSTRUCTION_REQUIRED_TRIGGER_HINTS = [
  * (initialization throws if a hint bit that depends on the instruction is set without one). UAT defines no Matter
  * command — call {@link triggerUserActiveMode} to simulate the physical trigger.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.16
+ * @see {@link MatterSpecification.v16.Core} § 9.16
  */
 export class IcdManagementBaseServer extends IcdManagementLogicBase {
     declare internal: IcdManagementBaseServer.Internal;
@@ -187,13 +187,13 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         const activeModeDuration = Millis(this.state.activeModeDuration);
         const maximumCheckInBackoff = Seconds(this.state.maximumCheckInBackoff);
 
-        // @see {@link MatterSpecification.v151.Core} § 9.16.6.1
+        // @see {@link MatterSpecification.v16.Core} § 9.16.6.1
         if (idleModeDuration < activeModeDuration) {
             throw new ImplementationError(
                 `idleModeDuration (${Duration.format(idleModeDuration)}) must be >= activeModeDuration (${Duration.format(activeModeDuration)})`,
             );
         }
-        // @see {@link MatterSpecification.v151.Core} § 9.16.6.10
+        // @see {@link MatterSpecification.v16.Core} § 9.16.6.10
         if (maximumCheckInBackoff < idleModeDuration) {
             throw new ImplementationError(
                 `maximumCheckInBackoff (${Duration.format(maximumCheckInBackoff)}) must be >= idleModeDuration (${Duration.format(idleModeDuration)})`,
@@ -205,14 +205,14 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             throw new ImplementationError("LongIdleTimeSupport requires the CheckInProtocolSupport feature");
         }
 
-        // @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2
+        // @see {@link MatterSpecification.v16.Core} § 9.15.1.6.2
         if (this.features.longIdleTimeSupport && this.state.activeModeThreshold < MIN_LIT_ACTIVE_MODE_THRESHOLD) {
             throw new ImplementationError(
                 `LIT ICD requires activeModeThreshold (${Duration.format(Millis(this.state.activeModeThreshold))}) >= ${Duration.format(MIN_LIT_ACTIVE_MODE_THRESHOLD)}`,
             );
         }
 
-        // @see {@link MatterSpecification.v151.Core} § 9.16.6.7–9.16.6.8 — these trigger hints require a non-empty
+        // @see {@link MatterSpecification.v16.Core} § 9.16.6.7–9.16.6.8 — these trigger hints require a non-empty
         // instruction string telling the user how to trigger active mode. The generated conformance is "desc" (prose
         // table), so this coupling is not enforced by the framework and must be checked here.
         if (this.features.userActiveModeTrigger && !this.state.userActiveModeTriggerInstruction) {
@@ -272,7 +272,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             const counter = new IcdCounter(seed);
             this.internal.icdCounter = counter;
             // Persist the boot-bump now; later increments persist via the reactor so writes stay transactional.
-            // @see {@link MatterSpecification.v151.Core} § 4.6.3
+            // @see {@link MatterSpecification.v16.Core} § 4.6.3
             this.state.icdCounter = counter.value;
             this.reactTo(counter.changed, this.#persistCounter);
             this.reactTo(fabrics.events.deleted, this.#onFabricDeleted);
@@ -286,7 +286,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
             // Idle/active mode machine, externally driven. Created once; (re)started below on every online, paused on
             // goingOffline. The idle→active transition is the Check-In send point.
-            // @see {@link MatterSpecification.v151.Core} § 9.15.1
+            // @see {@link MatterSpecification.v16.Core} § 9.15.1
             this.internal.modeState = new IcdModeState({
                 activeModeDuration: Millis(this.state.activeModeDuration),
                 activeModeThreshold: Millis(this.state.activeModeThreshold),
@@ -330,7 +330,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             this.#persistKeys();
         }
 
-        // @see {@link MatterSpecification.v151.Core} § 9.16.6.4
+        // @see {@link MatterSpecification.v16.Core} § 9.16.6.4
         for (const client of this.state.registeredClients) {
             const key = keyMap.get(this.#keyFor(client.fabricIndex, client.checkInNodeId))?.key;
             const fabric = fabrics.maybeFor(client.fabricIndex);
@@ -357,7 +357,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * address (tagged from its last session, refreshed by mDNS); the send opens a one-shot unsecured Secure Channel
      * session and transmits unreliably.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1
      */
     protected createCheckInSender(): IcdCheckInSender {
         const peers = this.env.get(PeerSet);
@@ -406,7 +406,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * The transmitted counter is the post-increment value: clients track the registration counter as offset 0 and
      * reject offsets <= the last seen, so the first Check-In must carry an offset >= 1.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16.5.3.2
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16.5.3.2
      */
     async #sendCheckIns() {
         const sender = this.internal.checkInSender;
@@ -436,7 +436,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
                         continue;
                     }
                     backOff.recordSent(key);
-                    // @see {@link MatterSpecification.v151.Core} § 4.6.3 — the Check-In Counter advances each time a
+                    // @see {@link MatterSpecification.v16.Core} § 4.6.3 — the Check-In Counter advances each time a
                     // Check-In message is sent, so each client receives a distinct post-increment value.
                     await sender.send({
                         fabricIndex: fabric.fabricIndex,
@@ -465,7 +465,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * Effective ICD operating mode: LIT when LITS is enabled and at least one client is registered, otherwise SIT.
      * DSLS devices may override with a forced mode set via {@link setOperatingMode}.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.5–9.15.1.6
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.5–9.15.1.6
      */
     get #effectiveMode(): IcdManagement.OperatingMode {
         if (!this.features.longIdleTimeSupport) {
@@ -485,7 +485,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * The cached value is read by the DeviceAdvertiser provider outside the behavior's transaction context, so we push
      * rather than letting the provider pull from state.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
      */
     #refreshIcdAdvertisementCache() {
         const mode = this.#effectiveMode;
@@ -495,7 +495,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             activeInterval,
             activeThreshold: Millis(this.state.activeModeThreshold),
         };
-        // @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2 — LIT SHOULD NOT advertise SII
+        // @see {@link MatterSpecification.v16.Core} § 9.15.1.6.2 — LIT SHOULD NOT advertise SII
         if (mode === IcdManagement.OperatingMode.Sit) {
             advertisement.idleInterval = idleInterval;
         }
@@ -521,7 +521,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     /**
      * Re-advertise all fabrics when the operating mode transitions between SIT and LIT.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
      */
     async #onOperatingModeChanged() {
         const advertiser = this.env.get(DeviceAdvertiser);
@@ -554,7 +554,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.1
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.1
      */
     override async registerClient(
         request: IcdManagement.RegisterClientRequest,
@@ -568,12 +568,12 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         const existing = fabricClients.find(c => c.checkInNodeId === request.checkInNodeId);
 
         if (existing === undefined) {
-            // @see {@link MatterSpecification.v151.Core} § 9.16.7.1 step 1
+            // @see {@link MatterSpecification.v16.Core} § 9.16.7.1 step 1
             if (fabricClients.length >= this.state.clientsSupportedPerFabric) {
                 throw new StatusResponseError("ICD client slots exhausted for fabric", Status.ResourceExhausted);
             }
         } else {
-            // @see {@link MatterSpecification.v151.Core} § 9.16.7.1 steps 2-3
+            // @see {@link MatterSpecification.v16.Core} § 9.16.7.1 steps 2-3
             this.#assertMayModify(fabricIndex, request.checkInNodeId, request.verificationKey);
         }
 
@@ -610,7 +610,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.4
      */
     override stayActiveRequest(request: IcdManagement.StayActiveRequest): IcdManagement.StayActiveResponse {
         return { promisedActiveDuration: this.stayActive(Millis(request.stayActiveDuration)) };
@@ -620,7 +620,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * Extend the device's active window by the requested duration and return the duration actually promised: the real
      * remaining active duration, never less than the spec floor of `min(30s, requested)`. Override for a custom policy.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1.1
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.5.1.1
      */
     protected stayActive(requestedDuration: Duration): Duration {
         const floor = Duration.min(STAY_ACTIVE_PROMISE_FLOOR, requestedDuration);
@@ -635,7 +635,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * Wake the device into Active mode for a full active window (the idle→active transition; on a CIP device this is
      * where a CIP ICD sends Check-Ins). No-op before the node is online.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1
      */
     requestActiveMode() {
         this.internal.modeState?.requestActive(Millis(this.state.activeModeDuration));
@@ -645,7 +645,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * Simulate the device-physical User Active Mode Trigger (button press, power cycle, etc.): wakes the device into
      * Active mode. UAT exposes no Matter command — this is a device-side action.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
+     * @see {@link MatterSpecification.v16.Core} § 9.16.6.7
      */
     triggerUserActiveMode() {
         this.internal.checkInBackOff?.resetAll();
@@ -656,7 +656,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * Put the device into Idle mode (e.g. when the application/test decides to "sleep"). Forces idle unconditionally.
      * No-op before the node is online.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1
      */
     enterIdleMode() {
         this.internal.modeState?.enterIdle();
@@ -669,7 +669,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * requested mode must match the current registration state; with DSLS the mode may be forced either way (e.g. a
      * mains-powered device dropping to battery).
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.4
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6.4
      */
     setOperatingMode(mode: IcdManagement.OperatingMode) {
         if (!this.features.longIdleTimeSupport) {
@@ -697,7 +697,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * clears (e.g. a smoke alarm losing mains power and dropping to battery-saving LIT). Requires the Dynamic SIT/LIT
      * Support feature; a no-op when no override is active.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.4
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6.4
      */
     withdrawForcedOperatingMode() {
         if (!this.features.dynamicSitLitSupport) {
@@ -708,7 +708,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.3
      */
     override async unregisterClient(request: IcdManagement.UnregisterClientRequest): Promise<void> {
         assertRemoteActor(this.context);
@@ -722,7 +722,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             throw new StatusResponseError("No such ICD client registration", Status.NotFound);
         }
 
-        // @see {@link MatterSpecification.v151.Core} § 9.16.7.3 step 2
+        // @see {@link MatterSpecification.v16.Core} § 9.16.7.3 step 2
         this.#assertMayModify(fabricIndex, request.checkInNodeId, request.verificationKey);
 
         this.state.registeredClients = this.state.registeredClients.filter(
@@ -741,8 +741,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
      * Returns true when the invoking session has Administer privilege on this cluster.
      *
      * Administer skips the verificationKey check on register update and unregister; Manage must provide it.
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.1 step 2
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.3 step 2
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.1 step 2
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.3 step 2
      */
     #isAdministrator(): boolean {
         const context = this.context;

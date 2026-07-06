@@ -10,7 +10,7 @@ import { Duration, Seconds } from "@matter/general";
  * Per-client ICD Check-In back-off. Consulted once per idle→active wake for each Permanent registration. Keyed by
  * `${fabricIndex}:${checkInNodeId}`.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16.6.10
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16.6.10
  */
 export interface IcdCheckInBackOff {
     /** True when a Check-In is due for this client this wake. Advances the per-wake countdown — call exactly once per wake. */

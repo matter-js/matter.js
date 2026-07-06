@@ -50,7 +50,7 @@ export namespace IcdMultiAdminError {
      * @param allowMultiAdmin when true the check is skipped entirely (explicit opt-in).
      * @throws {IcdMultiAdminError} if more than one non-ignored administrator fabric is present and `allowMultiAdmin`
      *   is false; its {@link IcdMultiAdminError.adminVendorIds} lists the distinct offending vendors.
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1
      */
     export function assertSingleAdmin(
         vendorIds: readonly VendorId[],

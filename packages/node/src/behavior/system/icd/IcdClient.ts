@@ -43,7 +43,7 @@ const logger = Logger.get("IcdClient");
  * fresh operating mode rather than a stale cached one. The behavior tracks peer wakefulness to hold interactions for a
  * sleeping ICD.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1, § 9.16
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
  */
 export class IcdClient extends Behavior {
     declare internal: IcdClient.Internal;
@@ -439,7 +439,7 @@ export class IcdClient extends Behavior {
     /**
      * Ask the peer to remain in Active mode for at least `duration` and return the duration it actually promised.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
+     * @see {@link MatterSpecification.v16.Core} § 9.16.7.4
      */
     async stayActive(duration: Duration): Promise<Duration> {
         const { promisedActiveDuration } = await this.#peerIcd().stayActiveRequest({
@@ -572,7 +572,7 @@ export class IcdClient extends Behavior {
     /**
      * Re-key the registration in place before the rolling counter offset reaches 2³¹.
      *
-     * @see {@link MatterSpecification.v151.Core} § 4.22.3.4.1
+     * @see {@link MatterSpecification.v16.Core} § 4.22.3.4.1
      */
     async #refreshKey() {
         const { fabric, ownNodeId, peerNodeId } = this.#fabricContext();

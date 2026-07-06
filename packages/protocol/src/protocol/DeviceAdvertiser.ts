@@ -20,14 +20,14 @@ const logger = Logger.get("DeviceAdvertiser");
 /**
  * ICD operating mode and session intervals supplied to operational DNS-SD advertisement.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1.5–9.15.1.6
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1.5–9.15.1.6
  */
 export interface IcdAdvertisement {
     icd: IcdManagement.OperatingMode;
     /**
      * Omitted for LIT mode — a LIT ICD SHOULD NOT advertise SII.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6.2
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6.2
      */
     idleInterval?: Duration;
     activeInterval: Duration;
@@ -37,7 +37,7 @@ export interface IcdAdvertisement {
 /**
  * Returns the {@link IcdAdvertisement} to use for a fabric, or `undefined` when the fabric is not ICD-managed.
  *
- * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
  */
 export type IcdAdvertisementProvider = (fabric: Fabric) => IcdAdvertisement | undefined;
 
@@ -190,7 +190,7 @@ export class DeviceAdvertiser {
      * The provider is called each time an operational advertisement is built for a fabric.  Pass `undefined` to remove
      * a previously registered provider; non-ICD nodes need not register one.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
      */
     setIcdAdvertisementProvider(provider: IcdAdvertisementProvider | undefined) {
         this.#icdAdvertisementProvider = provider;
@@ -201,7 +201,7 @@ export class DeviceAdvertiser {
      *
      * Call this whenever the ICD operating mode or intervals change so that DNS-SD reflects the new state.
      *
-     * @see {@link MatterSpecification.v151.Core} § 9.15.1.6
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
      */
     async refreshOperationalAdvertisement(fabric: Fabric) {
         if (!this.#isOperational || this.#isClosing) {
