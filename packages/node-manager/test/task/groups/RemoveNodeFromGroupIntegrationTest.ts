@@ -136,7 +136,9 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        const limit = peer.stateOf(GroupKeyManagementClient).maxGroupsPerFabric ?? 4;
+        // Read the limit from the peer's cached state, not a constant: a broken cache read must fail loudly.
+        const limit = peer.stateOf(GroupKeyManagementClient).maxGroupsPerFabric;
+        expect(limit).equals(4);
         for (let i = 0; i < limit; i++) {
             const groupId = 0x201 + i;
             await controller.act(a => a.get(TaskManagerBehavior).run("addNodeToGroup", addParams(groupId, 50 + i)));
