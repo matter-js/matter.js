@@ -124,7 +124,7 @@ async function startWatch(theNode: MatterNode, nodeId: NodeId) {
     const clientNode = paired.node;
     const observers = new ObserverGroup();
     const stamp = (msg: string) => console.log(`[icd ${nodeId}] ${msg}`);
-    // Fresh awake/nextCheckIn read; the event emitters discard emit()'s promise, so a rejection here must not escape.
+    // Event emitters discard emit()'s promise, so a rejection from this async read must not escape.
     const wakefulnessSuffix = async () => {
         try {
             const { nextCheckIn, awake } = await clientNode.act(agent => {

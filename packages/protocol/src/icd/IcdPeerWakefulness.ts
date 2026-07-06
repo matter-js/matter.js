@@ -195,14 +195,10 @@ export class IcdPeerWakefulness {
     }
 
     #availabilityWindow(): Duration {
-        // Subscribed: reports are reliable (MRP, retransmitted) and can arrive as late as the subscription's own
-        // liveness timeout (reportInterval + 2×maxPeerResponseTime). Mirror that via the injected reportMargin so
-        // availability lapses in step with the subscription, never before it (which would escalate a still-live sub).
+        // Subscribed: size to the subscription's own liveness timeout so availability never lapses before it would.
         if (this.#activeReportInterval !== undefined) {
             return Millis(this.#activeReportInterval + (this.#reportMargin ?? IcdPeerWakefulness.CHECK_IN_MARGIN));
         }
-        // Unsubscribed: the peer signals via unreliable, unacknowledged Check-Ins (no MRP backoff to accommodate), so
-        // a small fixed slack for device scheduling jitter is enough.
         return Millis(this.#idleModeDuration + IcdPeerWakefulness.CHECK_IN_MARGIN);
     }
 

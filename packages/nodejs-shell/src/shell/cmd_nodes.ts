@@ -53,7 +53,6 @@ export default function commands(theNode: MatterNode) {
         describe: "Manage nodes",
         builder: (yargs: Argv) =>
             yargs
-                // Pair
                 .command(
                     ["*", "list [status]"],
                     "List all commissioned nodes",

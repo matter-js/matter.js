@@ -156,8 +156,7 @@ export namespace MRP {
             Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
             (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER);
         if (!calculateMaximum) {
-            // Added after the exponential backoff so the pad is not amplified — mirrors CHIP
-            // ReliableMessageMgr::GetBackoff adding the ICD fast-polling interval to mrpBackoffTime.
+            // Not amplified by the exponential backoff — mirrors CHIP ReliableMessageMgr::GetBackoff.
             backoff += fixedBackoff;
         }
         return Millis.floor(Millis(backoff));

@@ -270,8 +270,6 @@ export class SustainedSubscription extends ClientSubscription {
                     break;
                 }
 
-                // A runtime operating-mode flip recreates the subscription so its intervals are renegotiated for the
-                // new mode; a SIT→LIT peer then parks for its next Check-In at the loop head before re-subscribing.
                 const modeFlipped = await this.#awaitClosedOrModeFlip(closed);
 
                 if (!modeFlipped) {
@@ -330,10 +328,8 @@ export class SustainedSubscription extends ClientSubscription {
     async #awaitClosedOrModeFlip(closed: Promise<void>): Promise<boolean> {
         const wakefulness = this.#wakefulness?.();
         if (wakefulness === undefined) {
-            // No wakefulness exists yet to observe a mode flip on: the subscription established before its peer was
-            // fed (registered). Race the feed signal so the first registration-induced flip recreates for the new
-            // mode instead of being missed until a later loss; the recreate re-captures the now-present wakefulness so
-            // subsequent flips are handled by the normal observer above.
+            // No wakefulness yet: the subscription established before its peer was fed. Race the feed signal so the
+            // first registration-induced flip is not missed until a later loss.
             const peerFed = this.#peerFed?.();
             if (peerFed === undefined) {
                 await this.abort.race(closed);

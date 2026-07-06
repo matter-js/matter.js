@@ -56,8 +56,8 @@ export class IcdCheckInSender {
             return false;
         }
 
-        // Outside the transport try/catch: an encode failure is a programmer/crypto bug, not a delivery failure, and
-        // must surface rather than be swallowed as a best-effort `false`.
+        // An encode failure is a programmer/crypto bug, not a delivery failure, so it must surface rather than be
+        // swallowed as a best-effort `false`.
         const payload = await CheckInMessage.encodeIcd(this.#context.crypto, key, counter, activeModeThreshold);
 
         try {

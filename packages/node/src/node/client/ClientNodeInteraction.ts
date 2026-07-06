@@ -109,8 +109,6 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     /**
      * Subscribe to remote events and attributes as defined by {@link request}.
      *
-     * matter.js updates local state
-     *
      * By default, matter.js subscribes to all attributes and events of the peer and updates {@link ClientNode} state
      * automatically.  So you normally do not need to subscribe manually.
      *
@@ -150,8 +148,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
             closed: request.closed?.bind(request),
 
-            // Resolve wakefulness live: the sustained subscription reads it on each loop decision, so a peer
-            // registered after subscribe, or flipped SIT⇄LIT at runtime, is honored without re-subscribing.
+            // Resolved live so a peer registered after subscribe, or flipped SIT⇄LIT at runtime, is honored without
+            // re-subscribing.
             icdWakefulness: () => this.#icdWakefulness(),
 
             // A subscription established before its peer was fed holds no wakefulness to observe the first
@@ -343,9 +341,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     }
 
     /**
-     * The peer's {@link FabricIcd} and node ID, resolved once and cached: the fabric backing a commissioned peer is
-     * stable for the peer's lifetime, so the per-interaction lookup is unnecessary.  Cleared on `peerAddress$Changed`.
-     * A not-yet-loaded fabric is not cached, so it is retried on the next access.
+     * The peer's {@link FabricIcd} and node ID, cached because the fabric backing a commissioned peer is stable for its
+     * lifetime.  Cleared on `peerAddress$Changed`; a not-yet-loaded fabric is not cached, so it is retried next access.
      */
     #peerIcd(): { icd: FabricIcd; nodeId: NodeId } | undefined {
         if (this.#icd !== undefined && this.#icdPeerNodeId !== undefined) {

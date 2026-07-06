@@ -64,8 +64,7 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * Whether the peer is currently awake (send-now). Mirrors the per-peer wakefulness; a non-LIT or not-yet-fed peer
-     * has nothing to await and reads true. Read-only observability — hold/park still consume the signal in protocol.
+     * Whether the peer is currently awake. A non-LIT or not-yet-fed peer has nothing to await and reads true.
      */
     get awake() {
         return this.#fedWakefulness()?.awake.value ?? true;
@@ -79,7 +78,6 @@ export class IcdClient extends Behavior {
         return this.#fedWakefulness()?.availableUntil;
     }
 
-    /** Whether the peer is currently operating in LIT mode (LIT-capable AND OperatingMode === Lit; a DSLS flip changes this at runtime). */
     get #peerIsLongIdleTimeOperating() {
         return (
             this.peerSupportsLit &&
@@ -87,16 +85,13 @@ export class IcdClient extends Behavior {
         );
     }
 
-    /**
-     * Wire lifecycle reactors. Runs `early` so they are registered before the owner first comes online.
-     */
     override initialize() {
         if (this.endpoint instanceof Node) {
             this.reactTo(this.endpoint.lifecycle.decommissioned, this.#onDecommissioned);
         }
 
-        // Restore keys off the OWNER (controller) being online, not the peer: only then is the controller fabric
-        // loaded. The peer's own online state is irrelevant — an ICD peer is offline precisely when it sends Check-Ins.
+        // Restore off the OWNER online, not the peer: only then is the controller fabric loaded, and an ICD peer is
+        // offline precisely when it sends Check-Ins.
         const owner = this.endpoint.owner;
         if (owner instanceof Node) {
             this.reactTo(owner.lifecycle.online, this.#restoreReceivePath);
@@ -105,8 +100,7 @@ export class IcdClient extends Behavior {
             }
         }
 
-        // A DSLS peer can flip SIT⇄LIT at runtime; track it so a fed peer's requiresAwait stays correct. operatingMode
-        // (and thus operatingMode$Changed) only exists on LIT-capable peers.
+        // A DSLS peer can flip SIT⇄LIT at runtime; track it so a fed peer's requiresAwait stays correct.
         if (this.endpoint.behaviors.has(IcdManagementClient)) {
             this.maybeReactTo(
                 this.endpoint.eventsOf(IcdManagementClient).operatingMode$Changed,
@@ -114,8 +108,7 @@ export class IcdClient extends Behavior {
             );
         }
 
-        // The subscription-established edge lands after the bootstrap read, so operatingMode is fresh when we decide;
-        // the immediate check covers an already-active subscription.
+        // The subscription-established edge lands after the bootstrap read, so operatingMode is fresh when we decide.
         if (this.endpoint instanceof Node) {
             this.reactTo(this.endpoint.lifecycle.online, this.#onPeerOnline);
             this.reactTo(
@@ -129,10 +122,8 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * The peer coming online — a device-initiated reconnect (e.g. after a reboot) or our own — is live proof it is
-     * awake, so re-arm its wakefulness like a Check-In would; a no-op for a non-LIT or unfed peer. Fires on the online
-     * edge, after the session is adopted, so it never races an in-flight reconnect (signaling at raw session
-     * establishment did).
+     * The peer coming online is live proof it is awake, so re-arm its wakefulness like a Check-In would; a no-op for a
+     * non-LIT or unfed peer.
      */
     #onPeerOnline() {
         this.#fedWakefulness()?.noteSignal();
@@ -149,10 +140,8 @@ export class IcdClient extends Behavior {
         if (wakefulness !== undefined) {
             const litOperating = this.#peerIsLongIdleTimeOperating;
             wakefulness.requiresAwait = litOperating;
-            // operatingMode only mutates via live inbound peer data (read/report), so a flip into LIT means the peer is
-            // awake right now: re-arm the active window the requiresAwait setter just force-slept, so the recreate
-            // re-subscribes in-window instead of parking a full idle cycle. Gate on the peer being online so a stale
-            // rehydration of operatingMode cannot arm the window from data that is not live.
+            // A live flip into LIT is proof the peer is awake now; re-arm the window the requiresAwait setter force-slept.
+            // Gate on online so a stale rehydration of operatingMode cannot arm the window from non-live data.
             if (litOperating && this.endpoint instanceof Node && this.endpoint.lifecycle.isOnline) {
                 wakefulness.noteSignal();
             }
@@ -161,21 +150,17 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * Register as a Check-In client when the peer operates in LIT mode and we are not registered. Mandatory for LIT
-     * peers, so it bypasses the multi-admin blacklist. Deferred own transaction; best-effort (a failure, e.g. peer
-     * offline, is logged and retried by the next trigger). The running SustainedSubscription reads the wakefulness live,
-     * so it adapts to the registration with no re-subscribe.
+     * Register as a Check-In client for a LIT peer. Mandatory for LIT peers, so it bypasses the multi-admin check.
+     * Best-effort: a failure is logged and retried by the next trigger.
      */
     #ensureLitRegistration() {
         // Gate on capability, not the cached mode: a stale cached SIT must not skip the fresh read that would reveal LIT.
-        // Require an established subscription: register() needs one anyway, and this suppresses a doomed attempt (and its
-        // warn) when operatingMode$Changed fires during the pre-subscription bootstrap read.
+        // Require an established subscription so operatingMode is not stale (register() needs one anyway).
         if (!this.peerSupportsLit || !this.agent.get(NetworkClient).subscriptionActive || this.state.registered) {
             return;
         }
         if (this.internal.autoRegister !== undefined) {
-            // A trigger during an in-flight attempt (e.g. a SIT→LIT flip mid-run) would decide on a stale snapshot;
-            // remember it so #autoRegister re-evaluates on completion instead of dropping it.
+            // Remember a trigger during an in-flight attempt so #autoRegister re-evaluates on a fresh snapshot.
             this.internal.autoRegisterPending = true;
             return;
         }
@@ -184,13 +169,12 @@ export class IcdClient extends Behavior {
 
     async #autoRegister() {
         try {
-            // Defer so an in-flight transaction settles before we open the registration transaction (mirror #startKeyRefresh).
+            // Defer so an in-flight transaction settles before we open the registration transaction.
             await Promise.resolve();
             await this.endpoint.act("icd-auto-register", async agent => {
                 const icd = agent.get(IcdClient);
                 // Re-check inside the transaction: state, reachability, or operating mode may have changed since the
-                // trigger fired. A peer that went offline in the meantime is a no-op (the next online edge retries),
-                // not an error.
+                // trigger fired. An offline peer is a no-op (the next online edge retries), not an error.
                 if (
                     icd.state.registered ||
                     !(icd.endpoint instanceof Node) ||
@@ -199,10 +183,8 @@ export class IcdClient extends Behavior {
                 ) {
                     return;
                 }
-                // Fresh read (mirrors #readPeerFabrics): the cached mode may be stale, so only register on LIT confirmed
-                // by the peer itself. A DSLS peer forced to SIT while it already serves Check-In clients on other
-                // fabrics behaves as a shared ICD, so register there too — its OperatingMode reads SIT and would
-                // otherwise skip us.
+                // Fresh read: only register on LIT confirmed by the peer itself. A DSLS peer forced to SIT while it
+                // already serves other fabrics' Check-In clients behaves as a shared ICD, so register there too.
                 const { operatingMode } = await icd.endpoint.getStateOf(IcdManagementClient, ["operatingMode"]);
                 if (operatingMode !== IcdManagement.OperatingMode.Lit && !(await icd.#dslsPeerHasRegistrations())) {
                     return;
@@ -214,9 +196,8 @@ export class IcdClient extends Behavior {
         } finally {
             this.internal.autoRegister = undefined;
         }
-        // A trigger arrived mid-run, so its decision snapshot may now be stale (e.g. the mode flipped to LIT while we
-        // ran on the pre-flip SIT snapshot); re-run once. #autoRegister re-opens its own transaction and re-checks
-        // every condition, so the tail touches only #internal (no transactional this.state, which has exited here).
+        // A trigger arrived mid-run on a now-possibly-stale snapshot; re-run once. Touches only #internal here as the
+        // transaction has exited.
         if (this.internal.autoRegisterPending) {
             this.internal.autoRegisterPending = undefined;
             this.internal.autoRegister = this.#autoRegister();
@@ -225,8 +206,7 @@ export class IcdClient extends Behavior {
 
     /**
      * True when the peer supports DSLS and already has at least one registered Check-In client. Read non-fabric-scoped
-     * because a co-admin's registration lives on its own fabric; combined with a SIT operating mode this identifies a
-     * DSLS peer forced to SIT that nonetheless serves other admins as an ICD, so we register alongside them.
+     * because a co-admin's registration lives on its own fabric.
      */
     async #dslsPeerHasRegistrations() {
         if (this.endpoint.maybeFeaturesOf(IcdManagementClient)?.dynamicSitLitSupport !== true) {
@@ -249,7 +229,7 @@ export class IcdClient extends Behavior {
 
     /**
      * Re-arm the Check-In receive path from persisted registration state. The {@link FabricIcd} peer entry is
-     * runtime-only, so it is rebuilt on every controller online (restart or reconnect).
+     * runtime-only, so it is rebuilt on every controller online.
      */
     #restoreReceivePath() {
         if (!this.state.registered || this.state.key === undefined) {
@@ -261,8 +241,8 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * Decommission already removed our fabric from the peer (peerAddress is cleared), so no peer
-     * {@link IcdManagement.unregisterClient} is possible or needed — only local cleanup.
+     * Decommission already removed our fabric from the peer, so no peer {@link IcdManagement.unregisterClient} is
+     * possible or needed — only local cleanup.
      */
     #onDecommissioned() {
         if (this.state.registered) {
@@ -270,7 +250,6 @@ export class IcdClient extends Behavior {
         }
     }
 
-    /** Drop the FabricIcd peer entry, clear all registration state, and emit `unregistered`. */
     #clearRegistration() {
         this.#dropFedPeer();
         this.state.registered = false;
@@ -401,8 +380,8 @@ export class IcdClient extends Behavior {
             return;
         }
 
-        // Clear registered up front so a late refreshNeeded Check-In cannot start a new re-key that races this
-        // teardown; then settle any already in-flight re-key before we tear down the peer entry.
+        // Clear registered up front so a late refreshNeeded Check-In cannot start a new re-key; then settle any
+        // in-flight re-key before tearing down the peer entry.
         this.state.registered = false;
         await this.internal.keyRefresh;
 
@@ -429,7 +408,7 @@ export class IcdClient extends Behavior {
         }
 
         // Clear registered up front so a late refreshNeeded Check-In cannot start a new re-key; then settle any
-        // in-flight re-key before teardown so it cannot resurrect the state we are about to clear.
+        // in-flight re-key before teardown.
         this.state.registered = false;
         await this.internal.keyRefresh;
 
@@ -490,10 +469,8 @@ export class IcdClient extends Behavior {
         }
 
         const icdState = this.endpoint.maybeStateOf(IcdManagementClient);
-        // Subscribed availability mirrors the subscription's own liveness timeout (PeerSubscription.timeout =
-        // reportInterval + maxPeerResponseTime×2). Use the identical inputs — SUBSCRIPTION_PROCESSING_TIME, local leg
-        // only — so the injected reportMargin equals that slack exactly and availability never lapses before the
-        // subscription itself times out.
+        // reportMargin must equal the subscription's own liveness slack (maxPeerResponseTime×2 over
+        // SUBSCRIPTION_PROCESSING_TIME) so availability never lapses before the subscription itself times out.
         const peer = this.env.get(PeerSet).get(this.internal.fedPeer);
         wakefulness.setTimings({
             activeModeThreshold:
@@ -536,14 +513,13 @@ export class IcdClient extends Behavior {
     #onCheckIn(checkIn: FabricIcd.ReceivedCheckIn) {
         const { offset, counter, activeModeThreshold, refreshNeeded } = checkIn;
 
-        // fabric.icd advanced its own runtime offset before invoking us; persist it so a restart cannot restore a stale
-        // lastOffset and reopen the replay window.
+        // Persist the advanced offset so a restart cannot restore a stale lastOffset and reopen the replay window.
         this.state.lastOffset = offset;
         this.state.lastCheckInReceivedAt = Time.nowMs;
         this.events.checkedIn.emit({ counter, activeModeThreshold });
 
-        // A tracked in-flight refresh (presence also guards against a second overlapping re-key) keeps the promise
-        // awaitable at teardown instead of orphaned.
+        // Tracking the in-flight refresh both guards against a second overlapping re-key and keeps it awaitable at
+        // teardown.
         if (refreshNeeded && this.state.registered && this.internal.keyRefresh === undefined) {
             this.internal.keyRefresh = this.#startKeyRefresh();
         }
@@ -551,15 +527,13 @@ export class IcdClient extends Behavior {
 
     async #startKeyRefresh(): Promise<void> {
         try {
-            // Defer one microtask so the Check-In RX transaction settles before we open the refresh transaction; the
-            // refresh does peer I/O and writes state, so it must run in its own transaction rather than escaping the
-            // RX one.
+            // Defer one microtask so the Check-In RX transaction settles before the refresh opens its own transaction
+            // for peer I/O and state writes.
             await Promise.resolve();
             await this.endpoint.act("icd-key-refresh", agent => agent.get(IcdClient).#refreshKey());
         } catch (error) {
-            // The new key is persisted only after registerClient resolves, so a transient/unreachable failure leaves
-            // the old key intact and the next Check-In retries. A programmer/state error (ImplementationError) is not
-            // that benign case — it can leave the controller and peer keys out of sync, so surface it loudly.
+            // A transient failure leaves the old key intact (the new key persists only after registerClient resolves)
+            // and the next Check-In retries; an ImplementationError can desync controller and peer keys, so surface it.
             if (error instanceof ImplementationError) {
                 logger.error("ICD key refresh failed unexpectedly; controller and peer keys may be out of sync", error);
             } else {
@@ -597,7 +571,7 @@ export class IcdClient extends Behavior {
         this.state.lastOffset = 0;
 
         // Re-key in place rather than delete+re-add: the wakefulness (and any subscription parked on it) must survive
-        // the refresh. The triggering Check-In already re-armed the windows.
+        // the refresh.
         fabric.icd.updatePeer(peerNodeId, { key, counterStart: icdCounter, lastOffset: 0 });
         this.events.keyRefreshed.emit();
     }
@@ -640,7 +614,7 @@ export namespace IcdClient {
         /** In-flight LIT auto-registration; tracked so overlapping triggers can't double-register and teardown can await it. */
         autoRegister?: Promise<void>;
 
-        /** Set when a trigger arrives while {@link autoRegister} is in flight, so its decision (made on a mode snapshot that may now be stale, e.g. a SIT→LIT flip mid-run) is re-evaluated once it completes. */
+        /** Set when a trigger arrives while {@link autoRegister} is in flight, so it re-evaluates on completion. */
         autoRegisterPending?: boolean;
 
         /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */

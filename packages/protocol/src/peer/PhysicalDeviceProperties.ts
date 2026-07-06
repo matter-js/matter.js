@@ -132,10 +132,8 @@ export namespace PhysicalDeviceProperties {
             // would only push our request above idle for no benefit.
             maxIntervalCeiling = Duration.max(minIntervalFloor, maxIntervalCeiling);
         } else {
-            // Lengthen the ceiling by jitter (added, never subtracted) to spread out device responses when devices
-            // are longer idle, so it cannot increase report frequency (and thus traffic) on the mesh. The result is
-            // floored to whole seconds (the wire granularity). Clamp to the floor so a requested ceiling below the
-            // floor still yields a usable value.
+            // Jitter is added, never subtracted, so it spreads out device responses without raising report
+            // frequency (and thus mesh traffic); floored to whole seconds, the wire granularity.
             const maxJitter = Math.max(
                 maxIntervalCeiling * SUBSCRIPTION_CEILING_JITTER,
                 SUBSCRIPTION_CEILING_JITTER_MIN,

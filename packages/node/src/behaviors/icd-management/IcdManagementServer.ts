@@ -54,13 +54,11 @@ export const ICD_FAST_POLLING_INTERVAL = Millis(200);
 
 const logger = Logger.get("IcdManagement");
 
-// CIP, LITS, DSLS, and UAT are all in the base so `this.state.operatingMode`, `this.events.operatingMode$Changed`,
-// `this.features.dynamicSitLitSupport`, and `this.features.userActiveModeTrigger` typecheck throughout the shared
-// logic. The exported IcdManagementServer resets to CIP-only via `.with(CIP)`.
-// Drop the length bound on the RegisterClient/UnregisterClient verificationKey so a malformed (e.g. over-length) key is
-// not rejected by the interaction layer with ConstraintError before the handler runs. Per § 9.16.7.1/§ 9.16.7.3 the key
-// is only checked for a Manage-privileged caller (an Administrator ignores it); #assertMayModify compares the bytes, so
-// a wrong length simply fails to match. Mirrors the GroupsServer model relaxation.
+// The base composes CIP, LITS, DSLS, and UAT so the shared logic typechecks against all four feature-gated members;
+// the exported IcdManagementServer narrows to CIP-only via `.with(CIP)`.
+// Drop the length bound on the verificationKey so a malformed key fails #assertMayModify's byte comparison rather than
+// being rejected with ConstraintError before the handler runs. Per § 9.16.7.1/§ 9.16.7.3 the key is only checked for a
+// Manage-privileged caller (an Administrator ignores it).
 const { commands: icdCommands } = IcdManagement.schema;
 const registerClientCommand = icdCommands.require("RegisterClient");
 const unregisterClientCommand = icdCommands.require("UnregisterClient");
@@ -225,11 +223,11 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
             }
         }
 
-        // Seed before the network runtime brings up the DeviceAdvertiser and publishes the first operational
-        // announcement, so the ICD DNS-SD TXT key is present from that first announce.
+        // Seed before the DeviceAdvertiser publishes its first announcement so the ICD DNS-SD TXT key is present from
+        // that first announce.
         this.#installIcdAdvertisement();
 
-        // An ICD does not persist/re-establish subscriptions: controllers re-subscribe via Check-In. Must run before
+        // An ICD does not persist/re-establish subscriptions (controllers re-subscribe via Check-In). Must run before
         // any online reactor so CommissioningServer skips its reestablish pass.
         const subscriptions = this.agent.get(SubscriptionsServer);
         if (subscriptions.state.persistenceEnabled) {
@@ -241,11 +239,9 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     }
 
     /**
-     * Register the ICD advertisement provider and seed its cache. The provider returns the pushed cache rather than
-     * reading state because it runs outside the behavior transaction.
-     *
-     * Read-only by design: it derives the mode from {@link #effectiveMode} and never writes `operatingMode`, so calling
-     * it from initialize() does not satisfy the mandatory-attribute check that rejects an unconfigured LIT device.
+     * Register the ICD advertisement provider and seed its cache. The provider returns the pushed cache because it runs
+     * outside the behavior transaction. Read-only by design (never writes `operatingMode`) so it is safe to call from
+     * initialize(), which must not trip the unconfigured-LIT mandatory-attribute check.
      */
     #installIcdAdvertisement() {
         this.env.get(DeviceAdvertiser).setIcdAdvertisementProvider(() => this.internal.currentIcdAdvertisement);
@@ -255,13 +251,11 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     #online() {
         const fabrics = this.env.get(FabricManager);
 
-        // Pad our MRP retransmission backoff by one ICD fast-poll interval, mirroring an ICD server. CHIP adds this
-        // as a fixed term after the exponential backoff, so it uses the dedicated fixed pad rather than the amplified
-        // network margin.
+        // Pad our MRP retransmission backoff by one ICD fast-poll interval, mirroring an ICD server (CHIP adds it as a
+        // fixed term after the exponential backoff).
         this.env.get(SessionManager).localFixedMrpBackoff = ICD_FAST_POLLING_INTERVAL;
 
-        // One-time setup. online may re-fire across stop/start on the same instance; the counter and its persistence
-        // reactor must be created once (and are torn down with the behavior on dispose).
+        // online re-fires across stop/start, so create the counter and its persistence reactor only once.
         if (this.internal.icdCounter === undefined) {
             // A factory-fresh device persists the attribute default (0); randomize its initial Check-In Counter per
             // § 4.6.1.1 instead of starting predictably. A persisted value (always >= boot-bump) is kept as-is.
@@ -271,7 +265,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
                     : this.state.icdCounter;
             const counter = new IcdCounter(seed);
             this.internal.icdCounter = counter;
-            // Persist the boot-bump now; later increments persist via the reactor so writes stay transactional.
+            // Persist the boot-bump now; later increments persist via the reactor.
             // @see {@link MatterSpecification.v16.Core} § 4.6.3
             this.state.icdCounter = counter.value;
             this.reactTo(counter.changed, this.#persistCounter);
@@ -279,13 +273,12 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
             if (this.features.longIdleTimeSupport) {
                 this.reactTo(this.events.operatingMode$Changed, this.#onOperatingModeChanged, { offline: true });
-                // A DSLS force is runtime-only, so after a restart reconcile operatingMode to the registration-driven
-                // mode. Safe to write here (online reactor); initialize() must not, to preserve the mandatory check.
+                // A DSLS force is runtime-only, so reconcile operatingMode to the registration-driven mode after a
+                // restart. Safe to write in this online reactor; initialize() must not, to preserve the mandatory check.
                 this.#updateOperatingMode();
             }
 
-            // Idle/active mode machine, externally driven. Created once; (re)started below on every online, paused on
-            // goingOffline. The idle→active transition is the Check-In send point.
+            // Idle/active mode machine, externally driven. The idle→active transition is the Check-In send point.
             // @see {@link MatterSpecification.v16.Core} § 9.15.1
             this.internal.modeState = new IcdModeState({
                 activeModeDuration: Millis(this.state.activeModeDuration),
@@ -400,11 +393,10 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
 
     /**
      * Send a Check-In to every Permanent registration not currently covered by an active matching subscription, gated
-     * by the per-client back-off. Runs on each idle→active wake. The ICD counter advances once per Check-In sent
-     * (§ 4.6.3), so each message carries a distinct post-increment value.
+     * by the per-client back-off. Runs on each idle→active wake.
      *
-     * The transmitted counter is the post-increment value: clients track the registration counter as offset 0 and
-     * reject offsets <= the last seen, so the first Check-In must carry an offset >= 1.
+     * The counter is transmitted post-increment: clients track the registration counter as offset 0 and reject offsets
+     * <= the last seen, so the first Check-In must carry an offset >= 1.
      *
      * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16.5.3.2
      */
@@ -412,8 +404,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         const sender = this.internal.checkInSender;
         const backOff = this.internal.checkInBackOff;
         const counter = this.internal.icdCounter;
-        // Guard against overlapping passes: the pass awaits per-client sends while mutating back-off state, so a wake
-        // that re-fires mid-pass must not start a second concurrent pass over the same state.
+        // The pass awaits per-client sends while mutating back-off state, so a wake mid-pass must not start a second
+        // concurrent pass over the same state.
         if (sender === undefined || backOff === undefined || counter === undefined || this.internal.sendingCheckIns) {
             return;
         }
@@ -436,8 +428,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
                         continue;
                     }
                     backOff.recordSent(key);
-                    // @see {@link MatterSpecification.v16.Core} § 4.6.3 — the Check-In Counter advances each time a
-                    // Check-In message is sent, so each client receives a distinct post-increment value.
+                    // @see {@link MatterSpecification.v16.Core} § 4.6.3
                     await sender.send({
                         fabricIndex: fabric.fabricIndex,
                         peerNodeId: reg.checkInNodeId,
@@ -533,8 +524,8 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
     async #onFabricDeleted(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
 
-        // registeredClients is fabric-scoped and auto-pruned by the framework during the deleting phase; we only
-        // need to clean the non-scoped internal key store here. The reactor supplies a transaction for the state write.
+        // registeredClients is fabric-scoped and auto-pruned by the framework; only the non-scoped internal key store
+        // needs cleaning here.
         for (const key of [...this.internal.icdKeys.keys()]) {
             if (key.startsWith(`${fabricIndex}:`)) {
                 this.internal.icdKeys.delete(key);
@@ -543,7 +534,7 @@ export class IcdManagementBaseServer extends IcdManagementLogicBase {
         }
         this.#persistKeys();
 
-        // The fabric object still exists at this point; clear its operational registrations.
+        // The fabric object still exists during the deleting phase, so clear its operational registrations now.
         fabric.icd.clearRegistrations();
 
         this.#updateOperatingMode();
