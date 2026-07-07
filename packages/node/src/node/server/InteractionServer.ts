@@ -42,6 +42,7 @@ import {
     Session,
     SessionManager,
     SessionType,
+    Subject,
     SubscribeRequest,
     Subscription,
     TimedRequest,
@@ -950,6 +951,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             const groupSession = GroupSession.is(session) ? session : undefined;
             const destIp = groupSession?.multicastAddress;
             const sourceIp = groupSession?.receivedFrom;
+            // The event's ClusterID/ElementID reflect the request; cmd-response paths carry the response command id
+            const requestPath = invokeRequests[0]?.commandPath;
             let emitted = false;
             for await (const chunk of results) {
                 for (const data of chunk) {
@@ -964,30 +967,42 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         sourceIp,
                         destIp,
                         endpointId: data.path.endpointId,
-                        clusterId: data.path.clusterId,
-                        elementId: data.path.commandId,
+                        clusterId: requestPath?.clusterId ?? data.path.clusterId,
+                        elementId: requestPath?.commandId ?? data.path.commandId,
                         accessAllowed,
                     });
                     emitted = true;
                 }
             }
-            // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
-            // endpoint mappings for the group), still emit one event per requested invoke path so observers see the
-            // message arrived.  The message itself was authenticated and processed, so per core§11.27.7.6.3 the
-            // result is Success with AccessAllowed=false — FailedAuth is reserved for authentication failures.
             if (!emitted) {
-                for (const { commandPath } of invokeRequests) {
+                const subject = groupSession?.subjectFor(message);
+                if (subject !== undefined && Subject.isGroup(subject) && !subject.hasValidMapping) {
+                    // The authenticating key is not the one mapped for the group: improperly authenticated per
+                    // core§11.27.7.6.3, reported without the unauthenticated group id
                     this.#context.sessions.emitGroupMessage({
-                        result: Groupcast.GroupcastTestResult.Success,
+                        result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
-                        groupId,
                         sourceIp,
                         destIp,
-                        endpointId: commandPath.endpointId,
-                        clusterId: commandPath.clusterId,
-                        elementId: commandPath.commandId,
-                        accessAllowed: false,
                     });
+                } else {
+                    // Wildcard expansion produced no dispatches (all paths filtered out by ACL or no endpoint
+                    // mappings for the group).  Still emit one event per requested invoke path so observers see the
+                    // message arrived: the message was authenticated and processed, so per core§11.27.7.6.3 the
+                    // result is Success with AccessAllowed=false
+                    for (const { commandPath } of invokeRequests) {
+                        this.#context.sessions.emitGroupMessage({
+                            result: Groupcast.GroupcastTestResult.Success,
+                            fabric,
+                            groupId,
+                            sourceIp,
+                            destIp,
+                            endpointId: commandPath.endpointId,
+                            clusterId: commandPath.clusterId,
+                            elementId: commandPath.commandId,
+                            accessAllowed: false,
+                        });
+                    }
                 }
             }
             return;

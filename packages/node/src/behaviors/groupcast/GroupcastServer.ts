@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ActionContext } from "#behavior/context/ActionContext.js";
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
@@ -114,13 +115,15 @@ export class GroupcastServer extends GroupcastBehavior {
         this.reactTo(fabrics.events.replaced, this.#handleFabricAdded);
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
 
-        // Membership.KeySetId mirrors the GroupKeyMap link, so any map change re-derives it
+        // Membership.KeySetId mirrors the GroupKeyMap link, so any map change re-derives it.  The reactors run
+        // offline because they update the read-only Membership attribute, which the triggering remote actor (a GKM
+        // attribute write) is not authorized to touch.
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
-        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys);
+        this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys, { offline: true });
 
         // Per core§11.27.10 group removal through any means (e.g. the legacy Groups cluster commands, which operate
         // on the GKM group table) must update Membership and the auxiliary ACL entries derived from it
-        this.reactTo(gkmEvents.groupTable$Changed, this.#reconcileMembershipEndpoints);
+        this.reactTo(gkmEvents.groupTable$Changed, this.#reconcileMembershipEndpoints, { offline: true });
 
         // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
         // While no fabric is under test, SessionManager.groupMessage emits are a no-op (no listeners).
@@ -570,7 +573,11 @@ export class GroupcastServer extends GroupcastBehavior {
      * ACL entries.  Only removals are mirrored; matching {@link leaveGroup}, a listener entry losing all endpoints
      * stays as sender-only when the Sender feature is enabled and disappears otherwise.
      */
-    #reconcileMembershipEndpoints(groupTable: GroupKeyManagement.GroupInfoMap[]) {
+    #reconcileMembershipEndpoints(
+        groupTable: GroupKeyManagement.GroupInfoMap[],
+        _oldGroupTable?: GroupKeyManagement.GroupInfoMap[],
+        context?: ActionContext,
+    ) {
         const membership = this.state.membership;
         const next = new Array<Groupcast.Membership>();
         const affectedFabrics = new Set<FabricIndex>();
@@ -608,7 +615,7 @@ export class GroupcastServer extends GroupcastBehavior {
             }
         }
         this.#updateUsedMcastAddrCount();
-        this.#emitAuxAcl();
+        this.#emitAuxAcl(context);
     }
 
     /**
@@ -633,8 +640,12 @@ export class GroupcastServer extends GroupcastBehavior {
         }
     }
 
-    /** Recompute auxiliary ACL entries and emit them via the observable so AccessControlServer updates. */
-    #emitAuxAcl() {
+    /**
+     * Recompute auxiliary ACL entries and emit them via the observable so AccessControlServer updates.  The context
+     * identifies the administrating actor in the AuxiliaryAccessUpdated event; pass the triggering context when the
+     * recomputation runs in an offline reactor.
+     */
+    #emitAuxAcl(context: ActionContext = this.context) {
         if (!this.endpoint.behaviors.has(AccessControlServer)) return;
         // Auxiliary entries grant Operate per listener endpoint (core§11.27.10); sender-only memberships get none
         const entries = new Array<AccessControlTypes.AccessControlEntry>();
@@ -657,7 +668,7 @@ export class GroupcastServer extends GroupcastBehavior {
             });
         }
 
-        this.internal.auxAcl.emit(entries, this.context);
+        this.internal.auxAcl.emit(entries, context);
     }
 
     /**
