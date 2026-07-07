@@ -285,7 +285,7 @@ export namespace RootRequirements {
 export const RootEndpointDefinition = MutableEndpoint({
     name: "RootNode",
     deviceType: 0x16,
-    deviceRevision: 5,
+    deviceRevision: 4,
     deviceClass: DeviceClassification.Node,
     requirements: RootRequirements,
 

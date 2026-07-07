@@ -56,7 +56,7 @@ export declare namespace Groups {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
-    export const revision: 5;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the Groups cluster.

@@ -32,7 +32,7 @@ export declare namespace OnOff {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
-    export const revision: 7;
+    export const revision: 6;
 
     /**
      * Canonical metadata for the OnOff cluster.

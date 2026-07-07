@@ -12,9 +12,6 @@ LocalMatter.children.push({
     name: "Groups",
 
     children: [
-        // SVE: revision 5 (Groupcast adoption interworking, Matter 1.6.1 draft)
-        { tag: "attribute", id: 0xfffd, name: "ClusterRevision", default: 5 },
-
         // Enable group names by default.  Not mandated by the specification but a reasonable default
         {
             tag: "attribute",

@@ -2329,7 +2329,7 @@ const PEER1_STATE = {
         clusterRevision: 3,
         endpointUniqueId: undefined,
         featureMap: { tagList: false },
-        deviceTypeList: [{ deviceType: 0x16, revision: 5 }], // SVE: RootNode revision 5
+        deviceTypeList: [{ deviceType: 0x16, revision: 4 }],
         serverList: [0x1f, 0x28, 0x30, 0x33, 0x3c, 0x3e, 0x3f, 0x1d],
         clientList: [],
         partsList: [1],
@@ -2353,7 +2353,7 @@ const EP1_STATE = {
         generatedCommandList: [],
     },
     groups: {
-        clusterRevision: 5, // SVE: Groups revision 5
+        clusterRevision: 4,
         featureMap: { groupNames: true },
         nameSupport: { groupNames: true },
         attributeList: [0, ...GLOBAL_ATTRS],
@@ -2362,7 +2362,7 @@ const EP1_STATE = {
         generatedCommandList: [0, 1, 2, 3],
     },
     onOff: {
-        clusterRevision: 7, // SVE: OnOff revision 7
+        clusterRevision: 6,
         featureMap: { lighting: true, deadFrontBehavior: false, offOnly: false },
         onOff: false,
         globalSceneControl: false,
@@ -2377,7 +2377,7 @@ const EP1_STATE = {
     descriptor: {
         clusterRevision: 3,
         featureMap: { tagList: false },
-        deviceTypeList: [{ deviceType: 0x100, revision: 4 }], // SVE: OnOffLight revision 4
+        deviceTypeList: [{ deviceType: 0x100, revision: 3 }],
         endpointUniqueId: undefined,
         serverList: [3, 4, 6, 0x62, 0x1d],
         clientList: [],
