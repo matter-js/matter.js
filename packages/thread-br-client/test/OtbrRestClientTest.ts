@@ -577,3 +577,144 @@ describe("OtbrRestClient mutations", () => {
         await expectRestError(client.setState(true), "rest_conflict");
     });
 });
+
+describe("OtbrRestClient collection API", () => {
+    before(MockTime.enable);
+
+    let server: MockOtbrServer;
+    let client: OtbrRestClient;
+
+    beforeEach(() => {
+        server = new MockOtbrServer();
+        server.install();
+        client = new OtbrRestClient({ host: "br.example" });
+    });
+    afterEach(() => server.uninstall());
+
+    it("postAction posts a vnd.api+json task envelope and returns the action id", async () => {
+        server.on("POST", "/api/actions", () =>
+            jsonResponse(
+                JSON.stringify({
+                    data: [{ id: "act-123", type: "getNetworkDiagnosticTask", attributes: { status: "pending" } }],
+                    meta: { collection: { offset: 0, limit: 200, total: 1 } },
+                }),
+            ),
+        );
+        const id = await client.postAction("getNetworkDiagnosticTask", {
+            destination: "0011223344556677",
+            types: ["extAddress", "rloc16"],
+            timeout: 10,
+        });
+        expect(id).to.equal("act-123");
+        const req = server.lastRequest();
+        expect(req.method).to.equal("POST");
+        expect(req.path).to.equal("/api/actions");
+        expect(req.contentType).to.equal("application/vnd.api+json");
+        expect(JSON.parse(req.body!)).to.deep.equal({
+            data: [
+                {
+                    type: "getNetworkDiagnosticTask",
+                    attributes: { destination: "0011223344556677", types: ["extAddress", "rloc16"], timeout: 10 },
+                },
+            ],
+        });
+    });
+
+    it("postAction throws rest_protocol when the response carries no action id", async () => {
+        server.on("POST", "/api/actions", () => jsonResponse(JSON.stringify({ data: [] })));
+        await expectRestError(
+            client.postAction("getNetworkDiagnosticTask", { destination: "0011223344556677", types: [] }),
+            "rest_protocol",
+        );
+    });
+
+    it("getAction returns the status and the completed result id", async () => {
+        server.on("GET", "/api/actions/act-123", () =>
+            jsonResponse(
+                JSON.stringify({
+                    data: {
+                        id: "act-123",
+                        type: "getNetworkDiagnosticTask",
+                        attributes: { status: "completed" },
+                        relationships: { result: { data: { type: "networkDiagnostics", id: "diag-9" } } },
+                    },
+                }),
+            ),
+        );
+        const action = await client.getAction("act-123");
+        expect(action.status).to.equal("completed");
+        expect(action.resultId).to.equal("diag-9");
+        expect(server.lastRequest().path).to.equal("/api/actions/act-123");
+    });
+
+    it("getAction returns status without a result id while pending", async () => {
+        server.on("GET", "/api/actions/act-123", () =>
+            jsonResponse(JSON.stringify({ data: { id: "act-123", attributes: { status: "pending" } } })),
+        );
+        const action = await client.getAction("act-123");
+        expect(action.status).to.equal("pending");
+        expect(action.resultId).to.be.undefined;
+    });
+
+    it("getDiagnosticsCollection requests application/json and returns the bare array", async () => {
+        server.on("GET", "/api/diagnostics", () =>
+            jsonResponse(JSON.stringify([{ rloc16: "0x4800" }, { rloc16: "0x0400" }])),
+        );
+        const list = await client.getDiagnosticsCollection();
+        expect(list).to.have.length(2);
+        expect(server.lastRequest().path).to.equal("/api/diagnostics");
+    });
+
+    it("getDiagnosticsCollection throws rest_protocol when the body is not an array", async () => {
+        server.on("GET", "/api/diagnostics", () => jsonResponse(JSON.stringify({ data: [] })));
+        await expectRestError(client.getDiagnosticsCollection(), "rest_protocol");
+    });
+
+    it("listDevices returns the bare device array", async () => {
+        server.on("GET", "/api/devices", () =>
+            jsonResponse(JSON.stringify([{ extAddress: "0011223344556677" }, { extAddress: "8899aabbccddeeff" }])),
+        );
+        const devices = await client.listDevices();
+        expect(devices).to.have.length(2);
+        expect(server.lastRequest().path).to.equal("/api/devices");
+    });
+
+    it("clearDiagnostics issues DELETE /api/diagnostics", async () => {
+        server.on("DELETE", "/api/diagnostics", () => new Response("", { status: 200 }));
+        await client.clearDiagnostics();
+        const req = server.lastRequest();
+        expect(req.method).to.equal("DELETE");
+        expect(req.path).to.equal("/api/diagnostics");
+    });
+});
+
+describe("OtbrRestClient.detectDiagnosticsApi", () => {
+    before(MockTime.enable);
+
+    let server: MockOtbrServer;
+    let client: OtbrRestClient;
+
+    beforeEach(() => {
+        server = new MockOtbrServer();
+        server.install();
+        client = new OtbrRestClient({ host: "br.example" });
+    });
+    afterEach(() => server.uninstall());
+
+    it('returns "collection" when GET /api/diagnostics is served', async () => {
+        server.on("GET", "/api/diagnostics", () => jsonResponse("[]"));
+        expect(await client.detectDiagnosticsApi()).to.equal("collection");
+    });
+
+    it('returns "legacy" when /api/diagnostics 404s but GET /diagnostics is served', async () => {
+        server.on("GET", "/api/diagnostics", () => new Response("", { status: 404 }));
+        server.on("GET", "/diagnostics", () => jsonResponse("[]"));
+        expect(await client.detectDiagnosticsApi()).to.equal("legacy");
+    });
+
+    it('returns "none" when neither diagnostics endpoint is served', async () => {
+        server.on("GET", "/api/diagnostics", () => new Response("", { status: 404 }));
+        server.on("GET", "/diagnostics", () => new Response("", { status: 404 }));
+        expect(await client.detectDiagnosticsApi()).to.equal("none");
+    });
+});

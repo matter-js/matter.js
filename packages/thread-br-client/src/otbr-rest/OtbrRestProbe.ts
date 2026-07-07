@@ -35,10 +35,11 @@ export class OtbrRestProbe {
 
         try {
             const { keyFormat, networkName, extPanId } = await client.probeNode();
+            const diagnosticsApi = await client.detectDiagnosticsApi();
             logger.debug(
-                `probe OK ${baseUrl} keyFormat=${keyFormat} xp=${Bytes.toHex(extPanId).toUpperCase()} network="${networkName}"`,
+                `probe OK ${baseUrl} keyFormat=${keyFormat} diagnosticsApi=${diagnosticsApi} xp=${Bytes.toHex(extPanId).toUpperCase()} network="${networkName}"`,
             );
-            return { baseUrl, keyFormat, probedAt: Date.now(), networkName, extPanId };
+            return { baseUrl, keyFormat, probedAt: Date.now(), networkName, extPanId, diagnosticsApi };
         } catch (err) {
             if (err instanceof OtbrRestError) {
                 logger.debug(`probe MISS ${baseUrl} /node ${err.code} (${err.message})`);

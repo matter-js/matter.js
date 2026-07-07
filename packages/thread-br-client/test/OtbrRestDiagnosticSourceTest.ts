@@ -17,7 +17,17 @@ const PACKAGE_ROOT = process.cwd();
 const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
 const RAW_DIAGNOSTICS: unknown = JSON.parse(readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8"));
 
-type ClientLike = Pick<OtbrRestClient, "getDiagnostics" | "getNode" | "resetDiagnosticCounters">;
+type ClientLike = Pick<
+    OtbrRestClient,
+    | "getDiagnostics"
+    | "getNode"
+    | "resetDiagnosticCounters"
+    | "postAction"
+    | "getAction"
+    | "getDiagnosticsCollection"
+    | "listDevices"
+    | "clearDiagnostics"
+>;
 
 function normalizedDiagnostics(): unknown[] {
     const normalized = normalizeKeys(RAW_DIAGNOSTICS);
@@ -32,6 +42,7 @@ function makeCapability(extPanIdHex: string): OtbrRestCapability {
         probedAt: 1_700_000_000_000,
         networkName: "TestNet",
         extPanId: Bytes.of(Bytes.fromHex(extPanIdHex)),
+        diagnosticsApi: "legacy",
     };
 }
 
@@ -42,6 +53,19 @@ function mockClient(): ClientLike {
             throw new Error("not used in tests");
         },
         resetDiagnosticCounters: async () => {},
+        postAction: async () => {
+            throw new Error("not used in legacy tests");
+        },
+        getAction: async () => {
+            throw new Error("not used in legacy tests");
+        },
+        getDiagnosticsCollection: async () => {
+            throw new Error("not used in legacy tests");
+        },
+        listDevices: async () => {
+            throw new Error("not used in legacy tests");
+        },
+        clearDiagnostics: async () => {},
     };
 }
 

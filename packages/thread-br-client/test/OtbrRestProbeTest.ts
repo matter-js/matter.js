@@ -31,9 +31,11 @@ function installFetch(handler: FetchHandler): () => void {
 describe("OtbrRestProbe", () => {
     before(MockTime.enable);
 
-    it("detects keyFormat=pascal from PascalCase /node keys", async () => {
+    it("detects keyFormat=pascal and diagnosticsApi=legacy for an old build", async () => {
         const restore = installFetch(async url => {
             if (url.endsWith("/node")) return new Response(NODE_PASCAL_FIXTURE, { status: 200 });
+            if (url.endsWith("/api/diagnostics")) return new Response("", { status: 404 });
+            if (url.endsWith("/diagnostics")) return new Response("[]", { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
         try {
@@ -41,6 +43,7 @@ describe("OtbrRestProbe", () => {
             expect(cap).to.not.be.null;
             if (cap === null) return;
             expect(cap.keyFormat).to.equal("pascal");
+            expect(cap.diagnosticsApi).to.equal("legacy");
             expect(cap.networkName).to.equal("TestNet");
             expect(Bytes.toHex(cap.extPanId)).to.equal("1122334455667788");
             expect(cap.baseUrl).to.equal("http://br.example:8081");
@@ -50,9 +53,10 @@ describe("OtbrRestProbe", () => {
         }
     });
 
-    it("detects keyFormat=camel from camelCase /node keys", async () => {
+    it("detects keyFormat=camel and diagnosticsApi=collection for a post-2024 build", async () => {
         const restore = installFetch(async url => {
             if (url.endsWith("/node")) return new Response(NODE_CAMEL_FIXTURE, { status: 200 });
+            if (url.endsWith("/api/diagnostics")) return new Response("[]", { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
         try {
@@ -60,6 +64,7 @@ describe("OtbrRestProbe", () => {
             expect(cap).to.not.be.null;
             if (cap === null) return;
             expect(cap.keyFormat).to.equal("camel");
+            expect(cap.diagnosticsApi).to.equal("collection");
             expect(cap.networkName).to.equal("MockThread");
             expect(Bytes.toHex(cap.extPanId)).to.equal("1122334455667799");
         } finally {
@@ -67,17 +72,33 @@ describe("OtbrRestProbe", () => {
         }
     });
 
-    it("never fetches /api/actions", async () => {
+    it("reports diagnosticsApi=none when neither diagnostics endpoint is served", async () => {
+        const restore = installFetch(async url => {
+            if (url.endsWith("/node")) return new Response(NODE_CAMEL_FIXTURE, { status: 200 });
+            if (url.endsWith("/diagnostics")) return new Response("", { status: 404 });
+            throw new Error(`unexpected url: ${url}`);
+        });
+        try {
+            const cap = await OtbrRestProbe.probe("br.example", 8081, 500);
+            expect(cap).to.not.be.null;
+            expect(cap?.diagnosticsApi).to.equal("none");
+        } finally {
+            restore();
+        }
+    });
+
+    it("never fetches /api/actions during probe", async () => {
         const seen = new Array<string>();
         const restore = installFetch(async url => {
             seen.push(url);
             if (url.endsWith("/node")) return new Response(NODE_CAMEL_FIXTURE, { status: 200 });
+            if (url.endsWith("/api/diagnostics")) return new Response("[]", { status: 200 });
             throw new Error(`unexpected url: ${url}`);
         });
         try {
             await OtbrRestProbe.probe("br.example", 8081, 500);
             expect(seen.some(u => u.includes("/api/actions"))).to.be.false;
-            expect(seen).to.deep.equal(["http://br.example:8081/node"]);
+            expect(seen).to.deep.equal(["http://br.example:8081/node", "http://br.example:8081/api/diagnostics"]);
         } finally {
             restore();
         }

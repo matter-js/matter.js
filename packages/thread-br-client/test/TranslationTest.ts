@@ -103,6 +103,13 @@ describe("translateNodeJson", () => {
         expect(translateNodeJson({ rloc16: "0x4800" }).rloc16).to.equal(18432);
     });
 
+    it("reads the post-2024 `ipv6Addresses` field name (not just legacy `ip6AddressList`)", () => {
+        const decoded = translateNodeJson({ rloc16: 5120, ipv6Addresses: ["fe80::1", "fd00::2"] });
+        expect(decoded.ipv6Addresses).to.not.be.undefined;
+        expect(decoded.ipv6Addresses!).to.have.length(2);
+        expect(Bytes.toHex(decoded.ipv6Addresses![0])).to.equal("fe800000000000000000000000000001");
+    });
+
     it("omits rloc16 when malformed rather than mis-decoding", () => {
         expect(translateNodeJson({ rloc16: "0x10000" }).rloc16).to.be.undefined;
         expect(translateNodeJson({ rloc16: "garbage" }).rloc16).to.be.undefined;
@@ -150,26 +157,30 @@ describe("translateNodeJson", () => {
         expect(() => __testables.parseIpv6("1::2::3")).to.throw();
     });
 
-    it("translates mleCounters object from normalized OTBR JSON", () => {
-        const decoded = translateNodeJson({
-            mleCounters: {
-                disabledRole: 1,
-                detachedRole: 2,
-                childRole: 3,
-                routerRole: 4,
-                leaderRole: 5,
-                attachAttempts: 6,
-                partitionIdChanges: 7,
-                betterPartitionAttachAttempts: 8,
-                parentChanges: 9,
-                trackedTime: 100000,
-                disabledTime: 200000,
-                detachedTime: 300000,
-                childTime: 400000,
-                routerTime: 500000,
-                leaderTime: 600000,
-            },
-        });
+    // Real OTBR REST mleCounters wire names (verified live against a BR).
+    function mle(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            radioDisabledCount: 1,
+            detachedRoleCount: 2,
+            childRoleCount: 3,
+            routerRoleCount: 4,
+            leaderRoleCount: 5,
+            attachAttemptsCount: 6,
+            partIdChangesCount: 7,
+            betterPartIdAttachAttemptsCount: 8,
+            newParentCount: 9,
+            totalTrackingTime: 100000,
+            radioDisabledTime: 200000,
+            detachedRoleTime: 300000,
+            childRoleTime: 400000,
+            routerRoleTime: 500000,
+            leaderRoleTime: 600000,
+            ...overrides,
+        };
+    }
+
+    it("translates mleCounters from the real OTBR wire names", () => {
+        const decoded = translateNodeJson({ mleCounters: mle() });
         expect(decoded.mleCounters).to.not.be.undefined;
         expect(decoded.mleCounters!.disabledRole).to.equal(1);
         expect(decoded.mleCounters!.parentChanges).to.equal(9);
@@ -185,111 +196,36 @@ describe("translateNodeJson", () => {
     it("decodes string-encoded 64-bit MLE time counters without precision loss", () => {
         // 2^53 + 1 = 9007199254740993 — not representable as a JS number.
         const decoded = translateNodeJson({
-            mleCounters: {
-                disabledRole: 1,
-                detachedRole: 2,
-                childRole: 3,
-                routerRole: 4,
-                leaderRole: 5,
-                attachAttempts: 6,
-                partitionIdChanges: 7,
-                betterPartitionAttachAttempts: 8,
-                parentChanges: 9,
-                trackedTime: "9007199254740993",
-                disabledTime: "200000",
-                detachedTime: "300000",
-                childTime: "400000",
-                routerTime: "500000",
-                leaderTime: "600000",
-            },
+            mleCounters: mle({ totalTrackingTime: "9007199254740993", radioDisabledTime: "200000" }),
         });
         expect(decoded.mleCounters!.trackedTime).to.equal(9007199254740993n);
         expect(decoded.mleCounters!.disabledTime).to.equal(200000n);
     });
 
-    it("rejects a string MLE counter beyond the uint64 range", () => {
-        const base = {
-            disabledRole: 1,
-            detachedRole: 2,
-            childRole: 3,
-            routerRole: 4,
-            leaderRole: 5,
-            attachAttempts: 6,
-            partitionIdChanges: 7,
-            betterPartitionAttachAttempts: 8,
-            parentChanges: 9,
-            // 2^64 = 18446744073709551616, one past uint64 max.
-            trackedTime: "18446744073709551616",
-            disabledTime: 0,
-            detachedTime: 0,
-            childTime: 0,
-            routerTime: 0,
-            leaderTime: 0,
-        };
-        expect(() => translateNodeJson({ mleCounters: base })).to.throw(/uint64/);
-    });
-
     it("accepts the uint64 maximum string MLE counter", () => {
-        const base = {
-            disabledRole: 1,
-            detachedRole: 2,
-            childRole: 3,
-            routerRole: 4,
-            leaderRole: 5,
-            attachAttempts: 6,
-            partitionIdChanges: 7,
-            betterPartitionAttachAttempts: 8,
-            parentChanges: 9,
-            trackedTime: "18446744073709551615",
-            disabledTime: 0,
-            detachedTime: 0,
-            childTime: 0,
-            routerTime: 0,
-            leaderTime: 0,
-        };
-        expect(translateNodeJson({ mleCounters: base }).mleCounters!.trackedTime).to.equal(18446744073709551615n);
+        const decoded = translateNodeJson({ mleCounters: mle({ totalTrackingTime: "18446744073709551615" }) });
+        expect(decoded.mleCounters!.trackedTime).to.equal(18446744073709551615n);
     });
 
-    it("rejects a negative numeric MLE counter (uint64 range enforced on all paths)", () => {
-        const base = {
-            disabledRole: 1,
-            detachedRole: 2,
-            childRole: 3,
-            routerRole: 4,
-            leaderRole: 5,
-            attachAttempts: 6,
-            partitionIdChanges: 7,
-            betterPartitionAttachAttempts: 8,
-            parentChanges: 9,
-            trackedTime: -1,
-            disabledTime: 0,
-            detachedTime: 0,
-            childTime: 0,
-            routerTime: 0,
-            leaderTime: 0,
-        };
-        expect(() => translateNodeJson({ mleCounters: base })).to.throw(/uint64/);
+    it("skips mleCounters but keeps the node when a counter exceeds uint64", () => {
+        // 2^64 = 18446744073709551616, one past uint64 max.
+        const decoded = translateNodeJson({
+            rloc16: 5120,
+            mleCounters: mle({ totalTrackingTime: "18446744073709551616" }),
+        });
+        expect(decoded.rloc16).to.equal(5120);
+        expect(decoded.mleCounters).to.be.undefined;
     });
 
-    it("rejects a malformed string MLE counter", () => {
-        const base = {
-            disabledRole: 1,
-            detachedRole: 2,
-            childRole: 3,
-            routerRole: 4,
-            leaderRole: 5,
-            attachAttempts: 6,
-            partitionIdChanges: 7,
-            betterPartitionAttachAttempts: 8,
-            parentChanges: 9,
-            trackedTime: "12.5",
-            disabledTime: 0,
-            detachedTime: 0,
-            childTime: 0,
-            routerTime: 0,
-            leaderTime: 0,
-        };
-        expect(() => translateNodeJson({ mleCounters: base })).to.throw(/trackedTime/);
+    it("skips mleCounters when a numeric counter is negative", () => {
+        const decoded = translateNodeJson({ rloc16: 5120, mleCounters: mle({ totalTrackingTime: -1 }) });
+        expect(decoded.rloc16).to.equal(5120);
+        expect(decoded.mleCounters).to.be.undefined;
+    });
+
+    it("skips mleCounters when a string counter is malformed", () => {
+        const decoded = translateNodeJson({ rloc16: 5120, mleCounters: mle({ totalTrackingTime: "12.5" }) });
+        expect(decoded.mleCounters).to.be.undefined;
     });
 
     it("translates mode with all-zero flags", () => {
