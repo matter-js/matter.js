@@ -276,7 +276,10 @@ export class GroupcastServer extends GroupcastBehavior {
             }
             this.state.membership = this.state.membership.filter(m => m.fabricIndex !== fabricIndex);
             this.#updateUsedMcastAddrCount();
-            this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
+            this.#syncFabricGroups(
+                this.env.get(FabricManager).for(fabricIndex),
+                fabricMemberships.map(m => m.groupId),
+            );
             this.#emitAuxAcl();
             return { groupId: GroupId.NO_GROUP_ID, endpoints: [] };
         }
@@ -290,11 +293,13 @@ export class GroupcastServer extends GroupcastBehavior {
 
         const entry = membership[entryIdx];
         let removedEndpoints: EndpointNumber[];
+        let entryRemoved = false;
 
         if (!requestedEndpoints || requestedEndpoints.length === 0) {
             // No specific endpoints specified → remove entire entry
             removedEndpoints = entry.endpoints ?? [];
             membership.splice(entryIdx, 1);
+            entryRemoved = true;
         } else {
             const currentEndpoints = entry.endpoints ?? [];
             removedEndpoints = requestedEndpoints.filter(ep => currentEndpoints.includes(ep));
@@ -308,6 +313,7 @@ export class GroupcastServer extends GroupcastBehavior {
                 } else {
                     // LN-only: remove the entry entirely
                     membership.splice(entryIdx, 1);
+                    entryRemoved = true;
                 }
             } else {
                 membership[entryIdx] = { ...entry, endpoints: remainingEndpoints };
@@ -316,7 +322,7 @@ export class GroupcastServer extends GroupcastBehavior {
 
         this.state.membership = membership;
         this.#updateUsedMcastAddrCount();
-        this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex));
+        this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex), entryRemoved ? [groupId] : undefined);
         this.#emitAuxAcl();
 
         return { groupId, endpoints: removedEndpoints };
@@ -482,7 +488,12 @@ export class GroupcastServer extends GroupcastBehavior {
         this.#cleanupFabric(fabric.fabricIndex);
     }
 
-    #syncFabricGroups(fabric: Fabric) {
+    /**
+     * Sync the operational and GKM views of this fabric's groups from the Membership state.  Only Groupcast-owned
+     * groups (current membership plus explicitly removed ones) are touched; groups configured through the legacy
+     * Groups/GKM path are preserved.
+     */
+    #syncFabricGroups(fabric: Fabric, removedGroupIds?: Iterable<GroupId>) {
         const fabricIndex = fabric.fabricIndex;
         const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
 
@@ -494,41 +505,63 @@ export class GroupcastServer extends GroupcastBehavior {
             fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
         }
 
-        // Rebuild group→keySet map.  Unmapped groups are absent so key lookup fails cleanly rather than pointing at
-        // the nonexistent sentinel key set.
-        const groupKeyIdMap = new Map<GroupId, number>();
+        const owned = new Set(fabricMemberships.map(m => m.groupId));
+        const removed = new Set<GroupId>();
+        for (const groupId of removedGroupIds ?? []) {
+            if (!owned.has(groupId)) {
+                removed.add(groupId);
+                fabric.groups.removeGroupMulticastPolicy(groupId);
+            }
+        }
+
+        // Merge group→keySet map: entries of Groupcast-owned groups follow the membership, entries of other groups
+        // (e.g. legacy Groups cluster configuration) are preserved.  Unmapped groups are absent so key lookup fails
+        // cleanly rather than pointing at the nonexistent sentinel key set.
+        const groupKeyIdMap = new Map<GroupId, number>(fabric.groups.groupKeyIdMap);
+        for (const groupId of removed) {
+            groupKeyIdMap.delete(groupId);
+        }
         for (const m of fabricMemberships) {
             if (m.keySetId !== UNMAPPED_KEYSET_ID) {
                 groupKeyIdMap.set(m.groupId, m.keySetId);
+            } else {
+                groupKeyIdMap.delete(m.groupId);
             }
         }
         fabric.groups.groupKeyIdMap = groupKeyIdMap;
 
         // Mirror Membership mappings into GKM GroupKeyMap so the attribute read reflects them.
-        // Data dependency: Groupcast owns the group→keySet relationship; GroupKeyMap must reflect it.
+        // Data dependency: Groupcast owns its groups' group→keySet relationship; GroupKeyMap must reflect it.
         // GKM's per-fabric cap (maxGroupsPerFabric) and Groupcast's per-fabric cap (floor(maxMembershipCount/2))
         // must stay aligned so the mirror never exceeds the GKM validator.
         const gkm = this.agent.get(GroupKeyManagementServer);
-        const otherFabricsMap = gkm.state.groupKeyMap.filter(e => e.fabricIndex !== fabricIndex);
+        const keptMap = gkm.state.groupKeyMap.filter(
+            e => e.fabricIndex !== fabricIndex || (!owned.has(e.groupId) && !removed.has(e.groupId)),
+        );
         const mappings = fabricMemberships
             .filter(m => m.keySetId !== UNMAPPED_KEYSET_ID)
             .map(m => ({ groupId: m.groupId, groupKeySetId: m.keySetId, fabricIndex }));
-        gkm.state.groupKeyMap = [...otherFabricsMap, ...mappings];
+        gkm.state.groupKeyMap = [...keptMap, ...mappings];
 
         // Mirror Membership endpoints to GKM GroupTable (spec attribute) and FabricGroups.endpoints
-        // (runtime dispatch lookup used by InteractionServer for wildcard group commands).
-        const otherFabricsTable = gkm.state.groupTable.filter(e => e.fabricIndex !== fabricIndex);
+        // (runtime dispatch lookup used by InteractionServer for wildcard group commands).  Group names only exist
+        // in the legacy group table, so they are preserved from the existing entries.
+        const existingNames = new Map(
+            gkm.state.groupTable.filter(e => e.fabricIndex === fabricIndex).map(e => [e.groupId, e.groupName] as const),
+        );
+        const keptTable = gkm.state.groupTable.filter(
+            e => e.fabricIndex !== fabricIndex || (!owned.has(e.groupId) && !removed.has(e.groupId)),
+        );
         const tableEntries = fabricMemberships
             .filter(m => m.endpoints !== undefined && m.endpoints.length > 0)
             .map(m => ({
                 groupId: m.groupId,
-                endpoints: [...m.endpoints!],
-                groupName: "",
+                endpoints: [...(m.endpoints ?? [])],
+                groupName: existingNames.get(m.groupId) ?? "",
                 fabricIndex,
             }));
-        gkm.state.groupTable = [...otherFabricsTable, ...tableEntries];
+        gkm.state.groupTable = [...keptTable, ...tableEntries];
 
-        const previousGroupIds = new Set(fabric.groups.endpoints.keys());
         for (const m of fabricMemberships) {
             const eps = m.endpoints ?? [];
             if (eps.length > 0) {
@@ -536,10 +569,9 @@ export class GroupcastServer extends GroupcastBehavior {
             } else {
                 fabric.groups.endpoints.delete(m.groupId);
             }
-            previousGroupIds.delete(m.groupId);
         }
-        for (const gid of previousGroupIds) {
-            fabric.groups.endpoints.delete(gid);
+        for (const groupId of removed) {
+            fabric.groups.endpoints.delete(groupId);
         }
     }
 
@@ -589,6 +621,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const membership = this.state.membership;
         const next = new Array<Groupcast.Membership>();
         const affectedFabrics = new Set<FabricIndex>();
+        const removedGroups = new Map<FabricIndex, GroupId[]>();
 
         for (const m of membership) {
             if (m.endpoints === undefined || m.endpoints.length === 0) {
@@ -608,6 +641,13 @@ export class GroupcastServer extends GroupcastBehavior {
                 next.push({ ...m, endpoints });
             } else if (this.features.sender) {
                 next.push({ ...m, endpoints: [] });
+            } else {
+                let removed = removedGroups.get(m.fabricIndex);
+                if (removed === undefined) {
+                    removed = [];
+                    removedGroups.set(m.fabricIndex, removed);
+                }
+                removed.push(m.groupId);
             }
         }
 
@@ -619,7 +659,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const fabrics = this.env.get(FabricManager);
         for (const fabricIndex of affectedFabrics) {
             if (fabrics.has(fabricIndex)) {
-                this.#syncFabricGroups(fabrics.for(fabricIndex));
+                this.#syncFabricGroups(fabrics.for(fabricIndex), removedGroups.get(fabricIndex));
             }
         }
         this.#updateUsedMcastAddrCount();

@@ -419,6 +419,56 @@ describe("GroupcastServer", () => {
             expect(keySet?.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + BigInt(1));
         });
 
+        it("preserves legacy group configuration not owned by Groupcast", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            // Legacy configuration (Groups cluster / direct GKM writes), never joined via Groupcast
+            await node.online({ exchange, command: true }, async agent => {
+                const gkm = agent.get(GroupKeyManagementServer);
+                gkm.state.groupKeyMap = [{ groupId: GroupId(0x0300), groupKeySetId: 5, fabricIndex: fi }];
+                gkm.state.groupTable = [
+                    { groupId: GroupId(0x0300), endpoints: [EndpointNumber(1)], groupName: "Legacy", fabricIndex: fi },
+                ];
+            });
+            await MockTime.yield3();
+
+            // A Groupcast join of an unrelated group must not clobber the legacy configuration
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            await MockTime.yield3();
+
+            const gkmState = node.stateOf(GroupKeyManagementServer);
+            expect(gkmState.groupKeyMap.find(e => e.groupId === 0x0300)?.groupKeySetId).equal(5);
+            expect(gkmState.groupKeyMap.find(e => e.groupId === 0x0001)?.groupKeySetId).equal(1);
+            expect(gkmState.groupTable.find(e => e.groupId === 0x0300)?.groupName).equal("Legacy");
+
+            // Joining the legacy group via Groupcast takes ownership but keeps its name
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0300),
+                    endpoints: [EndpointNumber(2)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            await MockTime.yield3();
+            expect(node.stateOf(GroupKeyManagementServer).groupTable.find(e => e.groupId === 0x0300)?.groupName).equal(
+                "Legacy",
+            );
+            expect(realFabric.groups.endpoints.has(GroupId(0x0300))).equal(true);
+        });
+
         it("shrinks Membership and auxiliary ACLs when groups are removed via the GKM group table", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
