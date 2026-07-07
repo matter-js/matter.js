@@ -270,16 +270,17 @@ export class GroupcastServer extends GroupcastBehavior {
 
         // GroupID 0 = wildcard: leave ALL groups for this fabric
         if (groupId === GroupId.NO_GROUP_ID) {
-            const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
-            if (fabricMemberships.length === 0) {
+            // Extract the ids before replacing the membership: the filtered entries are managed references that
+            // become invalid once removed from the state container
+            const removedGroupIds = this.state.membership
+                .filter(m => m.fabricIndex === fabricIndex)
+                .map(m => m.groupId);
+            if (removedGroupIds.length === 0) {
                 throw new StatusResponseError("No groups to leave", Status.NotFound);
             }
             this.state.membership = this.state.membership.filter(m => m.fabricIndex !== fabricIndex);
             this.#updateUsedMcastAddrCount();
-            this.#syncFabricGroups(
-                this.env.get(FabricManager).for(fabricIndex),
-                fabricMemberships.map(m => m.groupId),
-            );
+            this.#syncFabricGroups(this.env.get(FabricManager).for(fabricIndex), removedGroupIds);
             this.#emitAuxAcl();
             return { groupId: GroupId.NO_GROUP_ID, endpoints: [] };
         }

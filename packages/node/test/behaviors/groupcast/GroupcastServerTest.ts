@@ -247,6 +247,36 @@ describe("GroupcastServer", () => {
             expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
         });
 
+        it("leaves all groups of the fabric with the wildcard group id", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi);
+            const realFabric = node.env.get(FabricManager).for(fi);
+
+            const join = (groupId: number, key?: Uint8Array) =>
+                node.online({ exchange, command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId: GroupId(groupId),
+                        endpoints: [EndpointNumber(1)],
+                        keySetId: 1,
+                        key,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                );
+            await join(0x0001, TEST_KEY);
+            await join(0x0002);
+
+            const response = await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId.NO_GROUP_ID }),
+            );
+
+            expect(response.groupId).equal(GroupId.NO_GROUP_ID);
+            expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
+            expect(realFabric.groups.groupKeyIdMap.size).equal(0);
+            expect(realFabric.groups.endpoints.size).equal(0);
+        });
+
         it("removes only specified endpoints, keeps others", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
