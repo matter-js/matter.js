@@ -307,15 +307,16 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
     }
 
     // Legacy builds emit `IP6AddressList` (→ `ip6AddressList` after normalization); post-2024
-    // builds emit `ipv6Addresses`. Accept either.
+    // builds emit `ipv6Addresses`. Accept either, and label logs/errors with the key actually seen.
+    const ip6Key = json["ipv6Addresses"] !== undefined ? "ipv6Addresses" : "ip6AddressList";
     const ip6Addresses = asArray(json["ipv6Addresses"] ?? json["ip6AddressList"]);
     if (ip6Addresses !== undefined) {
-        result.ipv6Addresses = optionalField("ipv6Addresses", () => {
+        result.ipv6Addresses = optionalField(ip6Key, () => {
             const list = new Array<Bytes>();
             for (const entry of ip6Addresses) {
                 const text = asString(entry);
                 if (text === undefined) {
-                    throw new OtbrRestError("rest_protocol", "ipv6Addresses: entry is not a string");
+                    throw new OtbrRestError("rest_protocol", `${ip6Key}: entry is not a string`);
                 }
                 list.push(parseIpv6(text));
             }

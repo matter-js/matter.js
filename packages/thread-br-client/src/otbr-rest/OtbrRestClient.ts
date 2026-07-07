@@ -653,11 +653,36 @@ export class OtbrRestClient {
      * does not throw on the expected misses; genuine network failure still rejects.
      */
     async detectDiagnosticsApi(): Promise<"legacy" | "collection" | "none"> {
-        const collection = await this.#doFetch("/api/diagnostics", "application/json");
-        if (collection.ok) return "collection";
-        const legacy = await this.#doFetch("/diagnostics", "application/json");
-        if (legacy.ok) return "legacy";
+        if (await this.#probeOk("/api/diagnostics")) return "collection";
+        if (await this.#probeOk("/diagnostics")) return "legacy";
         return "none";
+    }
+
+    /**
+     * Status-only probe: whether `path` responds 2xx. Cancels the response body without buffering it
+     * — capability detection needs only the status, and a real `/diagnostics` snapshot can be large.
+     * A 404/other status is a normal negative signal (returns false); only a network failure rejects.
+     */
+    async #probeOk(path: string): Promise<boolean> {
+        const url = `${this.#baseUrl}${path}`;
+        const controller = new AbortController();
+        const timer: Timer = Time.getTimer("otbr-probe-timeout", this.#timeout, () => controller.abort()).start();
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers: { Accept: "application/json" },
+                signal: controller.signal,
+            });
+            await response.body?.cancel().catch(() => {});
+            return response.ok;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            throw new OtbrRestError("rest_unreachable", `GET ${path} failed: ${message}`, {
+                cause: err instanceof Error ? err : undefined,
+            });
+        } finally {
+            timer.stop();
+        }
     }
 
     async #postJson(path: string, body: unknown): Promise<unknown> {
