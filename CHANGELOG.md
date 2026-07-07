@@ -51,6 +51,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Single-command invokes no longer sending a commandRef on the wire nor require one echoed in the response
     - Fix: Single commands skip auto-batching when the peer accepts only one path per invoke or the response is suppressed
     - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
+    - Fix: Ensure group messaging works correctly when multiple key sets share a group session id (matching by operational key instead of session id for ACL, session caching, and outbound reuse)
 
 - @matter/thread-br-client
     - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)

@@ -199,7 +199,20 @@ export class GroupSession extends SecureSession {
         if (message === undefined || message.packetHeader.destGroupId === undefined) {
             throw new ImplementationError("GroupSession requires a message with destGroupId");
         }
-        return this.fabric.groups.subjectForGroup(GroupId(message.packetHeader.destGroupId), this.keySetId);
+        return this.fabric.groups.subjectForGroup(GroupId(message.packetHeader.destGroupId), this.#operationalGroupKey);
+    }
+
+    /**
+     * Whether this cached session was established for the given fabric, group session id and operational key. Session
+     * ids are a 16-bit hash of the operational key, so two key sets can share one; a cached session must therefore be
+     * matched by key (and fabric), never by session id alone, or a later message would be evaluated against a stale key.
+     */
+    matches(fabricIndex: FabricIndex, id: number, operationalKey: Bytes): boolean {
+        return (
+            this.#id === id &&
+            this.#fabric.fabricIndex === fabricIndex &&
+            Bytes.areEqual(this.#operationalGroupKey, operationalKey)
+        );
     }
 
     override notifyActivity(_messageReceived: boolean) {

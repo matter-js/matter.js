@@ -123,4 +123,48 @@ describe("KeySets", () => {
             expect(sets.currentKeyForId(0).sessionId).equal(101);
         });
     });
+
+    describe("containsOperationalKey", () => {
+        it("returns false for an unknown key set", () => {
+            expect(new KeySets<OperationalKeySet>().containsOperationalKey(5, new Uint8Array(16))).equal(false);
+        });
+
+        it("matches an operational key present in the key set", () => {
+            const key = Uint8Array.from({ length: 16 }, (_, i) => i);
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(keySet(1, { operationalEpochKey0: key }));
+
+            expect(sets.containsOperationalKey(1, Uint8Array.from(key))).equal(true);
+        });
+
+        it("does not match a key absent from the key set", () => {
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(keySet(1, { operationalEpochKey0: Uint8Array.from({ length: 16 }, () => 1) }));
+
+            expect(
+                sets.containsOperationalKey(
+                    1,
+                    Uint8Array.from({ length: 16 }, () => 2),
+                ),
+            ).equal(false);
+        });
+
+        it("matches keys stored in a secondary slot", () => {
+            const key = Uint8Array.from({ length: 16 }, () => 7);
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(keySet(1, { operationalEpochKey1: key, groupSessionId1: 101, epochStartTime1: 1_000 }));
+
+            expect(sets.containsOperationalKey(1, Uint8Array.from(key))).equal(true);
+        });
+
+        it("matches across key sets that share identical key material (session id collision)", () => {
+            const key = Uint8Array.from({ length: 16 }, (_, i) => i);
+            const sets = new KeySets<OperationalKeySet>();
+            sets.add(keySet(0x01a3, { operationalEpochKey0: key }));
+            sets.add(keySet(0x01a4, { operationalEpochKey0: Uint8Array.from(key) }));
+
+            expect(sets.containsOperationalKey(0x01a3, Uint8Array.from(key))).equal(true);
+            expect(sets.containsOperationalKey(0x01a4, Uint8Array.from(key))).equal(true);
+        });
+    });
 });
