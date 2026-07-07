@@ -45,6 +45,7 @@ function makeCap(): OtbrRestCapability {
         probedAt: 0,
         networkName: "OpenThread",
         extPanId: EXT_PAN_BYTES.slice(),
+        diagnosticsApi: "collection",
     };
 }
 
@@ -82,7 +83,7 @@ const STUB_MESHCOP: DiagnosticSource = {
 };
 
 describe("selectSource", () => {
-    it("picks REST when otbrRestEnabled and a capability exists, even if creds are also registered", () => {
+    it("builds a hybrid preferring CoAP when both a capability and creds are available", () => {
         const br = makeBr();
         const cap = makeCap();
         const restCalls = new Array<OtbrRestCapability>();
@@ -103,10 +104,54 @@ describe("selectSource", () => {
             },
         });
 
-        expect(result).to.equal(STUB_REST);
+        // Hybrid built from both; default detailTransport=coap → active transport is MeshCoP.
+        expect(result?.kind).to.equal("meshcop");
         expect(restCalls).to.have.lengthOf(1);
-        expect(restCalls[0]).to.equal(cap);
-        expect(meshcopCalls).to.have.lengthOf(0);
+        expect(meshcopCalls).to.have.lengthOf(1);
+    });
+
+    it('ignores a REST capability whose diagnosticsApi is "none", using CoAP instead', () => {
+        const restCalls = new Array<OtbrRestCapability>();
+        const cap = { ...makeCap(), diagnosticsApi: "none" as const };
+        const result = selectSource({
+            br: makeBr(),
+            credentials: credsRegistryWith(makeCreds()),
+            restCapabilities: new Map([[EXT_PAN_HEX_LOWER, cap]]),
+            otbrRestEnabled: true,
+            makeRestSource: c => {
+                restCalls.push(c);
+                return STUB_REST;
+            },
+            makeMeshcopSource: () => STUB_MESHCOP,
+        });
+        expect(result).to.equal(STUB_MESHCOP);
+        expect(restCalls).to.have.lengthOf(0);
+    });
+
+    it('returns undefined when the only capability has diagnosticsApi "none" and no creds', () => {
+        const result = selectSource({
+            br: makeBr(),
+            credentials: credsRegistryWith(undefined),
+            restCapabilities: new Map([[EXT_PAN_HEX_LOWER, { ...makeCap(), diagnosticsApi: "none" as const }]]),
+            otbrRestEnabled: true,
+            makeRestSource: () => STUB_REST,
+            makeMeshcopSource: () => STUB_MESHCOP,
+        });
+        expect(result).to.equal(undefined);
+    });
+
+    it('builds a hybrid preferring REST when detailTransport="rest" and both are available', () => {
+        const result = selectSource({
+            br: makeBr(),
+            credentials: credsRegistryWith(makeCreds()),
+            restCapabilities: new Map([[EXT_PAN_HEX_LOWER, makeCap()]]),
+            otbrRestEnabled: true,
+            detailTransport: "rest",
+            makeRestSource: () => STUB_REST,
+            makeMeshcopSource: () => STUB_MESHCOP,
+        });
+
+        expect(result?.kind).to.equal("otbr-rest");
     });
 
     it("falls back to MeshCoP when REST is enabled but no capability is registered", () => {

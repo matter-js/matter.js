@@ -19,10 +19,11 @@ export class OtbrRestProbe {
      * Probe a host:port for OTBR REST. Returns the detected capability or
      * `null` if the endpoint is not OTBR or not reachable within `timeoutMs`.
      *
-     * A single `GET /node` both confirms the endpoint is OTBR and reveals its
-     * key casing: legacy builds emit PascalCase keys, post-2024 builds
-     * camelCase. Anything that is not a JSON object carrying `networkName` and
-     * `extPanId` is treated as "not OTBR".
+     * `GET /node` both confirms the endpoint is OTBR and reveals its key casing:
+     * legacy builds emit PascalCase keys, post-2024 builds camelCase. Anything that
+     * is not a JSON object carrying `networkName` and `extPanId` is treated as "not
+     * OTBR". A status-only probe of the diagnostics endpoints then records which
+     * flavor the BR serves (`diagnosticsApi`: legacy | collection | none).
      */
     static async probe(
         host: string,
@@ -35,10 +36,11 @@ export class OtbrRestProbe {
 
         try {
             const { keyFormat, networkName, extPanId } = await client.probeNode();
+            const diagnosticsApi = await client.detectDiagnosticsApi();
             logger.debug(
-                `probe OK ${baseUrl} keyFormat=${keyFormat} xp=${Bytes.toHex(extPanId).toUpperCase()} network="${networkName}"`,
+                `probe OK ${baseUrl} keyFormat=${keyFormat} diagnosticsApi=${diagnosticsApi} xp=${Bytes.toHex(extPanId).toUpperCase()} network="${networkName}"`,
             );
-            return { baseUrl, keyFormat, probedAt: Date.now(), networkName, extPanId };
+            return { baseUrl, keyFormat, probedAt: Date.now(), networkName, extPanId, diagnosticsApi };
         } catch (err) {
             if (err instanceof OtbrRestError) {
                 logger.debug(`probe MISS ${baseUrl} /node ${err.code} (${err.message})`);
