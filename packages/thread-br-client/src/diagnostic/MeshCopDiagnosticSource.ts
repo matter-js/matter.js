@@ -361,10 +361,8 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 await teardownPromise;
             })
             .catch(err => {
-                // A terminal session failure (petition rejected, session couldn't establish) yields
-                // zero data — surface it on onError for observers and reject `done`, so a total
-                // failure isn't mistaken for a clean empty window. (Per-node onError.emit inside the
-                // query loop stay non-fatal; done still resolves for partial success.)
+                // Reject `done` on a fatal session failure so a total failure isn't mistaken for a
+                // clean empty window; the per-node onError.emit above stay non-fatal.
                 const e = errorOf(err);
                 onError.emit(e);
                 teardown();
@@ -377,10 +375,8 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             done,
             close: async () => {
                 teardown();
-                // Await the clean commissioner release. A terminal failure is the caller's to observe
-                // via `done`; here it is only logged, both because close() is cleanup that must not
-                // throw and so the rejection is handled (never an unhandled rejection when a caller
-                // uses close() without awaiting done).
+                // close() is cleanup and must not throw; the failure surfaces via `done`. Logging it
+                // also handles the rejection, so an only-close() caller never hits an unhandled one.
                 await done.catch(error =>
                     logger.debug(`queryMulticast released after failure: ${errorOf(error).message}`),
                 );
