@@ -25,7 +25,12 @@ function isTerminal(status: string): status is ActionTerminalStatus {
  *
  * Uses the injectable matter.js {@link Time} so tests drive it under MockTime.
  *
- * @throws {@link OtbrRestError} `"rest_protocol"` if the action does not settle before `timeout`.
+ * `timeout` bounds polling, not the result: a terminal status observed on a poll is always honored
+ * (a result seen on the same poll the deadline elapses is returned, not discarded — the work is
+ * already done). The throw fires only when a poll after the deadline is still non-terminal.
+ *
+ * @throws {@link OtbrRestError} `"rest_protocol"` if a poll after `timeout` still finds the action
+ *   non-terminal.
  */
 export async function runActionToCompletion(
     client: Pick<OtbrRestClient, "getAction">,

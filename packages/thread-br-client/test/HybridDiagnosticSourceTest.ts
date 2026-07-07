@@ -93,11 +93,16 @@ describe("HybridDiagnosticSource", () => {
         expect(new HybridDiagnosticSource({ rest }).kind).to.equal("otbr-rest");
     });
 
-    it("canQuery is true when either transport can serve the extPanId", () => {
-        const coap = new FakeSource("meshcop", false);
-        const rest = new FakeSource("otbr-rest", true);
-        const hybrid = new HybridDiagnosticSource({ coap, rest });
-        expect(hybrid.canQuery(EXT_PAN)).to.equal(true);
+    it("canQuery reflects the preferred (query-serving) transport, not the other", () => {
+        // Default prefers CoAP: a CoAP that cannot serve must report false even if REST could,
+        // since every query routes to CoAP.
+        const coapNo = new FakeSource("meshcop", false);
+        const restYes = new FakeSource("otbr-rest", true);
+        expect(new HybridDiagnosticSource({ coap: coapNo, rest: restYes }).canQuery(EXT_PAN)).to.equal(false);
+        // With REST preferred, canQuery reflects REST.
+        expect(
+            new HybridDiagnosticSource({ coap: coapNo, rest: restYes, detailTransport: "rest" }).canQuery(EXT_PAN),
+        ).to.equal(true);
     });
 
     it("throws when constructed with neither transport", () => {

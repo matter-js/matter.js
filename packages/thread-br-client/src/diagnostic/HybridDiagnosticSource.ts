@@ -56,7 +56,8 @@ export class HybridDiagnosticSource implements DiagnosticSource {
     }
 
     canQuery(extPanId: Bytes): boolean {
-        return this.#coap?.canQuery(extPanId) === true || this.#rest?.canQuery(extPanId) === true;
+        // Must reflect the transport that will actually serve queries, since every op routes to it.
+        return this.#preferred.canQuery(extPanId);
     }
 
     queryUnicast(target: { rloc16?: number; ip?: string }, tlvTypes: number[]): Promise<DiagnosticResponse> {
