@@ -19,10 +19,11 @@ export class OtbrRestProbe {
      * Probe a host:port for OTBR REST. Returns the detected capability or
      * `null` if the endpoint is not OTBR or not reachable within `timeoutMs`.
      *
-     * A single `GET /node` both confirms the endpoint is OTBR and reveals its
-     * key casing: legacy builds emit PascalCase keys, post-2024 builds
-     * camelCase. Anything that is not a JSON object carrying `networkName` and
-     * `extPanId` is treated as "not OTBR".
+     * `GET /node` both confirms the endpoint is OTBR and reveals its key casing:
+     * legacy builds emit PascalCase keys, post-2024 builds camelCase. Anything that
+     * is not a JSON object carrying `networkName` and `extPanId` is treated as "not
+     * OTBR". A status-only probe of the diagnostics endpoints then records which
+     * flavor the BR serves (`diagnosticsApi`: legacy | collection | none).
      */
     static async probe(
         host: string,
