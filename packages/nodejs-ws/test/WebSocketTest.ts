@@ -101,7 +101,7 @@ describe("WebSocket", () => {
             {
                 acceptedCommandList: [0, 1, 2, 64, 65, 66],
                 attributeList: [0, 16384, 16385, 16386, 16387, 65528, 65529, 65531, 65532, 65533],
-                clusterRevision: 6,
+                clusterRevision: 7, // SVE: OnOff revision 7
                 featureMap: {
                     deadFrontBehavior: false,
                     lighting: true,
