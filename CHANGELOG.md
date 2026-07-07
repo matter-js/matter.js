@@ -21,6 +21,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
 
 - @matter/node
+    - Feature: Server-side Intermittently Connected Device (ICD) support via the IcdManagement cluster: client registration/unregistration, StayActiveRequest, SIT/LIT operating modes with DSLS, and Check-In delivery to registered clients
+    - Feature: Controller-side ICD support: automatic client registration with multi-admin protection, Check-In handling, and peer wakefulness/availability tracking for sleepy LIT devices
     - Feature: Implemented the newly-mandatory Matter 1.6 diagnostics attributes
     - Feature: Enabled the BooleanState `StateChange` event by default via the new feature
     - Feature: Emit the OccupancySensing `OccupancyChanged` event automatically when the `OccupancyEvent` feature is enabled
@@ -34,10 +36,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
 
 - @matter/nodejs-shell
+    - Feature: Added `icd` shell commands to register/unregister/stay-active ICD clients and inspect/watch node wakefulness and availability
     - Fix: Close a path-containment gap in the optional web server that let requests reach sibling directories sharing the web-root name prefix, and resolve symlinks before serving (reported by tonghuaroot)
     - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
 
 - @matter/protocol
+    - Feature: ICD Check-In protocol: CheckInMessage codec with counter validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
+    - Enhancement: Worst-case MRP response-time now accounts for the sender's fixed-backoff/additional-delay pad
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
     - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
