@@ -40,7 +40,7 @@ function generateComponents(file: ClusterFile) {
     file.interfaces.atom(`export const name: ${serialize(name)}`).document("Textual cluster identifier.");
     file.interfaces
         .atom(`export const revision: ${cluster.revision}`)
-        .document(`The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.`);
+        .document(`The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.`);
 
     file.addImport("@matter/model", "ClusterModel");
     file.interfaces.atom(`export const schema: ClusterModel`).document({
@@ -74,9 +74,12 @@ function generateComponents(file: ClusterFile) {
         hasAttrs = result.hasAttrs;
         hasCommands = result.hasCommands;
         hasEvents = result.hasEvents;
-
-        gen.generateTypes();
     }
+
+    // Always emit standalone compound datatypes (enums, structs, bitmaps) — clusters that only export shared
+    // datatypes (e.g. WebRtcTransportDefinitions) have no attrs/commands/events but their datatypes are
+    // referenced by other clusters and must appear in the namespace.
+    gen.generateTypes();
 
     gen.generateFeatures();
     generateFeatureEnum(file);

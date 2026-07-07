@@ -30,11 +30,17 @@ import {
     NetworkInterface,
     NetworkInterfaceDetails,
     onSameNetwork,
-    UdpChannel,
-    UdpChannelOptions,
+    TcpConnection,
+    TcpConnectOptions,
+    TcpListener,
+    TcpListenerOptions,
+    UdpSocket,
+    UdpSocketOptions,
 } from "@matter/general";
 import { fetch as fetchNetworkInfo } from "@react-native-community/netinfo";
-import { UdpChannelReactNative } from "./UdpChannelReactNative.js";
+import { connectReactNativeTcp } from "./TcpConnectionReactNative.js";
+import { TcpListenerReactNative } from "./TcpListenerReactNative.js";
+import { UdpSocketReactNative } from "./UdpSocketReactNative.js";
 
 const logger = Logger.get("NetworkReactNative");
 
@@ -179,7 +185,15 @@ export class NetworkReactNative extends Network {
         return { mac: "00:00:00:00:00:00", ipV4, ipV6 };
     }
 
-    override createUdpChannel(options: UdpChannelOptions): Promise<UdpChannel> {
-        return UdpChannelReactNative.create(options);
+    override createUdpSocket(options: UdpSocketOptions): Promise<UdpSocket> {
+        return UdpSocketReactNative.create(options);
+    }
+
+    override async createTcpListener(options: TcpListenerOptions): Promise<TcpListener> {
+        return TcpListenerReactNative.create(options);
+    }
+
+    override async connectTcp(host: string, port: number, options?: TcpConnectOptions): Promise<TcpConnection> {
+        return connectReactNativeTcp(host, port, options?.abort, options?.timeout);
     }
 }

@@ -568,6 +568,583 @@ describe("BtpSessionHandler", () => {
             expect(decoded.header.hasAckNumber).to.equal(true);
         });
     });
+
+    describe("Test abort paths", () => {
+        let btpSessionHandler: BtpSessionHandler | undefined;
+        let onDisconnectBleCallback = (): Promise<void> => {
+            throw new Error("Should not be called");
+        };
+
+        beforeEach(async () => {
+            const { promise: writeBlePromise, resolver: writeBleResolver } = createPromise<Bytes>();
+            const handshakeRequest = Bytes.fromHex("656c04000000b90006");
+            btpSessionHandler = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                handshakeRequest,
+                async dataToWrite => writeBleResolver(dataToWrite),
+                async () => await onDisconnectBleCallback(),
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+            await writeBlePromise;
+        });
+
+        afterEach(async () => {
+            onDisconnectBleCallback = () => Promise.resolve();
+            await btpSessionHandler?.close();
+        });
+
+        // §4.19.4.6: a received sequence number must equal the previous + 1 (mod 256).
+        it("closes the session on a sequence-number increment violation", async () => {
+            const { promise: disconnectPromise, resolver: disconnectResolver } = createPromise<void>();
+            onDisconnectBleCallback = async () => disconnectResolver();
+
+            const segmentPayload = Bytes.fromHex("010203");
+            const packet = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isEndingSegment: true,
+                    isContinuingSegment: false,
+                    isBeginningSegment: true,
+                },
+                payload: { ackNumber: 0, sequenceNumber: 5, messageLength: segmentPayload.byteLength, segmentPayload },
+            });
+
+            await btpSessionHandler?.handleIncomingBleData(packet);
+            await disconnectPromise;
+        });
+
+        // §4.19.4.8: a received ack outside the outstanding (sent-but-unacked) interval is invalid.
+        it("closes the session on an out-of-window ack number", async () => {
+            const { promise: disconnectPromise, resolver: disconnectResolver } = createPromise<void>();
+            onDisconnectBleCallback = async () => disconnectResolver();
+
+            const segmentPayload = Bytes.fromHex("010203");
+            const packet = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isEndingSegment: true,
+                    isContinuingSegment: false,
+                    isBeginningSegment: true,
+                },
+                // The peripheral has only sent sequence number 0, so an ack for 5 is outside the window.
+                payload: { ackNumber: 5, sequenceNumber: 0, messageLength: segmentPayload.byteLength, segmentPayload },
+            });
+
+            await btpSessionHandler?.handleIncomingBleData(packet);
+            await disconnectPromise;
+        });
+
+        // §4.19.4.5: a new beginning segment while a SDU is still being reassembled is a flow error.
+        it("closes the session on a beginning segment while reassembly is in progress", async () => {
+            const { promise: disconnectPromise, resolver: disconnectResolver } = createPromise<void>();
+            onDisconnectBleCallback = async () => disconnectResolver();
+
+            const begin = (sequenceNumber: number) =>
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: true,
+                        isEndingSegment: false,
+                        isContinuingSegment: false,
+                        isBeginningSegment: true,
+                    },
+                    payload: {
+                        ackNumber: 0,
+                        sequenceNumber,
+                        messageLength: 100,
+                        segmentPayload: Bytes.fromHex("0102"),
+                    },
+                });
+
+            await btpSessionHandler?.handleIncomingBleData(begin(0));
+            await btpSessionHandler?.handleIncomingBleData(begin(1));
+            await disconnectPromise;
+        });
+
+        // §4.19.4.5: a continuing segment without a prior beginning segment is a flow error.
+        it("closes the session on a continuing segment without a beginning segment", async () => {
+            const { promise: disconnectPromise, resolver: disconnectResolver } = createPromise<void>();
+            onDisconnectBleCallback = async () => disconnectResolver();
+
+            const packet = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isEndingSegment: false,
+                    isContinuingSegment: true,
+                    isBeginningSegment: false,
+                },
+                payload: { ackNumber: 0, sequenceNumber: 0, segmentPayload: Bytes.fromHex("0102") },
+            });
+
+            await btpSessionHandler?.handleIncomingBleData(packet);
+            await disconnectPromise;
+        });
+
+        // §4.19.4.5: the reassembled length must never exceed the declared message length.
+        it("closes the session when continuing segments exceed the declared message length", async () => {
+            const { promise: disconnectPromise, resolver: disconnectResolver } = createPromise<void>();
+            onDisconnectBleCallback = async () => disconnectResolver();
+
+            const begin = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isEndingSegment: false,
+                    isContinuingSegment: false,
+                    isBeginningSegment: true,
+                },
+                payload: { ackNumber: 0, sequenceNumber: 0, messageLength: 3, segmentPayload: Bytes.fromHex("0102") },
+            });
+            const overflowing = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: false,
+                    isEndingSegment: false,
+                    isContinuingSegment: true,
+                    isBeginningSegment: false,
+                },
+                payload: { sequenceNumber: 1, segmentPayload: Bytes.fromHex("030405") }, // 2 + 3 > declared 3
+            });
+
+            await btpSessionHandler?.handleIncomingBleData(begin);
+            await btpSessionHandler?.handleIncomingBleData(overflowing);
+            await disconnectPromise;
+        });
+    });
+
+    describe("Test send-side flow control", () => {
+        // A peripheral that sends before receiving any sequenced fragment must not piggyback an acknowledgement
+        // (the 255 sentinel is "expecting 0 next", not a received packet).
+        it("does not piggyback an ack when the peripheral sends before receiving any data", async () => {
+            const writes = new Array<Bytes>();
+            let onWrite = (_: Bytes) => {};
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                Bytes.fromHex("656c04000000b90006"),
+                async data => onWrite(data),
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+            onWrite = data => {
+                writes.push(data);
+            };
+
+            await peripheral.sendMatterMessage(Bytes.fromHex("0102030405"));
+
+            expect(writes.length).equal(1);
+            expect(BtpCodec.decodeBtpPacket(writes[0]).header.hasAckNumber).equal(false);
+
+            await peripheral.close();
+        });
+
+        // §4.19.4.7: a data-only packet must not consume the remote receive window's reserved last slot;
+        // it reopens only after an ack arrives.
+        it("reserves the last window slot and resumes sending once an ack reopens the window", async () => {
+            const writes = new Array<Bytes>();
+            // Central session, negotiated window size 4, large ATT_MTU so each message is a single fragment.
+            const central = await BtpSessionHandler.createAsCentral(
+                Bytes.fromHex("656c04f40004"),
+                async data => {
+                    writes.push(data);
+                },
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+
+            for (let i = 0; i < 6; i++) {
+                await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            }
+
+            // Window size 4: three data fragments go out (seq 0,1,2); the fourth slot is reserved.
+            expect(writes.length).equal(3);
+            expect(writes.map(w => BtpCodec.decodeBtpPacket(w).payload.sequenceNumber)).deep.equal([0, 1, 2]);
+
+            // Peer acknowledges up to sequence number 2, reopening the window.
+            const ack = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isEndingSegment: false,
+                    isContinuingSegment: false,
+                    isBeginningSegment: false,
+                },
+                payload: { ackNumber: 2, sequenceNumber: 1 },
+            });
+            await central.handleIncomingBleData(ack);
+
+            // Remaining three queued messages now flush (seq 3,4,5).
+            expect(writes.length).equal(6);
+            expect(writes.slice(3).map(w => BtpCodec.decodeBtpPacket(w).payload.sequenceNumber)).deep.equal([3, 4, 5]);
+
+            await central.close();
+        });
+
+        // §4.19.4.8: once our receive window shrinks to <= the immediate-ack threshold, send a stand-alone ack
+        // immediately rather than waiting for the send-ack timer.
+        it("sends a stand-alone ack immediately when the local receive window runs low", async () => {
+            const writes = new Array<Bytes>();
+            let onWrite = (_: Bytes) => {};
+            const handshakeRequest = Bytes.fromHex("656c04000000b90006"); // window size 6
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                handshakeRequest,
+                async data => onWrite(data),
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+            onWrite = data => {
+                writes.push(data);
+            };
+
+            const continuing = (sequenceNumber: number) =>
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: false,
+                        isEndingSegment: false,
+                        isContinuingSegment: sequenceNumber !== 0,
+                        isBeginningSegment: sequenceNumber === 0,
+                    },
+                    payload: {
+                        sequenceNumber,
+                        messageLength: sequenceNumber === 0 ? 100 : undefined,
+                        segmentPayload: Bytes.fromHex("0102"),
+                    },
+                });
+
+            // Window size 6: free slots fall 5,4,3 — above threshold 2, so no ack yet.
+            await peripheral.handleIncomingBleData(continuing(0));
+            await peripheral.handleIncomingBleData(continuing(1));
+            await peripheral.handleIncomingBleData(continuing(2));
+            expect(writes.length).equal(0);
+
+            // Fourth packet drops free slots to 2 (<= threshold): an immediate stand-alone ack is emitted.
+            await peripheral.handleIncomingBleData(continuing(3));
+            expect(writes.length).equal(1);
+            const ack = BtpCodec.decodeBtpPacket(writes[0]);
+            expect(ack.header.hasAckNumber).equal(true);
+            expect(ack.payload.ackNumber).equal(3);
+            expect(ack.payload.segmentPayload.byteLength).equal(0);
+
+            await peripheral.close();
+        });
+
+        // A non-disconnect write error must re-raise but still roll back send state, so the session is not
+        // left wedged (sendInProgress stuck, queue half-applied).
+        it("re-raises a non-disconnect write error and resets send state", async () => {
+            let failNextWrite = true;
+            const writes = new Array<Bytes>();
+            const central = await BtpSessionHandler.createAsCentral(
+                Bytes.fromHex("656c04f40005"), // window size 5
+                async data => {
+                    if (failNextWrite) {
+                        failNextWrite = false;
+                        throw new Error("boom");
+                    }
+                    writes.push(data);
+                },
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+
+            let raised: unknown;
+            try {
+                await central.sendMatterMessage(Bytes.fromHex("0102"));
+            } catch (error) {
+                raised = error;
+            }
+            expect(raised).instanceOf(Error);
+            expect((raised as Error).message).equal("boom");
+
+            // sendInProgress was reset, so a subsequent send proceeds and succeeds.
+            await central.sendMatterMessage(Bytes.fromHex("0304"));
+            expect(writes.length).equal(1);
+
+            await central.close();
+        });
+
+        // Regression: a stand-alone ack whose write is still in flight must not let a concurrent data send
+        // re-acknowledge the same sequence number (a duplicate ack is rejected by spec-compliant peers).
+        it("does not duplicate an acknowledgement when a data send interleaves a pending stand-alone ack", async () => {
+            const writes = new Array<Bytes>();
+            let hangStandalone = false;
+            let releaseStandaloneWrite: (() => void) | undefined;
+
+            let onWrite = (_: Bytes): Promise<void> => Promise.resolve();
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                Bytes.fromHex("656c04000000b90006"), // window size 6
+                async data => onWrite(data),
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+            onWrite = data => {
+                const decoded = BtpCodec.decodeBtpPacket(data);
+                writes.push(data);
+                // A stand-alone ack carries no segment payload; hold its write open to force the interleave.
+                if (hangStandalone && decoded.payload.segmentPayload.byteLength === 0) {
+                    return new Promise<void>(resolve => {
+                        releaseStandaloneWrite = resolve;
+                    });
+                }
+                return Promise.resolve();
+            };
+
+            const continuing = (sequenceNumber: number) =>
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: false,
+                        isEndingSegment: false,
+                        isContinuingSegment: sequenceNumber !== 0,
+                        isBeginningSegment: sequenceNumber === 0,
+                    },
+                    payload: {
+                        sequenceNumber,
+                        messageLength: sequenceNumber === 0 ? 100 : undefined,
+                        segmentPayload: Bytes.fromHex("0102"),
+                    },
+                });
+
+            // Drop the local receive window to the immediate-ack threshold without completing a message.
+            await peripheral.handleIncomingBleData(continuing(0));
+            await peripheral.handleIncomingBleData(continuing(1));
+            await peripheral.handleIncomingBleData(continuing(2));
+            expect(writes.length).equal(0);
+
+            // The fourth packet triggers a stand-alone ack whose write we hold open.
+            hangStandalone = true;
+            const incoming = peripheral.handleIncomingBleData(continuing(3));
+            await Promise.resolve();
+            expect(writes.length).equal(1); // the stand-alone ack (still in flight)
+            expect(BtpCodec.decodeBtpPacket(writes[0]).payload.ackNumber).equal(3);
+
+            // While the ack write is in flight, a data message is queued (not sent concurrently) since the ack
+            // holds the send lock.
+            const sending = peripheral.sendMatterMessage(Bytes.fromHex("0a0b0c"));
+            await Promise.resolve();
+            expect(writes.length).equal(1);
+
+            // Once the ack write completes, the queued data is flushed — and must not re-ack sequence number 3.
+            releaseStandaloneWrite?.();
+            await incoming;
+            await sending;
+
+            expect(writes.length).equal(2);
+            const dataPacket = BtpCodec.decodeBtpPacket(writes[1]);
+            expect(dataPacket.payload.segmentPayload.byteLength).greaterThan(0); // it is the data packet
+            expect(dataPacket.header.hasAckNumber).equal(false);
+
+            await peripheral.close();
+        });
+
+        // §4.19.4.7 + concurrency: while a data write is in flight, neither an incoming packet nor the send-ack
+        // timer may issue a concurrent stand-alone ack write (the in-flight fragment will carry the ack).
+        it("does not send a stand-alone ack while a data write is in flight", async () => {
+            const writes = new Array<Bytes>();
+            let hangData = false;
+            let releaseDataWrite: (() => void) | undefined;
+
+            let onWrite = (_: Bytes): Promise<void> => Promise.resolve();
+            const peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                20,
+                Bytes.fromHex("656c04000000b90006"), // window size 6
+                async data => onWrite(data),
+                async () => {},
+                async () => {}, // accept incoming Matter messages without responding
+            );
+            onWrite = data => {
+                const decoded = BtpCodec.decodeBtpPacket(data);
+                writes.push(data);
+                if (hangData && decoded.payload.segmentPayload.byteLength > 0) {
+                    return new Promise<void>(resolve => {
+                        releaseDataWrite = resolve;
+                    });
+                }
+                return Promise.resolve();
+            };
+
+            // Start a data send with no pending ack yet; its write hangs, holding sendInProgress.
+            hangData = true;
+            const sending = peripheral.sendMatterMessage(Bytes.fromHex("0a0b0c"));
+            await Promise.resolve();
+            expect(writes.length).equal(1);
+            expect(BtpCodec.decodeBtpPacket(writes[0]).header.hasAckNumber).equal(false);
+
+            // An incoming data packet now creates a pending ack, but must not write while the data send is in flight.
+            const incoming = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: false,
+                    isEndingSegment: true,
+                    isContinuingSegment: false,
+                    isBeginningSegment: true,
+                },
+                payload: { sequenceNumber: 0, messageLength: 2, segmentPayload: Bytes.fromHex("0102") },
+            });
+            await peripheral.handleIncomingBleData(incoming);
+            expect(writes.length).equal(1);
+
+            // The send-ack timer firing mid-write must also not produce a concurrent ack.
+            await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
+            expect(writes.length).equal(1);
+
+            // Once the data write completes, the stranded ack must be flushed (not lost to the one-shot timer).
+            releaseDataWrite?.();
+            await sending;
+
+            expect(writes.length).equal(2);
+            const flushedAck = BtpCodec.decodeBtpPacket(writes[1]);
+            expect(flushedAck.header.hasAckNumber).equal(true);
+            expect(flushedAck.payload.ackNumber).equal(0);
+            expect(flushedAck.payload.segmentPayload.byteLength).equal(0);
+
+            await peripheral.close();
+        });
+
+        // §4.19.4.6 + the window guard: outstanding packets that span the 255 -> 0 wrap must be counted by
+        // modular distance, so the window neither over-sends nor stalls across the boundary.
+        it("transfers many messages correctly while sequence numbers wrap", async () => {
+            let peripheral: BtpSessionHandler;
+            let central: BtpSessionHandler;
+            const received = new Array<Bytes>();
+            let centralClosed = false;
+            let peripheralClosed = false;
+
+            const { promise: responsePromise, resolver: responseResolver } = createPromise<Bytes>();
+            let peripheralReady = false;
+            peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+                244,
+                BtpCodec.encodeBtpHandshakeRequest({ versions: [4], attMtu: 247, clientWindowSize: 8 }),
+                async data => {
+                    if (!peripheralReady) {
+                        responseResolver(data);
+                    } else {
+                        await central.handleIncomingBleData(data);
+                    }
+                },
+                async () => {
+                    peripheralClosed = true;
+                },
+                async message => {
+                    received.push(message);
+                },
+            );
+            const handshakeResponse = await responsePromise;
+            peripheralReady = true;
+
+            central = await BtpSessionHandler.createAsCentral(
+                handshakeResponse,
+                async data => await peripheral.handleIncomingBleData(data),
+                async () => {
+                    centralClosed = true;
+                },
+                async () => {
+                    throw new Error("Should not be called");
+                },
+            );
+
+            // Send enough single-fragment messages that the central's sequence number wraps past 255.
+            const messages = new Array<Bytes>();
+            for (let i = 0; i < 270; i++) {
+                const message = Bytes.fromHex("aa" + i.toString(16).padStart(4, "0"));
+                messages.push(message);
+                await central.sendMatterMessage(message);
+            }
+
+            expect(centralClosed).equal(false);
+            expect(peripheralClosed).equal(false);
+            expect(received.length).equal(messages.length);
+            expect(received).deep.equal(messages);
+
+            await central.close();
+            await peripheral.close();
+        });
+    });
+
+    // A single message whose fragment count exceeds the window must stall mid-message and resume once the
+    // peer acks, without losing or duplicating any fragment.
+    it("resumes a single multi-fragment message that stalls mid-message", async () => {
+        let peripheral: BtpSessionHandler;
+        let central: BtpSessionHandler;
+        const received = new Array<Bytes>();
+        let peripheralReady = false;
+        const { promise: responsePromise, resolver: responseResolver } = createPromise<Bytes>();
+
+        peripheral = await BtpSessionHandler.createFromHandshakeRequest(
+            23, // small ATT_MTU => small fragment size => many fragments per message
+            BtpCodec.encodeBtpHandshakeRequest({ versions: [4], attMtu: 23, clientWindowSize: 4 }),
+            async data => {
+                if (!peripheralReady) {
+                    responseResolver(data);
+                } else {
+                    await central.handleIncomingBleData(data);
+                }
+            },
+            async () => {},
+            async message => {
+                received.push(message);
+            },
+        );
+        const handshakeResponse = await responsePromise;
+        peripheralReady = true;
+
+        central = await BtpSessionHandler.createAsCentral(
+            handshakeResponse,
+            async data => await peripheral.handleIncomingBleData(data),
+            async () => {},
+            async () => {
+                throw new Error("Should not be called");
+            },
+        );
+
+        const message = Bytes.fromHex("aabbccdd".repeat(50)); // 200 bytes, far exceeds window * fragment size
+        await central.sendMatterMessage(message);
+
+        expect(received.length).equal(1);
+        expect(received[0]).deep.equal(message);
+
+        await central.close();
+        await peripheral.close();
+    });
+
+    describe("Test ATT_MTU fragment derivation", () => {
+        // §4.19.3.1.4: the BTP segment size is the negotiated ATT_MTU minus the 3-byte GATT header,
+        // clamped to the supported range.
+        it("derives the segment size as ATT_MTU - 3 within the supported range", () => {
+            expect(MatterBle.btpSegmentSizeFromAttMtu(100)).equal(97);
+            expect(MatterBle.btpSegmentSizeFromAttMtu(247)).equal(MatterBle.MAXIMUM_BTP_MTU);
+            expect(MatterBle.btpSegmentSizeFromAttMtu(500)).equal(MatterBle.MAXIMUM_BTP_MTU);
+            expect(MatterBle.btpSegmentSizeFromAttMtu(23)).equal(MatterBle.MINIMUM_ATT_MTU);
+            expect(MatterBle.btpSegmentSizeFromAttMtu(10)).equal(MatterBle.MINIMUM_ATT_MTU);
+            expect(MatterBle.btpSegmentSizeFromAttMtu(0)).equal(MatterBle.MINIMUM_ATT_MTU);
+        });
+    });
 });
 
 function getSequenceNumber(sequenceNumber: number) {

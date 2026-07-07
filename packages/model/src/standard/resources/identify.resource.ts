@@ -17,9 +17,11 @@ Resource.add({
         "\n" +
         "The state of this cluster may be shared on more than one endpoint on a node." +
         "\n" +
-        "For Example: Two endpoints on a single node, one a temperature sensor, and one a humidity sensor, " +
-        "may both share the same cluster instance and therefore identification state (e.g. single LED on the " +
-        "node).",
+        "> [!NOTE]" +
+        "\n" +
+        "> For Example: Two endpoints on a single node, one a temperature sensor, and one a humidity sensor, " +
+        "may both share the same cluster instance and therefore identification state (e.g. single LED on " +
+        "the node).",
 
     children: [
         {

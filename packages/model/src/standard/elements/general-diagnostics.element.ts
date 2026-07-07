@@ -45,7 +45,10 @@ export const GeneralDiagnostics = Cluster(
     ),
     Attribute({ name: "TestEventTriggersEnabled", id: 0x8, type: "bool", access: "R V", conformance: "M" }),
     Attribute({ name: "DoNotUse", id: 0x9, conformance: "X" }),
-    Attribute({ name: "DeviceLoadStatus", id: 0xa, type: "DeviceLoadStruct", access: "R V", conformance: "desc", quality: "C" }),
+    Attribute({
+        name: "DeviceLoadStatus", id: 0xa, type: "DeviceLoadStruct", access: "R V",
+        conformance: "Rev >= v3", quality: "C"
+    }),
 
     Event(
         { name: "HardwareFaultChange", id: 0x0, access: "V", conformance: "O", priority: "critical" },

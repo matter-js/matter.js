@@ -14,7 +14,7 @@ const logger = Logger.get("CaseAuthenticatedTag");
 /**
  * A CASE Authenticated Tag (CAT) is a special subject distinguished name within the Operational Certificate.
  *
- * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
+ * @see {@link MatterSpecification.v16.Core} § 6.6.2.1.2.
  */
 export type CaseAuthenticatedTag = Branded<number, "CaseAuthenticatedTag">;
 
@@ -33,7 +33,7 @@ export function CaseAuthenticatedTag(idOrTag: number, version?: number): CaseAut
         throw new ValidationOutOfBoundsError("CaseAuthenticatedTag version number must not be 0.");
     }
 
-    /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
+    /** @see {@link MatterSpecification.v16.Core} § 6.6.2.1.2. */
     // Identifier values 0xF000-0xFFFD (upper 16 bits) are reserved; 0xFFFE and 0xFFFF are assigned for special use cases
     if (idOrTag >>> 16 > 0xefff) {
         logger.warn(
@@ -47,7 +47,7 @@ export namespace CaseAuthenticatedTag {
     /**
      * Creates an Administrator Identifier CaseAuthenticatedTag with the given version.
      * If a version is not provided, version 1 is used.
-     * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
+     * @see {@link MatterSpecification.v16.Core} § 6.6.2.1.2.
      */
     export const AdministratorIdentifier = (version = 1) => {
         if (version <= 0 || version > 0xffff) {
@@ -59,7 +59,7 @@ export namespace CaseAuthenticatedTag {
     /**
      * Creates an Anchor Identifier CaseAuthenticatedTag with the given version.
      * If a version is not provided, version 1 is used.
-     * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
+     * @see {@link MatterSpecification.v16.Core} § 6.6.2.1.2.
      */
     export const AnchorIdentifier = (version = 1) => {
         if (version <= 0 || version > 0xffff) {

@@ -12,3 +12,5 @@ isolated-*.log
 .matter-test.json
 /.caude/
 .claude/
+docs/plans/
+examples/device-sve-bridge/.sve/

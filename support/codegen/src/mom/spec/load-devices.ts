@@ -5,12 +5,12 @@
  */
 
 import { Logger } from "#general";
-import { scanDocument } from "./scan-document.js";
-import { DeviceReference, HtmlReference } from "./spec-types.js";
+import { scanSpec } from "./scan-spec.js";
+import { DeviceReference, SpecReference } from "./spec-types.js";
 
 const logger = Logger.get("load-devices");
 
-function augmentDevice(device: DeviceReference, content: HtmlReference) {
+function augmentDevice(device: DeviceReference, content: SpecReference) {
     let name = content.name.toLowerCase();
     if (name.endsWith(" conditions")) {
         name = "conditions";
@@ -54,12 +54,35 @@ function augmentDevice(device: DeviceReference, content: HtmlReference) {
             device.composingTypes = content;
             break;
 
-        case "cluster requirements on composing device types":
+        case "cluster requirements on component device types":
+        case "cluster requirements on composing device types": // pre-1.5 spec terminology
+            what = "composingClusters";
+            device.composingClusters = content;
+            break;
+
+        case "element requirements on component device types":
             what = "composingElements";
             device.composingElements = content;
             break;
 
+        case "condition requirements":
+            what = "conditionRequirements";
+            device.conditionRequirements = content;
+            break;
+
         default:
+            // Collect sub-sections of conditionRequirements as details (e.g. "ManagedAclAllowed Condition")
+            if (
+                device.conditionRequirements &&
+                content.xref.section.startsWith(device.conditionRequirements.xref.section + ".")
+            ) {
+                if (!device.conditionRequirements.details) {
+                    device.conditionRequirements.details = [];
+                }
+                device.conditionRequirements.details.push(content);
+                what = `conditionRequirements detail "${content.name}"`;
+                break;
+            }
             logger.debug(`ignore ${content.name}`);
             break;
     }
@@ -69,7 +92,7 @@ function augmentDevice(device: DeviceReference, content: HtmlReference) {
     }
 }
 
-export function* loadDevices(devices: HtmlReference) {
+export function* loadDevices(devices: SpecReference) {
     let category: string | undefined;
     let device: DeviceReference | undefined;
 
@@ -80,7 +103,7 @@ export function* loadDevices(devices: HtmlReference) {
         }
     }
 
-    for (const section of scanDocument(devices)) {
+    for (const section of scanSpec(devices)) {
         const depth = section.xref.section.split(".").length;
         switch (depth) {
             case 1:
@@ -113,4 +136,7 @@ export function* loadDevices(devices: HtmlReference) {
                 break;
         }
     }
+
+    // Emit final device
+    yield* emit();
 }

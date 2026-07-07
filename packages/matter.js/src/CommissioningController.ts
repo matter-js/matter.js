@@ -44,6 +44,7 @@ import {
     DiscoveryData,
     Fabric,
     FabricGroups,
+    FabricLabelConflictError,
     NodeSession,
     PeerSet,
     SecureSession,
@@ -56,10 +57,12 @@ import {
     FabricId,
     FabricIndex,
     NodeId,
+    StatusResponseError,
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -214,6 +217,16 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      * to download OTA updates.
      */
     readonly enableOtaProvider?: boolean;
+
+    /**
+     * Enable TCP transport. true = both incoming+outgoing. Default: false (UDP only).
+     */
+    readonly tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+
+    /**
+     * Preferred transport for outgoing connections. Default: "udp".
+     */
+    readonly transportPreference?: "tcp" | "udp";
 
     /**
      * Options for the BasicInformation cluster of the Controller node.
@@ -384,6 +397,8 @@ export class CommissioningController {
             rootCertificateAuthority,
             rootFabric,
             ble: !!(this.#environment.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)),
+            tcp: this.#options.tcp,
+            transportPreference: this.#options.transportPreference,
             ipv4: !this.#ipv4Disabled,
             listeningAddressIpv4: this.#listeningAddressIpv4,
             listeningAddressIpv6: this.#listeningAddressIpv6,
@@ -908,10 +923,19 @@ export class CommissioningController {
                 this.fabric.addressOf(nodeId),
                 `Fabric label "${fabric.label}" does not match requested admin fabric Label "${label}". Updating...`,
             );
-            await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
-                label,
-                fabricIndex: fabric.fabricIndex,
-            });
+            try {
+                await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
+                    label,
+                });
+            } catch (error) {
+                const sre = StatusResponseError.of(error);
+                if (sre?.clusterCode === OperationalCredentials.NodeOperationalCertStatus.LabelConflict) {
+                    throw new FabricLabelConflictError(
+                        `Cannot set fabric label to "${label}" because another fabric on this device already uses this name. Please adjust fabric labels to be unique.`,
+                    );
+                }
+                throw error;
+            }
         }
     }
 

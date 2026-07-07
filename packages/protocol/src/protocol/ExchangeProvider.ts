@@ -33,6 +33,12 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
     network?: string;
 
     /**
+     * Per-call override for the peer-medium MRP retransmission margin.  When omitted the margin derives from the
+     * peer's network medium, independent of any {@link network} throttle override.
+     */
+    additionalMrpDelay?: Duration;
+
+    /**
      * Optional address override for the exchange.  When set, messages are sent to this address
      * instead of the session's default peer address.
      */
@@ -43,7 +49,20 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
      * The exchange creation fails if no active session is available.
      */
     requireExistingSession?: boolean;
+
+    /** Required transport type for this exchange. If set, only sessions of this transport type are used. */
+    requiredTransport?: ChannelType;
+
+    /**
+     * Per-call soft transport preference. Honored only when the peer advertises matching server
+     * capability; otherwise the connect path falls back to UDP. Has no effect when
+     * {@link requiredTransport} is set.
+     */
+    preferredTransport?: ChannelType;
 }
+
+/** Why a reachability check was requested. Gates entry conditions, not the probe mechanics. */
+export type ReachabilityReason = "address-change" | "session-suspect";
 
 /**
  * Interface for obtaining a message exchange with a specific peer.
@@ -56,6 +75,17 @@ export abstract class ExchangeProvider {
     abstract readonly channelType: ChannelType;
     abstract readonly peerAddress?: PeerAddress;
     abstract readonly maxPathsPerInvoke?: number;
+
+    /**
+     * Peer-advertised CapabilityMinima path floors.  Base values are the spec minimums.
+     * @see {@link MatterSpecification.v16.Core} § 11.1
+     */
+    get readPathsSupported(): number {
+        return 9;
+    }
+    get subscribePathsSupported(): number {
+        return 3;
+    }
 
     /**
      * Dedicated secure session backing this provider, if any.
@@ -73,6 +103,15 @@ export abstract class ExchangeProvider {
      * The default implementation is a no-op (already connected).
      */
     async connect(_options?: NewExchangeOptions): Promise<void> {}
+
+    /**
+     * Verify the peer is reachable, driving recovery (alternate-address migration or session close).
+     *
+     * The default reports reachable; only peer-backed providers have a reachability authority and override this.
+     */
+    async verifyReachability(_options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        return true;
+    }
 }
 
 /**
@@ -90,12 +129,16 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
         return this.#session.parameters.maxPathsPerInvoke;
     }
 
-    async initiateExchange(): Promise<MessageExchange> {
-        return this.exchangeManager.initiateExchangeForSession(this.#session, INTERACTION_PROTOCOL_ID);
+    async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
+        // This provider has no peer/medium context, so the medium-derived margin is unavailable; only an explicit
+        // per-call override can apply here.
+        return this.exchangeManager.initiateExchangeForSession(this.#session, INTERACTION_PROTOCOL_ID, {
+            peerAdditionalMrpDelay: options?.additionalMrpDelay,
+        });
     }
 
     get channelType() {
-        return this.#session.channel.channel.type;
+        return this.#session.channel.transportChannel.type;
     }
 
     override get session() {

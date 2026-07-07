@@ -51,7 +51,7 @@ Resource.add(
                 tag: "attribute", name: "ScaledValue", xref: "cluster§2.4.5.5",
                 details: "Indicates the pressure in Pascals as follows:" +
                     "\n" +
-                    "ScaledValue = 10Scale x Pressure [Pa]" +
+                    "ScaledValue = 10^Scale x Pressure [Pa]" +
                     "\n" +
                     "The null value indicates that the value is not available."
             },

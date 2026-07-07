@@ -10,7 +10,7 @@ import { TlvUInt16 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvCommandPath } from "./TlvCommandPath.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.12 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.12 */
 
 export const TlvCommandData = TlvObject({
     // CommandDataIB

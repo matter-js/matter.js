@@ -26,7 +26,8 @@
         "test-core": "matter-test --spec=test/core/**/*.test.ts --report",
         "test-app-slow": "matter-test --spec=test/app-slow/**/*.test.ts --report",
         "test-app-cc-1": "matter-test --spec=test/app-cc/CC.1.test.ts --report",
-        "test-app-cc-2": "matter-test --spec=test/app-cc/CC.2.test.ts --report"
+        "test-app-cc-2": "matter-test --spec=test/app-cc/CC.2.test.ts --report",
+        "test-icd": "matter-test --spec=test/icd/**/*.test.ts --report"
     },
     "dependencies": {
         "@matter/main": "*",
@@ -35,7 +36,7 @@
     "devDependencies": {
         "@matter/testing": "*",
         "@types/ws": "^8.18.1",
-        "ws": "^8.20.0"
+        "ws": "^8.21.0"
     },
     "nacho": {
         "test": false

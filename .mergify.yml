@@ -8,9 +8,22 @@ pull_request_rules:
     actions:
       merge:
         method: squash
+  - name: Automatic merge Apollon77 PRs when tested and flagged as automerge
+    conditions:
+      - "author=Apollon77"                 # Apollon77 is the PR author
+      - "#review-threads-unresolved=0"
+      - "-draft"
+      - "#check-failure=0"                 # Don't auto merge with a failure
+      - "#check-pending=0"                 # Don't auto merge with anything pending
+      - "label=automerge"                  # merge PRs with the automerge label
+    actions:
+      update:
+      merge:
+        method: squash
   - name: Automatic merge non-dependabot PRs when approved and tested
     conditions:
       - "author!=dependabot[bot]"          # dependabot PRs are handled above
+      - "author!=Apollon77"                # Apollon77 is handled above
       - label!="automated-npm-release"     # Don't auto merge automated PRs, other processes do this
       - label!="automated-docker-release"  # Don't auto merge automated PRs, other processes do this
       - "#approved-reviews-by>=1"

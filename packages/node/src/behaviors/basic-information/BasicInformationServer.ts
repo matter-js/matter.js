@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Diagnostic, ImplementationError, Logger } from "@matter/general";
+import { Diagnostic, ImplementationError, Logger, MaybePromise } from "@matter/general";
 import { AttributeModel, EventModel, Schema, Specification } from "@matter/model";
 import { Fabric, FabricManager } from "@matter/protocol";
 import { DEFAULT_MAX_PATHS_PER_INVOKE, VendorId } from "@matter/types";
@@ -22,8 +22,20 @@ const Base = BasicInformationBehavior.enable({
     events: { startUp: true, shutDown: true, leave: true },
 }).set({ maxPathsPerInvoke: 0 });
 
+// Advertised CapabilityMinima: the guaranteed minimums we promise clients (core §11.1).  These are a floor, not a cap;
+// the server accepts up to a higher hard ceiling and only blocks beyond it (see InteractionServer).
+const DEFAULT_SIMULTANEOUS_INVOCATIONS_SUPPORTED = 20;
+const DEFAULT_SIMULTANEOUS_WRITES_SUPPORTED = 20;
+const DEFAULT_READ_PATHS_SUPPORTED = 20;
+const DEFAULT_SUBSCRIBE_PATHS_SUPPORTED = 20;
+
 /**
  * This is the default server implementation of BasicInformationBehavior.
+ *
+ * `ConfigurationVersion` (mandatory since Matter 1.6) is seeded to 1 and constrained to only ever increase.  When the
+ * node's configuration changes in a way clients should detect, bump it with {@link increaseConfigurationVersion},
+ * which runs your change and increments the version exactly once afterwards — do not set `configurationVersion`
+ * directly.  Bridged nodes have their own version; see {@link BridgedDeviceBasicInformationServer}.
  */
 export class BasicInformationServer extends Base {
     override initialize() {
@@ -60,18 +72,18 @@ export class BasicInformationServer extends Base {
         setDefault("specificationVersion", Specification.SPECIFICATION_VERSION);
         setDefault("maxPathsPerInvoke", DEFAULT_MAX_PATHS_PER_INVOKE);
 
-        // Set defaults for new CapabilityMinima fields (Matter 1.6 Rev 6 TCR extension).
-        // These reflect conservative but valid minimums for matter.js implementations.
-        // Use nullish coalescing so existing state values take priority but undefined is treated as unset.
-        // TODO add reasonable defaults for us
-        // TODO use these limits in all relevant places also as limits
+        setDefault("configurationVersion", 1);
+        this.reactTo(this.events.configurationVersion$Changing, this.#preventConfigurationVersionRegression);
+
         const capabilityMinima = this.state.capabilityMinima;
         this.state.capabilityMinima = {
             ...capabilityMinima,
-            simultaneousInvocationsSupported: capabilityMinima.simultaneousInvocationsSupported ?? 6,
-            simultaneousWritesSupported: capabilityMinima.simultaneousWritesSupported ?? 4,
-            readPathsSupported: capabilityMinima.readPathsSupported ?? 9,
-            subscribePathsSupported: capabilityMinima.subscribePathsSupported ?? 3,
+            simultaneousInvocationsSupported:
+                capabilityMinima.simultaneousInvocationsSupported ?? DEFAULT_SIMULTANEOUS_INVOCATIONS_SUPPORTED,
+            simultaneousWritesSupported:
+                capabilityMinima.simultaneousWritesSupported ?? DEFAULT_SIMULTANEOUS_WRITES_SUPPORTED,
+            readPathsSupported: capabilityMinima.readPathsSupported ?? DEFAULT_READ_PATHS_SUPPORTED,
+            subscribePathsSupported: capabilityMinima.subscribePathsSupported ?? DEFAULT_SUBSCRIBE_PATHS_SUPPORTED,
         };
 
         if (this.state.uniqueId === undefined) {
@@ -104,6 +116,40 @@ export class BasicInformationServer extends Base {
         }
 
         validateBasicInfoAttributes(this.state, logger);
+    }
+
+    /**
+     * Run a configuration change and increase {@link BasicInformation.State.configurationVersion} afterwards.
+     *
+     * Use via the agent, e.g. `agent.get(BasicInformationServer).increaseConfigurationVersion(() => { ...changes... })`.
+     * The callback runs first and receives the acting {@link ActionContext}; the version is increased once it completes
+     * so a single logical change yields a single increment.
+     *
+     * To group changes across multiple bridged nodes into one transaction with a single bridge increment, perform the
+     * bridged-node changes inside this callback via the provided context and pass that context to
+     * {@link BridgedDeviceBasicInformationServer.increaseConfigurationVersion}.
+     */
+    async increaseConfigurationVersion<T = void>(change?: (context: ActionContext) => MaybePromise<T>): Promise<T> {
+        const result = await change?.(this.context);
+        this.state.configurationVersion = BasicInformationServer.nextConfigurationVersion(
+            this.state.configurationVersion,
+        );
+        return result as T;
+    }
+
+    /**
+     * Compute the next configuration version, wrapping at the uint32 maximum back to the minimum value of 1.  The
+     * overflow behavior is not defined by the specification; see the spec-clarification follow-up.
+     */
+    static nextConfigurationVersion(current = 0) {
+        return current >= 0xffffffff ? 1 : current + 1;
+    }
+
+    #preventConfigurationVersionRegression(value: number, oldValue: number) {
+        // ConfigurationVersion must only ever increase; the sole exception is the wrap from the uint32 maximum
+        if (value < oldValue && oldValue !== 0xffffffff) {
+            throw new ImplementationError(`ConfigurationVersion must not decrease (${oldValue} -> ${value})`);
+        }
     }
 
     static override readonly schema = this.enableUniqueIdPersistence(Base.schema);

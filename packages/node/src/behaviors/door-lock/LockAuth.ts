@@ -103,7 +103,7 @@ export namespace LockAuth {
      * Encapsulates user/credential persistence with integrated encryption.
      *
      * All credential data mutations encrypt automatically; all queries decrypt automatically. Override
-     * {@link NonUserDoorLockServer.cipher} or {@link NonUserDoorLockServer.auth} to customize.
+     * {@link DoorLockBaseServer.cipher} or {@link DoorLockBaseServer.auth} to customize.
      */
     export class Store {
         #state: { users: User[]; credentials: Credential[] };

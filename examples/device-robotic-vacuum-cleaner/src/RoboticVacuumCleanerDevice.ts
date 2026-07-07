@@ -7,7 +7,7 @@
 
 // This demonstrates bringing a "Robotic Vacuum Cleaner" device online with matter.js.
 
-import { AreaNamespaceTag, ServerNode } from "@matter/main";
+import { CommonAreaNamespaceTag, ServerNode } from "@matter/main";
 import { ServiceAreaServer } from "@matter/main/behaviors/service-area";
 import { ModeBase } from "@matter/main/clusters/mode-base";
 import { RvcCleanMode } from "@matter/main/clusters/rvc-clean-mode";
@@ -104,7 +104,7 @@ await node.add(
                         locationInfo: {
                             locationName: "Kitchen",
                             floorNumber: 0,
-                            areaType: AreaNamespaceTag.Kitchen.tag,
+                            areaType: CommonAreaNamespaceTag.Kitchen.tag,
                         },
                         landmarkInfo: null,
                     },
@@ -116,7 +116,7 @@ await node.add(
                         locationInfo: {
                             locationName: "Living Room",
                             floorNumber: 0,
-                            areaType: AreaNamespaceTag.LivingRoom.tag,
+                            areaType: CommonAreaNamespaceTag.LivingRoom.tag,
                         },
                         landmarkInfo: null,
                     },
@@ -128,7 +128,7 @@ await node.add(
                         locationInfo: {
                             locationName: "Bathroom",
                             floorNumber: 0,
-                            areaType: AreaNamespaceTag.Bathroom.tag,
+                            areaType: CommonAreaNamespaceTag.Bathroom.tag,
                         },
                         landmarkInfo: null,
                     },
@@ -140,7 +140,7 @@ await node.add(
                         locationInfo: {
                             locationName: "Bedroom",
                             floorNumber: 0,
-                            areaType: AreaNamespaceTag.Bedroom.tag,
+                            areaType: CommonAreaNamespaceTag.Bedroom.tag,
                         },
                         landmarkInfo: null,
                     },

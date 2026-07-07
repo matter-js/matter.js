@@ -15,9 +15,9 @@ export const ElectricalSensorDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1296, revision: 1 } ], element: "attribute" })
     ),
-    Requirement({ name: "PowerTopology", id: 0x9c, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "ElectricalPowerMeasurement", id: 0x90, conformance: "O.a+", element: "serverCluster" }),
-    Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "O.a+", element: "serverCluster" })
+    Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "O.a+", element: "serverCluster" }),
+    Requirement({ name: "PowerTopology", id: 0x9c, conformance: "M", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(ElectricalSensorDt);

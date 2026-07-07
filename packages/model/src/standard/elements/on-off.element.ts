@@ -17,13 +17,13 @@ import {
 
 export const OnOff = Cluster(
     { name: "OnOff", id: 0x6, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "LT", conformance: "[!OFFONLY]", constraint: "0", title: "Lighting" }),
         Field({ name: "DF", conformance: "[!OFFONLY]", constraint: "1", title: "DeadFrontBehavior" }),
-        Field({ name: "OFFONLY", conformance: "[!LT | DF]", constraint: "2", title: "OffOnly" })
+        Field({ name: "OFFONLY", conformance: "[!(LT | DF)]", constraint: "2", title: "OffOnly" })
     ),
 
     Attribute({ name: "OnOff", id: 0x0, type: "bool", access: "R V", conformance: "M", quality: "N S" }),

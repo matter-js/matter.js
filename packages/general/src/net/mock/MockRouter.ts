@@ -45,11 +45,20 @@ export function MockRouter(): MockRouter {
 export namespace MockRouter {
     /**
      * A mock network packet.
-     *
-     * Currently we only support UDP.
      */
-    export interface Packet {
+    export type Packet = UdpPacket | TcpPacket;
+
+    export interface UdpPacket {
         kind: "udp";
+        sourceAddress: string;
+        sourcePort: number;
+        destAddress: string;
+        destPort: number;
+        payload: Bytes;
+    }
+
+    export interface TcpPacket {
+        kind: "tcp";
         sourceAddress: string;
         sourcePort: number;
         destAddress: string;

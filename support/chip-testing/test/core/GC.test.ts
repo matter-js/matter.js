@@ -6,5 +6,5 @@
 
 describe("GC", () => {
     chip("GC/*").exclude("GC/2.2");
-    //chip("GC/2.2").args("--endpoint", 0); // Currently broken
+    chip("GC/2.2").args("--endpoint", 0);
 });

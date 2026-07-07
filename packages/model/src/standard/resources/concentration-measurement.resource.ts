@@ -34,7 +34,7 @@ Resource.add({
         {
             tag: "attribute", name: "MeasuredValue", xref: "cluster§2.10.6.1",
 
-            details: "Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s " +
+            details: "Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue's " +
                 "unit is represented by MeasurementUnit." +
                 "\n" +
                 "A value of null indicates that the measurement is unknown or outside the valid range." +

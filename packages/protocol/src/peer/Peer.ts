@@ -9,7 +9,7 @@ import type { NodeProtocol } from "#action/protocols.js";
 import { DiscoveryData } from "#common/Scanner.js";
 import { getOperationalDeviceQname } from "#mdns/MdnsConsts.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import type { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import type { ExchangeProvider, ReachabilityReason } from "#protocol/ExchangeProvider.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
@@ -18,12 +18,14 @@ import {
     AsyncObservable,
     BasicMultiplex,
     BasicSet,
+    ChannelType,
     ClosedError,
     Diagnostic,
     DnssdNames,
     Duration,
     Identity,
     Instant,
+    IpChannelType,
     IpService,
     isIpNetworkChannel,
     Lifetime,
@@ -31,7 +33,8 @@ import {
     Millis,
     ObserverGroup,
     QuietObservable,
-    ServerAddressUdp,
+    Seconds,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -48,6 +51,13 @@ import type { PhysicalDeviceProperties } from "./PhysicalDeviceProperties.js";
 const logger = Logger.get("Peer");
 
 /**
+ * Floor for the MRP idle retransmission interval when a peer operates as a LIT ICD. A LIT ICD omits SII from its
+ * mDNS advertisement (§ 9.15.1.6.2), so the controller would otherwise fall back to the 500ms idle default and
+ * retransmit far too aggressively at a sleeping peer. Mirrors CHIP's `minimumLITBackoffInterval`.
+ */
+export const LIT_MIN_IDLE_INTERVAL = Seconds(5);
+
+/**
  * A node on a fabric we are a member of.
  */
 export class Peer {
@@ -61,6 +71,15 @@ export class Peer {
     #protocol?: NodeProtocol;
     #physicalProperties?: PhysicalDeviceProperties;
     #abort = new Abort();
+
+    /**
+     * Preferred transport for outgoing connections to this peer.
+     *
+     * Only `ChannelType.TCP` has meaning here — UDP is the default with no preference, and BLE is
+     * not used for operational connections. Setting TCP is a soft hint: the connect path still falls
+     * back to UDP if the peer does not advertise TCP server support.
+     */
+    transportPreference?: ChannelType.TCP;
     #connecting?: ConnectionProcess;
     #service: IpService;
     #observers = new ObserverGroup();
@@ -111,25 +130,37 @@ export class Peer {
         });
 
         this.#observers.on(this.#sessions.added, session => {
-            const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
-                this.#descriptor.operationalAddress = networkAddress;
+            const tagUdp = (addr: ServerAddressIp) => {
+                this.#descriptor.operationalAddress = { ...addr, type: "udp" };
             };
 
             // Ensure the operational address is always set to the most recent IP
             if (!session.isClosed) {
-                const { channel } = session.channel;
+                const channel = session.channel.transportChannel;
                 if (isIpNetworkChannel(channel)) {
-                    updateNetworkAddress(channel.networkAddress);
-                    channel.networkAddressChanged.on(updateNetworkAddress);
+                    if (channel.type === ChannelType.TCP) {
+                        // For incoming TCP the remote port is ephemeral — use the mDNS port
+                        const discoveredPort = [...this.#service.addresses][0]?.port;
+                        if (discoveredPort !== undefined) {
+                            this.#descriptor.operationalAddress = {
+                                type: "tcp",
+                                ip: channel.networkAddress.ip,
+                                port: discoveredPort,
+                            };
+                        }
+                    } else {
+                        tagUdp(channel.networkAddress);
+                        // MessageChannel.networkAddressChanged survives socket swaps; the transport channel's does not.
+                        session.channel.networkAddressChanged.on(tagUdp);
+                    }
                 }
             }
 
             // Remove session and detach listener when destroyed
             session.closing.on(() => {
                 this.#sessions.delete(session);
-                const { channel } = session.channel;
-                if (isIpNetworkChannel(channel)) {
-                    channel.networkAddressChanged.off(updateNetworkAddress);
+                if (isIpNetworkChannel(session.channel.transportChannel)) {
+                    session.channel.networkAddressChanged.off(tagUdp);
                 }
             });
 
@@ -223,16 +254,31 @@ export class Peer {
     get sessionParameters() {
         const bi = this.basicInformation;
         const dd = this.descriptor.discoveryData;
+        const descriptorParams = this.#descriptor.sessionParameters;
 
-        return SessionParameters({
+        const parameters = SessionParameters({
             dataModelRevision: bi?.dataModelRevision,
             maxPathsPerInvoke: bi?.maxPathsPerInvoke,
-            specificationVersion: bi?.specificationVersion,
             idleInterval: dd?.SII,
             activeInterval: dd?.SAI,
             activeThreshold: dd?.SAT,
-            ...this.#descriptor.sessionParameters,
+            ...descriptorParams,
+            // BasicInformation and the CASE-negotiated parameters report the same spec version, but one may update
+            // before the other; take the newer so a stale descriptor value cannot mask a fresher BasicInformation read.
+            specificationVersion: Math.max(bi?.specificationVersion ?? 0, descriptorParams?.specificationVersion ?? 0),
         });
+
+        // Only when the peer advertised no SII: a LIT ICD omits it, so the merged value is the 500ms default (or a
+        // negotiated value) which is too aggressive for a sleeper. An advertised SII is honored as-is.
+        if (
+            this.#physicalProperties?.isLongIdleTimeOperating &&
+            dd?.SII === undefined &&
+            parameters.idleInterval < LIT_MIN_IDLE_INTERVAL
+        ) {
+            parameters.idleInterval = LIT_MIN_IDLE_INTERVAL;
+        }
+
+        return parameters;
     }
 
     get network() {
@@ -254,6 +300,78 @@ export class Peer {
     }
 
     /**
+     * Record that the peer does not support TCP despite advertising it, by clearing TCP from its persisted session
+     * parameters. Honored by {@link resolveTransports} and persisted across restart; a later session reporting real
+     * TCP support overwrites it.
+     */
+    markTcpUnsupported() {
+        this.#descriptor.sessionParameters = {
+            ...this.sessionParameters,
+            supportedTransports: { tcpClient: false, tcpServer: false },
+        };
+    }
+
+    /**
+     * Resolve the ordered list of transports to attempt for this peer.
+     *
+     * `requiredTransport` is a hard constraint.  Otherwise, with an effective TCP preference
+     * (`preferredTransport ?? transportPreference`), the `SUPPORTED_TRANSPORTS.tcpServer` session parameter (tag 8)
+     * decides when present, falling back to the mDNS TXT `T` advertisement only when absent.  Pre-1.5 peers resolve
+     * to UDP.  `undefined` means default UDP.
+     */
+    resolveTransports(requiredTransport?: ChannelType, preferredTransport?: ChannelType): IpChannelType[] | undefined {
+        return this.#transportDecision(requiredTransport, preferredTransport).transports;
+    }
+
+    #transportDecision(
+        requiredTransport?: ChannelType,
+        preferredTransport?: ChannelType,
+    ): { transports: IpChannelType[] | undefined; reason: string; diag: Record<string, unknown> } {
+        const tcp: IpChannelType[] = [ChannelType.TCP, ChannelType.UDP];
+        if (requiredTransport === ChannelType.TCP || requiredTransport === ChannelType.UDP) {
+            return { transports: [requiredTransport], reason: "transport explicitly required", diag: {} };
+        }
+        const effectivePreference = preferredTransport ?? this.transportPreference;
+        if (effectivePreference !== ChannelType.TCP) {
+            return { transports: undefined, reason: "no TCP preference active", diag: {} };
+        }
+
+        // mDNS T is a fallback for an absent tag 8 only — some 1.5+ peers omit the field yet serve TCP.  Pre-1.5 peers
+        // arrive as an explicit `false` (SessionParameters clears their TCP), so the 1.5.0 gate needs no code here.
+        // Live TXT first: the descriptor cache lags a tick when TXT and addresses share one mDNS response.
+        const params = this.sessionParameters;
+        const specVersion = Diagnostic.hex(params.specificationVersion);
+        const tcpServerParam = params.supportedTransports.tcpServer;
+        if (tcpServerParam === true) {
+            return {
+                transports: tcp,
+                reason: "session parameter confirms TCP server",
+                diag: { paramTcpServer: true, specVersion },
+            };
+        }
+        if (tcpServerParam === false) {
+            return {
+                transports: undefined,
+                reason: "session parameter denies TCP server",
+                diag: { paramTcpServer: false, specVersion },
+            };
+        }
+        const tcpServerMdns =
+            (DiscoveryData(this.#service.parameters).T ?? this.#descriptor.discoveryData?.T)?.tcpServer === true;
+        return tcpServerMdns
+            ? {
+                  transports: tcp,
+                  reason: "TCP server advertised via mDNS (session parameter absent)",
+                  diag: { paramTcpServer: "absent", mdnsTcpServer: true, specVersion },
+              }
+            : {
+                  transports: undefined,
+                  reason: "no TCP server (session parameter absent, no mDNS advertisement)",
+                  diag: { paramTcpServer: "absent", mdnsTcpServer: false, specVersion },
+              };
+    }
+
+    /**
      * Obtain a session with the peer, establishing anew as necessary.
      */
     async connect(options?: Peer.ConnectOptions) {
@@ -262,8 +380,42 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession;
+            const { transports } = this.#transportDecision(options?.requiredTransport, options?.preferredTransport);
+            /* Debug aid (one line per connect — noisy); uncomment to trace transport selection:
+            {
+                const { reason, diag } = this.#transportDecision(options?.requiredTransport, options?.preferredTransport);
+                logger.debug(
+                    "Transport resolution",
+                    Diagnostic.dict({
+                        peer: this.address.toString(),
+                        result: transports === undefined ? "UDP (no constraint)" : transports.join("+"),
+                        reason,
+                        peerPreference: this.transportPreference ?? "none",
+                        ...diag,
+                    }),
+                );
+            }
+            */
+            let session: NodeSession | undefined;
+            if (transports === undefined) {
+                session = this.newestSession();
+            } else {
+                for (const t of transports) {
+                    session = this.newestSession(t);
+                    if (session) break;
+                }
+            }
             if (session) {
+                /* Debug aid; uncomment to trace existing-session reuse:
+                logger.debug(
+                    "Reusing existing session",
+                    Diagnostic.dict({
+                        peer: this.address.toString(),
+                        sessionTransport: session.channel.transportChannel.type,
+                        wantedTransports: transports === undefined ? "UDP (no constraint)" : transports.join("+"),
+                    }),
+                );
+                */
                 return session;
             }
 
@@ -356,10 +508,10 @@ export class Peer {
 
         this.#observers.close();
 
-        // Cancel pending address check
-        this.#addressMonitor?.stop();
-
         this.#abort(new ClosedError("Peer closed"));
+
+        // Stop the address monitor and await any in-flight reachability run (the abort above makes it unwind).
+        await this.#addressMonitor?.close();
 
         for (const session of this.#context.sessions.sessionsFor(this.address)) {
             await session.initiateClose();
@@ -386,12 +538,16 @@ export class Peer {
         await this.#updated.emit(this);
     }
 
-    get newestSession() {
+    newestSession(type?: ChannelType) {
         // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
         let found: NodeSession | undefined;
 
         for (const session of this.#sessions) {
             if (session.isClosing || session.isPeerLost) {
+                continue;
+            }
+
+            if (type !== undefined && session.channel.transportChannel.type !== type) {
                 continue;
             }
 
@@ -414,6 +570,18 @@ export class Peer {
             );
         }
         return this.#addressMonitor;
+    }
+
+    /**
+     * Verify this peer is reachable, driving recovery via the address monitor.
+     *
+     * Returns `true` if the session is usable afterward, `false` if it was closed.
+     */
+    async verifyReachability(options: { reason: ReachabilityReason; abort?: AbortSignal }): Promise<boolean> {
+        if (!this.hasSession) {
+            return false;
+        }
+        return this.#addressCheck.verifyReachability(options);
     }
 
     #initiateConnection(options?: Peer.ConnectOptions) {
@@ -443,7 +611,10 @@ export class Peer {
 
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
+                additionalMrpDelay: options?.additionalMrpDelay,
                 timing: options?.timing,
+                requiredTransport: options?.requiredTransport,
+                preferredTransport: options?.preferredTransport,
                 handleError: options?.handleError,
                 abort,
                 kicker,
@@ -484,6 +655,12 @@ export namespace Peer {
         network?: string;
 
         /**
+         * Per-call override for the peer-medium MRP retransmission margin.  When omitted the margin derives from
+         * the peer's network medium, independent of any {@link network} throttle override.
+         */
+        additionalMrpDelay?: Duration;
+
+        /**
          * A timeout relative to beginning of connection process.
          *
          * If the peer is already connecting, connection time is reduced by this amount.
@@ -511,6 +688,18 @@ export namespace Peer {
          * ongoing attempt.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Hard transport constraint for this connection (e.g. Large Message Quality requires TCP).
+         * When omitted, transports are resolved per {@link Peer.resolveTransports}.
+         */
+        requiredTransport?: ChannelType;
+
+        /**
+         * Per-call soft transport preference. Overrides {@link Peer.transportPreference} for this
+         * connection only and is honored only when the peer advertises matching server capability.
+         */
+        preferredTransport?: ChannelType;
 
         /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.

@@ -23,7 +23,7 @@ import {
     Millis,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ColorControlBehavior } from "./ColorControlBehavior.js";
@@ -505,7 +505,7 @@ export class ColorControlBaseServer extends ColorControlBase {
 
     #assertStepSize(stepSize: number, errorContext: string) {
         if (stepSize === 0) {
-            throw new StatusResponseError(`${errorContext} step size must not be 0`, StatusCode.InvalidCommand);
+            throw new StatusResponseError(`${errorContext} step size must not be 0`, Status.InvalidCommand);
         }
     }
 
@@ -894,7 +894,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         transitionTime,
     }: ColorControl.StepColorRequest): MaybePromise {
         if (stepX === 0 && stepY === 0) {
-            throw new StatusResponseError("Color step sizes must not be 0", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Color step sizes must not be 0", Status.InvalidCommand);
         }
         if (!this.#optionsAllowExecution(optionsMask, optionsOverride)) {
             return;
@@ -1595,7 +1595,7 @@ export class ColorControlBaseServer extends ColorControlBase {
 
     #assertRate(mode: ColorControl.MoveMode, rate: number) {
         if ((mode === ColorControl.MoveMode.Up || mode === ColorControl.MoveMode.Down) && rate === 0) {
-            throw new StatusResponseError("Rate must not be 0 when moving Up or Down", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Rate must not be 0 when moving Up or Down", Status.InvalidCommand);
         }
     }
 

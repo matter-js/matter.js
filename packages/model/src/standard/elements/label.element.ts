@@ -18,7 +18,7 @@ export const Label = Cluster(
     { name: "Label", classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
-        { name: "LabelList", id: 0x0, type: "list", conformance: "M", constraint: "derived", default: [] },
+        { name: "LabelList", id: 0x0, type: "list", conformance: "M" },
         Field({ name: "entry", type: "LabelStruct" })
     ),
     Datatype(

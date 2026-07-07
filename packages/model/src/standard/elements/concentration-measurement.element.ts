@@ -16,7 +16,7 @@ import {
 
 export const ConcentrationMeasurement = Cluster(
     { name: "ConcentrationMeasurement", classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -30,30 +30,33 @@ export const ConcentrationMeasurement = Cluster(
 
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "single", access: "R V", conformance: "MEA",
-        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P"
+        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
-    Attribute({ name: "MinMeasuredValue", id: 0x1, type: "single", access: "R V", conformance: "MEA", quality: "X" }),
+    Attribute({ name: "MinMeasuredValue", id: 0x1, type: "single", access: "R V", conformance: "MEA", quality: "X F" }),
     Attribute({
         name: "MaxMeasuredValue", id: 0x2, type: "single", access: "R V", conformance: "MEA",
-        constraint: "min minMeasuredValue", quality: "X"
+        constraint: "min minMeasuredValue", quality: "X F"
     }),
     Attribute({
         name: "PeakMeasuredValue", id: 0x3, type: "single", access: "R V", conformance: "PEA",
-        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P"
+        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "PeakMeasuredValueWindow", id: 0x4, type: "elapsed-s", access: "R V", conformance: "PEA",
-        constraint: "max 604800", quality: "P"
+        constraint: "max 604800"
     }),
     Attribute({
         name: "AverageMeasuredValue", id: 0x5, type: "single", access: "R V", conformance: "AVG",
-        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P"
+        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "AverageMeasuredValueWindow", id: 0x6, type: "elapsed-s", access: "R V", conformance: "AVG",
-        constraint: "max 604800", quality: "P"
+        constraint: "max 604800"
     }),
-    Attribute({ name: "Uncertainty", id: 0x7, type: "single", access: "R V", conformance: "[MEA]", constraint: "ms" }),
+    Attribute({
+        name: "Uncertainty", id: 0x7, type: "single", access: "R V", conformance: "[MEA]", constraint: "ms",
+        quality: "F"
+    }),
     Attribute({ name: "MeasurementUnit", id: 0x8, type: "MeasurementUnitEnum", access: "R V", conformance: "MEA", quality: "F" }),
     Attribute({
         name: "MeasurementMedium", id: 0x9, type: "MeasurementMediumEnum", access: "R V", conformance: "M",

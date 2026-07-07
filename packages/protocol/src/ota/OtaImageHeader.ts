@@ -19,7 +19,7 @@ import {
 
 /**
  * OTA Image TLV Header
- * @see {@link MatterSpecification.v142.Core} §11.21.2.4.
+ * @see {@link MatterSpecification.v16.Core} §11.21.2.4.
  */
 export const TlvOtaImageHeader = TlvObject({
     /**

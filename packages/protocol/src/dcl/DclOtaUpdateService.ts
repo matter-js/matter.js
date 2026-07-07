@@ -8,13 +8,13 @@ import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import { DclErrorCodes } from "#dcl/DclRestApiTypes.js";
 import {
+    asError,
     BlobStorageDriver,
     Construction,
     Crypto,
     Diagnostic,
     Environment,
-    HashAlgorithm,
-    HashFipsAlgorithmId,
+    hashAlgorithmForId,
     ImplementationError,
     Logger,
     MatterError,
@@ -68,6 +68,7 @@ export class DclOtaUpdateService {
     #blobDriver?: BlobStorageDriver;
     #closeBlobStorage?: () => Promise<void>;
     #storage?: ScopedStorage;
+    #closed = false;
 
     get construction() {
         return this.#construction;
@@ -101,6 +102,7 @@ export class DclOtaUpdateService {
     }
 
     async close() {
+        this.#closed = true;
         await this.#construction.close(async () => {
             await this.#closeBlobStorage?.();
         });
@@ -218,6 +220,9 @@ export class DclOtaUpdateService {
 
             // Check each version starting from highest, find the first applicable one
             for (const version of newerVersions) {
+                if (this.#closed) {
+                    return;
+                }
                 try {
                     const updateInfo = await this.#checkSpecificVersion(
                         dclClient,
@@ -277,7 +282,7 @@ export class DclOtaUpdateService {
         const foundUpdates = new Array<DeviceSoftwareVersionModelDclSchemaWithSource>();
 
         // Only stored test-mode files are gated on the test DCL being enabled; prod and local entries always
-        // pass through so a test-only caller still sees them as valid upgrade targets.
+        // pass through, so a test-only caller still sees them as valid upgrade targets.
         if (includeStoredUpdates) {
             const localUpdates = await this.find({
                 vendorId,
@@ -314,7 +319,7 @@ export class DclOtaUpdateService {
         }
 
         // Check for Prod DCL updates
-        if (isProduction !== false) {
+        if (isProduction !== false && !this.#closed) {
             const prodUpdate = await this.#queryDclForUpdate({ ...options, isProduction: true });
             if (prodUpdate !== undefined) {
                 const updateEntry: DeviceSoftwareVersionModelDclSchemaWithSource = {
@@ -329,7 +334,7 @@ export class DclOtaUpdateService {
         }
 
         // Check for Test DCL updates
-        if (isProduction !== true) {
+        if (isProduction !== true && !this.#closed) {
             const testUpdate = await this.#queryDclForUpdate({ ...options, isProduction: false });
             if (testUpdate !== undefined) {
                 const updateEntry: DeviceSoftwareVersionModelDclSchemaWithSource = {
@@ -360,13 +365,18 @@ export class DclOtaUpdateService {
         const reader = storedBlob.stream().getReader();
 
         // Validate with full checksum if DCL provided one
-        const checksumOptions = updateInfo.otaChecksum
-            ? {
-                  calculateFullChecksum: true,
-                  checksumType: HashFipsAlgorithmId[updateInfo.otaChecksumType ?? 1] as HashAlgorithm,
-                  expectedChecksum: updateInfo.otaChecksum,
-              }
-            : undefined;
+        let checksumOptions;
+        if (updateInfo.otaChecksum) {
+            const checksumType = hashAlgorithmForId(updateInfo.otaChecksumType ?? 1);
+            if (checksumType === undefined) {
+                throw new OtaUpdateError(`Unsupported OTA checksum type: ${updateInfo.otaChecksumType}`);
+            }
+            checksumOptions = {
+                calculateFullChecksum: true,
+                checksumType,
+                expectedChecksum: updateInfo.otaChecksum,
+            };
+        }
 
         const header = await OtaImageReader.file(reader, this.#crypto, otaFileSize, checksumOptions);
 
@@ -479,7 +489,10 @@ export class DclOtaUpdateService {
                     logger.info(`Existing OTA image validated successfully`, Diagnostic.dict(diagnosticInfo));
                     return fileDesignator;
                 } catch (error) {
-                    logger.info(`Existing OTA image validation failed, Re-downloading ...`, error);
+                    logger.info(
+                        `Existing OTA image validation failed, Re-downloading ...`,
+                        Diagnostic.errorMessage(asError(error)),
+                    );
                 }
             }
 
@@ -931,7 +944,7 @@ export class DclOtaUpdateService {
                 size: blob.size,
             };
         } catch (error) {
-            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, error);
+            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, Diagnostic.errorMessage(asError(error)));
         }
     }
 

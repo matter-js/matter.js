@@ -10,14 +10,14 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import {
     DeviceTypeElement as DeviceType,
     RequirementElement as Requirement,
-    FieldElement as Field
+    ConditionElement as Condition
 } from "../../elements/index.js";
 
 export const TemperatureControlledCabinetDt = DeviceType(
     { name: "TemperatureControlledCabinet", id: 0x71, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 113, revision: 5 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 113, revision: 6 } ], element: "attribute" })
     ),
     Requirement(
         { name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster" },
@@ -48,7 +48,9 @@ export const TemperatureControlledCabinetDt = DeviceType(
         Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
     ),
 
-    Field({ name: "conditions", type: "enum8" }, Field({ name: "Cooler" }), Field({ name: "Heater" }))
+    Requirement({ name: "TemperatureAlarm", id: 0x64, conformance: "P, O", element: "serverCluster" }),
+    Condition({ name: "Cooler" }),
+    Condition({ name: "Heater" })
 );
 
 MatterDefinition.children.push(TemperatureControlledCabinetDt);

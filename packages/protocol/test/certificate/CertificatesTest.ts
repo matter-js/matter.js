@@ -9,16 +9,20 @@ import {
     TestCert_PAA_NoVID_Cert,
     TestCert_WithoutAuthKeyId,
 } from "#certificate/ChipPAAuthorities.js";
-import { Paa } from "#certificate/kinds/AttestationCertificates.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
+import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
+import { Certificate, parseMatterFallbackVidPid } from "#certificate/kinds/Certificate.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
+import { Vvsc } from "#certificate/kinds/Vvsc.js";
 import {
     Bytes,
     CertificateError,
+    ContextTagged,
+    DerBitString,
     DerCodec,
     DerNode,
+    DerTag,
     EcdsaSignature,
     PrivateKey,
     PublicKey,
@@ -120,7 +124,9 @@ describe("Certificates", () => {
                     // Load from TLV, convert to ASN.1, parse back, and verify
                     const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
                     const rootFromAsn1 = Rcac.fromAsn1(rootFromTlv.asSignedDer());
-                    expect(rootFromAsn1.cert).to.deep.equal(rootFromTlv.cert);
+                    // issuerDer/tbsDer are only present on ASN.1-parsed certs, strip for structural equality
+                    const { issuerDer: _i, tbsDer: _t, ...asn1Cert } = rootFromAsn1.cert as any;
+                    expect(asn1Cert).to.deep.equal(rootFromTlv.cert);
                     if ("ASN1" in certs.ROOT) {
                         expect(Bytes.toHex(rootFromTlv.asUnsignedDer())).to.equal(Bytes.toHex(certs.ROOT.ASN1));
                     }
@@ -134,7 +140,8 @@ describe("Certificates", () => {
                     it("parse intermediate certificate from ASN.1", async () => {
                         const icacFromTlv = Icac.fromTlv(certs.ICAC.TLV);
                         const icacFromAsn1 = Icac.fromAsn1(icacFromTlv.asSignedDer());
-                        expect(icacFromAsn1.cert).to.deep.equal(icacFromTlv.cert);
+                        const { issuerDer: _i, tbsDer: _t, ...asn1Cert } = icacFromAsn1.cert as any;
+                        expect(asn1Cert).to.deep.equal(icacFromTlv.cert);
                         const tlvEncoded = icacFromAsn1.asSignedTlv();
                         expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.ICAC.TLV));
 
@@ -146,7 +153,8 @@ describe("Certificates", () => {
                 it("parse operational certificate from ASN.1", async () => {
                     const nocFromTlv = Noc.fromTlv(certs.NOC.TLV);
                     const nocFromAsn1 = Noc.fromAsn1(nocFromTlv.asSignedDer());
-                    expect(nocFromAsn1.cert).to.deep.equal(nocFromTlv.cert);
+                    const { issuerDer: _i, tbsDer: _t, ...asn1Cert } = nocFromAsn1.cert as any;
+                    expect(asn1Cert).to.deep.equal(nocFromTlv.cert);
                     if ("ASN1" in certs.NOC) {
                         expect(Bytes.toHex(nocFromTlv.asUnsignedDer())).to.equal(Bytes.toHex(certs.NOC.ASN1));
                     }
@@ -224,6 +232,97 @@ describe("Certificates", () => {
             await rcac.verify(crypto);
             await icac.verify(crypto, rcac);
             await noc.verify(crypto, rcac, icac);
+        });
+    });
+
+    describe("parses VendorID/ProductID encoded via the fallback method (spec 6.2.2.2)", () => {
+        // Real Nuki DAC/PAI: VID/PID are embedded in the commonName ("Mvid:135D Mpid:00A1")
+        // rather than the Matter-specific OIDs. Captured from a live commissioning attempt.
+        const NUKI_DAC_ASN1 = Bytes.fromHex(
+            "308201c130820167a003020102020e03ff135d00a1001b000802d19da9300a06082a8648ce3d040302303431323030060355040313294b7564656c736b69204d61747465722050414920666f72204e756b69204d7669643a313335442030313020170d3236303532323039313332365a180f39393939313233313233353935395a302f312d302b060355040313244d7669643a31333544204d7069643a3030413120303031623030303830326431396461393059301306072a8648ce3d020106082a8648ce3d0301070342000494f0ff20d3df40660f59e3838a97b26188d6004db8f670b6ff7b1f1b952cfcb63516bbc379204ec542fdaf5809360b28c76d1b2b30862a6dafaf0454b301921ea360305e300e0603551d0f0101ff040403020780300c0603551d130101ff04023000301d0603551d0e041604140ac17a032b81fd47c00388872acae54850b231c3301f0603551d2304183016801448fd5991116b0a91759346351ea4728e51fb7c39300a06082a8648ce3d0403020348003045022012e4f811b5b2d14feeb86c28ba744895e5bd1925506a4f9bdb130b4366b3f45a022100f4b82b41df0b14aeea9eaa1ef95439ac75d687199c53e6369da8cf9047f36e51",
+        );
+        const NUKI_PAI_ASN1 = Bytes.fromHex(
+            "308201b83082015da003020102020e02ff135d000001897333e3210001300a06082a8648ce3d0403023021311f301d060355040313164b7564656c736b69204d617474657220504141203031301e170d3233303732303132303834375a170d3238303732303132303834375a303431323030060355040313294b7564656c736b69204d61747465722050414920666f72204e756b69204d7669643a313335442030313059301306072a8648ce3d020106082a8648ce3d0301070342000455687c57f5c97097b23945b5fbd3578b53038cfae793a098771e7f88337fe694e26b441f75939e574b21126fc4c947c29658fe1cb085c2c4b2b2a92cb728c073a3663064300e0603551d0f0101ff04040302010630120603551d130101ff040830060101ff020100301d0603551d0e0416041448fd5991116b0a91759346351ea4728e51fb7c39301f0603551d23041830168014a607c3607b7150e3622ab0ba889e6cbc3fc552f9300a06082a8648ce3d0403020349003046022100caef1def29bf5069f1ae3928f3cab0ba88171f65bb5ee98fdf549f0e1ec5cb5b022100897030f94de3efcb5ff0b1ceb6a755edc811a9559f3048d129fc26c61462d631",
+        );
+
+        it("parses fallback VendorID and ProductID from a DAC commonName", () => {
+            const dac = Dac.fromAsn1(NUKI_DAC_ASN1);
+
+            expect(dac.cert.subject.vendorId).to.equal(0x135d);
+            expect(dac.cert.subject.productId).to.equal(0x00a1);
+        });
+
+        it("parses fallback VendorID from a PAI commonName", () => {
+            const pai = Pai.fromAsn1(NUKI_PAI_ASN1);
+
+            expect(pai.cert.subject.vendorId).to.equal(0x135d);
+        });
+
+        it("parses fallback VendorID from a DAC issuer commonName", () => {
+            const dac = Dac.fromAsn1(NUKI_DAC_ASN1);
+
+            expect(dac.cert.issuer.vendorId).to.equal(0x135d);
+            expect(dac.cert.issuer.productId).to.be.undefined;
+        });
+
+        // Matter-specific VID/PID OID arc 1.3.6.1.4.1.37244.2.* (spec appendix E), with the DER
+        // OBJECT IDENTIFIER tag (0x06) and length (0x0a) prefixed to avoid a coincidental match.
+        const MATTER_ATT_CERT_OID_BASE = "060a2b0601040182a27c02";
+
+        it("re-encodes a fallback DAC without injecting Matter VID/PID OIDs", () => {
+            const dac = Dac.fromAsn1(NUKI_DAC_ASN1);
+
+            const reEncoded = Bytes.toHex(dac.asSignedDer());
+            expect(reEncoded).to.not.contain(MATTER_ATT_CERT_OID_BASE);
+
+            const reParsed = Dac.fromAsn1(Bytes.fromHex(reEncoded));
+            expect(reParsed.cert.subject.vendorId).to.equal(0x135d);
+            expect(reParsed.cert.subject.productId).to.equal(0x00a1);
+        });
+
+        it("re-encodes a fallback PAI without injecting Matter VID/PID OIDs", () => {
+            const pai = Pai.fromAsn1(NUKI_PAI_ASN1);
+
+            const reEncoded = Bytes.toHex(pai.asSignedDer());
+            expect(reEncoded).to.not.contain(MATTER_ATT_CERT_OID_BASE);
+
+            const reParsed = Pai.fromAsn1(Bytes.fromHex(reEncoded));
+            expect(reParsed.cert.subject.vendorId).to.equal(0x135d);
+        });
+    });
+
+    describe("parseMatterFallbackVidPid", () => {
+        it("returns undefined when the prefix is absent", () => {
+            expect(parseMatterFallbackVidPid("Matter Test Cert", "Mvid:")).to.be.undefined;
+        });
+
+        // Valid examples from spec 6.2.2.2.1, all claiming VendorID 0xFFF1 and ProductID 0x00B1
+        it("parses the spec's valid encodings (VID 0xFFF1, PID 0x00B1)", () => {
+            for (const cn of [
+                "ACME Matter Devel DAC 5CDA9899 Mvid:FFF1 Mpid:00B1",
+                "ACME Matter Devel DAC 5CDA9899 Mpid:00B1 Mvid:FFF1", // order irrelevant
+                "Mpid:00B1,ACME Matter Devel DAC 5CDA9899,Mvid:FFF1", // separators irrelevant
+                "ACME Matter Devel DAC 5CDA9899 Mvid:FFF1Mpid:00B1", // adjacent
+                "Mvid:FFF1ACME Matter Devel DAC 5CDAMpid:00B19899", // trailing hex ignored (consume exactly 4)
+            ]) {
+                expect(parseMatterFallbackVidPid(cn, "Mvid:")).to.equal(0xfff1);
+                expect(parseMatterFallbackVidPid(cn, "Mpid:")).to.equal(0x00b1);
+            }
+        });
+
+        it("uses the leftmost correctly-encoded match", () => {
+            // Spec 6.2.2.2.1: PID 0xFE67 — earlier Mpid: prefixes are not valid encodings
+            expect(parseMatterFallbackVidPid("Mpid:Mvid:FFF1 Mpid:12cd Matter Test Mpid:FE67", "Mpid:")).to.equal(
+                0xfe67,
+            );
+        });
+
+        // Invalid examples from spec 6.2.2.2.1: prefix present but no correctly-encoded value
+        it("throws on the spec's malformed encodings", () => {
+            expect(() => parseMatterFallbackVidPid("DAC Mvid:FF1 Mpid:00B1", "Mvid:")).to.throw(CertificateError); // 3 digits
+            expect(() => parseMatterFallbackVidPid("DAC Mvid:fff1 Mpid:00B1", "Mvid:")).to.throw(CertificateError); // lowercase
+            expect(() => parseMatterFallbackVidPid("DAC Mvid:FFF1 Mpid:B1", "Mpid:")).to.throw(CertificateError); // 2 digits
+            expect(() => parseMatterFallbackVidPid("DAC Mpid: Mvid:FFF1", "Mpid:")).to.throw(CertificateError); // prefix only
         });
     });
 
@@ -522,6 +621,26 @@ describe("Certificates", () => {
         });
     });
 
+    describe("operational cert decode size limits (§6.1.3)", () => {
+        it("rejects a Matter-TLV operational cert larger than 400 bytes", () => {
+            const oversized = new Uint8Array(401);
+            expect(() => Noc.fromTlv(oversized)).throw(/400/);
+            expect(() => Rcac.fromTlv(oversized)).throw(/400/);
+            expect(() => Icac.fromTlv(oversized)).throw(/400/);
+            expect(() => Vvsc.fromTlv(oversized)).throw(/400/);
+        });
+
+        it("rejects a DER certificate larger than 600 bytes (NOC and DAC chains)", () => {
+            const oversized = new Uint8Array(601);
+            expect(() => Noc.fromAsn1(oversized)).throw(/600/);
+            expect(() => Rcac.fromAsn1(oversized)).throw(/600/);
+            expect(() => Icac.fromAsn1(oversized)).throw(/600/);
+            expect(() => Paa.fromAsn1(oversized)).throw(/600/);
+            expect(() => Pai.fromAsn1(oversized)).throw(/600/);
+            expect(() => Dac.fromAsn1(oversized)).throw(/600/);
+        });
+    });
+
     describe("getPublicKeyFromCsr", () => {
         it("get the public key from the CSR", async () => {
             const csr = await Certificate.createCertificateSigningRequest(
@@ -532,6 +651,46 @@ describe("Certificates", () => {
             const result = await Certificate.getPublicKeyFromCsr(crypto, csr);
 
             expect(result).deep.equal(TEST_PUBLIC_KEY);
+        });
+
+        it("get the public key from a CSR with an empty subject", async () => {
+            const key = PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY });
+            const request = {
+                version: 0,
+                subject: {},
+                publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
+                endSignedBytes: ContextTagged(0),
+            };
+            const csr = DerCodec.encode({
+                request,
+                signAlgorithm: X962.EcdsaWithSHA256,
+                signature: DerBitString((await crypto.signEcdsa(key, DerCodec.encode(request))).der),
+            });
+
+            const result = await Certificate.getPublicKeyFromCsr(crypto, csr);
+
+            expect(result).deep.equal(TEST_PUBLIC_KEY);
+        });
+
+        it("declines a CSR with a non-SEQUENCE subject", async () => {
+            const key = PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY });
+            const request = {
+                version: 0,
+                // Constructed SET instead of a SEQUENCE — has _elements but is not a valid RDNSequence
+                subject: { _tag: DerTag.Set, _bytes: new Uint8Array(0) },
+                publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
+                endSignedBytes: ContextTagged(0),
+            };
+            const csr = DerCodec.encode({
+                request,
+                signAlgorithm: X962.EcdsaWithSHA256,
+                signature: DerBitString((await crypto.signEcdsa(key, DerCodec.encode(request))).der),
+            });
+
+            await expect(Certificate.getPublicKeyFromCsr(crypto, csr)).to.be.rejectedWith(
+                CertificateError,
+                "Missing subject in CSR data",
+            );
         });
     });
 });

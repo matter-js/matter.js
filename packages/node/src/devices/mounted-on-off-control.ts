@@ -8,14 +8,14 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -30,12 +30,12 @@ import { Identity } from "@matter/general";
  *
  * > [!NOTE]
  *
- * > Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add the
- *   subset device type On/Off Plug-in Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
- *   backward compatibility with existing clients. See [ref_MountedOnOffClientGuidance] for client guidance with these
- *   two device types.
+ * > NOTE: Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add
+ *   the subset device type On/Off Plug-in Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
+ *   backward compatibility with existing clients. See On/Off Plug-in Unit client guidance for additional information,
+ *   regarding the inclusion of these two device types.
  *
- * @see {@link MatterSpecification.v142.Device} § 5.3
+ * @see {@link MatterSpecification.v16.Device} § 5.3
  */
 export interface MountedOnOffControlDevice extends Identity<typeof MountedOnOffControlDeviceDefinition> {}
 
@@ -55,19 +55,19 @@ export namespace MountedOnOffControlRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
+     * The OnOff cluster is required by the Matter specification.
+     *
+     * This version of {@link OnOffServer} is specialized per the specification.
+     */
+    export const OnOffServer = BaseOnOffServer.with("Lighting");
+
+    /**
      * The ScenesManagement cluster is required by the Matter specification.
      *
      * This version of {@link ScenesManagementServer} is specialized per the specification.
      */
     export const ScenesManagementServer = BaseScenesManagementServer
         .alter({ commands: { copyScene: { optional: false } } });
-
-    /**
-     * The OnOff cluster is required by the Matter specification.
-     *
-     * This version of {@link OnOffServer} is specialized per the specification.
-     */
-    export const OnOffServer = BaseOnOffServer.with("Lighting");
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
@@ -87,9 +87,9 @@ export namespace MountedOnOffControlRequirements {
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -98,8 +98,8 @@ export namespace MountedOnOffControlRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
-            ScenesManagement: ScenesManagementServer,
-            OnOff: OnOffServer
+            OnOff: OnOffServer,
+            ScenesManagement: ScenesManagementServer
         },
 
         optional: { LevelControl: LevelControlServer }
@@ -108,7 +108,7 @@ export namespace MountedOnOffControlRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { OccupancySensing: OccupancySensingBehavior }, mandatory: {} };
+    export const client = { optional: { OccupancySensing: OccupancySensingClient }, mandatory: {} };
 }
 
 export const MountedOnOffControlDeviceDefinition = MutableEndpoint({
@@ -120,8 +120,8 @@ export const MountedOnOffControlDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(
         MountedOnOffControlRequirements.server.mandatory.Identify,
         MountedOnOffControlRequirements.server.mandatory.Groups,
-        MountedOnOffControlRequirements.server.mandatory.ScenesManagement,
-        MountedOnOffControlRequirements.server.mandatory.OnOff
+        MountedOnOffControlRequirements.server.mandatory.OnOff,
+        MountedOnOffControlRequirements.server.mandatory.ScenesManagement
     )
 });
 

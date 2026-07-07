@@ -13,8 +13,8 @@ Resource.add({
 
     details: "> [!NOTE]" +
         "\n" +
-        "> The Descriptor cluster is meant to replace the support from the Zigbee Device Object (ZDO) for " +
-        "describing a node, its endpoints and clusters." +
+        "> NOTE: The Descriptor cluster is meant to replace the support from the Zigbee Device Object (ZDO) " +
+        "for describing a node, its endpoints and clusters." +
         "\n" +
         "This cluster describes an endpoint instance on the node, independently from other endpoints, but " +
         "also allows composition of endpoints to conform to complex device type patterns." +
@@ -22,13 +22,17 @@ Resource.add({
         "This cluster supports a list of one or more device type identifiers that represent conformance to " +
         "device type specifications." +
         "\n" +
-        "For Example: An Extended Color Light device type may support device type IDs for both a Dimmable " +
+        "> [!NOTE]" +
+        "\n" +
+        "> For Example: An Extended Color Light device type may support device type IDs for both a Dimmable " +
         "Light and On/Off Light, because those are subsets of an Extended Color Light (the superset)." +
         "\n" +
         "The cluster supports a PartsList attribute that is a list of zero or more endpoints to support " +
         "compound devices or composed device types." +
         "\n" +
-        "For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of " +
+        "> [!NOTE]" +
+        "\n" +
+        "> For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of " +
         "multiple Temperature Sensor endpoints, a Metering endpoint, and two Thermostat endpoints.",
 
     children: [
@@ -45,7 +49,7 @@ Resource.add({
             tag: "attribute", name: "DeviceTypeList", xref: "core§9.5.6.1",
 
             details: "This is a list of device types and corresponding revisions declaring endpoint conformance (see " +
-                "Section 9.5.5.1, “DeviceTypeStruct Type”). At least one device type entry shall be present." +
+                "Section 9.5.5.1, \"DeviceTypeStruct Type\"). At least one device type entry shall be present." +
                 "\n" +
                 "An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that " +
                 "is in common for more than one device type in the DeviceTypeList shall be supported as a shared " +

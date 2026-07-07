@@ -19,9 +19,9 @@ Resource.add({
     children: [
         { tag: "requirement", name: "Identify", xref: "device§4.4.4" },
         { tag: "requirement", name: "Groups", xref: "device§4.4.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§4.4.4" },
         { tag: "requirement", name: "OnOff", xref: "device§4.4.4" },
         { tag: "requirement", name: "LevelControl", xref: "device§4.4.4" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§4.4.4" },
         { tag: "requirement", name: "ColorControl", xref: "device§4.4.4" },
         { tag: "requirement", name: "OccupancySensing", xref: "device§4.4.4" }
     ]

@@ -6,9 +6,30 @@
 
 import { DiscoveryData } from "#common/Scanner.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { isDeepEqual, ServerAddressUdp } from "@matter/general";
+import { isDeepEqual, ServerAddress, ServerAddressIp, ServerAddressTcp, ServerAddressUdp } from "@matter/general";
 import { CaseAuthenticatedTag } from "@matter/types";
 import { PeerAddress } from "./PeerAddress.js";
+
+/** Address persisted alongside a peer; transport type is required so storage stays schema-conformant. */
+export type OperationalAddress = ServerAddressUdp | ServerAddressTcp;
+
+export namespace OperationalAddress {
+    /**
+     * Narrow an arbitrary {@link ServerAddress} (or persisted shape lacking transport tag) to
+     * {@link OperationalAddress}. Returns `undefined` for non-IP addresses; defaults missing
+     * `type` to `"udp"` so storage written before transport tagging existed still loads.
+     */
+    export function from(address: ServerAddress | ServerAddressIp | undefined): OperationalAddress | undefined {
+        if (address === undefined || !ServerAddress.isIp(address)) {
+            return undefined;
+        }
+        const type = (address as { type?: string }).type;
+        if (type === "tcp" || type === "udp") {
+            return address as OperationalAddress;
+        }
+        return { ...address, type: "udp" };
+    }
+}
 
 /**
  * Operational information for a single peer.
@@ -29,7 +50,7 @@ export interface PeerDescriptor {
     /**
      * A physical address the peer may be accessed at, if known.
      */
-    operationalAddress?: ServerAddressUdp;
+    operationalAddress?: OperationalAddress;
 
     /**
      * Additional information collected while locating the peer.
@@ -53,7 +74,7 @@ export interface PeerDescriptor {
 
 export class ObservablePeerDescriptor implements PeerDescriptor {
     #address: PeerAddress;
-    #operationalAddress?: ServerAddressUdp;
+    #operationalAddress?: OperationalAddress;
     #discoveryData?: DiscoveryData;
     #caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
     #sessionParameters?: SessionParameters;
@@ -78,7 +99,7 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
         return this.#operationalAddress;
     }
 
-    set operationalAddress(value: ServerAddressUdp | undefined) {
+    set operationalAddress(value: OperationalAddress | undefined) {
         if (isDeepEqual(this.#operationalAddress, value)) {
             return;
         }

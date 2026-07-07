@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError, MatterError } from "#MatterError.js";
+import { ImplementationError, InternalError, MatterAggregateError, MatterError } from "#MatterError.js";
 import "../src/log/LogFormat.js";
 
 class SpecialError extends MatterError {}
@@ -129,5 +129,27 @@ describe("MatterError", () => {
         } finally {
             MatterError.formatterFor = originalFormatter;
         }
+    });
+
+    describe("MatterAggregateError instanceof", () => {
+        it("matches genuine MatterAggregateError instances", () => {
+            expect(new MatterAggregateError([]) instanceof MatterAggregateError).true;
+        });
+
+        it("matches subclasses of MatterAggregateError", () => {
+            class CustomAggregateError extends MatterAggregateError {}
+            expect(new CustomAggregateError([]) instanceof MatterAggregateError).true;
+        });
+
+        it("does not match non-aggregate MatterError subclasses", () => {
+            expect(new InternalError("x") instanceof MatterAggregateError).false;
+            expect(new ImplementationError("x") instanceof MatterAggregateError).false;
+            expect(new MatterError("x") instanceof MatterAggregateError).false;
+            expect(new SpecialError("x") instanceof MatterAggregateError).false;
+        });
+
+        it("does not match plain Error", () => {
+            expect(new Error("x") instanceof MatterAggregateError).false;
+        });
     });
 });

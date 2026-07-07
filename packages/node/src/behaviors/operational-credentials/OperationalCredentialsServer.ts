@@ -36,7 +36,7 @@ import {
 } from "@matter/protocol";
 import {
     FabricIndex,
-    StatusCode,
+    Status,
     StatusResponse,
     StatusResponseError,
     SubjectId,
@@ -95,7 +95,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         assertRemoteActor(this.context);
 
         if (attestationNonce.byteLength !== 32) {
-            throw new StatusResponseError("Invalid attestation nonce length", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid attestation nonce length", Status.InvalidCommand);
         }
 
         const certification = await this.getCertification();
@@ -118,16 +118,13 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         assertRemoteActor(this.context);
 
         if (csrNonce.byteLength !== 32) {
-            throw new StatusResponseError("Invalid csr nonce length", StatusCode.InvalidCommand);
+            throw new StatusResponseError("Invalid csr nonce length", Status.InvalidCommand);
         }
 
         const session = this.context.session;
         NodeSession.assert(session);
         if (isForUpdateNoc && session.isPase) {
-            throw new StatusResponseError(
-                "csrRequest for UpdateNoc received on a PASE session",
-                StatusCode.InvalidCommand,
-            );
+            throw new StatusResponseError("csrRequest for UpdateNoc received on a PASE session", Status.InvalidCommand);
         }
 
         const commissioner = this.env.get(DeviceCommissioner);
@@ -135,7 +132,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         if (failsafeContext.fabricIndex !== undefined) {
             throw new StatusResponseError(
                 `csrRequest received after ${failsafeContext.forUpdateNoc ? "UpdateNOC" : "AddNOC"} already invoked`,
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
@@ -162,7 +159,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
             default:
                 throw new StatusResponseError(
                     `Unsupported certificate type: ${certificateType}`,
-                    StatusCode.InvalidCommand,
+                    Status.InvalidCommand,
                 );
         }
     }
@@ -216,7 +213,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         if (failsafeContext.fabricIndex !== undefined) {
             throw new StatusResponseError(
                 `AddNoc is illegal after ${failsafeContext.forUpdateNoc ? "UpdateNOC" : "AddNOC"} in the same failsafe context`,
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
@@ -237,7 +234,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         if (failsafeContext.forUpdateNoc) {
             throw new StatusResponseError(
                 `AddNoc is illegal after CsrRequest for UpdateNOC in same failsafe context`,
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
@@ -280,22 +277,19 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                     `FabricIndex ${fabric.fabricIndex} already exists in state. This should not happen`,
                 );
             }
+
+            // Spec: The receiver SHALL create and add a new Access Control Entry using the CaseAdminSubject field to grant
+            // subsequent Administer access to an Administrator member of the new Fabric.
+            // Order matters: ACL change event must be attributed to the new fabric, not PASE-default.
+            await this.endpoint.act(agent =>
+                agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]),
+            );
         } catch (e) {
-            // Fabric insertion into FabricManager is not currently transactional so we need to remove manually
-            await fabric.delete(this.context.exchange);
+            // Deferred: fabric.delete inline would deadlock against this transaction's lock:true reactors.
+            const exchange = this.context.exchange;
+            this.context.transaction.onFinalize(() => fabric.delete(exchange));
             throw e;
         }
-
-        // The receiver SHALL create and add a new Access Control Entry using the CaseAdminSubject field to grant
-        // subsequent Administer access to an Administrator member of the new Fabric.
-        await this.endpoint.act(agent => agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]));
-
-        // TODO The incoming IPKValue SHALL be stored in the Fabric-scoped slot within the Group Key Management cluster
-        //  (see KeySetWrite), for subsequent use during CASE.
-
-        // TODO If the current secure session was established with PASE, the receiver SHALL: a. Augment the secure
-        //  session context with the FabricIndex generated above, such that subsequent interactions have the proper
-        //  accessing fabric.
 
         logger.info(
             `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${SubjectId.strOf(caseAdminSubject)}`,
@@ -316,14 +310,14 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         if (timedOp.fabricIndex !== undefined) {
             throw new StatusResponseError(
                 `UpdateNoc is illegal after ${timedOp.forUpdateNoc ? "UpdateNOC" : "AddNOC"} in same failsafe context`,
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
         if (timedOp.forUpdateNoc === false) {
             throw new StatusResponseError(
                 "UpdateNoc is illegal after CsrRequest for AddNOC in same failsafe context",
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
@@ -348,16 +342,19 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         if (this.context.session.associatedFabric.fabricIndex !== timedOp.associatedFabric?.fabricIndex) {
             throw new StatusResponseError(
                 "Fabric of this session and the failsafe context do not match",
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
         // Build a new Fabric with the updated NOC and ICAC
+        const oldFabric = timedOp.associatedFabric;
+        let replaced = false;
         try {
             const updatedFabric = await timedOp.buildUpdatedFabric(nocValue, icacValue);
 
             // update FabricManager and Resumption records but leave the current session intact
             await timedOp.replaceFabric(updatedFabric);
+            replaced = true;
 
             // close all sessions found to the old fabric and just leave the one with this exchange open to deliver response
             await timedOp.associatedFabric.replaced(this.context.exchange);
@@ -367,6 +364,11 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                 fabricIndex: updatedFabric.fabricIndex,
             };
         } catch (error) {
+            if (replaced && oldFabric !== undefined) {
+                // FabricManager swapped to new fabric, but a later step threw; restore old, so manager
+                // and current session stay in sync.  Deferred for the same reason as addNoc's catch.
+                this.context.transaction.onFinalize(() => timedOp.restoreFabric(oldFabric));
+            }
             logger.info("Building fabric for updateNoc failed", error);
             return this.#mapNocErrors(error);
         }
@@ -427,14 +429,14 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         if (failsafeContext.rootCertSet) {
             throw new StatusResponseError(
                 "Trusted root certificate already added in this FailSafe context",
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
         if (failsafeContext.fabricIndex !== undefined) {
             throw new StatusResponseError(
                 `Cannot add trusted root certificates after ${failsafeContext.forUpdateNoc ? "UpdateNOC" : "AddNOC"}`,
-                StatusCode.ConstraintError,
+                Status.ConstraintError,
             );
         }
 
@@ -448,7 +450,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                 error instanceof ValidationError ||
                 error instanceof UnexpectedDataError
             ) {
-                throw new StatusResponseError(error.message, StatusCode.InvalidCommand);
+                throw new StatusResponseError(error.message, Status.InvalidCommand);
             }
             throw error;
         }

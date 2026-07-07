@@ -40,6 +40,21 @@ export function getIntParameter(name: string) {
     return intValue;
 }
 
+export function getParameters(name: string): string[] {
+    const result = new Array<string>();
+    for (let i = 0; i < commandArguments.length; i++) {
+        const arg = commandArguments[i];
+        if (arg === `-${name}` || arg === `--${name}`) {
+            if (i + 1 >= commandArguments.length) {
+                throw new ValidationError(`Missing value for parameter ${name}`);
+            }
+            result.push(commandArguments[i + 1]);
+            i++;
+        }
+    }
+    return result;
+}
+
 const allocatedIds = new Set();
 
 export abstract class TestInstance {
@@ -152,6 +167,13 @@ export interface DeviceTestInstanceConfig extends TestInstanceConfig {
      * necessary to close the pipe.  When running containerized this is unnecessary as the test harness manages pipes.
      */
     commandPipeFactory: (app: DeviceTestInstance, name: string) => Promise<void | CommandPipe>;
+
+    /**
+     * Per-run CLI-style app arguments forwarded by the chip test framework. Subjects that accept runtime configuration
+     * (e.g. AllDevicesTestApp's --device list) read this in their setupServer(). Standalone CLI invocations rely on
+     * process.argv as a fallback.
+     */
+    appArgs?: string[];
 }
 
 export interface DeviceTestInstanceConstructor<T extends DeviceTestInstance = DeviceTestInstance> {

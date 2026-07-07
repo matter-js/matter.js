@@ -13,16 +13,15 @@ export const DoorLockDt = DeviceType(
     { name: "DoorLock", id: 0xa, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 10, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 10, revision: 4 } ], element: "attribute" })
     ),
+    Requirement({ name: "AclExtensionCond", type: "RootNode.AclExtensionCond", conformance: "M", element: "condition" }),
+    Requirement({ name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "O", element: "condition" }),
+    Requirement({ name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "O", element: "condition" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "X", element: "serverCluster" }),
     Requirement({ name: "ScenesManagement", id: 0x62, conformance: "X", element: "serverCluster" }),
-    Requirement(
-        { name: "DoorLock", id: 0x101, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "USER", conformance: "PIN | RID | FGP | FACE | ALIRO", element: "feature" }),
-        Requirement({ name: "RFIDCREDENTIAL", conformance: "P, O", element: "feature" })
-    )
+    Requirement({ name: "DoorLock", id: 0x101, conformance: "M", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(DoorLockDt);

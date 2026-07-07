@@ -30,6 +30,14 @@ const TYPE_ERRORS: { [badType: string]: string } = {
     CurrencyStruct: "currency",
     StatusCode: "status",
 
+    // Asciidoctor renders these as "FooType" in table cells but headings strip " Type" suffix
+    VideoStreamIDType: "VideoStreamID",
+    AudioStreamIDType: "AudioStreamID",
+    SnapshotStreamIDType: "SnapshotStreamID",
+
+    // Cross-cluster type references (types defined in other clusters referenced by name)
+    ChimeSound: "ChimeSoundStruct",
+
     // Can't use this one because ModeSelect defines a different SemanticTagStruct
     //SemanticTagStruct: "semtag",
 };

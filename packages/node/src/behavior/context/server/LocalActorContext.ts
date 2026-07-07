@@ -5,12 +5,22 @@
  */
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { Diagnostic, InternalError, Lifetime, MaybePromise, Transaction } from "@matter/general";
+import {
+    AsyncObservable,
+    Diagnostic,
+    InternalError,
+    Lifetime,
+    Logger,
+    MaybePromise,
+    Transaction,
+} from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { AccessControl, InteractionSettings, Mark } from "@matter/protocol";
 import { Contextual } from "../Contextual.js";
 import type { NodeActivity } from "../NodeActivity.js";
 export let nextInternalId = 1;
+
+const logger = Logger.get("LocalActorContext");
 
 let ReadOnly: LocalActorContext | undefined;
 
@@ -44,7 +54,8 @@ export const LocalActorContext = {
         actor: (context: LocalActorContext) => MaybePromise<T>,
         options?: LocalActorContext.Options,
     ): MaybePromise<T> {
-        const context = this.open(purpose, options);
+        const interactionComplete = new AsyncObservable<[session?: ValueSupervisor.LocalActorSession]>();
+        const context = this.open(purpose, { ...options, interactionComplete });
 
         let result;
         try {
@@ -52,6 +63,23 @@ export const LocalActorContext = {
         } catch (e) {
             return context.reject(e);
         }
+
+        // Must fire after commit but before transaction disposal so datasource references remain valid.
+        context.transaction.onShared(() => {
+            function handleErr(err: unknown) {
+                logger.warn("interactionComplete observer failed", Diagnostic.error(err));
+            }
+            if (interactionComplete.isObserved) {
+                try {
+                    const result = interactionComplete.emit(context);
+                    if (MaybePromise.is(result)) {
+                        return MaybePromise.then(result, undefined, handleErr);
+                    }
+                } catch (e) {
+                    handleErr(e);
+                }
+            }
+        }, true);
 
         return context.resolve(result);
     },
@@ -62,7 +90,12 @@ export const LocalActorContext = {
      * This context operates with a {@link Transaction} created via {@link Transaction.open} and the same rules
      * apply for lifecycle management using {@link Transaction.Finalization}.
      */
-    open(purpose: string, options?: LocalActorContext.Options): LocalActorContext & Transaction.Finalization {
+    open(
+        purpose: string,
+        options?: LocalActorContext.Options & {
+            interactionComplete?: AsyncObservable<[session?: ValueSupervisor.LocalActorSession]>;
+        },
+    ): LocalActorContext & Transaction.Finalization {
         const id = nextInternalId;
         nextInternalId = (nextInternalId + 1) % 65535;
         const via = Diagnostic.via(`${Mark.LOCAL_SESSION}${purpose}#${id.toString(16)}`);
@@ -84,6 +117,7 @@ export const LocalActorContext = {
 
                 transaction,
                 activity: frame,
+                interactionComplete: options?.interactionComplete,
 
                 authorityAt(desiredAccessLevel: AccessLevel) {
                     // Be as restrictive as possible.  The offline flag should make this irrelevant
@@ -139,7 +173,10 @@ export namespace LocalActorContext {
     /**
      * {@link LocalActorContext} configuration options.
      */
-    export interface Options extends Omit<InteractionSettings, "transaction"> {
+    export interface Options
+        extends
+            Omit<InteractionSettings, "transaction">,
+            Pick<ValueSupervisor.SupervisionSettings, "clientPeerContext"> {
         lifetime?: Lifetime.Owner;
         command?: boolean;
         activity?: NodeActivity;

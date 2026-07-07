@@ -12,6 +12,7 @@ import {
     DerBitString,
     DerCodec,
     DerNode,
+    DerTag,
     DerType,
     EcdsaSignature,
     Key,
@@ -29,7 +30,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { assertCertificateDerSize, Unsigned } from "./common.js";
+import { assertCertificateDerSize, MAX_DER_CERTIFICATE_SIZE, Unsigned } from "./common.js";
 import {
     FabricId_Matter,
     FirmwareSigningId_Matter,
@@ -119,7 +120,9 @@ export abstract class Certificate<CT extends MatterCertificate> {
      * Serialize as DER without signature.
      */
     asUnsignedDer(): Bytes {
-        // Serialize
+        if (this.#cert.tbsDer !== undefined) {
+            return this.#cert.tbsDer;
+        }
         const certBytes = X509.certificateToDer(matterToX509(this.cert));
         assertCertificateDerSize(certBytes);
         return certBytes;
@@ -161,6 +164,23 @@ export abstract class Certificate<CT extends MatterCertificate> {
         });
         return asn;
     }
+}
+
+/**
+ * Extract a VendorID or ProductID encoded via the "fallback method" (Matter spec 6.2.2.2): the
+ * prefix `Mvid:`/`Mpid:` followed by 4 uppercase hexadecimal characters, anywhere within a
+ * `commonName`. Returns the leftmost correctly-encoded value, or `undefined` if the prefix is
+ * absent. Throws if the prefix appears but no correctly-encoded value exists (spec 6.2.2.2.1).
+ */
+export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | "Mpid:"): number | undefined {
+    const match = commonName.match(new RegExp(`${prefix}([0-9A-F]{4})`));
+    if (match !== null) {
+        return parseInt(match[1], 16);
+    }
+    if (commonName.includes(prefix)) {
+        throw new CertificateError(`commonName contains ${prefix} not followed by 4 uppercase hex digits`);
+    }
+    return undefined;
 }
 
 export namespace Certificate {
@@ -279,6 +299,21 @@ export namespace Certificate {
                     }
                 }
                 result[field] = value;
+            }
+        }
+
+        // Spec 6.2.2.2: an OID VID/PID anywhere in the field disables fallback parsing for that field.
+        if (result.vendorId === undefined && result.productId === undefined) {
+            const commonName = (result.commonName ?? result.commonNamePs) as string | undefined;
+            if (commonName !== undefined) {
+                const vendorId = parseMatterFallbackVidPid(commonName, "Mvid:");
+                if (vendorId !== undefined) {
+                    result.vendorId = vendorId;
+                }
+                const productId = parseMatterFallbackVidPid(commonName, "Mpid:");
+                if (productId !== undefined) {
+                    result.productId = productId;
+                }
             }
         }
 
@@ -478,6 +513,12 @@ export namespace Certificate {
         encodedCert: Bytes,
         requiredExtensions = REQUIRED_EXTENSIONS,
     ): MatterCertificate {
+        if (encodedCert.byteLength > MAX_DER_CERTIFICATE_SIZE) {
+            throw new CertificateError(
+                `DER certificate of ${encodedCert.byteLength} bytes exceeds the ${MAX_DER_CERTIFICATE_SIZE} byte limit.`,
+            );
+        }
+
         const { _elements: rootElements } = DerCodec.decode(encodedCert);
 
         if (!rootElements || rootElements.length !== 3) {
@@ -487,6 +528,7 @@ export namespace Certificate {
         }
 
         const [certificateNode, , signatureNode] = rootElements;
+        const tbsDer = Bytes.of(DerCodec.encode(certificateNode));
 
         // Parse TBSCertificate
         const { _elements: certElements } = certificateNode;
@@ -513,7 +555,8 @@ export namespace Certificate {
         const signatureAlgorithm = Bytes.toHex(signatureAlgorithmOid) === "2a8648ce3d040302" ? 1 : 0;
         idx++;
 
-        // Issuer
+        // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
+        const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
         const issuer = parseSubjectOrIssuer(certElements[idx++]);
 
         // Validity
@@ -565,6 +608,8 @@ export namespace Certificate {
             serialNumber,
             signatureAlgorithm,
             issuer,
+            issuerDer,
+            tbsDer,
             notBefore,
             notAfter,
             subject,
@@ -597,8 +642,8 @@ export namespace Certificate {
             throw new CertificateError(`Unsupported CSR version ${requestVersionBytes[0]}`);
         }
 
-        // Verify the subject, according to spec can be "any value", so just check that it exists
-        if (!subjectNode._elements?.length) {
+        // Subject must be a SEQUENCE (RDNSequence) but per Matter spec § 6.4.7 MAY be any value, including empty.
+        if (subjectNode._tag !== DerTag.Sequence) {
             throw new CertificateError("Missing subject in CSR data");
         }
 
@@ -670,8 +715,19 @@ function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertifica
  */
 function astOfDistinguishedName(data: { [field: string]: any }) {
     const ast = {} as { [field: string]: any[] };
+
+    // Spec 6.2.2.2 forbids mixing fallback (Mvid:/Mpid: in commonName) and OID VID/PID in one field.
+    const commonName = (data.commonName ?? data.commonNamePs) as string | undefined;
+    const usesFallbackVidPid =
+        commonName !== undefined &&
+        (parseMatterFallbackVidPid(commonName, "Mvid:") !== undefined ||
+            parseMatterFallbackVidPid(commonName, "Mpid:") !== undefined);
+
     Object.entries(data).forEach(([key, value]) => {
         if (value === undefined) {
+            return;
+        }
+        if (usesFallbackVidPid && (key === "vendorId" || key === "productId")) {
             return;
         }
         switch (key) {

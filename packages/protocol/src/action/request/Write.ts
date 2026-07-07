@@ -61,6 +61,15 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         interactionModelRevision = Specification.INTERACTION_MODEL_REVISION,
     } = options;
 
+    for (const { path, dataVersion } of writeRequests) {
+        // Spec 1.6 §8.9.2.8.1: DataVersion SHALL NOT accompany a group or wildcard write path.
+        if (dataVersion !== undefined && path.endpointId === undefined) {
+            throw new MalformedRequestError(`Write action with a DataVersion must target a concrete endpoint`);
+        }
+    }
+
+    let chunked = false;
+
     const result = {
         timedRequest: !!timed || !!timeout,
         timeout,
@@ -69,15 +78,24 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         suppressResponse,
         interactionModelRevision,
 
-        [Diagnostic.value]: () =>
-            Diagnostic.list(
-                data.map(entry => {
-                    const { version, value } = entry;
-                    return `${resolvePathForSpecifier(entry)} = ${Diagnostic.json(
-                        value,
-                    )}${version !== undefined ? `(version=${version})` : ""}`;
-                }),
-            ),
+        [Diagnostic.value]: () => {
+            const items = data.flatMap(entry => {
+                const { version, value, endpoint, cluster, attributes } = entry;
+                const valueString = Diagnostic.json(value);
+                const list = Array.isArray(attributes) ? attributes : [attributes];
+                const versionString = version !== undefined ? `(version=${version})` : "";
+                return list.map(attribute =>
+                    Diagnostic.squash(
+                        Diagnostic.strong(resolvePathForSpecifier({ endpoint, cluster, attribute })),
+                        ` = ${valueString}${versionString}`,
+                    ),
+                );
+            });
+            if (chunked) {
+                return [Diagnostic.asFlags({ chunked: true }), Diagnostic.list(items)];
+            }
+            return Diagnostic.list(items);
+        },
     } as Write;
 
     for (const entry of data) {
@@ -107,6 +125,11 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
 
         const { endpoint, value, version: dataVersion } = data;
 
+        // Spec 1.6 §8.9.2.8.1: DataVersion SHALL NOT accompany a group or wildcard write path.
+        if (dataVersion !== undefined && endpoint === undefined) {
+            throw new MalformedRequestError(`Write action with a DataVersion must target a concrete endpoint`);
+        }
+
         // Configure base AttributePath
         const prototype: Omit<AttributeData, "data"> = {
             path: {
@@ -132,6 +155,7 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
                 tlv instanceof ArraySchema &&
                 !isAclOrExtensionPath({ clusterId, attributeId })
             ) {
+                chunked = true;
                 writeRequests.push(
                     ...tlv
                         .encodeAsChunkedArray(value, { forWriteInteraction: true })
@@ -174,8 +198,7 @@ export namespace Write {
      * Selects attributes to Write.  Limits fields to legal permutations per the Matter specification.
      */
     export type Attribute<C extends Specifier.Cluster = Specifier.Cluster> = (
-        | Attribute.Concrete<C>
-        | Attribute.WildcardEndpoint<C>
+        Attribute.Concrete<C> | Attribute.WildcardEndpoint<C>
     ) & {
         kind: "attribute";
         value: any;

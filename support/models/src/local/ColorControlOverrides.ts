@@ -105,12 +105,14 @@ LocalMatter.children.push({
             conformance: "CT & ColorTemperatureMireds",
         },
 
-        // Spec states the values of this bitmap are the same as the feature map
+        // Spec states the values of this bitmap are the same as the feature map.
+        // Fixed in spec 1.5 via ColorCapabilitiesBitmap type definition.
         {
             tag: "attribute",
             id: 0x400a,
             name: "ColorCapabilities",
             type: "map16",
+            until: "1.4.2",
             children: [
                 {
                     tag: "field",

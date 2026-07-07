@@ -16,7 +16,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ServerNode } from "#node/ServerNode.js";
 import { AsyncObservable, cropValueRange, Identity, Logger, MaybePromise, Millis } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { LevelControlBehavior } from "./LevelControlBehavior.js";
@@ -79,13 +79,21 @@ export class LevelControlBaseServer extends LevelControlBase {
         if (this.state.currentLevel === null) {
             throw new StatusResponseError(
                 "The currentLevel value is null, so we cannot operate on it.",
-                StatusCode.Failure,
+                Status.Failure,
             );
         }
         return this.state.currentLevel;
     }
 
     override initialize(): MaybePromise {
+        // Spec 1.5.1 made minLevel/maxLevel mandatory at rev 7 — ensure defaults are set
+        if (this.state.minLevel === undefined) {
+            this.state.minLevel = this.features.lighting ? 1 : 0;
+        }
+        if (this.state.maxLevel === undefined) {
+            this.state.maxLevel = 0xfe;
+        }
+
         // As a virtual attribute, remaining time change only emits when we do so manually.  This works out well because
         // as a continuous value it should only emit under limited circumstances defined by spec
         //
@@ -261,7 +269,7 @@ export class LevelControlBaseServer extends LevelControlBase {
      */
     #assertRateValue(rate: number | null) {
         if (rate === 0) {
-            throw new StatusResponseError(`Illegal move rate of 0`, StatusCode.InvalidCommand);
+            throw new StatusResponseError(`Illegal move rate of 0`, Status.InvalidCommand);
         }
         if (rate === null) {
             return this.state.defaultMoveRate ?? null;
@@ -551,7 +559,7 @@ export class LevelControlBaseServer extends LevelControlBase {
      *
      * By default we set the current level to the onLevel value when the device is turned on.
      *
-     * Other fading up/down logic required by the {@link MatterSpecification.v12.Cluster} §1.6.4.1.1 needs to be
+     * Other fading up/down logic required by the {@link MatterSpecification.v16.Cluster} §1.6.4.1.1 needs to be
      * implemented in a specialized implementation if needed.
      *
      * @param onOff The new onOff state

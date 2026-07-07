@@ -11,14 +11,13 @@ import { WriteResult } from "#action/response/WriteResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger, serialize, toHex } from "@matter/general";
-import { AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
+import { AccessLevel, AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     ArraySchema,
     AttributePath,
     EndpointNumber,
     FabricIndex,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvSchema,
     TlvStream,
@@ -56,6 +55,14 @@ export class AttributeWriteResponse<
 
         const writeResponses = new Array<WriteResult.AttributeStatus>();
         for (const { path, data, dataVersion } of writeRequests) {
+            // Spec 1.5: WildcardPathFlags SHALL ONLY be used for Read or Subscribe interactions
+            if (path.wildcardPathFlags) {
+                throw new StatusResponseError(
+                    "WildcardPathFlags are not allowed in write interactions",
+                    Status.InvalidAction,
+                );
+            }
+
             if (path.endpointId === undefined || path.clusterId === undefined || path.attributeId === undefined) {
                 // dataVersion silently ignored for Wildcard?
                 const responses = await this.#processWildcard(path, data);
@@ -65,7 +72,7 @@ export class AttributeWriteResponse<
             } else {
                 if (Subject.isGroup(this.session.subject)) {
                     // Group command cannot be concrete paths
-                    throw new StatusResponseError("Group writes can not be concrete paths", StatusCode.InvalidAction);
+                    throw new StatusResponseError("Group writes can not be concrete paths", Status.InvalidAction);
                 }
                 writeResponses.push(
                     await this.#writeConcrete(path as WriteResult.ConcreteAttributePath, data, dataVersion),
@@ -141,10 +148,7 @@ export class AttributeWriteResponse<
         }
 
         if (isGroupPath) {
-            throw new StatusResponseError(
-                "Illegal write request with group ID and endpoint ID",
-                StatusCode.InvalidAction,
-            );
+            throw new StatusResponseError("Illegal write request with group ID and endpoint ID", Status.InvalidAction);
         }
 
         const endpoint = this.node[endpointId];
@@ -191,10 +195,12 @@ export class AttributeWriteResponse<
             limits = attribute.limits;
         }
 
+        // Order prescribed by core spec 8.7.3.2: a View-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the write.
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
             // We need some fallback location if cluster is not defined
-            const location = {
+            const location: AccessControl.Location = {
                 ...(cluster?.location ?? {
                     path: DataModelPath.none,
                     endpoint: endpointId,
@@ -202,20 +208,11 @@ export class AttributeWriteResponse<
                 }),
                 owningFabric: this.session.fabric,
             };
+            access = { session: this.session, location };
 
-            const permission = this.session.authorityAt(limits.writeLevel, location);
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
-
-                case AccessControl.Authority.Unauthorized:
-                    return this.#asStatus(path, Status.UnsupportedAccess);
-
-                case AccessControl.Authority.Restricted:
-                    return this.#asStatus(path, Status.AccessRestricted);
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            const denial = this.#authorize(access.session, AccessLevel.View, location);
+            if (denial !== undefined) {
+                return this.#asStatus(path, denial);
             }
         }
 
@@ -234,9 +231,12 @@ export class AttributeWriteResponse<
             return this.#asStatus(path, Status.UnsupportedWrite);
         }
 
-        // Old implementation aka Matter 1.2 and lower need the ACL check moved here.
-        // see https://github.com/project-chip/connectedhomeip/issues/33735
-        // We have patched our tests for now
+        if (access !== undefined) {
+            const denial = this.#authorize(access.session, limits.writeLevel, access.location);
+            if (denial !== undefined) {
+                return this.#asStatus(path, denial);
+            }
+        }
 
         if (hasRemoteActor(this.session)) {
             if (limits.timed && !this.session.timed) {
@@ -278,7 +278,7 @@ export class AttributeWriteResponse<
         if (clusterId === undefined || attributeId === undefined) {
             throw new StatusResponseError(
                 "Wildcard path write must specify a clusterId and attributeId",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -307,7 +307,7 @@ export class AttributeWriteResponse<
         const { attributeId } = path;
 
         if (attributeId === undefined) {
-            throw new StatusResponseError("Wildcard path write must specify an attributeId", StatusCode.InvalidAction);
+            throw new StatusResponseError("Wildcard path write must specify an attributeId", Status.InvalidAction);
         } else {
             const attribute = cluster.type.attributes[attributeId];
             if (attribute !== undefined) {
@@ -356,13 +356,38 @@ export class AttributeWriteResponse<
     }
 
     /**
+     * Validate access at {@link level}.  Returns undefined if granted; otherwise the status to report.
+     */
+    #authorize(session: AccessControl.RemoteActorSession, level: AccessLevel, location: AccessControl.Location) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return undefined;
+
+            case AccessControl.Authority.Unauthorized:
+                return Status.UnsupportedAccess;
+
+            case AccessControl.Authority.Restricted:
+                return Status.AccessRestricted;
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
+        }
+    }
+
+    /**
      * Add a status value.
      */
     #asStatus(path: WriteResult.ConcreteAttributePath, status: Status, clusterStatus?: number) {
+        // Spec 1.6 §7.10.7: when a cluster-specific status is present the outer IM status SHALL be SUCCESS or FAILURE.
+        if (clusterStatus !== undefined && status !== Status.Success) {
+            status = Status.Failure;
+        }
+
         if (status !== Status.Success) {
             logger.debug(
                 () =>
-                    `Error writing attribute ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${toHex(status)}), ClusterStatus=${clusterStatus !== undefined ? toHex(clusterStatus) : undefined}`,
+                    `Error writing attribute ${this.node.inspectPath(path)}: Status=${Status[status]}(${toHex(status)}), ClusterStatus=${clusterStatus !== undefined ? toHex(clusterStatus) : undefined}`,
             );
         }
 

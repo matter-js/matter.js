@@ -21,6 +21,11 @@ import { MdnsSocket } from "./MdnsSocket.js";
 const STAGED_IP_RECORDS_MAX_HOSTS = 250;
 const STAGED_IP_RECORDS_MIN_HOSTS = 200;
 
+// Footprints split into two socket owners: the filters' static service types (replaced on filter change) and the
+// dynamically tracked names (added/removed one at a time as discovery creates/expires them).
+const FILTER_NAMES_OWNER = "dnssd-filters";
+const TRACKED_NAMES_OWNER = "dnssd-tracked";
+
 /**
  * Names collected via DNS-SD.
  *
@@ -31,6 +36,8 @@ export class DnssdNames {
     readonly #lifetime: Lifetime;
     readonly #entropy: Entropy;
     readonly #filters = new Set<(record: DnsRecord) => boolean>();
+    readonly #filterNames = new Map<(record: DnsRecord) => boolean, string[] | "all">();
+    #filtersFacade?: DnssdNames.Filters;
     readonly #solicitor: QueryMulticaster;
     readonly #observers = new ObserverGroup();
     readonly #names = new Map<string, DnssdName>();
@@ -55,6 +62,7 @@ export class DnssdNames {
         lifetime = Lifetime.process,
         entropy,
         filter,
+        filterNames,
         goodbyeProtectionWindow,
         minTtl,
         ttlGraceFactor,
@@ -63,7 +71,7 @@ export class DnssdNames {
         this.#lifetime = lifetime.join("mdns names");
         this.#entropy = entropy;
         if (filter) {
-            this.#filters.add(filter);
+            this.#addFilter(filter, filterNames);
         }
         this.#solicitor = new QueryMulticaster(this);
         this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
@@ -106,9 +114,11 @@ export class DnssdNames {
             Minutes(1),
             this.#pruneStagedIpRecords.bind(this),
         );
-        // Mark as utility so the prune timer doesn't keep the Node event loop alive
         this.#stagedIpExpirationTimer.utility = true;
         this.#stagedIpExpirationTimer.start();
+
+        // Publish initial filter footprints (registers "all" when no filter narrows ingress)
+        this.#updateFilterNames();
     }
 
     #pruneStagedIpRecords() {
@@ -213,9 +223,9 @@ export class DnssdNames {
         }
 
         // Filtered records may be relevant to us if they are referenced by services, e.g. SRV targets become relevant.
-        // So iteratively process until the set of filtered records does not change
-        let filteredBeforePass = records.length;
-        while (filteredBeforePass > filtered.size) {
+        // Iteratively process until the set of filtered records does not change.
+        let filteredBeforePass: number;
+        do {
             filteredBeforePass = filtered.size;
             for (const record of filtered) {
                 if (!this.has(record.name)) {
@@ -224,33 +234,47 @@ export class DnssdNames {
 
                 handleRecord(record);
             }
+        } while (filteredBeforePass > filtered.size);
+
+        // Honour goodbye (ttl=0) for already-staged hostnames regardless of packetRelevant: eviction only
+        // touches entries we previously admitted under the gate, so a stray goodbye cannot poison anything new.
+        for (const record of filtered) {
+            if (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) {
+                continue;
+            }
+            if (record.ttl !== 0) {
+                continue;
+            }
+            const key = record.name.toLowerCase();
+            if (this.#names.has(key)) {
+                continue;
+            }
+            const staged = this.#stagedIpRecords.get(key);
+            if (staged === undefined) {
+                continue;
+            }
+            const remaining = staged.filter(
+                s => !(s.record.recordType === record.recordType && s.record.value === record.value),
+            );
+            if (remaining.length === 0) {
+                this.#stagedIpRecords.delete(key);
+            } else {
+                this.#stagedIpRecords.set(key, remaining);
+            }
         }
 
         // Stage A/AAAA for unknown hostnames — replayed when a later SRV creates the name.
         // packetRelevant gate prevents unrelated LAN traffic from poisoning the cache.
         if (packetRelevant) {
             for (let record of filtered) {
-                if (
-                    (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) ||
-                    this.has(record.name)
-                ) {
+                if (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) {
+                    continue;
+                }
+                if (record.ttl === 0) {
                     continue;
                 }
                 const key = record.name.toLowerCase();
-
-                if (record.ttl === 0) {
-                    const staged = this.#stagedIpRecords.get(key);
-                    if (staged === undefined) {
-                        continue;
-                    }
-                    const remaining = staged.filter(
-                        s => !(s.record.recordType === record.recordType && s.record.value === record.value),
-                    );
-                    if (remaining.length === 0) {
-                        this.#stagedIpRecords.delete(key);
-                    } else {
-                        this.#stagedIpRecords.set(key, remaining);
-                    }
+                if (this.#names.has(key)) {
                     continue;
                 }
 
@@ -294,6 +318,7 @@ export class DnssdNames {
             name = new DnssdName(qname, this.#nameContext);
             const key = qname.toLowerCase();
             this.#names.set(key, name);
+            this.#socket.addRelevantName(TRACKED_NAMES_OWNER, key);
 
             const staged = this.#stagedIpRecords.get(key);
             if (staged !== undefined) {
@@ -340,7 +365,9 @@ export class DnssdNames {
     }
 
     #delete(name: DnssdName) {
-        this.#names.delete(name.qname.toLowerCase());
+        const key = name.qname.toLowerCase();
+        this.#names.delete(key);
+        this.#socket.removeRelevantName(TRACKED_NAMES_OWNER, key);
     }
 
     /**
@@ -348,6 +375,8 @@ export class DnssdNames {
      */
     async close() {
         using _closing = this.#lifetime.closing();
+        this.#socket.unregisterRelevantNames(FILTER_NAMES_OWNER);
+        this.#socket.unregisterRelevantNames(TRACKED_NAMES_OWNER);
         this.#stagedIpExpirationTimer.stop();
         this.#stagedIpRecords.clear();
         this.#observers.close();
@@ -360,11 +389,63 @@ export class DnssdNames {
     }
 
     /**
-     * Dynamic ingress filters. Records accepted by ANY registered filter are processed.
-     * If no filters are registered, all records are accepted.
+     * Dynamic ingress filters. Records accepted by ANY registered filter are processed; with no filters, all records
+     * are accepted. Pass the names a filter accepts (e.g. its service types) so the socket can drop irrelevant packets
+     * before decoding them; a filter added without names disables that optimization (the socket accepts everything).
      */
-    get filters() {
-        return this.#filters;
+    get filters(): DnssdNames.Filters {
+        if (this.#filtersFacade === undefined) {
+            const filters = this.#filters;
+            this.#filtersFacade = {
+                add: (filter, names) => this.#addFilter(filter, names),
+                delete: filter => this.#deleteFilter(filter),
+                has: filter => filters.has(filter),
+                get size() {
+                    return filters.size;
+                },
+                [Symbol.iterator]: () => filters[Symbol.iterator](),
+            };
+        }
+        return this.#filtersFacade;
+    }
+
+    #addFilter(filter: (record: DnsRecord) => boolean, names?: Iterable<string> | "all") {
+        this.#filters.add(filter);
+        this.#filterNames.set(filter, names === undefined || names === "all" ? "all" : [...names]);
+        this.#updateFilterNames();
+    }
+
+    #deleteFilter(filter: (record: DnsRecord) => boolean) {
+        const deleted = this.#filters.delete(filter);
+        if (deleted) {
+            this.#filterNames.delete(filter);
+            this.#updateFilterNames();
+        }
+        return deleted;
+    }
+
+    /**
+     * Publish the union of the filters' declared service types to the socket. Tracked names (SRV-target hostnames and
+     * the like) are registered separately and incrementally via {@link DnssdNames.get}/{@link #delete}. Registers
+     * "all" — disabling the pre-filter — whenever a filter was added without names, or no filter is registered (every
+     * record is accepted).
+     */
+    #updateFilterNames() {
+        if (this.#filters.size === 0) {
+            this.#socket.registerRelevantNames(FILTER_NAMES_OWNER, "all");
+            return;
+        }
+        const names = new Set<string>();
+        for (const filterNames of this.#filterNames.values()) {
+            if (filterNames === "all") {
+                this.#socket.registerRelevantNames(FILTER_NAMES_OWNER, "all");
+                return;
+            }
+            for (const name of filterNames) {
+                names.add(name);
+            }
+        }
+        this.#socket.registerRelevantNames(FILTER_NAMES_OWNER, names);
     }
 
     get socket() {
@@ -408,6 +489,13 @@ export namespace DnssdNames {
         filter?: (record: DnsRecord) => boolean;
 
         /**
+         * Names the initial {@link filter} accepts (e.g. its DNS-SD service types), driving the socket's pre-decode
+         * relevance filter. Pass `"all"` (or omit) only when interest cannot be enumerated — note that disables the
+         * pre-filter for the whole socket (every packet is fully decoded again), so prefer concrete names.
+         */
+        filterNames?: Iterable<string> | "all";
+
+        /**
          * The interval after discovering a record for which we ignore goodbyes.
          *
          * This serves as protection for out-of-order messages when a device expires then broadcasts the same record
@@ -425,6 +513,26 @@ export namespace DnssdNames {
          * Defaults to {@link DEFAULT_TTL_GRACE_FACTOR}.
          */
         ttlGraceFactor?: number;
+    }
+
+    /**
+     * Set-like facade over the ingress filters that also captures the names each filter accepts (see
+     * {@link DnssdNames.filters}).
+     */
+    export interface Filters {
+        /**
+         * Register an ingress filter together with the names it accepts. `names` drives the socket's pre-decode
+         * relevance filter, so it is required: pass the filter's DNS-SD service types (e.g. `_meshcop._udp.local`).
+         *
+         * **Avoid `"all"` unless unavoidable.** It does not merely disable the optimization for this scanner — it
+         * disables it for the WHOLE socket, forcing every inbound mDNS packet to be fully decoded again (the exact
+         * cost the pre-filter exists to avoid). Only use it when the filter's interest genuinely cannot be enumerated.
+         */
+        add(filter: (record: DnsRecord) => boolean, names: Iterable<string> | "all"): void;
+        delete(filter: (record: DnsRecord) => boolean): boolean;
+        has(filter: (record: DnsRecord) => boolean): boolean;
+        readonly size: number;
+        [Symbol.iterator](): IterableIterator<(record: DnsRecord) => boolean>;
     }
 
     export const defaults = {

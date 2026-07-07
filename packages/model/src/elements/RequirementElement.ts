@@ -25,6 +25,13 @@ export type RequirementElement = BaseElement & {
     conformance?: Conformance.Definition;
     default?: any;
 
+    /**
+     * When a device type requires multiple instances of the same component device type (e.g. two PowerSource
+     * endpoints), each instance is numbered starting from 1.  Requirements without an instance number apply to all
+     * instances or to the single required instance.
+     */
+    instance?: number;
+
     children?: (RequirementElement | FieldElement)[];
 };
 

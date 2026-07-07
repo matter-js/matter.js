@@ -5,6 +5,8 @@
  */
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
+import { ClusterClientObj } from "#cluster/client/ClusterClientTypes.js";
+import { DecodedAttributeReportValue, DecodedEventReportValue } from "#cluster/client/DecodedDataReport.js";
 import { InteractionClient, UnknownNodeError } from "#cluster/client/InteractionClient.js";
 import {
     AsyncObservable,
@@ -12,6 +14,7 @@ import {
     camelize,
     Construction,
     Crypto,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Diagnostic,
     Immutable,
     ImplementationError,
@@ -41,20 +44,12 @@ import {
     ClusterBehavior,
     Commands,
     EndpointLifecycle,
+    IcdClient,
     NetworkClient,
+    type GlobalAttributeState,
 } from "@matter/node";
 import { DescriptorClient } from "@matter/node/behaviors/descriptor";
-import {
-    ClusterClientObj,
-    DecodedAttributeReportValue,
-    DecodedEventReportValue,
-    PaseClient,
-    Peer,
-    PeerAddress,
-    Read,
-    SustainedSubscription,
-    Val,
-} from "@matter/protocol";
+import { PaseClient, Peer, PeerAddress, Read, SustainedSubscription, Val } from "@matter/protocol";
 import {
     AttributeId,
     CaseAuthenticatedTag,
@@ -67,7 +62,7 @@ import {
     ManualPairingCodeCodec,
     NodeId,
     QrPairingCodeCodec,
-    StatusCode,
+    Status,
     StatusResponseError,
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
@@ -346,6 +341,14 @@ export class PairedNode {
             this.#handleSubscriptionAlive.bind(this),
         );
 
+        // A missed Check-In escalates a held Reconnecting; a parked subscription alone must not.
+        if (this.#clientNode.behaviors.has(IcdClient)) {
+            this.#observers.on(
+                this.#clientNode.eventsOf(IcdClient).checkInMissed,
+                this.#handleIcdCheckInMissed.bind(this),
+            );
+        }
+
         this.#observers.on(peer.service.changed, () => {
             if (!peer.service.addresses.size && this.#connectionState === NodeStates.Reconnecting) {
                 this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
@@ -389,7 +392,7 @@ export class PairedNode {
                 if (this.#options.autoSubscribe === false) {
                     // No subscription desired -- do a one-time wildcard read to populate state
                     this.#initializeWithRead().catch(error => {
-                        logger.info(this.#peerAddress, `Error during read-only initialization`, error);
+                        logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
                     });
                 } else {
                     // Activate the sustained subscription on NetworkClient
@@ -503,7 +506,7 @@ export class PairedNode {
         try {
             await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
         } catch (error) {
-            logger.info(this.#peerAddress, `Error updating fabric label`, error);
+            logger.warn(this.#peerAddress, `Error updating fabric label`, error);
         }
     }
 
@@ -520,12 +523,41 @@ export class PairedNode {
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
+        this.#connect(connectOptions).catch(error => logger.warn(this.#peerAddress, `Error connecting to node`, error));
+    }
+
+    async #connect(connectOptions?: CommissioningControllerNodeOptions) {
+        // Per-connect subscription intervals must reach the NetworkClient that drives the subscription; the
+        // create-time path only applies them when passed to getNode()/connectNode().
+        await this.#applyDefaultSubscription(connectOptions);
+
+        // disconnect() disables the underlying node; re-enable it so the node restarts and NetworkClient can
+        // (re)subscribe.  Without this a connect() after disconnect() is a no-op because isDisabled stays set.
+        if (this.#clientNode.stateOf(NetworkClient).isDisabled) {
+            await this.#clientNode.enable();
+        }
+
         if (this.#options.autoSubscribe === false) {
-            this.#initializeWithRead().catch(error => {
-                logger.info(this.#peerAddress, `Error during read-only initialization`, error);
-            });
+            await this.#initializeWithRead();
         } else {
             this.#activateSubscription();
+        }
+    }
+
+    /** Push per-connect subscription intervals onto the NetworkClient that drives the sustained subscription. */
+    async #applyDefaultSubscription(connectOptions?: CommissioningControllerNodeOptions) {
+        if (connectOptions === undefined) {
+            return;
+        }
+        const defaultSubscription: Record<string, unknown> = {};
+        if (connectOptions.subscribeMinIntervalFloorSeconds !== undefined) {
+            defaultSubscription.minIntervalFloor = Seconds(connectOptions.subscribeMinIntervalFloorSeconds);
+        }
+        if (connectOptions.subscribeMaxIntervalCeilingSeconds !== undefined) {
+            defaultSubscription.maxIntervalCeiling = Seconds(connectOptions.subscribeMaxIntervalCeilingSeconds);
+        }
+        if (Object.keys(defaultSubscription).length > 0) {
+            await this.#clientNode.set({ network: { defaultSubscription } });
         }
     }
 
@@ -728,6 +760,10 @@ export class PairedNode {
      * Handles structure update scheduling, device info updates, and connectionAlive events.
      */
     #handleSubscriptionAlive() {
+        if (this.#remoteInitializationDone && !this.#closing && !this.#decommissioned) {
+            this.#setConnectionState(NodeStates.Connected);
+        }
+
         // Schedule endpoint structure update if needed
         if (
             this.#remoteInitializationDone &&
@@ -771,13 +807,20 @@ export class PairedNode {
                 try {
                     await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
                 } catch (error) {
-                    logger.info(this.#peerAddress, `Error updating fabric label`, error);
+                    logger.warn(this.#peerAddress, `Error updating fabric label`, error);
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
             // Subscription is not active anymore, and we were connected before, we use Reconnecting as state
             // When all sessions disconnect, we go to WaitingForDiscovery
             this.#setConnectionState(NodeStates.Reconnecting);
+        }
+    }
+
+    /** Escalate a held Reconnecting when a registered LIT peer misses its expected Check-In; recovery stays with the liveness handler. */
+    #handleIcdCheckInMissed() {
+        if (this.#connectionState === NodeStates.Reconnecting && !this.#closing && !this.#decommissioned) {
+            this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
         }
     }
 
@@ -907,13 +950,13 @@ export class PairedNode {
             return;
         }
         if (!this.#clientNode.endpoints.has(endpointId)) {
-            logger.info(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
+            logger.debug(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
             return;
         }
         const endpoint = this.#clientNode.endpoints.for(endpointId);
         const descriptorData = endpoint.maybeStateOf(DescriptorClient);
         if (descriptorData === undefined) {
-            logger.info(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
+            logger.debug(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
             return;
         }
         collectedData.set(endpointId, endpoint);
@@ -982,6 +1025,7 @@ export class PairedNode {
         const eventsToEmit = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
         const structureUpdateDetails = new Map(this.#registeredEndpointStructureChanges);
         this.#registeredEndpointStructureChanges.clear();
+        this.#pendingNodeChangeEvents.clear();
 
         // Collect the descriptor data for all endpoints referenced in the structure
         const endpoints = new Map<EndpointNumber, ClientEndpoint>();
@@ -1172,7 +1216,7 @@ export class PairedNode {
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.info(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
+            logger.debug(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
             throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
         }
 
@@ -1302,7 +1346,7 @@ export class PairedNode {
         } catch (error) {
             // Accept the error if no window is already open
             if (
-                !StatusResponseError.is(error, StatusCode.Failure) ||
+                !StatusResponseError.is(error, Status.Failure) ||
                 StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
             ) {
                 throw error;
@@ -1324,7 +1368,7 @@ export class PairedNode {
         } catch (error) {
             // Accept the error if no window is already open
             if (
-                !StatusResponseError.is(error, StatusCode.Failure) ||
+                !StatusResponseError.is(error, Status.Failure) ||
                 StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
             ) {
                 throw error;
@@ -1342,7 +1386,7 @@ export class PairedNode {
         const discriminator = PaseClient.generateRandomDiscriminator(this.#crypto);
         const passcode = PaseClient.generateRandomPasscode(this.#crypto);
         const salt = this.#crypto.randomBytes(32);
-        const iterations = 1_000; // Minimum 1_000, Maximum 100_000
+        const iterations = CRYPTO_PBKDF_ITERATIONS_MIN;
         const pakePasscodeVerifier = await PaseClient.generatePakePasscodeVerifier(this.#crypto, passcode, {
             iterations,
             salt,
@@ -1374,14 +1418,18 @@ export class PairedNode {
             manualPairingCode: ManualPairingCodeCodec.encode({
                 discriminator: discriminator,
                 passcode: passcode,
+                flowType: CommissioningFlowType.Standard,
             }),
             qrPairingCode,
         };
     }
 
-    /** Closes the current session, ends the subscription and disconnects the device. */
+    /** Closes the current session, ends the subscription and disconnects the device. The node can be reconnected via connect(). */
     async disconnect() {
-        this.close();
+        // Unlike close() this keeps the instance (observers, construction) intact so connect() can reconnect it; the
+        // node is disabled via disconnectNode() which ends the subscription.
+        this.#updateEndpointStructureTimer.stop();
+        this.#setConnectionState(NodeStates.Disconnected);
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
 
@@ -1467,19 +1515,146 @@ export class PairedNode {
     }
 
     /**
-     * Access to typed cached cluster state values of the root endpoint
-     * Returns immutable cached attribute values from cluster clients
+     * Access cached state of the root endpoint for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
+     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
      */
-    stateOf<T extends Behavior.Type>(type: T) {
-        return this.#clientNode.stateOf(type);
+    stateOf(type: string): Immutable<Val.Struct>;
+
+    /**
+     * Access cached state of the root endpoint for a specific behavior.
+     *
+     * This is the recommended way to access state for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
+
+    stateOf(type: Behavior.Type | string) {
+        return this.#clientNode.stateOf(type as any);
     }
 
     /**
-     * Access to typed cluster commands of the root endpoint
-     * Returns async functions that can be called to invoke commands on cluster clients
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
      */
-    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T> {
-        return this.#clientNode.commandsOf(type);
+    maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
+
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
+    maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
+
+    maybeStateOf(type: Behavior.Type | string) {
+        return this.#clientNode.maybeStateOf(type as any);
+    }
+
+    /** Cluster commands for a behavior id on the root endpoint (untyped). */
+    commandsOf(type: string): Record<string, Commands.Command>;
+
+    /** Typed variant of {@link commandsOf}. */
+    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T>;
+
+    commandsOf(type: Behavior.Type | string): unknown {
+        return this.#clientNode.commandsOf(type as Behavior.Type);
+    }
+
+    /** Activated cluster features for a behavior id on the root endpoint (untyped). */
+    featuresOf(type: string): Immutable<Record<string, boolean>>;
+
+    /** Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type. */
+    featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
+
+    featuresOf(type: ClusterBehavior.Type | string) {
+        return this.#clientNode.featuresOf(type as ClusterBehavior.Type);
+    }
+
+    /** {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors. */
+    maybeFeaturesOf(type: string): Immutable<Record<string, boolean>> | undefined;
+    maybeFeaturesOf<T extends ClusterBehavior.Type>(type: T): T["features"] | undefined;
+    maybeFeaturesOf(type: ClusterBehavior.Type | string) {
+        return this.#clientNode.maybeFeaturesOf(type as ClusterBehavior.Type);
+    }
+
+    /** Global cluster attribute state for a behavior id on the root endpoint (untyped). */
+    globalsOf(type: string): Immutable<GlobalAttributeState>;
+
+    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
+    globalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
+
+    globalsOf(type: ClusterBehavior.Type | string) {
+        return this.#clientNode.globalsOf(type as ClusterBehavior.Type);
+    }
+
+    /** {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors. */
+    maybeGlobalsOf(type: string): Immutable<GlobalAttributeState> | undefined;
+    maybeGlobalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }> | undefined;
+    maybeGlobalsOf(type: ClusterBehavior.Type | string) {
+        return this.#clientNode.maybeGlobalsOf(type as ClusterBehavior.Type);
+    }
+
+    /**
+     * Read selected behavior state on the root endpoint via the underlying client node.
+     *
+     * @see {@link ClientEndpoint.get}
+     */
+    get(): Promise<unknown>;
+    get(selector: object | undefined, options?: ClientEndpoint.GetOptions): Promise<unknown>;
+    get(selector?: object, options?: ClientEndpoint.GetOptions): Promise<unknown> {
+        return this.#clientNode.get(selector as never, options);
+    }
+
+    /**
+     * Read state for a single behavior on the root endpoint via the underlying client node.
+     *
+     * @see {@link ClientEndpoint.getStateOf}
+     */
+    getStateOf<B extends Behavior.Type>(
+        type: B,
+        selector?: true,
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<Behavior.StateOf<B>>;
+    getStateOf<B extends Behavior.Type, K extends keyof Behavior.StateOf<B>>(
+        type: B,
+        selector: readonly K[],
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
+    getStateOf(type: string, selector?: readonly string[], options?: ClientEndpoint.GetOptions): Promise<Val.Struct>;
+    getStateOf(
+        type: Behavior.Type | string,
+        selector?: true | readonly (string | number | symbol)[],
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<unknown> {
+        return this.#clientNode.getStateOf(type as Behavior.Type, selector as never, options);
+    }
+
+    /**
+     * Events of the root endpoint for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this each event is typed as Observable | undefined.
+     * Please ensure to have proper checks in place when using this method with string type.
+     *
+     * Note: this exposes per-behavior events of the root endpoint. The {@link events} field on this class is the
+     * lifecycle event bus of the {@link PairedNode} itself ({@link PairedNode.Events}) and unrelated to behavior
+     * events.
+     */
+    eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
+
+    /**
+     * Events of the root endpoint for a specific behavior.
+     *
+     * This is the recommended way to access events for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
+
+    eventsOf(type: Behavior.Type | string): unknown {
+        return this.#clientNode.eventsOf(type as any);
     }
 }
 

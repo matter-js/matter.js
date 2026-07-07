@@ -11,13 +11,12 @@ import { InvokeResult } from "#action/response/InvokeResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger } from "@matter/general";
-import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
+import { AccessLevel, CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     CommandPath,
     EndpointNumber,
     FabricIndex,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvSchema,
     TlvStream,
@@ -62,7 +61,7 @@ export class CommandInvokeResponse<
         this.#fabricIndex = session.fabric ?? FabricIndex.NO_FABRIC;
     }
 
-    async *process<T extends Invoke>({ invokeRequests, suppressResponse }: T): InvokeResult {
+    async *process<T extends Invoke>({ invokeRequests }: T): InvokeResult {
         using _invoking = this.join("invoking");
         const multipleInvokes = invokeRequests.length > 1;
 
@@ -73,19 +72,19 @@ export class CommandInvokeResponse<
                 if (multipleInvokes) {
                     throw new StatusResponseError(
                         "Wildcard path must not be used with multiple invokes",
-                        StatusCode.InvalidAction,
+                        Status.InvalidAction,
                     );
                 }
                 this.#processWildcard(path, commandRef, commandFields);
             } else {
                 if (Subject.isGroup(this.session.subject)) {
                     // Group command cannot be concrete paths
-                    throw new StatusResponseError("Group commands connot be concrete paths", StatusCode.InvalidAction);
+                    throw new StatusResponseError("Group commands cannot be concrete paths", Status.InvalidAction);
                 }
                 if (multipleInvokes && commandRef === undefined) {
                     throw new StatusResponseError(
                         "The CommandRef field must be specified for all commands in a batch invoke",
-                        StatusCode.InvalidAction,
+                        Status.InvalidAction,
                     );
                 }
                 this.#processConcrete(path as InvokeResult.ConcreteCommandPath, commandRef, commandFields);
@@ -95,16 +94,14 @@ export class CommandInvokeResponse<
         if (this.#invokers) {
             for (const invoker of this.#invokers) {
                 for await (const chunk of invoker.apply(this)) {
-                    if (!suppressResponse) {
-                        yield chunk;
-                    }
+                    yield chunk;
                 }
             }
         }
 
         // We emit chunks lazily when the endpoint changes so there may be one remaining chunk.  There may also be a
         // chunk with errors even if there are no data producers
-        if (!suppressResponse && this.#chunk !== undefined) {
+        if (this.#chunk !== undefined) {
             yield this.#chunk;
         }
     }
@@ -127,16 +124,13 @@ export class CommandInvokeResponse<
 
         const isGroupPath = Subject.isGroup(this.session.subject);
         if (isGroupPath && endpointId !== undefined) {
-            throw new StatusResponseError(
-                "Illegal command invoke with group ID and endpoint ID",
-                StatusCode.InvalidAction,
-            );
+            throw new StatusResponseError("Illegal command invoke with group ID and endpoint ID", Status.InvalidAction);
         }
 
         if (clusterId === undefined || commandId === undefined) {
             throw new StatusResponseError(
                 "Wildcard path write must specify a clusterId and commandId",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -177,7 +171,7 @@ export class CommandInvokeResponse<
         if (this.#registeredPaths.has(pathKey)) {
             throw new StatusResponseError(
                 `Duplicate concrete command path ${this.node.inspectPath(path)} on batch invoke`,
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
         this.#registeredPaths.add(pathKey);
@@ -185,7 +179,7 @@ export class CommandInvokeResponse<
             if (this.#registeredCommandRefs.has(commandRef)) {
                 throw new StatusResponseError(
                     `Duplicate commandRef ${commandRef} on batch invoke`,
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
             this.#registeredCommandRefs.add(commandRef);
@@ -218,9 +212,10 @@ export class CommandInvokeResponse<
             limits = command.limits;
         }
 
-        // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
+        // Order prescribed by core spec 8.8.3.2: an Operate-privilege pass gates element-existence disclosure,
+        // existence checks follow, then the actual-privilege pass gates the invoke.
         // We need some fallback location if cluster is not defined
-        const location = {
+        const location: AccessControl.Location = {
             ...(cluster?.location ?? {
                 path: DataModelPath.none,
                 endpoint: endpointId,
@@ -229,20 +224,13 @@ export class CommandInvokeResponse<
             owningFabric: this.session.fabric,
         };
 
+        let access: { session: AccessControl.RemoteActorSession; location: AccessControl.Location } | undefined;
         if (hasRemoteActor(this.session)) {
-            const permission = this.session.authorityAt(limits.writeLevel, location);
-            switch (permission) {
-                case AccessControl.Authority.Granted:
-                    break;
+            access = { session: this.session, location };
 
-                case AccessControl.Authority.Unauthorized:
-                    return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
-
-                case AccessControl.Authority.Restricted:
-                    return this.#addStatus(path, commandRef, Status.AccessRestricted);
-
-                default:
-                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            const denial = this.#authorize(access.session, AccessLevel.Operate, location);
+            if (denial !== undefined) {
+                return this.#addStatus(path, commandRef, denial);
             }
         }
 
@@ -254,6 +242,14 @@ export class CommandInvokeResponse<
         }
         if (command === undefined || !cluster.type.commands[command.id]) {
             return this.#addStatus(path, commandRef, Status.UnsupportedCommand);
+        }
+
+        if (access !== undefined) {
+            const denial = this.#authorize(access.session, limits.writeLevel, access.location);
+            if (denial !== undefined) {
+                this.#errorCount++;
+                return this.#addStatus(path, commandRef, denial);
+            }
         }
 
         if (hasRemoteActor(this.session)) {
@@ -373,6 +369,26 @@ export class CommandInvokeResponse<
         }
     }
 
+    /**
+     * Validate access at {@link level}.  Returns undefined if granted; otherwise the status to report.
+     */
+    #authorize(session: AccessControl.RemoteActorSession, level: AccessLevel, location: AccessControl.Location) {
+        const permission = session.authorityAt(level, location);
+        switch (permission) {
+            case AccessControl.Authority.Granted:
+                return undefined;
+
+            case AccessControl.Authority.Unauthorized:
+                return Status.UnsupportedAccess;
+
+            case AccessControl.Authority.Restricted:
+                return Status.AccessRestricted;
+
+            default:
+                throw new InternalError(`Unsupported authorization state ${permission}`);
+        }
+    }
+
     #addResponse(chunk: InvokeResult.Data) {
         if (this.#chunk) {
             this.#chunk.push(chunk);
@@ -390,10 +406,15 @@ export class CommandInvokeResponse<
         status: Status,
         clusterStatus?: number,
     ) {
-        if (status !== StatusCode.Success) {
+        // Spec 1.6 §7.10.7: when a cluster-specific status is present the outer IM status SHALL be SUCCESS or FAILURE.
+        if (clusterStatus !== undefined && status !== Status.Success) {
+            status = Status.Failure;
+        }
+
+        if (status !== Status.Success) {
             logger.info(
                 () =>
-                    `Invoke error ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${status}), ClusterStatus=${clusterStatus}`,
+                    `Invoke error ${this.node.inspectPath(path)}: Status=${Status[status]}(${status}), ClusterStatus=${clusterStatus}`,
             );
         }
 
@@ -405,7 +426,7 @@ export class CommandInvokeResponse<
             commandRef,
         };
 
-        if (status !== StatusCode.Success) {
+        if (status !== Status.Success) {
             this.#statusCount++;
         }
         this.#addResponse(response);
@@ -431,7 +452,7 @@ export class CommandInvokeResponse<
             this.#successCount++;
             const encodedResponse = responseTlv.encodeTlv(response);
             if (encodedResponse.length === 0) {
-                this.#addStatus(path, commandRef, StatusCode.Success);
+                this.#addStatus(path, commandRef, Status.Success);
             } else {
                 this.#addResponse({
                     kind: "cmd-response",
@@ -458,8 +479,8 @@ export class CommandInvokeResponse<
                     logger.info(
                         `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
                     );
-                    if (errorCode === StatusCode.InvalidAction) {
-                        errorCode = StatusCode.InvalidCommand;
+                    if (errorCode === Status.InvalidAction) {
+                        errorCode = Status.InvalidCommand;
                     }
                 } else {
                     logger.info(errorLogText);

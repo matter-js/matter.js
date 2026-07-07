@@ -6,13 +6,13 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     PumpConfigurationAndControlServer as BasePumpConfigurationAndControlServer
 } from "../behaviors/pump-configuration-and-control/PumpConfigurationAndControlServer.js";
-import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
@@ -24,17 +24,15 @@ import {
 } from "../behaviors/pressure-measurement/PressureMeasurementServer.js";
 import { FlowMeasurementServer as BaseFlowMeasurementServer } from "../behaviors/flow-measurement/FlowMeasurementServer.js";
 import {
-    TemperatureMeasurementBehavior as BaseTemperatureMeasurementBehavior
-} from "../behaviors/temperature-measurement/TemperatureMeasurementBehavior.js";
+    TemperatureMeasurementClient as BaseTemperatureMeasurementClient
+} from "../behaviors/temperature-measurement/TemperatureMeasurementClient.js";
 import {
-    PressureMeasurementBehavior as BasePressureMeasurementBehavior
-} from "../behaviors/pressure-measurement/PressureMeasurementBehavior.js";
+    PressureMeasurementClient as BasePressureMeasurementClient
+} from "../behaviors/pressure-measurement/PressureMeasurementClient.js";
+import { FlowMeasurementClient as BaseFlowMeasurementClient } from "../behaviors/flow-measurement/FlowMeasurementClient.js";
 import {
-    FlowMeasurementBehavior as BaseFlowMeasurementBehavior
-} from "../behaviors/flow-measurement/FlowMeasurementBehavior.js";
-import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -46,11 +44,18 @@ import { Identity } from "@matter/general";
  * PumpDevice requires PumpConfigurationAndControl cluster but PumpConfigurationAndControl is not added by default
  * because you must select the features your device supports. You can add manually using PumpDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 5.5
+ * @see {@link MatterSpecification.v16.Device} § 5.5
  */
 export interface PumpDevice extends Identity<typeof PumpDeviceDefinition> {}
 
 export namespace PumpRequirements {
+    /**
+     * The Identify cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
+     */
+    export const IdentifyServer = BaseIdentifyServer;
+
     /**
      * The OnOff cluster is required by the Matter specification.
      *
@@ -66,11 +71,11 @@ export namespace PumpRequirements {
     export const PumpConfigurationAndControlServer = BasePumpConfigurationAndControlServer;
 
     /**
-     * The Identify cluster is required by the Matter specification.
+     * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
+     * We provide this alias to the default implementation {@link GroupsServer} for convenience.
      */
-    export const IdentifyServer = BaseIdentifyServer;
+    export const GroupsServer = BaseGroupsServer;
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
@@ -78,13 +83,6 @@ export namespace PumpRequirements {
      * We provide this alias to the default implementation {@link LevelControlServer} for convenience.
      */
     export const LevelControlServer = BaseLevelControlServer;
-
-    /**
-     * The Groups cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link GroupsServer} for convenience.
-     */
-    export const GroupsServer = BaseGroupsServer;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
@@ -117,44 +115,44 @@ export namespace PumpRequirements {
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TemperatureMeasurementClient} for convenience.
      */
-    export const TemperatureMeasurementBehavior = BaseTemperatureMeasurementBehavior;
+    export const TemperatureMeasurementClient = BaseTemperatureMeasurementClient;
 
     /**
      * The PressureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link PressureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link PressureMeasurementClient} for convenience.
      */
-    export const PressureMeasurementBehavior = BasePressureMeasurementBehavior;
+    export const PressureMeasurementClient = BasePressureMeasurementClient;
 
     /**
      * The FlowMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link FlowMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link FlowMeasurementClient} for convenience.
      */
-    export const FlowMeasurementBehavior = BaseFlowMeasurementBehavior;
+    export const FlowMeasurementClient = BaseFlowMeasurementClient;
 
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: {
+            Identify: IdentifyServer,
             OnOff: OnOffServer,
-            PumpConfigurationAndControl: PumpConfigurationAndControlServer,
-            Identify: IdentifyServer
+            PumpConfigurationAndControl: PumpConfigurationAndControlServer
         },
 
         optional: {
-            LevelControl: LevelControlServer,
             Groups: GroupsServer,
+            LevelControl: LevelControlServer,
             ScenesManagement: ScenesManagementServer,
             TemperatureMeasurement: TemperatureMeasurementServer,
             PressureMeasurement: PressureMeasurementServer,
@@ -167,10 +165,10 @@ export namespace PumpRequirements {
      */
     export const client = {
         optional: {
-            TemperatureMeasurement: TemperatureMeasurementBehavior,
-            PressureMeasurement: PressureMeasurementBehavior,
-            FlowMeasurement: FlowMeasurementBehavior,
-            OccupancySensing: OccupancySensingBehavior
+            TemperatureMeasurement: TemperatureMeasurementClient,
+            PressureMeasurement: PressureMeasurementClient,
+            FlowMeasurement: FlowMeasurementClient,
+            OccupancySensing: OccupancySensingClient
         },
 
         mandatory: {}
@@ -182,7 +180,7 @@ export const PumpDeviceDefinition = MutableEndpoint({
     deviceType: 0x303,
     deviceRevision: 3,
     requirements: PumpRequirements,
-    behaviors: SupportedBehaviors(PumpRequirements.server.mandatory.OnOff, PumpRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(PumpRequirements.server.mandatory.Identify, PumpRequirements.server.mandatory.OnOff)
 });
 
 Object.freeze(PumpDeviceDefinition);

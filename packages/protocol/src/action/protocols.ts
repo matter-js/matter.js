@@ -69,9 +69,9 @@ export interface NodeProtocol extends CollectionProtocol<EndpointProtocol> {
     attrsChanged: Observable<NodeProtocol.AttrChange, MaybePromise>;
 
     /**
-     * Inspects an Attribute- or Event path and log in human-readable form if possible
+     * Resolve a wire-format path into a {@link DataModelPath} for human-readable diagnostics.
      */
-    inspectPath(path: AttributePath | EventPath | CommandPath): string;
+    inspectPath(path: AttributePath | EventPath | CommandPath): DataModelPath;
 }
 
 export namespace NodeProtocol {

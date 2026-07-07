@@ -74,7 +74,7 @@ describe("AttributeSubscriptionResponse", () => {
             }),
         );
 
-        expect(countAttrs(response.data)).deep.equals({
+        expect(await countAttrs(response.data)).deep.equals({
             0: {
                 40: 5,
             },

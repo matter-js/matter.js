@@ -29,7 +29,7 @@ describe("IpService link-local zone capture", () => {
         while (!next.done && next.value.address.ip !== "fe80::1%fake0") {
             next = await MockTime.resolve(iter.next());
         }
-        expect(next.value?.address).deep.equals({ type: "udp", ip: "fe80::1%fake0", port: 1234 });
+        expect(next.value?.address).deep.equals({ ip: "fe80::1%fake0", port: 1234 });
 
         abort();
     });
@@ -52,7 +52,7 @@ describe("IpService link-local zone capture", () => {
         while (!next.done && next.value.address.ip !== "fd29::1") {
             next = await MockTime.resolve(iter.next());
         }
-        expect(next.value?.address).deep.equals({ type: "udp", ip: "fd29::1", port: 1234 });
+        expect(next.value?.address).deep.equals({ ip: "fd29::1", port: 1234 });
 
         abort();
     });

@@ -18,7 +18,7 @@ import type { MaybePromise } from "@matter/general";
  * This cluster is derived from the Operational State cluster and provides an interface for monitoring the operational
  * state of a robotic vacuum cleaner.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 7.4
+ * @see {@link MatterSpecification.v16.Cluster} § 7.4
  */
 export declare namespace RvcOperationalState {
     /**
@@ -32,7 +32,7 @@ export declare namespace RvcOperationalState {
     export const name: "RvcOperationalState";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 3;
 
@@ -53,10 +53,10 @@ export declare namespace RvcOperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.1
          */
         phaseList: string[] | null;
 
@@ -68,7 +68,7 @@ export declare namespace RvcOperationalState {
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.2
          */
         currentPhase: number | null;
 
@@ -82,7 +82,7 @@ export declare namespace RvcOperationalState {
          * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of states
          * that are applicable to that specific device type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.4
          */
         operationalStateList: OperationalStateStruct[];
 
@@ -90,18 +90,18 @@ export declare namespace RvcOperationalState {
          * This attribute specifies the current operational state of a device. This shall be populated with a valid
          * OperationalStateID from the set of values in the OperationalStateList Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.5
          */
         operationalState: OperationalState | OperationalStateNamespace.OperationalStateEnum;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.6
          */
         operationalError: ErrorStateStruct;
 
@@ -124,7 +124,7 @@ export declare namespace RvcOperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -134,7 +134,7 @@ export declare namespace RvcOperationalState {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.3
          */
         countdownTime?: number | null;
     }
@@ -151,10 +151,10 @@ export declare namespace RvcOperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.1
          */
         phaseList: string[] | null;
 
@@ -166,7 +166,7 @@ export declare namespace RvcOperationalState {
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.2
          */
         currentPhase: number | null;
 
@@ -180,7 +180,7 @@ export declare namespace RvcOperationalState {
          * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of states
          * that are applicable to that specific device type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.4
          */
         operationalStateList: OperationalStateStruct[];
 
@@ -188,18 +188,18 @@ export declare namespace RvcOperationalState {
          * This attribute specifies the current operational state of a device. This shall be populated with a valid
          * OperationalStateID from the set of values in the OperationalStateList Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.5
          */
         operationalState: OperationalState | OperationalStateNamespace.OperationalStateEnum;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.6
          */
         operationalError: ErrorStateStruct;
 
@@ -222,7 +222,7 @@ export declare namespace RvcOperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -232,7 +232,7 @@ export declare namespace RvcOperationalState {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.3
          */
         countdownTime: number | null;
     }
@@ -242,12 +242,12 @@ export declare namespace RvcOperationalState {
      */
     export interface BaseCommands {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
+         * @see {@link MatterSpecification.v16.Cluster} § 7.4.5
          */
         pause(): MaybePromise<OperationalCommandResponse>;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
+         * @see {@link MatterSpecification.v16.Cluster} § 7.4.5
          */
         resume(): MaybePromise<OperationalCommandResponse>;
 
@@ -269,7 +269,10 @@ export declare namespace RvcOperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
+         *   - After the device reaches the dock and completes its docking activities, the RVC Run Mode cluster's
+         *     CurrentMode attribute shall be set to an Idle mode.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 7.4.5.1
          */
         goHome(): MaybePromise<OperationalCommandResponse>;
     }
@@ -289,7 +292,7 @@ export declare namespace RvcOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.7.1
          */
         operationalError: OperationalErrorEvent;
 
@@ -304,9 +307,9 @@ export declare namespace RvcOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.7.2
          */
-        operationCompletion?: OperationCompletionEvent;
+        operationCompletion?: OperationalStateNamespace.OperationCompletionEvent;
     }
 
     /**
@@ -321,7 +324,7 @@ export declare namespace RvcOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.7.1
          */
         operationalError: OperationalErrorEvent;
 
@@ -336,9 +339,9 @@ export declare namespace RvcOperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.7.2
          */
-        operationCompletion: OperationCompletionEvent;
+        operationCompletion: OperationalStateNamespace.OperationCompletionEvent;
     }
 
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
@@ -346,15 +349,15 @@ export declare namespace RvcOperationalState {
     /**
      * The OperationalStateStruct is used to indicate a possible state of the device.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2
+     * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.2
      */
-    export declare class OperationalStateStruct {
+    export class OperationalStateStruct {
         constructor(values?: Partial<OperationalStateStruct>);
 
         /**
          * This shall be populated with a value from the OperationalStateEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.2.1
          */
         operationalStateId: OperationalState | OperationalStateNamespace.OperationalStateEnum;
 
@@ -362,10 +365,10 @@ export declare namespace RvcOperationalState {
          * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
          * If present, this shall contain a human-readable description of the operational state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.2.2
          */
         operationalStateLabel?: string;
-    };
+    }
 
     /**
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to
@@ -377,11 +380,11 @@ export declare namespace RvcOperationalState {
      *
      * While in the Charging or Docked states, the device shall NOT attempt to resume unless it transitioned to those
      * states while operating and can resume, such as, for example, if it is recharging while in a cleaning cycle. Else,
-     * if the operational state is Charging or Docked but there’s no operation to resume or the operation can’t be
+     * if the operational state is Charging or Docked but there's no operation to resume or the operation can't be
      * resumed, the device shall respond with an OperationalCommandResponse command with an ErrorStateID of
      * CommandInvalidInState but take no further action.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 7.4.4.1
+     * @see {@link MatterSpecification.v16.Cluster} § 7.4.4.1
      */
     export enum OperationalState {
         /**
@@ -441,15 +444,15 @@ export declare namespace RvcOperationalState {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4
+     * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.4
      */
-    export declare class ErrorStateStruct {
+    export class ErrorStateStruct {
         constructor(values?: Partial<ErrorStateStruct>);
 
         /**
          * This shall be populated with a value from the ErrorStateEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.4.1
          */
         errorStateId: ErrorState | OperationalStateNamespace.ErrorState;
 
@@ -457,7 +460,7 @@ export declare namespace RvcOperationalState {
          * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
          * present, this shall contain a human-readable description of the error state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.2
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.4.2
          */
         errorStateLabel?: string;
 
@@ -466,15 +469,15 @@ export declare namespace RvcOperationalState {
          * ErrorStateID indicates that the device is a Robotic Vacuum that is stuck, the ErrorStateDetails contains
          * "left wheel blocked".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.3
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.4.4.3
          */
         errorStateDetails?: string;
-    };
+    }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
+     * @see {@link MatterSpecification.v16.Cluster} § 7.4.5
      */
-    export declare class OperationalCommandResponse {
+    export class OperationalCommandResponse {
         constructor(values?: Partial<OperationalCommandResponse>);
 
         /**
@@ -482,10 +485,10 @@ export declare namespace RvcOperationalState {
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.14.6.5.1
          */
         commandResponseState: ErrorStateStruct;
-    };
+    }
 
     /**
      * This event is generated when a reportable error condition is detected. A device that generates this event shall
@@ -493,62 +496,18 @@ export declare namespace RvcOperationalState {
      *
      * This event shall contain the following fields:
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.14.7.1
      */
-    export declare class OperationalErrorEvent {
+    export class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ErrorStateStruct;
-    };
-
-    /**
-     * This event SHOULD be generated when the overall operation ends, successfully or otherwise. For example, the
-     * completion of a cleaning operation in a Robot Vacuum Cleaner, or the completion of a wash cycle in a Washing
-     * Machine.
-     *
-     * It is highly recommended that appliances device types employing the Operational State cluster support this event,
-     * even if it is optional. This assists clients in executing automations or issuing notifications at critical points
-     * in the device operation cycles.
-     *
-     * This event shall contain the following fields:
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
-     */
-    export declare class OperationCompletionEvent {
-        constructor(values?: Partial<OperationCompletionEvent>);
-
-        /**
-         * This field provides an indication of the state at the end of the operation. This field shall have a value
-         * from the ErrorStateEnum set. A value of NoError indicates success, that is, no error has been detected.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.1
-         */
-        completionErrorCode: ErrorState | OperationalStateNamespace.ErrorState;
-
-        /**
-         * The total operational time, in seconds, from when the operation was started via an initial Start command or
-         * autonomous/manual starting action, until the operation completed. This includes any time spent while paused.
-         * There may be cases whereby the total operational time exceeds the maximum value that can be conveyed by this
-         * attribute, in such instances, this attribute shall be populated with null.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.2
-         */
-        totalOperationalTime?: number | null;
-
-        /**
-         * The total time spent in the paused state, in seconds. There may be cases whereby the total paused time
-         * exceeds the maximum value that can be conveyed by this attribute, in such instances, this attribute shall be
-         * populated with null.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.3
-         */
-        pausedTime?: number | null;
-    };
+    }
 
     /**
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to
      * the set of values defined in Operational State itself.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 7.4.4.2
+     * @see {@link MatterSpecification.v16.Cluster} § 7.4.4.2
      */
     export enum ErrorState {
         /**
@@ -618,7 +577,7 @@ export declare namespace RvcOperationalState {
 
         /**
          * The device is unable to move to an area where it was asked to operate, such as by setting the ServiceArea
-         * cluster’s SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door
+         * cluster's SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door
          * or objects blocking the mapped path.
          */
         CannotReachTargetArea = 73,
@@ -629,7 +588,7 @@ export declare namespace RvcOperationalState {
         DirtyWaterTankFull = 74,
 
         /**
-         * The device has detected that its dirty water is missing
+         * The device has detected that its dirty water tank is missing
          */
         DirtyWaterTankMissing = 75,
 

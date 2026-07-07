@@ -5,9 +5,25 @@
  */
 
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
-import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
-import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
-import { ClusterClientObj, Val } from "@matter/protocol";
+import { ClusterClientObj } from "#cluster/client/ClusterClientTypes.js";
+import {
+    AtLeastOne,
+    Diagnostic,
+    Immutable,
+    ImplementationError,
+    InternalError,
+    NotImplementedError,
+    Observable,
+} from "@matter/general";
+import { ClusterModel, Matter } from "@matter/model";
+import {
+    Behavior,
+    Endpoint as ClientEndpoint,
+    ClusterBehavior,
+    Commands,
+    type GlobalAttributeState,
+} from "@matter/node";
+import { Val } from "@matter/protocol";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
@@ -67,15 +83,38 @@ export class Endpoint {
     }
 
     /**
-     * Access to typed cached cluster state values
-     * Returns immutable cached attribute values from cluster clients
+     * Access cached state for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
+     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
      */
-    stateOf<T extends Behavior.Type>(type: T) {
-        return this.#endpoint.stateOf(type);
+    stateOf(type: string): Immutable<Val.Struct>;
+
+    /**
+     * Access cached state for a specific behavior.
+     *
+     * This is the recommended way to access state for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
+
+    stateOf(type: Behavior.Type | string) {
+        return this.#endpoint.stateOf(type as any);
     }
 
-    maybeStateOf<T extends Behavior.Type>(type: T) {
-        return this.#endpoint.maybeStateOf(type);
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
+    maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
+
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     */
+    maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
+
+    maybeStateOf(type: Behavior.Type | string) {
+        return this.#endpoint.maybeStateOf(type as any);
     }
 
     /**
@@ -106,15 +145,111 @@ export class Endpoint {
     setStateOf(type: string, values: Val.Struct): Promise<void>;
 
     setStateOf(type: Behavior.Type | string, values: Val.Struct) {
-        return this.#endpoint.setStateOf(<Behavior.Type>type, values);
+        return this.#endpoint.setStateOf(type as Behavior.Type, values);
+    }
+
+    /** Cluster commands for a behavior id (untyped: each command is `Commands.Command`). */
+    commandsOf(type: string): Record<string, Commands.Command>;
+
+    /** Typed variant of {@link commandsOf}; preserves the behavior's command interface. */
+    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T>;
+
+    commandsOf(type: Behavior.Type | string): unknown {
+        return this.#endpoint.commandsOf(type as Behavior.Type);
+    }
+
+    /** Activated cluster features for a behavior id (untyped). */
+    featuresOf(type: string): Immutable<Record<string, boolean>>;
+
+    /** Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type. */
+    featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
+
+    featuresOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.featuresOf(type as ClusterBehavior.Type);
+    }
+
+    /** {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors. */
+    maybeFeaturesOf(type: string): Immutable<Record<string, boolean>> | undefined;
+    maybeFeaturesOf<T extends ClusterBehavior.Type>(type: T): T["features"] | undefined;
+    maybeFeaturesOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.maybeFeaturesOf(type as ClusterBehavior.Type);
+    }
+
+    /** Global cluster attribute state (clusterRevision, featureMap, attributeList, ...) for a behavior id. */
+    globalsOf(type: string): Immutable<GlobalAttributeState>;
+
+    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
+    globalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
+
+    globalsOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.globalsOf(type as ClusterBehavior.Type);
+    }
+
+    /** {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors. */
+    maybeGlobalsOf(type: string): Immutable<GlobalAttributeState> | undefined;
+    maybeGlobalsOf<T extends ClusterBehavior.Type>(
+        type: T,
+    ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }> | undefined;
+    maybeGlobalsOf(type: ClusterBehavior.Type | string) {
+        return this.#endpoint.maybeGlobalsOf(type as ClusterBehavior.Type);
     }
 
     /**
-     * Access to typed cluster commands
-     * Returns async functions that can be called to invoke commands on cluster clients
+     * Read selected behavior state via the underlying client endpoint.
+     *
+     * @see {@link ClientEndpoint.get}
      */
-    commandsOf<T extends Behavior.Type>(type: T) {
-        return this.#endpoint.commandsOf(type);
+    get(): Promise<unknown>;
+    get(selector: object | undefined, options?: ClientEndpoint.GetOptions): Promise<unknown>;
+    get(selector?: object, options?: ClientEndpoint.GetOptions): Promise<unknown> {
+        return this.#endpoint.get(selector as never, options);
+    }
+
+    /**
+     * Read state for a single behavior via the underlying client endpoint.
+     *
+     * @see {@link ClientEndpoint.getStateOf}
+     */
+    getStateOf<B extends Behavior.Type>(
+        type: B,
+        selector?: true,
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<Behavior.StateOf<B>>;
+    getStateOf<B extends Behavior.Type, K extends keyof Behavior.StateOf<B>>(
+        type: B,
+        selector: readonly K[],
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
+    getStateOf(type: string, selector?: readonly string[], options?: ClientEndpoint.GetOptions): Promise<Val.Struct>;
+    getStateOf(
+        type: Behavior.Type | string,
+        selector?: true | readonly (string | number | symbol)[],
+        options?: ClientEndpoint.GetOptions,
+    ): Promise<unknown> {
+        return this.#endpoint.getStateOf(type as Behavior.Type, selector as never, options);
+    }
+
+    /**
+     * Events for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this each event is typed as Observable | undefined.
+     * Please ensure to have proper checks in place when using this method with string type.
+     */
+    eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
+
+    /**
+     * Events for a specific behavior.
+     *
+     * This is the recommended way to access events for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
+
+    eventsOf(type: Behavior.Type | string): unknown {
+        return this.#endpoint.eventsOf(type as any);
     }
 
     get behaviors() {
@@ -310,7 +445,22 @@ export class Endpoint {
             if (features[featureName] === true) supportedFeatures.push(featureName);
         }
         if (supportedFeatures.length) {
-            elementDiagnostic.push([Diagnostic.strong("features"), supportedFeatures]);
+            const clusterModel = Matter.get(ClusterModel, client.id);
+            let displayFeatures: string[];
+            if (clusterModel) {
+                const titleMap = new Map<string, string>();
+                for (const f of clusterModel.features) {
+                    const title = f.title ?? f.name;
+                    titleMap.set(f.name, title);
+                    if (f.title) {
+                        titleMap.set(f.title.charAt(0).toLowerCase() + f.title.slice(1), title);
+                    }
+                }
+                displayFeatures = supportedFeatures.map(name => titleMap.get(name) ?? name);
+            } else {
+                displayFeatures = supportedFeatures;
+            }
+            elementDiagnostic.push([Diagnostic.strong("features"), displayFeatures]);
         }
 
         if (Object.keys(client.attributes).length) {

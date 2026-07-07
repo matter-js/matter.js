@@ -79,7 +79,7 @@ export namespace Introspection {
 
     export function propertyDescriptorToAccessibility(pd: PropertyDescriptor): PropertyAccessibility {
         return {
-            readable: !!(pd.set && !pd.get),
+            readable: !!(pd.get || !pd.set),
             writable: !!(pd.set || pd.writable),
         };
     }

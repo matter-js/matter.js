@@ -66,6 +66,14 @@ export interface Chip {
     defaultSubject: Subject.Factory;
 
     /**
+     * Register a {@link Subject.Factory} for a chip-test-header app name (e.g. `"all-clusters"`,
+     * `"all-devices"`). When a test descriptor has an `app` field set by the descriptor generator,
+     * the framework dispatches to the registered factory automatically. Manual `.subject(...)`
+     * overrides on a builder still take precedence over the registry.
+     */
+    subjectFor(app: string, factory: Subject.Factory): void;
+
+    /**
      * Clear the MDNS cache.
      */
     clearMdns(): Promise<void>;
@@ -292,17 +300,56 @@ function createBuilder(initial: {
 
         // We do this separately from the test itself because we don't want activation to appear as part of the test if
         // it fails
-        beforeOne(mochaTest, async () =>
-            State.activateSubject(subject ?? State.subject, startCommissioned, test, (subject, test) =>
-                runBeforeHooks(beforeStartHooks, subject, test),
-            ),
-        );
+        beforeOne(mochaTest, async function (this: Mocha.Context) {
+            // Resolution order: explicit .subject() override on the builder, then descriptor.app
+            // (chip-test-header app for multi-run suite members), then chip.defaultSubject. A
+            // multi-run member that names an unregistered app is skipped (other runs of the same
+            // test continue) — chip CI lists more apps than we mimic, and ignoring those runs is
+            // the whitelist behavior we want.
+            let factory = subject;
+            let appArgs: string[] | undefined;
+            if (factory !== undefined) {
+                // An explicit .subject() targets a specific app, so still forward the descriptor's per-run app-args.
+                appArgs = parseAppArgs(descriptor);
+            } else if (descriptor.app !== undefined) {
+                factory = State.subjectForApp(descriptor.app);
+                if (factory === undefined) {
+                    this.skip();
+                }
+                // app-args are scoped to the named app; forwarding them to the defaultSubject would
+                // pollute the subject cache with per-test variants (e.g. --trace-to paths) and
+                // thrash setup on tests that don't need per-run dispatch.
+                appArgs = parseAppArgs(descriptor);
+            }
+            if (factory === undefined) {
+                factory = State.subject;
+            }
+
+            await State.activateSubject(
+                factory,
+                startCommissioned,
+                test,
+                (subject, test) => runBeforeHooks(beforeStartHooks, subject, test),
+                appArgs,
+            );
+        });
 
         mochaTest.descriptor = test.descriptor;
         implementations.set(descriptor, mochaTest);
 
         afterOne(mochaTest, State.deactivateSubject);
     }
+}
+
+function parseAppArgs(descriptor: TestDescriptor): string[] | undefined {
+    const raw = descriptor.config?.["app-args"];
+    if (raw === undefined) return undefined;
+    if (Array.isArray(raw)) return raw.map(String);
+    if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        return trimmed === "" ? undefined : trimmed.split(/\s+/);
+    }
+    return undefined;
 }
 
 function chipFn(subjectOrFirstInclusion: Subject.Factory | string | undefined, ...include: string[]): chip.Builder {
@@ -323,6 +370,12 @@ Object.defineProperties(chipFn, {
     defaultSubject: {
         set(subject: Subject.Factory) {
             State.subject = subject;
+        },
+    },
+
+    subjectFor: {
+        value: (app: string, factory: Subject.Factory) => {
+            State.registerSubjectForApp(app, factory);
         },
     },
 

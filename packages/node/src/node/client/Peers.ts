@@ -13,8 +13,11 @@ import { ContinuousDiscovery } from "#behavior/system/controller/discovery/Conti
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
+import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
@@ -27,8 +30,10 @@ import {
     Diagnostic,
     Duration,
     ImplementationError,
+    Lifecycle,
     Logger,
     MatterError,
+    MaybePromise,
     Minutes,
     Mutex,
     Observable,
@@ -40,6 +45,7 @@ import {
 import {
     ClientSubscriptionHandler,
     ClientSubscriptions,
+    CommissioningError,
     FabricManager,
     Peer,
     PeerAddress,
@@ -67,6 +73,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
+    #commissioning = new Set<ClientNode>();
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -81,6 +88,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+        this.clusterInstalled(IcdManagementClient).on(this.#installIcdClient.bind(this));
+        this.clusterInstalled(BridgedDeviceBasicInformationClient).on(
+            this.#instrumentBridgedConfigurationVersion.bind(this),
+        );
 
         const lifecycle = owner.lifecycle;
         lifecycle.online.on(this.#nodeOnline.bind(this));
@@ -251,8 +262,20 @@ export class Peers extends EndpointContainer<ClientNode> {
             throw new ImplementationError("Cannot register a peer address for a fabric we do not belong to");
         }
 
-        let node = this.get(peerAddress);
-        if (!node) {
+        const existing = this.get(peerAddress);
+        if (existing) {
+            return existing;
+        }
+
+        // Serialize creation through the same mutex the cull/leave paths use. Two concurrent callers for the same
+        // address would otherwise both pass the check and both create a ClientNode (the awaits below yield between
+        // the check and the add).
+        return this.#mutex.produce(async () => {
+            let node = this.get(peerAddress);
+            if (node) {
+                return node;
+            }
+
             if (options.id !== undefined) {
                 // We want to initialize a node with a provided id. This could be an injected node, so ensure the
                 // ClientNodeStore is constructed. Without id the storage is empty anyway because id is newly assigned
@@ -272,9 +295,9 @@ export class Peers extends EndpointContainer<ClientNode> {
             await node.set({
                 commissioning: { peerAddress: PeerAddress(peerAddress) },
             });
-        }
 
-        return node;
+            return node;
+        });
     }
 
     override async close() {
@@ -319,6 +342,40 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
+     * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
+     *
+     * Serialization is done through the same {@link #mutex} the cull uses: the busy registration runs as a mutex task,
+     * which guarantees no cull is in flight when we register and that any subsequent cull observes the busy flag.
+     *
+     * Rejects with {@link CommissioningError} if the node is already mid-commission (parallel attempts on the same
+     * {@link ClientNode} would race on device-side state) or if a cull queued ahead of us already destroyed/crashed
+     * the node.  Either way the attempt fails fast instead of crashing later when the closed backing is accessed.
+     */
+    async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        await this.#mutex.produce(async () => {
+            const status = node.construction.status;
+            if (
+                status === Lifecycle.Status.Destroying ||
+                status === Lifecycle.Status.Destroyed ||
+                status === Lifecycle.Status.Crashed
+            ) {
+                throw new CommissioningError(`Cannot commission ${node.toString()} because the node is ${status}`);
+            }
+            if (this.#commissioning.has(node)) {
+                throw new CommissioningError(
+                    `Cannot commission ${node.toString()} because a commission attempt is already in progress`,
+                );
+            }
+            this.#commissioning.add(node);
+        });
+        try {
+            return await fn();
+        } finally {
+            this.#commissioning.delete(node);
+        }
+    }
+
+    /**
      * Enables or disables the expiration timer that culls expired uncommissioned nodes.
      */
     #manageExpiration() {
@@ -349,7 +406,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.#mutex.run(() =>
             this.#cullExpiredNodesAndAddresses()
                 .catch(error => {
-                    logger.error("Error culling expired nodes", error);
+                    logger.warn("Error culling expired nodes", error);
                 })
                 .finally(() => {
                     this.#manageExpiration();
@@ -363,6 +420,9 @@ export class Peers extends EndpointContainer<ClientNode> {
 
             for (const node of this) {
                 if (!node.lifecycle.isReady) {
+                    continue;
+                }
+                if (this.#commissioning.has(node)) {
                     continue;
                 }
                 const state = node.maybeStateOf(CommissioningClient);
@@ -425,6 +485,25 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
+        node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
+    }
+
+    /**
+     * Bridged endpoints carry their own `ConfigurationVersion` on `BridgedDeviceBasicInformation`; surface its changes
+     * through the same endpoint lifecycle event used for the node's `BasicInformation`.
+     */
+    #instrumentBridgedConfigurationVersion(endpoint: Endpoint, type: typeof BridgedDeviceBasicInformationClient) {
+        endpoint
+            .eventsOf(type)
+            .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
+    }
+
+    #installIcdClient(node: Endpoint) {
+        if (!(node instanceof ClientNode) || node.behaviors.has(IcdClient)) {
+            return;
+        }
+
+        node.behaviors.inject(IcdClient);
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {
@@ -573,6 +652,18 @@ class Factory extends ClientNodeFactory {
 
     find(descriptor: RemoteDescriptor) {
         for (const node of this.#owner) {
+            // Skip nodes whose construction will not deliver a working backing.  Destroying/Destroyed close (or have
+            // closed) the BehaviorBacking, which surfaces as "Datasource not yet initialized" the next time a caller
+            // touches state.  Crashed never finished initializeDataSource.  Inactive/Initializing/Active are all
+            // legitimate reuse targets — node.act will wait on construction.ready as needed.
+            const status = node.construction.status;
+            if (
+                status === Lifecycle.Status.Destroying ||
+                status === Lifecycle.Status.Destroyed ||
+                status === Lifecycle.Status.Crashed
+            ) {
+                continue;
+            }
             if (RemoteDescriptor.is(node.state.commissioning, descriptor)) {
                 return node;
             }

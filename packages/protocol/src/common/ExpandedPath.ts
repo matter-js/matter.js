@@ -40,8 +40,8 @@ export function ExpandedPath({ path, matter, base, kind }: ExpandedPath.Definiti
 
     if ("attributeId" in path) {
         base = base.at("state").at(identityOf(cluster, AttributeModel, path.attributeId));
-        if (path.listIndex) {
-            return base.at(path.listIndex, "entry");
+        if (path.listIndex === null) {
+            base = base.at("[ADD]", "marker");
         }
         return base;
     }
@@ -51,7 +51,11 @@ export function ExpandedPath({ path, matter, base, kind }: ExpandedPath.Definiti
     }
 
     if ("eventId" in path) {
-        return base.at("events").at(identityOf(cluster, EventModel, path.eventId));
+        base = base.at("events").at(identityOf(cluster, EventModel, path.eventId));
+        if ("isUrgent" in path && path.isUrgent) {
+            base = base.at("!", "marker");
+        }
+        return base;
     }
 
     return base.at("*", kind ?? "element");
@@ -66,7 +70,7 @@ export function ExpandedPath({ path, matter, base, kind }: ExpandedPath.Definiti
             if (typeof id === "string") {
                 return camelize(id);
             }
-            return id;
+            return `0x${id.toString(16)}`;
         }
 
         if (type === ClusterModel) {

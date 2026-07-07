@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "semanticNamespace", name: "Refrigerator", xref: "namespace§16",
+    tag: "semanticNamespace", name: "Refrigerator", xref: "namespace§19",
     details: "The tags contained in this namespace are restricted for use in the refrigerator domain and shall NOT " +
         "be used in any other domain or context."
 });

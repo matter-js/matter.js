@@ -32,7 +32,7 @@ export enum SoftwareVersionCertificationStatusEnum {
 
 /**
  * DeviceSoftwareCompliance / Compliance test result Schema
- * @see {@link MatterSpecification.v141.Core} § 11.23.8.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.8.
  * DCL endpoint:
  *   * /dcl/compliance/device-software-compliance
  *   * /dcl/compliance/device-software-compliance/{cDCertificateId}

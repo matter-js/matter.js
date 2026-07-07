@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { Duration, Logger, MaybePromise, Millis, Observable, Seconds, Time, Timer } from "@matter/general";
 import { FieldElement } from "@matter/model";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { Switch } from "@matter/types/clusters/switch";
 import { SwitchBehavior } from "./SwitchBehavior.js";
 
@@ -110,7 +110,7 @@ export class SwitchBaseServer extends SwitchServerBase {
     // TODO remove when Validator logic can assess that with 1.3 introduction
     #assertPositionInRange(position: number) {
         if (position < 0 || position >= this.state.numberOfPositions) {
-            throw new StatusResponseError(`Position ${position} invalid`, StatusCode.ConstraintError);
+            throw new StatusResponseError(`Position ${position} invalid`, Status.ConstraintError);
         }
     }
 

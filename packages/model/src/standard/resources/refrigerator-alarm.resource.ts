@@ -24,7 +24,7 @@ Resource.add({
             tag: "datatype", name: "AlarmBitmap", xref: "cluster§8.8.5.1",
             children: [{
                 tag: "field", name: "DoorOpen",
-                description: "The cabinet’s door has been open for a vendor defined amount of time."
+                description: "The cabinet's door has been open for a vendor defined amount of time."
             }]
         }
     ]

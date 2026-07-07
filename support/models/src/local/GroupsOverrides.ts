@@ -12,11 +12,8 @@ LocalMatter.children.push({
     name: "Groups",
 
     children: [
-        /* Provisional in Matter 1.6.0: revision 5 (INVALID_IN_STATE for Groupcast-adopted
-         * fabrics) deferred — other implementors have not adopted this yet.
-         *
+        // SVE: revision 5 (Groupcast adoption interworking, Matter 1.6.1 draft)
         { tag: "attribute", id: 0xfffd, name: "ClusterRevision", default: 5 },
-        */
 
         // Enable group names by default.  Not mandated by the specification but a reasonable default
         {

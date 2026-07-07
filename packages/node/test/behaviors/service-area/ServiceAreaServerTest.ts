@@ -7,7 +7,7 @@
 import { ServiceAreaServer } from "#behaviors/service-area";
 import { RoboticVacuumCleanerDevice } from "#devices/robotic-vacuum-cleaner";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { AreaNamespaceTag } from "#tags/index.js";
+import { CommonAreaNamespaceTag } from "#tags/index.js";
 import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 import { RvcRunMode } from "@matter/types/clusters/rvc-run-mode";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -85,7 +85,7 @@ describe("ServiceAreaServer", () => {
                             locationInfo: {
                                 locationName: "Living",
                                 floorNumber: 0,
-                                areaType: AreaNamespaceTag.LivingRoom.tag,
+                                areaType: CommonAreaNamespaceTag.LivingRoom.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -97,7 +97,7 @@ describe("ServiceAreaServer", () => {
                             locationInfo: {
                                 locationName: "Kitchen",
                                 floorNumber: 0,
-                                areaType: AreaNamespaceTag.Kitchen.tag,
+                                areaType: CommonAreaNamespaceTag.Kitchen.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -109,7 +109,7 @@ describe("ServiceAreaServer", () => {
                             locationInfo: {
                                 locationName: "Bedroom",
                                 floorNumber: 1,
-                                areaType: AreaNamespaceTag.Bedroom.tag,
+                                areaType: CommonAreaNamespaceTag.Bedroom.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -121,7 +121,7 @@ describe("ServiceAreaServer", () => {
                             locationInfo: {
                                 locationName: "Bathroom",
                                 floorNumber: 1,
-                                areaType: AreaNamespaceTag.Bathroom.tag,
+                                areaType: CommonAreaNamespaceTag.Bathroom.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -154,7 +154,7 @@ describe("ServiceAreaServer", () => {
                                 locationInfo: {
                                     locationName: "Living",
                                     floorNumber: 0,
-                                    areaType: AreaNamespaceTag.LivingRoom.tag,
+                                    areaType: CommonAreaNamespaceTag.LivingRoom.tag,
                                 },
                                 landmarkInfo: null,
                             },
@@ -166,7 +166,7 @@ describe("ServiceAreaServer", () => {
                                 locationInfo: {
                                     locationName: "Kitchen",
                                     floorNumber: 0,
-                                    areaType: AreaNamespaceTag.Kitchen.tag,
+                                    areaType: CommonAreaNamespaceTag.Kitchen.tag,
                                 },
                                 landmarkInfo: null,
                             },
@@ -178,7 +178,7 @@ describe("ServiceAreaServer", () => {
                                 locationInfo: {
                                     locationName: "Bedroom",
                                     floorNumber: 1,
-                                    areaType: AreaNamespaceTag.Bedroom.tag,
+                                    areaType: CommonAreaNamespaceTag.Bedroom.tag,
                                 },
                                 landmarkInfo: null,
                             },
@@ -190,7 +190,7 @@ describe("ServiceAreaServer", () => {
                                 locationInfo: {
                                     locationName: "Bedroom",
                                     floorNumber: 1,
-                                    areaType: AreaNamespaceTag.Bedroom.tag,
+                                    areaType: CommonAreaNamespaceTag.Bedroom.tag,
                                 },
                                 landmarkInfo: null,
                             },

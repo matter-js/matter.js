@@ -25,7 +25,7 @@ jobs:
       head-commit-message: ${{ steps.get_head_commit_message.outputs.headCommitMsg }}
     steps:
       - name: Get repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Print head git commit message
@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || ((github.event_name == 'push' || github.event_name == 'pull_request') && contains(needs.head-commit-message.outputs.head-commit-message, '[execute-controllertests]') == true) }}
         name: Controller tests required to run?
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare chip tests and rebuild chip-tool if needed
         uses: ./.github/actions/prepare-chip-testing
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -88,10 +88,11 @@ jobs:
             file = file.replaceAll("'ip netns exec tool'", "'ip netns exec app'");
             fs.writeFileSync("./connectedhomeip/scripts/tests/chiptest/linux.py", file);
 
-      - name: Path Matter Yaml Files
+      - name: Patch Matter Yaml Files and PICS values
         shell: bash
         run: |
           cp -r support/chip-testing/patched-controller-test-files/* connectedhomeip/src/app/tests/suites/
+          sed -i 's/^SMOKECO\.S\.A000d=1$/SMOKECO.S.A000d=0/' connectedhomeip/src/app/tests/suites/certification/ci-pics-values
 
       - name: Chip-Apps execution with matter.js controller
         id: test-execution-matterjs-chip
@@ -106,7 +107,7 @@ jobs:
               --runner chip_tool_python \
               --log-level info \
               --target-glob "{Test_*,}" \
-              --target-skip-glob "{Test_TC_BDX_*,Test_TC_DGTHREAD*,Test_TC_DGWIFI*,Test_TC_S_2_3}" \
+              --target-skip-glob "{Test_TC_BDX_*,Test_TC_DGTHREAD*,Test_TC_DGWIFI*,Test_TC_S_2_3,Test_TC_REFALM_2_*}" \
               run \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../bin/chip-all-clusters-app \

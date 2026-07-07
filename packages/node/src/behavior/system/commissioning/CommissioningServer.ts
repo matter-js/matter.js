@@ -357,6 +357,11 @@ export namespace CommissioningServer {
             const comm = this;
             return {
                 get pairingCodes() {
+                    // passcode/discriminator default to -1 until initialize() generates them
+                    if (comm.passcode < 0 || comm.discriminator < 0) {
+                        throw new ImplementationError("pairingCodes read before commissioning was initialized");
+                    }
+
                     const bi = endpoint.stateOf(BasicInformationBehavior);
                     const net = endpoint.stateOf(NetworkServer);
 
@@ -374,10 +379,13 @@ export namespace CommissioningServer {
 
                     return {
                         manualPairingCode: ManualPairingCodeCodec.encode({
-                            // We use -1 to flag "need generated value" but this will crash the pairing code generator.  So use 0
-                            // so we don't throw an error during initialization
-                            discriminator: comm.discriminator < 0 ? 0 : comm.discriminator,
-                            passcode: comm.passcode < 0 ? 0 : comm.passcode,
+                            discriminator: comm.discriminator,
+                            passcode: comm.passcode,
+                            flowType: comm.flowType,
+                            // § 5.1.4.1.2: a non-standard flow SHALL carry VID/PID in the manual code.
+                            ...(comm.flowType !== CommissioningFlowType.Standard
+                                ? { vendorId: bi.vendorId, productId: bi.productId }
+                                : {}),
                         }),
                         qrPairingCode,
                     };

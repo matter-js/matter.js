@@ -10,5 +10,6 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "deviceType", name: "PowerSource", xref: "device§2.2",
+    details: "A Power Source device type provides information about the source of power.",
     children: [{ tag: "requirement", name: "PowerSource", xref: "device§2.2.3" }]
 });

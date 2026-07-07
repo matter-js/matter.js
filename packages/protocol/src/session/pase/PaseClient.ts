@@ -21,7 +21,7 @@ import {
     Spake2p,
     UnexpectedDataError,
 } from "@matter/general";
-import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "@matter/types";
+import { isValidPasscode, NodeId, SecureChannelStatusCode } from "@matter/types";
 import { TransientPeerCommunicationError } from "../../peer/PeerCommunicationError.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { RetransmissionLimitReachedError } from "../../protocol/errors.js";
@@ -47,11 +47,7 @@ export class PaseClient {
         // Generate 27-bit random candidates and reject invalid values to avoid modulo bias.
         for (let i = 0; i < MAX_PASSCODE_GENERATION_ATTEMPTS; i++) {
             const passcode = crypto.randomUint32 & 0x07ff_ffff;
-            if (
-                passcode >= 1 &&
-                passcode <= 99_999_998 &&
-                !CommissioningOptions.FORBIDDEN_PASSCODES.includes(passcode)
-            ) {
+            if (isValidPasscode(passcode)) {
                 return passcode;
             }
         }
@@ -80,7 +76,12 @@ export class PaseClient {
         } catch (error) {
             // Unlike CASE, for PASE we send InvalidParam even on abort. This signals the device to reset its
             // pairing state immediately, preventing a 60-second lockdown when cancelling parallel commissioning.
-            if (!causedBy(error, NetworkError, TransientPeerCommunicationError, RetransmissionLimitReachedError)) {
+            // Skip when a sent message is still unacked: the peer never acknowledged our prior message, so the
+            // device has no pairing state to reset and the send would only fail with a flow error.
+            if (
+                !exchange.hasUnackedMessage &&
+                !causedBy(error, NetworkError, TransientPeerCommunicationError, RetransmissionLimitReachedError)
+            ) {
                 try {
                     // Intentionally not passing the abort signal: we WANT to send InvalidParam even when
                     // aborting to signal the device to reset its pairing state immediately.  Passing an

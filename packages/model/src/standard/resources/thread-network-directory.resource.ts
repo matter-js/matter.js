@@ -11,7 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "ThreadNetworkDirectory", pics: "THNETDIR", xref: "cluster§10.4",
     details: "This cluster stores a list of Thread networks (including the credentials required to access each " +
-        "network), as well as a designation of the user’s preferred network, to facilitate the sharing of " +
+        "network), as well as a designation of the user's preferred network, to facilitate the sharing of " +
         "Thread networks across fabrics.",
 
     children: [
@@ -68,7 +68,7 @@ Resource.add({
                 "\n" +
                 "If there is an existing entry with the Extended PAN ID then the Thread Operational Dataset for that " +
                 "entry is replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, " +
-                "…) of an existing entry with a given Extended PAN ID can be made using this command.",
+                "...) of an existing entry with a given Extended PAN ID can be made using this command.",
 
             children: [{
                 tag: "field", name: "OperationalDataset", xref: "cluster§10.4.6.1.1",

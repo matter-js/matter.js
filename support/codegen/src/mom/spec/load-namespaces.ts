@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { scanDocument } from "./scan-document.js";
-import { HtmlReference } from "./spec-types.js";
+import { scanSpec } from "./scan-spec.js";
+import { SpecReference } from "./spec-types.js";
 
-export function* loadNamespaces(namespaces: HtmlReference) {
-    let ns: HtmlReference | undefined;
+export function* loadNamespaces(namespaces: SpecReference) {
+    let ns: SpecReference | undefined;
 
     function* emit() {
         if (ns) {
@@ -17,7 +17,7 @@ export function* loadNamespaces(namespaces: HtmlReference) {
         }
     }
 
-    for (const section of scanDocument(namespaces)) {
+    for (const section of scanSpec(namespaces)) {
         const depth = section.xref.section.split(".").length;
         switch (depth) {
             case 1:

@@ -35,16 +35,16 @@ export type Documentation = {
 function mapSpec(xref?: Specification.CrossReference) {
     switch (xref?.document) {
         case "core":
-            return "MatterSpecification.v142.Core";
+            return "MatterSpecification.v16.Core";
 
         case "cluster":
-            return "MatterSpecification.v142.Cluster";
+            return "MatterSpecification.v16.Cluster";
 
         case "device":
-            return "MatterSpecification.v142.Device";
+            return "MatterSpecification.v16.Device";
 
         case "namespace":
-            return "MatterSpecification.v142.Namespace";
+            return "MatterSpecification.v16.Namespace";
     }
 }
 
@@ -130,7 +130,7 @@ export abstract class Entry {
             }
 
             return `${linePrefix}/**\n${lines
-                .map(l => `${linePrefix} * ${l}`.trimEnd())
+                .map(l => `${linePrefix} * ${l.replace(/\*\//g, "* /")}`.trimEnd())
                 .join("\n")}\n${linePrefix} */\n`;
         }
 
@@ -427,7 +427,9 @@ export class Block extends Entry {
 
     protected delimiterAfter(entry: Entry, serialized: string): string {
         if (
-            serialized.match(/^\s*(?:\/\*(?!\*\/)\*\/\s*)?(?:export\s*)?(?:enum|function|namespace|interface|class)\s/m)
+            serialized.match(
+                /^\s*(?:\/\*(?!\*\/)\*\/\s*)?(?:export\s*)?(?:declare\s*)?(?:enum|function|namespace|interface|class)\s/m,
+            )
         ) {
             // Do not delimit functions structures that eslint will complain about
             return "";

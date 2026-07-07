@@ -25,6 +25,47 @@ describe("IpService", () => {
         expectKvs(service);
     });
 
+    it("notifies on parameter changes but swallows identical re-announcements and TXT expiry", async () => {
+        await using site = new MockSite();
+        const { client, server } = await site.addPair();
+
+        const service = client.addService();
+
+        // Reachable means no active resolution runs; parameter changes must still arrive via passive announcements.
+        service.status.isReachable = true;
+
+        const changed = new Promise<void>(resolve => service.changed.once(resolve));
+        await server.broadcast(1, Hours(24));
+        await MockTime.resolve(changed);
+        expectKvs(service);
+
+        let changes = 0;
+        service.changed.on(() => {
+            changes++;
+        });
+
+        // Identical re-announcement: parameters did not change, so no notification.
+        await MockTime.resolve(server.broadcast(1, Hours(24)), { macrotasks: true });
+        await MockTime.advance(Minutes(1));
+        expect(changes).equals(0);
+
+        // Changed parameters: notify and reflect the new values.
+        const rechanged = new Promise<void>(resolve => service.changed.once(resolve));
+        await server.broadcast(1, Hours(24), undefined, ["foo=baz", "added=1"]);
+        await MockTime.resolve(rechanged);
+        expect(changes).equals(1);
+        const kvs = new Map([...service.parameters]);
+        expect(kvs.get("foo")).equals("baz");
+        expect(kvs.get("added")).equals("1");
+
+        // TXT expiry while the address persists: swallowed (last known parameters remain the best assumption).
+        await MockTime.resolve(server.broadcast(1, Hours(24), undefined, ["foo=baz", "added=1"], 0), {
+            macrotasks: true,
+        });
+        await MockTime.advance(Minutes(1));
+        expect(changes).equals(1);
+    });
+
     it("expires", async () => {
         await using site = new MockSite();
         const { client, server } = await site.addPair();
@@ -127,7 +168,6 @@ describe("IpService", () => {
             expect(next.done).equals(false);
             expect(next.value.kind).equals(kind);
             expect(next.value.address).deep.equals({
-                type: "udp",
                 ip,
                 port: 1234,
             });

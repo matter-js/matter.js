@@ -162,10 +162,7 @@ export namespace element {
      */
     export type Modifier<
         T extends
-            | Decorator.Collector
-            | Decorator.ClassCollector
-            | Decorator.PropertyCollector
-            | Decorator.MethodCollector,
+            Decorator.Collector | Decorator.ClassCollector | Decorator.PropertyCollector | Decorator.MethodCollector,
     > = Model.ConcreteType | Model | NewableFunction | number | string | T;
 
     /**

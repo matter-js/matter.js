@@ -21,10 +21,6 @@ export const OnOffPlugInUnitDt = DeviceType(
     ),
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
     Requirement(
-        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
-    ),
-    Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
         Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
     ),
@@ -38,6 +34,10 @@ export const OnOffPlugInUnitDt = DeviceType(
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
     ),
 
+    Requirement(
+        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+    ),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" })
 );
 

@@ -150,6 +150,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         const basicInformation = this.agent.get(BasicInformationServer);
         const currentLocationCountryCode = basicInformation.state.location;
 
+        let locationToApply: string | undefined;
         if (currentLocationCountryCode !== countryCode) {
             if (this.state.allowCountryCodeChange === false && countryCode !== "XX") {
                 return {
@@ -167,7 +168,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
                 };
             }
             if (countryCode !== "XX") {
-                basicInformation.state.location = countryCode;
+                locationToApply = countryCode;
             }
         }
 
@@ -204,6 +205,10 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
                     newRegulatoryConfig === GeneralCommissioning.RegulatoryLocationType.Indoor ? "Indoor" : "Outdoor"
                 }`,
             };
+        }
+
+        if (locationToApply !== undefined) {
+            basicInformation.state.location = locationToApply;
         }
 
         this.state.regulatoryConfig = newRegulatoryConfig;
@@ -254,7 +259,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         // 5. The Breadcrumb attribute SHALL be reset to zero.
         this.state.breadcrumb = BigInt(0);
 
-        logger.info(
+        logger.notice(
             "Commissioned",
             Diagnostic.dict({
                 fabric: `${hex.fixed(fabric.globalId, 16)} (#${fabric.fabricIndex})`,

@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Rain Sensor device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.13
+ * @see {@link MatterSpecification.v16.Device} § 7.13
  */
 export interface RainSensorDevice extends Identity<typeof RainSensorDeviceDefinition> {}
 
@@ -56,7 +56,7 @@ export namespace RainSensorRequirements {
 export const RainSensorDeviceDefinition = MutableEndpoint({
     name: "RainSensor",
     deviceType: 0x44,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: RainSensorRequirements,
     behaviors: SupportedBehaviors(
         RainSensorRequirements.server.mandatory.Identify,

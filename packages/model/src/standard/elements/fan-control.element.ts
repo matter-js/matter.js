@@ -17,7 +17,7 @@ import {
 
 export const FanControl = Cluster(
     { name: "FanControl", id: 0x202, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -47,30 +47,24 @@ export const FanControl = Cluster(
         name: "SpeedSetting", id: 0x5, type: "uint8", access: "RW VO", conformance: "SPD",
         constraint: "max speedMax", quality: "X"
     }),
-    Attribute({
-        name: "SpeedCurrent", id: 0x6, type: "uint8", access: "R V", conformance: "SPD",
-        constraint: "max speedMax", quality: "P"
-    }),
+    Attribute(
+        { name: "SpeedCurrent", id: 0x6, type: "uint8", access: "R V", conformance: "SPD", constraint: "max speedMax" }
+    ),
     Attribute({
         name: "RockSupport", id: 0x7, type: "RockBitmap", access: "R V", conformance: "RCK",
         constraint: "min 1", quality: "F"
     }),
-    Attribute({
-        name: "RockSetting", id: 0x8, type: "RockBitmap", access: "RW VO", conformance: "RCK",
-        constraint: "desc", quality: "P"
-    }),
+    Attribute(
+        { name: "RockSetting", id: 0x8, type: "RockBitmap", access: "RW VO", conformance: "RCK", constraint: "desc" }
+    ),
     Attribute({
         name: "WindSupport", id: 0x9, type: "WindBitmap", access: "R V", conformance: "WND",
         constraint: "min 1", quality: "F"
     }),
-    Attribute({
-        name: "WindSetting", id: 0xa, type: "WindBitmap", access: "RW VO", conformance: "WND",
-        constraint: "desc", quality: "P"
-    }),
-    Attribute({
-        name: "AirflowDirection", id: 0xb, type: "AirflowDirectionEnum", access: "RW VO",
-        conformance: "DIR", quality: "P"
-    }),
+    Attribute(
+        { name: "WindSetting", id: 0xa, type: "WindBitmap", access: "RW VO", conformance: "WND", constraint: "desc" }
+    ),
+    Attribute({ name: "AirflowDirection", id: 0xb, type: "AirflowDirectionEnum", access: "RW VO", conformance: "DIR" }),
 
     Command(
         { name: "Step", id: 0x0, access: "O", conformance: "STEP", direction: "request", response: "status" },

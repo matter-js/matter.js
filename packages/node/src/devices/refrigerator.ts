@@ -13,6 +13,9 @@ import {
 import {
     RefrigeratorAlarmServer as BaseRefrigeratorAlarmServer
 } from "../behaviors/refrigerator-alarm/RefrigeratorAlarmServer.js";
+import {
+    ActivatedCarbonFilterMonitoringServer as BaseActivatedCarbonFilterMonitoringServer
+} from "../behaviors/activated-carbon-filter-monitoring/ActivatedCarbonFilterMonitoringServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -22,7 +25,7 @@ import { Identity } from "@matter/general";
  * Examples of consumer products that may make use of this device type include refrigerators, freezers, and wine
  * coolers.
  *
- * @see {@link MatterSpecification.v142.Device} § 13.2
+ * @see {@link MatterSpecification.v16.Device} § 13.2
  */
 export interface RefrigeratorDevice extends Identity<typeof RefrigeratorDeviceDefinition> {}
 
@@ -50,14 +53,24 @@ export namespace RefrigeratorRequirements {
     export const RefrigeratorAlarmServer = BaseRefrigeratorAlarmServer;
 
     /**
+     * The ActivatedCarbonFilterMonitoring cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ActivatedCarbonFilterMonitoringServer} for
+     * convenience.
+     */
+    export const ActivatedCarbonFilterMonitoringServer = BaseActivatedCarbonFilterMonitoringServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         optional: {
             Identify: IdentifyServer,
             RefrigeratorAndTemperatureControlledCabinetMode: RefrigeratorAndTemperatureControlledCabinetModeServer,
-            RefrigeratorAlarm: RefrigeratorAlarmServer
+            RefrigeratorAlarm: RefrigeratorAlarmServer,
+            ActivatedCarbonFilterMonitoring: ActivatedCarbonFilterMonitoringServer
         },
+
         mandatory: {}
     };
 }
@@ -65,7 +78,7 @@ export namespace RefrigeratorRequirements {
 export const RefrigeratorDeviceDefinition = MutableEndpoint({
     name: "Refrigerator",
     deviceType: 0x70,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: RefrigeratorRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -185,20 +185,20 @@ export class BtpCodec {
         }
 
         const ver: number[] = [];
-        ver[0] = (version & 0xf0) >> 4;
-        ver[1] = version & 0x0f;
+        ver[1] = (version & 0xf0) >> 4;
+        ver[0] = version & 0x0f;
 
         version = reader.readUInt8();
-        ver[2] = (version & 0xf0) >> 4;
-        ver[3] = version & 0x0f;
+        ver[3] = (version & 0xf0) >> 4;
+        ver[2] = version & 0x0f;
 
         version = reader.readUInt8();
-        ver[4] = (version & 0xf0) >> 4;
-        ver[5] = version & 0x0f;
+        ver[5] = (version & 0xf0) >> 4;
+        ver[4] = version & 0x0f;
 
         version = reader.readUInt8();
-        ver[6] = (version & 0xf0) >> 4;
-        ver[7] = version & 0x0f;
+        ver[7] = (version & 0xf0) >> 4;
+        ver[6] = version & 0x0f;
 
         const versions = ver.filter(v => v !== 0);
         if (versions.length === 0) {
@@ -266,9 +266,8 @@ export class BtpCodec {
             throw new BtpProtocolError("Please use the specific methods to encode a Handshake packet");
         }
 
+        // The handshake and management-opcode bits are rejected above, so only the segment/ack bits remain.
         const header =
-            // (isHandshakeRequest ? BtpHeaderBits.HandshakeBit : 0) | ... but always false here
-            // (hasManagementOpcode ? BtpHeaderBits.ManagementMsg : 0) | ... but alw<ys false here
             (hasAckNumber ? BtpHeaderBits.AckMsg : 0) |
             (isEndingSegment ? BtpHeaderBits.EndSegment : 0) |
             (isContinuingSegment ? BtpHeaderBits.ContinuingSegment : 0) |

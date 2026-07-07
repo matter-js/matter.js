@@ -7,6 +7,7 @@
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
+import { deepCopy } from "@matter/general";
 import { PhysicalDeviceProperties } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
 
@@ -22,6 +23,7 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
     }
 
     let properties: PhysicalDeviceProperties | undefined;
+    let frozen = false;
 
     const result: PhysicalDeviceProperties = {
         get supportsThread() {
@@ -52,8 +54,24 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
             return props().isIntermittentlyConnected;
         },
 
+        get isLongIdleTimeOperating() {
+            return props().isLongIdleTimeOperating;
+        },
+
+        get idleModeDuration() {
+            return props().idleModeDuration;
+        },
+
         get isThreadSleepyEndDevice() {
             return props().isThreadSleepyEndDevice;
+        },
+
+        get specificationVersion() {
+            return props().specificationVersion;
+        },
+
+        get deviceTypes() {
+            return props().deviceTypes;
         },
 
         get threadActive() {
@@ -72,11 +90,22 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
     cache.set(node, result);
 
     const structure = (node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-    structure.changed.on(() => (properties = undefined));
+    structure.changed.on(() => {
+        if (frozen) return;
+        properties = undefined;
+    });
+
+    // Snapshot before runtime close detaches behavior state; cleared again if the node comes back online.
+    node.lifecycle.goingOffline.on(() => freeze());
+    node.lifecycle.online.on(() => {
+        frozen = false;
+        properties = undefined;
+    });
 
     // WeakMap entries are GC'd automatically but appear as strong references in heap snapshots, causing false
-    // positives in leak detection.  Explicit deletion avoids this
+    // positives in leak detection.  Explicit deletion avoids this.
     node.lifecycle.destroyed.once(() => {
+        freeze();
         cache.delete(node);
     });
 
@@ -87,5 +116,11 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
             properties = NodePhysicalProperties(node);
         }
         return properties;
+    }
+
+    function freeze() {
+        if (frozen) return;
+        properties = deepCopy(props());
+        frozen = true;
     }
 }

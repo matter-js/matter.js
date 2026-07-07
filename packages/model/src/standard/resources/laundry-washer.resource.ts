@@ -17,8 +17,8 @@ Resource.add({
 
     children: [
         { tag: "requirement", name: "Identify", xref: "device§13.1.4" },
-        { tag: "requirement", name: "LaundryWasherMode", xref: "device§13.1.4" },
         { tag: "requirement", name: "OnOff", xref: "device§13.1.4" },
+        { tag: "requirement", name: "LaundryWasherMode", xref: "device§13.1.4" },
         { tag: "requirement", name: "LaundryWasherControls", xref: "device§13.1.4" },
         { tag: "requirement", name: "TemperatureControl", xref: "device§13.1.4" },
         { tag: "requirement", name: "OperationalState", xref: "device§13.1.4" }

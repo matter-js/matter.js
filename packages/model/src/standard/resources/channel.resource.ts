@@ -16,9 +16,10 @@ Resource.add({
         "This cluster server would be supported on Video Player devices or endpoints that allow Channel " +
         "control such as a Content App. This cluster provides a list of available channels and provides " +
         "commands for absolute and relative channel changes. Some of these commands and/or their responses " +
-        "may be large (see Large Message Quality under Data Model section in [MatterCore]), but they do not " +
-        "have the Large quality indicator (L) because they can also be transferred over MRP (see Message " +
-        "Reliability Protocol in [MatterCore]) in pages that fit within the MRP MTU limit. However, an " +
+        "may be large (see Large Message Quality under Data Model section in " +
+        "[[MatterCore]](#ref_MatterCore)), but they do not have the Large quality indicator (L) because they " +
+        "can also be transferred over MRP (see Message Reliability Protocol in " +
+        "[[MatterCore]](#ref_MatterCore)) in pages that fit within the MRP MTU limit. However, an " +
         "implementation may leverage a transport like TCP that allows large payloads, if available, to " +
         "minimize the number of messages required to transfer the corresponding payload." +
         "\n" +
@@ -59,7 +60,7 @@ Resource.add({
             details: "Change the channel to the channel case-insensitive exact matching the value passed as an argument." +
                 "\n" +
                 "The match priority order shall be: Identifier, AffiliateCallSign, CallSign, Name, Number. In the " +
-                "match string, the Channel number should be presented in the \"Major.Minor\" format, such as \"13.1\"." +
+                "match string, the Channel number should be presented in the Major.Minor format, such as 13.1." +
                 "\n" +
                 "Upon receipt, this shall generate a ChangeChannelResponse command." +
                 "\n" +
@@ -347,7 +348,7 @@ Resource.add({
         {
             tag: "datatype", name: "LineupInfoStruct", xref: "cluster§6.6.5.6",
             details: "The Lineup Info allows references to external lineup sources like Gracenote. The combination of " +
-                "OperatorName, LineupName, and PostalCode MUST uniquely identify a lineup.",
+                "OperatorName, LineupName, and PostalCode shall uniquely identify a lineup.",
 
             children: [
                 {

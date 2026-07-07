@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "semanticNamespace", name: "ElectricalMeasurement", xref: "namespace§12",
+    tag: "semanticNamespace", name: "ElectricalMeasurement", xref: "namespace§10",
     details: "The tags contained in this namespace are restricted for use in the electrical measurement domain and " +
         "shall NOT be used in any other domain or context.",
 

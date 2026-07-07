@@ -4,16 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
+import { BasicInformationClient } from "#behaviors/basic-information";
 import { DescriptorClient } from "#behaviors/descriptor";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
 import { PowerSourceClient } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { Node } from "#node/Node.js";
-import { IcdManagement } from "@matter/model";
+import { Seconds } from "@matter/general";
 import { PhysicalDeviceProperties } from "@matter/protocol";
-import { ClusterId } from "@matter/types";
+import { DeviceTypeId } from "@matter/types";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 
@@ -23,6 +27,10 @@ import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-
 export function NodePhysicalProperties(node: Node) {
     const rootEndpointServerList = [...(node.maybeStateOf(DescriptorClient)?.serverList ?? [])];
 
+    const supportsLit = IcdClient.litSupported(node);
+    const operatingMode = node.maybeStateOf(IcdManagementClient)?.operatingMode;
+    const idleModeDuration = node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
+
     const properties: PhysicalDeviceProperties = {
         supportsThread: false,
         supportsWifi: false,
@@ -30,8 +38,12 @@ export function NodePhysicalProperties(node: Node) {
         rootEndpointServerList,
         isMainsPowered: false,
         isBatteryPowered: false,
-        isIntermittentlyConnected: rootEndpointServerList.includes(IcdManagement.id as ClusterId),
+        isIntermittentlyConnected: rootEndpointServerList.includes(IcdManagement.id),
+        isLongIdleTimeOperating: supportsLit && operatingMode === IcdManagement.OperatingMode.Lit,
+        idleModeDuration: idleModeDuration === undefined ? undefined : Seconds(idleModeDuration),
         isThreadSleepyEndDevice: false,
+        specificationVersion: node.maybeStateOf(BasicInformationClient)?.specificationVersion,
+        deviceTypes: new Set<DeviceTypeId>(),
     };
 
     inspectEndpoint(node, properties);
@@ -39,84 +51,80 @@ export function NodePhysicalProperties(node: Node) {
     return properties;
 }
 
-function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDeviceProperties) {
-    // Network interface support
-    const network = endpoint.behaviors.typeFor(NetworkCommissioningClient);
-    if (network) {
-        const features = network.schema.supportedFeatures;
-        if (features.has("WI")) {
-            properties.supportsWifi = true;
-        }
-        if (features.has("TH")) {
-            properties.supportsThread = true;
-        }
-        if (features.has("ET")) {
-            properties.supportsEthernet = true;
-        }
+// Device types are collected node-wide (including bridged endpoints behind an aggregator) so consumers such as the
+// subscription-interval policy can react to them.  Power/network/thread properties describe the physical node itself,
+// so bridged endpoints (behindAggregator) must not contribute to them.
+function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDeviceProperties, behindAggregator = false) {
+    // Device types present on this endpoint
+    const deviceTypes = (properties.deviceTypes ??= new Set<DeviceTypeId>());
+    for (const { deviceType } of endpoint.maybeStateOf(DescriptorClient)?.deviceTypeList ?? []) {
+        deviceTypes.add(deviceType);
     }
 
-    // Battery power
-    const powerSource = endpoint.behaviors.typeFor(PowerSourceClient);
-    if (powerSource) {
-        const features = powerSource.schema.supportedFeatures;
-        const status = endpoint.stateOf(PowerSourceClient).status;
-        if (features.has("WIRED")) {
-            if (status === PowerSource.PowerSourceStatus.Active) {
-                // Should we only consider A/C "mains" powered?  What is a DC adapter?  What is an external battery?
-                // For now assuming "wired" means "don't worry about power consumption"
-                properties.isMainsPowered = true;
+    if (!behindAggregator) {
+        // Network interface support
+        const networkFeatures = endpoint.maybeFeaturesOf(NetworkCommissioningClient);
+        if (networkFeatures) {
+            if (networkFeatures.wiFiNetworkInterface) {
+                properties.supportsWifi = true;
             }
-        } else if (
-            features.has("BAT") ||
-            // Perform additional checks because we've encountered devices with incorrect features
-            !features.has("WIRED") ||
-            endpoint.behaviors.elementsOf(powerSource).attributes.has("batChargeLevel")
-        ) {
-            if (
-                status === PowerSource.PowerSourceStatus.Active ||
-                // Some devices do not properly specify state as active
-                status === PowerSource.PowerSourceStatus.Unspecified
+            if (networkFeatures.threadNetworkInterface) {
+                properties.supportsThread = true;
+            }
+            if (networkFeatures.ethernetNetworkInterface) {
+                properties.supportsEthernet = true;
+            }
+        }
+
+        // Battery power
+        const powerSourceFeatures = endpoint.maybeFeaturesOf(PowerSourceClient);
+        const powerSourceState = powerSourceFeatures ? endpoint.maybeStateOf(PowerSourceClient) : undefined;
+        if (powerSourceFeatures && powerSourceState) {
+            const { status } = powerSourceState;
+            if (powerSourceFeatures.wired) {
+                if (status === PowerSource.PowerSourceStatus.Active) {
+                    // Should we only consider A/C "mains" powered?  What is a DC adapter?  What is an external battery?
+                    // For now assuming "wired" means "don't worry about power consumption"
+                    properties.isMainsPowered = true;
+                }
+            } else if (
+                powerSourceFeatures.battery ||
+                // Perform additional checks because we've encountered devices with incorrect features
+                !powerSourceFeatures.wired ||
+                endpoint.behaviors.elementsOf(PowerSourceClient).attributes.has("batChargeLevel")
             ) {
-                properties.isBatteryPowered = true;
+                if (
+                    status === PowerSource.PowerSourceStatus.Active ||
+                    // Some devices do not properly specify state as active
+                    status === PowerSource.PowerSourceStatus.Unspecified
+                ) {
+                    properties.isBatteryPowered = true;
+                }
+            }
+        }
+
+        // Sleepy thread device
+        const threadNetworkDiagnostics = endpoint.behaviors.typeFor(ThreadNetworkDiagnosticsClient);
+        const tnd = threadNetworkDiagnostics ? endpoint.maybeStateOf(threadNetworkDiagnostics) : undefined;
+        if (tnd) {
+            if (tnd.routingRole === ThreadNetworkDiagnostics.RoutingRole.SleepyEndDevice) {
+                properties.isThreadSleepyEndDevice = true;
+            }
+            if (tnd.extendedPanId !== undefined && tnd.extendedPanId !== null) {
+                properties.threadActive = true;
+                properties.threadPan = BigInt(tnd.extendedPanId);
+                properties.threadChannel = tnd.channel ?? undefined;
+            } else {
+                properties.threadActive = false;
             }
         }
     }
 
-    // Sleepy thread device
-    const threadNetworkDiagnostics = endpoint.behaviors.typeFor(ThreadNetworkDiagnosticsClient);
-    if (threadNetworkDiagnostics) {
-        const tnd = endpoint.stateOf(threadNetworkDiagnostics);
-        if (tnd.routingRole === ThreadNetworkDiagnostics.RoutingRole.SleepyEndDevice) {
-            properties.isThreadSleepyEndDevice = true;
-        }
-        if (tnd.extendedPanId !== undefined && tnd.extendedPanId !== null) {
-            properties.threadActive = true;
-            properties.threadPan = tnd.extendedPanId === undefined ? undefined : BigInt(tnd.extendedPanId);
-            properties.threadChannel = tnd.channel ?? undefined;
-        } else {
-            properties.threadActive = false;
-        }
-    }
-
-    // Recurse into children
-    //
-    // Do not recurse into aggregator endpoints as bridged nodes are not relevant.  The check for mains power should
-    // otherwise cover us for properly structured devices.  For other devices err on the side of caution and assume
-    // mention of a battery on any endpoint means the entire node is battery powered.
-    //
-    // Technically according to spec we are handling the following incorrectly:
-    //
-    //   * Power source on application endpoint without EndpointList attribute (per spec power source does not apply to
-    //     node as a whole)
-    //
-    //   * Power source on any endpoint with non-empty EndpointList that does not include endpoint 0 (per spec this does
-    //     not indicate node is battery powered)
-    //
-    // The only downside of getting this wrong is that we will operate with degraded response time to changes.
+    // Recurse into children.  Endpoints at or below an aggregator are bridged nodes: their device types are still
+    // collected, but they do not describe the physical node so power/network/thread inspection is suppressed for them.
     for (const part of endpoint.parts) {
-        if (part.number !== 0 && part.type.deviceType === AggregatorEndpoint.deviceType) {
-            continue;
-        }
-        inspectEndpoint(part, properties);
+        const partBehindAggregator =
+            behindAggregator || (part.number !== 0 && part.type.deviceType === AggregatorEndpoint.deviceType);
+        inspectEndpoint(part, properties, partBehindAggregator);
     }
 }

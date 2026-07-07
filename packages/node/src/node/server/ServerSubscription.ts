@@ -6,6 +6,7 @@
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import { IcdManagementServer } from "#behaviors/icd-management";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
@@ -48,7 +49,7 @@ import {
     EndpointNumber,
     EventNumber,
     INTERACTION_PROTOCOL_ID,
-    StatusCode,
+    Status,
     StatusResponseError,
     SubscribeRequest,
 } from "@matter/types";
@@ -261,26 +262,9 @@ export class ServerSubscription implements Subscription {
         subscriptionMaxInterval: Duration,
         subscriptionRandomizationWindow: Duration,
     ): { maxInterval: Duration; sendInterval: Duration } {
-        // Max Interval is the Max interval that the controller request, unless the configured one from the developer
-        // is lower. In that case we use the configured one. But we make sure to not be smaller than the requested
-        // controller minimum. But in general never faster than minimum interval configured or 2 seconds
-        // (SUBSCRIPTION_MIN_INTERVAL_S). Additionally, we add a randomization window to the max interval to avoid all
-        // devices sending at the same time. But we make sure not to exceed the global max interval.
-        const maxInterval = Duration.min(
-            Millis.floor(
-                Millis(
-                    Duration.max(
-                        subscriptionMinInterval,
-                        Duration.max(
-                            this.minIntervalFloor,
-                            Duration.min(subscriptionMaxInterval, this.maxIntervalCeiling),
-                        ),
-                    ) +
-                        subscriptionRandomizationWindow * Math.random(),
-                ),
-            ),
-            MAX_INTERVAL_PUBLISHER_LIMIT,
-        );
+        const maxInterval =
+            this.#icdIdleMaxInterval() ??
+            this.#genericMaxInterval(subscriptionMinInterval, subscriptionMaxInterval, subscriptionRandomizationWindow);
         let sendInterval = Millis.floor(Millis(maxInterval / 2)); // Ideally we send at half the max interval
         if (sendInterval < Minutes.one) {
             // But if we have no chance of at least one full resubmission process we do like chip-tool.
@@ -296,6 +280,57 @@ export class ServerSubscription implements Subscription {
             sendInterval = subscriptionMinInterval;
         }
         return { maxInterval, sendInterval };
+    }
+
+    /**
+     * Max interval for a LIT-capable ICD publisher, or undefined for non-ICD publishers.
+     *
+     * Mirrors chip's ReadHandler: grants the ICD's IdleModeDuration (its full idle cycle), floored at the subscriber's
+     * MinIntervalFloor. No randomization on the ICD interval. IdleModeDuration is always within the §2.11 ICD publisher
+     * limit MAX(IdleModeDuration, 60min), so no upper clamp is needed.
+     */
+    #icdIdleMaxInterval(): Duration | undefined {
+        const node = this.#context.node;
+        if (node.maybeFeaturesOf(IcdManagementServer)?.longIdleTimeSupport !== true) {
+            return undefined;
+        }
+        const idleModeDuration = node.maybeStateOf(IcdManagementServer)?.idleModeDuration;
+        if (idleModeDuration === undefined) {
+            return undefined;
+        }
+        return Duration.max(this.minIntervalFloor, Seconds(idleModeDuration));
+    }
+
+    #genericMaxInterval(
+        subscriptionMinInterval: Duration,
+        subscriptionMaxInterval: Duration,
+        subscriptionRandomizationWindow: Duration,
+    ): Duration {
+        // Max Interval is the Max interval that the controller request, unless the configured one from the developer
+        // is lower. In that case we use the configured one. But we make sure to not be smaller than the requested
+        // controller minimum. But in general never faster than minimum interval configured or 2 seconds
+        // (SUBSCRIPTION_MIN_INTERVAL_S). Additionally, we add a randomization window to the max interval to avoid all
+        // devices sending at the same time. But we make sure not to exceed the global max interval.
+        // Spec §8.5.3.2 lower bound: MaxInterval must stay >= MinIntervalFloor even when the floor
+        // exceeds the publisher limit, so re-raise after the MAX_INTERVAL_PUBLISHER_LIMIT cap.
+        return Duration.max(
+            this.minIntervalFloor,
+            Duration.min(
+                Millis.floor(
+                    Millis(
+                        Duration.max(
+                            subscriptionMinInterval,
+                            Duration.max(
+                                this.minIntervalFloor,
+                                Duration.min(subscriptionMaxInterval, this.maxIntervalCeiling),
+                            ),
+                        ) +
+                            subscriptionRandomizationWindow * Math.random(),
+                    ),
+                ),
+                MAX_INTERVAL_PUBLISHER_LIMIT,
+            ),
+        );
     }
 
     #addOutstandingAttributes(endpointId: EndpointNumber, clusterId: ClusterId, changedAttrs: AttributeId[]) {
@@ -455,7 +490,7 @@ export class ServerSubscription implements Subscription {
                 break;
             }
 
-            this.#lastUpdateTime = Time.nowMs; // TODO Count time from here or from "receive of the ack"?
+            this.#lastUpdateTime = Time.nowMs;
 
             try {
                 using sending = updating?.join("sending");
@@ -541,7 +576,7 @@ export class ServerSubscription implements Subscription {
             if (Read.containsAttribute(request)) {
                 const attributeReader = new AttributeReadResponse(this.#context.node.protocol, session);
                 for (const chunk of attributeReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         if (report.kind === "attr-status") {
                             if (suppressStatusReports) {
                                 continue;
@@ -575,7 +610,7 @@ export class ServerSubscription implements Subscription {
             if (Read.containsEvent(request)) {
                 const eventReader = new EventReadResponse(this.#context.node.protocol, session);
                 for await (const chunk of eventReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         if (report.kind === "event-status") {
                             if (suppressStatusReports) {
                                 continue;
@@ -605,7 +640,7 @@ export class ServerSubscription implements Subscription {
             if (validAttributes === 0 && validEvents === 0) {
                 throw new StatusResponseError(
                     "Subscription failed because no attributes or events are matching the query",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             } else if (!hasValuesInResponse && delayedStatusReports.length) {
                 // We have no values in the response but collected status reports, so we need to send them
@@ -728,7 +763,7 @@ export class ServerSubscription implements Subscription {
                     attributeFilter,
                 );
                 for (const chunk of attributeReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         // No need to filter out status responses because AttributeSubscriptionResponse does that already
                         yield InteractionServerMessenger.convertServerInteractionReport(report);
                     }
@@ -741,7 +776,7 @@ export class ServerSubscription implements Subscription {
 
                 const eventReader = new EventReadResponse(this.#context.node.protocol, session);
                 for await (const chunk of eventReader.process(request)) {
-                    for (const report of chunk) {
+                    for await (const report of chunk) {
                         if (report.kind === "event-status") {
                             continue;
                         }
@@ -799,8 +834,8 @@ export class ServerSubscription implements Subscription {
                 });
             }
         } catch (error) {
-            if (StatusResponseError.is(error, StatusCode.InvalidSubscription, StatusCode.Failure)) {
-                logger.info(`Subscription ${this.idStr} cancelled by peer`);
+            if (StatusResponseError.is(error, Status.InvalidSubscription, Status.Failure)) {
+                logger.notice(`Subscription ${this.idStr} cancelled by peer`);
                 this.#isCanceledByPeer = true;
             } else {
                 StatusResponseError.accept(error);

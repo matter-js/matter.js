@@ -4,13 +4,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { MemoryStorageDriver, StandardCrypto, StorageContext, Timestamp } from "@matter/general";
-import { FabricIndex, NodeId } from "@matter/types";
+import {
+    b$,
+    Bytes,
+    ImplementationError,
+    Key,
+    MemoryStorageDriver,
+    Millis,
+    PrivateKey,
+    StandardCrypto,
+    StorageContext,
+    Timestamp,
+} from "@matter/general";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
+
+const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
+    "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
+);
+const TEST_IDENTITY_PROTECTION_KEY = Bytes.fromHex("9bc61cd9c62a2df6d64dfcaa9dc472d4");
+const SEC1_KEY = Bytes.fromHex(
+    "30770201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075a00a06082a8648ce3d030107a144034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba",
+);
 
 describe("SessionManager", () => {
     describe("getNextAvailableSessionId", () => {
@@ -177,6 +197,140 @@ describe("SessionManager", () => {
 
             const result = sessionManager.maybeSessionFor(PEER_ADDRESS);
             expect(result).to.equal(sessionB);
+        });
+    });
+
+    describe("group data message counter", () => {
+        function groupFabric(crypto: StandardCrypto, fabricStorage: StorageContext) {
+            const fabric = new Fabric(crypto, {
+                fabricIndex: FabricIndex(1),
+                fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
+                nodeId: NodeId(1),
+                rootNodeId: NodeId(1),
+                globalId: GlobalFabricId(0),
+                keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
+                rootPublicKey: TEST_ROOT_PUBLIC_KEY,
+                rootVendorId: VendorId(0),
+                rootCert: new Uint8Array(),
+                identityProtectionKey: new Uint8Array(),
+                operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
+                intermediateCACert: new Uint8Array(),
+                operationalCert: new Uint8Array(),
+                label: "",
+            });
+            fabric.storage = fabricStorage;
+            return fabric;
+        }
+
+        it("exposes one node-global counter shared across group sessions", async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+
+            const first = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
+            const second = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
+            expect(second).equal(first + 1);
+        });
+
+        it("seeds the global counter above legacy per-key counters and clears them (Q-02 migration)", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabricStorage = new StorageContext(storage, ["fabric"]);
+            const fabric = groupFabric(crypto, fabricStorage);
+            fabricManager.addFabric(fabric);
+
+            // Simulate a legacy per-operational-key data counter persisted by the old model.
+            const legacyKey = `${"a".repeat(32)}-data`;
+            await fabricStorage.set(legacyKey, 4242);
+
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: fabricManager,
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+
+            expect(await sessionManager.groupDataMessageCounter.getIncrementedCounter()).greaterThan(4242);
+            expect(await fabricStorage.has(legacyKey)).equal(false);
+        });
+
+        it("does not roll the counter back when a group key set is removed (Q-02)", async () => {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const fabricManager = new FabricManager(crypto);
+            await fabricManager.construction.ready;
+            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabricManager.addFabric(fabric);
+            await fabric.groups.setFromGroupKeySet({
+                groupKeySetId: 1,
+                groupKeySecurityPolicy: 0,
+                epochKey0: b$`000102030405060708090a0b0c0d0e0f`,
+                epochStartTime0: 1,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+                groupKeyMulticastPolicy: 0,
+            });
+
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: fabricManager,
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+
+            const before = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
+            fabric.groups.removeGroupKeySet(1);
+            const after = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
+            expect(after).greaterThan(before);
+        });
+    });
+
+    describe("active threshold validation", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("rejects a local active threshold over 65535 milliseconds on construction", () => {
+            expect(() => newManager({ activeThreshold: Millis(65536) })).throws(
+                ImplementationError,
+                "Active Threshold",
+            );
+        });
+
+        it("rejects a local active threshold over 65535 milliseconds via the setter", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { activeThreshold: Millis(65536) })).throws(
+                ImplementationError,
+                "Active Threshold",
+            );
+        });
+
+        it("accepts a local active threshold of exactly 65535 milliseconds", async () => {
+            const sessionManager = newManager({ activeThreshold: Millis(65535) });
+            await sessionManager.construction.ready;
+
+            expect(sessionManager.sessionParameters.activeThreshold).equal(Millis(65535));
         });
     });
 });

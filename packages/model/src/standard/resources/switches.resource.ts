@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "semanticNamespace", name: "Switches", xref: "namespace§18",
+    tag: "semanticNamespace", name: "Switches", xref: "namespace§21",
 
     details: "The tags contained in this namespace are restricted for use in the switches domain and shall NOT be " +
         "used in any other domain or context. They are intended to indicate the function of a button on a " +
@@ -29,7 +29,7 @@ Resource.add({
 
         {
             tag: "semanticTag", name: "Custom", description: "Textual description provided in Label field",
-            xref: "namespace§18.1",
+            xref: "namespace§21.1",
             details: "When this value is used, the Label field in the same Semantic Tag structure shall be filled with a " +
                 "textual description of the function indicated on the button, such as a label or icon printed on the " +
                 "button, e.g. \"dining\"."

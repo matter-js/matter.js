@@ -65,7 +65,7 @@ Resource.add({
                 {
                     tag: "field", name: "TimeOfUse", xref: "cluster§9.4.7.1.2",
                     details: "While in modes with this tag, and once enabled with the EnableCharging command, the EVSE will " +
-                        "attempt to automatically start charging based on the user’s charging targets (for example, set based " +
+                        "attempt to automatically start charging based on the user's charging targets (for example, set based " +
                         "on a Time of Use tariff to charge at the cheapest times of the day)."
                 },
 
@@ -85,9 +85,9 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> being in a mode with this tag set or not does not affect the handling of the EnableDischarging " +
-                        "command by the Energy EVSE cluster, but once enabled, only modes with this tag enable the " +
-                        "discharging to actually occur."
+                        "> NOTE: being in a mode with this tag set or not does not affect the handling of the " +
+                        "EnableDischarging command by the Energy EVSE cluster, but once enabled, only modes with this tag " +
+                        "enable the discharging to actually occur."
                 }
             ]
         }

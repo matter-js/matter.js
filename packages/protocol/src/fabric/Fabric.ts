@@ -9,6 +9,7 @@ import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
+import { FabricIcd } from "#icd/FabricIcd.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { FabricChangedError, FabricRemovedError } from "#peer/PeerCommunicationError.js";
@@ -73,6 +74,7 @@ export class Fabric {
     readonly #keyPair: Key;
     readonly #sessions = new Set<SecureSession>();
     readonly #groups: FabricGroups;
+    #icd?: FabricIcd;
     readonly #accessControl: FabricAccessControl;
 
     readonly #leaving = AsyncObservable<[]>();
@@ -85,6 +87,7 @@ export class Fabric {
     #persistCallback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined;
     #storage?: StorageContext;
     #isDeleting?: boolean;
+    #deletePromise?: Promise<void>;
 
     /**
      * Create a fabric synchronously.
@@ -230,7 +233,7 @@ export class Fabric {
                 this.#vvsc = vvsc;
             }
         }
-        logger.info(
+        logger.notice(
             "Updated Vendor Verification Data for Fabric",
             this.#rootVendorId,
             this.#vidVerificationStatement,
@@ -267,6 +270,22 @@ export class Fabric {
         return this.#groups;
     }
 
+    get icd() {
+        if (this.#icd === undefined) {
+            this.#icd = new FabricIcd(this.#crypto);
+        }
+        return this.#icd;
+    }
+
+    /**
+     * True when this fabric has controller-role ICD peers whose Check-Ins we receive. Lets inbound Check-In processing
+     * skip fabrics with no receive path — in particular a pure ICD device, which holds only device-role registrations
+     * (it sends Check-Ins, never receives them) and must not trial-decrypt inbound Check-In messages.
+     */
+    get icdActive() {
+        return this.#icd?.hasPeers === true;
+    }
+
     get accessControl() {
         return this.#accessControl;
     }
@@ -276,7 +295,7 @@ export class Fabric {
     }
 
     get isDeleting() {
-        return this.#isDeleting;
+        return !!this.#isDeleting;
     }
 
     get leaving() {
@@ -404,16 +423,30 @@ export class Fabric {
      *
      * Does not emit the leave event.
      */
-    async delete(currentExchange?: MessageExchange) {
+    async delete(currentExchange?: MessageExchange): Promise<void> {
+        if (this.#deletePromise !== undefined) {
+            // Lifecycle fires once; still honor this caller's currentExchange for session close.
+            await this.#closeSessions(currentExchange);
+            await this.#deletePromise;
+            return;
+        }
+
         this.#isDeleting = true;
 
-        await this.#deleting.emit();
+        this.#deletePromise = this.#delete(currentExchange);
+        await this.#deletePromise;
+    }
 
+    async #delete(currentExchange?: MessageExchange) {
+        await this.#deleting.emit();
+        await this.#closeSessions(currentExchange);
+        await this.#deleted.emit();
+    }
+
+    async #closeSessions(currentExchange?: MessageExchange) {
         for (const session of [...this.#sessions]) {
             await session.initiateForceClose({ cause: new FabricRemovedError(), currentExchange });
         }
-
-        await this.#deleted.emit();
     }
 
     persist(isUpdate = true) {

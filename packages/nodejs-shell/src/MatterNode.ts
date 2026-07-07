@@ -6,6 +6,7 @@
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import {
+    Diagnostic,
     Environment,
     Filesystem,
     Logger,
@@ -17,8 +18,59 @@ import {
 import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
-import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
+import {
+    CommissioningControllerNodeOptions,
+    Endpoint,
+    NodeStateInformation,
+    PairedNode,
+} from "@project-chip/matter.js/device";
 import { join } from "node:path";
+
+/**
+ * The shell's default per-node diagnostic callbacks — state-information, attribute-change and event logging. Applied by
+ * default to every {@link MatterNode.connectAndGetNodes} connection so any command that reaches a node (not just
+ * `nodes connect`) gets the same logging regardless of which command touched the node first.
+ */
+export function createDiagnosticCallbacks(): Partial<CommissioningControllerNodeOptions> {
+    return {
+        attributeChangedCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
+            console.log(
+                `attributeChangedCallback ${peerNodeId}: Attribute ${nodeId}/${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
+                    value,
+                )}`,
+            ),
+        eventTriggeredCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, eventName }, events }) =>
+            console.log(
+                `eventTriggeredCallback ${peerNodeId}: Event ${nodeId}/${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
+                    events,
+                )}`,
+            ),
+        stateInformationCallback: (peerNodeId, info) => {
+            switch (info) {
+                case NodeStateInformation.Connected:
+                    console.log(`stateInformationCallback Node ${peerNodeId} connected`);
+                    break;
+                case NodeStateInformation.Disconnected:
+                    console.log(`stateInformationCallback Node ${peerNodeId} disconnected`);
+                    break;
+                case NodeStateInformation.Reconnecting:
+                    console.log(`stateInformationCallback Node ${peerNodeId} reconnecting`);
+                    break;
+                case NodeStateInformation.WaitingForDeviceDiscovery:
+                    console.log(
+                        `stateInformationCallback Node ${peerNodeId} waiting that device gets discovered again`,
+                    );
+                    break;
+                case NodeStateInformation.StructureChanged:
+                    console.log(`stateInformationCallback Node ${peerNodeId} structure changed`);
+                    break;
+                case NodeStateInformation.Decommissioned:
+                    console.log(`stateInformationCallback Node ${peerNodeId} decommissioned`);
+                    break;
+            }
+        },
+    };
+}
 
 const logger = Logger.get("Node");
 
@@ -33,6 +85,7 @@ export class MatterNode {
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
     #allowTestOtaImages = false;
+    #transportPreference?: "tcp" | "udp";
     #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
@@ -88,8 +141,18 @@ export class MatterNode {
                 this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
             }
 
-            // Build up the "Not-so-legacy" Controller
             const id = `shell-${this.#nodeNum.toString()}`;
+
+            // Open storage up front so persisted settings can flow into the CommissioningController constructor.
+            this.#storageManager = await this.#environment.get(StorageService).open(id);
+            this.#storageContext = this.#storageManager.createContext("Node");
+
+            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
+            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
+            const storedPref = await this.#storageContext.get<string>("TransportPreference", "");
+            this.#transportPreference = storedPref === "tcp" || storedPref === "udp" ? storedPref : undefined;
+
+            // Build up the "Not-so-legacy" Controller
             this.commissioningController = new CommissioningController({
                 environment: {
                     environment: this.#environment,
@@ -98,6 +161,8 @@ export class MatterNode {
                 autoConnect: false,
                 adminFabricLabel: "matter.js Shell",
                 enableOtaProvider: true,
+                tcp: true,
+                transportPreference: this.#transportPreference,
                 basicInformation: {
                     productName: "matter.js Shell",
                 },
@@ -111,17 +176,6 @@ export class MatterNode {
             if (resetStorage) {
                 await this.commissioningController.node.erase();
             }
-
-            // We side open a storage with the same ID as the ServerNode but only care about the "Node" sub context which
-            // is consistent.
-            this.#storageManager = await env.get(StorageService).open(id);
-            this.#storageContext = this.#storageManager.createContext("Node");
-
-            // Read DCL test certificates setting
-            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
-
-            // Read OTA test images setting
-            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
         } else {
             console.log(
                 "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",
@@ -195,12 +249,16 @@ export class MatterNode {
             throw new Error("CommissioningController not initialized");
         }
 
+        // Default the shell's diagnostic callbacks so a node reached via any command (icd, cluster-*, subscribe, …),
+        // not just `nodes connect`, gets the same logging. A caller-supplied option still wins.
+        const options = { ...createDiagnosticCallbacks(), ...connectOptions };
+
         if (nodeId === undefined) {
-            return await this.commissioningController.connect(connectOptions);
+            return await this.commissioningController.connect(options);
         }
 
         const node = await this.commissioningController.connectNode(nodeId, {
-            ...connectOptions /*autoConnect: false*/,
+            ...options /*autoConnect: false*/,
         });
         if (!node.initialized) {
             await node.events.initialized;

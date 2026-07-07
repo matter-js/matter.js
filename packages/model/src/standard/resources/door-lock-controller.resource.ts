@@ -13,9 +13,9 @@ Resource.add({
     details: "A Door Lock Controller is a device capable of controlling a door lock.",
 
     children: [
-        { tag: "requirement", name: "Groups", xref: "device§8.2.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§8.2.4" },
-        { tag: "requirement", name: "TimeSynchronization", xref: "device§8.2.4" },
-        { tag: "requirement", name: "DoorLock", xref: "device§8.2.4" }
+        { tag: "requirement", name: "TimeSyncCond", xref: "device§8.2.4" },
+        { tag: "requirement", name: "Groups", xref: "device§8.2.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§8.2.5" },
+        { tag: "requirement", name: "DoorLock", xref: "device§8.2.5" }
     ]
 });

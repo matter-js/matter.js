@@ -14,7 +14,7 @@ import {
     SECURE_CHANNEL_PROTOCOL_ID,
     SecureChannelStatusCode,
     SecureMessageType,
-    StatusCode,
+    Status,
     StatusResponseError,
 } from "@matter/types";
 import { Message } from "../codec/MessageCodec.js";
@@ -22,7 +22,7 @@ import { MessageExchange } from "../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../protocol/ProtocolHandler.js";
 import { CaseServer } from "../session/case/CaseServer.js";
 import { MaximumPasePairingErrorsReachedError, PaseServer } from "../session/pase/PaseServer.js";
-import { ChannelStatusResponseError, SecureChannelMessenger } from "./SecureChannelMessenger.js";
+import { SecureChannelMessenger } from "./SecureChannelMessenger.js";
 import { SecureChannelStatusMessage } from "./SecureChannelStatusMessageSchema.js";
 
 const logger = Logger.get("SecureChannelProtocol");
@@ -45,7 +45,7 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
                 if (messageType !== SecureMessageType.StandaloneAck) {
                     throw new StatusResponseError(
                         `Unexpected initial message on secure channel protocol: ${messageType.toString(16)}`,
-                        StatusCode.InvalidAction,
+                        Status.InvalidAction,
                     );
                 }
         }
@@ -64,22 +64,16 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
             );
         }
 
-        const { generalStatus, protocolId, protocolStatus } = SecureChannelStatusMessage.decode(payload);
-        if (generalStatus !== GeneralStatusCode.Success) {
-            throw new ChannelStatusResponseError(
-                `Received general error status (${protocolId})`,
-                generalStatus,
-                protocolStatus,
-            );
-        }
+        const { generalStatus, protocolStatus } = SecureChannelStatusMessage.decode(payload);
 
-        // CloseSession is the only case where a StatusReport comes as initial message
-        if (protocolStatus !== SecureChannelStatusCode.CloseSession) {
-            throw new ChannelStatusResponseError(
-                `Received general success status, but protocol status is not CloseSession`,
-                generalStatus,
-                protocolStatus,
+        // Only CloseSession is expected as an initial StatusReport; anything else is a stray peer retransmit.
+        if (generalStatus !== GeneralStatusCode.Success || protocolStatus !== SecureChannelStatusCode.CloseSession) {
+            logger.debug(
+                exchange.via,
+                `Ignoring unexpected initial StatusReport (general: ${generalStatus}, protocol: ${protocolStatus})`,
             );
+            await exchange.close();
+            return;
         }
 
         const { session } = exchange;
@@ -96,10 +90,12 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
 export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol {
     #paseCommissioner: PaseServer | undefined;
     readonly #caseCommissioner: CaseServer;
+    readonly #fabrics: FabricManager;
     readonly #tooManyPaseErrors = AsyncObservable<[]>();
 
     constructor(sessions: SessionManager, fabrics: FabricManager) {
         super();
+        this.#fabrics = fabrics;
         this.#caseCommissioner = new CaseServer(sessions, fabrics);
     }
 
@@ -150,8 +146,36 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
             case SecureMessageType.Sigma1:
                 await this.#caseCommissioner.onNewExchange(exchange);
                 break;
+            case SecureMessageType.IcdCheckInMessage:
+                await this.#handleIcdCheckIn(exchange, message);
+                break;
             default:
                 await super.onNewExchange(exchange, message);
+        }
+    }
+
+    /**
+     * Silently processes an ICD Check-In message: trial-decrypts against every fabric that has active ICD state,
+     * invokes the matching peer handler, then closes the exchange.  The handler itself never sends a response;
+     * conformant Check-Ins are unreliable (R=0) so no acknowledgement is generated either.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 4.22 (Check-In Protocol), § 9.15.1.3.3
+     */
+    async #handleIcdCheckIn(exchange: MessageExchange, message: Message) {
+        try {
+            for (const fabric of this.#fabrics) {
+                if (!fabric.icdActive) {
+                    continue;
+                }
+                // processCheckIn classifies its own expected cases (wrong-key/malformed decode and handler errors are
+                // handled internally), so anything thrown here is unexpected and must surface rather than be swallowed.
+                if (await fabric.icd.processCheckIn(message.payload)) {
+                    return;
+                }
+            }
+            logger.debug("Ignoring ICD check-in matching no registered peer");
+        } finally {
+            await exchange.close();
         }
     }
 }

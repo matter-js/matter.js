@@ -58,7 +58,7 @@ export namespace Base64 {
         }
         const out = new Uint8Array(outLength);
 
-        for (let inPos = 0, outPos = 0; outPos < outLength; ) {
+        for (let inPos = 0, outPos = 0; outPos < outLength;) {
             const n = (input[inPos++] << 16) + ((input[inPos++] ?? 0) << 8) + (input[inPos++] ?? 0);
 
             out[outPos++] = dict[n >>> 18];
@@ -108,7 +108,7 @@ export namespace Base64 {
 
         const out = new Uint8Array(outLength);
 
-        for (let inPos = 0, outPos = 0; ; ) {
+        for (let inPos = 0, outPos = 0; ;) {
             function lookup() {
                 if (inPos >= inputLength) return 0;
                 const v = A2B[input.codePointAt(inPos++) ?? -1];

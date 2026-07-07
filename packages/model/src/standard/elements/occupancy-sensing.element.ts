@@ -29,13 +29,12 @@ export const OccupancySensing = Cluster(
         Field({ name: "RAD", conformance: "O.a+", constraint: "5", title: "Radar" }),
         Field({ name: "RFS", conformance: "O.a+", constraint: "6", title: "RfSensing" }),
         Field({ name: "VIS", conformance: "O.a+", constraint: "7", title: "Vision" }),
-        Field({ name: "OCCEVENT", conformance: "P, M", constraint: "9", title: "OccupancyEvent" })
+        Field({ name: "OCCEVENT", conformance: "[Rev >= v7]", constraint: "9", title: "OccupancyEvent" })
     ),
 
-    Attribute({
-        name: "Occupancy", id: 0x0, type: "OccupancyBitmap", access: "R V", conformance: "M",
-        constraint: "0 to 1", quality: "P"
-    }),
+    Attribute(
+        { name: "Occupancy", id: 0x0, type: "OccupancyBitmap", access: "R V", conformance: "M", constraint: "0 to 1" }
+    ),
     Attribute({
         name: "OccupancySensorType", id: 0x1, type: "OccupancySensorTypeEnum", access: "R V",
         conformance: "M, D", constraint: "desc", quality: "F"

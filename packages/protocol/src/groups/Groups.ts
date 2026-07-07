@@ -6,7 +6,7 @@
 
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
+import { BasicMap, Bytes, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
@@ -24,7 +24,7 @@ export class Groups {
     readonly #groupKeyIdMap = new BasicMap<GroupId, number>();
 
     /** Operational variant of the group table, maps group Ids to a list of enabled endpoints. */
-    readonly endpointMap = new Map<GroupId, EndpointNumber[]>();
+    readonly endpointMap = new BasicMap<GroupId, EndpointNumber[]>();
 
     /** Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set. */
     readonly #groupMulticastPolicy = new Map<GroupId, GroupMulticastPolicy>();
@@ -52,10 +52,25 @@ export class Groups {
         }
     }
 
-    subjectForGroup(id: GroupId, keySetId: number) {
+    /**
+     * Whether any group of this fabric currently maps to the given key set.  Group message decryption only considers
+     * keys of mapped key sets — an unmapped key set exists but is not usable for group communication.
+     */
+    isKeySetMapped(keySetId: number) {
+        for (const mapped of this.#groupKeyIdMap.values()) {
+            if (mapped === keySetId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    subjectForGroup(id: GroupId, operationalKey: Bytes) {
+        const mappedKeySetId = this.idMap.get(id);
         return Subject.Group({
             id,
-            hasValidMapping: this.idMap.get(id) === keySetId,
+            hasValidMapping:
+                mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey),
             endpoints: this.endpointMap.get(id) ?? [],
         });
     }

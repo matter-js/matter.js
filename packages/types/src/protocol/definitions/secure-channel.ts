@@ -78,9 +78,6 @@ export enum SecureChannelStatusCode {
     /** Indication that the sender cannot currently fulfill the request. See Section “Busy” for more details. */
     Busy = 0x0004,
 
-    /** Required CAT Mismatch during session establishment at the Sigma2 Validation step. */
-    RequiredCatMismatch = 0x0005,
-
     /**
      * No additional error details available.
      */
@@ -90,5 +87,13 @@ export enum SecureChannelStatusCode {
 export namespace SecureMessageType {
     export function isStandaloneAck(protocolId: number, messageType: number) {
         return protocolId === SECURE_CHANNEL_PROTOCOL_ID && messageType === SecureMessageType.StandaloneAck;
+    }
+
+    /**
+     * StatusReport messages are SecureChannel messages but may flow within an exchange of any protocol per Matter spec
+     * 4.10 (Status Report Messages).
+     */
+    export function isStatusReport(protocolId: number, messageType: number) {
+        return protocolId === SECURE_CHANNEL_PROTOCOL_ID && messageType === SecureMessageType.StatusReport;
     }
 }

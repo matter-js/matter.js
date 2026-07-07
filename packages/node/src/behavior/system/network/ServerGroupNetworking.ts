@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpInterface } from "@matter/general";
+import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpTransport } from "@matter/general";
 import { Fabric, FabricManager } from "@matter/protocol";
 import { FabricIndex, GroupId } from "@matter/types";
 
@@ -11,7 +11,7 @@ const logger = Logger.get("ServerGroupNetworking");
 
 export class ServerGroupNetworking {
     #construction: Construction<ServerGroupNetworking>;
-    #udpInterface: UdpInterface;
+    #udpInterface: UdpTransport;
     #activeGroupMemberships = new Map<FabricIndex, Map<GroupId, string>>();
     #fabricObservers = new Map<FabricIndex, ObserverGroup>();
     #observers = new ObserverGroup(this);
@@ -24,7 +24,7 @@ export class ServerGroupNetworking {
      * The server group networking is not implemented in the Node.js environment.
      * This class is a placeholder to maintain compatibility with the Matter.js architecture.
      */
-    constructor(env: Environment, udpInterface: UdpInterface) {
+    constructor(env: Environment, udpInterface: UdpTransport) {
         this.#udpInterface = udpInterface;
         this.#construction = Construction(this);
         this.#construction.start(env);
@@ -37,7 +37,7 @@ export class ServerGroupNetworking {
             if (this.#activeGroupMemberships.has(fabric.fabricIndex)) {
                 throw new InternalError("Group transport interfaces already initialized for this fabric.");
             }
-            for (const groupId of fabric.groups.groupKeyIdMap.keys()) {
+            for (const groupId of fabric.groups.endpoints.keys()) {
                 await this.#addGroupMembership(groupId, fabric);
             }
 
@@ -72,14 +72,14 @@ export class ServerGroupNetworking {
             this.#registerFabricGroupObserver(fabric);
 
             // Sync (add or remove as needed) by new group configuration
-            const { groupKeyIdMap } = fabric.groups;
-            for (const groupId of groupKeyIdMap.keys()) {
+            const { endpoints } = fabric.groups;
+            for (const groupId of endpoints.keys()) {
                 await this.#addGroupMembership(groupId, fabric);
             }
             const memberships = this.#activeGroupMemberships.get(fabricIndex) ?? new Map<GroupId, string>();
             if (memberships.size !== 0) {
                 for (const groupId of memberships.keys()) {
-                    if (!groupKeyIdMap.has(groupId)) {
+                    if (!endpoints.has(groupId)) {
                         await this.#dropGroupMembership(groupId, fabric);
                     }
                 }
@@ -95,15 +95,17 @@ export class ServerGroupNetworking {
         }
         const address = fabric.groups.multicastAddressFor(groupId);
         // Only join the multicast group if no other group in this fabric already uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
-        if (!Array.from(memberships.values()).includes(address)) {
+        // (multiple IanaAddr groups all share ff05::fa).  Reserve the address before awaiting so concurrent adds
+        // in the same synchronous batch do not double-join.
+        const needsJoin = !Array.from(memberships.values()).includes(address);
+        memberships.set(groupId, address);
+        this.#activeGroupMemberships.set(fabricIndex, memberships);
+        if (needsJoin) {
             logger.debug(
                 `Adding membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
             );
             await this.#udpInterface.addMembership(address);
         }
-        memberships.set(groupId, address);
-        this.#activeGroupMemberships.set(fabricIndex, memberships);
     }
 
     async #dropGroupMembership(groupId: GroupId, fabric: Fabric) {
@@ -140,13 +142,12 @@ export class ServerGroupNetworking {
     #registerFabricGroupObserver(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
 
+        // Multicast membership follows group existence (groups with endpoints to receive for), not key availability:
+        // a group whose key mapping was removed still receives datagrams so Groupcast testing can report NoAvailableKey
         const observers = this.#observersForFabric(fabricIndex);
-        observers.on(
-            fabric.groups.groupKeyIdMap.added,
-            async groupId => await this.#addGroupMembership(groupId, fabric),
-        );
+        observers.on(fabric.groups.endpoints.added, async groupId => await this.#addGroupMembership(groupId, fabric));
 
-        observers.on(fabric.groups.groupKeyIdMap.deleted, async groupId => this.#dropGroupMembership(groupId, fabric));
+        observers.on(fabric.groups.endpoints.deleted, async groupId => this.#dropGroupMembership(groupId, fabric));
     }
 
     close() {

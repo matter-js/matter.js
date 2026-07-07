@@ -5,8 +5,25 @@
  */
 
 import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
+import { Paa } from "#certificate/kinds/AttestationCertificates.js";
+import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
-import { Bytes, Days, Environment, Minutes, MockFetch, MockStorageService, StorageService } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    Days,
+    Diagnostic,
+    Environment,
+    LogFormat,
+    Logger,
+    LogLevel,
+    Minutes,
+    MockFetch,
+    MockStorageService,
+    StandardCrypto,
+    StorageService,
+} from "@matter/general";
+import { buildTestCrl, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
 const mockDclRootCertificateList = {
@@ -79,17 +96,6 @@ const mockGitHubFileList = [
     { name: "README.md", type: "file" },
 ];
 
-// Helper function to encode DER as PEM
-function pemEncode(der: Bytes): string {
-    const base64 = Bytes.toBase64(der);
-    const lines: string[] = ["-----BEGIN CERTIFICATE-----"];
-    for (let i = 0; i < base64.length; i += 64) {
-        lines.push(base64.slice(i, i + 64));
-    }
-    lines.push("-----END CERTIFICATE-----");
-    return lines.join("\n");
-}
-
 describe("DclCertificateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
@@ -99,6 +105,7 @@ describe("DclCertificateService", () => {
         environment = new Environment("test");
 
         new MockStorageService(environment);
+        environment.set(Crypto, new StandardCrypto());
 
         MockTime.reset();
     });
@@ -498,6 +505,50 @@ describe("DclCertificateService", () => {
 
             await service.close();
         });
+
+        const NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
+
+        async function corruptStoredCertificate(skid: string) {
+            const storage = await environment.get(StorageService).open("certificates");
+            await storage.createContext("root").set(skid, Bytes.fromHex("3003010203"));
+        }
+
+        it("force re-fetches a corrupted cached certificate and returns valid DER", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const good = await service.getCertificateAsDer(NOVID_SKID);
+            expect(() => Paa.fromAsn1(good)).to.not.throw();
+
+            await corruptStoredCertificate(NOVID_SKID);
+
+            const healed = await service.getCertificateAsDer(NOVID_SKID);
+            expect(Bytes.areEqual(healed, good)).to.be.true;
+            expect(() => Paa.fromAsn1(healed)).to.not.throw();
+
+            await service.close();
+        });
+
+        it("returns the original bytes when a corrupted cache cannot be re-fetched", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+            await service.getCertificateAsDer(NOVID_SKID);
+
+            const corrupt = Bytes.fromHex("3003010203");
+            await corruptStoredCertificate(NOVID_SKID);
+            // Empty root list wins on reverse-order match, so the re-fetch finds no replacement.
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Recovery fails, so the original (corrupt) bytes are returned unchanged for the caller's
+            // normal validation to surface the parse failure rather than masking it here.
+            const result = await service.getCertificateAsDer(NOVID_SKID);
+            expect(Bytes.areEqual(result, corrupt)).to.be.true;
+            expect(() => Paa.fromAsn1(result)).to.throw();
+
+            await service.close();
+        });
     });
 
     describe("certificate deletion", () => {
@@ -625,7 +676,7 @@ describe("DclCertificateService", () => {
             await service.update(false);
 
             const afterNormalUpdateCallCount = fetchMock.getCallLog().length;
-            // Should only fetch root certificate list (1 call), not individual certificates
+            // Should fetch root certificate list (1 call), not individual certificates
             expect(afterNormalUpdateCallCount).to.equal(initialCallCount + 1);
 
             // Now trigger update WITH force - should re-fetch everything including cert details
@@ -1035,6 +1086,7 @@ describe("DclCertificateService", () => {
 
             // Custom GitHub repo
             fetchMock.addResponse("api.github.com/repos/my-org/my-repo/contents/certs/paa", []);
+            fetchMock.addResponse("api.github.com/repos/my-org/my-repo/contents/certs/cd-signers", []);
             fetchMock.install();
 
             const service = new DclCertificateService(environment, {
@@ -1044,6 +1096,7 @@ describe("DclCertificateService", () => {
                     repo: "my-repo",
                     branch: "main",
                     certPath: "certs/paa",
+                    cdSignerCertPath: "certs/cd-signers",
                 },
             });
             await service.construction;
@@ -1226,6 +1279,760 @@ describe("DclCertificateService", () => {
             // Certs from production DCL should remain production even though GitHub also has them
             expect(service.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5")?.isProduction).to.be.true;
             expect(service.getCertificate("6AFD22771F511FECBF1641976710DCDC31A1717E")?.isProduction).to.be.true;
+
+            await service.close();
+        });
+    });
+
+    describe("addCertificate", () => {
+        it("adds a CD signer and returns true", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const added = await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+            expect(added).to.be.true;
+
+            await service.close();
+        });
+
+        it("returns false if same SKID already exists", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const first = await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+            const second = await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+            expect(first).to.be.true;
+            expect(second).to.be.false;
+
+            await service.close();
+        });
+
+        it("respects explicit isProduction flag", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner", {
+                isProduction: true,
+            });
+
+            const { subjectKeyId } = CertificationDeclaration.testSignerInfo();
+            const stored = service.getCertificate(subjectKeyId);
+            expect(stored?.isProduction).to.be.true;
+            expect(stored?.kind).to.equal("CDSigner");
+
+            await service.close();
+        });
+    });
+
+    describe("getOrFetchCdSigner", () => {
+        it("returns locally injected CD signer without DCL lookup", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
+            const callCountBefore = fetchMock.getCallLog().length;
+
+            const result = await service.getOrFetchCdSigner(subjectKeyId);
+            expect(result).to.not.be.undefined;
+            expect(Bytes.toHex(result!.publicKey)).to.equal(Bytes.toHex(publicKey));
+            expect(result!.isProduction).to.be.false;
+            // No additional DCL call made
+            expect(fetchMock.getCallLog().length).to.equal(callCountBefore);
+
+            await service.close();
+        });
+
+        it("fetches CD signer from DCL on cache miss", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+
+            const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
+            const skidWithColons = Bytes.toHex(subjectKeyId)
+                .toUpperCase()
+                .match(/.{1,2}/g)!
+                .join(":");
+            // Mock the all-certificates by-SKID endpoint to return the test CD signer PEM
+            fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=${encodeURIComponent(skidWithColons)}`, {
+                certificates: [
+                    {
+                        subject: "",
+                        subjectKeyId: skidWithColons,
+                        certs: [{ pemCert: pemEncode(CertificationDeclaration.testSignerCertificate()) }],
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const result = await service.getOrFetchCdSigner(subjectKeyId);
+            expect(result).to.not.be.undefined;
+            expect(Bytes.toHex(result!.publicKey)).to.equal(Bytes.toHex(publicKey));
+            expect(result!.isProduction).to.be.true; // DCL-fetched → production
+
+            await service.close();
+        });
+
+        it("returns undefined when DCL has no CD signer for the SKID", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // DCL returns empty certificates array for unknown SKID
+            fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=`, { certificates: [] });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const result = await service.getOrFetchCdSigner("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF");
+            expect(result).to.be.undefined;
+
+            await service.close();
+        });
+    });
+
+    describe("revocation support", () => {
+        it("parseCrlRevokedSerials extracts serial numbers from CRL", () => {
+            const crl = buildTestCrl(["01AB", "02CD", "FF00FF"]);
+            const serials = DclCertificateService.parseCrlRevokedSerials(crl);
+
+            expect(serials.size).to.equal(3);
+            expect(serials.has("01AB")).to.be.true;
+            expect(serials.has("02CD")).to.be.true;
+            expect(serials.has("FF00FF")).to.be.true;
+        });
+
+        it("parseCrlRevokedSerials returns empty set for CRL with no revoked entries", () => {
+            const crl = buildTestCrl([]);
+            const serials = DclCertificateService.parseCrlRevokedSerials(crl);
+
+            expect(serials.size).to.equal(0);
+        });
+
+        it("parseCrl returns serials and issuerDnDerHex", () => {
+            const crl = buildTestCrl(["01AB", "02CD"]);
+            const result = DclCertificateService.parseCrl(crl);
+
+            expect(result.serials.size).to.equal(2);
+            expect(result.serials.has("01AB")).to.be.true;
+            expect(result.serials.has("02CD")).to.be.true;
+            // issuerDnDerHex should be present (hex of DER-encoded issuer Name)
+            expect(result.issuerDnDerHex).to.be.a("string");
+            expect(result.issuerDnDerHex!.length).to.be.greaterThan(0);
+        });
+
+        it("parseCrl returns tbsDer and signatureValue for signature verification", () => {
+            const crl = buildTestCrl(["AABB"]);
+            const result = DclCertificateService.parseCrl(crl);
+
+            // tbsDer is the raw DER of the tbsCertList for signature verification
+            expect(result.tbsDer).to.not.be.undefined;
+            expect(Bytes.of(result.tbsDer!).length).to.be.greaterThan(0);
+
+            // signatureValue is present (test CRL has empty signature placeholder)
+            expect(result.signatureValue).to.not.be.undefined;
+        });
+
+        it("isRevoked returns false when DCL has no revocation data for issuer", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // By-issuer endpoint returns 404 for unknown AKID
+            fetchMock.addResponse(
+                "/dcl/pki/revocation-points/AABBCCDD",
+                { code: 404, message: "not found" },
+                { status: 404 },
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // On-demand lookup returns false when DCL has no data
+            const result = await service.isRevoked("AABBCCDD", "01AB");
+            expect(result).to.be.false;
+
+            await service.close();
+        });
+
+        it("isRevoked fetches CRL on demand and checks serial", async () => {
+            const testCrl = buildTestCrl(["0123456789ABCDEF"]);
+            const normalizedSkid = "ABCDEF0123456789ABCDEF0123456789ABCDEF01";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // By-issuer response
+            fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    issuerSubjectKeyID: normalizedSkid,
+                    points: [
+                        {
+                            vid: 0xfff1,
+                            pid: 0,
+                            isPAA: true,
+                            label: "test-label",
+                            crlSignerDelegator: "",
+                            crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
+                            issuerSubjectKeyID: normalizedSkid,
+                            dataURL: "https://example.com/test.crl",
+                            dataFileSize: "",
+                            dataDigest: "",
+                            dataDigestType: 0,
+                            revocationType: 1,
+                            schemaVersion: 0,
+                        },
+                    ],
+                    schemaVersion: 0,
+                },
+            });
+            fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // This serial IS revoked
+            expect(await service.isRevoked(normalizedSkid, "0123456789ABCDEF")).to.be.true;
+
+            // This serial is NOT revoked
+            expect(await service.isRevoked(normalizedSkid, "FEDCBA9876543210")).to.be.false;
+
+            await service.close();
+        });
+
+        it("isRevoked accepts Bytes for authority key identifier and serial number", async () => {
+            const testCrl = buildTestCrl(["01AB"]);
+            const normalizedSkid = "AABBCCDDEEFF00112233445566778899AABBCCDD";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    issuerSubjectKeyID: normalizedSkid,
+                    points: [
+                        {
+                            vid: 0xfff1,
+                            pid: 0,
+                            isPAA: true,
+                            label: "test-label",
+                            crlSignerDelegator: "",
+                            crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
+                            issuerSubjectKeyID: normalizedSkid,
+                            dataURL: "https://example.com/bytes-test.crl",
+                            dataFileSize: "",
+                            dataDigest: "",
+                            dataDigestType: 0,
+                            revocationType: 1,
+                            schemaVersion: 0,
+                        },
+                    ],
+                    schemaVersion: 0,
+                },
+            });
+            fetchMock.addResponse("https://example.com/bytes-test.crl", testCrl, { binary: true });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // Use Bytes for both arguments
+            const akidBytes = Bytes.fromHex("AABBCCDDEEFF00112233445566778899AABBCCDD");
+            const serialBytes = Bytes.fromHex("01AB");
+
+            expect(await service.isRevoked(akidBytes, serialBytes)).to.be.true;
+            expect(await service.isRevoked(akidBytes, Bytes.fromHex("FFFF"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("skips non-CRL revocation types", async () => {
+            const normalizedSkid = "AABBCCDDEEFF00112233445566778899AABBCCDD";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // By-issuer returns only non-CRL revocation type
+            fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    issuerSubjectKeyID: normalizedSkid,
+                    points: [
+                        {
+                            vid: 0xfff1,
+                            pid: 0,
+                            isPAA: true,
+                            label: "test-label",
+                            crlSignerDelegator: "",
+                            crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
+                            issuerSubjectKeyID: normalizedSkid,
+                            dataURL: "https://example.com/should-not-be-fetched.crl",
+                            dataFileSize: "",
+                            dataDigest: "",
+                            dataDigestType: 0,
+                            revocationType: 2, // Not CRL
+                            schemaVersion: 0,
+                        },
+                    ],
+                    schemaVersion: 0,
+                },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // Trigger on-demand lookup, should not fetch the CRL
+            expect(await service.isRevoked(normalizedSkid, "01AB")).to.be.false;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("should-not-be-fetched"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("handles CRL fetch failure gracefully", async () => {
+            const normalizedSkid = "AABBCCDDEEFF00112233445566778899AABBCCDD";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // By-issuer returns a CRL point but the CRL URL returns 404
+            fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    issuerSubjectKeyID: normalizedSkid,
+                    points: [
+                        {
+                            vid: 0xfff1,
+                            pid: 0,
+                            isPAA: true,
+                            label: "test-label",
+                            crlSignerDelegator: "",
+                            crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
+                            issuerSubjectKeyID: normalizedSkid,
+                            dataURL: "https://example.com/broken.crl",
+                            dataFileSize: "",
+                            dataDigest: "",
+                            dataDigestType: 0,
+                            revocationType: 1,
+                            schemaVersion: 0,
+                        },
+                    ],
+                    schemaVersion: 0,
+                },
+            });
+            fetchMock.addResponse("https://example.com/broken.crl", { error: "Not found" }, { status: 404 });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // Service should still work despite CRL fetch failure
+            expect(service.certificates.length).to.equal(2);
+            expect(await service.isRevoked(normalizedSkid, "01AB")).to.be.false;
+
+            await service.close();
+        });
+    });
+
+    describe("test certificate visibility", () => {
+        const TEST_PAA_NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
+        const TEST_PAA_FFF1_SKID = "6AFD22771F511FECBF1641976710DCDC31A1717E";
+
+        const EMPTY_DCL_CERT_LIST = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
+        const PROD_ROOT_LIST_URL = "on.dcl.csa-iot.org/dcl/pki/root-certificates";
+        const TEST_ROOT_LIST_URL = "on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates";
+        const GITHUB_PAA_DIR_URL =
+            "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs";
+
+        let service: DclCertificateService | undefined;
+
+        afterEach(async () => {
+            await service?.close();
+            service = undefined;
+        });
+
+        // Set up storage with two test PAAs cached from a prior `fetchTestCertificates: true` run.
+        async function seedStorageWithTestPaas() {
+            fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+            fetchMock.addResponse(TEST_ROOT_LIST_URL, mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse(GITHUB_PAA_DIR_URL, []);
+            fetchMock.install();
+
+            const seed = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await seed.construction;
+            expect(seed.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+            expect(seed.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+            await seed.close();
+
+            fetchMock.uninstall();
+            fetchMock = new MockFetch();
+        }
+
+        // Open the service after seeding. Mocks empty DCL endpoints so the construction-time
+        // update completes without populating the store. The caller-supplied `fetchTestCertificates`
+        // flag determines which endpoints are reached and therefore which mocks are required.
+        async function openServiceAfterSeed(
+            fetchTestCertificates: boolean,
+            extraOptions?: Partial<DclCertificateService.Options>,
+        ) {
+            fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+            if (fetchTestCertificates) {
+                fetchMock.addResponse(TEST_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+                fetchMock.addResponse(GITHUB_PAA_DIR_URL, []);
+            }
+            fetchMock.install();
+
+            service = new DclCertificateService(environment, { fetchTestCertificates, ...extraOptions });
+            await service.construction;
+            return service;
+        }
+
+        it("hides cached test certificates from getCertificate when fetchTestCertificates is disabled", async () => {
+            await seedStorageWithTestPaas();
+            const svc = await openServiceAfterSeed(false);
+
+            expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+            expect(svc.getCertificate(TEST_PAA_FFF1_SKID)).to.be.undefined;
+            // Raw enumeration still exposes the cached entries for management commands.
+            expect(svc.certificates.length).to.equal(2);
+        });
+
+        it("returns cached test certificates again when fetchTestCertificates is re-enabled", async () => {
+            await seedStorageWithTestPaas();
+            const svc = await openServiceAfterSeed(true);
+
+            expect(svc.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+            expect(svc.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+        });
+
+        it("rejects DER/PEM lookups for hidden test certificates", async () => {
+            await seedStorageWithTestPaas();
+            const svc = await openServiceAfterSeed(false);
+
+            await expect(svc.getCertificateAsDer(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+            await expect(svc.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+        });
+
+        it("does not affect production certificates", async () => {
+            // Seed a production cert (no test fetching needed).
+            fetchMock.addResponse(PROD_ROOT_LIST_URL, mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            service = new DclCertificateService(environment, { fetchTestCertificates: false });
+            await service.construction;
+
+            expect(service.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.true;
+            expect(service.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.true;
+        });
+
+        describe("considerTestCertificates per-call override", () => {
+            it("returns cached test certificate when override is true and fetchTestCertificates is disabled", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })).to.deep.include({
+                    isProduction: false,
+                });
+            });
+
+            it("filters cached test certificate when override is false even if fetchTestCertificates is enabled", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true);
+
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.not.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: false })).to.be.undefined;
+            });
+
+            it("getCertificateAsDer returns DER when override is true", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                await expect(svc.getCertificateAsDer(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+                const der = await svc.getCertificateAsDer(TEST_PAA_NOVID_SKID, { considerTestCertificates: true });
+                expect(der.byteLength).to.be.greaterThan(0);
+            });
+
+            it("getCertificateAsDer throws when explicit override is false even if fetchTestCertificates is on", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true);
+
+                await expect(
+                    svc.getCertificateAsDer(TEST_PAA_NOVID_SKID, { considerTestCertificates: false }),
+                ).to.be.rejectedWith(/Certificate not found/);
+            });
+
+            it("getCertificateAsPem returns PEM when override is true", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                await expect(svc.getCertificateAsPem(TEST_PAA_NOVID_SKID)).to.be.rejectedWith(/Certificate not found/);
+                const pem = await svc.getCertificateAsPem(TEST_PAA_NOVID_SKID, { considerTestCertificates: true });
+                expect(pem).to.include("-----BEGIN CERTIFICATE-----");
+            });
+
+            it("getOrFetchCertificate respects the considerTestCertificates override on local hits", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false);
+
+                expect(await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(
+                    await svc.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true }),
+                ).to.deep.include({ isProduction: false });
+            });
+
+            it("getOrFetchCertificate filters a post-fetch test cert per the considerTestCertificates override", async () => {
+                fetchMock.addResponse(PROD_ROOT_LIST_URL, EMPTY_DCL_CERT_LIST);
+                fetchMock.addResponse(TEST_ROOT_LIST_URL, mockDclRootCertificateList);
+                fetchMock.addResponse(
+                    "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                    mockDclCertificateNoVID,
+                );
+                fetchMock.install();
+
+                service = new DclCertificateService(environment, {
+                    fetchTestCertificates: false,
+                    updateInterval: null,
+                });
+                await service.construction;
+
+                expect(service.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })).to.be.undefined;
+
+                expect(await service.getOrFetchCertificate(TEST_PAA_NOVID_SKID, { isProduction: false })).to.be
+                    .undefined;
+                expect(
+                    await service.getOrFetchCertificate(TEST_PAA_NOVID_SKID, {
+                        isProduction: false,
+                        considerTestCertificates: true,
+                    }),
+                ).to.deep.include({ isProduction: false });
+            });
+        });
+
+        describe("acceptTestCertificates trust policy", () => {
+            it("defaults acceptsTestCertificates to false when neither flag is set", async () => {
+                const svc = await openServiceAfterSeed(false);
+                expect(svc.acceptsTestCertificates).to.be.false;
+            });
+
+            it("defaults acceptsTestCertificates to fetchTestCertificates when only fetch is set", async () => {
+                const svc = await openServiceAfterSeed(true);
+                expect(svc.acceptsTestCertificates).to.be.true;
+            });
+
+            it("accepts (and makes visible) test certificates without fetching them", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(false, { acceptTestCertificates: true });
+
+                expect(svc.acceptsTestCertificates).to.be.true;
+                // Trust policy alone makes cached test PAAs visible to the default lookup.
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)?.isProduction).to.be.false;
+                expect(svc.getCertificate(TEST_PAA_FFF1_SKID)?.isProduction).to.be.false;
+            });
+
+            it("fetches but does not accept test certificates when acceptTestCertificates is false", async () => {
+                await seedStorageWithTestPaas();
+                const svc = await openServiceAfterSeed(true, { acceptTestCertificates: false });
+
+                expect(svc.acceptsTestCertificates).to.be.false;
+                // Fetched and cached, yet hidden from the default trust lookup.
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID)).to.be.undefined;
+                expect(svc.getCertificate(TEST_PAA_NOVID_SKID, { considerTestCertificates: true })?.isProduction).to.be
+                    .false;
+            });
+        });
+    });
+
+    describe("GitHub rate-limit logging", () => {
+        async function captureLogs(fn: () => Promise<unknown>) {
+            const dest = Logger.destinations.default;
+            const { format, write } = dest;
+            const captured = new Array<{ level: LogLevel; message: string }>();
+            try {
+                dest.format = LogFormat.formats.plain;
+                dest.write = (message: string, { level }: Diagnostic.Message) => {
+                    captured.push({ level, message });
+                };
+                await fn();
+                return captured;
+            } finally {
+                dest.format = format;
+                dest.write = write;
+            }
+        }
+
+        // Empty DCL responses so the cached set is controlled solely by the test, with GitHub rate-limited (403).
+        function mockDclWithGithubRateLimited() {
+            const emptyRootList = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", emptyRootList);
+            fetchMock.addResponse("api.github.com", {}, { status: 403 });
+            fetchMock.install();
+        }
+
+        it("logs the GitHub fetch failure at info when no test certificate is cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("logs the GitHub fetch failure at debug when a test certificate is already cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA");
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.DEBUG);
+
+            await service.close();
+        });
+
+        it("logs the GitHub fetch failure at info when only a production certificate is cached", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: true });
+
+            const logs = await captureLogs(() => service.update(true));
+            const entry = logs.find(log => log.message.includes("Failed to fetch certificates from GitHub"));
+            expect(entry?.level).to.equal(LogLevel.INFO);
+
+            await service.close();
+        });
+
+        it("skips the remaining GitHub fetches for the run after a rate-limit response", async () => {
+            mockDclWithGithubRateLimited();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            // The PAA listing rate-limits, so the CD signer listing is skipped: a single GitHub call for the run.
+            const githubCalls = fetchMock.getCallLog().filter(call => call.url.includes("api.github.com"));
+            expect(githubCalls.length).to.equal(1);
+
+            // A later run is not blocked; it retries GitHub from scratch.
+            fetchMock.clearCallLog();
+            await service.update(true);
+            expect(fetchMock.getCallLog().filter(call => call.url.includes("api.github.com")).length).to.equal(1);
 
             await service.close();
         });

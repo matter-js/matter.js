@@ -8,7 +8,6 @@ import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/Messa
 import { Mark } from "#common/Mark.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { GroupSession } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager, ShutdownError } from "#session/SessionManager.js";
@@ -20,20 +19,22 @@ import {
     causedBy,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
-    ConnectionlessTransportSet,
     Diagnostic,
     Entropy,
     Environment,
     Environmental,
     hex,
     ImplementationError,
+    isConnectionOrientedTransport,
+    isIpNetworkChannel,
     Lifetime,
     Logger,
     MatterFlowError,
     ObserverGroup,
     Time,
-    UdpInterface,
+    Transport,
+    TransportSet,
+    UdpTransport,
     UnexpectedDataError,
 } from "@matter/general";
 import { FabricIndex, GroupId, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
@@ -59,18 +60,19 @@ const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
 export interface ExchangeManagerContext {
     lifetime: Lifetime.Owner;
     entropy: Entropy;
-    transports: ConnectionlessTransportSet;
+    transports: TransportSet;
     sessions: SessionManager;
 }
 
-export class ExchangeManager implements ConnectionlessTransport.Provider {
+export class ExchangeManager implements Transport.Provider {
     readonly #lifetime: Lifetime;
-    readonly #transports: ConnectionlessTransportSet;
+    readonly #transports: TransportSet;
     readonly #sessions: SessionManager;
     readonly #exchangeCounter: ExchangeCounter;
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
-    readonly #listeners = new Map<ConnectionlessTransport, ConnectionlessTransport.Listener>();
+    readonly #listeners = new Map<Transport, Transport.Listener>();
+    readonly #disconnectListeners = new Map<Transport, Transport.Listener>();
     readonly #workers: BasicMultiplex;
     readonly #observers = new ObserverGroup(this);
     readonly #sessionObservers = new Map<Session, ObserverGroup>();
@@ -97,7 +99,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         const instance = new ExchangeManager({
             lifetime: env,
             entropy: env.get(Entropy),
-            transports: env.get(ConnectionlessTransportSet),
+            transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
         });
         env.set(ExchangeManager, instance);
@@ -119,7 +121,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         this.#protocols.set(protocol.id, protocol);
     }
 
-    interfaceFor(type: ChannelType, address?: string): ConnectionlessTransport | undefined {
+    interfaceFor(type: ChannelType, address?: string): Transport | undefined {
         return this.#transports.interfaceFor(type, address);
     }
 
@@ -178,6 +180,13 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         }
 
         this.#exchanges.clear();
+
+        // Clean up any remaining session observers (safety net for shutdown ordering)
+        for (const observers of this.#sessionObservers.values()) {
+            observers.close();
+        }
+        this.#sessionObservers.clear();
+
         this.#observers.close();
     }
 
@@ -188,7 +197,12 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         const bytes = Bytes.of(messageBytes);
         const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
 
-        const messageId = packet.header.messageId;
+        // Privacy enhancements are only defined for group messages; a unicast message with the privacy flag is invalid
+        // and dropped, matching the CHIP SDK.
+        if (packet.header.hasPrivacyEnhancements && packet.header.sessionType !== SessionType.Group) {
+            logger.info("Dropping unicast message with privacy flag set");
+            return;
+        }
 
         let isDuplicate: boolean;
         let session: Session | undefined;
@@ -236,7 +250,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
             message = session.decode(packet, aad);
 
             try {
-                session.updateMessageCounter(messageId);
+                session.updateMessageCounter(message.packetHeader.messageId);
                 isDuplicate = false;
             } catch (e) {
                 DuplicateMessageError.accept(e);
@@ -244,15 +258,24 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
             }
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;
-            if (packet.header.sourceNodeId === undefined) {
+
+            const sourceIp = isIpNetworkChannel(channel) ? channel.networkAddress.ip : undefined;
+            const {
+                session: groupSession,
+                message: groupMessage,
+                key,
+            } = this.#sessions.groupSessionFromPacket(packet, aad, sourceIp);
+            session = groupSession;
+            message = groupMessage;
+            groupSession.receivedFrom = sourceIp;
+
+            const sourceNodeId = message.packetHeader.sourceNodeId;
+            if (sourceNodeId === undefined) {
                 throw new UnexpectedDataError("Group session message must include a source NodeId");
             }
 
-            let key: Bytes;
-            ({ session, message, key } = this.#sessions.groupSessionFromPacket(packet, aad));
-
             try {
-                session.updateMessageCounter(messageId, packet.header.sourceNodeId, key);
+                session.updateMessageCounter(message.packetHeader.messageId, sourceNodeId, key);
                 isDuplicate = false;
             } catch (e) {
                 DuplicateMessageError.accept(e);
@@ -260,13 +283,20 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                 // Report replay for Groupcast testing — observable is a no-op without listeners.
                 this.#sessions.emitGroupMessage({
                     result: Groupcast.GroupcastTestResult.MessageReplay,
-                    fabric: (session as GroupSession).fabric,
-                    groupId: packet.header.destGroupId !== undefined ? GroupId(packet.header.destGroupId) : undefined,
+                    fabric: groupSession.fabric,
+                    groupId:
+                        message.packetHeader.destGroupId !== undefined
+                            ? GroupId(message.packetHeader.destGroupId)
+                            : undefined,
+                    sourceIp,
+                    destIp: groupSession.multicastAddress,
                 });
             }
         } else {
             throw new MatterFlowError(`Unsupported session type: ${packet.header.sessionType}`);
         }
+
+        const messageId = message.packetHeader.messageId;
 
         const exchangeIndex = message.payloadHeader.isInitiatorMessage
             ? message.payloadHeader.exchangeId
@@ -417,7 +447,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
             return;
         }
 
-        logger.error(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
+        logger.warn(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
     }
 
     deleteExchange(exchangeIndex: number) {
@@ -428,8 +458,9 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         exchange.closed.on(() => this.deleteExchange(exchangeIndex));
         this.#exchanges.set(exchangeIndex, exchange);
 
-        // A node SHOULD limit itself to a maximum of 5 concurrent exchanges over a unicast session. This is
-        // to prevent a node from exhausting the message counter window of the peer node.
+        // The spec recommends a maximum of 5 concurrent exchanges over a unicast session to avoid exhausting the
+        // peer's message counter window; we allow MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION as a practical
+        // upper bound and evict the least-recently-active exchange once exceeded.
         // TODO Make sure Group sessions are handled differently
         this.#cleanupSessionExchanges(exchange.session.id);
     }
@@ -445,14 +476,15 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         if (sessionExchanges.length <= MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION) {
             return;
         }
-        // let's use the first entry in the Map as the oldest exchange and close it
         // TODO: Adjust this logic into a Exchange creation queue instead of hard closing
-        const exchangeToClose = sessionExchanges[0];
+        const exchangeToClose = sessionExchanges.reduce((leastRecentlyActive, exchange) =>
+            exchange.lastActive < leastRecentlyActive.lastActive ? exchange : leastRecentlyActive,
+        );
         logger.info(
             exchangeToClose.via,
-            `Closing oldest exchange for session because of too many concurrent outgoing exchanges. Ensure to not send that many parallel messages to one peer.`,
+            `Closing least-recently-active exchange for session because of too many concurrent exchanges. Ensure to not send that many parallel messages to one peer.`,
         );
-        logger.debug(exchangeToClose.via, "Closing oldest exchange");
+        logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
         this.#workers.add(exchangeToClose.close());
     }
 
@@ -466,6 +498,8 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
             this.#sessions.sessionParameters,
             expectedProcessingTime,
             includeMaximumSendingTime,
+            this.#sessions.localAdditionalMrpDelay,
+            this.#sessions.localFixedMrpBackoff,
         );
     }
 
@@ -474,6 +508,8 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
+            localAdditionalMrpDelay: this.#sessions.localAdditionalMrpDelay,
+            localFixedMrpBackoff: this.#sessions.localFixedMrpBackoff,
 
             peerLost: async (exchange: MessageExchange, cause: Error) => {
                 if (!(session instanceof NodeSession)) {
@@ -500,8 +536,8 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         };
     }
 
-    #addTransport(netInterface: ConnectionlessTransport) {
-        const udpInterface = netInterface instanceof UdpInterface;
+    #addTransport(netInterface: Transport) {
+        const udpInterface = netInterface instanceof UdpTransport;
         this.#listeners.set(
             netInterface,
             netInterface.onData((socket, data) => {
@@ -514,16 +550,85 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                 this.#workers.add(this.#onMessage(socket, data));
             }),
         );
+
+        // For connection-oriented transports (TCP), subscribe to disconnect events so we can
+        // evict all sessions bound to a dropped connection.
+        if (isConnectionOrientedTransport(netInterface)) {
+            this.#disconnectListeners.set(
+                netInterface,
+                netInterface.onDisconnect!(channel => {
+                    this.#workers.add(this.#onConnectionDisconnect(channel));
+                }),
+            );
+        }
     }
 
-    #deleteTransport(netInterface: ConnectionlessTransport) {
+    #deleteTransport(netInterface: Transport) {
         const listener = this.#listeners.get(netInterface);
         if (listener === undefined) {
             return;
         }
         this.#listeners.delete(netInterface);
-
         this.#workers.add(listener.close());
+
+        const disconnectListener = this.#disconnectListeners.get(netInterface);
+        if (disconnectListener !== undefined) {
+            this.#disconnectListeners.delete(netInterface);
+            this.#workers.add(disconnectListener.close());
+        }
+    }
+
+    /**
+     * Handle a TCP connection drop by evicting all sessions bound to that connection.
+     *
+     * Mimics CHIP SDK behavior: when a TCP connection drops, all sessions on that connection
+     * are evicted and all their exchanges are closed.
+     */
+    /** Find all active sessions whose underlying transport channel matches by identity. */
+    #sessionsOnChannel(channel: Channel<Bytes>): Array<Session> {
+        const result = new Array<Session>();
+
+        const check = (session: Session) => {
+            if (session.isClosed) return;
+            if (session.channel.transportChannel === channel) {
+                result.push(session);
+            }
+        };
+
+        for (const session of this.#sessions.sessions) check(session);
+        for (const session of this.#sessions.unsecuredSessions.values()) check(session);
+
+        return result;
+    }
+
+    async #onConnectionDisconnect(channel: Channel<Bytes>) {
+        logger.info("TCP connection dropped, evicting bound sessions:", channel.name);
+
+        // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
+        for (const session of this.#sessionsOnChannel(channel)) {
+            logger.debug("Evicting session due to TCP disconnect:", session.via);
+
+            for (const exchange of [...session.exchanges]) {
+                await exchange.close(new Error("TCP connection dropped"));
+            }
+
+            await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
+        }
+    }
+
+    /**
+     * When a session over TCP is removed, check if it was the last session referencing that
+     * TCP connection. If so, close the connection.
+     *
+     * Mimics CHIP SDK behavior: close TCP connection when last session is removed.
+     */
+    async #closeTcpChannelIfLastSession(tcpChannel: Channel<Bytes>) {
+        if (this.#sessionsOnChannel(tcpChannel).length > 0) {
+            return;
+        }
+
+        logger.info("Last session on TCP connection removed, closing connection:", tcpChannel.name);
+        await tcpChannel.close();
     }
 
     #addSession(session: Session) {
@@ -547,6 +652,16 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
 
         observers.close();
         this.#sessionObservers.delete(session);
+
+        // When a session over TCP is removed, check if the TCP connection should be closed
+        try {
+            const underlyingChannel = session.channel.transportChannel;
+            if (underlyingChannel.type === ChannelType.TCP) {
+                this.#workers.add(this.#closeTcpChannelIfLastSession(underlyingChannel));
+            }
+        } catch {
+            // Session channel may already be detached/closed, ignore
+        }
     }
 
     async #sendCloseSession(session: NodeSession) {
@@ -557,7 +672,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
             await messenger.sendCloseSession();
             await messenger.close();
         } catch (error) {
-            logger.error(exchange.via, "Error closing session:", error);
+            logger.warn(exchange.via, "Error closing session:", error);
         }
     }
 }

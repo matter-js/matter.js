@@ -15,7 +15,7 @@ Resource.add({
         "security materials." +
         "\n" +
         "This section describes a mechanism for Nodes to achieve and maintain time synchronization. The Time " +
-        "Synchronization cluster provides attributes for reading a Node’s current time. It also allows " +
+        "Synchronization cluster provides attributes for reading a Node's current time. It also allows " +
         "Administrators to set current time, time zone and daylight savings time (DST) settings." +
         "\n" +
         "The Time Synchronization cluster may be present on the root node endpoint, and shall NOT be present " +
@@ -41,7 +41,7 @@ Resource.add({
                 {
                     tag: "field", name: "NTPS", xref: "core§11.17.5.3",
                     details: "Allows a Node to host an NTP server for the network so that other Nodes can achieve a high accuracy " +
-                        "time synchronization within the network. See Section 11.17.15, “Acting as an NTP Server”."
+                        "time synchronization within the network. See Section 11.17.15, \"Acting as an NTP Server\"."
                 },
                 {
                     tag: "field", name: "TSC", xref: "core§11.17.5.4",
@@ -72,7 +72,7 @@ Resource.add({
         {
             tag: "attribute", name: "TimeSource", xref: "core§11.17.8.3",
 
-            details: "Indicates the node’s time source. This attribute indicates what method the node is using to sync, " +
+            details: "Indicates the node's time source. This attribute indicates what method the node is using to sync, " +
                 "whether the source uses NTS or not and whether the source is internal or external to the Matter " +
                 "network. This attribute may be used by a client to determine its level of trust in the UTCTime. It " +
                 "is of type TimeSourceEnum." +
@@ -87,7 +87,7 @@ Resource.add({
         {
             tag: "attribute", name: "TrustedTimeSource", xref: "core§11.17.8.4",
             details: "Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted " +
-                "time source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last " +
+                "time source. See Section 11.17.13, \"Time source prioritization\". This attribute reflects the last " +
                 "value set by an administrator using the SetTrustedTimeSource command. If the value is null, no " +
                 "trusted time source has yet been set."
         },
@@ -112,7 +112,7 @@ Resource.add({
             details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. " +
                 "This attribute uses a list of time offset configurations to allow Nodes to handle scheduled " +
                 "regulatory time zone changes. This attribute shall NOT be used to indicate daylight savings time " +
-                "changes (see Section 11.17.8.7, “DSTOffset Attribute” for daylight savings time)." +
+                "changes (see Section 11.17.8.7, \"DSTOffset Attribute\" for daylight savings time)." +
                 "\n" +
                 "The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a " +
                 "non-zero ValidAt time." +
@@ -284,7 +284,7 @@ Resource.add({
                 "granularity specified in the command and the expected clock drift of the node. This SHOULD normally " +
                 "be one level lower than the stated command Granularity. It shall also update its TimeSource " +
                 "attribute to Admin. It shall also update its Last Known Good UTC Time as defined in Section 3.5.6.1, " +
-                "“Last Known Good UTC Time”." +
+                "\"Last Known Good UTC Time\"." +
                 "\n" +
                 "If the node updates its UTCTime attribute, it shall accept the command with a status code of " +
                 "SUCCESS. If it opts to not update its time, it shall fail the command with a cluster specific Status " +
@@ -293,15 +293,15 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "UtcTime", xref: "core§11.17.9.1.1",
-                    details: "This field shall give the Client’s UTC Time."
+                    details: "This field shall give the Client's UTC Time."
                 },
                 {
                     tag: "field", name: "Granularity", xref: "core§11.17.9.1.2",
-                    details: "This field shall give the Client’s Granularity, as described in Granularity."
+                    details: "This field shall give the Client's Granularity, as described in Granularity."
                 },
                 {
                     tag: "field", name: "TimeSource", xref: "core§11.17.9.1.3",
-                    details: "This field shall give the Client’s TimeSource, as described in TimeSource."
+                    details: "This field shall give the Client's TimeSource, as described in TimeSource."
                 }
             ]
         },
@@ -318,7 +318,7 @@ Resource.add({
                 "\n" +
                 "  - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and " +
                 "Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set " +
-                "to the command’s accessing fabric index.",
+                "to the command's accessing fabric index.",
 
             children: [{
                 tag: "field", name: "TrustedTimeSource", xref: "core§11.17.9.2.1",

@@ -13,8 +13,8 @@ Resource.add({
     details: "An Electrical Sensor device measures the electrical power and/or energy being imported and/or " +
         "exported.",
     children: [
-        { tag: "requirement", name: "PowerTopology", xref: "device§2.6.4" },
-        { tag: "requirement", name: "ElectricalPowerMeasurement", xref: "device§2.6.4" },
-        { tag: "requirement", name: "ElectricalEnergyMeasurement", xref: "device§2.6.4" }
+        { tag: "requirement", name: "ElectricalPowerMeasurement", xref: "device§2.6.3" },
+        { tag: "requirement", name: "ElectricalEnergyMeasurement", xref: "device§2.6.3" },
+        { tag: "requirement", name: "PowerTopology", xref: "device§2.6.3" }
     ]
 });

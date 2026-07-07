@@ -12,7 +12,7 @@ import { IpService } from "#net/dns-sd/IpService.js";
 import { MdnsSocket } from "#net/dns-sd/MdnsSocket.js";
 import { MockNetwork } from "#net/mock/MockNetwork.js";
 import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
-import { ServerAddressUdp } from "#net/ServerAddress.js";
+import { ServerAddressIp } from "#net/ServerAddress.js";
 import { ServerAddressSet } from "#net/ServerAddressSet.js";
 import { Hours } from "#time/TimeUnit.js";
 import { hex } from "#util/String.js";
@@ -118,7 +118,13 @@ export class MockHost {
     /**
      * Send MDNS message now.
      */
-    async broadcast(nameOrIndex: number | string = 1, ttl = Hours(1), ips?: string[]) {
+    async broadcast(
+        nameOrIndex: number | string = 1,
+        ttl = Hours(1),
+        ips?: string[],
+        txt = ["foo=bar", "flag"],
+        txtTtl = ttl,
+    ) {
         const qname = qnameOf(nameOrIndex);
 
         const answers: DnsRecord[] = [
@@ -138,9 +144,9 @@ export class MockHost {
             {
                 name: qname,
                 recordType: DnsRecordType.TXT,
-                ttl,
+                ttl: txtTtl,
                 recordClass: DnsRecordClass.IN,
-                value: ["foo=bar", "flag"],
+                value: txt,
             },
         ];
 
@@ -181,12 +187,12 @@ export class MockHost {
     }
 }
 
-export function expectAddresses(addresses?: Iterable<ServerAddressUdp>) {
+export function expectAddresses(addresses?: Iterable<ServerAddressIp>) {
     expect(addresses).not.undefined;
     addresses = ServerAddressSet(addresses);
     expect([...addresses]).deep.equals([
-        { type: "udp", ip: "abcd::91", port: 1234 },
-        { type: "udp", ip: "10.10.10.145", port: 1234 },
+        { ip: "abcd::91", port: 1234 },
+        { ip: "10.10.10.145", port: 1234 },
     ]);
 }
 

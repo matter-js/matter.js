@@ -103,7 +103,7 @@ export class BleScanner implements Scanner {
         }
         this.#recordWaiters.set(queryId, { resolver, timer, resolveOnUpdatedRecords, cancelResolver });
         logger.debug(
-            `Registered waiter for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)} ${
+            `Registered waiter for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)}${
                 resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"
             }`,
         );
@@ -359,7 +359,7 @@ export class BleScanner implements Scanner {
                 this.#finishWaiter(queryKey, true);
             },
             cause => {
-                logger.error("Unexpected error canceling commissioning", cause);
+                logger.warn("Unexpected error canceling commissioning", cause);
             },
         );
 

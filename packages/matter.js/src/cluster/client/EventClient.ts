@@ -5,8 +5,8 @@
  */
 
 import { Duration, ImplementationError } from "@matter/general";
-import { DecodedEventData } from "@matter/protocol";
 import { ClusterId, ClusterType, EndpointNumber, EventId, EventNumber } from "@matter/types";
+import { DecodedEventData } from "./DecodedDataReport.js";
 import { InteractionClient } from "./InteractionClient.js";
 
 /**

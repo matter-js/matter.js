@@ -16,7 +16,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  *
  * The Power Topology Cluster provides a mechanism for expressing how power is flowing between endpoints.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.8
+ * @see {@link MatterSpecification.v16.Core} § 11.8
  */
 export declare namespace PowerTopology {
     /**
@@ -30,7 +30,7 @@ export declare namespace PowerTopology {
     export const name: "PowerTopology";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -49,7 +49,7 @@ export declare namespace PowerTopology {
          * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
          * hosting this server.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.8.5.1
          */
         availableEndpoints: EndpointNumber[];
     }
@@ -62,7 +62,7 @@ export declare namespace PowerTopology {
          * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
          * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.8.5.2
          */
         activeEndpoints: EndpointNumber[];
     }
@@ -78,7 +78,7 @@ export declare namespace PowerTopology {
          * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
          * hosting this server.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.8.5.1
          */
         availableEndpoints: EndpointNumber[];
 
@@ -86,7 +86,7 @@ export declare namespace PowerTopology {
          * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
          * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.8.5.2
          */
         activeEndpoints: EndpointNumber[];
     }
@@ -100,7 +100,7 @@ export declare namespace PowerTopology {
     /**
      * These are optional features supported by PowerTopologyCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.8.4
+     * @see {@link MatterSpecification.v16.Core} § 11.8.4
      */
     export enum Feature {
         /**

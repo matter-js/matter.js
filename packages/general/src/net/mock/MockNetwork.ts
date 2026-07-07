@@ -7,9 +7,11 @@
 import { ChannelType } from "#net/Channel.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NetworkError, NetworkInterface, NetworkInterfaceDetails } from "../Network.js";
-import { UdpChannelOptions } from "../udp/UdpChannel.js";
+import type { TcpConnection, TcpListener, TcpListenerOptions } from "../tcp/TcpConnection.js";
+import { UdpSocketOptions } from "../udp/UdpSocket.js";
 import { MockRouter } from "./MockRouter.js";
-import { MockUdpChannel } from "./MockUdpChannel.js";
+import { MockTcpListener } from "./MockTcpListener.js";
+import { MockUdpSocket } from "./MockUdpSocket.js";
 import type { NetworkSimulator } from "./NetworkSimulator.js";
 
 export class MockNetwork extends Network {
@@ -19,6 +21,7 @@ export class MockNetwork extends Network {
     #defaultRoute?: string;
     readonly #ips: Set<string>;
     readonly #multicastIps = new Set<string>();
+    readonly #tcpServers = new Map<number, MockTcpListener>();
 
     constructor(simulator: NetworkSimulator, mac: string, ips: string[]) {
         super();
@@ -100,12 +103,40 @@ export class MockNetwork extends Network {
         return this.#intf;
     }
 
-    override createUdpChannel(options: UdpChannelOptions) {
-        return Promise.resolve(new MockUdpChannel(this, options));
+    override createUdpSocket(options: UdpSocketOptions) {
+        return Promise.resolve(new MockUdpSocket(this, options));
+    }
+
+    override createTcpListener(options: TcpListenerOptions): Promise<TcpListener> {
+        return Promise.resolve(new MockTcpListener(this, options));
+    }
+
+    override async connectTcp(host: string, port: number): Promise<TcpConnection> {
+        // Find the MockNetwork that owns the target address
+        const targetNetwork = this.#simulator.findNetwork(host);
+        if (!targetNetwork) {
+            throw new NetworkError(`No mock network hosts address ${host}`);
+        }
+
+        const server = targetNetwork.#tcpServers.get(port);
+        if (!server) {
+            throw new NetworkError(`No TCP server listening on ${host}:${port}`);
+        }
+
+        const clientPort = 1024 + Math.floor(Math.random() * 64511);
+        return server.accept(this.defaultRoute, clientPort);
+    }
+
+    registerTcpListener(server: MockTcpListener) {
+        this.#tcpServers.set(server.port, server);
+    }
+
+    unregisterTcpListener(port: number) {
+        this.#tcpServers.delete(port);
     }
 
     supports(type: ChannelType, _address: string) {
-        return type === ChannelType.UDP;
+        return type === ChannelType.UDP || type === ChannelType.TCP;
     }
 
     override async close() {

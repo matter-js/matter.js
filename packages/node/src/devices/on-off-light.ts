@@ -8,14 +8,14 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -25,7 +25,7 @@ import { Identity } from "@matter/general";
  * device such as an On/Off Light Switch or a Dimmer Switch. In addition, an on/off light is also capable of being
  * switched by means of a bound occupancy sensor.
  *
- * @see {@link MatterSpecification.v142.Device} § 4.1
+ * @see {@link MatterSpecification.v16.Device} § 4.1
  */
 export interface OnOffLightDevice extends Identity<typeof OnOffLightDeviceDefinition> {}
 
@@ -45,19 +45,19 @@ export namespace OnOffLightRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
+     * The OnOff cluster is required by the Matter specification.
+     *
+     * This version of {@link OnOffServer} is specialized per the specification.
+     */
+    export const OnOffServer = BaseOnOffServer.with("Lighting");
+
+    /**
      * The ScenesManagement cluster is required by the Matter specification.
      *
      * This version of {@link ScenesManagementServer} is specialized per the specification.
      */
     export const ScenesManagementServer = BaseScenesManagementServer
         .alter({ commands: { copyScene: { optional: false } } });
-
-    /**
-     * The OnOff cluster is required by the Matter specification.
-     *
-     * This version of {@link OnOffServer} is specialized per the specification.
-     */
-    export const OnOffServer = BaseOnOffServer.with("Lighting");
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
@@ -77,9 +77,9 @@ export namespace OnOffLightRequirements {
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -88,8 +88,8 @@ export namespace OnOffLightRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
-            ScenesManagement: ScenesManagementServer,
-            OnOff: OnOffServer
+            OnOff: OnOffServer,
+            ScenesManagement: ScenesManagementServer
         },
 
         optional: { LevelControl: LevelControlServer }
@@ -98,7 +98,7 @@ export namespace OnOffLightRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { OccupancySensing: OccupancySensingBehavior }, mandatory: {} };
+    export const client = { optional: { OccupancySensing: OccupancySensingClient }, mandatory: {} };
 }
 
 export const OnOffLightDeviceDefinition = MutableEndpoint({
@@ -110,8 +110,8 @@ export const OnOffLightDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(
         OnOffLightRequirements.server.mandatory.Identify,
         OnOffLightRequirements.server.mandatory.Groups,
-        OnOffLightRequirements.server.mandatory.ScenesManagement,
-        OnOffLightRequirements.server.mandatory.OnOff
+        OnOffLightRequirements.server.mandatory.OnOff,
+        OnOffLightRequirements.server.mandatory.ScenesManagement
     )
 });
 

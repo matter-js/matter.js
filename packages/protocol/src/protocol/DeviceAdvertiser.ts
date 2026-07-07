@@ -7,13 +7,39 @@
 import { Advertisement } from "#advertisement/Advertisement.js";
 import { Advertiser } from "#advertisement/Advertiser.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
+import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { Environment, Environmental, Logger, MatterAggregateError, ObserverGroup } from "@matter/general";
+import { Duration, Environment, Environmental, Logger, MatterAggregateError, ObserverGroup } from "@matter/general";
+import type { IcdManagement } from "@matter/types/clusters/icd-management";
 
 const logger = Logger.get("DeviceAdvertiser");
+
+/**
+ * ICD operating mode and session intervals supplied to operational DNS-SD advertisement.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1.5–9.15.1.6
+ */
+export interface IcdAdvertisement {
+    icd: IcdManagement.OperatingMode;
+    /**
+     * Omitted for LIT mode — a LIT ICD SHOULD NOT advertise SII.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6.2
+     */
+    idleInterval?: Duration;
+    activeInterval: Duration;
+    activeThreshold: Duration;
+}
+
+/**
+ * Returns the {@link IcdAdvertisement} to use for a fabric, or `undefined` when the fabric is not ICD-managed.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
+ */
+export type IcdAdvertisementProvider = (fabric: Fabric) => IcdAdvertisement | undefined;
 
 /**
  * Interfaces the {@link DeviceAdvertiser} with other components.
@@ -21,6 +47,8 @@ const logger = Logger.get("DeviceAdvertiser");
 export interface DeviceAdvertiserContext {
     fabrics: FabricManager;
     sessions: SessionManager;
+    /** Transport support bitmap for operational DNS-SD advertisement (T key). */
+    supportedTransports?: SupportedTransportsBitmap;
 }
 
 /**
@@ -33,6 +61,7 @@ export class DeviceAdvertiser {
     #isOperational = false;
     #isClosing = false;
     #commissioningService?: ServiceDescription;
+    #icdAdvertisementProvider?: IcdAdvertisementProvider;
 
     constructor(context: DeviceAdvertiserContext) {
         this.#context = context;
@@ -148,6 +177,48 @@ export class DeviceAdvertiser {
                 this.#advertiseFabric(session.fabric, "reconnect");
             }
         });
+    }
+
+    /** Set the transport support bitmap for operational advertisements. */
+    set supportedTransports(value: SupportedTransportsBitmap | undefined) {
+        this.#context.supportedTransports = value;
+    }
+
+    /**
+     * Register a per-fabric ICD advertisement provider.
+     *
+     * The provider is called each time an operational advertisement is built for a fabric.  Pass `undefined` to remove
+     * a previously registered provider; non-ICD nodes need not register one.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
+     */
+    setIcdAdvertisementProvider(provider: IcdAdvertisementProvider | undefined) {
+        this.#icdAdvertisementProvider = provider;
+    }
+
+    /**
+     * Close the current operational advertisement for a fabric and rebuild it.
+     *
+     * Call this whenever the ICD operating mode or intervals change so that DNS-SD reflects the new state.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.15.1.6
+     */
+    async refreshOperationalAdvertisement(fabric: Fabric) {
+        if (!this.#isOperational || this.#isClosing) {
+            return;
+        }
+
+        const ads = this.#advertisements(
+            ad => ad.isOperational() && ad.description.fabric.fabricIndex === fabric.fabricIndex,
+        );
+
+        for (const ad of ads) {
+            await ad.close();
+        }
+
+        // "startup" runs the full announcement burst so a record-content change is observed reliably; a single
+        // "retransmit" packet could be lost.
+        this.#advertiseFabric(fabric, "startup");
     }
 
     toString() {
@@ -287,6 +358,8 @@ export class DeviceAdvertiser {
             return;
         }
 
+        const icd = this.#icdAdvertisementProvider?.(fabric);
+
         for (const advertiser of this.#advertisers) {
             if (event === "startup") {
                 // For startup events where we have active subscriptions somewhere on the fabric, we just convert
@@ -296,7 +369,10 @@ export class DeviceAdvertiser {
                 }
             }
 
-            advertiser.advertise(ServiceDescription.Operational({ fabric }), event);
+            advertiser.advertise(
+                ServiceDescription.Operational({ fabric, tcp: this.#context.supportedTransports, ...icd }),
+                event,
+            );
         }
     }
 

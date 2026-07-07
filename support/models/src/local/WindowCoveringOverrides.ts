@@ -221,10 +221,12 @@ LocalMatter.children.push(
             },
 
             // Adjust the constraints for the GoToLiftValue command parameter to allow automatic validation
+            // Spec 1.5 removed these commands (were Zigbee only before basically)
             {
                 tag: "command",
                 name: "GoToLiftValue",
                 id: 4,
+                until: "1.4.2",
                 children: [
                     {
                         tag: "field",
@@ -238,10 +240,12 @@ LocalMatter.children.push(
             },
 
             // Adjust the constraints for the GoToTiltValue command parameter to allow automatic validation
+            // Spec 1.5 removed these commands (were Zigbee only before basically)
             {
                 tag: "command",
                 name: "GoToTiltValue",
                 id: 7,
+                until: "1.4.2",
                 children: [
                     {
                         tag: "field",

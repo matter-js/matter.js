@@ -16,7 +16,18 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "FeatureMap", xref: "cluster§7.2.4",
-            children: [{ tag: "field", name: "DEPONOFF", details: "Dependency with the OnOff cluster" }]
+
+            children: [
+                { tag: "field", name: "DEPONOFF", details: "Dependency with the OnOff cluster" },
+
+                {
+                    tag: "field", name: "DIRECTMODECH", xref: "cluster§7.2.4.1",
+                    details: "This feature indicates whether the cluster implementation supports changing the run modes while the " +
+                        "RVC Run Mode cluster's CurrentMode attribute is set to a mode without the Idle mode tag. If the " +
+                        "implementation does not support such a change, the ChangeToModeResponse command shall have the " +
+                        "StatusCode field set to the InvalidInMode value."
+                }
+            ]
         },
 
         {
@@ -29,7 +40,7 @@ Resource.add({
                 "Cleaning mode tag in the ModeTags field." +
                 "\n" +
                 "The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a " +
-                "mode’s ModeTags."
+                "mode's ModeTags."
         },
 
         { tag: "attribute", name: "CurrentMode", xref: "cluster§7.2.6" },
@@ -96,9 +107,9 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> this mode is intended to be used so the current space can be mapped by the device if the robot has " +
-                        "not previously done that, or if the layout has substantially changed, for an optimal subsequent " +
-                        "cleaning experience."
+                        "> NOTE: this mode is intended to be used so the current space can be mapped by the device if the " +
+                        "robot has not previously done that, or if the layout has substantially changed, for an optimal " +
+                        "subsequent cleaning experience."
                 }
             ]
         }

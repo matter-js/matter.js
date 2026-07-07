@@ -6,7 +6,6 @@
 
 import { camelize, InternalError } from "#general";
 import { AttributeElement, DatatypeElement, FieldElement, Metatype, ValueElement } from "#model";
-import { ByteSize, Integer, Str, StrWithSuperscripts } from "./html-translators.js";
 import { repairTypeIdentifier } from "./repairs/type-repairs.js";
 import { GlobalReference } from "./spec-types.js";
 import {
@@ -17,6 +16,7 @@ import {
     translateValueChildren,
 } from "./translate-datatype.js";
 import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+import { ByteSize, Integer, Str, StrWithSuperscripts } from "./translators.js";
 
 let statusType: DatatypeElement | undefined;
 
@@ -92,6 +92,7 @@ function* translateDatatypes(ref: GlobalReference): Generator<DatatypeElement> {
                     break;
 
                 case "LocationDescriptorStruct":
+                case "LocationDescriptorStruct Type":
                     detail.name = "locationdesc";
             }
         }
@@ -202,16 +203,12 @@ function installstatusCodes(ref: GlobalReference) {
         throw new InternalError("Status codes encountered but status type was not");
     }
 
-    // Remove obselete names from the "value" column
+    // Remove obsolete names from the "value" column — strip everything after the first line/sentence
     const table = ref.tables?.[0];
     if (table) {
         for (const record of table.rows) {
-            const name = record.value;
-            if (name) {
-                const paragraph = name.querySelector("p");
-                while (paragraph?.nextSibling) {
-                    paragraph.nextSibling.remove();
-                }
+            if (record.value) {
+                record.value = record.value.replace(/\n.*$/, "").trim();
             }
         }
     }

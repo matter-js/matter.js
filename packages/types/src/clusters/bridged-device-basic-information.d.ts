@@ -41,7 +41,7 @@ import type { MaybePromise } from "@matter/general";
  * the Bridge SHOULD NOT include the attribute in the cluster for this Bridged Device. See below for Conformance
  * details.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.13
+ * @see {@link MatterSpecification.v16.Core} § 9.13
  */
 export declare namespace BridgedDeviceBasicInformation {
     /**
@@ -55,7 +55,7 @@ export declare namespace BridgedDeviceBasicInformation {
     export const name: "BridgedDeviceBasicInformation";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 6;
 
@@ -80,9 +80,79 @@ export declare namespace BridgedDeviceBasicInformation {
          * due to the technique employed (e.g. detecting that a number of expected messages from the bridged device did
          * not arrive). Also see event ReachableChanged below.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.2
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5.2
          */
         reachable: boolean;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        vendorName?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        vendorId?: VendorId;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productName?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productId?: number;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        nodeLabel?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        hardwareVersion?: number;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        hardwareVersionString?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        softwareVersion?: number;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        softwareVersionString?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        manufacturingDate?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        partNumber?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productUrl?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productLabel?: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        serialNumber?: string;
 
         /**
          * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
@@ -92,101 +162,30 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         * > NOTE: The UniqueID attribute was optional in cluster revisions prior to revision 4.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5.3
          */
-        uniqueId: string;
+        uniqueId?: string;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
          */
-        vendorName?: string;
+        productAppearance?: BasicInformation.ProductAppearance;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        vendorId?: VendorId;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productName?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productId?: number;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        nodeLabel?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        hardwareVersion?: number;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        hardwareVersionString?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        softwareVersion?: number;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        softwareVersionString?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        manufacturingDate?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        partNumber?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productUrl?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productLabel?: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        serialNumber?: string;
-
-        /**
-         * This attribute shall contain the current version number for the configuration of the bridged device.
+         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
+         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
-         * bridged device, it shall increase this attribute as described in Section 9.2.9, “Node Configuration Changes”.
+         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
+         * described in Section 9.2.11, "Node Configuration Changes".
          *
          * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5.4
          */
         configurationVersion?: number;
-
-        /**
-         * This attribute shall provide information about the appearance of the product, which could be useful to a user
-         * trying to locate or identify the node.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
-         */
-        productAppearance?: BasicInformation.ProductAppearance;
     }
 
     /**
@@ -206,9 +205,79 @@ export declare namespace BridgedDeviceBasicInformation {
          * due to the technique employed (e.g. detecting that a number of expected messages from the bridged device did
          * not arrive). Also see event ReachableChanged below.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.2
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5.2
          */
         reachable: boolean;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        vendorName: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        vendorId: VendorId;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productName: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productId: number;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        nodeLabel: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        hardwareVersion: number;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        hardwareVersionString: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        softwareVersion: number;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        softwareVersionString: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        manufacturingDate: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        partNumber: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productUrl: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        productLabel: string;
+
+        /**
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
+         */
+        serialNumber: string;
 
         /**
          * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
@@ -218,101 +287,30 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         * > NOTE: The UniqueID attribute was optional in cluster revisions prior to revision 4.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5.3
          */
         uniqueId: string;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5
          */
-        vendorName: string;
+        productAppearance: BasicInformation.ProductAppearance;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        vendorId: VendorId;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productName: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productId: number;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        nodeLabel: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        hardwareVersion: number;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        hardwareVersionString: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        softwareVersion: number;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        softwareVersionString: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        manufacturingDate: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        partNumber: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productUrl: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productLabel: string;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        serialNumber: string;
-
-        /**
-         * This attribute shall contain the current version number for the configuration of the bridged device.
+         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
+         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
-         * bridged device, it shall increase this attribute as described in Section 9.2.9, “Node Configuration Changes”.
+         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
+         * described in Section 9.2.11, "Node Configuration Changes".
          *
          * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         * @see {@link MatterSpecification.v16.Core} § 9.13.5.4
          */
         configurationVersion: number;
-
-        /**
-         * This attribute shall provide information about the appearance of the product, which could be useful to a user
-         * trying to locate or identify the node.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
-         */
-        productAppearance: BasicInformation.ProductAppearance;
     }
 
     /**
@@ -346,7 +344,7 @@ export declare namespace BridgedDeviceBasicInformation {
          *   - The server shall only keep the bridged device active once for a request. (The server shall only consider
          *     the operation performed if an associated ActiveChanged event was generated.)
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
+         * @see {@link MatterSpecification.v16.Core} § 9.13.6.1
          */
         keepActive(request: KeepActiveRequest): MaybePromise;
     }
@@ -366,17 +364,17 @@ export declare namespace BridgedDeviceBasicInformation {
          * connectivity technology, so they may take appropriate action. After (re)start of a bridge this event may be
          * generated.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.2
          */
         reachableChanged: ReachableChangedEvent;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7
          */
         startUp?: StartUpEvent;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7
          */
         shutDown?: void;
 
@@ -386,11 +384,11 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the context
-         *   of Bridged Device Basic Information cluster, has no usable fields, but the original Basic Information
-         *   cluster’s field definition is kept for completeness.
+         * > NOTE: The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the
+         *   context of Bridged Device Basic Information cluster, has no usable fields, but the original Basic
+         *   Information cluster's field definition is kept for completeness.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.1
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.1
          */
         leave?: void;
     }
@@ -403,7 +401,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * This event (when supported) shall be generated the next time a bridged device becomes active after a
          * KeepActive command is received. See KeepActive for more details.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.3
          */
         activeChanged: ActiveChangedEvent;
     }
@@ -421,17 +419,17 @@ export declare namespace BridgedDeviceBasicInformation {
          * connectivity technology, so they may take appropriate action. After (re)start of a bridge this event may be
          * generated.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.2
          */
         reachableChanged: ReachableChangedEvent;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7
          */
         startUp: StartUpEvent;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7
          */
         shutDown: void;
 
@@ -441,11 +439,11 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the context
-         *   of Bridged Device Basic Information cluster, has no usable fields, but the original Basic Information
-         *   cluster’s field definition is kept for completeness.
+         * > NOTE: The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the
+         *   context of Bridged Device Basic Information cluster, has no usable fields, but the original Basic
+         *   Information cluster's field definition is kept for completeness.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.1
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.1
          */
         leave: void;
 
@@ -453,7 +451,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * This event (when supported) shall be generated the next time a bridged device becomes active after a
          * KeepActive command is received. See KeepActive for more details.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.3
          */
         activeChanged: ActiveChangedEvent;
     }
@@ -467,7 +465,7 @@ export declare namespace BridgedDeviceBasicInformation {
     /**
      * These are optional features supported by BridgedDeviceBasicInformationCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.4
+     * @see {@link MatterSpecification.v16.Core} § 9.13.4
      */
     export enum Feature {
         /**
@@ -505,9 +503,9 @@ export declare namespace BridgedDeviceBasicInformation {
      *   - The server shall only keep the bridged device active once for a request. (The server shall only consider the
      *     operation performed if an associated ActiveChanged event was generated.)
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
+     * @see {@link MatterSpecification.v16.Core} § 9.13.6.1
      */
-    export declare class KeepActiveRequest {
+    export class KeepActiveRequest {
         constructor(values?: Partial<KeepActiveRequest>);
 
         /**
@@ -521,7 +519,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * The client may slightly overestimate the duration it wants the bridged device to be active for, in order to
          * account for network delays.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.1
+         * @see {@link MatterSpecification.v16.Core} § 9.13.6.1.1
          */
         stayActiveDuration: number;
 
@@ -531,14 +529,14 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The server will wait for
-         *   up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the server will not
-         *   perform any actions.
+         * > NOTE: TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The server will
+         *   wait for up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the server
+         *   will not perform any actions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.2
+         * @see {@link MatterSpecification.v16.Core} § 9.13.6.1.2
          */
         timeoutMs: number;
-    };
+    }
 
     /**
      * This event shall be generated when there is a change in the Reachable attribute. Its purpose is to provide an
@@ -546,40 +544,40 @@ export declare namespace BridgedDeviceBasicInformation {
      * connectivity technology, so they may take appropriate action. After (re)start of a bridge this event may be
      * generated.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
+     * @see {@link MatterSpecification.v16.Core} § 9.13.7.2
      */
-    export declare class ReachableChangedEvent {
+    export class ReachableChangedEvent {
         constructor(values?: Partial<ReachableChangedEvent>);
 
         /**
          * This field shall indicate the value of the Reachable attribute after it was changed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.1.6.4.1
          */
         reachableNewValue: boolean;
-    };
+    }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.13.7
+     * @see {@link MatterSpecification.v16.Core} § 9.13.7
      */
-    export declare class StartUpEvent {
+    export class StartUpEvent {
         constructor(values?: Partial<StartUpEvent>);
 
         /**
          * This field shall be set to the same value as the one available in the SoftwareVersion attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.6.1.1
+         * @see {@link MatterSpecification.v16.Core} § 11.1.6.1.1
          */
         softwareVersion: number;
-    };
+    }
 
     /**
      * This event (when supported) shall be generated the next time a bridged device becomes active after a KeepActive
      * command is received. See KeepActive for more details.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
+     * @see {@link MatterSpecification.v16.Core} § 9.13.7.3
      */
-    export declare class ActiveChangedEvent {
+    export class ActiveChangedEvent {
         constructor(values?: Partial<ActiveChangedEvent>);
 
         /**
@@ -592,10 +590,10 @@ export declare namespace BridgedDeviceBasicInformation {
          * If the bridged device is not a Matter Intermittently Connected Device, the implementation of this is
          * best-effort since it may interact with non-native protocol.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.7.3.1
+         * @see {@link MatterSpecification.v16.Core} § 9.13.7.3.1
          */
         promisedActiveDuration: number;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

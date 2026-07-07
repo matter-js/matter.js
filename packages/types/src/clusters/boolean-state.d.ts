@@ -15,7 +15,7 @@ import type { ClusterModel } from "@matter/model";
  *
  * This cluster provides an interface to a boolean state.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.7
+ * @see {@link MatterSpecification.v16.Cluster} § 1.7
  */
 export declare namespace BooleanState {
     /**
@@ -29,7 +29,7 @@ export declare namespace BooleanState {
     export const name: "BooleanState";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 3;
 
@@ -50,7 +50,7 @@ export declare namespace BooleanState {
          * The semantics of this boolean state are defined by the device type using this cluster. For example, in a
          * Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.7.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.5.1
          */
         stateValue: boolean;
     }
@@ -68,7 +68,7 @@ export declare namespace BooleanState {
          * The semantics of this boolean state are defined by the device type using this cluster. For example, in a
          * Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.7.4.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.5.1
          */
         stateValue: boolean;
     }
@@ -80,7 +80,7 @@ export declare namespace BooleanState {
         /**
          * If this event is supported, it shall be generated when the StateValue attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.6.1
          */
         stateChange?: StateChangeEvent;
     }
@@ -92,7 +92,7 @@ export declare namespace BooleanState {
         /**
          * If this event is supported, it shall be generated when the StateValue attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.6.1
          */
         stateChange: StateChangeEvent;
     }
@@ -107,7 +107,7 @@ export declare namespace BooleanState {
         /**
          * If this event is supported, it shall be generated when the StateValue attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.6.1
          */
         stateChange: StateChangeEvent;
     }
@@ -120,12 +120,17 @@ export declare namespace BooleanState {
 
     /**
      * These are optional features supported by BooleanStateCluster.
+     *
+     * @see {@link MatterSpecification.v16.Cluster} § 1.7.4
      */
     export enum Feature {
         /**
          * ChangeEvent (CHGEVENT)
          *
-         * Supports reporting change events via the StateChange event.
+         * This feature shall indicate that the StateChange event is supported and will be generated every time the
+         * state changes.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.4.1
          */
         ChangeEvent = "ChangeEvent"
     }
@@ -133,18 +138,18 @@ export declare namespace BooleanState {
     /**
      * If this event is supported, it shall be generated when the StateValue attribute changes.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 1.7.6.1
      */
-    export declare class StateChangeEvent {
+    export class StateChangeEvent {
         constructor(values?: Partial<StateChangeEvent>);
 
         /**
          * This field shall indicate the new value of the StateValue attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 1.7.6.1.1
          */
         stateValue: boolean;
-    };
+    }
 
     /**
      * Attribute metadata objects keyed by name.

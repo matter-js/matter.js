@@ -15,8 +15,8 @@ export const OtaProviderDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 20, revision: 1 } ], element: "attribute" })
     ),
-    Requirement({ name: "OtaSoftwareUpdateRequestor", id: 0x2a, conformance: "O", element: "clientCluster" }),
-    Requirement({ name: "OtaSoftwareUpdateProvider", id: 0x29, conformance: "M", element: "serverCluster" })
+    Requirement({ name: "OtaSoftwareUpdateProvider", id: 0x29, conformance: "M", element: "serverCluster" }),
+    Requirement({ name: "OtaSoftwareUpdateRequestor", id: 0x2a, conformance: "O", element: "clientCluster" })
 );
 
 MatterDefinition.children.push(OtaProviderDt);

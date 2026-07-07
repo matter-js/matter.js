@@ -5,6 +5,7 @@
  */
 
 import type { Message } from "#codec/MessageCodec.js";
+import { DiscoveryData } from "#common/Scanner.js";
 import type { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
@@ -19,15 +20,20 @@ import {
     Bytes,
     causedBy,
     Channel,
+    ChannelType,
     Diagnostic,
     Duration,
     Heap,
+    IpChannelType,
     Lifetime,
     Logger,
     Millis,
+    NetworkError,
     Observable,
     ServerAddress,
+    ServerAddressIp,
     ServerAddressSet,
+    ServerAddressTcp,
     ServerAddressUdp,
     Time,
     Timestamp,
@@ -35,7 +41,7 @@ import {
 import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
-import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
+import { TcpUnsupportedError, TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 const logger = Logger.get("PeerConnection");
@@ -92,12 +98,20 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
+    const requiredTransport = options?.requiredTransport;
+    const preferredTransport = options?.preferredTransport;
+
+    // Lazy so descriptor.T arriving mid-connect (operational mDNS) is honored for later expansions.
+    const resolveTransports = () => peer.resolveTransports(requiredTransport, preferredTransport);
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
 
     // Reserve network communication slot
     let network = context.networks.select(peer, options?.network);
+    const mediumProfile = context.networks.forPeer(peer);
+    const peerAdditionalMrpDelay =
+        options?.additionalMrpDelay ?? mediumProfile.connect?.additionalMrpDelay ?? mediumProfile.additionalMrpDelay;
     if (network.connect) {
         network = network.connect;
     }
@@ -113,7 +127,7 @@ export async function PeerConnection(
     const service = peer.service;
 
     // Active connection attempts, keyed by address
-    const attempts = new Map<ServerAddressUdp, Attempt>();
+    const attempts = new Map<ServerAddressIp, Attempt>();
 
     // The result
     let outputSession: NodeSession | undefined;
@@ -125,16 +139,25 @@ export async function PeerConnection(
     const workers = new BasicMultiplex();
 
     // Address set used for interning
-    const addresses = ServerAddressSet<ServerAddressUdp>();
+    const addresses = ServerAddressSet<ServerAddressIp>();
 
-    // Addresses we will attempt to connect to in priority order
-    const pendingAddresses = new Heap<ServerAddressUdp>(
-        ServerAddressSet.compareDesirability,
-        addresses.add.bind(addresses),
-    );
+    // Addresses to try, ordered by desirability and (for same-IP variants) by transport-list index.
+    const pendingAddresses = new Heap<ServerAddressIp>((a, b) => {
+        const primary = ServerAddressSet.compareDesirability(a, b);
+        const transports = resolveTransports();
+        if (primary !== 0 || transports === undefined) {
+            return primary;
+        }
+        return transportIndex(a, transports) - transportIndex(b, transports);
+    }, addresses.add.bind(addresses));
+
+    function transportIndex(address: ServerAddressIp, transports: IpChannelType[]): number {
+        const type = (address as { type?: IpChannelType }).type;
+        return type === undefined ? -1 : transports.indexOf(type);
+    }
 
     // When the service is undiscovered, we attempt to connect to the last-known good address and store it here
-    let attemptingFallback: ServerAddressUdp | undefined;
+    let attemptingFallback: ServerAddressIp | undefined;
 
     // Time of last attempt initiation, used to delay next initiation
     let lastAttemptAt: undefined | Timestamp;
@@ -207,7 +230,7 @@ export async function PeerConnection(
                 if (delayInterval > 0) {
                     using _delaying = scheduling.join("delaying");
 
-                    const changed = await overallAbort.race<ServerAddressUdp | void>(
+                    const changed = await overallAbort.race<ServerAddressIp | void>(
                         Abort.sleep("connection delay", overallAbort, delayInterval),
                         pendingAddresses.added,
                         pendingAddresses.deleted,
@@ -232,24 +255,41 @@ export async function PeerConnection(
     }
 
     /**
+     * Expand an address into one variant per requested transport, or return it unchanged when no
+     * transport list is set.
+     */
+    function expandAddresses(address: ServerAddressIp): ServerAddressIp[] {
+        const transports = resolveTransports();
+        if (transports === undefined) {
+            return [address];
+        }
+        return transports.map(type =>
+            type === ChannelType.TCP
+                ? ({ ...address, type } satisfies ServerAddressTcp)
+                : ({ ...address, type } satisfies ServerAddressUdp),
+        );
+    }
+
+    /**
      * Enqueue an address if not already attempting.
      */
-    function addAddress(address: ServerAddressUdp) {
-        address = addresses.add(address);
+    function addAddress(address: ServerAddressIp) {
+        for (const variant of expandAddresses(address)) {
+            const interned = addresses.add(variant);
 
-        // Skip if we're already attempting connection to this address
-        const attempt = attempts.get(address);
-        if (attempt !== undefined) {
-            if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
-                // The "fallback" is now a "real" address
-                attemptingFallback = undefined;
-                kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
+            // Skip if we're already attempting connection to this exact (ip,port,type) variant
+            const attempt = attempts.get(interned);
+            if (attempt !== undefined) {
+                if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, interned)) {
+                    // The "fallback" is now a "real" address
+                    attemptingFallback = undefined;
+                    kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
+                }
+                continue;
             }
 
-            return;
+            pendingAddresses.add(interned);
         }
-
-        pendingAddresses.add(address);
     }
 
     /**
@@ -260,16 +300,23 @@ export async function PeerConnection(
             return;
         }
 
-        attemptingFallback = peer.descriptor.operationalAddress;
-        if (attemptingFallback) {
-            pendingAddresses.add(attemptingFallback);
+        const fallback = peer.descriptor.operationalAddress;
+        if (!fallback) {
+            attemptingFallback = undefined;
+            return;
+        }
+        const variants = expandAddresses(fallback);
+        // Intern so attempts/pendingAddresses key on one canonical object; fallback identity is matched by value.
+        attemptingFallback = addresses.add(variants[0]);
+        for (const variant of variants) {
+            pendingAddresses.add(variant);
         }
     }
 
     /**
      * Begin connection attempt to specific address.  Continues until aborted.
      */
-    function initiateAttempt(address: ServerAddressUdp) {
+    function initiateAttempt(address: ServerAddressIp) {
         address = addresses.add(address);
 
         // Skip if we're already attempting connection to this address
@@ -298,56 +345,61 @@ export async function PeerConnection(
     }
 
     /**
-     * End connection attempt.
+     * End connection attempt(s) for the given address. Discovery emits bare addresses without
+     * transport type; expand into the same variants `addAddress` enqueued so the typed
+     * entries in `attempts`/`pendingAddresses` actually match.
      */
-    function deleteAddress(address: ServerAddressUdp, why: string) {
-        address = addresses.add(address);
-        const attempt = attempts.get(address);
+    function deleteAddress(address: ServerAddressIp, why: string) {
+        const variants = expandAddresses(address).map(v => addresses.add(v));
+        const operationalAddress = peer.descriptor.operationalAddress;
+        const isOperational = operationalAddress !== undefined && ServerAddress.isEqual(operationalAddress, address);
 
-        if (attempt) {
-            const operationalAddress = peer.descriptor.operationalAddress;
-            if (
-                attempts.size === 1 &&
-                operationalAddress !== undefined &&
-                ServerAddress.isEqual(operationalAddress, address)
-            ) {
-                // If we only have one attempt running and this is for the known operational address,
-                // fall back to fallback mode and just keep it running
-                attemptingFallback = address;
-                return;
-            }
-            debug(via, address, why);
-            attempt.abort();
-            attempts.delete(address);
+        // If only operational-address attempts remain, keep them alive as fallback.
+        const remainingNonOperational = attempts.size - variants.filter(v => attempts.has(v)).length;
+        if (isOperational && remainingNonOperational === 0) {
+            attemptingFallback = variants[0];
+            return;
         }
 
-        pendingAddresses.delete(address);
+        for (const variant of variants) {
+            const attempt = attempts.get(variant);
+            if (attempt) {
+                debug(via, variant, why);
+                attempt.abort();
+                attempts.delete(variant);
+            }
+            pendingAddresses.delete(variant);
+        }
     }
 
-    function error(address: ServerAddressUdp, ...message: unknown[]) {
+    function error(address: ServerAddressIp, ...message: unknown[]) {
         logger.error(logHeaderFor(address), ...message);
     }
 
-    function warn(address: ServerAddressUdp, ...message: unknown[]) {
+    function warn(address: ServerAddressIp, ...message: unknown[]) {
         logger.warn(logHeaderFor(address), ...message);
     }
 
-    function info(via: string, address: ServerAddressUdp, ...message: unknown[]) {
+    function notice(address: ServerAddressIp, ...message: unknown[]) {
+        logger.notice(logHeaderFor(address), ...message);
+    }
+
+    function info(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.info(logHeaderFor(address, via), ...message);
     }
 
-    function debug(via: string, address: ServerAddressUdp, ...message: unknown[]) {
+    function debug(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.debug(logHeaderFor(address, via), ...message);
     }
 
-    function logHeaderFor(address: ServerAddressUdp, localVia = via) {
+    function logHeaderFor(address: ServerAddressIp, localVia = via) {
         return [localVia, Diagnostic.strong(ServerAddress.urlFor(address))];
     }
 
     /**
      * Perform connection to specific address until successful.
      */
-    async function connect(address: ServerAddressUdp, addressAbort: Abort) {
+    async function connect(address: ServerAddressIp, addressAbort: Abort) {
         const addrNo = ++addrsAttempted;
         let attemptNo = 1;
 
@@ -356,7 +408,7 @@ export async function PeerConnection(
 
         // If this is not the fallback address but we're still attempting to connect to the fallback, it means that
         // we've discovered addresses that do not include the fallback; terminate the fallback attempt
-        if (attemptingFallback && address !== attemptingFallback) {
+        if (attemptingFallback && !ServerAddress.isEqual(address, attemptingFallback)) {
             deleteAddress(
                 attemptingFallback,
                 "Aborting attempt to last known address because device reports address change",
@@ -377,7 +429,7 @@ export async function PeerConnection(
      * Make a single attempt to connect to a specific address.
      */
     async function attemptOnce(
-        address: ServerAddressUdp,
+        address: ServerAddressIp,
         addressAbort: Abort,
         attemptLifetime: Lifetime,
         addrNo: number,
@@ -392,97 +444,158 @@ export async function PeerConnection(
             }
         }
 
-        // When we try the fallback address, and it is not the first one, then we directly use a higher MRP interval
-        const isFallback = attemptingFallback && addrsAttempted > 1;
-
-        await using unsecuredSession = context.sessions.createUnsecuredSession({
-            channel: socket,
-            sessionParameters: peer.sessionParameters,
-            isInitiator: true,
-        });
-
-        await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network);
-
-        info(
-            Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
-            address,
-            "Connecting",
-            Diagnostic.dict({
-                "addr #": addrNo,
-                "attempt #": attemptNo,
-                "connect time": Duration.format(Timestamp.delta(lifetime.startedAt)),
-                "addr time": Duration.format(Timestamp.delta(attemptLifetime.startedAt)),
-            }),
-            Diagnostic.asFlags({
-                [network.id]: true,
-                fallback: address === attemptingFallback,
-            }),
-        );
-
-        const caseClient = new CaseClient(context.sessions);
-
-        const fabric = context.sessions.fabricFor(peer.address);
-
-        let kick: Disposable | undefined;
-
-        // localAbort wraps addressAbort; firing it aborts only this single attempt so connect() can
-        // loop back and open a fresh exchange (fresh MRP backoff) without aborting the address entirely.
-        using localAbort = new Abort({ abort: addressAbort });
+        // MessageChannel.close skips TCP — sessions own that lifecycle. If pair fails before a session
+        // takes over we must close the channel ourselves. UDP close is a no-op so this is safe for both.
+        let socketOwned = true;
 
         try {
-            using _pairing = attemptLifetime.join("pairing");
+            // When we try the fallback address, and it is not the first one, then we directly use a higher MRP interval
+            const isFallback = attemptingFallback && addrsAttempted > 1;
 
-            kick = kicker?.use((origin: KickOrigin) => {
-                if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+            await using unsecuredSession = context.sessions.createUnsecuredSession({
+                channel: socket,
+                sessionParameters: peer.sessionParameters,
+                isInitiator: true,
+            });
+
+            await using exchange = PeerConnection.createExchange(
+                peer,
+                context.exchanges,
+                unsecuredSession,
+                network,
+                peerAdditionalMrpDelay,
+            );
+
+            info(
+                Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
+                address,
+                "Connecting",
+                Diagnostic.dict({
+                    "addr #": addrNo,
+                    "attempt #": attemptNo,
+                    "connect time": Duration.format(Timestamp.delta(lifetime.startedAt)),
+                    "addr time": Duration.format(Timestamp.delta(attemptLifetime.startedAt)),
+                }),
+                Diagnostic.asFlags({
+                    [network.id]: true,
+                    fallback: attemptingFallback !== undefined && ServerAddress.isEqual(address, attemptingFallback),
+                }),
+            );
+
+            const caseClient = new CaseClient(context.sessions);
+
+            const fabric = context.sessions.fabricFor(peer.address);
+
+            let kick: Disposable | undefined;
+
+            // localAbort wraps addressAbort; firing it aborts only this single attempt so connect() can
+            // loop back and open a fresh exchange (fresh MRP backoff) without aborting the address entirely.
+            using localAbort = new Abort({ abort: addressAbort });
+
+            try {
+                using _pairing = attemptLifetime.join("pairing");
+
+                kick = kicker?.use((origin: KickOrigin) => {
+                    if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+                        return;
+                    }
+
+                    if (exchange.retransmissionRestartSaving < context.timing.kickMinRestartSaving) {
+                        debug(via, address, `Suppressing "${origin}" kick, restart would save too little time`);
+                        return;
+                    }
+
+                    const threshold =
+                        origin === "discover"
+                            ? context.timing.kickRestartCooldown.addressChange
+                            : context.timing.kickRestartCooldown.connect;
+
+                    if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
+                        info(via, address, `Restarting exchange on "${origin}" kick`);
+                        lastRestartAt = Time.nowMs;
+                        localAbort();
+                    } else {
+                        debug(
+                            via,
+                            address,
+                            `Suppressing "${origin}" kick, last restart was ${Duration.format(Timestamp.delta(lastRestartAt))} ago`,
+                        );
+                    }
+                });
+
+                const isTcp = "type" in address && address.type === "tcp";
+                const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
+                    ...options,
+                    abort: localAbort,
+                    caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
+                    maxInitialRetransmissions: Infinity,
+                    maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
+                    initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
+                    validateSessionParameters: isTcp
+                        ? params => {
+                              // Mirror resolveTransports so connect and validation agree: absent tag 8 never denies, and
+                              // a `false` (which on resume can be a stale resumption-record value, not the device's
+                              // current advertisement) is overridden while mDNS still advertises a TCP server.
+                              if (params.supportedTransports.tcpServer !== false) {
+                                  return;
+                              }
+                              const advertisedByMdns =
+                                  (DiscoveryData(peer.service.parameters).T ?? peer.descriptor.discoveryData?.T)
+                                      ?.tcpServer === true;
+                              if (advertisedByMdns) {
+                                  return;
+                              }
+                              peer.markTcpUnsupported();
+                              throw new TcpUnsupportedError(
+                                  `Peer negotiated a TCP session but reports no TCP server support`,
+                              );
+                          }
+                        : undefined,
+                });
+
+                outputSession = session;
+                socketOwned = false;
+                overallAbort();
+            } catch (e) {
+                if (AbortedError.is(e)) {
                     return;
                 }
 
-                const threshold =
-                    origin === "discover"
-                        ? context.timing.kickRestartCooldown.addressChange
-                        : context.timing.kickRestartCooldown.connect;
-
-                if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
-                    info(via, address, `Restarting exchange on "${origin}" kick`);
-                    lastRestartAt = Time.nowMs;
-                    localAbort();
-                } else {
-                    debug(
-                        via,
-                        address,
-                        `Suppressing "${origin}" kick, last restart was ${Duration.format(Timestamp.delta(lastRestartAt))} ago`,
-                    );
-                }
-            });
-
-            const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
-                ...options,
-                abort: localAbort,
-                caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
-                maxInitialRetransmissions: Infinity,
-                maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
-                initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
-            });
-
-            // Success
-            outputSession = session;
-            overallAbort();
-        } catch (e) {
-            if (AbortedError.is(e)) {
-                return;
+                throw e;
+            } finally {
+                kick?.[Symbol.dispose]();
             }
-
-            throw e;
         } finally {
-            kick?.[Symbol.dispose]();
+            if (socketOwned) {
+                try {
+                    await socket.close();
+                } catch (e) {
+                    warn(address, "Error closing abandoned channel:", Diagnostic.errorMessage(asError(e)));
+                }
+            }
         }
     }
 
     /**
      * Log error information and pause before next retry.
      */
-    async function handleConnectionError(e: Error, address: ServerAddressUdp, addressAbort: Abort, lifetime: Lifetime) {
+    async function handleConnectionError(e: Error, address: ServerAddressIp, addressAbort: Abort, lifetime: Lifetime) {
         using _handling = lifetime.join("handling error");
+
+        // The peer accepted a TCP session but denies TCP support. With a hard TCP requirement we cannot fall back, and
+        // re-resolution would re-attempt TCP and spin, so fail fatally for the caller. Otherwise the peer is now
+        // flagged (markTcpUnsupported) so re-resolution prefers UDP; end this connection so Peer.connect reconnects
+        // over UDP.
+        if (causedBy(e, TcpUnsupportedError)) {
+            if (requiredTransport === ChannelType.TCP) {
+                error(address, "Peer reports no TCP support but TCP was required; aborting connection");
+                fatalError = asError(e);
+            } else {
+                notice(address, "Peer negotiated a TCP session but reports no TCP support; falling back to UDP");
+            }
+            overallAbort();
+            return;
+        }
 
         let delay: undefined | Duration;
         let category: "busy" | "resumption" | "peer" | "network" | "general" | undefined;
@@ -506,6 +619,12 @@ export async function PeerConnection(
         } else {
             delay = timing.delayAfterUnhandledError;
             category = "general";
+        }
+
+        // A network-layer failure (e.g. ENETUNREACH/EHOSTUNREACH) may mean the cached address no longer
+        // routes; flag unreachable so mDNS rediscovery can surface a fresh address.
+        if (causedBy(e, NetworkError)) {
+            peer.service.status.isReachable = false;
         }
 
         const handleError = options?.handleError ?? context.handleError;
@@ -539,13 +658,13 @@ export async function PeerConnection(
                 );
                 break;
             case "peer":
-                error(address, `Peer error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                warn(address, `Peer error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
                 break;
             case "network":
-                error(address, `Connection error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                warn(address, `Connection error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
                 break;
             case "general":
-                error(address, `General connection error (retry in ${Duration.format(delay!)}):`, e);
+                warn(address, `General connection error (retry in ${Duration.format(delay!)}):`, e);
                 break;
         }
 
@@ -568,7 +687,7 @@ export namespace PeerConnection {
         /**
          * Open byte channel to a specific address.
          */
-        openSocket(address: ServerAddressUdp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
+        openSocket(address: ServerAddressIp, abort: AbortSignal): Promise<Channel<Bytes> | undefined>;
 
         timing: PeerTimingParameters;
 
@@ -585,7 +704,20 @@ export namespace PeerConnection {
     export interface Options {
         abort?: AbortSignal;
         network?: string;
+
+        /**
+         * Per-call override for the peer-medium MRP retransmission margin.  When omitted the margin derives from
+         * the peer's network medium, independent of any {@link network} throttle override.
+         */
+        additionalMrpDelay?: Duration;
+
         kicker?: Observable<[KickOrigin]>;
+
+        /** See {@link Peer.ConnectOptions.requiredTransport}. */
+        requiredTransport?: ChannelType;
+
+        /** See {@link Peer.ConnectOptions.preferredTransport}. */
+        preferredTransport?: ChannelType;
 
         /**
          * Per-call overrides for timing parameters.
@@ -606,10 +738,17 @@ export namespace PeerConnection {
         exchanges: ExchangeManager,
         session: Session,
         network: NetworkProfile,
+        peerAdditionalMrpDelay?: Duration,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
         addressOverride?: ServerAddressUdp,
     ) {
-        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network, addressOverride });
+        return exchanges.initiateExchangeForSession(session, protocol, {
+            onSend,
+            onReceive,
+            network,
+            peerAdditionalMrpDelay,
+            addressOverride,
+        });
 
         function onSend(_message: Message, retransmission: number) {
             if (retransmission) {

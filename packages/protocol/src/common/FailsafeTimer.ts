@@ -95,7 +95,7 @@ export class FailsafeTimer {
 
     #startFailsafeTimer(expiry: Duration) {
         return Time.getTimer("Failsafe expiration", expiry, () =>
-            this.expire().catch(e => logger.error("Error during failsafe expiration", e)),
+            this.expire().catch(e => logger.warn("Error during failsafe expiration", e)),
         ).start();
     }
 }

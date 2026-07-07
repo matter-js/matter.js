@@ -104,6 +104,27 @@ describe("DirectoryLock", () => {
         }
     });
 
+    it("removes orphaned lock files when the owning process exits without releasing", async () => {
+        // Spawn a real process that acquires a lock and exits without releasing it, then assert the exit backstop
+        // removed the lock files.  The child uses the built module (it runs outside the test loader) and resolves it
+        // from the package entry so the path holds regardless of where the test itself runs from.
+        const script = `
+            import { createRequire } from "node:module";
+            import { dirname, resolve } from "node:path";
+            import { pathToFileURL } from "node:url";
+            const mod = resolve(dirname(createRequire(import.meta.url).resolve("@matter/nodejs")), "../esm/fs/lock-utils.js");
+            const { acquireDirectoryLock } = await import(pathToFileURL(mod).href);
+            await acquireDirectoryLock(process.env.LOCK_DIR, "leaktest");
+        `;
+
+        const { code, output } = await runNode(script, { ...process.env, LOCK_DIR: rootDir });
+
+        expect(code, `child output:\n${output}`).equal(0);
+        await expectFileNotExists(join(rootDir, "matter.lock"));
+        await expectFileNotExists(join(rootDir, "matter.pid"));
+        expect(output).contains("orphaned lock");
+    });
+
     it("cleans up stale lock with old PID-only format", async () => {
         // Backward compat: old lock files without a token should be treated as stale when the process is dead
         await writeFile(join(rootDir, "matter.lock"), "");
@@ -113,6 +134,17 @@ describe("DirectoryLock", () => {
         await release();
     });
 });
+
+async function runNode(script: string, env: NodeJS.ProcessEnv): Promise<{ code: number | null; output: string }> {
+    return new Promise((res, rej) => {
+        const child = spawn(process.argv[0], ["--input-type=module", "-e", script], { env });
+        let output = "";
+        child.stdout.on("data", d => (output += d));
+        child.stderr.on("data", d => (output += d));
+        child.on("error", rej);
+        child.on("close", code => res({ code, output }));
+    });
+}
 
 async function expectFileExists(path: string) {
     try {

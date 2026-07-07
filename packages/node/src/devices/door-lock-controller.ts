@@ -6,14 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { DoorLockClient as BaseDoorLockClient } from "../behaviors/door-lock/DoorLockClient.js";
+import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
 import {
-    TimeSynchronizationServer as BaseTimeSynchronizationServer
-} from "../behaviors/time-synchronization/TimeSynchronizationServer.js";
-import { DoorLockBehavior as BaseDoorLockBehavior } from "../behaviors/door-lock/DoorLockBehavior.js";
-import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
-import {
-    ScenesManagementBehavior as BaseScenesManagementBehavior
-} from "../behaviors/scenes-management/ScenesManagementBehavior.js";
+    ScenesManagementClient as BaseScenesManagementClient
+} from "../behaviors/scenes-management/ScenesManagementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -21,50 +18,38 @@ import { Identity } from "@matter/general";
 /**
  * A Door Lock Controller is a device capable of controlling a door lock.
  *
- * @see {@link MatterSpecification.v142.Device} § 8.2
+ * @see {@link MatterSpecification.v16.Device} § 8.2
  */
 export interface DoorLockControllerDevice extends Identity<typeof DoorLockControllerDeviceDefinition> {}
 
 export namespace DoorLockControllerRequirements {
     /**
-     * The TimeSynchronization cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link TimeSynchronizationServer} for convenience.
-     */
-    export const TimeSynchronizationServer = BaseTimeSynchronizationServer;
-
-    /**
      * The DoorLock cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link DoorLockBehavior} for convenience.
+     * We provide this alias to the default implementation {@link DoorLockClient} for convenience.
      */
-    export const DoorLockBehavior = BaseDoorLockBehavior;
+    export const DoorLockClient = BaseDoorLockClient;
 
     /**
      * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupsBehavior} for convenience.
+     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
      */
-    export const GroupsBehavior = BaseGroupsBehavior;
+    export const GroupsClient = BaseGroupsClient;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ScenesManagementClient} for convenience.
      */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
-
-    /**
-     * An implementation for each server cluster supported by the endpoint per the Matter specification.
-     */
-    export const server = { optional: { TimeSynchronization: TimeSynchronizationServer }, mandatory: {} };
+    export const ScenesManagementClient = BaseScenesManagementClient;
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { DoorLock: DoorLockBehavior },
-        optional: { Groups: GroupsBehavior, ScenesManagement: ScenesManagementBehavior }
+        mandatory: { DoorLock: DoorLockClient },
+        optional: { Groups: GroupsClient, ScenesManagement: ScenesManagementClient }
     };
 }
 

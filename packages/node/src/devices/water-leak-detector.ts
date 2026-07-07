@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Water Leak Detector device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.12
+ * @see {@link MatterSpecification.v16.Device} § 7.12
  */
 export interface WaterLeakDetectorDevice extends Identity<typeof WaterLeakDetectorDeviceDefinition> {}
 
@@ -56,7 +56,7 @@ export namespace WaterLeakDetectorRequirements {
 export const WaterLeakDetectorDeviceDefinition = MutableEndpoint({
     name: "WaterLeakDetector",
     deviceType: 0x43,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: WaterLeakDetectorRequirements,
     behaviors: SupportedBehaviors(
         WaterLeakDetectorRequirements.server.mandatory.Identify,

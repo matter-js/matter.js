@@ -7,14 +7,14 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { Node } from "#node/Node.js";
-import { IdentityService } from "#node/server/IdentityService.js";
+import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import {
-    ConnectionlessTransportSet,
     Crypto,
     DnsRecordType,
     ImplementationError,
     Logger,
     SharedEnvironmentServices,
+    TransportSet,
 } from "@matter/general";
 import {
     Ble,
@@ -131,6 +131,13 @@ export class ControllerBehavior extends Behavior {
                 await agent.context.transaction.addResources(controller);
                 await agent.context.transaction.begin();
 
+                // A caller-supplied NodeId bypasses the allocation loop below, so check it for collisions here.
+                if (nodeId !== undefined && identity.peerAddressInUse({ fabricIndex, nodeId })) {
+                    throw new IdentityConflictError(
+                        `Cannot assign NodeId ${nodeId} on fabric ${fabricIndex}: the peer address is already in use`,
+                    );
+                }
+
                 const useSequentialIds = controller.state.nodeIdAssignment !== "random";
                 let nextNodeId: NodeId = controller.state.nextNodeId ?? NodeId(1);
 
@@ -192,7 +199,7 @@ export class ControllerBehavior extends Behavior {
         }
 
         // Configure network connections
-        const netTransports = this.env.get(ConnectionlessTransportSet);
+        const netTransports = this.env.get(TransportSet);
         if (this.state.ble) {
             // no try-catch needed because we already added the scanner in initialize()
             netTransports.add(this.env.get(Ble).centralInterface);
@@ -212,7 +219,7 @@ export class ControllerBehavior extends Behavior {
     async #nodeGoingOffline() {
         await this.env.close(ClientSubscriptions);
 
-        const netTransports = this.env.get(ConnectionlessTransportSet);
+        const netTransports = this.env.get(TransportSet);
         if (this.state.ble) {
             netTransports.delete(this.env.get(Ble).centralInterface);
         }

@@ -35,6 +35,9 @@
             "path": "packages/main"
         },
         {
+            "path": "packages/thread-br-client"
+        },
+        {
             "path": "packages/nodejs-shell"
         },
         {
@@ -81,6 +84,9 @@
         },
         {
             "path": "examples/device-onoff-advanced"
+        },
+        {
+            "path": "examples/device-onoff-sensor-binding"
         },
         {
             "path": "examples/device-onoff-light"

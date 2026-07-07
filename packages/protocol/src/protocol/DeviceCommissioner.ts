@@ -12,6 +12,7 @@ import { SecureChannelProtocol } from "#securechannel/SecureChannelProtocol.js";
 import { PaseServer } from "#session/pase/PaseServer.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Environment,
     Environmental,
     InternalError,
@@ -23,7 +24,7 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT, StatusCode, StatusResponseError } from "@matter/types";
+import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT, Status, StatusResponseError } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { DeviceAdvertiser } from "./DeviceAdvertiser.js";
 
@@ -117,7 +118,7 @@ export class DeviceCommissioner {
 
         this.#context.secureChannelProtocol.setPaseCommissioner(
             await PaseServer.fromPin(this.#context.sessions, this.#context.commissioningConfig.values.passcode, {
-                iterations: 1000,
+                iterations: CRYPTO_PBKDF_ITERATIONS_MIN,
                 salt: this.#context.fabrics.crypto.randomBytes(32),
             }),
         );
@@ -148,7 +149,7 @@ export class DeviceCommissioner {
         if (this.isFailsafeArmed) return;
         throw new StatusResponseError(
             message ?? "Failsafe timer needs to be armed to execute this action.",
-            StatusCode.FailsafeRequired,
+            Status.FailsafeRequired,
         );
     }
 

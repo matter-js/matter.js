@@ -11,7 +11,7 @@ import { Specification } from "@matter/model";
 import {
     EndpointNumber,
     ReadRequest,
-    StatusCode,
+    Status,
     SubscribeRequest,
     TlvDataReport,
     TlvReadRequest,
@@ -60,7 +60,7 @@ function handleSubscribeRequest(
         };
     } else if (messageType === MessageType.StatusResponse) {
         const status = TlvStatusResponse.decode(payload).status;
-        expect(status).to.equal(StatusCode.Success);
+        expect(status).to.equal(Status.Success);
         return {
             response: {
                 payload: TlvSubscribeResponse.encode({

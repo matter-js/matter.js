@@ -7,21 +7,10 @@
 import { Logger } from "#general";
 import { AnyElement, DatatypeElement, FabricIndex, FieldElement, Metatype } from "#model";
 import { addDocumentation } from "./add-documentation.js";
-import {
-    Bits,
-    ConformanceCode,
-    ConstraintStr,
-    Identifier,
-    Integer,
-    LowerIdentifier,
-    NoSpace,
-    Str,
-    StrWithSuperscripts,
-} from "./html-translators.js";
 import { repairConstraint } from "./repairs/aspect-repairs.js";
 import { repairDefaultValue } from "./repairs/default-value-repairs.js";
 import { repairType, repairTypeIdentifier } from "./repairs/type-repairs.js";
-import { HtmlReference } from "./spec-types.js";
+import { SpecReference } from "./spec-types.js";
 import {
     Alias,
     chooseIdentityAliases,
@@ -31,16 +20,27 @@ import {
     translateRecordsToMatter,
     translateTable,
 } from "./translate-table.js";
+import {
+    Bits,
+    CompactStr,
+    ConformanceCode,
+    ConstraintStr,
+    Identifier,
+    Integer,
+    LowerIdentifier,
+    Str,
+    StrWithSuperscripts,
+} from "./translators.js";
 
 const logger = Logger.get("translate-cluster");
 
 /**
  * Translate the HTML description of a datatype into a DatatypeElement.
  */
-export function translateDatatype(definition: HtmlReference): DatatypeElement | undefined {
+export function translateDatatype(definition: SpecReference): DatatypeElement | undefined {
     let name = repairTypeIdentifier(definition.name);
 
-    const text = definition.prose?.[0] ? Str(definition.prose?.[0]) : undefined;
+    const text = definition.prose?.[0];
 
     // Up through 1.1 prose was informal but remarkably consistent; "derived from" always matches
     let match = text?.match(/derived from ([\w-]+)/i);
@@ -124,7 +124,7 @@ export function translateDatatype(definition: HtmlReference): DatatypeElement | 
     return datatype;
 }
 
-function hasColumn(definition: HtmlReference, ...names: string[]) {
+function hasColumn(definition: SpecReference, ...names: string[]) {
     for (const name of names) {
         if (definition.tables?.[0].rows[0]?.[name] !== undefined) {
             return true;
@@ -134,15 +134,15 @@ function hasColumn(definition: HtmlReference, ...names: string[]) {
 }
 
 const FieldSchema = {
-    id: Integer,
+    id: Alias(Integer, "fieldid"),
     name: Alias(Identifier, "field"),
 
-    // Not really optional but we want to process rows even if missing
-    type: Optional(NoSpace),
+    // Not really optional, but we want to process rows even if missing
+    type: Optional(CompactStr),
 
     constraint: Optional(ConstraintStr),
     quality: Optional(Str),
-    default: Optional(Alias(NoSpace, "fallback")),
+    default: Optional(Alias(CompactStr, "fallback")),
     access: Optional(Str),
     conformance: Optional(ConformanceCode),
     children: Details(translateValueChildren),
@@ -157,8 +157,9 @@ export type FieldRecord = TableRecord<typeof FieldSchema>;
  */
 export function translateFields<T extends AnyElement.Type<FieldRecord>>(
     type: T,
-    fields?: HtmlReference,
+    fields?: SpecReference,
     withAccessNotes = true,
+    addImplicitFabricIndex = true,
 ): ReturnType<T>[] | undefined {
     let records = translateTable(type.Tag, fields, FieldSchema);
 
@@ -171,7 +172,7 @@ export function translateFields<T extends AnyElement.Type<FieldRecord>>(
     });
 
     if (withAccessNotes) {
-        applyAccessModifier(fields, records);
+        applyAccessModifier(fields, records, addImplicitFabricIndex);
     }
 
     return translateRecordsToMatter(type.Tag, records, type) as ReturnType<T>[] | undefined;
@@ -184,7 +185,7 @@ export function translateFields<T extends AnyElement.Type<FieldRecord>>(
 export function translateValueChildren(
     tag: string,
     parent: undefined | { type?: string },
-    definition: HtmlReference,
+    definition: SpecReference,
 ): FieldElement[] | undefined {
     let type = parent?.type;
     if (type === undefined) {
@@ -217,15 +218,28 @@ export function translateValueChildren(
                 ["name", "type", "statuscode", "priority", "description"],
             );
 
-            let records = translateTable("value", definition, {
+            const schema = {
                 id: Alias(Integer, ...ids),
                 name: Alias(Identifier, ...names),
                 conformance: Optional(ConformanceCode),
                 description: Optional(Alias(StrWithSuperscripts, "summary", "notes")),
                 meaning: Optional(Str),
-            });
+            };
 
-            records = records.filter(r => r.name !== "Reserved");
+            // Some enums (e.g. ClosureErrorEnum) lead with a range summary table ("0x00 to 0x7F")
+            // that has no parseable IDs.  Skip range-only tables and use the first with concrete values.
+            let records: ReturnType<typeof translateTable<typeof schema>> = [];
+            const tables = definition.tables ?? [undefined];
+            for (const table of tables) {
+                if (table?.rows[0] && table.rows[0][table.fields[0]]?.match(/ (?:to|-) /)) {
+                    continue;
+                }
+                records = translateTable("value", definition, schema, table);
+                records = records.filter(r => r.name !== "Reserved");
+                if (records.length) {
+                    break;
+                }
+            }
 
             return translateRecordsToMatter("value", records, FieldElement);
         }
@@ -274,19 +288,21 @@ export function translateValueChildren(
         }
 
         case Metatype.object:
-            return translateFields(FieldElement, definition, parent?.type !== "event");
+            // Commands are not fabric-scoped data (Core § 7.5.3), so their request/response structs must not carry the
+            // implicit global FabricIndex field (Core § 7.13.6); the accessing fabric is derived from the invocation.
+            return translateFields(FieldElement, definition, parent?.type !== "event", tag !== "command");
     }
 }
 
-export function accessModifierOf(details?: HtmlReference) {
+export function accessModifierOf(details?: SpecReference) {
     if (!details?.tables?.[0].notes.length) {
         return;
     }
 
     // Determine what the access flag should be
     let flag: string | undefined;
-    for (const n of details.tables[0].notes) {
-        const match = n.textContent?.match(/access (?:quality|modifier): fabric[\s-](\w+)/i);
+    for (const { note: n } of details.tables[0].notes) {
+        const match = n.match(/access (?:quality|modifier): fabric[\s-](\w+)/i);
         if (match) {
             const quality = match[1].toLowerCase();
 
@@ -313,10 +329,11 @@ export function accessModifierOf(details?: HtmlReference) {
 // For some reason, "default" fabric access appears in an informational row instead of the access column in many of the
 // core definitions.  Fix this.
 //
-// We also use the presence of this record to add the implicit FabrixIndex field
+// When addImplicitFabricIndex is set we also use the presence of this record to add the implicit FabricIndex field.
 function applyAccessModifier(
-    fields?: HtmlReference,
+    fields?: SpecReference,
     records?: { id: number; name?: string; type?: string; access?: string; conformance?: string }[],
+    addImplicitFabricIndex = true,
 ) {
     if (!records) {
         return;
@@ -342,7 +359,7 @@ function applyAccessModifier(
     }
 
     // Add the FabricIndex field if not already present
-    if (!haveFabricIndex) {
+    if (addImplicitFabricIndex && !haveFabricIndex) {
         records.push({
             id: FabricIndex.id as number,
             name: FabricIndex.name,

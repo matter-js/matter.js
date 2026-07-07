@@ -81,10 +81,10 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> This format and meaning of this value is proprietary and outside the specification. It provides a " +
-                        "transition path for device makers that use other protocols (like DIAL) which allow for proprietary " +
-                        "  data. Apps that are not yet Matter aware can be launched via Matter, while retaining the existing " +
-                        "ability to launch with proprietary data."
+                        "> NOTE: This format and meaning of this value is proprietary and outside the specification. It " +
+                        "provides a transition path for device makers that use other protocols (like DIAL) which allow for " +
+                        "proprietary data. Apps that are not yet Matter aware can be launched via Matter, while retaining " +
+                        "the existing ability to launch with proprietary data."
                 }
             ]
         },

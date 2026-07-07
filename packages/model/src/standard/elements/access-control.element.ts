@@ -37,27 +37,27 @@ export const AccessControl = Cluster(
     ),
     Attribute({
         name: "SubjectsPerAccessControlEntry", id: 0x2, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min 4", default: 4, quality: "F"
+        constraint: "4 to 65534", quality: "F"
     }),
     Attribute({
         name: "TargetsPerAccessControlEntry", id: 0x3, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min 3", default: 3, quality: "F"
+        constraint: "3 to 65534", quality: "F"
     }),
     Attribute({
         name: "AccessControlEntriesPerFabric", id: 0x4, type: "uint16", access: "R V", conformance: "M",
-        constraint: "min 4", default: 4, quality: "F"
+        constraint: "4 to 65534", quality: "F"
     }),
 
     Attribute(
         {
             name: "CommissioningArl", id: 0x5, type: "list", access: "R V", conformance: "MNGD",
-            constraint: "desc", default: [], quality: "F"
+            constraint: "desc", quality: "F"
         },
         Field({ name: "entry", type: "CommissioningAccessRestrictionEntryStruct" })
     ),
 
     Attribute(
-        { name: "Arl", id: 0x6, type: "list", access: "R F V", conformance: "MNGD", constraint: "desc", default: [] },
+        { name: "Arl", id: 0x6, type: "list", access: "R F V", conformance: "MNGD", constraint: "desc" },
         Field({ name: "entry", type: "AccessRestrictionEntryStruct" })
     ),
 
@@ -164,6 +164,12 @@ export const AccessControl = Cluster(
     ),
 
     Datatype(
+        { name: "AccessControlAuxiliaryTypeEnum", type: "enum8" },
+        Field({ name: "System", id: 0x0, conformance: "M" }),
+        Field({ name: "Groupcast", id: 0x1, conformance: "M" })
+    ),
+
+    Datatype(
         { name: "AccessControlTargetStruct", type: "struct" },
         Field({ name: "Cluster", id: 0x0, type: "cluster-id", conformance: "M", quality: "X" }),
         Field({ name: "Endpoint", id: 0x1, type: "endpoint-no", conformance: "M", quality: "X" }),
@@ -191,8 +197,8 @@ export const AccessControl = Cluster(
             Field({ name: "entry", type: "AccessControlTargetStruct" })
         ),
 
-        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" }),
-        Field({ name: "AuxiliaryType", id: 0x5, type: "AccessControlAuxiliaryTypeEnum", access: "S", conformance: "P, O" })
+        Field({ name: "AuxiliaryType", id: 0x5, type: "AccessControlAuxiliaryTypeEnum", access: "S", conformance: "P, O" }),
+        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     ),
 
     Datatype(
@@ -225,12 +231,6 @@ export const AccessControl = Cluster(
             { name: "Restrictions", id: 0x2, type: "list", conformance: "M", constraint: "min 1" },
             Field({ name: "entry", type: "AccessRestrictionStruct" })
         )
-    ),
-
-    Datatype(
-        { name: "AccessControlAuxiliaryTypeEnum", type: "enum8" },
-        Field({ name: "System", id: 0x0, conformance: "M" }),
-        Field({ name: "Groupcast", id: 0x1, conformance: "M" })
     )
 );
 

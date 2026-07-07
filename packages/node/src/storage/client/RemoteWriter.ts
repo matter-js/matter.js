@@ -6,9 +6,9 @@
 
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { InternalError } from "@matter/general";
+import { InternalError, MaybePromise } from "@matter/general";
 import { Write, WriteResult, type Val } from "@matter/protocol";
-import type { ClusterId, ClusterType, EndpointNumber } from "@matter/types";
+import { Status, type ClusterId, type ClusterType, type EndpointNumber } from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 
 /**
@@ -16,15 +16,18 @@ import type { ClientNodeStore } from "./ClientNodeStore.js";
  *
  * A remote writer conveys updates to the remote node.  This performs actual persistence for client nodes where the
  * local store is just a cache and the source of truth is on the remote device.
+ *
+ * The optional {@link RemoteWriter.FailureHandler} is invoked with the per-attribute failure statuses before the
+ * write rejects, giving callers a chance to compensate local cache state for declined writes.
  */
 export interface RemoteWriter {
-    (request: RemoteWriter.Request): Promise<void>;
+    (request: RemoteWriter.Request, onFailure?: RemoteWriter.FailureHandler): Promise<void>;
 }
 
 const attrCache = new WeakMap<object, Record<string, ClusterType.Attribute>>();
 
 export function RemoteWriter(node: ClientNode, structure: ClientStructure): RemoteWriter {
-    return async function writeRemote(request: RemoteWriter.Request) {
+    return async function writeRemote(request: RemoteWriter.Request, onFailure?: RemoteWriter.FailureHandler) {
         const attrWrites = Array<Write.Attribute>();
         for (const { number, behaviorId, values } of request) {
             const cluster = structure.clusterFor(number, Number.parseInt(behaviorId) as ClusterId);
@@ -55,7 +58,16 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
         }
 
         const write = Write(...attrWrites);
-        WriteResult.assertSuccess(await node.interaction.write(write));
+        const result = (await node.interaction.write(write)) as WriteResult.AttributeStatus[];
+
+        if (onFailure) {
+            const failures = result.filter(s => s.status !== Status.Success);
+            if (failures.length) {
+                await onFailure(failures);
+            }
+        }
+
+        WriteResult.assertSuccess(result);
     };
 }
 
@@ -67,6 +79,8 @@ export namespace RemoteWriter {
     }
 
     export interface Request extends Array<EndpointUpdateRequest> {}
+
+    export type FailureHandler = (failures: WriteResult.AttributeStatus[]) => MaybePromise<void>;
 }
 
 function attrsFor(cluster: ClusterType) {

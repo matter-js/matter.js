@@ -6,16 +6,20 @@
 
 export const MATTER_CRYPTO_PRIMITIVES_VERSION = 1;
 
-/** @see {@link MatterSpecification.v10.Core} § 3.5.1 */
+/** @see {@link MatterSpecification.v16.Core} § 3.5.1 */
 export const CRYPTO_GROUP_SIZE_BITS = 256;
 export const CRYPTO_GROUP_SIZE_BYTES = 32;
 export const CRYPTO_PUBLIC_KEY_SIZE_BYTES = 2 * CRYPTO_GROUP_SIZE_BYTES + 1;
-/** @see {@link MatterSpecification.v10.Core} § 3.3 */
+/** @see {@link MatterSpecification.v16.Core} § 3.3 */
 export const CRYPTO_HASH_LEN_BYTES = 32;
-export const CRYPTO_HASH_BLOCK_LEN_BYTES = 64;
-/** @see {@link MatterSpecification.v10.Core} § 3.6 */
+/** @see {@link MatterSpecification.v16.Core} § 3.6 */
 export const CRYPTO_SYMMETRIC_KEY_LENGTH_BITS = 128;
 export const CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES = 16;
 export const CRYPTO_AEAD_MIC_LENGTH_BITS = 128;
 export const CRYPTO_AEAD_MIC_LENGTH_BYTES = 16;
 export const CRYPTO_AEAD_NONCE_LENGTH_BYTES = 13;
+/** @see {@link MatterSpecification.v16.Core} § 3.7 */
+export const CRYPTO_PRIVACY_NONCE_LENGTH_BYTES = CRYPTO_AEAD_NONCE_LENGTH_BYTES;
+/** @see {@link MatterSpecification.v16.Core} § 3.9 */
+export const CRYPTO_PBKDF_ITERATIONS_MIN = 1000;
+export const CRYPTO_PBKDF_ITERATIONS_MAX = 100000;

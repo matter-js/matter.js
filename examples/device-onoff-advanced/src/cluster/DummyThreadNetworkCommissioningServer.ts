@@ -36,10 +36,10 @@ export class DummyThreadNetworkCommissioningServer extends NetworkCommissioningB
 
         const threadScanResults = [
             {
-                panId: this.env.vars.number("ble.thread.panId"),
+                panId: this.env.vars.number("ble.thread.panId") ?? 0x1234,
                 extendedPanId: BigInt(this.env.vars.string("ble.thread.extendedPanId")),
                 networkName: this.env.vars.string("ble.thread.networkName"),
-                channel: this.env.vars.number("ble.thread.channel"),
+                channel: this.env.vars.number("ble.thread.channel") ?? 15,
                 version: 130,
                 extendedAddress: Bytes.fromString(
                     (this.env.vars.string("ble.thread.address") ?? "000000000000").toLowerCase(),

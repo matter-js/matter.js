@@ -6,12 +6,12 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThermostatBehavior as BaseThermostatBehavior } from "../behaviors/thermostat/ThermostatBehavior.js";
-import { IdentifyBehavior as BaseIdentifyBehavior } from "../behaviors/identify/IdentifyBehavior.js";
-import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
+import { ThermostatClient as BaseThermostatClient } from "../behaviors/thermostat/ThermostatClient.js";
+import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
+import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
 import {
-    ScenesManagementBehavior as BaseScenesManagementBehavior
-} from "../behaviors/scenes-management/ScenesManagementBehavior.js";
+    ScenesManagementClient as BaseScenesManagementClient
+} from "../behaviors/scenes-management/ScenesManagementClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -19,7 +19,7 @@ import { Identity } from "@matter/general";
 /**
  * A Thermostat Controller is a device capable of controlling a Thermostat.
  *
- * @see {@link MatterSpecification.v142.Device} § 9.4
+ * @see {@link MatterSpecification.v16.Device} § 9.4
  */
 export interface ThermostatControllerDevice extends Identity<typeof ThermostatControllerDeviceDefinition> {}
 
@@ -27,37 +27,37 @@ export namespace ThermostatControllerRequirements {
     /**
      * The Thermostat cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThermostatBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ThermostatClient} for convenience.
      */
-    export const ThermostatBehavior = BaseThermostatBehavior;
+    export const ThermostatClient = BaseThermostatClient;
 
     /**
      * The Identify cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyBehavior} for convenience.
+     * We provide this alias to the default implementation {@link IdentifyClient} for convenience.
      */
-    export const IdentifyBehavior = BaseIdentifyBehavior;
+    export const IdentifyClient = BaseIdentifyClient;
 
     /**
      * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupsBehavior} for convenience.
+     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
      */
-    export const GroupsBehavior = BaseGroupsBehavior;
+    export const GroupsClient = BaseGroupsClient;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ScenesManagementClient} for convenience.
      */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
+    export const ScenesManagementClient = BaseScenesManagementClient;
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
-        mandatory: { Thermostat: ThermostatBehavior },
-        optional: { Identify: IdentifyBehavior, Groups: GroupsBehavior, ScenesManagement: ScenesManagementBehavior }
+        mandatory: { Thermostat: ThermostatClient },
+        optional: { Identify: IdentifyClient, Groups: GroupsClient, ScenesManagement: ScenesManagementClient }
     };
 }
 

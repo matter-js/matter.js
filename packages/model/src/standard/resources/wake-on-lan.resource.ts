@@ -22,7 +22,7 @@ Resource.add({
         "\n" +
         "Acting on the MAC address or link-local IPv6 address information does require the caller to be in " +
         "the same broadcast domain as the destination. To wake the destination up, the caller sends a " +
-        "multicast-based magic UDP packet that contains destination’s MAC address in the UDP payload to " +
+        "multicast-based magic UDP packet that contains destination's MAC address in the UDP payload to " +
         "FF02::1, the IPv6 all-nodes link-local multicast group address. If the optional link-local address " +
         "is provided by the destination through this cluster, the caller also sends the magic UDP packet in " +
         "unicast to that link-local address. This unicast-based method is particularly useful for Wi-Fi " +
@@ -56,7 +56,7 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> Some companies may consider MAC Address to be protected data subject to PII handling " +
+                "> NOTE: Some companies may consider MAC Address to be protected data subject to PII handling " +
                 "considerations and will therefore choose not to include it or read it. The MAC Address can often " +
                 "be determined using ARP in IPv4 or NDP in IPv6."
         }

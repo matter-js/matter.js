@@ -11,7 +11,6 @@ import {
     ClusterType,
     CommandData,
     CommandId,
-    FabricIndex,
     InvokeRequest,
     ObjectSchema,
     TlvOfModel,
@@ -53,6 +52,12 @@ export interface CommandDecodeDetails {
 export interface ClientInvoke extends Invoke, ClientRequest {
     commands: Map<number | undefined, Invoke.AnyCommandRequest>;
     skipValidation?: boolean;
+
+    /**
+     * When true, the command has Large Message Quality — it may exceed the IPv6 MTU and
+     * requires TCP transport. Such commands are excluded from auto-batching.
+     */
+    largeMessage?: boolean;
 }
 
 /**
@@ -218,15 +223,10 @@ export namespace Invoke {
         const { commandRef } = request;
 
         let fields: any = "fields" in request ? request.fields : undefined;
-        if (requestSchema instanceof ObjectSchema) {
-            if (fields === undefined) {
-                // If developer did not provide a request object, create an empty one if it needs to be an object
-                // This can happen when all object properties are optional
-                fields = {};
-            }
-            if (requestSchema.isFabricScoped && fields.fabricIndex === undefined) {
-                fields.fabricIndex = FabricIndex.NO_FABRIC;
-            }
+        if (requestSchema instanceof ObjectSchema && fields === undefined) {
+            // If developer did not provide a request object, create an empty one if it needs to be an object
+            // This can happen when all object properties are optional
+            fields = {};
         }
 
         if (!skipValidation) {

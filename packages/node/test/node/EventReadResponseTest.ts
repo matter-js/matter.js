@@ -11,9 +11,10 @@ import { ServerNode } from "#index.js";
 import { Bytes, Seconds } from "@matter/general";
 import { AccessLevel, Specification } from "@matter/model";
 import { EventReadResponse, Read, ReadResult } from "@matter/protocol";
-import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "@matter/types";
+import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, NodeId, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Messages } from "@matter/types/clusters/messages";
+import { MockExchange } from "./mock-exchange.js";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 
@@ -133,7 +134,10 @@ describe("EventReadResponse", () => {
                 expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
             });
 
-            it(`reads fabric-scoped concrete event with payload`, async () => {
+            // messageComplete is fabric-sensitive (access "S V").  Per core §8.4.3.2 such records are filtered to
+            // the accessing fabric regardless of the FabricFiltered request flag.  The read session is on NO_FABRIC
+            // here, so an event owned by fabric 5 is always filtered out.
+            it(`filters fabric-sensitive concrete event not owned by the accessing fabric`, async () => {
                 const node = await MockServerNode.createOnline(
                     MockServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
                 );
@@ -157,33 +161,58 @@ describe("EventReadResponse", () => {
                     }),
                 );
 
-                if (fabricScoped) {
-                    expect(response.data).deep.equals([]);
-                    expect(response.counts).deep.equals({ status: 0, success: 0, existent: 1 });
-                } else {
-                    expect(response.data).deep.equals([
-                        [
-                            {
-                                kind: "event-value",
-                                path: {
-                                    eventId: 2,
-                                    clusterId: 0x97,
-                                    endpointId: 0,
-                                },
-                                number: 3n,
-                                priority: 1,
-                                timestamp: -1,
-                                tlv: {},
-                                value: {
-                                    messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
-                                    futureMessagesPreference: Messages.FutureMessagePreference.Allowed,
-                                    fabricIndex: FabricIndex(5),
-                                },
+                expect(response.data).deep.equals([]);
+                expect(response.counts).deep.equals({ status: 0, success: 0, existent: 1 });
+            });
+
+            // Counterpart to the above: when the accessing fabric owns the record it is reported in both
+            // FabricFiltered and non-FabricFiltered reads.
+            it(`reads fabric-sensitive concrete event owned by the accessing fabric`, async () => {
+                const node = await MockServerNode.createOnline(
+                    MockServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
+                );
+                await node.act(agent =>
+                    node.events.messages.messageComplete.emit(
+                        {
+                            messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
+                            futureMessagesPreference: Messages.FutureMessagePreference.Allowed,
+                            fabricIndex: FabricIndex(5),
+                        },
+                        agent.context,
+                    ),
+                );
+
+                const response = await readEvRaw(
+                    node,
+                    {
+                        isFabricFiltered: fabricScoped,
+                        eventRequests: [{ clusterId: ClusterId(0x97), eventId: EventId(2) }],
+                    },
+                    FabricIndex(5),
+                );
+
+                expect(response.data).deep.equals([
+                    [
+                        {
+                            kind: "event-value",
+                            path: {
+                                eventId: 2,
+                                clusterId: 0x97,
+                                endpointId: 0,
                             },
-                        ],
-                    ]);
-                    expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
-                }
+                            number: 3n,
+                            priority: 1,
+                            timestamp: -1,
+                            tlv: {},
+                            value: {
+                                messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
+                                futureMessagesPreference: Messages.FutureMessagePreference.Allowed,
+                                fabricIndex: FabricIndex(5),
+                            },
+                        },
+                    ],
+                ]);
+                expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
             });
         }),
     );
@@ -253,7 +282,7 @@ describe("EventReadResponse", () => {
                         clusterId: 40,
                         endpointId: 1,
                     },
-                    status: StatusCode.UnsupportedEndpoint,
+                    status: Status.UnsupportedEndpoint,
                 },
             ],
         ]);
@@ -281,7 +310,7 @@ describe("EventReadResponse", () => {
                         clusterId: 40,
                         endpointId: 0,
                     },
-                    status: StatusCode.UnsupportedEvent,
+                    status: Status.UnsupportedEvent,
                 },
             ],
         ]);
@@ -299,7 +328,7 @@ describe("EventReadResponse", () => {
             }),
         );
 
-        expect(countEvents(response.data)).deep.equals({
+        expect(await countEvents(response.data)).deep.equals({
             0: {
                 40: 1,
             },
@@ -320,7 +349,7 @@ describe("EventReadResponse", () => {
             }),
         );
 
-        expect(countEvents(response.data)).deep.equals({
+        expect(await countEvents(response.data)).deep.equals({
             0: {
                 40: 2,
             },
@@ -332,13 +361,13 @@ describe("EventReadResponse", () => {
         const node = await MockServerNode.createOnline();
         await node.act(agent => node.events.basicInformation.startUp.emit({ softwareVersion: 2 }, agent.context));
         const response = await readEv(node, false, Read.Event({}));
-        expect(countEvents(response.data)).deep.equals({
+        expect(await countEvents(response.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
         expect(response.counts).deep.equals({
             status: 0,
             success: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT,
-            existent: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT + 4,
+            existent: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT + 3,
         });
     });
 
@@ -407,7 +436,7 @@ export function readEv(node: MockServerNode, isFabricFiltered: boolean, ...args:
     });
 }
 
-export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>) {
+export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>, sessionFabricIndex?: FabricIndex) {
     const request = {
         isFabricFiltered: false,
         interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
@@ -416,7 +445,14 @@ export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>
     if (!Read.containsEvent(request)) {
         throw new Error("Expected an event request");
     }
-    return node.online({ accessLevel: AccessLevel.Administer }, async ({ context }) => {
+    const exchange =
+        sessionFabricIndex === undefined
+            ? undefined
+            : new MockExchange(
+                  { fabricIndex: sessionFabricIndex, nodeId: NodeId(1) },
+                  { accessLevel: AccessLevel.Administer },
+              );
+    return node.online({ accessLevel: AccessLevel.Administer, exchange }, async ({ context }) => {
         const response = new EventReadResponse(node.protocol, context);
         const responseChunks = [];
         for await (const chunks of response.process(request)) {
@@ -442,10 +478,10 @@ export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>
     });
 }
 
-export function countEvents(chunks: ReadResult.Chunk[]) {
+export async function countEvents(chunks: ReadResult.Chunk[]) {
     const counts = {} as Record<EndpointNumber, Record<ClusterId, number>>;
     for (const chunk of chunks) {
-        for (const report of chunk) {
+        for await (const report of chunk) {
             if (report.kind !== "event-value") {
                 throw new Error("Only attribute values expected");
             }

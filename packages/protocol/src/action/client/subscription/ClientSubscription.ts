@@ -20,7 +20,7 @@ export abstract class ClientSubscription implements ActiveSubscription {
     readonly request: Subscribe;
     readonly peer: PeerAddress;
     abstract maxInterval: number;
-    abstract interactionModelRevision: number;
+    abstract interactionModelRevision: number | undefined;
 
     /**
      * If the subscription has an async worker, this is the promise associated with the worker.

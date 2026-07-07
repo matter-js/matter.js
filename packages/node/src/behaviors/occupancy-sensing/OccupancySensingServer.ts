@@ -16,6 +16,7 @@ const logger = Logger.get("OccupancySensingServer");
  *
  * The Matter specification requires the OccupancySensing cluster to support features we do not enable by default. You
  * should use {@link OccupancySensingServer.with} to specialize the class for the features your implementation supports.
+ * When the OccupancyEvent feature is enabled the OccupancyChanged event is emitted automatically on occupancy change.
  */
 export class OccupancySensingServer extends OccupancySensingBehavior {
     override initialize(): MaybePromise {
@@ -63,9 +64,13 @@ export class OccupancySensingServer extends OccupancySensingBehavior {
             }
         }
 
-        // Emit OccupancyChanged event when occupancy changes and the feature is enabled
+        // Emit the OccupancyChanged event on occupancy change when the feature is enabled
         if (this.features.occupancyEvent) {
             this.reactTo(this.events.occupancy$Changed, this.#emitOccupancyChanged);
+        } else {
+            logger.info(
+                'OccupancySensingServer: enable the OccupancyEvent feature (e.g. OccupancySensingServer.with("<DetectorType>", "OccupancyEvent")) to emit the OccupancyChanged event.',
+            );
         }
 
         // Clear attributes that are dependent on HoldTime if HoldTime is not set.

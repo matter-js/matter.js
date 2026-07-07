@@ -4,6 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./UdpChannel.js";
-export * from "./UdpInterface.js";
 export * from "./UdpMulticastServer.js";
+export * from "./UdpSocket.js";
+export * from "./UdpTransport.js";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, merge as mergeObjects, Minutes, Seconds } from "@matter/general";
+import { Duration, Hours, merge as mergeObjects, Millis, Minutes, Seconds } from "@matter/general";
 
 /**
  * Parameters that control network timing for Matter sessions controlled by matter.js.
@@ -73,6 +73,16 @@ export interface PeerTimingParameters {
     kickMinRetransmissions: number;
 
     /**
+     * Minimum time a kick-initiated restart must shave off the next retransmission to be worthwhile.
+     *
+     * Restarting resets MRP backoff to its base interval, so it only helps once backoff has grown well
+     * beyond that base.  A kick whose restart would save less than this is suppressed — for an idle/sleepy
+     * peer the base interval is already large, so a restart gains nothing and needlessly tears down the
+     * in-flight exchange.
+     */
+    kickMinRestartSaving: Duration;
+
+    /**
      * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
      *
      * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
@@ -95,11 +105,11 @@ export interface PeerTimingParameters {
     addressChangeStabilizationDelay: Duration;
 
     /**
-     * Probe cooldown range for address-change probes on the same IP.
+     * Probe cooldown range for address-change probes.
      *
      * When mDNS keeps reporting the session IP as gone but probes succeed, the cooldown grows
      * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  The cooldown
-     * resets when the probed IP changes or a probe fails.
+     * resets on a probe failure or a subscription-liveness scare, not on a mere address change.
      *
      * Probes are also suppressed while the session is actively receiving data — the cooldown
      * is measured from whichever is more recent: the last probe or the last received message.
@@ -151,10 +161,12 @@ export namespace PeerTimingParameters {
         return result;
     }
 
+    const maxInitialContactRetryInterval = Minutes(2);
+
     // TODO - tune these
     export const defaults: PeerTimingParameters = {
         defaultConnectionTimeout: Seconds(90),
-        maxDelayBetweenInitialContactRetries: Minutes(2),
+        maxDelayBetweenInitialContactRetries: maxInitialContactRetryInterval,
 
         // We assume 30s processing time on peer for single Sigma actions, so give one IP a bit of time
         // to have a chance before potentially adding a load with a second try
@@ -164,14 +176,15 @@ export namespace PeerTimingParameters {
         delayAfterUnhandledError: Minutes(2),
         kickThrottleInterval: Seconds(3),
         kickMinRetransmissions: 2,
+        kickMinRestartSaving: Millis(maxInitialContactRetryInterval / 2),
         kickRestartCooldown: {
             addressChange: Minutes(30),
             connect: Minutes(10),
         },
         addressChangeStabilizationDelay: Seconds(10),
         addressChangeProbeCooldown: {
-            minimum: Minutes(2),
-            maximum: Minutes(60),
+            minimum: Minutes(10),
+            maximum: Hours(24),
         },
     };
 }

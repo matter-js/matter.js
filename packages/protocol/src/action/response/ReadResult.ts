@@ -15,7 +15,6 @@ import type {
     NodeId,
     Priority,
     Status,
-    StatusCode,
     TlvSchema,
 } from "@matter/types";
 
@@ -31,7 +30,12 @@ import type {
 export interface ReadResult<Chunk = ReadResult.Chunk> extends AsyncIterable<Chunk> {}
 
 export namespace ReadResult {
-    export type Chunk = Iterable<Report>;
+    /**
+     * One block of reports yielded by a {@link ReadResult}. Async-iterable producers (e.g. wire-decode pipelines)
+     * can interleave work between reports; sync producers (e.g. small in-memory yields) keep their literal array
+     * shape. Consumers iterate with `for await … of chunk` either way.
+     */
+    export type Chunk = AsyncIterable<Report> | Iterable<Report>;
 
     export type Report = AttributeValue | AttributeStatus | EventValue | EventStatus;
 
@@ -53,7 +57,7 @@ export namespace ReadResult {
     export interface AttributeStatus {
         kind: "attr-status";
         path: ConcreteAttributePath;
-        status: StatusCode;
+        status: Status;
         clusterStatus?: number;
     }
 
@@ -68,7 +72,25 @@ export namespace ReadResult {
         kind: "event-value";
         path: ConcreteEventPath;
         number: EventNumber;
+
+        /**
+         * Collapsed numeric form of whichever wire timestamp variant the publisher sent. Convenience for callers
+         * that don't care about the distinction; the specific variant is in the four fields below.
+         */
         timestamp: number;
+
+        /** Absolute Posix epoch timestamp (milliseconds). Per Matter Core §10.7 exactly one of the four is set. */
+        epochTimestamp?: number | bigint;
+
+        /** Absolute system-time timestamp (milliseconds). */
+        systemTimestamp?: number | bigint;
+
+        /** Relative epoch-time delta from the previous event (milliseconds). */
+        deltaEpochTimestamp?: number | bigint;
+
+        /** Relative system-time delta from the previous event (milliseconds). */
+        deltaSystemTimestamp?: number | bigint;
+
         priority: Priority;
         value: unknown;
         tlv: TlvSchema<unknown>;

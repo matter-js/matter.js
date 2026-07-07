@@ -24,7 +24,7 @@ export const ApplicationBasic = Cluster(
     Attribute({ name: "VendorId", id: 0x1, type: "vendor-id", access: "R V", conformance: "O", quality: "F" }),
     Attribute({
         name: "ApplicationName", id: 0x2, type: "string", access: "R V", conformance: "M",
-        constraint: "desc", quality: "F"
+        constraint: "max 256", quality: "F"
     }),
     Attribute({ name: "ProductId", id: 0x3, type: "uint16", access: "R V", conformance: "O", quality: "F" }),
     Attribute({

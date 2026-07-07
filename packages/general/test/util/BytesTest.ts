@@ -90,4 +90,15 @@ describe("ByteArray", () => {
             expect(result).deep.equal(Uint8Array.of(0x12, 0x34));
         });
     });
+
+    describe("of", () => {
+        it("preserves byteOffset and byteLength of a non-Uint8Array view", () => {
+            const buffer = Uint8Array.of(0x01, 0x02, 0x03, 0x04, 0x05, 0x06).buffer;
+            const view = new DataView(buffer, 2, 3);
+
+            const result = Bytes.of(view);
+
+            expect(result).deep.equal(Uint8Array.of(0x03, 0x04, 0x05));
+        });
+    });
 });

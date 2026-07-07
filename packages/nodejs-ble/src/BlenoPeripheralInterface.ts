@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, ImplementationError } from "@matter/general";
+import { Bytes, Channel, ChannelType, Duration, ImplementationError, Transport } from "@matter/general";
 import { BlePeripheralInterface } from "@matter/protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
 
 export class BlenoPeripheralInterface implements BlePeripheralInterface {
     constructor(private readonly blenoServer: BlenoBleServer) {}
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener {
         this.blenoServer.setMatterMessageListener(listener);
         return {
             close: async () => await this.close(),

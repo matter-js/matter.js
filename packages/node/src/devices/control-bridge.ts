@@ -7,20 +7,20 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
-import { IdentifyBehavior as BaseIdentifyBehavior } from "../behaviors/identify/IdentifyBehavior.js";
-import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
+import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
+import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
+import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
+import { LevelControlClient as BaseLevelControlClient } from "../behaviors/level-control/LevelControlClient.js";
 import {
-    ScenesManagementBehavior as BaseScenesManagementBehavior
-} from "../behaviors/scenes-management/ScenesManagementBehavior.js";
-import { OnOffBehavior as BaseOnOffBehavior } from "../behaviors/on-off/OnOffBehavior.js";
-import { LevelControlBehavior as BaseLevelControlBehavior } from "../behaviors/level-control/LevelControlBehavior.js";
-import { ColorControlBehavior as BaseColorControlBehavior } from "../behaviors/color-control/ColorControlBehavior.js";
+    ScenesManagementClient as BaseScenesManagementClient
+} from "../behaviors/scenes-management/ScenesManagementClient.js";
+import { ColorControlClient as BaseColorControlClient } from "../behaviors/color-control/ColorControlClient.js";
 import {
-    IlluminanceMeasurementBehavior as BaseIlluminanceMeasurementBehavior
-} from "../behaviors/illuminance-measurement/IlluminanceMeasurementBehavior.js";
+    IlluminanceMeasurementClient as BaseIlluminanceMeasurementClient
+} from "../behaviors/illuminance-measurement/IlluminanceMeasurementClient.js";
 import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -30,7 +30,7 @@ import { Identity } from "@matter/general";
  * capable of being used to switch the device on or off, adjust the intensity of the light being emitted and adjust the
  * color of the light being emitted. In addition, a Control Bridge device is capable of being used for setting scenes.
  *
- * @see {@link MatterSpecification.v142.Device} § 6.4
+ * @see {@link MatterSpecification.v16.Device} § 6.4
  */
 export interface ControlBridgeDevice extends Identity<typeof ControlBridgeDeviceDefinition> {}
 
@@ -45,58 +45,58 @@ export namespace ControlBridgeRequirements {
     /**
      * The Identify cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyBehavior} for convenience.
+     * We provide this alias to the default implementation {@link IdentifyClient} for convenience.
      */
-    export const IdentifyBehavior = BaseIdentifyBehavior;
+    export const IdentifyClient = BaseIdentifyClient;
 
     /**
      * The Groups cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link GroupsBehavior} for convenience.
+     * We provide this alias to the default implementation {@link GroupsClient} for convenience.
      */
-    export const GroupsBehavior = BaseGroupsBehavior;
-
-    /**
-     * The ScenesManagement cluster is required by the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
-     */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
+    export const GroupsClient = BaseGroupsClient;
 
     /**
      * The OnOff cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OnOffBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OnOffClient} for convenience.
      */
-    export const OnOffBehavior = BaseOnOffBehavior;
+    export const OnOffClient = BaseOnOffClient;
 
     /**
      * The LevelControl cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link LevelControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link LevelControlClient} for convenience.
      */
-    export const LevelControlBehavior = BaseLevelControlBehavior;
+    export const LevelControlClient = BaseLevelControlClient;
+
+    /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ScenesManagementClient} for convenience.
+     */
+    export const ScenesManagementClient = BaseScenesManagementClient;
 
     /**
      * The ColorControl cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ColorControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ColorControlClient} for convenience.
      */
-    export const ColorControlBehavior = BaseColorControlBehavior;
+    export const ColorControlClient = BaseColorControlClient;
 
     /**
      * The IlluminanceMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IlluminanceMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link IlluminanceMeasurementClient} for convenience.
      */
-    export const IlluminanceMeasurementBehavior = BaseIlluminanceMeasurementBehavior;
+    export const IlluminanceMeasurementClient = BaseIlluminanceMeasurementClient;
 
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -108,18 +108,15 @@ export namespace ControlBridgeRequirements {
      */
     export const client = {
         mandatory: {
-            Identify: IdentifyBehavior,
-            Groups: GroupsBehavior,
-            ScenesManagement: ScenesManagementBehavior,
-            OnOff: OnOffBehavior,
-            LevelControl: LevelControlBehavior,
-            ColorControl: ColorControlBehavior
+            Identify: IdentifyClient,
+            Groups: GroupsClient,
+            OnOff: OnOffClient,
+            LevelControl: LevelControlClient,
+            ScenesManagement: ScenesManagementClient,
+            ColorControl: ColorControlClient
         },
 
-        optional: {
-            IlluminanceMeasurement: IlluminanceMeasurementBehavior,
-            OccupancySensing: OccupancySensingBehavior
-        }
+        optional: { IlluminanceMeasurement: IlluminanceMeasurementClient, OccupancySensing: OccupancySensingClient }
     };
 }
 

@@ -17,7 +17,6 @@ import {
     PeerSet,
     SecureSession,
     SessionManager,
-    SupportedTransportsSchema,
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
 import {
@@ -26,12 +25,6 @@ import {
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
     SecureChannelStatusCode,
-    TlvBoolean,
-    TlvByteString,
-    TlvInt32,
-    TlvNullable,
-    TlvString,
-    TlvUInt64,
     VendorId,
 } from "@matter/main/types";
 import { AttributeModel, CommandModel, Matter } from "@matter/model";
@@ -443,43 +436,15 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
         logger.info("Writing attribute", attributeId, "with value", value);
 
-        let tlvValue: any;
-
-        if (value === null) {
-            tlvValue = TlvNullable(TlvBoolean).encodeTlv(value); // Boolean is just a placeholder here
-        } else if (Bytes.isBytes(value)) {
-            tlvValue = TlvByteString.encodeTlv(value);
-        } else {
-            switch (typeof value) {
-                case "boolean":
-                    tlvValue = TlvBoolean.encodeTlv(value);
-                    break;
-                case "number":
-                    tlvValue = TlvInt32.encodeTlv(value);
-                    break;
-                case "bigint":
-                    tlvValue = TlvUInt64.encodeTlv(value);
-                    break;
-                case "string":
-                    tlvValue = TlvString.encodeTlv(value);
-                    break;
-                default:
-                    throw new Error("Unsupported value type for Any encoding");
-                    break;
-            }
-        }
-
-        // Try to look up the real model for proper encoding
         const realAttr = Matter.clusters(clusterId)?.attributes(attributeId);
-        const attrModel =
-            realAttr ?? new AttributeModel({ id: attributeId, name: `attr_${attributeId}`, access: "RW" });
+        const attrModel = realAttr ?? inferAttrModel(attributeId, value);
 
         await client.setAttribute({
             attributeData: {
                 endpointId,
                 clusterId,
                 attribute: { id: attributeId, name: attrModel.name, schema: attrModel },
-                value: tlvValue,
+                value,
             },
         });
     }
@@ -529,6 +494,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 nodeId: data.nodeId,
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
+                onAttestationFailure: true, // Test controller always accepts attestation findings
             },
             discovery: {
                 knownAddress,
@@ -633,9 +599,10 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             return [];
         }
         return [latestDiscovery].map(({ DT, DN, CM, D, RI, PH, PI, T, VP, deviceIdentifier, addresses }) => {
-            const { tcpClient: supportsTcpClient, tcpServer: supportsTcpServer } = SupportedTransportsSchema.decode(
-                T ?? 0,
-            );
+            const { tcpClient: supportsTcpClient, tcpServer: supportsTcpServer } = T ?? {
+                tcpClient: false,
+                tcpServer: false,
+            };
             const vendorId = VP === undefined ? -1 : VP.includes("+") ? parseInt(VP.split("+")[0]) : parseInt(VP);
             const productId = VP === undefined ? -1 : VP.includes("+") ? parseInt(VP.split("+")[1]) : -1;
             const port = addresses.length ? (addresses[0] as ServerAddressUdp).port : 0;
@@ -663,4 +630,21 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             };
         });
     }
+}
+
+function inferAttrModel(id: number, value: unknown): AttributeModel {
+    let type: string;
+    if (Bytes.isBytes(value)) type = "octstr";
+    else if (typeof value === "bigint") type = "uint64";
+    else if (typeof value === "string") type = "string";
+    else if (typeof value === "boolean") type = "bool";
+    else if (typeof value === "number" || value === null) type = "int32";
+    else throw new Error(`Cannot infer TLV type for unknown attribute ${id} from value of type ${typeof value}`);
+    return new AttributeModel({
+        id,
+        name: `attr_${id}`,
+        type,
+        quality: value === null ? "X" : undefined,
+        access: "RW",
+    });
 }

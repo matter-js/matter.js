@@ -7,6 +7,8 @@
 import { Environment } from "#environment/Environment.js";
 import { Environmental } from "#environment/Environmental.js";
 import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
+import { LogLevel } from "#log/LogLevel.js";
+import { Logger } from "#log/Logger.js";
 
 /** Asserts that all provided values are strictly equal to each other */
 function expectAllEqual<T>(...values: T[]) {
@@ -97,6 +99,92 @@ describe("Environment", () => {
 
             expect(service.closed).to.be.true;
             expect(env.has(TestService)).to.be.false;
+        });
+    });
+
+    describe("close() ordering", () => {
+        it("keeps service resolvable inside its own sync close", () => {
+            let resolvedDuringClose: SelfRefService | undefined;
+
+            class SelfRefService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(SelfRefService);
+                }
+                constructor(public env: Environment) {}
+                close() {
+                    resolvedDuringClose = this.env.get(SelfRefService);
+                }
+            }
+
+            const svc = new SelfRefService(env);
+            env.set(SelfRefService, svc);
+
+            env.close(SelfRefService);
+
+            expect(resolvedDuringClose).to.equal(svc);
+            expect(env.has(SelfRefService)).to.be.false;
+        });
+
+        it("keeps service resolvable inside its own async close", async () => {
+            let resolvedDuringClose: AsyncSelfRefService | undefined;
+
+            class AsyncSelfRefService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(AsyncSelfRefService);
+                }
+                constructor(public env: Environment) {}
+                async close() {
+                    await Promise.resolve();
+                    resolvedDuringClose = this.env.get(AsyncSelfRefService);
+                }
+            }
+
+            const svc = new AsyncSelfRefService(env);
+            env.set(AsyncSelfRefService, svc);
+
+            await env.close(AsyncSelfRefService);
+
+            expect(resolvedDuringClose).to.equal(svc);
+            expect(env.has(AsyncSelfRefService)).to.be.false;
+        });
+
+        it("removes service from env even when sync close throws", () => {
+            class ThrowingService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(ThrowingService);
+                }
+                close() {
+                    throw new Error("close failed");
+                }
+            }
+
+            env.set(ThrowingService, new ThrowingService());
+
+            expect(() => env.close(ThrowingService)).to.throw("close failed");
+            expect(env.has(ThrowingService)).to.be.false;
+        });
+
+        it("removes service from env even when async close rejects", async () => {
+            class RejectingService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(RejectingService);
+                }
+                async close() {
+                    throw new Error("close rejected");
+                }
+            }
+
+            env.set(RejectingService, new RejectingService());
+
+            let error: Error | undefined;
+            try {
+                await env.close(RejectingService);
+            } catch (e) {
+                error = e as Error;
+            }
+
+            expect(error?.message).to.equal("close rejected");
+            expect(env.has(RejectingService)).to.be.false;
         });
     });
 
@@ -679,6 +767,50 @@ describe("Environment", () => {
             expect(parent.has(TestService)).to.be.true;
             expect(child.has(TestService)).to.be.true;
             expect(dependent2.get(TestService)).to.equal(service);
+        });
+    });
+
+    describe("log configuration via variables", () => {
+        let savedLevel: LogLevel | string;
+
+        beforeEach(() => {
+            savedLevel = Logger.level;
+        });
+
+        afterEach(() => {
+            Logger.level = savedLevel;
+        });
+
+        // Mirrors the wiring in Environment.set default without swapping the shared global default (which would
+        // dispose it and break other tests sharing the process).
+        function applyLogLevel(value: string | number) {
+            using configured = new Environment("test-log");
+            configured.vars.set("log.level", value);
+            configured.vars.use(() => {
+                Logger.level = configured.vars.get("log.level", LogLevel.names[LogLevel(Logger.level)]);
+            });
+        }
+
+        it("applies string level names", () => {
+            applyLogLevel("info");
+            expect(Logger.level).to.equal(LogLevel.INFO);
+
+            applyLogLevel("debug");
+            expect(Logger.level).to.equal(LogLevel.DEBUG);
+        });
+
+        it("applies numeric levels", () => {
+            applyLogLevel(4);
+            expect(Logger.level).to.equal(LogLevel.ERROR);
+        });
+
+        it("applies numeric string levels", () => {
+            applyLogLevel("2");
+            expect(Logger.level).to.equal(LogLevel.NOTICE);
+        });
+
+        it("rejects invalid level names", () => {
+            expect(() => applyLogLevel("bogus")).to.throw();
         });
     });
 });

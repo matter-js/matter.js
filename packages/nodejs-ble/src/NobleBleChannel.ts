@@ -8,7 +8,6 @@ import {
     Bytes,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
     Diagnostic,
     InternalError,
     Logger,
@@ -17,6 +16,7 @@ import {
     ServerAddress,
     Time,
     Timer,
+    Transport,
     asError,
     createPromise,
 } from "@matter/general";
@@ -82,7 +82,7 @@ type BleConnectionGuard = {
     disconnectTimeout: Timer;
 };
 
-export class NobleBleCentralInterface implements ConnectionlessTransport {
+export class NobleBleCentralInterface implements Transport {
     #bleScanner: BleScanner;
     #connectionsInProgress = new Set<string>();
     #connectionGuards = new Set<BleConnectionGuard>();
@@ -94,7 +94,11 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
         this.#bleScanner = bleScanner;
     }
 
-    openChannel(address: ServerAddress, tryCount = 1): Promise<Channel<Bytes>> {
+    openChannel(address: ServerAddress, _options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
+        return this.#openChannel(address, 1);
+    }
+
+    #openChannel(address: ServerAddress, tryCount: number): Promise<Channel<Bytes>> {
         if (this.#closed) {
             throw new NetworkError("Network interface is closed");
         }
@@ -123,8 +127,8 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 );
                 return;
             }
-            if (address.type !== "ble") {
-                rejectOnce(new InternalError(`Unsupported address type ${address.type}.`));
+            if (!ServerAddress.isBle(address)) {
+                rejectOnce(new InternalError(`Unsupported address type for BLE channel.`));
                 return;
             }
             const { peripheralAddress } = address;
@@ -200,7 +204,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                         // so chance is high also disconnect does not work reliably for now
                         peripheral
                             .disconnectAsync()
-                            .catch(error => logger.error(`Ignored error while disconnecting`, error));
+                            .catch(error => logger.debug(`Ignored error while disconnecting`, error));
                     }
                     rejectOnce(new BleError(`Timeout while interviewing peripheral ${peripheralAddress}`));
                 }),
@@ -233,7 +237,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 }
 
                 // Try again and chain promises
-                this.openChannel(address, tryCount + 1)
+                this.#openChannel(address, tryCount + 1)
                     .then(resolveOnce)
                     .catch(rejectOnce);
             };
@@ -433,7 +437,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
         });
     }
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener {
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),
@@ -447,7 +451,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 logger.debug(`Peripheral ${peripheral.address}: Disconnect from peripheral while closing central`);
                 peripheral
                     .disconnectAsync()
-                    .catch(error => logger.error(`Peripheral ${peripheral.address}: Error while disconnecting`, error));
+                    .catch(error => logger.warn(`Peripheral ${peripheral.address}: Error while disconnecting`, error));
             }
         }
         this.#openChannels.clear();
@@ -470,12 +474,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<NobleBleChannel> {
         const { address: peripheralAddress } = peripheral;
-        let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
-            mtu = MatterBle.MAXIMUM_BTP_MTU;
-        }
+        const mtu = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
         logger.debug(
-            `Peripheral ${peripheralAddress}: Using MTU=${mtu} bytes (Peripheral supports up to ${peripheral.mtu} bytes)`,
+            `Peripheral ${peripheralAddress}: Using BTP segment size=${mtu} bytes (Peripheral ATT_MTU up to ${peripheral.mtu} bytes)`,
         );
 
         const {
@@ -502,9 +503,13 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, async () => {
             characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
 
-            await characteristicC2ForSubscribe
-                .unsubscribeAsync()
-                .catch(error => logger.error(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error));
+            if (peripheral.state === "connected") {
+                await characteristicC2ForSubscribe.unsubscribeAsync().catch(error => {
+                    if (!isNobleDisconnectError(error)) {
+                        logger.warn(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error);
+                    }
+                });
+            }
 
             logger.debug(
                 `Peripheral ${peripheralAddress}: Handshake Response not received. Disconnect from peripheral`,
@@ -560,14 +565,13 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             async () => {
                 if (peripheral.state !== "connected" || !nobleChannel.connected) return;
                 logger.debug(`Peripheral ${peripheralAddress}: Disconnect from peripheral because btp session closed`);
-                // Unsubscribe from C2 notifications, then disconnect.  If unsubscribe fails (e.g. the
-                // peripheral already started disconnecting and Noble's _withDisconnectHandler rejected the
-                // pending operation with "Disconnected unknown"), proceed to disconnectAsync anyway.
                 characteristicC2ForSubscribe
                     .unsubscribeAsync()
-                    .catch(error =>
-                        logger.debug(`Peripheral ${peripheralAddress}: Error while unsubscribing from C2`, error),
-                    )
+                    .catch(error => {
+                        if (!isNobleDisconnectError(error)) {
+                            logger.debug(`Peripheral ${peripheralAddress}: Error while unsubscribing from C2`, error);
+                        }
+                    })
                     .then(() => {
                         if (peripheral.state !== "connected") {
                             return;
@@ -577,14 +581,17 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                             error => logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
                         );
                     })
-                    .catch(() => {});
+                    .catch(error =>
+                        logger.debug(`Peripheral ${peripheralAddress}: Error during disconnect cleanup`, error),
+                    );
             },
 
-            // callback to forward decoded and de-assembled Matter messages to ExchangeManager
+            // callback to forward decoded and de-assembled Matter messages
             async (data: Bytes) => {
                 if (onMatterMessageListener === undefined) {
                     throw new InternalError(`No listener registered for Matter messages`);
                 }
+                nobleChannel.pushMessage(data);
                 onMatterMessageListener(nobleChannel, data);
             },
         );
@@ -595,7 +602,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             );
 
             btpSession.handleIncomingBleData(new Uint8Array(data)).catch(error => {
-                logger.error(`Peripheral ${peripheralAddress}: Error handling incoming BLE data`, error);
+                logger.info(`Peripheral ${peripheralAddress}: Error handling incoming BLE data`, error);
             });
         };
         characteristicC2ForSubscribe.on("data", c2DataHandler);
@@ -607,6 +614,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     }
 
     #connected = true;
+    readonly #closeListeners = new Set<() => void>();
+    #iteratorQueue = new Array<Bytes>();
+    #iteratorWaiter?: (value: IteratorResult<Bytes>) => void;
+    #iteratorDone = false;
 
     readonly #cleanupDataListener: () => void;
 
@@ -621,6 +632,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             logger.debug(`Disconnected from peripheral ${peripheral.address}. Closing BTP session`);
             this.#connected = false;
             this.#cleanupDataListener();
+            this.#terminateIterator();
+            for (const listener of this.#closeListeners) {
+                listener();
+            }
             this.btpSession.close().catch(error => {
                 logger.debug(`Peripheral ${peripheral.address}: Error closing BTP session on disconnect`, error);
             });
@@ -641,10 +656,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
      */
     async send(data: Bytes) {
         if (!this.connected) {
-            logger.debug(
+            throw new BleDisconnectedError(
                 `Peripheral ${this.peripheral.address}: Cannot send data because not connected to peripheral.`,
             );
-            return;
         }
         if (this.btpSession === undefined) {
             throw new BtpFlowError(
@@ -659,15 +673,60 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         return `${this.type}://${this.peripheral.address}`;
     }
 
+    onClose(listener: () => void): Transport.Listener {
+        this.#closeListeners.add(listener);
+        return {
+            close: async () => {
+                this.#closeListeners.delete(listener);
+            },
+        };
+    }
+
+    /** Called by the BTP session when a complete Matter message is assembled. */
+    pushMessage(message: Bytes): void {
+        if (this.#iteratorWaiter) {
+            const resolve = this.#iteratorWaiter;
+            this.#iteratorWaiter = undefined;
+            resolve({ value: message, done: false });
+        } else if (!this.#iteratorDone) {
+            this.#iteratorQueue.push(message);
+        }
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#iteratorQueue.length > 0) {
+                    return Promise.resolve({ value: this.#iteratorQueue.shift()!, done: false });
+                }
+                if (this.#iteratorDone || !this.#connected) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#iteratorWaiter = resolve;
+                });
+            },
+        };
+    }
+
+    #terminateIterator(): void {
+        if (!this.#iteratorDone) {
+            this.#iteratorDone = true;
+            this.#iteratorWaiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#iteratorWaiter = undefined;
+        }
+    }
+
     async close() {
         this.#cleanupDataListener();
+        this.#terminateIterator();
         await this.btpSession.close();
         if (this.connected) {
-            this.peripheral
-                .disconnectAsync()
-                .catch(error =>
-                    logger.error(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error),
-                );
+            this.peripheral.disconnectAsync().catch(error => {
+                if (!isNobleDisconnectError(error)) {
+                    logger.warn(`Peripheral ${this.peripheral.address}: Error while disconnecting`, error);
+                }
+            });
         }
         this.emitClosed();
     }

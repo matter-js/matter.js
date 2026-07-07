@@ -6,34 +6,79 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
+import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
+import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { AccessControlClient } from "#behaviors/access-control";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
-import { IdentifyClient } from "#behaviors/identify";
+import {
+    BooleanStateConfigurationClient,
+    BooleanStateConfigurationServer,
+} from "#behaviors/boolean-state-configuration";
+import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
+import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
+import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import {
     b$,
     Bytes,
     Crypto,
     deepCopy,
     Entropy,
+    MatterAggregateError,
     Minutes,
     MockCrypto,
     Observable,
     Seconds,
+    ServerAddress,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
-import { Specification } from "@matter/model";
-import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
-import { FabricIndex } from "@matter/types";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterRevision,
+    FeatureMap,
+    GeneratedCommandList,
+    Specification,
+} from "@matter/model";
+import {
+    CommissioningError,
+    ControllerCommissioner,
+    FabricAuthority,
+    FabricManager,
+    PeerSet,
+    Read,
+    ReadResult,
+    Val,
+    ValidateError,
+} from "@matter/protocol";
+import {
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    FabricIndex,
+    NodeId,
+    Status,
+    StatusResponseError,
+    TlvAny,
+} from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
+import { Descriptor } from "@matter/types/clusters/descriptor";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
@@ -107,11 +152,11 @@ describe("ClientNode", () => {
         // Verify commissioning addresses were stored correctly
         const addresses = peer1.state.commissioning.addresses;
         expect(addresses).not.undefined;
-        const udpAddresses = addresses!.filter(a => a.type === "udp");
-        expect(udpAddresses.length).equals(1 /*2*/); // Currently we only store "last known good" address
+        const ipAddresses = addresses!.filter(a => ServerAddress.isIp(a));
+        expect(ipAddresses.length).equals(1 /*2*/); // Currently we only store "last known good" address
         // Device is index 2, so should have 10.10.10.2 and ...8802
-        //expect(udpAddresses.some(a => a.ip === "10.10.10.2")).true;
-        expect(udpAddresses.some(a => a.ip === "abcd::2")).true;
+        //expect(ipAddresses.some(a => a.ip === "10.10.10.2")).true;
+        expect(ipAddresses.some(a => (a as ServerAddressIp).ip === "abcd::2")).true;
 
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
@@ -219,6 +264,93 @@ describe("ClientNode", () => {
         expect(controller.peers.size).equals(1);
     });
 
+    it("initializes a newly-commissioned node with autoSubscribe:false without a manual reconnect", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({ passcode, discriminator, timeout: Seconds(90), autoSubscribe: false }),
+            { macrotasks: true },
+        );
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+        expect(peer1.stateOf(NetworkClient).autoSubscribe).equals(false);
+
+        // The one-time post-commission read populated cluster state and endpoint structure without a manual reconnect
+        expect(peer1.maybeStateOf(BasicInformationBehavior)?.vendorName).equals("Matter.js Test Vendor");
+        expect(peer1.parts.size).equals(1);
+    });
+
+    it("skips the post-commission read when autoStateInitialize is false", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+            }),
+            { macrotasks: true },
+        );
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        // Opting out leaves the node uninitialized: no post-commission read, so no cluster state and no endpoint structure
+        expect(peer1.maybeStateOf(BasicInformationBehavior)).equals(undefined);
+        expect(peer1.parts.size).equals(0);
+    });
+
+    it("commissions with an explicit id and restores the peer under that id after restart", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({ id: "device", passcode, discriminator, timeout: Seconds(90) }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).equals(1);
+        expect([...controller.peers].map(n => n.id)).deep.equals(["device"]);
+        expect(controller.peers.get("device")).not.undefined;
+
+        // *** RESTART controller (models the two-process commission-then-toggle flow) ***
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+
+        expect(controllerB.peers.size).equals(1);
+        expect([...controllerB.peers].map(n => n.id)).deep.equals(["device"]);
+        expect(controllerB.peers.get("device")).not.undefined;
+    });
+
     it("rejects node-level commissioning without known addresses", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addUncommissionedPair();
@@ -322,6 +454,82 @@ describe("ClientNode", () => {
         expect(controller.peers.size).at.least(1);
     });
 
+    it("commissions same-discriminator devices with an explicit node ID without a peer-address conflict", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const wrongPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 20202021,
+            },
+        });
+        const matchingPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 22223333,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const wrongDeviceCrypto = wrongPasscodeDevice.env.get(Crypto) as MockCrypto;
+        const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
+
+        await controller.start();
+
+        // A caller-supplied node ID is shared by every parallel candidate.  Allocation must happen only after a
+        // candidate wins PASE, otherwise the losing candidate reserves the ID first and the winner fails with an
+        // identity conflict before it can commission.
+        const explicitNodeId = NodeId(88n);
+        const commissioned = await MockTime.resolve(
+            controller.peers.commission({
+                passcode: 22223333,
+                discriminator: 1234,
+                nodeId: explicitNodeId,
+                timeout: Seconds(90),
+            }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
+
+        expect(commissioned).not.undefined;
+        expect(wrongPasscodeDevice.state.commissioning.commissioned).equals(false);
+        expect(matchingPasscodeDevice.state.commissioning.commissioned).equals(true);
+        expect(commissioned.state.commissioning.peerAddress?.nodeId).equals(explicitNodeId);
+    });
+
+    it("rejects commissioning with an explicit node ID that is already in use before establishing PASE", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const device = await site.addDevice({
+            commissioning: {
+                discriminator: 999,
+                passcode: 22223333,
+            },
+        });
+
+        // The node ID already assigned to the commissioned peer is reserved and must be refused.
+        const usedNodeId = controller.peers.get("peer1")!.peerAddress!.nodeId;
+
+        const discovered = await MockTime.resolve(
+            controller.peers.discover({ longDiscriminator: 999, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        // Use a wrong passcode: the conflict must be reported before PASE, so we expect "already in use"
+        // rather than a PASE failure that would result if the check ran only at post-PASE allocation.
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode: 11112222, discriminator: 999, nodeId: usedNodeId })).rejectedWith(
+                /already in use/i,
+            ),
+        );
+
+        expect(device.state.commissioning.commissioned).equals(false);
+    });
+
     it("commissions via known-address flow even when first address has invalid credentials", async () => {
         await using site = new MockSite();
         const controller = await site.addController();
@@ -354,8 +562,8 @@ describe("ClientNode", () => {
                 fabric,
                 passcode: 22223333,
                 addresses: [
-                    { type: "udp", ip: "abcd::2", port: 5540 },
-                    { type: "udp", ip: "abcd::3", port: 5540 },
+                    { ip: "abcd::2", port: 5540 },
+                    { ip: "abcd::3", port: 5540 },
                 ],
             }),
             { macrotasks: true },
@@ -463,6 +671,546 @@ describe("ClientNode", () => {
         const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
         expect(ep1Server.state.onOff.onTime).equals(20);
         expect(ep1Server.state.identify.identifyTime).equals(5);
+    });
+
+    it("writes nullable attribute: null, 0 and 2", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1Client = peer1.parts.get("ep1")!;
+        const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.startUpOnOff = null;
+            }),
+        );
+        expect(ep1Server.state.onOff.startUpOnOff).equals(null);
+
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.startUpOnOff = OnOff.StartUpOnOff.Off;
+            }),
+        );
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Off);
+
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.startUpOnOff = OnOff.StartUpOnOff.Toggle;
+            }),
+        );
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
+    });
+
+    it("writes nullable attribute via setStateOf: null, 0 and 2", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1Client = peer1.parts.get("ep1")!;
+        const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+        await MockTime.resolve(ep1Client.setStateOf("onOff", { startUpOnOff: null }));
+        expect(ep1Server.state.onOff.startUpOnOff).equals(null);
+
+        await MockTime.resolve(ep1Client.setStateOf("onOff", { startUpOnOff: OnOff.StartUpOnOff.Off }));
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Off);
+
+        await MockTime.resolve(ep1Client.setStateOf("onOff", { startUpOnOff: OnOff.StartUpOnOff.Toggle }));
+        expect(ep1Server.state.onOff.startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
+    });
+
+    describe("writes attribute whose constraint references a sibling attribute", () => {
+        // currentSensitivityLevel has constraint "max supportedSensitivityLevels - 1"; with
+        // supportedSensitivityLevels = 3, value 2 must be accepted via every client commit path.
+
+        const BscWithSensLevel = BooleanStateConfigurationServer.with("SensitivityLevel").set({
+            supportedSensitivityLevels: 3,
+            currentSensitivityLevel: 0,
+            defaultSensitivityLevel: 0,
+        });
+        const ContactSensorWithSensLevel = ContactSensorDevice.with(BscWithSensLevel);
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: ContactSensorWithSensLevel,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        it("via agent.state assignment", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            await MockTime.resolve(
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 2;
+                }),
+            );
+
+            expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
+
+        it("via setStateOf", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            await MockTime.resolve(
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 2 }),
+            );
+
+            expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
+
+        it("via endpoint.set", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const typedClient = ep1Client as Endpoint<typeof ContactSensorWithSensLevel>;
+            await MockTime.resolve(
+                typedClient.set({
+                    booleanStateConfiguration: { currentSensitivityLevel: 2 },
+                }),
+            );
+
+            expect(ep1Server.stateOf(BscWithSensLevel).currentSensitivityLevel).equals(2);
+        });
+    });
+
+    class DecliningBsc extends BooleanStateConfigurationServer.with("SensitivityLevel") {
+        override initialize() {
+            super.initialize();
+            this.reactTo(this.events.currentSensitivityLevel$Changing, () => {
+                throw new StatusResponseError("currentSensitivityLevel write declined", Status.ConstraintError);
+            });
+        }
+    }
+
+    const DecliningBscWithLevels = DecliningBsc.set({
+        supportedSensitivityLevels: 3,
+        currentSensitivityLevel: 0,
+        defaultSensitivityLevel: 0,
+    });
+
+    class DecliningIdentify extends IdentifyServer {
+        override initialize() {
+            super.initialize();
+            this.reactTo(this.events.identifyTime$Changing, () => {
+                throw new StatusResponseError("identifyTime write declined", Status.ResourceExhausted);
+            });
+        }
+    }
+
+    async function captureRejection(write: () => unknown) {
+        let caught: unknown;
+        try {
+            await MockTime.resolve(Promise.resolve(write() as Promise<unknown>));
+        } catch (e) {
+            caught = e;
+        }
+        return caught;
+    }
+
+    describe("surfaces a server-side write rejection to the caller", () => {
+        // A server-side $Changing listener throws StatusResponseError so the remote write returns a
+        // failure status.  The client's setStateOf / agent.state / endpoint.set must reject with a
+        // StatusResponseError carrying the device's code, not the generic transaction
+        // FinalizationError that previously hid it.
+
+        const DecliningContactSensor = ContactSensorDevice.with(DecliningBscWithLevels);
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: DecliningContactSensor,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        it("via agent.state assignment", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+
+        it("via setStateOf", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 1 }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+
+        it("via endpoint.set", async () => {
+            const { site, ep1Client, ep1Server } = await setup();
+            await using _site = site;
+
+            const typedClient = ep1Client as Endpoint<typeof DecliningContactSensor>;
+            const caught = await captureRejection(() =>
+                typedClient.set({
+                    booleanStateConfiguration: { currentSensitivityLevel: 1 },
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+
+        it("via local ServerNode set surfaces the listener's StatusResponseError", async () => {
+            const { site, ep1Server } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Server.act(agent => {
+                    agent.get(DecliningBsc).state.currentSensitivityLevel = 1;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+        });
+    });
+
+    describe("forwards a model-invalid write so the peer device adjudicates", () => {
+        // A value the local model rejects on conformance/spec grounds (here an enum value not defined in the model) is
+        // forwarded to the peer rather than rejected during local validation.  The device declines it via its own
+        // validation, the rejection surfaces to the caller as the device's status, and the local cache is rolled back.
+
+        it("device rejects the value and the local cache is compensated", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1) as Endpoint<OnOffLightDevice>;
+
+            const before = ep1Server.state.onOff.startUpOnOff;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(OnOffClient, { startUpOnOff: 99 as OnOff.StartUpOnOff }),
+            );
+
+            // The rejection is the device's write-response status, not a local ValidateError, proving the value was
+            // forwarded to the device rather than rejected during local validation (which would throw before any
+            // exchange and never contact the device).
+            expect(caught).instanceOf(StatusResponseError);
+            expect(caught).not.instanceOf(ValidateError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+
+            // The device did not apply the value and the local cache was rolled back to match.
+            expect(ep1Server.state.onOff.startUpOnOff).equals(before);
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
+        });
+    });
+
+    describe("aggregates multiple write rejections in one transaction", () => {
+        // Two writes in a single transaction, declined on the server via $Changing listeners on
+        // attributes from different clusters.  Verifies the caller's view:
+        //  - one of two declined: WriteResult throws a single PathError → caller sees a
+        //    StatusResponseError carrying that attribute's status code
+        //  - both declined: WriteResult throws a MatterAggregateError carrying both PathErrors
+
+        const PartialDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels);
+        const FullDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels, DecliningIdentify);
+
+        async function setup(deviceType: typeof PartialDeclineDevice | typeof FullDeclineDevice) {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: deviceType,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        it("when one of two writes is declined, surfaces only that rejection", async () => {
+            const { site, ep1Client, ep1Server } = await setup(PartialDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+
+            // The accepted write committed on the server; the rejected one did not.
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+            expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(5);
+        });
+
+        it("when both writes are declined, surfaces a MatterAggregateError with each per-attribute error", async () => {
+            const { site, ep1Client, ep1Server } = await setup(FullDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(MatterAggregateError);
+            const aggregate = caught as MatterAggregateError;
+            expect(aggregate.errors).lengthOf(2);
+            for (const inner of aggregate.errors) {
+                expect(inner).instanceOf(StatusResponseError);
+            }
+            const codes = (aggregate.errors as StatusResponseError[]).map(e => e.code);
+            expect(codes).contains(Status.ConstraintError);
+            expect(codes).contains(Status.ResourceExhausted);
+
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+            expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(0);
+        });
+    });
+
+    describe("rolls local cache back when a remote write is declined", () => {
+        // After a declined remote write, the local cache must NOT keep the value the user attempted to
+        // write.  Compensation restores the pre-write value via the same path subscription updates
+        // use, so the client mirror stays consistent with the server.
+
+        const PartialDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels);
+        const FullDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels, DecliningIdentify);
+
+        async function setup(deviceType: typeof PartialDeclineDevice | typeof FullDeclineDevice) {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: deviceType,
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1Client = peer1.parts.get("ep1")!;
+            const ep1Server = device.parts.get(1)!;
+
+            return { site, ep1Client, ep1Server };
+        }
+
+        async function readClientCurrentSensitivityLevel(ep1Client: Endpoint) {
+            let value: number | undefined;
+            await ep1Client.act(agent => {
+                value = agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel;
+            });
+            return value;
+        }
+
+        async function readClientIdentifyTime(ep1Client: Endpoint) {
+            let value: number | undefined;
+            await ep1Client.act(agent => {
+                value = agent.get(IdentifyClient).state.identifyTime;
+            });
+            return value;
+        }
+
+        it("restores the pre-write value when the only write is declined", async () => {
+            const { site, ep1Client } = await setup(PartialDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 1 }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
+        });
+
+        it("restores only the declined attribute when one of two writes is declined", async () => {
+            const { site, ep1Client, ep1Server } = await setup(PartialDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(StatusResponseError);
+            // Declined: client and server both back at 0
+            expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
+            expect(ep1Server.stateOf(DecliningBscWithLevels).currentSensitivityLevel).equals(0);
+            // Accepted: client and server both at 5
+            expect(await readClientIdentifyTime(ep1Client)).equals(5);
+            expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(5);
+        });
+
+        it("restores both attributes when both writes are declined", async () => {
+            const { site, ep1Client } = await setup(FullDeclineDevice);
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                ep1Client.act(agent => {
+                    agent.get(BooleanStateConfigurationClient).state.currentSensitivityLevel = 1;
+                    agent.get(IdentifyClient).state.identifyTime = 5;
+                }),
+            );
+
+            expect(caught).instanceOf(MatterAggregateError);
+            expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
+            expect(await readClientIdentifyTime(ep1Client)).equals(0);
+        });
+    });
+
+    describe("writes a fabric-scoped struct attribute via setStateOf", () => {
+        // Matter §7.13.6: callers pass OMIT_FABRIC for the mandatory FabricIndex field; the validator
+        // substitutes the peer's assigned index (or skips on a relaxed remote-write context).
+
+        it("accepts FabricIndex.OMIT_FABRIC as the mandatory placeholder", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const newSubject = NodeId(BigInt(0x55));
+
+            await MockTime.resolve(
+                peer1.setStateOf(AccessControlClient, {
+                    acl: [
+                        {
+                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                            subjects: [newSubject],
+                            targets: null,
+                            fabricIndex: FabricIndex.OMIT_FABRIC,
+                        },
+                    ],
+                }),
+            );
+
+            const aclOnServer = device.state.accessControl.acl;
+            const written = aclOnServer.find(entry => entry.subjects?.[0] === newSubject);
+            expect(written, "server-side ACL entry written by peer is missing").to.be.ok;
+            expect(written!.fabricIndex).greaterThan(0);
+            expect(written!.fabricIndex).lessThan(255);
+
+            const aclOnPeerCache = peer1.stateOf(AccessControlClient).acl;
+            const cached = aclOnPeerCache.find(entry => entry.subjects?.[0] === newSubject);
+            expect(cached, "local ClientNode cache is missing the written ACL entry").to.be.ok;
+            expect(cached!.fabricIndex).equals(written!.fabricIndex);
+        });
+
+        it("rejects FabricIndex.NO_FABRIC (0)", async () => {
+            // Matter §7.5.2: fabric-scoped data SHALL NOT use fabric-index 0.  Caller bug surface preserved.
+
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf(AccessControlClient, {
+                    acl: [
+                        {
+                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                            subjects: [NodeId(BigInt(0x56))],
+                            targets: null,
+                            fabricIndex: FabricIndex.NO_FABRIC,
+                        },
+                    ],
+                }),
+            );
+
+            expect((caught as Error)?.message).match(/Constraint .*Value 0 is not within bounds/);
+        });
+
+        it("does not relax server-side fabricIndex validation", async () => {
+            // Guards against leakage of `underClientNode` onto server-rooted contexts.
+
+            await using site = new MockSite();
+            const { device } = await site.addCommissionedPair();
+
+            const caught = await captureRejection(() =>
+                device.setStateOf("accessControl", {
+                    acl: [
+                        {
+                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                            subjects: [NodeId(BigInt(0x57))],
+                            targets: null,
+                            fabricIndex: FabricIndex.OMIT_FABRIC,
+                        },
+                    ],
+                }),
+            );
+
+            expect((caught as Error)?.message).match(/Value -1 is below the uint8 minimum/);
+        });
+    });
+
+    describe("captures and backfills the peer-assigned fabric index", () => {
+        it("captures fabricIndexOnPeer at commissioning", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+
+            const captured = peer1.state.commissioning.fabricIndexOnPeer;
+            expect(captured).is.a("number");
+            expect(captured).greaterThan(0);
+            expect(captured).lessThan(255);
+        });
+
+        it("backfills fabricIndexOnPeer from operational credentials on reload when state was cleared", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const captured = peer1.state.commissioning.fabricIndexOnPeer;
+            expect(captured).is.a("number");
+
+            // Simulate a peer commissioned before this field existed: clear and persist.
+            await peer1.setStateOf(CommissioningClient, { fabricIndexOnPeer: undefined });
+            expect(peer1.state.commissioning.fabricIndexOnPeer).equals(undefined);
+
+            // Close + reload — partsReady triggers backfill from OperationalCredentialsClient.currentFabricIndex.
+            await site.close();
+            const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+
+            expect(peer1b.state.commissioning.fabricIndexOnPeer).equals(captured);
+        });
     });
 
     it("emits Matter events", async () => {
@@ -583,6 +1331,36 @@ describe("ClientNode", () => {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("forAddress returns the same node for concurrent calls", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peerAddress = controller.peers.get("peer1")!.peerAddress!;
+        expect(peerAddress).not.undefined;
+
+        await MockTime.resolve(controller.peers.get("peer1")!.delete());
+        expect(controller.peers.size).equals(0);
+
+        const [a, b] = await MockTime.resolve(
+            Promise.all([controller.peers.forAddress(peerAddress), controller.peers.forAddress(peerAddress)]),
+            { macrotasks: true },
+        );
+
+        expect(a).equals(b);
+        expect(controller.peers.size).equals(1);
+    });
+
+    it("refuses to allocate a peer address whose NodeId is already in use", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const { fabricIndex, nodeId } = controller.peers.get("peer1")!.peerAddress!;
+
+        await expect(
+            controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabricIndex, nodeId)),
+        ).rejectedWith(/already in use/i);
+    });
+
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
@@ -635,8 +1413,8 @@ describe("ClientNode", () => {
     it("correctly replaces behavior", async () => {
         // *** SETUP ***
 
-        const LiftWc = WindowCoveringServer.with("AbsolutePosition", "Lift", "PositionAwareLift").set({
-            currentPositionLift: 0,
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
         });
 
         await using site = new MockSite();
@@ -654,7 +1432,7 @@ describe("ClientNode", () => {
         expect(clientEp1).not.undefined;
 
         const liftChanged = new Observable<[value: number | null]>();
-        const lift$Changed = clientEp1.eventsOf(WindowCoveringClient).currentPositionLift$Changed!;
+        const lift$Changed = clientEp1.eventsOf(WindowCoveringClient).currentPositionLiftPercent100ths$Changed!;
         expect(lift$Changed).not.undefined;
         lift$Changed.on(value => liftChanged.emit(value));
 
@@ -664,10 +1442,10 @@ describe("ClientNode", () => {
         expect(serverEp1).not.undefined;
 
         let sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
-        await serverEp1.setStateOf(WindowCoveringClient, { currentPositionLift: 6 });
+        await serverEp1.setStateOf(WindowCoveringClient, { currentPositionLiftPercent100ths: 600 });
 
         let newValue = await MockTime.resolve(sawChange);
-        expect(newValue).equals(6);
+        expect(newValue).equals(600);
 
         // *** REPLACE CLUSTER ***
 
@@ -675,16 +1453,10 @@ describe("ClientNode", () => {
 
         await serverEp1.erase();
 
-        const LiftTiltWc = WindowCoveringServer.with(
-            "AbsolutePosition",
-            "Lift",
-            "PositionAwareLift",
-            "Tilt",
-            "PositionAwareTilt",
-        ).set({
+        const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
-            currentPositionLift: 0,
-            currentPositionTilt: 0,
+            currentPositionLiftPercent100ths: 0,
+            currentPositionTiltPercent100ths: 0,
         });
 
         // Nudge so version number changes, otherwise new endpoint won't sync
@@ -705,25 +1477,32 @@ describe("ClientNode", () => {
         await MockTime.resolve(replaced);
 
         expect((clientEp1.stateOf(WindowCoveringClient) as unknown as GlobalAttributeState).featureMap).deep.equals({
-            absolutePosition: true,
             lift: true,
             positionAwareLift: true,
             tilt: true,
             positionAwareTilt: true,
         });
 
+        // featuresOf reflects the installed behavior's schema, so a stale rebuild seeded from the bind-time
+        // snapshot would still report the old Lift-only feature set here even though the featureMap value updated.
+        const features = clientEp1.featuresOf(WindowCoveringClient);
+        expect(features.lift).equals(true);
+        expect(features.positionAwareLift).equals(true);
+        expect(features.tilt).equals(true);
+        expect(features.positionAwareTilt).equals(true);
+
         sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
-        await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLift: 12 });
+        await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLiftPercent100ths: 1200 });
 
         newValue = await MockTime.resolve(sawChange);
-        expect(newValue).equals(12);
+        expect(newValue).equals(1200);
     });
 
     it("correctly removes behavior", async () => {
         // *** SETUP ***
 
-        const LiftWc = WindowCoveringServer.with("AbsolutePosition", "Lift", "PositionAwareLift").set({
-            currentPositionLift: 0,
+        const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
+            currentPositionLiftPercent100ths: 0,
         });
 
         await using site = new MockSite();
@@ -745,7 +1524,7 @@ describe("ClientNode", () => {
         const serverEp1 = device.parts.get("part0")!;
         expect(serverEp1).not.undefined;
 
-        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLift).equals(0);
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLiftPercent100ths).equals(0);
 
         expect(Object.keys(clientEp1.state)).deep.equals([
             "identify",
@@ -911,6 +1690,124 @@ describe("ClientNode", () => {
             expect(controller.peers.get(peer2.id)).undefined; // uncommissioned peer was culled
         });
 
+        it("does not cull an uncommissioned node while runCommissioning is in flight", async () => {
+            // *** SETUP ***
+
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+            expect(peer2.state.commissioning.peerAddress).undefined;
+            expect(controller.peers.size).equals(2);
+
+            // *** RUN COMMISSIONING + EXPIRE ***
+
+            // Backdate discoveredAt so the cull sees peer2 as expired immediately.
+            await peer2.set({
+                commissioning: { discoveredAt: Timestamp(Time.nowMs - Minutes(20)) },
+            });
+
+            let resolveInner!: () => void;
+            const innerDone = new Promise<void>(resolve => {
+                resolveInner = resolve;
+            });
+            const commissioning = controller.peers.runCommissioning(peer2, () => innerDone);
+
+            // Advance past one expiration interval so the cull timer fires.  With the busy registry
+            // in place, peer2 must survive the cull pass.
+            await MockTime.advance(Minutes(2));
+            await MockTime.yield3();
+
+            expect(controller.peers.get(peer2.id)).not.undefined; // not culled while busy
+
+            // *** RELEASE + VERIFY CULL ***
+
+            resolveInner();
+            await commissioning;
+
+            // Now that the busy flag is cleared, the next cull pass must delete peer2.
+            const peer2Destroyed = new Promise<void>(resolve => peer2.lifecycle.destroyed.once(() => resolve()));
+            await MockTime.resolve(peer2Destroyed);
+
+            expect(controller.peers.get(peer2.id)).undefined;
+        });
+
+        it("rejects parallel runCommissioning on the same node", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+
+            // First attempt holds the busy slot.  Second attempt on the same node must reject before fn runs so the
+            // device side isn't hit by two concurrent commissioning flows.
+            let resolveInner!: () => void;
+            const first = controller.peers.runCommissioning(peer2, () => new Promise<void>(r => (resolveInner = r)));
+            let secondRan = false;
+            await expect(
+                controller.peers.runCommissioning(peer2, () => {
+                    secondRan = true;
+                }),
+            ).rejectedWith(CommissioningError, /already in progress/);
+            expect(secondRan).false;
+
+            // Once the first finishes the slot frees and another attempt is permitted.
+            resolveInner();
+            await first;
+            await controller.peers.runCommissioning(peer2, () => Promise.resolve());
+        });
+
+        it("skips reuse of nodes whose construction is closed", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const device2 = await site.addDevice({ index: 3 });
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer2 = discovered[0];
+            const descriptor = RemoteDescriptor.fromLongForm(peer2.state.commissioning);
+
+            const factory = controller.env.get(ClientNodeFactory);
+            expect(factory.find(descriptor)).equals(peer2); // sanity: alive node is reused
+
+            // Tear the node down.  After close completes the node is fully Destroyed and removed from the Peers
+            // container, so factory.find must no longer return it.
+            await peer2.delete();
+            expect(factory.find(descriptor)).undefined;
+        });
+
         it("prunes expired addresses from commissioned nodes", async () => {
             // *** SETUP ***
 
@@ -958,8 +1855,8 @@ describe("ClientNode", () => {
             const updatedAddresses = peer1.state.commissioning.addresses!;
             expect(updatedAddresses.length).equals(1);
             const remainingAddress = updatedAddresses[0];
-            expect(remainingAddress.type === "udp" && remainingAddress.ip).equals(
-                originalAddresses[0].type === "udp" && originalAddresses[0].ip,
+            expect(ServerAddress.isIp(remainingAddress) && remainingAddress.ip).equals(
+                ServerAddress.isIp(originalAddresses[0]) && originalAddresses[0].ip,
             );
         });
     });
@@ -1012,6 +1909,181 @@ describe("ClientNode", () => {
             expect(address2.nodeId).not.equals(fabric.nodeId);
         });
     });
+
+    describe("peerAddress resilience", () => {
+        // Closing a ServerNode transitions ServerNodeStore.construction to "Closing" before the destructor releases
+        // child stores.  Pre-fix, peerAddress fell back to the storage layer via this.store, which would assert
+        // through to clientStores and throw [destroyed-dependency].  toString() (used in error message construction
+        // throughout Behaviors and Endpoint) then re-threw, masking the original cause.
+        it("peerAddress survives ServerNode shutdown via cache", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1).not.undefined;
+
+            const cachedAddress = peer1.peerAddress;
+            expect(cachedAddress).not.undefined;
+
+            await MockTime.resolve(controller.close(), { macrotasks: true });
+
+            expect(() => peer1.peerAddress).not.throws();
+            expect(peer1.peerAddress).deep.equals(cachedAddress);
+            expect(() => peer1.toString()).not.throws();
+        });
+
+        // Behaviors.close() leaves the augmented endpoint.state[id] descriptors in place so that paths reusing the
+        // Behaviors instance (e.g. factory reset) can re-activate.  Post-close access must therefore not re-enter
+        // #backingFor and throw BehaviorInitializationError - the getter checks the construction status and returns
+        // undefined once the endpoint is tearing down.
+        it("endpoint.state[behaviorId] returns undefined after close", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+
+            expect(peer1.state.commissioning).not.undefined;
+
+            await MockTime.resolve(controller.close(), { macrotasks: true });
+
+            expect(() => peer1.state.commissioning).not.throws();
+            expect(peer1.state.commissioning).to.be.undefined;
+        });
+    });
+
+    describe("Schrödinger's cluster", () => {
+        // A manufacturer-specific cluster the peer serves attribute data for but omits from its descriptor serverList.
+        const NEO = 0x125dfc11 as ClusterId;
+        const EP1 = EndpointNumber(1);
+
+        // EP1's real serverList from EP1_STATE (identify, groups, onOff, scenesManagement, descriptor) - notably
+        // without NEO.
+        const EP1_SERVER_LIST = [3, 4, 6, 0x62, 0x1d];
+
+        function attr(clusterId: ClusterId, attributeId: number, value: unknown, version: number): ReadResult.Report {
+            return {
+                kind: "attr-value",
+                path: { endpointId: EP1, clusterId, attributeId: attributeId as AttributeId },
+                value,
+                version,
+                tlv: TlvAny,
+            };
+        }
+
+        function neoReports(version: number): ReadResult.Report[] {
+            return [
+                attr(NEO, ClusterRevision.id, 1, version),
+                attr(NEO, FeatureMap.id, {}, version),
+                attr(
+                    NEO,
+                    AttributeList.id,
+                    [
+                        0,
+                        GeneratedCommandList.id,
+                        AcceptedCommandList.id,
+                        AttributeList.id,
+                        FeatureMap.id,
+                        ClusterRevision.id,
+                    ],
+                    version,
+                ),
+                attr(NEO, AcceptedCommandList.id, [], version),
+                attr(NEO, GeneratedCommandList.id, [], version),
+                attr(NEO, 0, 1234, version),
+            ];
+        }
+
+        function descriptorServerListReport(version: number): ReadResult.Report[] {
+            return [attr(Descriptor.id, Descriptor.attributes.serverList.id, EP1_SERVER_LIST, version)];
+        }
+
+        async function* readResult(...chunks: ReadResult.Report[][]): ReadResult {
+            for (const chunk of chunks) {
+                yield chunk;
+            }
+        }
+
+        async function drain(updates: AsyncGenerator<unknown>) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            for await (const _ of updates) {
+            }
+        }
+
+        it("survives a re-interview where the descriptor precedes the absent cluster's data", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoBehaviorId = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return endpoint === undefined
+                    ? undefined
+                    : Object.values(endpoint.behaviors.supported).find(
+                          type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                      )?.id;
+            };
+
+            // *** ESTABLISH SCHRÖDINGER STATE ***
+
+            // First interaction delivers data for NEO while the descriptor omits it.  Because NEO isn't yet an active
+            // behavior, it is kept (matches the startup loadCache path).
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+
+            expect(neoBehaviorId(), "NEO should be active after the initial interaction").not.undefined;
+
+            // *** RE-INTERVIEW ***
+
+            // Full wildcard read where the descriptor chunk (serverList without NEO) arrives before NEO's attribute
+            // data.  NEO must survive because the peer still serves its data.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11), neoReports(11))));
+
+            expect(neoBehaviorId(), "NEO must survive a re-interview that serves its data").not.undefined;
+        });
+
+        it("erases persisted storage when the peer genuinely drops the cluster", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const buffer = controller.env.get(ClientCacheBuffer);
+
+            const neoStorageKeys = () =>
+                Object.keys(site.storageFor("controller1")).filter(key => key.includes(NEO.toString()));
+
+            const neoActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                    )
+                );
+            };
+
+            // *** ESTABLISH AND PERSIST NEO ***
+
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+            await MockTime.resolve(buffer.flush());
+            expect(neoActive(), "NEO should be active").true;
+            expect(neoStorageKeys(), "NEO data should be persisted").not.empty;
+
+            // *** PEER DROPS NEO ***
+
+            // The descriptor still omits NEO and no attribute data is served this interaction, so NEO is genuinely
+            // gone and must be removed from both memory and storage.
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
+            await MockTime.resolve(buffer.flush());
+
+            expect(neoActive(), "NEO behavior should be dropped").false;
+            expect(neoStorageKeys(), "NEO storage should be erased").empty;
+        });
+    });
 });
 
 const GLOBAL_ATTRS = [0xfff8, 0xfff9, 0xfffb, 0xfffc, 0xfffd];
@@ -1042,6 +2114,7 @@ const PEER1_STATE = {
         ],
         caseAuthenticatedTags: undefined,
         commissionedAt: expect.NUMBER,
+        fabricIndexOnPeer: expect.NUMBER,
         discoveredAt: expect.NUMBER,
         onlineAt: undefined,
         offlineAt: undefined,
@@ -1059,12 +2132,12 @@ const PEER1_STATE = {
         sessionParameters: {
             activeInterval: 300,
             activeThreshold: 4000,
-            dataModelRevision: 19,
+            dataModelRevision: Specification.DATA_MODEL_REVISION,
             idleInterval: 500,
-            interactionModelRevision: 13,
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             maxPathsPerInvoke: 10,
             maxTcpMessageSize: undefined,
-            specificationVersion: 17039872,
+            specificationVersion: Specification.SPECIFICATION_VERSION,
             supportedTransports: {
                 tcpClient: false,
                 tcpServer: false,
@@ -1074,11 +2147,13 @@ const PEER1_STATE = {
     },
     network: {
         autoSubscribe: true,
+        autoStateInitialize: undefined,
         isDisabled: false,
         port: 0x15a4,
         operationalPort: -1,
         defaultSubscription: undefined,
         maxEventNumber: 3n,
+        transportPreference: undefined,
     },
     basicInformation: {
         clusterRevision: 6,
@@ -1105,13 +2180,13 @@ const PEER1_STATE = {
         capabilityMinima: {
             caseSessionsPerFabric: 3,
             subscriptionsPerFabric: 3,
-            simultaneousInvocationsSupported: 6,
-            simultaneousWritesSupported: 4,
-            readPathsSupported: 9,
-            subscribePathsSupported: 3,
+            simultaneousInvocationsSupported: 20,
+            simultaneousWritesSupported: 20,
+            readPathsSupported: 20,
+            subscribePathsSupported: 20,
         },
         productAppearance: undefined,
-        specificationVersion: 0x1040200,
+        specificationVersion: Specification.SPECIFICATION_VERSION,
         maxPathsPerInvoke: 10,
         featureMap: {},
         attributeList: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, 0x18, ...GLOBAL_ATTRS],
@@ -1121,7 +2196,7 @@ const PEER1_STATE = {
     },
     accessControl: {
         clusterRevision: 3,
-        featureMap: { extension: true, managedDevice: false, auxiliary: true },
+        featureMap: { extension: true, managedDevice: false, auxiliary: false },
         acl: [
             {
                 privilege: 5,
@@ -1133,24 +2208,25 @@ const PEER1_STATE = {
             },
         ],
         extension: [],
-        auxiliaryAcl: [],
+        auxiliaryAcl: undefined,
         subjectsPerAccessControlEntry: 4,
-        targetsPerAccessControlEntry: 3,
+        targetsPerAccessControlEntry: 4,
         accessControlEntriesPerFabric: 4,
         commissioningArl: undefined,
         arl: undefined,
-        attributeList: [0, 1, 2, 3, 4, 7, ...GLOBAL_ATTRS],
+        attributeList: [0, 1, 2, 3, 4, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
     },
     groupKeyManagement: {
         clusterRevision: 3,
-        featureMap: { cacheAndSync: false, groupcast: true },
+        featureMap: { cacheAndSync: false, groupcast: false },
         groupKeyMap: [],
         groupTable: [],
         maxGroupsPerFabric: 0x16,
         maxGroupKeysPerFabric: 0x14,
+        groupcastAdoption: undefined,
         attributeList: [0, 1, 2, 3, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 1, 3, 4],
@@ -1158,12 +2234,15 @@ const PEER1_STATE = {
     },
     generalCommissioning: {
         clusterRevision: 2,
-        featureMap: { termsAndConditions: false },
+        featureMap: { termsAndConditions: false, networkRecovery: false },
         breadcrumb: 0,
         basicCommissioningInfo: { failSafeExpiryLengthSeconds: 0x3c, maxCumulativeFailsafeSeconds: 0x384 },
         regulatoryConfig: 2,
         locationCapability: 2,
         supportsConcurrentConnection: true,
+        isCommissioningWithoutPower: undefined,
+        networkRecoveryReason: undefined,
+        recoveryIdentifier: undefined,
         tcAcceptedVersion: undefined,
         tcMinRequiredVersion: undefined,
         tcAcknowledgements: undefined,
@@ -1250,8 +2329,8 @@ const PEER1_STATE = {
         clusterRevision: 3,
         endpointUniqueId: undefined,
         featureMap: { tagList: false },
-        deviceTypeList: [{ deviceType: 0x16, revision: 3 }],
-        serverList: [0x28, 0x1f, 0x3f, 0x30, 0x3c, 0x3e, 0x33, 0x1d],
+        deviceTypeList: [{ deviceType: 0x16, revision: 4 }],
+        serverList: [0x1f, 0x28, 0x30, 0x33, 0x3c, 0x3e, 0x3f, 0x1d],
         clientList: [],
         partsList: [1],
         tagList: undefined,
@@ -1300,7 +2379,7 @@ const EP1_STATE = {
         featureMap: { tagList: false },
         deviceTypeList: [{ deviceType: 0x100, revision: 3 }],
         endpointUniqueId: undefined,
-        serverList: [3, 4, 0x62, 6, 0x1d],
+        serverList: [3, 4, 6, 0x62, 0x1d],
         clientList: [],
         partsList: [],
         tagList: undefined,

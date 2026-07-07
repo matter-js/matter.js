@@ -75,7 +75,7 @@ Resource.add({
                 { tag: "field", name: "UnsupportedKey", description: "Key code is not supported." },
                 {
                     tag: "field", name: "InvalidKeyInCurrentState",
-                    description: "Requested key code is invalid in the context of the responder’s current state."
+                    description: "Requested key code is invalid in the context of the responder's current state."
                 }
             ]
         },

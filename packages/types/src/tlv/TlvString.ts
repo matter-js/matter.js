@@ -18,16 +18,26 @@ type LengthConstraints = {
 /**
  * Schema to encode an byte string or an Utf8 string in TLV.
  *
- * @see {@link MatterSpecification.v10.Core} § A.11.2
+ * @see {@link MatterSpecification.v16.Core} § A.11.2
  */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
+
+const DEFAULT_MAX_STRING_LENGTH = 65_536;
+
+/**
+ * Unicode `INFORMATION SEPARATOR 1` / ASCII `Unit Separator`. Per {@link MatterSpecification.v16.Core} § 7.19.2.40,
+ * only the code points before the first IS1 are the textual content of a character string, and conformant
+ * implementations never emit IS1.
+ */
+const INFORMATION_SEPARATOR_1 = "\u001f";
 
 export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> extends TlvSchema<TlvToPrimitive[T]> {
     constructor(
         readonly type: T,
         readonly minLength: number = 0,
+
         // Formally, Matter Spec defines 2^64-1 as length limit, but we want to protect against memory overflow as default
-        readonly maxLength: number = 1024,
+        readonly maxLength: number = DEFAULT_MAX_STRING_LENGTH,
     ) {
         super();
 
@@ -46,7 +56,18 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
 
     override decodeTlvInternalValue(reader: TlvReader, typeLength: TlvTypeLength): TlvToPrimitive[T] {
         if (typeLength.type !== this.type) throw new UnexpectedDataError(`Unexpected type ${typeLength.type}.`);
-        return reader.readPrimitive(typeLength);
+        const value: TlvToPrimitive[T] = reader.readPrimitive(typeLength);
+        if (this.type === TlvType.Utf8String && typeof value === "string") {
+            const separatorIndex = value.indexOf(INFORMATION_SEPARATOR_1);
+            if (separatorIndex !== -1) {
+                if (value.length > this.maxLength)
+                    throw new ValidationOutOfBoundsError(
+                        `String ${serialize(value)} is too long: ${value.length}, max ${this.maxLength}.`,
+                    );
+                return value.slice(0, separatorIndex) as TlvToPrimitive[T];
+            }
+        }
+        return value;
     }
 
     override validate(value: TlvToPrimitive[T]): void {
@@ -54,6 +75,10 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
             throw new ValidationDatatypeMismatchError(`Expected string, got ${typeof value}.`);
         if (this.type === TlvType.ByteString && !Bytes.isBytes(value))
             throw new ValidationDatatypeMismatchError(`Expected bytes, got ${typeof value}.`);
+        if (this.type === TlvType.Utf8String && typeof value === "string" && value.includes(INFORMATION_SEPARATOR_1))
+            throw new ValidationDatatypeMismatchError(
+                "Character string must not contain Information Separator 1 (0x1F).",
+            );
         const length = typeof value === "string" ? value.length : value.byteLength;
         if (length > this.maxLength)
             throw new ValidationOutOfBoundsError(
@@ -75,7 +100,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
         if (this.minLength > 0) {
             constraint.min = this.minLength;
         }
-        if (this.maxLength !== 1024) {
+        if (this.maxLength !== DEFAULT_MAX_STRING_LENGTH) {
             constraint.max = this.maxLength;
         }
         if (constraint.min !== undefined || constraint.max !== undefined) {
@@ -110,14 +135,3 @@ export const TlvByteString = new StringSchema(TlvType.ByteString);
 
 /** String TLV schema. */
 export const TlvString = new StringSchema(TlvType.Utf8String);
-
-/** String TLV schema. */
-export const TlvString32max = TlvString.bound({ maxLength: 32 });
-
-/** String TLV schema. */
-export const TlvString64max = TlvString.bound({ maxLength: 64 });
-
-/** String TLV schema. */
-export const TlvString256max = TlvString.bound({ maxLength: 256 });
-
-export const TlvHardwareAddress = TlvByteString.bound({ minLength: 6, maxLength: 8 });

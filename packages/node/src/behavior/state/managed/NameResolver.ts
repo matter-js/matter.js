@@ -38,7 +38,7 @@ export function NameResolver(
         if (!supervisor.memberNames.has(name)) {
             return;
         }
-        return createDirectResolver();
+        return createDirectResolver(findMemberId(supervisor.schema, name));
     }
 
     // Only structs may provide named properties
@@ -49,18 +49,36 @@ export function NameResolver(
     // Read directly if the named property is supported by this schema.  This is not indexed which is fine because:
     //   1. The spec uses this very lightly as of 1.4, and
     //   2. We only do this once and only for schema that utilizes this feature
-    if (supervisor.membersOf(model as Schema).find(model => model.propertyName === name)) {
-        return createDirectResolver();
+    const member = supervisor.membersOf(model as Schema).find(model => model.propertyName === name);
+    if (member) {
+        return createDirectResolver(member.id);
     }
 
     // Delegate to parent
     return createIndirectResolver();
 
     /**
-     * Create a reader that reads from this value.
+     * Read a property by name, preferring the id-keyed slot when available — client mirrors
+     * (`primaryKey: "id"`) hold live values at attribute ids while the property-name slot may be a stale default.
      */
-    function createDirectResolver() {
-        return (val: Val) => (val as Val.Struct)?.[name];
+    function createDirectResolver(id?: number) {
+        if (id === undefined) {
+            return (val: Val) => (val as Val.Struct)?.[name];
+        }
+        return (val: Val) => {
+            const struct = val as Val.Struct | undefined;
+            if (struct === undefined || struct === null) {
+                return undefined;
+            }
+            if (id in struct) {
+                return struct[id];
+            }
+            return struct[name];
+        };
+    }
+
+    function findMemberId(schema: Schema, name: string): number | undefined {
+        return supervisor.membersOf(schema).find(model => model.propertyName === name)?.id;
     }
 
     /**

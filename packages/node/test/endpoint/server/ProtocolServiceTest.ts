@@ -12,6 +12,7 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { MaybePromise } from "@matter/general";
 import {
     AcceptedCommandList,
+    AttributeElement,
     ClusterModel,
     CommandElement,
     EventList,
@@ -23,6 +24,7 @@ import {
 import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
+    BitmapSchema,
     ClusterId,
     ClusterType,
     CommandId,
@@ -41,6 +43,7 @@ import {
     TlvSubjectId,
     TlvUInt8,
     TypeFromSchema,
+    WildcardPathFlagsBitmap,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -374,6 +377,43 @@ describe("ProtocolServiceTest", () => {
         await node.close();
     });
 
+    it("tags manufacturer-specific attributes in a standard cluster with skipCustomElements", async () => {
+        const meiAttributeId = AttributeId(0xfff1_0001);
+
+        // Standard-range cluster id so the cluster itself is not flagged as custom; the MEI prefix lives only on the
+        // attribute id, exercising the per-attribute branch of WildcardSkipCustomElements (core spec § 8.2.1.7.1).
+        const schema = new ClusterModel({
+            id: 0x1234,
+            name: "MeiAttrCluster",
+            revision: 1,
+            children: [
+                AttributeElement({ id: 0, name: "Standard", type: "uint8", conformance: "M", default: 0 }),
+                AttributeElement({ id: meiAttributeId, name: "Custom", type: "uint8", conformance: "M", default: 0 }),
+            ],
+        });
+
+        const ClusterType_ = ClusterType(schema) as ClusterType.Concrete;
+        const Behavior = ClusterBehavior.for(ClusterType_);
+        const Device = MutableEndpoint({ name: "MeiAttrDevice", deviceType: 0xfff1_fc02, deviceRevision: 1 });
+        const node = await MockServerNode.createOnline(undefined, { device: Device.with(Behavior) });
+
+        let attr: { wildcardPathFlags: number } | undefined;
+        for (const ep of node.protocol) {
+            const cluster = ep[ClusterId(0x1234)];
+            if (cluster) {
+                attr = cluster.type.attributes[meiAttributeId];
+                break;
+            }
+        }
+
+        expect(attr, "MEI attribute should be present in protocol").to.exist;
+        const flags = BitmapSchema(WildcardPathFlagsBitmap).decode(attr!.wildcardPathFlags);
+        expect(flags.skipCustomElements, "MEI attribute must be flagged skipCustomElements").to.be.true;
+        expect(flags.skipGlobalAttributes, "MEI attribute must not be flagged skipGlobalAttributes").to.be.false;
+
+        await node.close();
+    });
+
     it("all attribute TLV schemas can encode their values", async () => {
         const node = await MockServerNode.createOnline(undefined, {
             device: OnOffLightDevice.with(OnOffServer),
@@ -384,7 +424,7 @@ describe("ProtocolServiceTest", () => {
 
         let encoded = 0;
         for (const chunk of data) {
-            for (const report of chunk) {
+            for await (const report of chunk) {
                 if (report.kind !== "attr-value") {
                     continue;
                 }

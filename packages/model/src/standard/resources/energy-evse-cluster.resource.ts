@@ -53,19 +53,20 @@ Resource.add(
                         tag: "field", name: "PREF", xref: "cluster§9.3.4.1",
 
                         details: "Since some EVSEs cannot obtain the SoC from the vehicle, some EV charging solutions allow the " +
-                            "consumer to specify a daily charging target (for adding energy to the EV’s battery). This feature " +
+                            "consumer to specify a daily charging target (for adding energy to the EV's battery). This feature " +
                             "allows the consumer to specify how many miles or km of additional range they need for their typical " +
                             "daily commute. This range requirement can be converted into a daily energy demand with a target " +
                             "charging completion time." +
                             "\n" +
                             "The EVSE itself can use this information (or may allow a controller such as an EMS) to compute an " +
-                            "optimized charging schedule." +
+                            "optimized charging schedule. For example, an optimizer may be able to use the Commodity Price " +
+                            "cluster to determine the cheapest and lowest GHG based charging schedule for the vehicle." +
                             "\n" +
                             "An EVSE device which includes a Device Energy Management device with the Device Energy Management " +
-                            "cluster PFR (Power Forecast Reporting) feature can use the charging preferences information to " +
-                            "produce its power forecast." +
+                            "cluster PFR (PowerForecastReporting) feature can use the charging preferences information to produce " +
+                            "its power forecast." +
                             "\n" +
-                            "EVSE devices that support the Device Energy Management cluster’s FA feature can have their charging " +
+                            "EVSE devices that support the Device Energy Management cluster's FA feature can have their charging " +
                             "profiles set by a controller device such as an EMS. For example, if the EVSE advertises a simple " +
                             "power forecast which allows the EMS to adjust over a wide range of power and time durations, then " +
                             "the EVSE may allow the EMS to propose a revised optimized forecast (which is the charging profile). " +
@@ -118,7 +119,7 @@ Resource.add(
                             "\n" +
                             "The charging and discharging may be controlled by a home Energy Management System (EMS) using the " +
                             "Device Energy Management cluster of the associated Device Energy Management device. For example, an " +
-                            "EMS may use the PA (Power Adjustment) feature to continually adjust the charge/discharge current " +
+                            "EMS may use the PA (PowerAdjustment) feature to continually adjust the charge/discharge current " +
                             "to/from the EV so as to minimise the energy flow from/to the grid as the demand in the home and the " +
                             "solar supply to the home both fluctuate."
                     }
@@ -136,8 +137,8 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> SessionEnding is not really a state but a transition. However, the transition period may take a " +
-                    "few seconds and is useful for some clean up purposes." +
+                    "> NOTE: SessionEnding is not really a state but a transition. However, the transition period may " +
+                    "take a few seconds and is useful for some clean up purposes." +
                     "\n" +
                     "The Fault state is used to indicate that the FaultState attribute is not NoError." +
                     "\n" +
@@ -212,15 +213,11 @@ Resource.add(
                     "The attribute can be initially set using the EnableCharging command or by adjusting the " +
                     "UserMaximumChargeCurrent attribute." +
                     "\n" +
-                    "This attribute value shall be the minimum of:" +
+                    "> [!NOTE]" +
                     "\n" +
-                    "  - CircuitCapacity - Electrician’s installation setting" +
-                    "\n" +
-                    "  - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
-                    "\n" +
-                    "  - MaximumChargeCurrent field in the EnableCharging command" +
-                    "\n" +
-                    "  - UserMaximumChargeCurrent attribute"
+                    "> This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation " +
+                    "setting - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - " +
+                    "MaximumChargeCurrent field in the EnableCharging command - UserMaximumChargeCurrent attribute"
             },
 
             {
@@ -230,13 +227,11 @@ Resource.add(
                     "\n" +
                     "This attribute can be set using the EnableDischarging command." +
                     "\n" +
-                    "This attribute value shall be the minimum of:" +
+                    "> [!NOTE]" +
                     "\n" +
-                    "  - CircuitCapacity - Electrician’s installation setting" +
-                    "\n" +
-                    "  - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
-                    "\n" +
-                    "  - MaximumDischargeCurrent field in the EnableDischarging command"
+                    "> This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation " +
+                    "setting - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - " +
+                    "MaximumDischargeCurrent field in the EnableDischarging command"
             },
 
             {
@@ -249,8 +244,8 @@ Resource.add(
                     "\n" +
                     "This attribute value shall be limited by the EVSE to be in the range of:" +
                     "\n" +
-                    "MinimumChargeCurrent <= UserMaximumChargeCurrent <= MaximumChargeCurrent where MinimumChargeCurrent " +
-                    "and MaximumChargeCurrent are the values received in the EnableCharging command." +
+                    "where MinimumChargeCurrent and MaximumChargeCurrent are the values received in the EnableCharging " +
+                    "command." +
                     "\n" +
                     "Its default value SHOULD be initialized to the same as the CircuitCapacity attribute. This value " +
                     "shall be persisted across reboots to ensure it does not cause charging issues during temporary power " +
@@ -332,15 +327,11 @@ Resource.add(
                     "A null value indicates that the EV efficiency is unknown and the NextChargeRequiredEnergy attribute " +
                     "cannot be converted from Wh to miles or km." +
                     "\n" +
-                    "To convert from Wh into Range:" +
+                    "> [!NOTE]" +
                     "\n" +
-                    "AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) AddedRange (Miles) = " +
-                    "AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x 0.6213" +
-                    "\n" +
-                    "Example:" +
-                    "\n" +
-                    "ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000" +
-                    "\n" +
+                    "> To convert from Wh into Range: AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x " +
+                    "1000) AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x 0.6213 Example: " +
+                    "ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000 " +
                     "AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x " +
                     "ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles"
             },
@@ -571,7 +562,7 @@ Resource.add(
                             "mode. The EVSE current limit can be advertised to an EV in 0.6A steps." +
                             "\n" +
                             "The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see Section " +
-                            "9.3.8.7, “MinimumChargeCurrent Attribute” for further details)."
+                            "9.3.8.7, \"MinimumChargeCurrent Attribute\" for further details)."
                     },
 
                     {
@@ -787,11 +778,11 @@ Resource.add(
                     "The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement " +
                     "can be fulfilled by knowing the charging Power (W) and the time needed to charge." +
                     "\n" +
-                    "To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600" +
+                    "> [!NOTE]" +
                     "\n" +
-                    "Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)" +
-                    "\n" +
-                    "To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime",
+                    "> To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 " +
+                    "Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W) To compute the charging " +
+                    "time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime",
 
                 children: [
                     {
@@ -865,9 +856,9 @@ Resource.add(
                             "\n" +
                             "> [!NOTE]" +
                             "\n" +
-                            "> If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy " +
-                            "value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and " +
-                            "cooling of the battery during charging, or for heating or cooling the cabin."
+                            "> NOTE: If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this " +
+                            "AddedEnergy value to the Battery Capacity of the vehicle, since the EV may also require energy for " +
+                            "heating and cooling of the battery during charging, or for heating or cooling the cabin."
                     }
                 ]
             },

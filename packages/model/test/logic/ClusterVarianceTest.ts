@@ -5,6 +5,7 @@
  */
 
 import { ClusterElement, ClusterModel, ClusterVariance, Conformance, FeatureMap, MatterModel } from "#index.js";
+import { IllegalFeatureCombinations } from "#logic/cluster-variance/IllegalFeatureCombinations.js";
 import { InferredComponent } from "#logic/cluster-variance/InferredComponents.js";
 import { VarianceCondition } from "#logic/cluster-variance/VarianceCondition.js";
 
@@ -121,8 +122,78 @@ describe("ClusterVariance", () => {
                 condition: { allOf: ["FOO"] },
             });
         });
+
+        it("parses comma otherwise-list FOO, BAR, BAZ", () => {
+            expectComponents(attrs(["FOO", "BAR", "BAZ"], { name: "attr", conformance: "FOO, BAR, BAZ" }), {
+                mandatory: ["attr"],
+                condition: { anyOf: ["FOO", "BAR", "BAZ"] },
+            });
+        });
+
+        it("parses provisional comma otherwise-list P, FOO, BAR, BAZ", () => {
+            expectComponents(attrs(["FOO", "BAR", "BAZ"], { name: "attr", conformance: "P, FOO, BAR, BAZ" }), {
+                mandatory: ["attr"],
+                condition: { anyOf: ["FOO", "BAR", "BAZ"] },
+            });
+        });
+
+        it("parses comma otherwise-list with a conjunction term FOO, BAR, BAZ & QUX", () => {
+            expectComponents(
+                attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "FOO, BAR, BAZ & QUX" }),
+                { mandatory: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { mandatory: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+            );
+        });
+
+        it("parses [FOO & !fieldRef].x+ ignoring the field reference", () => {
+            expectComponents(attrs(["FOO"], { name: "attr", conformance: "[FOO & !FieldRef].b+" }), {
+                optional: ["attr"],
+                condition: { allOf: ["FOO"] },
+            });
+        });
+
+        it("strips Rev from [Rev >= vN & FOO & !fieldRef].x+", () => {
+            expectComponents(attrs(["FOO"], { name: "attr", conformance: "[Rev >= v2 & FOO & !FieldRef].b+" }), {
+                optional: ["attr"],
+                condition: { allOf: ["FOO"] },
+            });
+        });
+    });
+
+    describe("illegal feature combinations", () => {
+        // OnOff: OFFONLY conformance "[!(LT | DF)]" is disallowed whenever LT or DF is enabled
+        it("supports negated disjunction over features", () => {
+            expect(
+                illegalCombinations(
+                    { name: "LT", conformance: "[!OFFONLY]" },
+                    { name: "DF", conformance: "[!OFFONLY]" },
+                    { name: "OFFONLY", conformance: "[!(LT | DF)]" },
+                ),
+            ).deep.equal([
+                { LT: true, OFFONLY: true },
+                { DF: true, OFFONLY: true },
+            ]);
+        });
     });
 });
+
+function illegalCombinations(...features: { name: string; conformance: string }[]) {
+    const cluster = new ClusterModel({
+        id: 1,
+        name: "Cluster",
+        children: [
+            {
+                tag: "attribute",
+                id: FeatureMap.id,
+                name: "FeatureMap",
+                type: "FeatureMap",
+                children: features.map(f => ({ tag: "field", ...f })),
+            },
+        ],
+    });
+    new MatterModel({ name: "Matter", children: [cluster] });
+    return IllegalFeatureCombinations(cluster).illegal;
+}
 
 type AttributeDefinition = { name: string; conformance: Conformance.Definition } | string[];
 

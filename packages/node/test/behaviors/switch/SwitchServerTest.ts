@@ -12,7 +12,7 @@ import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 
 function createEventCatcher(device: MockEndpoint<EndpointType>) {
     return device.captureEvents(
-        SwitchServer.for(Switch.Complete).with(
+        SwitchServer.for(Switch).with(
             Switch.Feature.LatchingSwitch,
             Switch.Feature.MomentarySwitch,
             Switch.Feature.MomentarySwitchRelease,

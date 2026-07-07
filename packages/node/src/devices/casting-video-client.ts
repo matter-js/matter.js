@@ -9,32 +9,26 @@
 import {
     ContentAppObserverServer as BaseContentAppObserverServer
 } from "../behaviors/content-app-observer/ContentAppObserverServer.js";
-import { OnOffBehavior as BaseOnOffBehavior } from "../behaviors/on-off/OnOffBehavior.js";
-import { KeypadInputBehavior as BaseKeypadInputBehavior } from "../behaviors/keypad-input/KeypadInputBehavior.js";
+import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
+import { KeypadInputClient as BaseKeypadInputClient } from "../behaviors/keypad-input/KeypadInputClient.js";
+import { ContentLauncherClient as BaseContentLauncherClient } from "../behaviors/content-launcher/ContentLauncherClient.js";
 import {
-    ContentLauncherBehavior as BaseContentLauncherBehavior
-} from "../behaviors/content-launcher/ContentLauncherBehavior.js";
+    ApplicationBasicClient as BaseApplicationBasicClient
+} from "../behaviors/application-basic/ApplicationBasicClient.js";
+import { LevelControlClient as BaseLevelControlClient } from "../behaviors/level-control/LevelControlClient.js";
+import { MessagesClient as BaseMessagesClient } from "../behaviors/messages/MessagesClient.js";
+import { WakeOnLanClient as BaseWakeOnLanClient } from "../behaviors/wake-on-lan/WakeOnLanClient.js";
+import { ChannelClient as BaseChannelClient } from "../behaviors/channel/ChannelClient.js";
+import { TargetNavigatorClient as BaseTargetNavigatorClient } from "../behaviors/target-navigator/TargetNavigatorClient.js";
+import { MediaPlaybackClient as BaseMediaPlaybackClient } from "../behaviors/media-playback/MediaPlaybackClient.js";
+import { MediaInputClient as BaseMediaInputClient } from "../behaviors/media-input/MediaInputClient.js";
+import { LowPowerClient as BaseLowPowerClient } from "../behaviors/low-power/LowPowerClient.js";
+import { AudioOutputClient as BaseAudioOutputClient } from "../behaviors/audio-output/AudioOutputClient.js";
 import {
-    ApplicationBasicBehavior as BaseApplicationBasicBehavior
-} from "../behaviors/application-basic/ApplicationBasicBehavior.js";
-import { LevelControlBehavior as BaseLevelControlBehavior } from "../behaviors/level-control/LevelControlBehavior.js";
-import { WakeOnLanBehavior as BaseWakeOnLanBehavior } from "../behaviors/wake-on-lan/WakeOnLanBehavior.js";
-import { ChannelBehavior as BaseChannelBehavior } from "../behaviors/channel/ChannelBehavior.js";
-import {
-    TargetNavigatorBehavior as BaseTargetNavigatorBehavior
-} from "../behaviors/target-navigator/TargetNavigatorBehavior.js";
-import { MediaPlaybackBehavior as BaseMediaPlaybackBehavior } from "../behaviors/media-playback/MediaPlaybackBehavior.js";
-import { MediaInputBehavior as BaseMediaInputBehavior } from "../behaviors/media-input/MediaInputBehavior.js";
-import { LowPowerBehavior as BaseLowPowerBehavior } from "../behaviors/low-power/LowPowerBehavior.js";
-import { AudioOutputBehavior as BaseAudioOutputBehavior } from "../behaviors/audio-output/AudioOutputBehavior.js";
-import {
-    ApplicationLauncherBehavior as BaseApplicationLauncherBehavior
-} from "../behaviors/application-launcher/ApplicationLauncherBehavior.js";
-import { AccountLoginBehavior as BaseAccountLoginBehavior } from "../behaviors/account-login/AccountLoginBehavior.js";
-import {
-    ContentControlBehavior as BaseContentControlBehavior
-} from "../behaviors/content-control/ContentControlBehavior.js";
-import { MessagesBehavior as BaseMessagesBehavior } from "../behaviors/messages/MessagesBehavior.js";
+    ApplicationLauncherClient as BaseApplicationLauncherClient
+} from "../behaviors/application-launcher/ApplicationLauncherClient.js";
+import { AccountLoginClient as BaseAccountLoginClient } from "../behaviors/account-login/AccountLoginClient.js";
+import { ContentControlClient as BaseContentControlClient } from "../behaviors/content-control/ContentControlClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -45,7 +39,7 @@ import { Identity } from "@matter/general";
  * A Casting Video Client is a client that can launch content on a Casting Video Player, for example, a Smart Speaker or
  * a Content Provider phone app.
  *
- * @see {@link MatterSpecification.v142.Device} § 10.6
+ * @see {@link MatterSpecification.v16.Device} § 10.6
  */
 export interface CastingVideoClientDevice extends Identity<typeof CastingVideoClientDeviceDefinition> {}
 
@@ -60,114 +54,114 @@ export namespace CastingVideoClientRequirements {
     /**
      * The OnOff cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OnOffBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OnOffClient} for convenience.
      */
-    export const OnOffBehavior = BaseOnOffBehavior;
+    export const OnOffClient = BaseOnOffClient;
 
     /**
      * The KeypadInput cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link KeypadInputBehavior} for convenience.
+     * We provide this alias to the default implementation {@link KeypadInputClient} for convenience.
      */
-    export const KeypadInputBehavior = BaseKeypadInputBehavior;
+    export const KeypadInputClient = BaseKeypadInputClient;
 
     /**
      * The ContentLauncher cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ContentLauncherBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ContentLauncherClient} for convenience.
      */
-    export const ContentLauncherBehavior = BaseContentLauncherBehavior;
+    export const ContentLauncherClient = BaseContentLauncherClient;
 
     /**
      * The ApplicationBasic cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ApplicationBasicBehavior} for convenience.
+     * We provide this alias to the default implementation {@link ApplicationBasicClient} for convenience.
      */
-    export const ApplicationBasicBehavior = BaseApplicationBasicBehavior;
+    export const ApplicationBasicClient = BaseApplicationBasicClient;
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link LevelControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link LevelControlClient} for convenience.
      */
-    export const LevelControlBehavior = BaseLevelControlBehavior;
-
-    /**
-     * The WakeOnLan cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link WakeOnLanBehavior} for convenience.
-     */
-    export const WakeOnLanBehavior = BaseWakeOnLanBehavior;
-
-    /**
-     * The Channel cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ChannelBehavior} for convenience.
-     */
-    export const ChannelBehavior = BaseChannelBehavior;
-
-    /**
-     * The TargetNavigator cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link TargetNavigatorBehavior} for convenience.
-     */
-    export const TargetNavigatorBehavior = BaseTargetNavigatorBehavior;
-
-    /**
-     * The MediaPlayback cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link MediaPlaybackBehavior} for convenience.
-     */
-    export const MediaPlaybackBehavior = BaseMediaPlaybackBehavior;
-
-    /**
-     * The MediaInput cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link MediaInputBehavior} for convenience.
-     */
-    export const MediaInputBehavior = BaseMediaInputBehavior;
-
-    /**
-     * The LowPower cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link LowPowerBehavior} for convenience.
-     */
-    export const LowPowerBehavior = BaseLowPowerBehavior;
-
-    /**
-     * The AudioOutput cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link AudioOutputBehavior} for convenience.
-     */
-    export const AudioOutputBehavior = BaseAudioOutputBehavior;
-
-    /**
-     * The ApplicationLauncher cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ApplicationLauncherBehavior} for convenience.
-     */
-    export const ApplicationLauncherBehavior = BaseApplicationLauncherBehavior;
-
-    /**
-     * The AccountLogin cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link AccountLoginBehavior} for convenience.
-     */
-    export const AccountLoginBehavior = BaseAccountLoginBehavior;
-
-    /**
-     * The ContentControl cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ContentControlBehavior} for convenience.
-     */
-    export const ContentControlBehavior = BaseContentControlBehavior;
+    export const LevelControlClient = BaseLevelControlClient;
 
     /**
      * The Messages cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link MessagesBehavior} for convenience.
+     * We provide this alias to the default implementation {@link MessagesClient} for convenience.
      */
-    export const MessagesBehavior = BaseMessagesBehavior;
+    export const MessagesClient = BaseMessagesClient;
+
+    /**
+     * The WakeOnLan cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link WakeOnLanClient} for convenience.
+     */
+    export const WakeOnLanClient = BaseWakeOnLanClient;
+
+    /**
+     * The Channel cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ChannelClient} for convenience.
+     */
+    export const ChannelClient = BaseChannelClient;
+
+    /**
+     * The TargetNavigator cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link TargetNavigatorClient} for convenience.
+     */
+    export const TargetNavigatorClient = BaseTargetNavigatorClient;
+
+    /**
+     * The MediaPlayback cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link MediaPlaybackClient} for convenience.
+     */
+    export const MediaPlaybackClient = BaseMediaPlaybackClient;
+
+    /**
+     * The MediaInput cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link MediaInputClient} for convenience.
+     */
+    export const MediaInputClient = BaseMediaInputClient;
+
+    /**
+     * The LowPower cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link LowPowerClient} for convenience.
+     */
+    export const LowPowerClient = BaseLowPowerClient;
+
+    /**
+     * The AudioOutput cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link AudioOutputClient} for convenience.
+     */
+    export const AudioOutputClient = BaseAudioOutputClient;
+
+    /**
+     * The ApplicationLauncher cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ApplicationLauncherClient} for convenience.
+     */
+    export const ApplicationLauncherClient = BaseApplicationLauncherClient;
+
+    /**
+     * The AccountLogin cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link AccountLoginClient} for convenience.
+     */
+    export const AccountLoginClient = BaseAccountLoginClient;
+
+    /**
+     * The ContentControl cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ContentControlClient} for convenience.
+     */
+    export const ContentControlClient = BaseContentControlClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -179,25 +173,25 @@ export namespace CastingVideoClientRequirements {
      */
     export const client = {
         mandatory: {
-            OnOff: OnOffBehavior,
-            KeypadInput: KeypadInputBehavior,
-            ContentLauncher: ContentLauncherBehavior,
-            ApplicationBasic: ApplicationBasicBehavior
+            OnOff: OnOffClient,
+            KeypadInput: KeypadInputClient,
+            ContentLauncher: ContentLauncherClient,
+            ApplicationBasic: ApplicationBasicClient
         },
 
         optional: {
-            LevelControl: LevelControlBehavior,
-            WakeOnLan: WakeOnLanBehavior,
-            Channel: ChannelBehavior,
-            TargetNavigator: TargetNavigatorBehavior,
-            MediaPlayback: MediaPlaybackBehavior,
-            MediaInput: MediaInputBehavior,
-            LowPower: LowPowerBehavior,
-            AudioOutput: AudioOutputBehavior,
-            ApplicationLauncher: ApplicationLauncherBehavior,
-            AccountLogin: AccountLoginBehavior,
-            ContentControl: ContentControlBehavior,
-            Messages: MessagesBehavior
+            LevelControl: LevelControlClient,
+            Messages: MessagesClient,
+            WakeOnLan: WakeOnLanClient,
+            Channel: ChannelClient,
+            TargetNavigator: TargetNavigatorClient,
+            MediaPlayback: MediaPlaybackClient,
+            MediaInput: MediaInputClient,
+            LowPower: LowPowerClient,
+            AudioOutput: AudioOutputClient,
+            ApplicationLauncher: ApplicationLauncherClient,
+            AccountLogin: AccountLoginClient,
+            ContentControl: ContentControlClient
         }
     };
 }

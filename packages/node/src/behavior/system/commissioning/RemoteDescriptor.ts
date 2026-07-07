@@ -5,7 +5,13 @@
  */
 
 import { Immutable, ServerAddress } from "@matter/general";
-import { CommissionableDevice, OperationalDevice, PeerAddress } from "@matter/protocol";
+import {
+    CommissionableDevice,
+    OperationalDevice,
+    PeerAddress,
+    SessionIntervals,
+    SupportedTransportsSchema,
+} from "@matter/protocol";
 import { DeviceTypeId, VendorId } from "@matter/types";
 import type { CommissioningClient } from "./CommissioningClient.js";
 
@@ -122,7 +128,8 @@ export namespace RemoteDescriptor {
         }
 
         if (tcpSupport !== undefined) {
-            result.T = tcpSupport;
+            // Long form persists the wire-format number; short form (DiscoveryData.T) holds the decoded bitmap.
+            result.T = SupportedTransportsSchema.decode(tcpSupport);
         }
 
         if (longIdleTimeOperatingMode !== undefined) {
@@ -132,7 +139,7 @@ export namespace RemoteDescriptor {
         const isOperational = long.peerAddress !== undefined;
         if (isOperational) {
             if (addresses !== undefined) {
-                result.addresses = addresses?.filter(address => address.type === "udp").map(ServerAddress);
+                result.addresses = addresses?.filter(address => ServerAddress.isIp(address)).map(ServerAddress);
             }
         } else {
             if (addresses !== undefined) {
@@ -182,10 +189,12 @@ export namespace RemoteDescriptor {
             long.productId = Number.isFinite(product) ? product : undefined;
         }
 
-        if (SII !== undefined) {
+        // DNS-SD caps SII/SAI at 1 hour, so a value at the cap may be a clamped advertisement of a larger
+        // CASE-negotiated interval. Don't let it lower a higher session-derived value already on record.
+        if (SII !== undefined && !isCappedBelow(SII, long.sessionParameters?.idleInterval)) {
             (long.sessionParameters ??= {}).idleInterval = SII;
         }
-        if (SAI !== undefined) {
+        if (SAI !== undefined && !isCappedBelow(SAI, long.sessionParameters?.activeInterval)) {
             (long.sessionParameters ??= {}).activeInterval = SAI;
         }
         if (SAT !== undefined) {
@@ -197,7 +206,7 @@ export namespace RemoteDescriptor {
         long.rotatingIdentifier = RI;
         long.pairingHint = PH;
         long.pairingInstructions = PI;
-        long.tcpSupport = T;
+        long.tcpSupport = T === undefined ? undefined : SupportedTransportsSchema.encode(T);
         long.longIdleTimeOperatingMode = ICD === undefined ? undefined : ICD === 1;
 
         if ("D" in descriptor) {
@@ -210,4 +219,9 @@ export namespace RemoteDescriptor {
 
         return long;
     }
+}
+
+/** True when `advertised` is at the DNS-SD 1-hour cap and `current` already exceeds it. */
+function isCappedBelow(advertised: number, current: number | undefined) {
+    return current !== undefined && advertised === SessionIntervals.maxAdvertisedInterval && current > advertised;
 }

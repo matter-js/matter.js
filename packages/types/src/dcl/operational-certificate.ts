@@ -6,7 +6,7 @@
 
 /**
  * Operational Root and Intermediate Certificate Schema
- * @see {@link MatterSpecification.v141.Core} § 11.23.5.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.5.
  */
 export interface OperationalCertificateDclSchema {
     /**

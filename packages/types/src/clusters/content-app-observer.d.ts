@@ -54,7 +54,7 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
  * not recognize. A Content App SHOULD ignore the Data field values in responses when the EncodingHint value is blank or
  * not recognized.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.12
+ * @see {@link MatterSpecification.v16.Cluster} § 6.12
  */
 export declare namespace ContentAppObserver {
     /**
@@ -68,7 +68,7 @@ export declare namespace ContentAppObserver {
     export const name: "ContentAppObserver";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -90,7 +90,7 @@ export declare namespace ContentAppObserver {
          *
          * This command returns a ContentAppMessage Response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.1
          */
         contentAppMessage(request: ContentAppMessageRequest): MaybePromise<ContentAppMessageResponse>;
     }
@@ -109,58 +109,58 @@ export declare namespace ContentAppObserver {
      *
      * This command returns a ContentAppMessage Response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.1
      */
-    export declare class ContentAppMessageRequest {
+    export class ContentAppMessageRequest {
         constructor(values?: Partial<ContentAppMessageRequest>);
 
         /**
          * This field shall indicate content app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.1.1
          */
         data: string;
 
         /**
          * This optional field shall indicate a content app-specific hint to the encoding of the data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.1.2
          */
         encodingHint?: string;
-    };
+    }
 
     /**
      * This command shall be generated in response to ContentAppMessage command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2
+     * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.2
      */
-    export declare class ContentAppMessageResponse {
+    export class ContentAppMessageResponse {
         constructor(values?: Partial<ContentAppMessageResponse>);
 
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.1
+         * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.2.1
          */
         status: Status;
 
         /**
          * This optional field shall indicate content app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.2
+         * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.2.2
          */
         data?: string;
 
         /**
          * This optional field shall indicate a content app-specific hint to the encoding of the data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.3
+         * @see {@link MatterSpecification.v16.Cluster} § 6.12.5.2.3
          */
         encodingHint?: string;
-    };
+    }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.4.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.12.4.1
      */
     export enum Status {
         /**
@@ -177,7 +177,7 @@ export declare namespace ContentAppObserver {
     /**
      * Thrown for cluster status code {@link Status.UnexpectedData}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.4.1
+     * @see {@link MatterSpecification.v16.Cluster} § 6.12.4.1
      */
     export class UnexpectedDataError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)

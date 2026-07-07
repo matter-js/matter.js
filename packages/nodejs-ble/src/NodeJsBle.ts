@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConnectionlessTransport, Environment } from "@matter/general";
+import { Environment, Transport } from "@matter/general";
 import { Ble, Scanner } from "@matter/protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
 import { BlenoPeripheralInterface } from "./BlenoPeripheralInterface.js";
@@ -60,7 +60,7 @@ export class NodeJsBle extends Ble {
         return this.#blePeripheralInterface;
     }
 
-    get centralInterface(): ConnectionlessTransport {
+    get centralInterface(): Transport {
         if (this.#bleCentralInterface === undefined) {
             this.#bleCentralInterface = new NobleBleCentralInterface(this.scanner as BleScanner);
         }

@@ -124,6 +124,25 @@ export const PairingHintBitmap = {
      * press. The exact value of N SHALL be made available via PI key.
      */
     pressSetupButtonNumberOfTimes: BitFlag(19),
+
+    /**
+     * The Device will enter Commissioning Mode when setup button is pressed and released N times with maximum 1 second
+     * between each press. The exact value of N SHALL be made available via PI key.
+     */
+    pressAndReleaseSetupButtonNumberOfTimes: BitFlag(20),
+
+    /**
+     * The Device will enter Commissioning Mode when a button is pressed for N seconds with an indication (e.g. light
+     * blink). The exact value of N, indication details, and optionally which button(s) SHALL be made available via PI
+     * key.
+     */
+    pressButtonForNumberOfSecondsWithIndication: BitFlag(21),
+
+    /**
+     * The Device will enter Commissioning Mode when power cycled a variable number of times with configurable ON/OFF
+     * durations and an indication. Details SHALL be made available via PI key.
+     */
+    powerCycleUntilIndication: BitFlag(22),
 };
 
 export const PairingHintBitmapSchema = BitmapSchema(PairingHintBitmap);

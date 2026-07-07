@@ -14,10 +14,10 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 /**
  * Definitions for the PowerSourceConfiguration cluster.
  *
- * This cluster is used to describe the configuration and capabilities of a Device’s power system. It provides an
+ * This cluster is used to describe the configuration and capabilities of a Device's power system. It provides an
  * ordering overview as well as linking to the one or more endpoints each supporting a Power Source cluster.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.6
+ * @see {@link MatterSpecification.v16.Core} § 11.6
  */
 export declare namespace PowerSourceConfiguration {
     /**
@@ -31,7 +31,7 @@ export declare namespace PowerSourceConfiguration {
     export const name: "PowerSourceConfiguration";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
     export const revision: 1;
 
@@ -56,7 +56,7 @@ export declare namespace PowerSourceConfiguration {
          * order shall have a lower index than any entry with a higher order. Multiple entries may have the same order,
          * there are no restrictions on their relative sorting.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.6.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.6.4.1
          */
         sources: EndpointNumber[];
     }
@@ -75,7 +75,7 @@ export declare namespace PowerSourceConfiguration {
          * order shall have a lower index than any entry with a higher order. Multiple entries may have the same order,
          * there are no restrictions on their relative sorting.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.6.4.1
+         * @see {@link MatterSpecification.v16.Core} § 11.6.4.1
          */
         sources: EndpointNumber[];
     }

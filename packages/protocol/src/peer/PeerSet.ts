@@ -27,13 +27,13 @@ import {
     ObservableSet,
     ObserverGroup,
     RetrySchedule,
-    ServerAddressUdp,
+    ServerAddressIp,
 } from "@matter/general";
 import { FabricIndex } from "@matter/types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
-import { PeerDescriptor } from "./PeerDescriptor.js";
+import { OperationalAddress, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 /**
@@ -61,6 +61,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #networks: NetworkProfiles;
     readonly #observers = new ObserverGroup();
     #exchanges?: ExchangeManager;
+    #transportPreference?: ChannelType.TCP;
 
     constructor(context: PeerSetContext) {
         const { lifetime, sessions, names, networks, timing, handleError } = context;
@@ -139,6 +140,18 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     /**
+     * Default outgoing transport preference applied to peers created by this set when they have
+     * no per-peer override. Honored as a soft preference at connect time.
+     */
+    get transportPreference() {
+        return this.#transportPreference;
+    }
+
+    set transportPreference(pref: ChannelType.TCP | undefined) {
+        this.#transportPreference = pref;
+    }
+
+    /**
      * Unconditional get.
      *
      * Creates the peer if not already present.
@@ -150,9 +163,16 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         }
 
         peer = new Peer({ address }, this.#peerContext);
+        this.#applyDefaultPreference(peer);
         this.#peers.add(peer);
 
         return peer;
+    }
+
+    #applyDefaultPreference(peer: Peer) {
+        if (peer.transportPreference === undefined && this.#transportPreference !== undefined) {
+            peer.transportPreference = this.#transportPreference;
+        }
     }
 
     has(item: PeerAddress | PeerDescriptor | Peer) {
@@ -246,24 +266,43 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#observers.close();
     }
 
-    async #openSocket(address: ServerAddressUdp, abort: AbortSignal) {
-        const isIpv6Address = isIPv6(address.ip);
-        const operationalInterface = this.#peerContext.exchanges.interfaceFor(
-            ChannelType.UDP,
-            isIpv6Address ? "::" : "0.0.0.0",
-        );
+    async #openSocket(address: ServerAddressIp, abort: AbortSignal) {
+        const channelType = "type" in address && address.type === "tcp" ? ChannelType.TCP : ChannelType.UDP;
 
-        if (operationalInterface === undefined) {
-            throw new NetworkUnreachableError(`No interface available for IP address ${address.ip}`);
+        let lookupAddress: string | undefined;
+        if (channelType === ChannelType.UDP) {
+            // UDP transports are bound to specific interfaces (IPv4/IPv6)
+            lookupAddress = isIPv6(address.ip) ? "::" : "0.0.0.0";
         }
 
-        return await Abort.race(abort, operationalInterface.openChannel(address));
+        const operationalInterface = this.#peerContext.exchanges.interfaceFor(channelType, lookupAddress);
+
+        if (operationalInterface === undefined) {
+            throw new NetworkUnreachableError(
+                `No ${channelType.toUpperCase()} interface available for address ${address.ip}`,
+            );
+        }
+
+        // Plumb the abort signal into openChannel so an aborted TCP connect is destroyed at the
+        // socket level — prevents an orphan TcpChannel being registered after the caller gives up.
+        // The openChannel path may reject with an abort error before Abort.race's listener wins
+        // the EventTarget callback ordering; convert that to undefined to preserve the
+        // race-returns-undefined-on-abort contract that PeerConnection relies on.
+        if (abort.aborted) return undefined;
+        try {
+            const result = await Abort.race(abort, operationalInterface.openChannel(address, { abort }));
+            return result === undefined ? undefined : result;
+        } catch (e) {
+            if (abort.aborted) return undefined;
+            throw e;
+        }
     }
 
     addKnownPeer(descriptor: PeerDescriptor) {
         let peer = this.get(descriptor.address);
         if (peer === undefined) {
             peer = new Peer(descriptor, this.#peerContext);
+            this.#applyDefaultPreference(peer);
             this.#peers.add(peer);
         }
 
@@ -293,9 +332,13 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 }
 
-function operationalAddressOf(session: Session) {
+function operationalAddressOf(session: Session): OperationalAddress | undefined {
     if (session.isClosed || !isIpNetworkChannel(session.channel)) {
         return;
     }
-    return session.channel.networkAddress;
+    // TCP incoming connections have an ephemeral remote port — not the peer's listening port
+    if (session.channel.transportChannel.type === ChannelType.TCP) {
+        return;
+    }
+    return { ...session.channel.networkAddress, type: "udp" };
 }

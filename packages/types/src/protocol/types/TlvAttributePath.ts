@@ -15,8 +15,7 @@ import { TlvBitmap, TlvUInt16, TlvUInt32 } from "../../tlv/TlvNumber.js";
 import { TlvOptionalField, TlvTaggedList } from "../../tlv/TlvObject.js";
 import { WildcardPathFlagsBitmap } from "./WildcardPathFlagsBitmap.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.6.2 */
-
+/** @see {@link MatterSpecification.v16.Core}, section 10.6.2 */
 export const TlvAttributePath = TlvTaggedList({
     // AttributePathIB
     enableTagCompression: TlvOptionalField(0, TlvBoolean),
@@ -26,6 +25,7 @@ export const TlvAttributePath = TlvTaggedList({
     attributeId: TlvOptionalField(4, TlvAttributeId),
     listIndex: TlvOptionalField(5, TlvNullable(TlvUInt16)),
     wildcardPathFlags: TlvOptionalField(6, TlvBitmap(TlvUInt32, WildcardPathFlagsBitmap)),
+    wildcardFilterConfigurationVersion: TlvOptionalField(7, TlvUInt32),
 });
 
 export type AttributePath = TypeFromSchema<typeof TlvAttributePath>;

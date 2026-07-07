@@ -10,7 +10,17 @@ import type { ClusterState } from "#behavior/cluster/ClusterState.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "@matter/general";
+import {
+    asError,
+    BasicSet,
+    Diagnostic,
+    Environment,
+    Environmental,
+    InternalError,
+    Logger,
+    ObserverGroup,
+    serialize,
+} from "@matter/general";
 import { DataModelPath } from "@matter/model";
 import {
     AccessControl,
@@ -22,7 +32,15 @@ import {
     Subject,
     Val,
 } from "@matter/protocol";
-import { AttributeId, type ClusterTyping, NodeId, Status, StatusResponse, StatusResponseError } from "@matter/types";
+import {
+    AttributeId,
+    ClusterId,
+    type ClusterTyping,
+    NodeId,
+    Status,
+    StatusResponse,
+    StatusResponseError,
+} from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteState } from "./AtomicWriteState.js";
 
@@ -102,25 +120,11 @@ export class AtomicWriteHandler {
             attributes.set(attr, attributeName);
         }
 
-        const existingState = this.#pendingWrites.find(
-            s =>
-                PeerAddress.is(s.peerAddress, peerAddress) &&
-                s.endpoint.number == endpoint.number &&
-                s.clusterId === cluster.cluster.id,
-        );
+        const existingState = this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id);
 
         if (requestType === Thermostat.RequestType.BeginWrite) {
             if (timeout === undefined) {
                 throw new StatusResponse.InvalidCommandError("Timeout missing for BeginWrite request");
-            }
-
-            if (
-                existingState !== undefined &&
-                existingState.attributeRequests.some(attr => attributeRequests.includes(attr))
-            ) {
-                throw new StatusResponse.InvalidCommandError(
-                    "An atomic write for at least one of the attributes is already in progress for this peer",
-                );
             }
 
             const initialValues: Val.Struct = {};
@@ -139,6 +143,7 @@ export class AtomicWriteHandler {
             );
             this.#pendingWrites.add(state);
             state.closed.on(() => void this.#pendingWrites.delete(state));
+            state.start();
             logger.debug("Added atomic write state:", state);
             return state;
         }
@@ -169,14 +174,22 @@ export class AtomicWriteHandler {
         if (!ClusterBehavior.is(cluster)) {
             throw new InternalError("Cluster behavior expected for atomic write handler");
         }
+
+        // §7.15.6.4.1 step 1: reject at command level if this peer already holds an atomic write on the cluster/endpoint
+        // for any attributes, before per-attribute processing (matches CHIP's InAtomicWrite gate).
+        const peerAddress = this.#derivePeerAddress(context);
+        if (peerAddress !== undefined && this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id)) {
+            throw new StatusResponse.InvalidInStateError(
+                "An atomic write is already in progress for this peer on this cluster and endpoint",
+            );
+        }
+
         let commandStatusCode = Status.Success;
         const attributeStatus = request.attributeRequests.map(attr => {
             let statusCode = Status.Success;
             const attributeModel = cluster.schema.conformant.attributes(attr);
-            if (!attributeModel?.quality.atomic) {
-                statusCode = Status.InvalidAction;
-            } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
-                statusCode = Status.Busy;
+            if (attributeModel === undefined) {
+                statusCode = Status.InvalidCommand;
             } else {
                 const { writeLevel } = cluster.supervisor.get(attributeModel).access.limits;
                 const location = {
@@ -187,6 +200,10 @@ export class AtomicWriteHandler {
                 };
                 if (context.authorityAt(writeLevel, location) !== AccessControl.Authority.Granted) {
                     statusCode = Status.UnsupportedAccess;
+                } else if (!attributeModel.quality.atomic) {
+                    statusCode = Status.InvalidCommand;
+                } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
+                    statusCode = Status.Busy;
                 }
             }
 
@@ -230,9 +247,13 @@ export class AtomicWriteHandler {
         //  older values. We need to tweak the state for a complete solution. But ok for now!
         endpoint
             .eventsOf(cluster.id)
-            [
-                `${attributeName}$AtomicChanging`
-            ]?.emit(value, state.pendingAttributeValues[attribute] !== undefined ? state.pendingAttributeValues[attribute] : state.initialValues[attribute], context);
+            [`${attributeName}$AtomicChanging`]?.emit(
+                value,
+                state.pendingAttributeValues[attribute] !== undefined
+                    ? state.pendingAttributeValues[attribute]
+                    : state.initialValues[attribute],
+                context,
+            );
         state.pendingAttributeValues[attribute] = value;
         logger.debug("Atomic write state after current write:", state);
     }
@@ -265,7 +286,10 @@ export class AtomicWriteHandler {
                 await context.transaction?.commit();
             } catch (error) {
                 await context.transaction?.rollback();
-                logger.info(`Failed to write attribute ${attr} during atomic write commit: ${error}`);
+                logger.info(
+                    `Failed to write attribute ${attr} during atomic write commit:`,
+                    Diagnostic.errorMessage(asError(error)),
+                );
                 statusCode = StatusResponseError.of(error)?.code ?? Status.Failure;
                 // If one fails with ConstraintError, the whole command should return ConstraintError, otherwise Failure
                 commandStatusCode =
@@ -320,6 +344,18 @@ export class AtomicWriteHandler {
                 writeState.close();
             }
         }
+    }
+
+    /**
+     * Returns the atomic write state this peer holds on the given cluster/endpoint, if any.
+     */
+    #pendingWriteForPeer(peerAddress: PeerAddress, endpoint: Endpoint, clusterId: ClusterId) {
+        return this.#pendingWrites.find(
+            s =>
+                PeerAddress.is(s.peerAddress, peerAddress) &&
+                s.endpoint.number === endpoint.number &&
+                s.clusterId === clusterId,
+        );
     }
 
     /**
@@ -387,6 +423,8 @@ export class AtomicWriteHandler {
             throw new StatusResponse.InvalidInStateError("There is no atomic write in progress for this peer");
         }
         if (!PeerAddress.is(attrWriteState.peerAddress, peerAddress)) {
+            // CHIP and TC_TSTAT_4_2 require BUSY here, not the §7.15.3 INVALID_IN_STATE, when another peer holds the
+            // atomic write (INVALID_IN_STATE is reserved for when no atomic write is open on the attribute)
             throw new StatusResponse.BusyError("Attribute is part of an atomic write in progress for a different peer");
         }
         return attrWriteState;

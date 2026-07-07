@@ -13,6 +13,7 @@ Resource.add({
     details: "A Temperature Sensor device reports measurements of temperature.",
     children: [
         { tag: "requirement", name: "TemperatureMeasurement", xref: "device§7.4.4" },
-        { tag: "requirement", name: "Identify", xref: "device§7.4.4" }
+        { tag: "requirement", name: "Identify", xref: "device§7.4.4" },
+        { tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§7.4.4" }
     ]
 });

@@ -13,7 +13,7 @@ export const LightSensorDt = DeviceType(
     { name: "LightSensor", id: 0x106, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 262, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 262, revision: 4 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "IlluminanceMeasurement", id: 0x400, conformance: "M", element: "serverCluster" })

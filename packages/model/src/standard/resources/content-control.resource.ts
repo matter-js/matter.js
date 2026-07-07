@@ -20,7 +20,7 @@ Resource.add({
         "\n" +
         "> [!NOTE]" +
         "\n" +
-        "> Support for Content Control cluster is provisional.",
+        "> NOTE: Support for Content Control cluster is provisional.",
 
     children: [
         {
@@ -434,9 +434,9 @@ Resource.add({
                 "Upon receipt of the SetBlockContentTimeWindow command, the media device shall check if the " +
                 "TimeWindowIndex field passed in this command is NULL. If the TimeWindowIndex field is NULL, the " +
                 "media device shall check if there is an entry in the BlockContentTimeWindow attribute which matches " +
-                "with the TimePeriod and DayOfWeek fields passed in this command. * If Yes, then a response with " +
-                "TimeWindowAlreadyExist error status shall be returned. * If No, then the media device shall assign " +
-                "one unique index for this time window and add it into the BlockContentTimeWindow list attribute." +
+                "with the TimePeriod and DayOfWeek fields passed in this command. If Yes, then a response with " +
+                "TimeWindowAlreadyExist error status shall be returned. If No, then the media device shall assign one " +
+                "unique index for this time window and add it into the BlockContentTimeWindow list attribute." +
                 "\n" +
                 "If the TimeWindowIndex field is not NULL and presents in the BlockContentTimeWindow attribute, the " +
                 "media device shall replace the original time window with the new time window passed in this command.",
@@ -615,7 +615,7 @@ Resource.add({
                 { tag: "field", name: "ChannelAlreadyExist", description: "Provided Channel(s) already exists." },
                 {
                     tag: "field", name: "ChannelNotExist",
-                    description: "Provided Channel(s) doesn’t exist in BlockChannelList attribute."
+                    description: "Provided Channel(s) doesn't exist in BlockChannelList attribute."
                 },
                 {
                     tag: "field", name: "UnidentifiableApplication",
@@ -627,7 +627,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "ApplicationNotExist",
-                    description: "Provided Application(s) doesn’t exist in BlockApplicationList attribute."
+                    description: "Provided Application(s) doesn't exist in BlockApplicationList attribute."
                 },
                 {
                     tag: "field", name: "TimeWindowAlreadyExist",
@@ -635,7 +635,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "TimeWindowNotExist",
-                    description: "Provided time window doesn’t exist in BlockContentTimeWindow attribute."
+                    description: "Provided time window doesn't exist in BlockContentTimeWindow attribute."
                 }
             ]
         }

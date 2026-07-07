@@ -13,6 +13,7 @@ import * as mod from "@noble/curves/abstract/modular.js";
 import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
 import { Entropy } from "../util/Entropy.js";
+import { cmac } from "./aes/Cmac.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
 
@@ -29,15 +30,12 @@ export const CRYPTO_EC_KEY_BYTES = 32;
 export const CRYPTO_AUTH_TAG_LENGTH = 16;
 export const CRYPTO_SYMMETRIC_KEY_LENGTH = 16;
 
-/**
- * Hash algorithms identified by IANA Hash Function identifiers.
- * Based on FIPS 180-4 Section 6.2 and FIPS 202.
- *
- * The enum values are the FIPS-defined algorithm IDs.
- */
-export type HashAlgorithm = "SHA-256" | "SHA-512" | "SHA-384" | "SHA-512/224" | "SHA-512/256" | "SHA3-256";
+/** Hash algorithm names supported by the Matter crypto primitives. */
+export type HashAlgorithm = "SHA-1" | "SHA-256" | "SHA-512" | "SHA-384" | "SHA-512/224" | "SHA-512/256" | "SHA3-256";
 
 export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
+    // SHA-1 is permitted ONLY for RFC 5280 key identifiers (SKI/AKI), never for signatures.
+    "SHA-1": 20,
     "SHA-256": 32,
     "SHA-512": 64,
     "SHA-384": 48,
@@ -46,13 +44,32 @@ export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
     "SHA3-256": 32,
 };
 
-export enum HashFipsAlgorithmId {
+/**
+ * Identifiers from the IANA Named Information (NI) Hash Algorithm Registry (RFC 6920), used as the OTA
+ * image digest type (Matter Core §11.21.2.4.9) and the DCL data digest type. Limited to the registry
+ * algorithms the Matter crypto primitives can compute; SHA3-256 availability is backend-dependent (no
+ * browser Web Crypto support).
+ */
+export enum HashAlgorithmId {
     "SHA-256" = 1,
-    "SHA-512" = 7,
-    "SHA-384" = 8,
-    "SHA-512/224" = 10,
-    "SHA-512/256" = 11,
-    "SHA3-256" = 12,
+    "SHA-384" = 7,
+    "SHA-512" = 8,
+    "SHA3-256" = 10,
+}
+
+/** Subset of {@link HashAlgorithm} that has an IANA NI registry identifier (see {@link HashAlgorithmId}). */
+export type IdentifiedHashAlgorithm = keyof typeof HashAlgorithmId;
+
+const HASH_ALGORITHM_BY_ID = new Map<number, IdentifiedHashAlgorithm>([
+    [HashAlgorithmId["SHA-256"], "SHA-256"],
+    [HashAlgorithmId["SHA-384"], "SHA-384"],
+    [HashAlgorithmId["SHA-512"], "SHA-512"],
+    [HashAlgorithmId["SHA3-256"], "SHA3-256"],
+]);
+
+/** Resolves an IANA NI registry identifier to its {@link IdentifiedHashAlgorithm} name, or undefined if unsupported. */
+export function hashAlgorithmForId(id: number): IdentifiedHashAlgorithm | undefined {
+    return HASH_ALGORITHM_BY_ID.get(id);
 }
 
 const logger = Logger.get("Crypto");
@@ -75,14 +92,22 @@ export abstract class Crypto extends Entropy {
     abstract implementationName: string;
 
     /**
-     * Encrypt using AES-CCM with constants limited to those required by Matter.
+     * Encrypt using AES-CCM. `tagLength` defaults to 16 (Matter AEAD); pass 8 for CCM-8.
      */
-    abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
+    abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
 
     /**
-     * Decrypt using AES-CCM with constants limited to those required by Matter.
+     * Decrypt using AES-CCM. `tagLength` defaults to 16; pass 8 for CCM-8.
      */
-    abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
+    abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
+
+    /**
+     * Compute an AES-CMAC (RFC 4493) tag.  Synchronous: the default pure-JS implementation drives
+     * iteration-heavy KDFs (e.g. Thread PSKc PBKDF2) that cannot tolerate per-block awaits.
+     */
+    cmac(key: Bytes, data: Bytes): Bytes {
+        return cmac(Bytes.of(key), Bytes.of(data));
+    }
 
     /**
      * Compute a cryptographic hash using the specified algorithm. If no algorithm is specified, SHA-256 is used.
@@ -98,7 +123,9 @@ export abstract class Crypto extends Entropy {
     abstract createPbkdf2Key(secret: Bytes, salt: Bytes, iteration: number, keyLength: number): MaybePromise<Bytes>;
 
     /**
-     * Create a key from a secret using HKDF.
+     * Create a key from a secret using HKDF. The length parameter defines the length in bytes.
+     *
+     * @see {@link MatterSpecification.v16.Core} §3.8
      */
     abstract createHkdfKey(secret: Bytes, salt: Bytes, info: Bytes, length?: number): MaybePromise<Bytes>;
 

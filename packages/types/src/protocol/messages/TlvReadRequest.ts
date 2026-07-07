@@ -14,7 +14,7 @@ import { TlvDataVersionFilter } from "../types/TlvDataVersionFilter.js";
 import { TlvEventFilter } from "../types/TlvEventFilter.js";
 import { TlvEventPath } from "../types/TlvEventPath.js";
 
-/** @see {@link MatterSpecification.v13.Core}, section 10.7.2 */
+/** @see {@link MatterSpecification.v16.Core}, section 10.7.2 */
 
 export const TlvReadRequest = TlvObject({
     /** A list of zero or more request paths to cluster attribute data. */
@@ -31,7 +31,7 @@ export const TlvReadRequest = TlvObject({
 
     /** A list of zero or more cluster instance data versions. */
     dataVersionFilters: TlvOptionalField(4, TlvArray(TlvDataVersionFilter)),
-    interactionModelRevision: TlvField(0xff, TlvUInt8),
+    interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 
 export type ReadRequest = TypeFromSchema<typeof TlvReadRequest>;

@@ -18,6 +18,7 @@ Resource.add({
     children: [
         { tag: "requirement", name: "OnOff", xref: "device§10.6.4" },
         { tag: "requirement", name: "LevelControl", xref: "device§10.6.4" },
+        { tag: "requirement", name: "Messages", xref: "device§10.6.4" },
         { tag: "requirement", name: "WakeOnLan", xref: "device§10.6.4" },
         { tag: "requirement", name: "Channel", xref: "device§10.6.4" },
         { tag: "requirement", name: "TargetNavigator", xref: "device§10.6.4" },
@@ -31,7 +32,6 @@ Resource.add({
         { tag: "requirement", name: "ApplicationBasic", xref: "device§10.6.4" },
         { tag: "requirement", name: "AccountLogin", xref: "device§10.6.4" },
         { tag: "requirement", name: "ContentControl", xref: "device§10.6.4" },
-        { tag: "requirement", name: "ContentAppObserver", xref: "device§10.6.4" },
-        { tag: "requirement", name: "Messages", xref: "device§10.6.4" }
+        { tag: "requirement", name: "ContentAppObserver", xref: "device§10.6.4" }
     ]
 });

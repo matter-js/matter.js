@@ -17,7 +17,7 @@ import {
     Val,
     WriteError,
 } from "@matter/protocol";
-import { StatusCode } from "@matter/types";
+import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Internal } from "../Internal.js";
@@ -331,7 +331,7 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             this.writeVal().splice(valueIndex, 1);
         } else {
             if (!isObject(value)) {
-                throw new WriteError(location, `Fabric scoped list value is not an object`, StatusCode.Failure);
+                throw new WriteError(location, `Fabric scoped list value is not an object`, Status.Failure);
             }
             (value as { fabricIndex?: number }).fabricIndex ??= this.session.fabric;
             super.writeEntry(this.#mapScopedToActual(index, false), value, location);
@@ -361,7 +361,7 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
                     throw new WriteError(
                         this.reference.location,
                         `Fabric scoped list value is not an object`,
-                        StatusCode.Failure,
+                        Status.Failure,
                     );
                 }
             }

@@ -37,8 +37,8 @@ export class AppAddress extends URL {
         try {
             super(definition);
         } catch (e) {
-            if (e instanceof SyntaxError) {
-                throw new InvalidAppAddress(`Invalid app address:${e.message}`);
+            if (e instanceof TypeError || e instanceof SyntaxError) {
+                throw new InvalidAppAddress(`Invalid app address: ${e.message}`);
             }
             throw e;
         }
@@ -95,7 +95,8 @@ export class AppAddress extends URL {
     }
 
     get isWildcardHost() {
-        return this.host === "0.0.0.0" || this.host === "::";
+        const host = this.hostname.replace(/^\[|\]$/g, "");
+        return host === "0.0.0.0" || host === "::";
     }
 
     get isWildcardPort() {

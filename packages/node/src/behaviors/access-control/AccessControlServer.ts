@@ -5,6 +5,7 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import { OnlineEvent } from "#behavior/Events.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { Bytes, deepCopy, InternalError, isDeepEqual, Logger, ObservableValue } from "@matter/general";
 import {
@@ -29,7 +30,7 @@ import {
     FabricIndex,
     GroupId,
     NodeId,
-    StatusCode,
+    Status,
     StatusResponseError,
     SubjectId,
     TlvTaggedList,
@@ -39,7 +40,7 @@ import { AccessControl as AccessControlTypes } from "@matter/types/clusters/acce
 import { AccessControlBehavior } from "./AccessControlBehavior.js";
 
 const logger = Logger.get("AccessControlServer");
-const AccessControlBase = AccessControlBehavior.with("Extension", "Auxiliary");
+const AccessControlBase = AccessControlBehavior.with("Extension");
 
 /**
  * This is the default server implementation of AccessControlBehavior.
@@ -49,8 +50,21 @@ const AccessControlBase = AccessControlBehavior.with("Extension", "Auxiliary");
  */
 export class AccessControlServer extends AccessControlBase {
     declare internal: AccessControlServer.Internal;
+    declare readonly state: AccessControlServer.State;
+    declare readonly events: AccessControlServer.Events;
 
     override initialize() {
+        // Spec 1.5.1 tightened constraints to "4 to 65534" / "3 to 65534" — ensure valid defaults
+        if (!this.state.subjectsPerAccessControlEntry) {
+            this.state.subjectsPerAccessControlEntry = 4;
+        }
+        if (!this.state.targetsPerAccessControlEntry) {
+            this.state.targetsPerAccessControlEntry = 4;
+        }
+        if (!this.state.accessControlEntriesPerFabric) {
+            this.state.accessControlEntriesPerFabric = 4;
+        }
+
         this.reactTo(this.events.acl$Changing, this.#validateAccessControlListChanges); // Enhanced Validation
         this.reactTo(this.events.acl$Changed, this.#handleAccessControlListChange); // Event handling for changes
         if (this.state.extension !== undefined) {
@@ -144,19 +158,19 @@ export class AccessControlServer extends AccessControlBase {
             if (delayedChangeExchange !== undefined && delayedChangeExchange !== context.exchange) {
                 // We are in a delayed ACL update with another exchange, so we do not process this one with Busy error
                 // This is formally not in specification, but chip also does this that way
-                logger.warn(
+                logger.debug(
                     "Decline parallel ACL changes from multiple exchanges",
                     context.exchange.id,
                     "vs.",
                     delayedChangeExchange.id,
                 );
-                throw new StatusResponseError("Parallel ACL change from multiple exchanges", StatusCode.Busy);
+                throw new StatusResponseError("Parallel ACL change from multiple exchanges", Status.Busy);
             }
         }
 
         const fabricAcls = value.filter(entry => entry.fabricIndex === relevantFabricIndex);
         if (fabricAcls.length > this.state.accessControlEntriesPerFabric) {
-            throw new StatusResponseError("AccessControlEntriesPerFabric exceeded", StatusCode.ResourceExhausted);
+            throw new StatusResponseError("AccessControlEntriesPerFabric exceeded", Status.ResourceExhausted);
         }
 
         for (const entry of fabricAcls) {
@@ -169,15 +183,15 @@ export class AccessControlServer extends AccessControlBase {
             }
             const { privilege, subjects, targets, authMode } = entry;
             if (subjects !== null && subjects.length > this.state.subjectsPerAccessControlEntry) {
-                throw new StatusResponseError("SubjectsPerAccessControlEntry exceeded", StatusCode.ResourceExhausted);
+                throw new StatusResponseError("SubjectsPerAccessControlEntry exceeded", Status.ResourceExhausted);
             }
 
             if (targets !== null && targets.length > this.state.targetsPerAccessControlEntry) {
-                throw new StatusResponseError("TargetsPerAccessControlEntry exceeded", StatusCode.ResourceExhausted);
+                throw new StatusResponseError("TargetsPerAccessControlEntry exceeded", Status.ResourceExhausted);
             }
 
             if (authMode === AccessControlTypes.AccessControlEntryAuthMode.Pase) {
-                throw new StatusResponseError("AuthMode for ACL must not be PASE", StatusCode.ConstraintError);
+                throw new StatusResponseError("AuthMode for ACL must not be PASE", Status.ConstraintError);
             } else if (authMode === AccessControlTypes.AccessControlEntryAuthMode.Case) {
                 if (subjects !== null) {
                     for (const subject of subjects) {
@@ -186,13 +200,13 @@ export class AccessControlServer extends AccessControlBase {
                             if (CaseAuthenticatedTag.getVersion(cat) === 0) {
                                 throw new StatusResponseError(
                                     "CaseAuthenticatedTag version 0 is not allowed",
-                                    StatusCode.ConstraintError,
+                                    Status.ConstraintError,
                                 );
                             }
                         } else if (!NodeId.isOperationalNodeId(subject)) {
                             throw new StatusResponseError(
                                 "Subject must be a valid OperationalNodeId or CaseAuthenticatedTag",
-                                StatusCode.ConstraintError,
+                                Status.ConstraintError,
                             );
                         }
                     }
@@ -201,7 +215,7 @@ export class AccessControlServer extends AccessControlBase {
                 if (privilege === AccessControlTypes.AccessControlEntryPrivilege.Administer) {
                     throw new StatusResponseError(
                         "Group ACLs must not have Administer privilege",
-                        StatusCode.ConstraintError,
+                        Status.ConstraintError,
                     );
                 }
 
@@ -210,7 +224,7 @@ export class AccessControlServer extends AccessControlBase {
                         if (GroupId(Number(subject)) === GroupId.NO_GROUP_ID) {
                             throw new StatusResponseError(
                                 "Subject must be a valid GroupId for Group ACLs",
-                                StatusCode.ConstraintError,
+                                Status.ConstraintError,
                             );
                         }
                     }
@@ -224,26 +238,23 @@ export class AccessControlServer extends AccessControlBase {
                     if (deviceType !== null && endpoint !== null) {
                         throw new StatusResponseError(
                             "DeviceType and Endpoint are mutually exclusive",
-                            StatusCode.ConstraintError,
+                            Status.ConstraintError,
                         );
                     }
                     if (cluster === null && endpoint === null && deviceType === null) {
-                        throw new StatusResponseError("At least one field must be present", StatusCode.ConstraintError);
+                        throw new StatusResponseError("At least one field must be present", Status.ConstraintError);
                     }
                     if (cluster !== null && !ClusterId.isValid(cluster)) {
-                        throw new StatusResponseError("Cluster must be a valid ClusterId", StatusCode.ConstraintError);
+                        throw new StatusResponseError("Cluster must be a valid ClusterId", Status.ConstraintError);
                     }
                     if (endpoint !== null && !EndpointNumber.isValid(endpoint)) {
                         throw new StatusResponseError(
                             "Endpoint must be a valid OperationalNodeId",
-                            StatusCode.ConstraintError,
+                            Status.ConstraintError,
                         );
                     }
                     if (deviceType !== null && !DeviceTypeId.isValid(deviceType)) {
-                        throw new StatusResponseError(
-                            "DeviceType must be a valid DeviceType",
-                            StatusCode.ConstraintError,
-                        );
+                        throw new StatusResponseError("DeviceType must be a valid DeviceType", Status.ConstraintError);
                     }
                 }
             }
@@ -336,7 +347,7 @@ export class AccessControlServer extends AccessControlBase {
             return;
         }
         if (fabricExtensions.length > 1) {
-            throw new StatusResponseError("Extension list must contain a single entry", StatusCode.ConstraintError);
+            throw new StatusResponseError("Extension list must contain a single entry", Status.ConstraintError);
         }
 
         // we have exactly one entry
@@ -404,13 +415,13 @@ export class AccessControlServer extends AccessControlBase {
             extensionBytes[extensionBytes.length - 1] !== TlvType.EndOfContainer
         ) {
             // Easier to check that way that it is an Listen without any tags in general
-            throw new StatusResponseError("Extension must be a valid TLV", StatusCode.ConstraintError);
+            throw new StatusResponseError("Extension must be a valid TLV", Status.ConstraintError);
         }
         try {
             TlvTaggedList({} /* No fields, sufficient for validation */, true).decode(data);
         } catch (error) {
             logger.debug(`Extension TLV decoding failed:`, error);
-            throw new StatusResponseError("Extension must be a valid TLV", StatusCode.ConstraintError);
+            throw new StatusResponseError("Extension must be a valid TLV", Status.ConstraintError);
         }
     }
 
@@ -434,7 +445,7 @@ export class AccessControlServer extends AccessControlBase {
     #updateFabricAcls(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
         const realAcl = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
-        const syntheticAcl = this.state.auxiliaryAcl.filter(entry => entry.fabricIndex === fabricIndex);
+        const syntheticAcl = this.state.auxiliaryAcl?.filter(entry => entry.fabricIndex === fabricIndex) ?? [];
         fabric.accessControl.auxiliaryFeatureEnabled = this.features.auxiliary;
         fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
     }
@@ -474,7 +485,7 @@ export class AccessControlServer extends AccessControlBase {
             }
         }
 
-        const oldAuxAcl = deepCopy(this.state.auxiliaryAcl);
+        const oldAuxAcl = deepCopy(this.state.auxiliaryAcl ?? []);
 
         // Determine which fabrics have changed entries
         const allFabrics = new Set([...oldAuxAcl.map(e => e.fabricIndex), ...newAuxAcl.map(e => e.fabricIndex)]);
@@ -506,7 +517,7 @@ export class AccessControlServer extends AccessControlBase {
             }
             this.#updateFabricAcls(fabrics.for(fi));
             if (emitEvents) {
-                this.events.auxiliaryAccessUpdated.emit({ adminNodeId, fabricIndex: fi }, this.context);
+                this.events.auxiliaryAccessUpdated?.emit({ adminNodeId, fabricIndex: fi }, this.context);
             }
         }
     }
@@ -569,7 +580,10 @@ export class AccessControlServer extends AccessControlBase {
             // No interaction registered, so we apply directly because local/offline change
             logger.debug("ACL attribute updated, applying update to ACL manager", fabricIndex);
 
-            fabric.accessControl.aclList = deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex);
+            fabric.accessControl.aclList = [
+                ...deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex),
+                ...this.#auxiliaryAclFor(fabricIndex),
+            ];
         }
     }
 
@@ -593,7 +607,7 @@ export class AccessControlServer extends AccessControlBase {
         const fabrics = this.env.get(FabricManager);
         for (const fabric of fabrics) {
             const realAcl = aclsForFabric.get(fabric.fabricIndex) ?? [];
-            const syntheticAcl = this.state.auxiliaryAcl.filter(e => e.fabricIndex === fabric.fabricIndex);
+            const syntheticAcl = this.state.auxiliaryAcl?.filter(e => e.fabricIndex === fabric.fabricIndex) ?? [];
             fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
         }
     }
@@ -628,6 +642,23 @@ export class AccessControlServer extends AccessControlBase {
         );
     }
 
+    /**
+     * Collect auxiliary ACL entries for a fabric from the registered providers. Reads the provider observable values
+     * directly, which is context-free and therefore safe from reactors that run after an interaction context has
+     * exited — unlike the managed {@link AccessControlServer.State.auxiliaryAcl} state, which throws there.
+     */
+    #auxiliaryAclFor(fabricIndex: FabricIndex) {
+        const entries = new Array<AccessControlTypes.AccessControlEntry>();
+        for (const obs of this.internal.auxiliaryAclProviders) {
+            for (const entry of obs.value ?? []) {
+                if (entry.fabricIndex === fabricIndex) {
+                    entries.push({ ...entry });
+                }
+            }
+        }
+        return entries;
+    }
+
     /** Applies the delayed ACL update for a specific fabric index, if existing */
     #applyDelayedAclUpdateFor(fabricIndex: FabricIndex) {
         const updateDelayed = !!this.internal.aclUpdateDelayed.get(fabricIndex);
@@ -636,12 +667,30 @@ export class AccessControlServer extends AccessControlBase {
         this.internal.delayedAclData.delete(fabricIndex);
         this.internal.aclUpdateDelayed.delete(fabricIndex);
         if (updateDelayed && delayedData !== undefined) {
-            this.env.get(FabricManager).for(fabricIndex).accessControl.aclList = delayedData;
+            this.env.get(FabricManager).for(fabricIndex).accessControl.aclList = [
+                ...delayedData,
+                ...this.#auxiliaryAclFor(fabricIndex),
+            ];
         }
     }
 }
 
 export namespace AccessControlServer {
+    export class State extends AccessControlBase.State {
+        /**
+         * Synthesized read-only ACL entries supplied by auxiliary providers (e.g. Groupcast).  Only present when the
+         * Auxiliary feature is enabled.
+         */
+        declare auxiliaryAcl?: AccessControlTypes.AccessControlEntry[];
+    }
+
+    export class Events extends AccessControlBase.Events {
+        /** Emitted when auxiliary ACL entries change.  Only present when the Auxiliary feature is enabled. */
+        declare auxiliaryAccessUpdated?: OnlineEvent<
+            [payload: AccessControlTypes.AuxiliaryAccessUpdatedEvent, context: ActionContext]
+        >;
+    }
+
     export class Internal {
         /** Is the cluster logic initialized? Used to block events before full initialization. */
         initialized = false;

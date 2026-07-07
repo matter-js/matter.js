@@ -105,7 +105,7 @@ export abstract class RemoteInterface {
         try {
             await this.stop();
         } catch (e) {
-            logger.error(`Error terminating API endpoint ${this.address}`);
+            logger.error(`Error terminating API endpoint ${this.address}`, e);
         }
     }
 

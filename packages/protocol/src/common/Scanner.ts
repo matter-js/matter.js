@@ -14,9 +14,10 @@ import {
     Environmental,
     Millis,
     ServerAddress,
-    ServerAddressUdp,
+    ServerAddressIp,
 } from "@matter/general";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema, VendorId } from "@matter/types";
+import { SupportedTransportsBitmap, SupportedTransportsSchema } from "./SupportedTransportsBitmap.js";
 
 /**
  * All information exposed by a device via announcements.
@@ -51,14 +52,14 @@ export type DiscoveryData = {
     /** Session active threshold */
     SAT?: Duration;
 
-    /** TCP supported */
-    T?: number; // SupportedTransportsBitmap but comes in as number, so converted on usage
+    /** Supported transports (TCP client/server). */
+    T?: SupportedTransportsBitmap;
 
     /** ICD Long Idle Time operating mode supported */
     ICD?: number;
 };
 
-export function DiscoveryData(kvs: Map<string, string>) {
+export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
     const dd: DiscoveryData = {};
 
     for (const key of kvs.keys()) {
@@ -72,7 +73,6 @@ export function DiscoveryData(kvs: Map<string, string>) {
 
             case "DT":
             case "PH":
-            case "T":
             case "ICD": {
                 const num = Number(kvs.get(key));
                 if (isFinite(num)) {
@@ -81,13 +81,31 @@ export function DiscoveryData(kvs: Map<string, string>) {
                 break;
             }
 
+            case "T": {
+                const num = Number(kvs.get(key));
+                if (isFinite(num)) {
+                    dd.T = SupportedTransportsSchema.decode(num);
+                }
+                break;
+            }
+
             case "SII":
             case "SAI":
             case "SAT": {
-                const num = Number(kvs.get(key));
-                if (isFinite(num)) {
-                    dd[key] = Millis(num);
+                // Spec §4.3.4: if the value is invalid or out of range the key SHALL be treated as absent so that
+                // MRP defaults apply; encoding omits leading zeros, so treat them as invalid like CHIP does
+                const value = kvs.get(key);
+                if (value === undefined || !/^(0|[1-9]\d*)$/.test(value)) {
+                    break;
                 }
+                const num = Number(value);
+                if (key === "SAT" && (num === 0 || num > 65535)) {
+                    break;
+                }
+                if (key !== "SAT" && num > 3_600_000) {
+                    break;
+                }
+                dd[key] = Millis(num);
                 break;
             }
         }
@@ -106,7 +124,7 @@ export function DiscoveryDataDiagnostics(data: DiscoveryData & { addresses?: Ser
         SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
         SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
         SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
-        T: data.T,
+        T: data.T !== undefined ? Diagnostic.asFlags(data.T) : undefined,
         DT: data.DT,
         PH: data.PH,
         ICD: data.ICD,
@@ -125,7 +143,7 @@ export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
 export type AddressTypeFromDevice<D extends DiscoverableDevice<any>> =
     D extends DiscoverableDevice<infer SA> ? SA : never;
 
-export type OperationalDevice = DiscoverableDevice<ServerAddressUdp> & {
+export type OperationalDevice = DiscoverableDevice<ServerAddressIp> & {
     deviceIdentifier: string;
 };
 
@@ -172,9 +190,7 @@ export type CommissionableDeviceIdentifiers =
           /** The product ID of the commissionable device, if devices with a special product should be discovered. */
           productId: number;
       }
-    | {
-          /** Pass empty object to discover any commissionable device. */
-      };
+    | { /** Pass empty object to discover any commissionable device. */ };
 
 export interface Scanner {
     type: ChannelType;

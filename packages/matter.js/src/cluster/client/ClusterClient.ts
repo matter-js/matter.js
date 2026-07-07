@@ -6,7 +6,6 @@
 
 import { capitalize, Diagnostic, Duration, ImplementationError, Logger } from "@matter/general";
 import { AttributeModel } from "@matter/model";
-import { ClusterClientObj, DecodedEventData } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -14,7 +13,7 @@ import {
     CommandId,
     EndpointNumber,
     EventId,
-    StatusCode,
+    Status,
     StatusResponseError,
     TlvEventFilter,
     TlvOfModel,
@@ -22,6 +21,8 @@ import {
 } from "@matter/types";
 import { TlvVoid } from "@matter/types/tlv";
 import { createAttributeClient } from "./AttributeClient.js";
+import { ClusterClientObj } from "./ClusterClientTypes.js";
+import { DecodedEventData } from "./DecodedDataReport.js";
 import { createEventClient } from "./EventClient.js";
 import { InteractionClient } from "./InteractionClient.js";
 
@@ -95,7 +96,7 @@ export function ClusterClient(
             try {
                 return await (attributes as any)[attributeName].get(requestFromRemote, isFabricFiltered);
             } catch (e) {
-                if (StatusResponseError.is(e, StatusCode.UnsupportedAttribute)) {
+                if (StatusResponseError.is(e, Status.UnsupportedAttribute)) {
                     return undefined;
                 }
                 throw e;
@@ -161,7 +162,7 @@ export function ClusterClient(
             try {
                 return await (events as any)[eventName].get(minimumEventNumber, isFabricFiltered);
             } catch (e) {
-                if (StatusResponseError.is(e, StatusCode.UnsupportedEvent)) {
+                if (StatusResponseError.is(e, Status.UnsupportedEvent)) {
                     return undefined;
                 }
                 throw e;

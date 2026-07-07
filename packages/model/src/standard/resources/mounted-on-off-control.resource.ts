@@ -20,17 +20,18 @@ Resource.add({
         "\n" +
         "> [!NOTE]" +
         "\n" +
-        "> Since this device type was added in Matter 1.4, for endpoints using this device type it is " +
+        "> NOTE: Since this device type was added in Matter 1.4, for endpoints using this device type it is " +
         "recommended to add the subset device type On/Off Plug-in Unit to the DeviceTypeList of the " +
         "Descriptor cluster on the same endpoint for backward compatibility with existing clients. See " +
-        "[ref_MountedOnOffClientGuidance] for client guidance with these two device types.",
+        "On/Off Plug-in Unit client guidance for additional information, regarding the inclusion of these " +
+        "two device types.",
 
     children: [
         { tag: "requirement", name: "Identify", xref: "device§5.3.4" },
         { tag: "requirement", name: "Groups", xref: "device§5.3.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.3.4" },
         { tag: "requirement", name: "OnOff", xref: "device§5.3.4" },
         { tag: "requirement", name: "LevelControl", xref: "device§5.3.4" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§5.3.4" },
         { tag: "requirement", name: "OccupancySensing", xref: "device§5.3.4" }
     ]
 });

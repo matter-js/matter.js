@@ -5,7 +5,17 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "@matter/general";
+import {
+    CRYPTO_PBKDF_ITERATIONS_MAX,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
+    Duration,
+    InternalError,
+    Logger,
+    Seconds,
+    Time,
+    Timer,
+    Worker,
+} from "@matter/general";
 import {
     assertRemoteActor,
     DeviceCommissioner,
@@ -73,7 +83,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         if (pakePasscodeVerifier.byteLength !== PAKE_PASSCODE_VERIFIER_LENGTH) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE passcode verifier length is invalid");
         }
-        if (iterations < 1000 || iterations > 100_000) {
+        if (iterations < CRYPTO_PBKDF_ITERATIONS_MIN || iterations > CRYPTO_PBKDF_ITERATIONS_MAX) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE iterations invalid");
         }
         if (salt.byteLength < 16 || salt.byteLength > 32) {
@@ -119,17 +129,19 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         await commissioner.allowBasicCommissioning(this.callback(this.#endCommissioning));
     }
 
-    /** This method is used to revoke a commissioning window. */
+    /**
+     * This method is used to revoke a commissioning window.
+     *
+     * Spec 1.5.1 requires Step 1 cleanup to run regardless of window state before checking the window.
+     */
     override async revokeCommissioning() {
-        if (this.internal.commissioningWindowTimeout === undefined) {
-            throw new AdministratorCommissioning.WindowNotOpenError(
-                "No commissioning window is opened that could be revoked.",
-            );
-        }
-
         logger.debug("Revoking commissioning window");
 
-        await this.#closeCommissioningWindow();
+        // Step 1: Regardless of window state — terminate PASE sessions and expire PASE-held fail-safe
+        const paseSession = this.env.get(SessionManager).getPaseSession();
+        if (paseSession) {
+            await paseSession.initiateClose();
+        }
 
         if (this.env.has(FailsafeContext)) {
             const failsafeContext = this.env.get(FailsafeContext);
@@ -137,6 +149,16 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
                 await failsafeContext.close((this.context as RemoteActorContext).exchange);
             }
         }
+
+        // Step 2: If window was not open, return error
+        if (this.internal.commissioningWindowTimeout === undefined) {
+            throw new AdministratorCommissioning.WindowNotOpenError(
+                "No commissioning window is opened that could be revoked.",
+            );
+        }
+
+        // Step 3: Close the commissioning window
+        await this.#closeCommissioningWindow();
     }
 
     /**

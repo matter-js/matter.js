@@ -15,7 +15,7 @@ import type { SubjectId } from "./SubjectId.js";
  * A Node Identifier (Node ID) is a 64-bit number that uniquely identifies an individual Node or a
  * group of Nodes on a Fabric.
  *
- * @see {@link MatterSpecification.v10.Core} § 2.5.5
+ * @see {@link MatterSpecification.v16.Core} § 2.5.5
  */
 export type NodeId = Branded<bigint, "NodeId">;
 
@@ -60,7 +60,7 @@ export namespace NodeId {
 
     /** A Group Node ID is a 64-bit Node ID that contains a particular Group ID in the lower half of the Node ID. */
     export const fromGroupId = (groupId: number): NodeId => {
-        return NodeId(BigInt("0xFFFFFFFFFFFF" + hex.byte(GroupId(groupId))));
+        return NodeId(BigInt("0xFFFFFFFFFFFF" + hex.fixed(GroupId(groupId), 4)));
     };
 
     /**

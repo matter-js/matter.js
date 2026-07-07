@@ -34,7 +34,7 @@ export const AudioOutput = Cluster(
     Command(
         { name: "RenameOutput", id: 0x1, access: "M", conformance: "NU", direction: "request", response: "status" },
         Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" }),
-        Field({ name: "Name", id: 0x1, type: "string", conformance: "M" })
+        Field({ name: "Name", id: 0x1, type: "string", conformance: "M", constraint: "max 32" })
     ),
 
     Datatype(
@@ -51,7 +51,7 @@ export const AudioOutput = Cluster(
         { name: "OutputInfoStruct", type: "struct" },
         Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" }),
         Field({ name: "OutputType", id: 0x1, type: "OutputTypeEnum", conformance: "M", constraint: "desc" }),
-        Field({ name: "Name", id: 0x2, type: "string", conformance: "M" })
+        Field({ name: "Name", id: 0x2, type: "string", conformance: "M", constraint: "max 32" })
     )
 );
 

@@ -19,17 +19,18 @@ import {
     Millis,
     Observable,
     Seconds,
-    ServerAddressUdp,
 } from "@matter/general";
 import { GLOBAL_IDS, Specification } from "@matter/model";
 import {
     DataReport,
     DataReportPayloadIterator,
     ExchangeManager,
+    GroupSession,
     InteractionRecipient,
     InteractionServerMessenger,
     InvokeRequest,
     InvokeResponseForSend,
+    InvokeResult,
     Mark,
     Message,
     MessageExchange,
@@ -41,6 +42,7 @@ import {
     Session,
     SessionManager,
     SessionType,
+    Subject,
     SubscribeRequest,
     Subscription,
     TimedRequest,
@@ -50,18 +52,17 @@ import {
 } from "@matter/protocol";
 import {
     AttributeData,
+    AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    EventPath,
     GroupId,
     INTERACTION_PROTOCOL_ID,
     InvokeResponseData,
     ReceivedStatusResponseError,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvAny,
-    TlvAttributePath,
     TlvClusterPath,
-    TlvEventPath,
     TlvInvokeResponseData,
     TlvInvokeResponseForSend,
     TlvSubscribeResponse,
@@ -74,17 +75,22 @@ import { ServerSubscription, ServerSubscriptionConfig, ServerSubscriptionContext
 
 const logger = Logger.get("InteractionServer");
 
+// Hard acceptance ceiling for paths in a single read/subscribe interaction, set to the upper bound of the
+// CapabilityMinimaStruct field constraints in the data model.  Separate from the advertised CapabilityMinima defaults:
+// we advertise a guaranteed floor and accept up to this ceiling, blocking only beyond it.
+const MAX_READ_PATHS = 10_000;
+const MAX_SUBSCRIBE_PATHS = 10_000;
+
 export interface PeerSubscription {
     subscriptionId: number;
     peerAddress: PeerAddress;
     minIntervalFloor: Duration;
     maxIntervalCeiling: Duration;
-    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[];
-    eventRequests?: TypeFromSchema<typeof TlvEventPath>[];
+    attributeRequests?: AttributePath[];
+    eventRequests?: EventPath[];
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
-    operationalAddress?: ServerAddressUdp;
 }
 
 /** Cumulative counters tracked by the interaction server since startup. */
@@ -94,29 +100,29 @@ export interface InteractionCounters {
     totalInteractionModelMessagesReceived: number;
 }
 
-function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", StatusCode.InvalidAction);
-    }
+function validateReadAttributesPath(path: AttributePath) {
     const { clusterId, attributeId } = path;
     if (clusterId === undefined && attributeId !== undefined) {
         if (!GLOBAL_IDS.has(attributeId)) {
             throw new StatusResponseError(
                 `Illegal read request for wildcard cluster and non global attribute ${attributeId}`,
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
     }
 }
 
-function validateReadEventPath(path: TypeFromSchema<typeof TlvEventPath>, isGroupSession = false) {
+function validateReadEventPath(path: EventPath) {
     const { clusterId, eventId } = path;
     if (clusterId === undefined && eventId !== undefined) {
-        throw new StatusResponseError("Illegal read request with wildcard cluster ID", StatusCode.InvalidAction);
+        throw new StatusResponseError("Illegal read request with wildcard cluster ID", Status.InvalidAction);
     }
-    if (isGroupSession) {
-        throw new StatusResponseError("Illegal read request with group session", StatusCode.InvalidAction);
-    }
+}
+
+/** Per Matter §8.4.3.2, Read and Subscribe share one valid-path algorithm. */
+function validateReadPaths(attributeRequests?: AttributePath[], eventRequests?: EventPath[]) {
+    attributeRequests?.forEach(path => validateReadAttributesPath(path));
+    eventRequests?.forEach(path => validateReadEventPath(path));
 }
 
 function clusterPathToId({ nodeId, endpointId, clusterId }: TypeFromSchema<typeof TlvClusterPath>) {
@@ -214,28 +220,39 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return await this.clientHandler.onNewExchange(exchange, message);
         }
 
+        // Count the initiating message (received before the exchange notifier could be attached) then track all
+        // further sends/receipts on this exchange (chunked DataReports, StatusResponse acks, etc.)
         this.#counters.totalInteractionModelMessagesReceived++;
+        this.#countExchangeMessages(exchange);
 
         // Activity tracking.  This provides diagnostic information and prevents the server from shutting down whilst
         // the exchange is active
         using activity = this.#activity.begin(`session#${exchange.session.id.toString(16)}`);
         (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey] = activity;
 
-        // Count all subsequent IM messages received on this exchange (e.g. StatusResponse acks for ReportData)
+        // Delegate to InteractionServerMessenger
+        try {
+            return await new InteractionServerMessenger(exchange).handleRequest(this);
+        } finally {
+            delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
+        }
+    }
+
+    /**
+     * Attach per-message counters to an exchange so DeviceLoadStatus reflects every IM message sent and received.
+     * Excludes MRP retransmissions (only the initial transmission of each message counts) and duplicate receipts.
+     */
+    #countExchangeMessages(exchange: MessageExchange) {
+        exchange.onSend = (_, retransmission) => {
+            if (retransmission === 0) {
+                this.#counters.totalInteractionModelMessagesSent++;
+            }
+        };
         exchange.onReceive = (_, duplicate) => {
             if (!duplicate) {
                 this.#counters.totalInteractionModelMessagesReceived++;
             }
         };
-
-        // Delegate to InteractionServerMessenger
-        try {
-            const result = await new InteractionServerMessenger(exchange).handleRequest(this);
-            this.#counters.totalInteractionModelMessagesSent++;
-            return result;
-        } finally {
-            delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
-        }
     }
 
     get aclServer() {
@@ -273,6 +290,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         };
     }
 
+    #checkSenderRevision(interactionModelRevision: number | undefined) {
+        if (interactionModelRevision === undefined) {
+            logger.debug("Sender omitted interaction model revision");
+        } else if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
+            logger.debug(
+                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}`,
+            );
+        }
+    }
+
     /**
      * Returns an iterator that yields the data reports and events data for the given read request.
      */
@@ -280,7 +307,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const readContext = this.#prepareOnlineContext(exchange, message, readRequest.isFabricFiltered);
 
         for await (const chunk of this.#serverInteraction.read(readRequest, readContext)) {
-            for (const report of chunk) {
+            for await (const report of chunk) {
                 yield InteractionServerMessenger.convertServerInteractionReport(report);
             }
         }
@@ -315,11 +342,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
         if (attributeRequests === undefined && eventRequests === undefined) {
             return {
                 dataReport: {
@@ -332,7 +355,17 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
             throw new StatusResponseError(
                 "Reads are only allowed on unicast sessions", // Means "No groups"
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
+            );
+        }
+
+        validateReadPaths(attributeRequests, eventRequests);
+
+        const readPathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (readPathsCount > MAX_READ_PATHS) {
+            throw new StatusResponseError(
+                `Read request with ${readPathsCount} paths exceeds maximum of ${MAX_READ_PATHS}`,
+                Status.PathsExhausted,
             );
         }
 
@@ -366,34 +399,30 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (moreChunkedMessages && suppressResponse) {
             throw new StatusResponseError(
                 "MoreChunkedMessages and SuppressResponse cannot be used together in write messages",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
 
         if (receivedWithinTimedInteraction && moreChunkedMessages) {
             throw new StatusResponseError(
                 "Write Request action that is part of a Timed Write Interaction SHALL NOT be chunked.",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
         if (exchange.hasExpiredTimedInteraction()) {
             exchange.clearTimedInteraction();
-            throw new StatusResponseError(`Timed request window expired. Decline write request.`, StatusCode.Timeout);
+            throw new StatusResponseError(`Timed request window expired. Decline write request.`, Status.Timeout);
         }
 
         if (timedRequest !== exchange.hasTimedInteraction()) {
             throw new StatusResponseError(
                 `timedRequest flag of write interaction (${timedRequest}) mismatch with expected timed interaction (${receivedWithinTimedInteraction}).`,
-                StatusCode.TimedRequestMismatch,
+                Status.TimedRequestMismatch,
             );
         }
 
@@ -403,7 +432,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (sessionType !== SessionType.Unicast) {
                 throw new StatusResponseError(
                     "Write requests are only allowed on unicast sessions when a timed interaction is running.",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
         }
@@ -411,7 +440,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (sessionType === SessionType.Group && !suppressResponse) {
             throw new StatusResponseError(
                 "Write requests are only allowed as group casts when suppressResponse=true.",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -525,7 +554,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (suppressResponse) {
                 throw new StatusResponseError(
                     "Multiple chunked messages and SuppressResponse cannot be used together in write messages",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
         }
@@ -560,16 +589,17 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
+            throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
+        }
+
+        const subscribePathsCount = (attributeRequests?.length ?? 0) + (eventRequests?.length ?? 0);
+        if (subscribePathsCount > MAX_SUBSCRIBE_PATHS) {
             throw new StatusResponseError(
-                "Subscriptions are only allowed on unicast sessions",
-                StatusCode.InvalidAction,
+                `Subscribe request with ${subscribePathsCount} paths exceeds maximum of ${MAX_SUBSCRIBE_PATHS}`,
+                Status.PathsExhausted,
             );
         }
 
@@ -601,7 +631,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             (!Array.isArray(attributeRequests) || attributeRequests.length === 0) &&
             (!Array.isArray(eventRequests) || eventRequests.length === 0)
         ) {
-            throw new StatusResponseError("No attributes or events requested", StatusCode.InvalidAction);
+            throw new StatusResponseError("No attributes or events requested", Status.InvalidAction);
         }
 
         logger.debug(() => [
@@ -629,26 +659,24 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        // Validate of the paths before proceeding
-        attributeRequests?.forEach(path => validateReadAttributesPath(path));
-        eventRequests?.forEach(path => validateReadEventPath(path));
+        validateReadPaths(attributeRequests, eventRequests);
 
         if (minIntervalFloorSeconds < 0) {
             throw new StatusResponseError(
                 "minIntervalFloorSeconds should be greater or equal to 0",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
         if (maxIntervalCeilingSeconds < 0) {
             throw new StatusResponseError(
                 "maxIntervalCeilingSeconds should be greater or equal to 0",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
         if (maxIntervalCeilingSeconds < minIntervalFloorSeconds) {
             throw new StatusResponseError(
                 "maxIntervalCeilingSeconds should be greater or equal to minIntervalFloorSeconds",
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -667,7 +695,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 message,
             );
         } catch (error) {
-            logger.error(
+            logger.warn(
                 `Subscription ${Subscription.idStrOf(subscriptionId)} for session ${session.via}: Error while sending initial data reports:`,
                 error instanceof MatterError ? error.message : error,
             );
@@ -716,10 +744,15 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     }
 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
-        if (addressOrSession instanceof Session) {
-            return this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId);
-        }
-        return this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+        const exchange =
+            addressOrSession instanceof Session
+                ? this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId)
+                : this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+
+        // Count subscription report messages we push and the acks we receive in response
+        this.#countExchangeMessages(exchange);
+
+        return exchange;
     }
 
     async #establishSubscription(
@@ -753,7 +786,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw error;
         }
 
-        logger.info(
+        logger.notice(
             "Subscribe successful",
             Mark.OUTBOUND,
             exchange.via,
@@ -781,13 +814,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }: PeerSubscription,
         session: NodeSession,
     ) {
-        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID, {
-            onReceive: (_, duplicate) => {
-                if (!duplicate) {
-                    this.#counters.totalInteractionModelMessagesReceived++;
-                }
-            },
-        });
+        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID);
 
         logger.info(
             `Reestablish subscription`,
@@ -834,7 +861,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             subscription.activate();
             this.#counters.totalSubscriptionsEstablished++;
 
-            logger.info(
+            logger.notice(
                 `Subscription successfully reestablished`,
                 Mark.OUTBOUND,
                 exchange.via,
@@ -873,22 +900,18 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
         if (exchange.hasExpiredTimedInteraction()) {
             exchange.clearTimedInteraction();
-            throw new StatusResponseError(`Timed request window expired. Decline invoke request.`, StatusCode.Timeout);
+            throw new StatusResponseError(`Timed request window expired. Decline invoke request.`, Status.Timeout);
         }
 
         if (timedRequest !== exchange.hasTimedInteraction()) {
             throw new StatusResponseError(
                 `timedRequest flag of invoke interaction (${timedRequest}) mismatch with expected timed interaction (${receivedWithinTimedInteraction}).`,
-                StatusCode.TimedRequestMismatch,
+                Status.TimedRequestMismatch,
             );
         }
 
@@ -898,7 +921,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (message.packetHeader.sessionType !== SessionType.Unicast) {
                 throw new StatusResponseError(
                     "Invoke requests are only allowed on unicast sessions when a timed interaction is running.",
-                    StatusCode.InvalidAction,
+                    Status.InvalidAction,
                 );
             }
         }
@@ -906,7 +929,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (invokeRequests.length > this.#maxPathsPerInvoke) {
             throw new StatusResponseError(
                 `Only ${this.#maxPathsPerInvoke} invoke requests are supported in one message. This message contains ${invokeRequests.length}`,
-                StatusCode.InvalidAction,
+                Status.InvalidAction,
             );
         }
 
@@ -922,48 +945,70 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (isGroupSession) {
             const rawGroupId = message.packetHeader.destGroupId;
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
-            const fabric = exchange.session.associatedFabric;
+            const session = exchange.session;
+            const fabric = session.associatedFabric;
+            // Inbound group sessions have no channel, so source/destination come from the session itself
+            const groupSession = GroupSession.is(session) ? session : undefined;
+            const destIp = groupSession?.multicastAddress;
+            const sourceIp = groupSession?.receivedFrom;
+            // The event's ClusterID/ElementID reflect the request; cmd-response paths carry the response command id
+            const requestPath = invokeRequests[0]?.commandPath;
             let emitted = false;
             for await (const chunk of results) {
                 for (const data of chunk) {
                     if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
                         continue;
                     }
-                    const accessAllowed = data.kind === "cmd-response" || data.status === StatusCode.Success;
+                    const accessAllowed = data.kind === "cmd-response" || data.status === Status.Success;
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.Success,
                         fabric,
                         groupId,
+                        sourceIp,
+                        destIp,
                         endpointId: data.path.endpointId,
-                        clusterId: data.path.clusterId,
-                        elementId: data.path.commandId,
+                        clusterId: requestPath?.clusterId ?? data.path.clusterId,
+                        elementId: requestPath?.commandId ?? data.path.commandId,
                         accessAllowed,
                     });
                     emitted = true;
                 }
             }
-            // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
-            // endpoint mappings for the group), still emit one event per requested invoke path so
-            // observers see the message arrived. FailedAuth + accessAllowed=false signals denial.
             if (!emitted) {
-                for (const { commandPath } of invokeRequests) {
+                const subject = groupSession?.subjectFor(message);
+                if (subject !== undefined && Subject.isGroup(subject) && !subject.hasValidMapping) {
+                    // The authenticating key is not the one mapped for the group: improperly authenticated per
+                    // core§11.27.7.6.3, reported without the unauthenticated group id
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
-                        groupId,
-                        endpointId: commandPath.endpointId,
-                        clusterId: commandPath.clusterId,
-                        elementId: commandPath.commandId,
-                        accessAllowed: false,
+                        sourceIp,
+                        destIp,
                     });
+                } else {
+                    // Wildcard expansion produced no dispatches.  Still emit one event per requested invoke path so
+                    // observers see the message arrived: the message was authenticated and processed, so per
+                    // core§11.27.7.6.3 the result is Success.  When the group has receiving endpoints the expansion
+                    // was filtered by access control (AccessAllowed=false); without endpoints no access evaluation
+                    // took place and the field is omitted.
+                    const memberEndpoints = groupId !== undefined ? fabric.groups.endpoints.get(groupId) : undefined;
+                    const accessAllowed =
+                        memberEndpoints !== undefined && memberEndpoints.length > 0 ? false : undefined;
+                    for (const { commandPath } of invokeRequests) {
+                        this.#context.sessions.emitGroupMessage({
+                            result: Groupcast.GroupcastTestResult.Success,
+                            fabric,
+                            groupId,
+                            sourceIp,
+                            destIp,
+                            endpointId: commandPath.endpointId,
+                            clusterId: commandPath.clusterId,
+                            elementId: commandPath.commandId,
+                            accessAllowed,
+                        });
+                    }
                 }
             }
-            return;
-        }
-
-        // For suppressResponse: just consume the iterator without sending responses
-        if (suppressResponse) {
-            for await (const _chunk of results);
             return;
         }
 
@@ -1014,7 +1059,20 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             messageSize += invokeResponseBytes;
         };
 
-        // Process all invoke results
+        const toInvokeResponseData = (data: InvokeResult.Data): InvokeResponseData => {
+            if (data.kind === "cmd-response") {
+                const { path: commandPath, commandRef, data: commandFields } = data;
+                return { command: { commandPath, commandFields, commandRef } };
+            }
+            const { path: commandPath, commandRef, status, clusterStatus } = data;
+            return { status: { commandPath, status: { status, clusterStatus }, commandRef } };
+        };
+
+        // Per spec §8.8.3.2.1 a SuppressResponse invoke still sends a response if a CommandDataIB is generated. Until
+        // one is seen we hold generated statuses back; the first CommandDataIB flushes the held statuses and the rest
+        // stream normally. Non-suppressed responses stream from the start.
+        let suppressedBuffer: InvokeResponseData[] | undefined = suppressResponse ? [] : undefined;
+
         for await (const chunk of results) {
             if (chunkedTransmissionTerminated) {
                 // Client terminated the chunked series, continue consuming but don't send
@@ -1022,28 +1080,28 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }
 
             for (const data of chunk) {
-                switch (data.kind) {
-                    case "cmd-response": {
-                        const { path: commandPath, commandRef, data: commandFields } = data;
-                        await sendChunkIfNeeded({
-                            command: {
-                                commandPath,
-                                commandFields,
-                                commandRef,
-                            },
-                        });
-                        break;
-                    }
+                const responseData = toInvokeResponseData(data);
 
-                    case "cmd-status": {
-                        const { path, commandRef, status, clusterStatus } = data;
-                        await sendChunkIfNeeded({
-                            status: { commandPath: path, status: { status, clusterStatus }, commandRef },
-                        });
-                        break;
+                if (suppressedBuffer !== undefined) {
+                    if (data.kind !== "cmd-response") {
+                        suppressedBuffer.push(responseData);
+                        continue;
                     }
+                    // First CommandDataIB: commit to sending. Flush the held statuses, then stream the rest.
+                    for (const held of suppressedBuffer) {
+                        await sendChunkIfNeeded(held);
+                    }
+                    suppressedBuffer = undefined;
                 }
+
+                await sendChunkIfNeeded(responseData);
             }
+        }
+
+        // SuppressResponse and no CommandDataIB was generated — send nothing.
+        if (suppressedBuffer !== undefined) {
+            logger.debug("Invoke (suppressed)", Mark.OUTBOUND, exchange.via, Diagnostic.weak("no response sent"));
+            return;
         }
 
         // Send the final response if not already terminated
@@ -1077,11 +1135,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}.`,
-            );
-        }
+        this.#checkSenderRevision(interactionModelRevision);
 
         exchange.startTimedInteraction(interval);
     }

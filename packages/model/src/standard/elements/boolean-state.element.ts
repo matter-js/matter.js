@@ -17,11 +17,11 @@ import {
 export const BooleanState = Cluster(
     { name: "BooleanState", id: 0x45, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
-    Attribute({ name: "StateValue", id: 0x0, type: "bool", access: "R V", conformance: "M", quality: "P" }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "CHGEVENT", conformance: "P, M", constraint: "0", title: "ChangeEvent" })
+        Field({ name: "CHGEVENT", conformance: "[Rev >= v3]", constraint: "0", title: "ChangeEvent" })
     ),
+    Attribute({ name: "StateValue", id: 0x0, type: "bool", access: "R V", conformance: "M" }),
     Event(
         { name: "StateChange", id: 0x0, access: "V", conformance: "CHGEVENT, O", priority: "info" },
         Field({ name: "StateValue", id: 0x0, type: "bool", conformance: "M" })

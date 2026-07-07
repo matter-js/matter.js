@@ -76,6 +76,36 @@ const AllTests = Tests({
         "accepts if reference value is null": { record: { test: 3, maxVal: null } },
     }),
 
+    // Client mirrors (primaryKey: "id") store live values at numeric ids; the resolver must prefer
+    // them over the property-name slot, which can hold a stale initial default.
+    "max with reference (sibling keyed by id)": Tests(
+        Fields({ id: 0, constraint: "max MaxVal" }, { id: 1, name: "MaxVal", quality: "X" }),
+        {
+            "rejects if over (id-keyed sibling)": {
+                record: { test: 5, 1: 4 },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "max maxVal": Value 5 is not within bounds defined by constraint',
+                },
+            },
+            "accepts if under (id-keyed sibling)": {
+                record: { test: 3, 1: 4 },
+            },
+            "prefers id-keyed live value over name-keyed stale default": {
+                record: { test: 3, maxVal: 0, 1: 4 },
+            },
+            "rejects on id-keyed sibling even when name-keyed slot would accept": {
+                record: { test: 5, maxVal: 10, 1: 4 },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "max maxVal": Value 5 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
     compound: Tests(Fields({ constraint: "3 to 4, 6 to 7" }), {
         "rejects if under": {
             record: { test: 2 },

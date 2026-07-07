@@ -21,6 +21,7 @@ import { StatusResponseError } from "@matter/types";
 export function Fields(
     ...definition: {
         name?: string;
+        id?: number;
         type?: string;
         conformance?: string;
         constraint?: string;

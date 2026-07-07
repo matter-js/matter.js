@@ -9,11 +9,11 @@ import { Minutes } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Logger } from "../../log/Logger.js";
-import { Cache } from "../../util/Cache.js";
+import { AsyncCache } from "../../util/Cache.js";
 import { asError } from "../../util/Error.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NoAddressAvailableError } from "../Network.js";
-import { UdpChannel } from "./UdpChannel.js";
+import { UdpSocket } from "./UdpSocket.js";
 
 const logger = Logger.get("UdpMulticastServer");
 
@@ -33,8 +33,8 @@ export class UdpMulticastServer {
     readonly #broadcastAddressIpv4: string | undefined;
     readonly #broadcastAddressIpv6: string;
     readonly #broadcastPort: number;
-    readonly #serverIpv4: UdpChannel | undefined;
-    readonly #serverIpv6: UdpChannel;
+    readonly #serverIpv4: UdpSocket | undefined;
+    readonly #serverIpv6: UdpSocket;
 
     static async create({
         netInterface,
@@ -47,17 +47,17 @@ export class UdpMulticastServer {
         const lifetime = (lifetimeOwner || Lifetime.process)?.join("multicast server");
 
         try {
-            let ipv4UdpChannel: UdpChannel | undefined = undefined;
+            let ipv4UdpSocket: UdpSocket | undefined = undefined;
             if (broadcastAddressIpv4 !== undefined) {
                 try {
-                    ipv4UdpChannel = await network.createUdpChannel({
+                    ipv4UdpSocket = await network.createUdpSocket({
                         lifetime,
                         type: "udp4",
                         netInterface,
                         listeningPort,
                         reuseAddress: true,
                     });
-                    await ipv4UdpChannel.addMembership(broadcastAddressIpv4);
+                    await ipv4UdpSocket.addMembership(broadcastAddressIpv4);
                 } catch (error) {
                     NoAddressAvailableError.accept(error);
                     logger.info(
@@ -66,16 +66,16 @@ export class UdpMulticastServer {
                 }
             }
 
-            let ipv6UdpChannel;
+            let ipv6UdpSocket;
             try {
-                ipv6UdpChannel = await network.createUdpChannel({
+                ipv6UdpSocket = await network.createUdpSocket({
                     lifetime,
                     type: "udp6",
                     netInterface,
                     listeningPort,
                     reuseAddress: true,
                 });
-                await ipv6UdpChannel.addMembership(broadcastAddressIpv6);
+                await ipv6UdpSocket.addMembership(broadcastAddressIpv6);
             } catch (error) {
                 NoAddressAvailableError.accept(error);
                 logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter`);
@@ -88,8 +88,8 @@ export class UdpMulticastServer {
                 broadcastAddressIpv4,
                 broadcastAddressIpv6,
                 listeningPort,
-                ipv4UdpChannel,
-                ipv6UdpChannel,
+                ipv4UdpSocket,
+                ipv6UdpSocket,
                 netInterface,
             );
         } catch (error) {
@@ -98,11 +98,11 @@ export class UdpMulticastServer {
         }
     }
 
-    private readonly broadcastChannels = new Cache<Promise<UdpChannel>>(
+    private readonly broadcastChannels = new AsyncCache<UdpSocket>(
         "UDP broadcast channel",
         (netInterface, isIPv4) => this.createBroadcastChannel(netInterface, isIPv4),
         Minutes(5),
-        async (_netInterface, channel) => (await channel).close(),
+        async (_key, channel) => channel.close(),
     );
 
     private constructor(
@@ -111,8 +111,8 @@ export class UdpMulticastServer {
         broadcastAddressIpv4: string | undefined,
         broadcastAddressIpv6: string,
         broadcastPort: number,
-        serverIpv4: UdpChannel | undefined,
-        serverIpv6: UdpChannel,
+        serverIpv4: UdpSocket | undefined,
+        serverIpv6: UdpSocket,
         netInterface: string | undefined,
     ) {
         this.#lifetime = lifetime;
@@ -151,12 +151,14 @@ export class UdpMulticastServer {
 
         // When we know the network interface and the unicast target, we can send unicast
         if (uniCastTarget !== undefined && netInterface !== undefined) {
+            const ipV4Target = isIPv4(uniCastTarget);
             try {
                 await (
-                    await this.broadcastChannels.get(netInterface, isIPv4(uniCastTarget))
+                    await this.broadcastChannels.get(netInterface, ipV4Target)
                 ).send(uniCastTarget, this.#broadcastPort, message);
             } catch (error) {
                 logger.info(`${netInterface} ${uniCastTarget}: ${asError(error).message}`);
+                await this.#evictBroadcastChannel(netInterface, ipV4Target);
             }
         } else {
             const netInterfaces =
@@ -184,6 +186,7 @@ export class UdpMulticastServer {
                                 ).send(address, this.#broadcastPort, message);
                             } catch (error) {
                                 logger.info(`${netInterface}: ${asError(error).message}`);
+                                await this.#evictBroadcastChannel(netInterface, isIPv4);
                             }
                         }),
                         `Error sending UDP Multicast message on interface ${netInterface}`,
@@ -194,8 +197,21 @@ export class UdpMulticastServer {
         }
     }
 
-    private async createBroadcastChannel(netInterface: string, isIPv4: boolean): Promise<UdpChannel> {
-        return await this.network.createUdpChannel({
+    /**
+     * Drop a broadcast channel after a send failure so the next send rebinds it. A failed send can mean the cached
+     * socket is bound to an interface address that no longer exists (e.g. after the host resumed from standby).
+     * Eviction must never escalate a send failure, so closing the stale socket is best-effort.
+     */
+    async #evictBroadcastChannel(netInterface: string, isIPv4: boolean) {
+        try {
+            await this.broadcastChannels.evict(netInterface, isIPv4);
+        } catch (error) {
+            logger.info(`${netInterface}: failed to evict broadcast channel: ${asError(error).message}`);
+        }
+    }
+
+    private async createBroadcastChannel(netInterface: string, isIPv4: boolean): Promise<UdpSocket> {
+        return await this.network.createUdpSocket({
             lifetime: this.#lifetime,
             type: isIPv4 ? "udp4" : "udp6",
             listeningPort: this.#broadcastPort,

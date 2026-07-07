@@ -5,25 +5,41 @@
  */
 
 import {
+    asError,
+    AsyncCache,
     Bytes,
     Construction,
+    Crypto,
     Days,
+    DerCodec,
+    DerNode,
+    DerTag,
+    DerType,
     Diagnostic,
     Duration,
+    EcdsaSignature,
     Environment,
     Github,
+    hashAlgorithmForId,
+    Hours,
     Logger,
+    LogLevel,
     Pem,
+    PublicKey,
+    Seconds,
     StorageContext,
     StorageManager,
     StorageService,
     Time,
     Timer,
 } from "@matter/general";
-import { Paa } from "../certificate/kinds/AttestationCertificates.js";
-import { DclClient, MatterDclError } from "./DclClient.js";
+import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
+import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
+import { Certificate } from "../certificate/kinds/Certificate.js";
+import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
+import type { CertSeedEntry, SeedSource } from "./SeedTypes.js";
 
 const logger = Logger.get("DclCertificateService");
 
@@ -35,16 +51,22 @@ const logger = Logger.get("DclCertificateService");
  */
 export class DclCertificateService {
     readonly #construction: Construction<DclCertificateService>;
+    readonly #crypto: Crypto;
     #storageManager?: StorageManager;
     #storage?: StorageContext;
     #certificateIndex = new Map<string, DclCertificateService.CertificateMetadata>();
     #updateTimer?: Timer;
+    #githubRateLimited = false;
     #closed = false;
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
 
+    /** Lazy CRL revocation cache: keyed by normalized AKID, fetches on-demand from DCL */
+    #revocationCache: AsyncCache<DclCertificateService.RevocationEntry>;
+
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.root.set(DclCertificateService, this);
+        this.#crypto = environment.get(Crypto);
         this.#options = options;
         logger.info(
             "Initialize CertificateService",
@@ -52,13 +74,26 @@ export class DclCertificateService {
                 prod: options.dclConfig?.url ?? DclConfig.production.url,
                 test: options.fetchTestCertificates ? (options.testDclConfig?.url ?? DclConfig.test.url) : undefined,
                 github: options.fetchTestCertificates && options.fetchGithubCertificates ? "yes" : undefined,
+                flags: Diagnostic.asFlags({ acceptTest: this.acceptsTestCertificates }),
             }),
+        );
+
+        this.#revocationCache = new AsyncCache(
+            "CRL revocation",
+            (akid: string) => this.#fetchAndValidateRevocation(akid),
+            Hours(1),
         );
 
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
             await this.#loadIndex(this.#storage);
+            if (options.seed?.paaRoots) {
+                await this.#consumeCertSeed(options.seed.paaRoots, "PAA");
+            }
+            if (options.seed?.cdSigners) {
+                await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
+            }
             await this.update();
 
             if (options.updateInterval !== null) {
@@ -87,15 +122,35 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate metadata by subject key identifier. Returns undefined if not found.
+     * Whether a stored entry is relevant under the current trust policy. Production certificates
+     * are always relevant. Test PAAs are only relevant when the test-certificate policy allows
+     * them. CD signer certificates are managed separately and are always relevant.
      */
-    getCertificate(subjectKeyId: Bytes | string) {
-        this.construction.assert();
-        return this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
+    #isRelevant(
+        metadata: DclCertificateService.CertificateMetadata,
+        options?: DclCertificateService.GetCertificateOptions,
+    ) {
+        const kind = metadata.kind ?? "PAA";
+        const considerTestCertificates = options?.considerTestCertificates ?? this.acceptsTestCertificates;
+        return kind !== "PAA" || metadata.isProduction || considerTestCertificates;
     }
 
     /**
-     * Get all certificate metadata entries.
+     * Get certificate metadata by subject key identifier. Returns undefined if not found or if the
+     * entry is filtered by the effective trust policy.
+     */
+    getCertificate(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
+        this.construction.assert();
+        const metadata = this.#certificateIndex.get(this.#normalizeSubjectKeyId(subjectKeyId));
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
+            return undefined;
+        }
+        return metadata;
+    }
+
+    /**
+     * Get all certificate metadata entries (raw enumeration, unaffected by the
+     * `fetchTestCertificates` filter so management commands can still inspect cached test certs).
      */
     get certificates() {
         this.construction.assert();
@@ -103,68 +158,246 @@ export class DclCertificateService {
     }
 
     /**
-     * Get certificate as PEM string.
-     * @throws {MatterDclError} if certificate not found
+     * Whether the service trusts test (non-production) certificates as valid trust anchors.
+     *
+     * Independent of {@link Options.fetchTestCertificates} (which only governs whether test certs are
+     * downloaded). Defaults to {@link Options.acceptTestCertificates}, falling back to
+     * `fetchTestCertificates` when the trust policy is not set explicitly.
      */
-    async getCertificateAsPem(subjectKeyId: Bytes | string) {
-        this.construction.assert();
-
-        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
-        const metadata = this.#certificateIndex.get(normalizedId);
-        if (!metadata) {
-            throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
-        }
-
-        // Retrieve DER certificate from storage
-        const derBytes = await this.#storage!.get<Bytes>(normalizedId);
-        if (!derBytes) {
-            throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
-        }
-
-        return Pem.encode(derBytes);
+    get acceptsTestCertificates(): boolean {
+        return this.#options.acceptTestCertificates ?? this.#options.fetchTestCertificates ?? false;
     }
 
     /**
-     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
-     * undefined if not found.
+     * Get certificate as PEM string.
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
+     */
+    async getCertificateAsPem(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
+        this.construction.assert();
+        return Pem.encode(await this.#getCertificateDer(subjectKeyId, options));
+    }
+
+    /**
+     * Get certificate as DER bytes.
+     *
+     * Self-heals a corrupted local cache: if the stored certificate no longer parses (e.g. a
+     * truncated or mangled storage entry), make one best-effort re-fetch from DCL so a broken cache
+     * entry cannot permanently break attestation for an otherwise-valid trust anchor. If recovery
+     * fails the original bytes are returned unchanged, leaving the caller's normal validation to
+     * surface the parse failure rather than masking it with a different error here.
+     *
+     * @throws {MatterDclError} if certificate not found or filtered by trust policy
+     */
+    async getCertificateAsDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
+        this.construction.assert();
+
+        const der = await this.#getCertificateDer(subjectKeyId, options);
+        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
+        const metadata = this.#certificateIndex.get(normalizedId);
+
+        const parseError = this.#certificateParseError(der, metadata?.kind);
+        if (parseError === undefined) {
+            return der;
+        }
+
+        logger.notice(
+            `Cached certificate failed to parse; attempting one re-fetch from DCL to recover`,
+            Diagnostic.dict({ skid: normalizedId }),
+            Diagnostic.errorMessage(parseError),
+        );
+        const refetched = await this.#tryRefetchRootCertificate(normalizedId, metadata?.isProduction ?? true, options);
+        if (refetched !== undefined) {
+            const refetchParseError = this.#certificateParseError(refetched, metadata?.kind);
+            if (refetchParseError === undefined) {
+                return refetched;
+            }
+            logger.warn(
+                `Re-fetched certificate also failed to parse`,
+                Diagnostic.dict({ skid: normalizedId }),
+                Diagnostic.errorMessage(refetchParseError),
+            );
+        }
+
+        return der;
+    }
+
+    /** Parse error of a DER certificate, or undefined if it parses, using the extension set for its kind. */
+    #certificateParseError(der: Bytes, kind?: DclCertificateService.CertificateKind): Error | undefined {
+        try {
+            Certificate.parseAsn1Certificate(
+                der,
+                (kind ?? "PAA") === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+            );
+            return undefined;
+        } catch (error) {
+            return asError(error);
+        }
+    }
+
+    /**
+     * Best-effort force re-fetch of a single root certificate from DCL, overwriting the cached copy
+     * to recover from a corrupted local storage entry. Never throws: returns the freshly stored DER,
+     * or undefined if the certificate could not be re-fetched (not a root cert, absent from DCL, or
+     * any fetch error).
+     */
+    async #tryRefetchRootCertificate(
+        normalizedId: string,
+        isProduction: boolean,
+        options?: DclCertificateService.GetCertificateOptions,
+    ): Promise<Bytes | undefined> {
+        if (this.#fetchPromise !== undefined) {
+            await this.#fetchPromise;
+        }
+
+        try {
+            if (!(await this.#fetchAndStoreRootCertificateBySkid(normalizedId, isProduction, true, this.#options))) {
+                return undefined;
+            }
+        } catch (error) {
+            logger.warn(
+                `Re-fetch of certificate ${normalizedId} from DCL failed`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return undefined;
+        }
+
+        const metadata = this.#certificateIndex.get(normalizedId);
+        if (metadata === undefined || !this.#isRelevant(metadata, options)) {
+            return undefined;
+        }
+
+        const der = await this.#storage!.get<Bytes>(normalizedId);
+        return der && der.byteLength > 0 ? Bytes.of(der) : undefined;
+    }
+
+    /**
+     * Fetch a single root certificate from DCL by SubjectKeyIdentifier and store it. Returns true if
+     * a matching root certificate was found and stored, false if DCL has no such root certificate.
+     * Throws on DCL/network errors; callers decide how to handle them.
+     */
+    async #fetchAndStoreRootCertificateBySkid(
+        normalizedId: string,
+        isProduction: boolean,
+        force: boolean,
+        options?: DclClient.Options,
+    ): Promise<boolean> {
+        const config = isProduction
+            ? (this.#options.dclConfig ?? DclConfig.production)
+            : (this.#options.testDclConfig ?? DclConfig.test);
+        const dclClient = new DclClient(config);
+        const certRefs = await dclClient.fetchRootCertificateList(options);
+
+        const skidWithColons = normalizedId
+            .match(/.{1,2}/g)
+            ?.join(":")
+            .toUpperCase();
+        const certRef = certRefs.find(ref => ref.subjectKeyId === skidWithColons);
+        if (!certRef) {
+            return false;
+        }
+
+        await this.#fetchAndStoreCertificate(
+            this.#storage!,
+            dclClient,
+            certRef,
+            isProduction,
+            force,
+            options ?? this.#options,
+        );
+        await this.#saveIndex();
+        return true;
+    }
+
+    /** Internal DER retrieval without construction assert (safe during init). */
+    async #getCertificateDer(subjectKeyId: Bytes | string, options?: DclCertificateService.GetCertificateOptions) {
+        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
+        const metadata = this.#certificateIndex.get(normalizedId);
+        if (!metadata || !this.#isRelevant(metadata, options)) {
+            throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
+        }
+
+        const derBytes = await this.#storage!.get<Bytes>(normalizedId);
+        if (!derBytes || derBytes.byteLength === 0) {
+            throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
+        }
+
+        return Bytes.of(derBytes);
+    }
+
+    /**
+     * Check if a certificate is revoked by looking up its serial number in the revocation set
+     * for the given authority key identifier.
+     *
+     * Lazily fetches revocation data from DCL on first access per AKID, then caches for 1 hour.
+     * Per spec Section 6.2.4.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
+     *
+     * Returns true if the certificate is revoked, false otherwise.
+     * If revocation data is not available for the given authority, returns false.
+     */
+    async isRevoked(
+        authorityKeyIdentifier: Bytes | string,
+        serialNumber: Bytes | string,
+        issuerDnDerHex?: string,
+    ): Promise<boolean> {
+        this.construction.assert();
+
+        const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
+
+        let entry: DclCertificateService.RevocationEntry;
+        try {
+            entry = await this.#revocationCache.get(akid);
+        } catch {
+            // Underlying fetch already logged the cause; treat unreachable CRL as not-revoked
+            return false;
+        }
+
+        if (entry.serials.size === 0) {
+            return false;
+        }
+
+        // If issuerDnDerHex is provided, verify it matches the CRL's issuer DN
+        if (
+            issuerDnDerHex !== undefined &&
+            entry.issuerDnDerHex !== undefined &&
+            entry.issuerDnDerHex !== issuerDnDerHex
+        ) {
+            return false;
+        }
+
+        const serialHex =
+            typeof serialNumber === "string"
+                ? serialNumber.replace(/:/g, "").toUpperCase()
+                : Bytes.toHex(serialNumber).toUpperCase();
+
+        return entry.serials.has(serialHex);
+    }
+
+    /**
+     * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage.
+     * Returns undefined if not found or if the entry is filtered by the effective trust policy.
      */
     async getOrFetchCertificate(
         subjectKeyId: Bytes | string,
-        options?: DclClient.Options & { isProduction?: boolean },
+        options?: DclClient.Options & { isProduction?: boolean } & DclCertificateService.GetCertificateOptions,
     ) {
         this.construction.assert();
 
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
 
-        // First check if certificate is in the index
         const existing = this.#certificateIndex.get(normalizedId);
-        if (existing) {
+        if (existing && this.#isRelevant(existing, options)) {
             return existing;
         }
 
         if (this.#fetchPromise !== undefined) {
-            // Wait for ongoing fetch process to complete, return whatever is in the index afterward
             await this.#fetchPromise;
-            return this.#certificateIndex.get(normalizedId);
+            const afterFetch = this.#certificateIndex.get(normalizedId);
+            return afterFetch && this.#isRelevant(afterFetch, options) ? afterFetch : undefined;
         }
 
         try {
             const isProduction = options?.isProduction ?? true;
-            // Fetch the root certificate list to find the certificate reference
-            const config = isProduction
-                ? (this.#options.dclConfig ?? DclConfig.production)
-                : (this.#options.testDclConfig ?? DclConfig.test);
-            const dclClient = new DclClient(config);
-            const certRefs = await dclClient.fetchRootCertificateList(options);
-
-            // Find the certificate reference with matching subject key ID (with colons for comparison)
-            const subjectKeyIdWithColons = normalizedId
-                .match(/.{1,2}/g)
-                ?.join(":")
-                .toUpperCase();
-            const certRef = certRefs.find(ref => ref.subjectKeyId === subjectKeyIdWithColons);
-
-            if (!certRef) {
+            if (!(await this.#fetchAndStoreRootCertificateBySkid(normalizedId, isProduction, false, options))) {
                 logger.debug(
                     `Certificate not found in DCL`,
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
@@ -172,26 +405,14 @@ export class DclCertificateService {
                 return;
             }
 
-            // Use existing method to fetch and store the certificate
-            await this.#fetchAndStoreCertificate(
-                this.#storage!,
-                dclClient,
-                certRef,
-                isProduction,
-                false,
-                options ?? this.#options,
-            );
-
-            // After fetching, retrieve from index (it should be there now if fetch was successful)
             const fetched = this.#certificateIndex.get(normalizedId);
             if (fetched) {
-                await this.#saveIndex();
                 logger.info(
                     `Fetched and stored certificate from DCL`,
                     Diagnostic.dict({ skid: normalizedId, prod: isProduction }),
                 );
             }
-            return fetched;
+            return fetched && this.#isRelevant(fetched, options) ? fetched : undefined;
         } catch (error) {
             MatterDclError.accept(error);
             logger.debug(`Failed to fetch certificate ${normalizedId} from DCL: ${error.message}`);
@@ -219,11 +440,104 @@ export class DclCertificateService {
     }
 
     /**
+     * Inject a certificate (PAA or CD signer) into the trust store.
+     *
+     * Returns `true` if the certificate was newly added, `false` if a certificate with the same
+     * SubjectKeyIdentifier already exists (in which case the store is unchanged).
+     *
+     * @param derBytes DER-encoded X.509 certificate
+     * @param kind "PAA" (self-signed root) or "CDSigner" (CMS Certification Declaration signer)
+     * @param options.isProduction  mark as production-trust; defaults to `false`
+     */
+    async addCertificate(
+        derBytes: Bytes,
+        kind: DclCertificateService.CertificateKind,
+        options?: { isProduction?: boolean },
+    ): Promise<boolean> {
+        this.construction.assert();
+
+        const cert = Certificate.parseAsn1Certificate(
+            derBytes,
+            kind === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+        );
+        const skid = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
+
+        if (this.#certificateIndex.has(skid)) {
+            return false;
+        }
+
+        const isProduction = options?.isProduction ?? false;
+        const vid = (cert.subject as { vendorId?: number }).vendorId ?? 0;
+
+        await this.#storeCertificate(this.#storage!, skid, Bytes.of(derBytes), {
+            subject: (cert.subject as { commonName?: string }).commonName,
+            subjectKeyId: skid,
+            serialNumber: Bytes.toHex(cert.serialNumber),
+            vid,
+            isRoot: kind === "PAA",
+            isProduction,
+            kind,
+        });
+        await this.#saveIndex();
+
+        logger.info(`Added ${kind} certificate`, Diagnostic.dict({ skid, isProduction }));
+        return true;
+    }
+
+    /**
+     * Look up a CD signer certificate by its SubjectKeyIdentifier.
+     *
+     * Checks the local trust store first. On miss, queries the production DCL
+     * (`/dcl/pki/all-certificates?subjectKeyId=<skid>`) and caches the result as a
+     * CDSigner entry with `isProduction: true`.
+     *
+     * Returns `undefined` if no matching CD signer can be found either locally or on DCL.
+     */
+    async getOrFetchCdSigner(
+        subjectKeyId: Bytes | string,
+    ): Promise<{ publicKey: Bytes; isProduction: boolean } | undefined> {
+        this.construction.assert();
+
+        const normalizedSkid = this.#normalizeSubjectKeyId(subjectKeyId);
+
+        // Local lookup first
+        const existing = this.#certificateIndex.get(normalizedSkid);
+        if (existing !== undefined && (existing.kind ?? "PAA") === "CDSigner") {
+            const derBytes = await this.#getCertificateDer(normalizedSkid);
+            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
+            return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        }
+
+        // DCL fallback
+        try {
+            const config = this.#options.dclConfig ?? DclConfig.production;
+            const dclClient = new DclClient(config);
+            const certs = await dclClient.fetchCertificatesBySubjectKeyId(normalizedSkid, this.#options);
+            if (certs.length === 0) {
+                return undefined;
+            }
+
+            const derBytes = Pem.asDer(certs[0].pemCert);
+            await this.addCertificate(derBytes, "CDSigner", { isProduction: true });
+
+            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
+            return { publicKey: cert.ellipticCurvePublicKey, isProduction: true };
+        } catch (error) {
+            logger.info(
+                `Failed to fetch CD signer ${normalizedSkid} from DCL:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return undefined;
+        }
+    }
+
+    /**
      * Close the service and stop all timers.
      */
     async close() {
         this.#closed = true;
         this.#updateTimer?.stop();
+        await this.#revocationCache.close();
         await this.#construction.close(async () => {
             await this.#fetchPromise;
             await this.#storageManager?.close();
@@ -249,7 +563,7 @@ export class DclCertificateService {
                 this.#certificateIndex.set(metadata.subjectKeyId, metadata);
                 validCount++;
             } else {
-                logger.info(
+                logger.warn(
                     `Certificate referenced in index but not found in storage`,
                     Diagnostic.dict({ skid: metadata.subjectKeyId }),
                 );
@@ -290,7 +604,7 @@ export class DclCertificateService {
             });
             await this.#fetchPromise;
         } catch (error) {
-            logger.info("Certificate update failed", error);
+            logger.info("Certificate update failed", Diagnostic.errorMessage(asError(error)));
             return false;
         }
         return true;
@@ -305,6 +619,7 @@ export class DclCertificateService {
         }
 
         const initialSize = this.#certificateIndex.size;
+        this.#githubRateLimited = false;
 
         // Always fetch production certificates from DCL
         await this.#fetchDclCertificates(storage, true, force);
@@ -324,6 +639,12 @@ export class DclCertificateService {
             // Also fetch certificates from GitHub (unless explicitly disabled)
             if (this.#options.fetchGithubCertificates !== false) {
                 await this.#fetchGitHubCertificates(storage, force);
+
+                if (this.#closed) {
+                    return;
+                }
+
+                await this.#fetchGitHubCdSignerCertificates(storage, force);
             }
         }
 
@@ -432,19 +753,51 @@ export class DclCertificateService {
                     vid,
                     isRoot,
                     isProduction,
+                    kind: "PAA",
                 });
 
                 logger.debug(`Stored certificate`, Diagnostic.dict({ skid: normalizedSubjectKeyId, vid: cert.vid }));
             }
         } catch (error) {
-            logger.info(`Failed to fetch certificate ${certRef.subject}/${certRef.subjectKeyId}`, error);
+            logger.info(
+                `Failed to fetch certificate ${certRef.subject}/${certRef.subjectKeyId}`,
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
+    }
+
+    #hasTestCertificatesOfKind(kind: DclCertificateService.CertificateKind) {
+        for (const metadata of this.#certificateIndex.values()) {
+            if (!metadata.isProduction && (metadata.kind ?? "PAA") === kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Log a GitHub fetch failure. GitHub only serves test certificates, so a rate-limit error is only debug-worthy
+     * once we already hold test certificates of the affected kind: the cached data remains usable, making the failed
+     * refresh not actionable for the operator. A rate-limit response also flags the rest of the current fetch run to
+     * skip GitHub rather than repeating the same failing request.
+     */
+    #logGithubFetchFailure(message: string, error: unknown, kind: DclCertificateService.CertificateKind) {
+        const rateLimited = error instanceof Github.HttpError && error.isRateLimit;
+        if (rateLimited) {
+            this.#githubRateLimited = true;
+        }
+        const level = rateLimited && this.#hasTestCertificatesOfKind(kind) ? LogLevel.DEBUG : LogLevel.INFO;
+        logger.log(level, message, Diagnostic.errorMessage(asError(error)));
     }
 
     /**
      * Fetch development certificates from GitHub repository.
      */
     async #fetchGitHubCertificates(storage: StorageContext, force: boolean) {
+        if (this.#githubRateLimited) {
+            logger.debug("Skipping GitHub certificate fetch, GitHub is rate-limiting this run");
+            return;
+        }
         try {
             logger.debug("Fetching development certificates from GitHub");
 
@@ -467,7 +820,80 @@ export class DclCertificateService {
                 await this.#fetchGitHubCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
-            logger.info("Failed to fetch certificates from GitHub", error);
+            this.#logGithubFetchFailure("Failed to fetch certificates from GitHub", error, "PAA");
+        }
+    }
+
+    /**
+     * Fetch CD signer certificates from the configured GitHub directory.
+     * Stores each as a CDSigner entry with isProduction=false (user may promote via addCertificate).
+     */
+    async #fetchGitHubCdSignerCertificates(storage: StorageContext, force: boolean) {
+        if (this.#githubRateLimited) {
+            logger.debug("Skipping GitHub CD signer fetch, GitHub is rate-limiting this run");
+            return;
+        }
+        try {
+            logger.debug("Fetching CD signer certificates from GitHub");
+
+            const { owner, repo, branch, cdSignerCertPath } = this.#options.githubConfig ?? DclGithubConfig.defaults;
+            const repoClient = new Github.Repo(owner, repo, branch, this.#options);
+            const certDir = await repoClient.cd(cdSignerCertPath);
+
+            const files = await certDir.ls();
+            const certFiles = files.filter(name => name.endsWith(".der"));
+            logger.debug(`Found ${certFiles.length} CD signer certificate files on GitHub`);
+
+            for (const filename of certFiles) {
+                if (this.#closed) {
+                    return;
+                }
+                await this.#fetchGitHubCdSignerCertificate(storage, certDir, filename, force);
+            }
+        } catch (error) {
+            this.#logGithubFetchFailure("Failed to fetch CD signer certificates from GitHub", error, "CDSigner");
+        }
+    }
+
+    /**
+     * Fetch a single CD signer certificate from GitHub.
+     */
+    async #fetchGitHubCdSignerCertificate(
+        storage: StorageContext,
+        certDir: Github.Directory,
+        filename: string,
+        force: boolean,
+    ) {
+        try {
+            const derBytes = await certDir.getBinary(filename);
+            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
+            const subjectKeyId = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
+
+            if (!force && this.#certificateIndex.has(subjectKeyId)) {
+                logger.debug(`CD signer certificate already exists, skipping`, Diagnostic.dict({ skid: subjectKeyId }));
+                return;
+            }
+
+            const subject = filename.replace(".der", "");
+            const serialNumber = Bytes.toHex(cert.serialNumber);
+            const vid = (cert.subject as { vendorId?: number }).vendorId ?? 0;
+
+            await this.#storeCertificate(storage, subjectKeyId, Bytes.of(derBytes), {
+                subject,
+                subjectKeyId,
+                serialNumber,
+                vid,
+                isRoot: false,
+                isProduction: false,
+                kind: "CDSigner",
+            });
+
+            logger.debug(`Stored GitHub CD signer certificate`, Diagnostic.dict({ skid: subjectKeyId, filename }));
+        } catch (error) {
+            logger.info(
+                `Failed to fetch GitHub CD signer certificate ${filename}`,
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
     }
 
@@ -506,11 +932,12 @@ export class DclCertificateService {
                 vid,
                 isRoot: true,
                 isProduction: false,
+                kind: "PAA",
             });
 
             logger.debug(`Stored GitHub certificate`, Diagnostic.dict({ skid: subjectKeyId, filename }));
         } catch (error) {
-            logger.info(`Failed to fetch GitHub certificate ${filename}`, error);
+            logger.info(`Failed to fetch GitHub certificate ${filename}`, Diagnostic.errorMessage(asError(error)));
         }
     }
 
@@ -529,18 +956,495 @@ export class DclCertificateService {
             metadata = { ...metadata, isProduction: true };
         }
 
+        // Set fetchedAt if not already present (preserve original fetch time across updates)
+        if (metadata.fetchedAt === undefined) {
+            metadata = { ...metadata, fetchedAt: existing?.fetchedAt ?? Time.nowMs };
+        }
+
         // Store the DER certificate
         await storage.set(subjectKeyId, derBytes);
 
         // Add entry to certificate index
         this.#certificateIndex.set(subjectKeyId, metadata);
     }
+
+    async #consumeCertSeed(source: SeedSource<CertSeedEntry>, certKind: DclCertificateService.CertificateKind) {
+        const inserted = new Array<string>();
+        let expiredCount = 0;
+        const parsedBuiltAt = Date.parse(source.builtAt);
+        const fetchedAt = Number.isNaN(parsedBuiltAt) ? Date.now() : parsedBuiltAt;
+        const isPaa = certKind === "PAA";
+
+        try {
+            for await (const entry of source.entries) {
+                if (this.#closed) break;
+                try {
+                    if (
+                        typeof entry.subjectKeyId !== "string" ||
+                        !entry.subjectKeyId ||
+                        typeof entry.derHex !== "string" ||
+                        !entry.derHex ||
+                        (entry.kind !== "production" && entry.kind !== "test")
+                    ) {
+                        throw new MatterDclError("invalid entry shape");
+                    }
+
+                    if (entry.kind === "test" && !this.#options.fetchTestCertificates) {
+                        continue;
+                    }
+
+                    if (entry.notAfter !== undefined && Date.parse(entry.notAfter) < Date.now()) {
+                        expiredCount++;
+                        continue;
+                    }
+
+                    const der = Bytes.fromHex(entry.derHex);
+                    const parsed = Certificate.parseAsn1Certificate(
+                        der,
+                        isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+                    );
+                    const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
+                    const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
+
+                    if (skidFromDer !== entrySkid) {
+                        logger.warn(
+                            `seed: SKID mismatch entry=${entrySkid} der-derived=${skidFromDer}, skipped`,
+                            Diagnostic.dict({ certKind }),
+                        );
+                        continue;
+                    }
+
+                    if (this.#certificateIndex.has(skidFromDer)) {
+                        continue;
+                    }
+
+                    const isProduction = entry.kind === "production";
+                    const vid = (parsed.subject as { vendorId?: number }).vendorId ?? 0;
+
+                    await this.#storeCertificate(this.#storage!, skidFromDer, Bytes.of(der), {
+                        subject: (parsed.subject as { commonName?: string }).commonName,
+                        subjectKeyId: skidFromDer,
+                        serialNumber: Bytes.toHex(parsed.serialNumber),
+                        vid,
+                        isRoot: isPaa,
+                        isProduction,
+                        kind: certKind,
+                        fetchedAt,
+                    });
+                    inserted.push(skidFromDer);
+                } catch (err) {
+                    logger.warn("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
+                    break;
+                }
+            }
+        } catch (err) {
+            logger.warn("seed: stream failed", Diagnostic.errorMessage(asError(err)));
+        }
+
+        if (inserted.length > 0) {
+            await this.#saveIndex();
+        }
+        if (expiredCount > 0) {
+            logger.info(`seed: skipped ${expiredCount} expired ${certKind} certs from snapshot ${source.builtAt}`);
+        }
+        logger.info(`seed: consumed ${inserted.length} ${certKind} certs from snapshot ${source.builtAt}`);
+    }
+
+    /**
+     * Fetch and validate revocation data for a single AKID on demand.
+     * Called by AsyncCache on cache miss. Queries DCL by issuer, downloads the CRL,
+     * validates the signer chain and CRL signature, then returns the parsed revocation entry.
+     *
+     * Returns a RevocationEntry on success (cached for 1h). Throws on transient failures
+     * (network timeout, server error) so the result is NOT cached and the next call retries.
+     */
+    async #fetchAndValidateRevocation(akid: string): Promise<DclCertificateService.RevocationEntry> {
+        const empty: DclCertificateService.RevocationEntry = { serials: new Set() };
+        const revocationTimeout = Seconds(3);
+
+        const config = this.#options.dclConfig ?? DclConfig.production;
+        const dclClient = new DclClient(config);
+
+        let points: DeviceAttestationPkiRevocationDclSchema[];
+        try {
+            points = await dclClient.fetchRevocationDistributionPointsByIssuer(akid, {
+                timeout: revocationTimeout,
+            });
+        } catch (error) {
+            // gRPC NOT_FOUND (5) — the issuer simply has no CRL registered, cache the empty result
+            if (error instanceof MatterDclResponseError && error.response.code === 5) {
+                logger.debug(`No CRL registered in DCL for AKID ${akid}`);
+                return empty;
+            }
+            // Transient failure (timeout, network error) — throw so AsyncCache does NOT cache
+            logger.warn(
+                `DCL revocation lookup failed for AKID ${akid} (will retry on next check):`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            throw error;
+        }
+
+        // Filter for CRL type only
+        const crlPoints = points.filter(p => p.revocationType === RevocationTypeEnum.Crl);
+        if (crlPoints.length === 0) {
+            return empty;
+        }
+
+        // Use the first successfully processed CRL point (falls back to next on failure)
+        for (const point of crlPoints) {
+            try {
+                return await this.#processRevocationPoint(point, revocationTimeout);
+            } catch (error) {
+                logger.warn(
+                    `Failed to process revocation point for ${point.issuerSubjectKeyId} (will retry on next check):`,
+                    Diagnostic.errorMessage(asError(error)),
+                );
+            }
+        }
+
+        // All CRL points failed — throw so it's not cached and will retry
+        throw new MatterDclError(`All CRL downloads failed for AKID ${akid}`);
+    }
+
+    /**
+     * Process a single revocation distribution point: download the CRL, validate the signer chain
+     * and CRL signature per spec Section 6.2.4.1, then extract revoked serial numbers.
+     */
+    async #processRevocationPoint(
+        point: DeviceAttestationPkiRevocationDclSchema,
+        timeout: Duration,
+    ): Promise<DclCertificateService.RevocationEntry> {
+        // Steps 2-5: Parse and validate CRLSignerCertificate chain
+        // Per spec 6.2.4.1, the signer chain should be validated before trusting the CRL.
+        // If validation fails, we still process the CRL but skip signature verification.
+        let signerPublicKey: Bytes | undefined;
+        try {
+            signerPublicKey = await this.#validateCrlSigner(point);
+        } catch (error) {
+            // Per spec 6.2.4.1: validation failure means skip the signer check for this entry.
+            // This is expected for entries with delegated signers or chains we can't verify.
+            logger.info(
+                `CRL signer validation failed for ${point.issuerSubjectKeyId}, skipping CRL signature check:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+        }
+
+        // Download the CRL from dataUrl
+        const response = await fetch(point.dataUrl, {
+            signal: AbortSignal.timeout(timeout),
+        });
+        if (!response.ok) {
+            throw new MatterDclError(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
+        }
+        const crlBytes = new Uint8Array(await response.arrayBuffer());
+
+        // Verify CRL integrity against DCL metadata if available
+        if (point.dataFileSize !== undefined) {
+            const expectedSize =
+                typeof point.dataFileSize === "bigint" ? Number(point.dataFileSize) : point.dataFileSize;
+            if (expectedSize > 0 && crlBytes.length !== expectedSize) {
+                throw new MatterDclError(`CRL size mismatch: expected ${expectedSize} bytes, got ${crlBytes.length}`);
+            }
+        }
+        if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
+            const algorithm = hashAlgorithmForId(point.dataDigestType);
+            if (algorithm !== undefined) {
+                const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes, algorithm));
+                if (actualDigest !== point.dataDigest) {
+                    throw new MatterDclError(`CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`);
+                }
+            } else {
+                logger.info(`Skipping CRL digest verification: unsupported digest type ${point.dataDigestType}`);
+            }
+        }
+
+        // Parse the CRL
+        const crlParsed = DclCertificateService.parseCrl(crlBytes);
+
+        // Validate CRL signature using CRLSignerCertificate public key (RFC 5280 Section 6.3)
+        if (
+            signerPublicKey !== undefined &&
+            crlParsed.tbsDer !== undefined &&
+            crlParsed.signatureValue !== undefined &&
+            Bytes.of(crlParsed.signatureValue).length > 0
+        ) {
+            try {
+                await this.#crypto.verifyEcdsa(
+                    PublicKey(signerPublicKey),
+                    crlParsed.tbsDer,
+                    new EcdsaSignature(crlParsed.signatureValue, "der"),
+                );
+            } catch {
+                throw new MatterDclError("CRL signature verification failed against CRLSignerCertificate");
+            }
+        }
+
+        return {
+            serials: crlParsed.serials,
+            issuerDnDerHex: crlParsed.issuerDnDerHex,
+        };
+    }
+
+    /**
+     * Validate the CRL signer certificate chain per spec Section 6.2.4.1 steps 2-5.
+     * Returns the signer's public key for CRL signature verification, or throws on failure.
+     */
+    async #validateCrlSigner(point: DeviceAttestationPkiRevocationDclSchema): Promise<Bytes> {
+        // Step 2: Parse CRLSignerCertificate from PEM
+        const signerDer = Pem.asDer(point.crlSignerCertificate);
+        const signerCert = point.isPAA ? Paa.fromAsn1(signerDer) : Pai.fromAsn1(signerDer);
+
+        // Parse CRLSignerDelegator if present
+        let delegatorCert: Pai | undefined;
+        if (point.crlSignerDelegator) {
+            const delegatorDer = Pem.asDer(point.crlSignerDelegator);
+            delegatorCert = Pai.fromAsn1(delegatorDer);
+        }
+
+        // Steps 3-4: VendorID matching
+        if (point.isPAA) {
+            const signerVid = signerCert.cert.subject.vendorId;
+            if (signerVid !== undefined && signerVid !== point.vid) {
+                throw new MatterDclError(
+                    `CRLSignerCertificate VendorID ${signerVid} does not match entry VendorID ${point.vid}`,
+                );
+            }
+        } else {
+            const certToCheck = delegatorCert ?? signerCert;
+            const checkVid = certToCheck.cert.subject.vendorId;
+            if (checkVid !== undefined && checkVid !== point.vid) {
+                throw new MatterDclError(`CRL signer VendorID ${checkVid} does not match entry VendorID ${point.vid}`);
+            }
+            if (point.pid !== undefined) {
+                const checkPid = certToCheck instanceof Pai ? certToCheck.cert.subject.productId : undefined;
+                if (checkPid !== undefined && checkPid !== point.pid) {
+                    throw new MatterDclError(
+                        `CRL signer ProductID ${checkPid} does not match entry ProductID ${point.pid}`,
+                    );
+                }
+            }
+        }
+
+        // Step 5: Validate certification path against PAA trust store
+        const signerAkid = signerCert.cert.extensions.authorityKeyIdentifier;
+        if (signerAkid !== undefined) {
+            const signerAkidNorm = this.#normalizeSubjectKeyId(signerAkid);
+
+            // CRL signer trust anchor honors test PAAs that the validator already accepted upstream.
+            const trustAllPaas: DclCertificateService.GetCertificateOptions = { considerTestCertificates: true };
+            let issuerPublicKey: Bytes | undefined;
+            if (delegatorCert !== undefined) {
+                // Delegated signer: verify delegator is signed by a trusted PAA
+                const delegatorAkid = delegatorCert.cert.extensions.authorityKeyIdentifier;
+                if (
+                    delegatorAkid === undefined ||
+                    !this.#certificateIndex.has(this.#normalizeSubjectKeyId(delegatorAkid))
+                ) {
+                    throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
+                }
+                const paaDer = await this.#getCertificateDer(delegatorAkid, trustAllPaas);
+                const paa = Paa.fromAsn1(paaDer);
+                await this.#crypto.verifyEcdsa(
+                    PublicKey(paa.cert.ellipticCurvePublicKey),
+                    delegatorCert.asUnsignedDer(),
+                    delegatorCert.signature,
+                );
+                issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
+            } else if (this.#certificateIndex.has(signerAkidNorm)) {
+                const paaDer = await this.#getCertificateDer(signerAkid, trustAllPaas);
+                const paa = Paa.fromAsn1(paaDer);
+                issuerPublicKey = paa.cert.ellipticCurvePublicKey;
+            }
+
+            if (issuerPublicKey === undefined) {
+                throw new MatterDclError(
+                    `CRLSignerCertificate chain cannot be anchored to trusted PAA (AKID: ${signerAkidNorm})`,
+                );
+            }
+
+            await this.#crypto.verifyEcdsa(
+                PublicKey(issuerPublicKey),
+                signerCert.asUnsignedDer(),
+                signerCert.signature,
+            );
+        }
+
+        return signerCert.cert.ellipticCurvePublicKey;
+    }
+
+    /** Result of parsing a CRL. */
+    static parseCrl(crlDer: Bytes): DclCertificateService.CrlParseResult {
+        const serials = new Set<string>();
+
+        const decoded = DerCodec.decode(crlDer);
+        const certListElements = decoded._elements;
+        if (!certListElements || certListElements.length < 2) {
+            return { serials };
+        }
+
+        // CertificateList ::= SEQUENCE { tbsCertList, signatureAlgorithm, signatureValue }
+        const tbsCertList = certListElements[0];
+        const tbsElements = tbsCertList._elements;
+        if (!tbsElements) {
+            return { serials };
+        }
+
+        // Extract raw tbsCertList DER for signature verification
+        const tbsDer = DerCodec.encode(tbsCertList);
+
+        // Extract signatureValue (BIT STRING, last element)
+        // signatureValue is the 3rd element (index 2) of the outer SEQUENCE
+        let signatureValue: Bytes | undefined;
+        if (certListElements.length >= 3 && certListElements[2]._tag === 0x03) {
+            // BIT STRING _bytes already has padding byte stripped by DerCodec.decode
+            signatureValue = Bytes.of(certListElements[2]._bytes);
+        }
+
+        // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
+        let idx = 0;
+        // version is optional: if present it's an INTEGER
+        if (tbsElements[idx]?._tag === DerType.Integer) {
+            idx++;
+        }
+        // signature algorithm: SEQUENCE
+        if (tbsElements[idx]?._tag === DerTag.Sequence) {
+            idx++;
+        }
+        // issuer Name: SEQUENCE — hash its raw DER bytes for use as composite revocation key
+        let issuerDnDerHex: string | undefined;
+        if (tbsElements[idx]?._tag === DerTag.Sequence) {
+            const issuerNode = tbsElements[idx];
+            issuerDnDerHex = Bytes.toHex(DerCodec.encode(issuerNode)).toUpperCase();
+            idx++;
+        }
+
+        // thisUpdate: UTCTime or GeneralizedTime — skip
+        if (tbsElements[idx]?._tag === DerType.UtcDate || tbsElements[idx]?._tag === DerType.GeneralizedTime) {
+            idx++;
+        }
+
+        // nextUpdate: UTCTime or GeneralizedTime — parse if present
+        let nextUpdateMs: number | undefined;
+        if (tbsElements[idx]?._tag === DerType.UtcDate || tbsElements[idx]?._tag === DerType.GeneralizedTime) {
+            try {
+                const dateStr = Bytes.toString(tbsElements[idx]._bytes);
+                // UTCTime: YYMMDDHHMMSSZ, GeneralizedTime: YYYYMMDDHHMMSSZ
+                let year: number;
+                let rest: string;
+                if (tbsElements[idx]._tag === DerType.UtcDate) {
+                    const yy = parseInt(dateStr.slice(0, 2));
+                    year = yy >= 50 ? 1900 + yy : 2000 + yy;
+                    rest = dateStr.slice(2);
+                } else {
+                    year = parseInt(dateStr.slice(0, 4));
+                    rest = dateStr.slice(4);
+                }
+                const month = parseInt(rest.slice(0, 2)) - 1;
+                const day = parseInt(rest.slice(2, 4));
+                const hour = parseInt(rest.slice(4, 6));
+                const min = parseInt(rest.slice(6, 8));
+                const sec = parseInt(rest.slice(8, 10));
+                nextUpdateMs = Date.UTC(year, month, day, hour, min, sec);
+            } catch {
+                // Ignore parse errors for nextUpdate
+            }
+        }
+
+        // Extract Authority Key Identifier from CRL extensions if present
+        // crlExtensions is a context-tagged [0] EXPLICIT at the end of tbsCertList
+        let authorityKeyId: string | undefined;
+        for (const element of tbsElements) {
+            // Context-tagged [0] EXPLICIT = tag 0xa0
+            if (element._tag === 0xa0 && element._bytes) {
+                // Parse the extensions SEQUENCE inside the context tag
+                const extSequence = DerCodec.decode(element._bytes);
+                if (extSequence._elements) {
+                    for (const ext of extSequence._elements) {
+                        if (!ext._elements || ext._elements.length < 2) continue;
+                        const oid = Bytes.toHex(ext._elements[0]._bytes);
+                        // Authority Key Identifier OID: 2.5.29.35 = 551d23
+                        if (oid === "551d23") {
+                            // The value is an OCTET STRING containing a SEQUENCE
+                            const valueIdx = ext._elements.length > 2 ? 2 : 1;
+                            const akiOctetString = ext._elements[valueIdx];
+                            if (akiOctetString._bytes) {
+                                const akiSeq = DerCodec.decode(akiOctetString._bytes);
+                                // KeyIdentifier is context-tagged [0] inside the SEQUENCE
+                                if (akiSeq._elements) {
+                                    for (const akiField of akiSeq._elements) {
+                                        if (akiField._tag === 0x80) {
+                                            authorityKeyId = Bytes.toHex(Bytes.of(akiField._bytes)).toUpperCase();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Find the revokedCertificates sequence
+        let revokedCertsNode: DerNode | undefined;
+        for (const element of tbsElements) {
+            if (element._tag === DerTag.Sequence && element._elements) {
+                const firstChild = element._elements[0];
+                if (
+                    firstChild &&
+                    firstChild._tag === DerTag.Sequence &&
+                    firstChild._elements &&
+                    firstChild._elements[0]?._tag === DerType.Integer
+                ) {
+                    revokedCertsNode = element;
+                    break;
+                }
+            }
+        }
+
+        if (!revokedCertsNode?._elements) {
+            return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue, nextUpdateMs };
+        }
+
+        for (const entry of revokedCertsNode._elements) {
+            if (entry._tag !== DerTag.Sequence || !entry._elements || entry._elements.length < 1) continue;
+            const serialNode = entry._elements[0];
+            if (serialNode._tag !== DerType.Integer) continue;
+            const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
+            serials.add(serialHex);
+        }
+
+        return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue, nextUpdateMs };
+    }
+
+    /** Convenience wrapper that returns only the revoked serial numbers from a CRL. */
+    static parseCrlRevokedSerials(crlDer: Bytes): Set<string> {
+        return DclCertificateService.parseCrl(crlDer).serials;
+    }
 }
 
 export namespace DclCertificateService {
+    /** Per-call options for certificate retrieval. */
+    export interface GetCertificateOptions {
+        /**
+         * Whether the lookup should also return test (non-production) certificates.
+         * Defaults to the service-wide `fetchTestCertificates` flag passed at construction.
+         */
+        considerTestCertificates?: boolean;
+    }
+
     export interface Options {
         /** Whether to fetch test certificates in addition to production ones. Default is false. */
         fetchTestCertificates?: boolean;
+
+        /**
+         * Whether to trust test (non-production) certificates as valid trust anchors. Controls whether a
+         * matched test PAA is accepted during device attestation or flagged via a
+         * `TrustedAsTestCertificate` finding. Independent of `fetchTestCertificates`. Defaults to the value
+         * of `fetchTestCertificates` when not set.
+         */
+        acceptTestCertificates?: boolean;
 
         /** Whether to fetch development certificates from GitHub. Default is true (when fetchTestCertificates is true). */
         fetchGithubCertificates?: boolean;
@@ -562,7 +1466,16 @@ export namespace DclCertificateService {
 
         /** GitHub config for development certificates. Programmatic override only. Defaults to DclGithubConfig.defaults. */
         githubConfig?: DclGithubConfig;
+
+        /** Pre-populate storage from snapshot before the initial network update. Network update still runs after. */
+        seed?: {
+            paaRoots?: SeedSource<CertSeedEntry>;
+            cdSigners?: SeedSource<CertSeedEntry>;
+        };
     }
+
+    /** Kind of certificate stored in the trust store. */
+    export type CertificateKind = "PAA" | "CDSigner";
 
     /**
      * Metadata for a stored certificate.
@@ -575,5 +1488,38 @@ export namespace DclCertificateService {
         vid: number;
         isRoot: boolean;
         isProduction: boolean;
+
+        /** Kind of certificate. Defaults to "PAA" when absent (backward compat). */
+        kind?: CertificateKind;
+
+        /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
+        fetchedAt?: number;
     };
+
+    /** Cached revocation data for a single AKID. */
+    export interface RevocationEntry {
+        serials: Set<string>;
+        issuerDnDerHex?: string;
+    }
+
+    /** Result of parsing a DER-encoded CRL. */
+    export interface CrlParseResult {
+        /** Revoked serial numbers (uppercase hex). */
+        serials: Set<string>;
+
+        /** Hex of the DER-encoded issuer Name, for composite revocation key matching. */
+        issuerDnDerHex?: string;
+
+        /** CRL Authority Key Identifier extension value (uppercase hex). */
+        authorityKeyId?: string;
+
+        /** Raw DER bytes of tbsCertList for signature verification. */
+        tbsDer?: Bytes;
+
+        /** Raw signature value bytes from the CRL. */
+        signatureValue?: Bytes;
+
+        /** Unix epoch ms of the CRL's nextUpdate field, if present. */
+        nextUpdateMs?: number;
+    }
 }

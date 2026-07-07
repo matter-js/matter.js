@@ -18,11 +18,11 @@ import {
 } from "@matter/general";
 import {
     EventNumber,
+    EventPath,
     FabricIndex,
     Priority,
     resolveEventName,
     TlvEventFilter,
-    TlvEventPath,
     TypeFromSchema,
 } from "@matter/types";
 import { EventStore, OccurrenceSummary } from "./EventStore.js";
@@ -151,7 +151,7 @@ export class OccurrenceManager {
      * @deprecated
      */
     query(
-        eventPath: TypeFromSchema<typeof TlvEventPath>,
+        eventPath: EventPath,
         filters?: TypeFromSchema<typeof TlvEventFilter>[],
         filterForFabricIndex?: FabricIndex,
     ): MaybePromise<NumberedOccurrence[]> {
@@ -272,8 +272,11 @@ export class OccurrenceManager {
     }
 
     // For ServerNode usage the ServerEnvironment takes care to close the OccurrenceManager
-    close(): MaybePromise<void> {
-        return MaybePromise.then(this.#cull, () => this.#store.close());
+    async close() {
+        await this.#construction.close(async () => {
+            await this.#cull;
+            await this.#store.close();
+        });
     }
 
     add(occurrence: Occurrence): MaybePromise<NumberedOccurrence> {
@@ -392,7 +395,7 @@ export class OccurrenceManager {
         if (asyncDrops.length) {
             return MatterAggregateError.allSettled(asyncDrops, "Error dropping occurrences")
                 .then(() => {})
-                .catch(error => logger.error(error));
+                .catch(error => logger.warn("Error dropping occurrences:", error));
         }
     }
 }

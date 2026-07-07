@@ -112,6 +112,9 @@ export class BtpSessionHandler {
 
         await writeBleCallback(handshakeResponse);
 
+        // Start awaiting the ack for the just-sent handshake response only now that it is on the wire.
+        btpSession.ackReceiveTimer.start();
+
         return btpSession;
     }
 
@@ -163,7 +166,9 @@ export class BtpSessionHandler {
             throw new BtpProtocolError(`Unsupported BTP version ${btpVersion}`);
         }
         if (role === "peripheral") {
-            this.ackReceiveTimer.start();
+            // The handshake request is unsequenced, so nothing is pending to acknowledge yet.
+            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
+            // ackReceiveTimer is started once the handshake response has actually been written (see factory).
         } else {
             this.sendAckTimer.start();
             this.prevIncomingSequenceNumber = 0;
@@ -230,8 +235,10 @@ export class BtpSessionHandler {
             }
 
             if (hasAckNumber && ackNumber !== undefined) {
-                // check that ack number is valid
-                if (ackNumber > this.sequenceNumber || this.exceedsWindowSize(this.prevIncomingAckNumber, ackNumber)) {
+                // A valid ack falls within the outstanding (sent-but-unacknowledged) interval
+                // (prevIncomingAckNumber, sequenceNumber], compared as a wrap-safe modular distance.
+                const outstanding = this.modularDistance(this.prevIncomingAckNumber, this.sequenceNumber);
+                if (this.modularDistance(this.prevIncomingAckNumber, ackNumber) > outstanding) {
                     throw new BtpProtocolError(
                         `Invalid Ack Number, Ack Number: ${ackNumber}, Sequence Number: ${this.sequenceNumber}, Previous AckNumber: ${this.prevIncomingAckNumber}`,
                     );
@@ -263,6 +270,15 @@ export class BtpSessionHandler {
                 if (segmentPayload.byteLength === 0) {
                     throw new BtpProtocolError(`BTP Continuing or ending packet received without payload.`);
                 }
+                const reassembledLength = this.currentIncomingSegmentedPayload.byteLength + segmentPayload.byteLength;
+                if (
+                    this.currentIncomingSegmentedMsgLength !== undefined &&
+                    reassembledLength > this.currentIncomingSegmentedMsgLength
+                ) {
+                    throw new BtpProtocolError(
+                        `BTP reassembled length ${reassembledLength} exceeds declared message length ${this.currentIncomingSegmentedMsgLength}`,
+                    );
+                }
                 this.currentIncomingSegmentedPayload = Bytes.concat(
                     this.currentIncomingSegmentedPayload,
                     segmentPayload,
@@ -289,8 +305,13 @@ export class BtpSessionHandler {
                 // Hand over the resulting Matter message to ExchangeManager via the callback
                 await this.handleMatterMessagePayload(payloadToProcess);
             }
+
+            // A received ack may have reopened the remote window; flush held-back fragments (they piggyback the ack).
+            await this.processSendQueue();
+            // If nothing was queued to piggyback on, ack proactively when our receive window is low.
+            await this.sendImmediateAckIfWindowLow();
         } catch (error) {
-            logger.error(`Error while handling incoming BTP data: ${error}`);
+            logger.warn(`Error while handling incoming BTP data:`, error);
             await this.close();
 
             // If no BTP protocol error, rethrow
@@ -322,13 +343,24 @@ export class BtpSessionHandler {
     private async processSendQueue() {
         if (this.sendInProgress) return;
 
-        if (this.exceedsWindowSize(this.prevIncomingAckNumber, this.sequenceNumber)) return;
-
         if (this.queuedOutgoingMatterMessages.length === 0) return;
 
         this.sendInProgress = true;
 
         while (this.queuedOutgoingMatterMessages.length > 0) {
+            //checks if last ack number sent < ack number to be sent
+            const hasAckNumber = this.prevIncomingSequenceNumber !== this.prevAckedSequenceNumber;
+
+            // §4.19.4.7: stop if the remote receive window is full, or if only the reserved last slot is free
+            // and this data fragment would not carry an acknowledgement to fill it.
+            if (!this.canSend(hasAckNumber)) {
+                break;
+            }
+
+            if (hasAckNumber) {
+                this.sendAckTimer.stop();
+            }
+
             const currentProcessedMessage = this.queuedOutgoingMatterMessages[0];
             const remainingMessageLength = currentProcessedMessage.remainingBytesCount;
 
@@ -339,12 +371,6 @@ export class BtpSessionHandler {
                     remainingLengthInBytes: remainingMessageLength,
                 }),
             );
-
-            //checks if last ack number sent < ack number to be sent
-            const hasAckNumber = this.prevIncomingSequenceNumber !== this.prevAckedSequenceNumber;
-            if (hasAckNumber) {
-                this.sendAckTimer.stop();
-            }
 
             const isBeginningSegment = remainingMessageLength === currentProcessedMessage.length;
 
@@ -370,10 +396,11 @@ export class BtpSessionHandler {
 
             const segmentPayload = currentProcessedMessage.readByteArray(this.fragmentSize - btpHeaderLength);
 
+            const ackNumberToSend = hasAckNumber ? this.prevIncomingSequenceNumber : undefined;
             const btpPacket = {
                 header: packetHeader,
                 payload: {
-                    ackNumber: hasAckNumber ? this.prevIncomingSequenceNumber : undefined,
+                    ackNumber: ackNumberToSend,
                     sequenceNumber: this.getNextSequenceNumber(),
                     messageLength: packetHeader.isBeginningSegment ? remainingMessageLength : undefined, // remainingMessageLength if the fill length on beginning packet
                     segmentPayload,
@@ -384,21 +411,27 @@ export class BtpSessionHandler {
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
             logger.debug(`Sending BTP packet raw: ${Bytes.toHex(packet)}`);
 
+            // Commit the ack before the await so a concurrent send can't observe the stale value and ack the same
+            // sequence twice (spec-compliant peers reject a duplicate ack).
+            const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
+            if (ackNumberToSend !== undefined) {
+                this.prevAckedSequenceNumber = ackNumberToSend;
+            }
+
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
-                // Clear the queue to avoid malformed state from partially-consumed DataReaders.
-                // Any other error is unexpected and is rethrown so the session can handle it.
-                BleDisconnectedError.accept(error);
-                logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                // Roll back before re-raising so every error type (not just an absorbed disconnect) leaves clean
+                // state; the queue is cleared to drop partially-consumed DataReaders.
+                this.prevAckedSequenceNumber = previousAckedSequenceNumber;
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
+                BleDisconnectedError.accept(error);
+                logger.debug(
+                    `BTP packet (seq ${btpPacket.payload.sequenceNumber}) send failed because BLE is disconnected`,
+                    Diagnostic.errorMessage(error),
+                );
                 return;
-            }
-            // Update ACK bookkeeping only after the packet was sent successfully
-            if (hasAckNumber) {
-                this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             }
 
             if (!this.ackReceiveTimer.isRunning) {
@@ -416,13 +449,13 @@ export class BtpSessionHandler {
             if (isEndingSegment) {
                 this.queuedOutgoingMatterMessages.shift();
             }
-
-            // If the window is full, stop sending for now
-            if (this.exceedsWindowSize(this.prevIncomingAckNumber, this.sequenceNumber)) {
-                break;
-            }
         }
         this.sendInProgress = false;
+
+        // A pending ack that could not be piggybacked (e.g. an incoming packet arrived mid-send) would otherwise
+        // be stranded until the send-ack timer, since the timer is one-shot and may have already fired while a
+        // send held the lock; flush it now that the send completed.
+        await this.sendStandaloneAck();
     }
 
     /**
@@ -451,8 +484,29 @@ export class BtpSessionHandler {
      */
     private async btpSendAckTimeoutTriggered() {
         if (!this.isActive) return;
-        if (this.prevIncomingSequenceNumber > this.prevAckedSequenceNumber) {
-            logger.debug(`Sending BTP ACK for sequence number ${this.prevIncomingSequenceNumber}`);
+        await this.sendStandaloneAck();
+    }
+
+    /** §4.19.4.8: ack proactively once our receive window runs low; skipped if queued data will piggyback it. */
+    private async sendImmediateAckIfWindowLow() {
+        if (this.queuedOutgoingMatterMessages.length > 0 || this.sendInProgress) return;
+        if (this.localWindowFreeSlots() > MatterBle.BTP_IMMEDIATE_ACK_WINDOW_THRESHOLD) return;
+        await this.sendStandaloneAck();
+    }
+
+    /** Send a stand-alone acknowledgement packet if one is pending. */
+    private async sendStandaloneAck() {
+        // Mutually exclusive with processSendQueue (both directions): if a send is in progress it will piggyback
+        // the pending ack, and two concurrent writes could otherwise reach the wire out of order.
+        if (this.sendInProgress) return;
+        const ackNumberToSend = this.prevIncomingSequenceNumber;
+        if (ackNumberToSend === this.prevAckedSequenceNumber) return;
+        // §4.19.4.7: an ack still consumes a remote-window slot, so never send into a full window.
+        if (!this.canSend(true)) return;
+
+        this.sendInProgress = true;
+        try {
+            logger.debug(`Sending BTP ACK for sequence number ${ackNumberToSend}`);
             const btpPacket = {
                 header: {
                     isHandshakeRequest: false,
@@ -463,25 +517,38 @@ export class BtpSessionHandler {
                     isEndingSegment: false,
                 },
                 payload: {
-                    ackNumber: this.prevIncomingSequenceNumber,
+                    ackNumber: ackNumberToSend,
                     sequenceNumber: this.getNextSequenceNumber(),
                 },
             };
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
+
+            // Commit the ack before the await so an interleaved send can't re-ack the same sequence
+            // (spec-compliant peers reject a duplicate ack).
+            const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
+            this.prevAckedSequenceNumber = ackNumberToSend;
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
-                // Any other error is unexpected and is rethrown so the session can handle it.
+                // Roll back before re-raising so a failed write never leaves the ack marked as sent.
+                this.prevAckedSequenceNumber = previousAckedSequenceNumber;
                 BleDisconnectedError.accept(error);
-                logger.debug("BTP ACK send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                logger.debug(
+                    `BTP ACK (seq ${btpPacket.payload.sequenceNumber}, ack ${ackNumberToSend}) send failed because BLE is disconnected`,
+                    Diagnostic.errorMessage(error),
+                );
                 return;
             }
-            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
+            this.sendAckTimer.stop();
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }
+        } finally {
+            this.sendInProgress = false;
         }
+
+        // Flush any Matter message that was queued while the ack held the send lock.
+        await this.processSendQueue();
     }
 
     /**
@@ -506,13 +573,28 @@ export class BtpSessionHandler {
         return this.sequenceNumber;
     }
 
-    /**
-     * Checks if incoming ackNumber and sent sequence number exceeds the client window size or not.
-     */
-    private exceedsWindowSize(prevIncomingAckNumber: number, currentSequenceNumber: number): boolean {
-        if (prevIncomingAckNumber > currentSequenceNumber) {
-            prevIncomingAckNumber = (prevIncomingAckNumber % MAXIMUM_SEQUENCE_NUMBER) - 1;
-        }
-        return currentSequenceNumber - prevIncomingAckNumber > this.clientWindowSize - 1;
+    /** Wrap-safe forward distance between two sequence numbers (modulo 256); the -1 sentinels read as 255. */
+    private modularDistance(from: number, to: number): number {
+        return (((to - from) % 256) + 256) % 256;
+    }
+
+    /** Free slots in the remote peer's receive window; gates our sending (§4.19.4.7). */
+    private remoteWindowFreeSlots(): number {
+        return this.clientWindowSize - this.modularDistance(this.prevIncomingAckNumber, this.sequenceNumber);
+    }
+
+    /** Free slots in our own receive window; drives proactive acknowledgement (§4.19.4.8). */
+    private localWindowFreeSlots(): number {
+        return (
+            this.clientWindowSize - this.modularDistance(this.prevAckedSequenceNumber, this.prevIncomingSequenceNumber)
+        );
+    }
+
+    /** §4.19.4.7: a data-only packet must leave the last window slot free; an ack-bearing packet may use it. */
+    private canSend(carriesAck: boolean): boolean {
+        const free = this.remoteWindowFreeSlots();
+        if (free <= 0) return false;
+        if (free <= MatterBle.BTP_WINDOW_NO_ACK_SEND_THRESHOLD && !carriesAck) return false;
+        return true;
     }
 }

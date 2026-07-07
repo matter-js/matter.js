@@ -11,7 +11,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { loadChip } from "./mom/chip/load-chip.js";
 import { IntermediateModel } from "./mom/common/intermediate-model.js";
-import { DEFAULT_MATTER_VERSION } from "./mom/spec/doc-utils.js";
+import { DEFAULT_MATTER_VERSION } from "./mom/spec/md/load-markdown-files.js";
 import "./util/setup.js";
 
 const args = await yargs(hideBin(process.argv))

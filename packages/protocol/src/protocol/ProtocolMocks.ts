@@ -20,13 +20,14 @@ import {
     DataReadQueue,
     Environment,
     ImplementationError,
-    IpNetworkChannel,
     MAX_UDP_MESSAGE_SIZE,
     MaybePromise,
+    Millis,
     MockCrypto,
     Observable,
     ServerAddress,
     ServerAddressUdp,
+    UdpNetworkChannel,
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
@@ -152,7 +153,7 @@ export namespace ProtocolMocks {
     /**
      * A mock channel that can act as a placeholder without full mock networking.
      */
-    export class NetworkChannel implements IpNetworkChannel<Bytes> {
+    export class NetworkChannel implements UdpNetworkChannel<Bytes> {
         maxPayloadSize: number;
         isReliable = true;
         supportsLargeMessages = false;
@@ -253,6 +254,8 @@ export namespace ProtocolMocks {
                     localSessionParameters: SessionParameters(
                         context?.localSessionParameters ?? SessionParameters.defaults,
                     ),
+                    localAdditionalMrpDelay: context?.localAdditionalMrpDelay ?? Millis(0),
+                    localFixedMrpBackoff: context?.localFixedMrpBackoff ?? Millis(0),
                     async peerLost() {},
                     retry() {},
                 },

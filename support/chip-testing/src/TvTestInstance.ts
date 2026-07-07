@@ -31,6 +31,8 @@ export class TvTestInstance extends NodeTestInstance {
                 environment: this.env,
                 network: {
                     port: 5540,
+                    tcp: true,
+                    transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
                     //advertiseOnStartup: false,
                 },
                 commissioning: {

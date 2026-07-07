@@ -144,7 +144,7 @@ export class OtaAnnouncements {
             this.#currentAnnouncementPromise = this.#announceOtaProvider(peerAddress);
             await this.#currentAnnouncementPromise;
         } catch (error) {
-            logger.error(`Error announcing OTA provider to ${peerAddress}`, error);
+            logger.warn(`Error announcing OTA provider to ${peerAddress}`, error);
         } finally {
             this.#currentAnnouncementPromise = undefined;
         }
@@ -207,7 +207,7 @@ export class OtaAnnouncements {
                 // the device when there is any update. So let's not do this here automatically.
             } catch (error) {
                 // Just log, if anything failed, we try again in 24h
-                logger.info("Could not set default OTA provider", error);
+                logger.notice("Could not set default OTA provider", error);
             }
         }
     }
@@ -219,7 +219,7 @@ export class OtaAnnouncements {
      * When a node is applicable for updates, it also subscribes to softwareVersion changes to be able to react
      */
     peerApplicableForUpdate(peer: ClientNode) {
-        if (peer.isGroup || !peer.behaviors.has(BasicInformationClient)) {
+        if (peer.nodeType === "group" || !peer.behaviors.has(BasicInformationClient)) {
             // We need more information on the node to request an update
             return;
         }
@@ -273,7 +273,6 @@ export class OtaAnnouncements {
             await endpoint.commandsOf(OtaSoftwareUpdateRequestorClient).announceOtaProvider({
                 providerNodeId: this.#ownNodeId,
                 vendorId: this.#ownVendorId,
-                fabricIndex: this.#ownFabricIndex,
                 announcementReason,
                 endpoint: this.#otaProviderEndpoint,
             });

@@ -5,15 +5,17 @@
  */
 import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
+import { MessagePrivacy } from "#codec/MessagePrivacy.js";
 import { Mark } from "#common/Mark.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import type { MessageCounter } from "#protocol/MessageCounter.js";
 import {
     Bytes,
     ChannelType,
-    ConnectionlessTransport,
+    CRYPTO_AEAD_MIC_LENGTH_BYTES,
     CryptoDecryptError,
     Diagnostic,
     hex,
@@ -22,6 +24,7 @@ import {
     Logger,
     MatterFlowError,
     STANDARD_MATTER_PORT,
+    Transport,
     UnexpectedDataError,
 } from "@matter/general";
 import { FabricIndex, GroupId, NodeId } from "@matter/types";
@@ -51,6 +54,7 @@ export class GroupSession extends SecureSession {
     readonly #fabric: Fabric;
     readonly #peerNodeId: NodeId;
     readonly #operationalGroupKey: Bytes;
+    readonly #operationalPrivacyKey?: Bytes;
     readonly #multicastAddress: string;
     readonly supportsMRP = false;
     readonly closingAfterExchangeFinished = false; // Group sessions do not close after exchange finished, they are long-lived
@@ -58,17 +62,28 @@ export class GroupSession extends SecureSession {
     readonly keySetId: number;
 
     constructor(config: GroupSession.Config) {
-        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId, multicastAddress } = config;
+        const {
+            manager,
+            fabric,
+            operationalGroupKey,
+            operationalPrivacyKey,
+            id,
+            peerNodeId,
+            keySetId,
+            multicastAddress,
+            messageCounter,
+        } = config;
         super({
             ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check
-            messageCounter: fabric.groups.messaging.counterFor(operationalGroupKey),
+            messageCounter,
         });
         this.#id = id;
         this.#fabric = fabric;
         this.#peerNodeId = peerNodeId;
         this.keySetId = keySetId;
         this.#operationalGroupKey = operationalGroupKey;
+        this.#operationalPrivacyKey = operationalPrivacyKey;
         this.#multicastAddress = multicastAddress;
 
         manager?.registerGroupSession(this);
@@ -83,18 +98,25 @@ export class GroupSession extends SecureSession {
     }
 
     /**
+     * Source IP address of the most recently received datagram on this session.  Inbound group sessions have no
+     * channel, so the receive path records this for Groupcast testing event reporting.
+     */
+    receivedFrom?: string;
+
+    /**
      * Create an outbound group session.
      */
     static async create(options: {
         manager?: SessionManager;
-        transports: ConnectionlessTransport.Provider;
+        transports: Transport.Provider;
         id: number;
         fabric: Fabric;
         keySetId: number;
         groupNodeId: NodeId;
         operationalGroupKey: Bytes;
+        messageCounter: MessageCounter;
     }) {
-        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey } = options;
+        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey, messageCounter } = options;
 
         const groupId = GroupId.fromNodeId(groupNodeId);
         const multicastAddress = fabric.groups.multicastAddressFor(groupId);
@@ -106,7 +128,6 @@ export class GroupSession extends SecureSession {
         }
 
         const channel = await operationalInterface.openChannel({
-            type: ChannelType.UDP,
             ip: multicastAddress,
             port: STANDARD_MATTER_PORT,
         });
@@ -119,13 +140,28 @@ export class GroupSession extends SecureSession {
             keySetId,
             peerNodeId: groupNodeId,
             operationalGroupKey,
+            operationalPrivacyKey: Bytes.of(await MessagePrivacy.deriveKey(fabric.crypto, operationalGroupKey)),
             multicastAddress,
+            messageCounter,
         });
     }
 
     override get type() {
         return SessionType.Group;
     }
+
+    /*
+     * TODO: enable once clarified with CHIP SDK developers.
+     *
+     * The Matter spec requires group multicasts to be sent with privacy enabled — Core Specification, Secure Channel,
+     * "Sending a group message": the Security Flags "SHALL have only the P Flag set". The CHIP SDK does not set the
+     * privacy flag when sending group messages, so we keep it off to match the dominant implementation until the
+     * spec/SDK divergence is resolved. Enabling it passes the full CHIP controller test suite (interop verified).
+     *
+     * override get usePrivacy() {
+     *     return true;
+     * }
+     */
 
     get fabric(): Fabric {
         return this.#fabric;
@@ -169,7 +205,20 @@ export class GroupSession extends SecureSession {
         if (message === undefined || message.packetHeader.destGroupId === undefined) {
             throw new ImplementationError("GroupSession requires a message with destGroupId");
         }
-        return this.fabric.groups.subjectForGroup(GroupId(message.packetHeader.destGroupId), this.keySetId);
+        return this.fabric.groups.subjectForGroup(GroupId(message.packetHeader.destGroupId), this.#operationalGroupKey);
+    }
+
+    /**
+     * Whether this cached session was established for the given fabric, group session id and operational key. Session
+     * ids are a 16-bit hash of the operational key, so two key sets can share one; a cached session must therefore be
+     * matched by key (and fabric), never by session id alone, or a later message would be evaluated against a stale key.
+     */
+    matches(fabricIndex: FabricIndex, id: number, operationalKey: Bytes): boolean {
+        return (
+            this.#id === id &&
+            this.#fabric.fabricIndex === fabricIndex &&
+            Bytes.areEqual(this.#operationalGroupKey, operationalKey)
+        );
     }
 
     override notifyActivity(_messageReceived: boolean) {
@@ -195,16 +244,31 @@ export class GroupSession extends SecureSession {
         const headerBytes = MessageCodec.encodePacketHeader(message.packetHeader);
         const securityFlags = headerBytes[3];
         const nonce = Session.generateNonce(securityFlags, header.messageId, this.#fabric.nodeId);
+        const ciphertext = this.#fabric.crypto.encrypt(
+            this.#operationalGroupKey,
+            applicationPayload,
+            nonce,
+            headerBytes,
+        );
 
-        return {
-            header,
-            applicationPayload: this.#fabric.crypto.encrypt(
-                this.#operationalGroupKey,
-                applicationPayload,
-                nonce,
-                headerBytes,
-            ),
-        };
+        if (!message.packetHeader.hasPrivacyEnhancements) {
+            return { header, applicationPayload: ciphertext };
+        }
+
+        if (this.#operationalPrivacyKey === undefined) {
+            throw new InternalError("Privacy key not available for this group session.");
+        }
+        const mic = Bytes.of(ciphertext).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
+        const privacyNonce = MessagePrivacy.buildNonce(header.sessionId, mic);
+        const region = Bytes.of(headerBytes).slice(4);
+        const obfuscated = MessagePrivacy.obfuscate(
+            this.#fabric.crypto,
+            this.#operationalPrivacyKey,
+            region,
+            privacyNonce,
+        );
+        const obfuscatedHeader = Bytes.concat(Bytes.of(headerBytes).slice(0, 4), obfuscated);
+        return { header, applicationPayload: ciphertext, headerBytes: obfuscatedHeader };
     }
 
     decode(): DecodedMessage {
@@ -213,11 +277,12 @@ export class GroupSession extends SecureSession {
 
     static decode(
         fabrics: FabricManager,
-        { header, applicationPayload, messageExtension }: DecodedPacket,
+        { header, applicationPayload, messageExtension, privacyHeader }: DecodedPacket,
         aad: Bytes,
     ): {
         message: DecodedMessage;
         key: Bytes;
+        privacyKey?: Bytes;
         sessionId: number;
         sourceNodeId: NodeId;
         keySetId: number;
@@ -228,18 +293,17 @@ export class GroupSession extends SecureSession {
                 `Message extensions are not supported. Ignoring ${messageExtension ? Bytes.toHex(messageExtension) : undefined}`,
             );
         }
-        const sourceNodeId = header.sourceNodeId;
-        if (sourceNodeId === undefined) {
-            // Already checked on decoding, but validate twice
-            throw new UnexpectedDataError("Source Node ID is required for GroupSession decode.");
-        }
-        const nonce = Session.generateNonce(header.securityFlags, header.messageId, sourceNodeId);
+
         const sessionId = header.sessionId;
-        const keys = new Array<{ key: Bytes; keySetId: number; fabric: Fabric }>();
+        const keys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
         for (const fabric of fabrics) {
             const sessions = fabric.groups.sessions.get(sessionId);
             if (sessions?.length) {
                 for (const session of sessions) {
+                    // A key set is only usable for group communication while a group maps to it in GroupKeyMap
+                    if (!fabric.groups.isKeySetMapped(session.keySetId)) {
+                        continue;
+                    }
                     keys.push({ ...session, fabric });
                 }
             }
@@ -247,24 +311,71 @@ export class GroupSession extends SecureSession {
         if (keys.length === 0) {
             throw new GroupSessionNoKeyError();
         }
+
+        const messageFlags = Bytes.of(aad)[0];
+        const mic = Bytes.of(applicationPayload).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
+
         let message: DecodedMessage | undefined;
         let key: Bytes | undefined;
+        let privacyKey: Bytes | undefined;
         let fabric: Fabric | undefined;
         let keySetId: number | undefined;
+        let sourceNodeId: NodeId | undefined;
         let found = false;
-        for ({ key, keySetId, fabric } of keys) {
+        for (const candidate of keys) {
             try {
+                let packetHeader = header;
+                let decryptAad = aad;
+                if (header.hasPrivacyEnhancements) {
+                    if (privacyHeader === undefined || candidate.privacyKey === undefined) {
+                        logger.debug(`No privacy key for group session candidate ${candidate.keySetId}, skipping`);
+                        continue;
+                    }
+                    const privacyNonce = MessagePrivacy.buildNonce(sessionId, mic);
+                    const deobfuscated = MessagePrivacy.obfuscate(
+                        candidate.fabric.crypto,
+                        candidate.privacyKey,
+                        privacyHeader,
+                        privacyNonce,
+                    );
+                    packetHeader = {
+                        ...header,
+                        ...MessageCodec.decodeObfuscatedHeaderFields(messageFlags, deobfuscated),
+                    };
+                    decryptAad = Bytes.concat(Bytes.of(aad).slice(0, 4), deobfuscated);
+                }
+
+                if (packetHeader.sourceNodeId === undefined) {
+                    throw new UnexpectedDataError("Source Node ID is required for GroupSession decode.");
+                }
+                const nonce = Session.generateNonce(
+                    packetHeader.securityFlags,
+                    packetHeader.messageId,
+                    packetHeader.sourceNodeId,
+                );
                 message = MessageCodec.decodePayload({
-                    header,
-                    applicationPayload: fabric.crypto.decrypt(key, applicationPayload, nonce, aad),
+                    header: packetHeader,
+                    applicationPayload: candidate.fabric.crypto.decrypt(
+                        candidate.key,
+                        applicationPayload,
+                        nonce,
+                        decryptAad,
+                    ),
                 });
+                key = candidate.key;
+                privacyKey = candidate.privacyKey;
+                keySetId = candidate.keySetId;
+                fabric = candidate.fabric;
+                sourceNodeId = packetHeader.sourceNodeId;
                 found = true;
-                break; // Exit loop on first successful decryption
+                break;
             } catch (error) {
+                // A wrong key (including a wrong privacy key, whose garbage header yields a different nonce) fails AEAD
+                // decryption; skip to the next candidate. Genuine parse errors on an authenticated payload propagate.
                 CryptoDecryptError.accept(error);
             }
         }
-        if (!found || !message || !key || !keySetId || !fabric) {
+        if (!found || !message || !key || keySetId === undefined || !fabric || sourceNodeId === undefined) {
             throw new GroupSessionDecodeError();
         }
 
@@ -274,7 +385,7 @@ export class GroupSession extends SecureSession {
             );
         }
 
-        return { message, key, sessionId, sourceNodeId, keySetId, fabric };
+        return { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric };
     }
 
     override async close() {
@@ -290,7 +401,9 @@ export namespace GroupSession {
         keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
         peerNodeId: NodeId; //The Target Group Node Id
         operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
+        operationalPrivacyKey?: Bytes;
         multicastAddress: string; // IPv6 multicast destination address this session sends to.
+        messageCounter: MessageCounter;
     }
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {

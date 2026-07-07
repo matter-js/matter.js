@@ -109,6 +109,8 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
                 if (!address.isWildcardHost) {
                     opts.host = address.hostname;
                 }
+                // A concrete port is required.  A wildcard ("0") port is deliberately not bound: an OS-assigned
+                // ephemeral port is undiscoverable to peers, so node's listen() is left to reject the attempt.
                 if (!address.isWildcardPort) {
                     opts.port = address.portNum;
                 }
@@ -200,7 +202,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
 
         this.#httpListener = (req, res) => {
             this.#handleHttp(req, res).catch(error => {
-                logger.error("Unhandled error in HTTP endpoint handler", error);
+                logger.warn("Unhandled error in HTTP endpoint handler", error);
                 respondError(res, 500);
             });
         };
@@ -232,7 +234,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
 
         this.#wsListener = (req, socket, head) => {
             this.#handleUpgrade(adapter, req, socket, head).catch(error => {
-                logger.error("Unhandled error WebSocket endpoint", error);
+                logger.warn("Unhandled error WebSocket endpoint", error);
             });
         };
 
@@ -267,7 +269,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
         const nodeBodyStream = ReadStream.fromWeb(response.body as NodeReadableStream);
 
         nodeBodyStream.on("error", error => {
-            logger.error("Error transmitting HTTP body", error);
+            logger.warn("Error transmitting HTTP body", error);
             respondError(res, 500);
         });
 

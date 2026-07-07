@@ -8,6 +8,7 @@ import { ClientBdxRequest, ClientBdxResponse } from "#action/client/ClientBdx.js
 import { ClientRead } from "#action/client/ClientRead.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
+import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
 import { Read } from "#action/request/Read.js";
 import { resolvePathForSpecifier } from "#action/request/Specifier.js";
 import { Subscribe } from "#action/request/Subscribe.js";
@@ -27,8 +28,10 @@ import type { Session } from "#session/Session.js";
 import {
     Abort,
     AbortedError,
+    asError,
     AsyncIterator,
     BasicSet,
+    ChannelType,
     ClosedError,
     createPromise,
     Diagnostic,
@@ -61,7 +64,10 @@ import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 
 const logger = Logger.get("ClientInteraction");
 
-/** Returns a log-friendly peer address diagnostic for sessions that expose one (currently: group multicast). */
+/**
+ * Returns a log-friendly peer address diagnostic for sessions that expose one
+ * (currently: group multicast).
+ */
 function peerAddressDiagnostic(session: Session | undefined) {
     if (session !== undefined && GroupSession.is(session)) {
         return Diagnostic.dict({ dest: session.multicastAddress });
@@ -73,12 +79,39 @@ function peerAddressDiagnostic(session: Session | undefined) {
 const MAX_COMMAND_REF = 0xffff;
 
 /** Higher processing time to give devices a bit more time to send updates. */
-const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
+export const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
+
+/**
+ * Probe commands in a {@link ClientInvoke} for the Matter "Large Message Quality" ("L") flag.
+ *
+ * Legacy command requests carry no model reference, so callers using {@link Invoke.LegacyCommandRequest}
+ * must continue to set {@link ClientInvoke.largeMessage} explicitly.
+ *
+ * @internal — exported for unit testing.
+ */
+export function inferLargeMessage(request: ClientInvoke): boolean {
+    for (const cmd of request.commands.values()) {
+        if (Invoke.isLegacy(cmd)) {
+            continue;
+        }
+        try {
+            const command = Invoke.commandOf(cmd);
+            if (command.schema?.effectiveQuality?.largeMessage) {
+                return true;
+            }
+        } catch (error) {
+            // Swallow only resolution errors — downstream encode will surface them with full context.
+            MalformedRequestError.accept(error);
+        }
+    }
+    return false;
+}
 
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
     pathKey: string;
     network?: string;
+    additionalMrpDelay?: Duration;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
@@ -117,7 +150,7 @@ const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 export class ClientInteraction<
     SessionT extends InteractionSession = InteractionSession,
 > implements Interactable<SessionT> {
-    protected readonly environment: Environment;
+    readonly #environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchangeProvider: ExchangeProvider;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
@@ -132,9 +165,10 @@ export class ClientInteraction<
     readonly #batchMutex: Mutex;
     #batchTimer?: Timer;
     #nextCommandRef = 1;
+    #closeReason?: Error;
 
     constructor({ environment, abort, sustainRetries, exchangeProvider, address, network }: ClientInteractionContext) {
-        this.environment = environment;
+        this.#environment = environment;
         this.#exchangeProvider = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
             this.#subscriptions = environment.get(ClientSubscriptions);
@@ -164,8 +198,20 @@ export class ClientInteraction<
         if (reason === undefined) {
             reason = new ClosedError("Interaction component closed");
         }
+        this.#closeReason = reason;
 
         using _closing = this.#lifetime.closing();
+
+        // Close subscriptions established through this interaction so they do not outlive the interactable; a
+        // sustained subscription would otherwise retry forever against a closed interactable.
+        const peer = this.#exchangeProvider.peerAddress;
+        if (this.#subscriptions !== undefined && peer !== undefined) {
+            for (const subscription of [...this.#subscriptions]) {
+                if (PeerAddress.is(peer, subscription.peer)) {
+                    subscription.close();
+                }
+            }
+        }
 
         // Close batching
         this.#batchTimer?.stop();
@@ -174,9 +220,10 @@ export class ClientInteraction<
             pending.reject(reason);
         }
         this.#pendingCommands.clear();
-        await this.#batchMutex.close();
 
+        // Abort before draining the mutex so an in-flight batch cancels instead of running to completion
         this.#abort(reason);
+        await this.#batchMutex.close();
 
         while (this.#interactions.size) {
             await this.#interactions.deleted;
@@ -189,7 +236,7 @@ export class ClientInteraction<
 
     get subscriptions() {
         if (this.#subscriptions === undefined) {
-            this.#subscriptions = this.environment.get(ClientSubscriptions);
+            this.#subscriptions = this.#environment.get(ClientSubscriptions);
         }
         return this.#subscriptions;
     }
@@ -199,9 +246,9 @@ export class ClientInteraction<
      */
     async *read(request: ClientRead, session?: SessionT, extraAbort?: AbortSignal): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
-        if (readPathsCount > 9) {
+        if (readPathsCount > this.#exchangeProvider.readPathsSupported) {
             logger.info(
-                "Read interactions with more than 9 paths might be not allowed by the device. Consider splitting them into several read requests.",
+                `Read interactions with more than ${this.#exchangeProvider.readPathsSupported} paths might be not allowed by the device. Consider splitting them into several read requests.`,
             );
         }
 
@@ -269,6 +316,7 @@ export class ClientInteraction<
             await messenger.sendReadRequest(Read({ fabricFilter: false }), {
                 abort,
                 suppressPeerLoss: options?.suppressPeerLoss,
+                maxRetransmissions: options?.maxRetransmissions,
             });
             for await (const _report of messenger.readDataReports({ abort }));
             logger.info(
@@ -385,8 +433,17 @@ export class ClientInteraction<
             request,
         );
 
+        // Per spec, commandRef is only defined for multi-command messages; servers without batch-invoke
+        // support do not echo it, so keep it off the wire and correlate single commands by position.
+        const isSingleCommand = request.invokeRequests.length === 1;
+        const singleCommandRef = isSingleCommand ? request.invokeRequests[0].commandRef : undefined;
+        let wireRequest = request;
+        if (singleCommandRef !== undefined) {
+            wireRequest = { ...request, invokeRequests: [{ ...request.invokeRequests[0], commandRef: undefined }] };
+        }
+
         const { expectedProcessingTime, useExtendedFailSafeMessageResponseTimeout } = request;
-        const result = await messenger.sendInvokeCommand(request, {
+        const result = await messenger.sendInvokeCommand(wireRequest, {
             expectedProcessingTime:
                 expectedProcessingTime ??
                 (useExtendedFailSafeMessageResponseTimeout
@@ -395,99 +452,124 @@ export class ClientInteraction<
             abort,
         });
         if (!request.suppressResponse) {
-            if (result && result.invokeResponses?.length) {
-                const chunk: InvokeResult.Chunk = result.invokeResponses
-                    .map(response => {
-                        if (response.command !== undefined) {
-                            const {
-                                commandPath: { endpointId, clusterId, commandId },
-                                commandRef,
-                                commandFields,
-                            } = response.command;
-                            const cmd = request.commands.get(commandRef);
-                            if (!cmd) {
-                                throw new ImplementationError(
-                                    `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
-                                );
-                            }
-                            let responseSchema: TlvSchema<any>;
-                            if (Invoke.isLegacy(cmd)) {
-                                responseSchema = cmd.command.responseSchema ?? TlvVoid;
-                            } else {
-                                const command = Invoke.commandOf(cmd);
-                                const responseModel = command.schema.responseModel;
-                                responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
-                            }
-                            if (commandFields === undefined && responseSchema !== TlvVoid) {
-                                throw new ImplementationError(
-                                    `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
-                                );
-                            }
+            const chunk = new Array<InvokeResult.DecodedData>();
 
-                            const data =
-                                commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
+            for (const response of result?.invokeResponses ?? []) {
+                if (response.command !== undefined) {
+                    const {
+                        commandPath: { endpointId, clusterId, commandId },
+                        commandRef: responseRef,
+                        commandFields,
+                    } = response.command;
+                    const commandRef = isSingleCommand ? singleCommandRef : responseRef;
+                    const cmd = request.commands.get(commandRef);
+                    if (!cmd) {
+                        logger.warn(
+                            `Discarding unexpected invoke response for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
+                        );
+                        continue;
+                    }
+                    let responseSchema: TlvSchema<any>;
+                    if (Invoke.isLegacy(cmd)) {
+                        responseSchema = cmd.command.responseSchema ?? TlvVoid;
+                    } else {
+                        const command = Invoke.commandOf(cmd);
+                        const responseModel = command.schema.responseModel;
+                        responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
+                    }
+                    if (commandFields === undefined && responseSchema !== TlvVoid) {
+                        logger.warn(
+                            `Discarding invoke response without mandated payload for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
+                        );
+                        continue;
+                    }
 
-                            logger.info(
-                                "Invoke",
-                                Mark.INBOUND,
-                                messenger.exchange.via,
-                                messenger.exchange.diagnostics,
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
-                            );
+                    const data = commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
-                            const res: InvokeResult.DecodedCommandResponse = {
-                                kind: "cmd-response",
-                                path: {
-                                    endpointId: endpointId!,
-                                    clusterId,
-                                    commandId,
-                                },
-                                commandRef,
-                                data,
-                            };
-                            return res;
-                        } else if (response.status !== undefined) {
-                            const {
-                                commandPath: { endpointId, clusterId, commandId },
-                                commandRef,
-                                status: { status, clusterStatus },
-                            } = response.status;
-                            const res: InvokeResult.CommandStatus = {
-                                kind: "cmd-status",
-                                path: {
-                                    endpointId: endpointId!,
-                                    clusterId: clusterId,
-                                    commandId: commandId,
-                                },
-                                commandRef,
-                                status,
-                                clusterStatus,
-                            };
+                    logger.info(
+                        "Invoke",
+                        Mark.INBOUND,
+                        messenger.exchange.via,
+                        messenger.exchange.diagnostics,
+                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                        isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
+                    );
 
-                            const cmd = request.commands.get(commandRef);
-                            if (cmd) {
-                                logger.info(
-                                    "Invoke",
-                                    Mark.INBOUND,
-                                    messenger.exchange.via,
-                                    messenger.exchange.diagnostics,
-                                    Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                    Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
-                                );
-                            }
+                    chunk.push({
+                        kind: "cmd-response",
+                        path: {
+                            endpointId: endpointId!,
+                            clusterId,
+                            commandId,
+                        },
+                        commandRef,
+                        data,
+                    });
+                } else if (response.status !== undefined) {
+                    const {
+                        commandPath: { endpointId, clusterId, commandId },
+                        commandRef: responseRef,
+                        status: { status, clusterStatus },
+                    } = response.status;
+                    const commandRef = isSingleCommand ? singleCommandRef : responseRef;
+                    const cmd = request.commands.get(commandRef);
+                    if (cmd) {
+                        logger.info(
+                            "Invoke",
+                            Mark.INBOUND,
+                            messenger.exchange.via,
+                            messenger.exchange.diagnostics,
+                            Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                            Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
+                        );
+                    }
 
-                            return res;
-                        } else {
-                            // Should not happen but if we ignore the response?
-                            return undefined;
-                        }
-                    })
-                    .filter(r => r !== undefined);
-                yield chunk;
-            } else {
-                yield [];
+                    chunk.push({
+                        kind: "cmd-status",
+                        path: {
+                            endpointId: endpointId!,
+                            clusterId,
+                            commandId,
+                        },
+                        commandRef,
+                        status,
+                        clusterStatus,
+                    });
+                }
             }
+
+            const respondedRefs = new Set(chunk.map(entry => entry.commandRef));
+            for (const [commandRef] of request.commands) {
+                if (respondedRefs.has(commandRef)) {
+                    continue;
+                }
+                const invokeRequest = request.invokeRequests.find(ir => ir.commandRef === commandRef);
+                if (invokeRequest === undefined) {
+                    continue;
+                }
+                const { endpointId, clusterId, commandId } = invokeRequest.commandPath;
+                if (endpointId === undefined) {
+                    // A wildcard command has no concrete path to report a synthesized status against; the server
+                    // simply returns no response entry when nothing matches.
+                    continue;
+                }
+                logger.warn(
+                    `No invoke response received for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId}); reporting NoCommandResponse`,
+                );
+                chunk.push({
+                    kind: "cmd-status",
+                    path: {
+                        endpointId,
+                        clusterId,
+                        commandId,
+                    },
+                    commandRef,
+                    status: Status.NoCommandResponse,
+                    clusterStatus: undefined,
+                });
+            }
+
+            yield chunk;
             abort.throwIfAborted();
         }
     }
@@ -547,14 +629,31 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        if (request.largeMessage === undefined && inferLargeMessage(request)) {
+            // Copy instead of mutating the caller-owned request
+            request = { ...request, largeMessage: true };
+        }
+
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
 
-        // Single command with batching support — auto-batch
-        if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
-            const endpointId = request.invokeRequests[0].commandPath.endpointId;
-            if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
-                yield* this.#invokeWithBatching(request, session);
-                return;
+        // Large Message Quality commands must not be batched (per spec) but still respect the
+        // peer's MaxPathsPerInvoke — splitting propagates largeMessage to each sub-batch, which
+        // in turn forces TCP transport via #begin.
+        if (!request.largeMessage) {
+            // Single command with batching support — auto-batch.  Batching buys nothing when the peer
+            // only accepts one path per invoke, so send directly in that case.  The batch path always
+            // requests responses, so suppressResponse commands go directly too.
+            if (
+                request.invokeRequests.length === 1 &&
+                request.batchDuration !== false &&
+                maxPathsPerInvoke > 1 &&
+                !request.suppressResponse
+            ) {
+                const endpointId = request.invokeRequests[0].commandPath.endpointId;
+                if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
+                    yield* this.#invokeWithBatching(request, session);
+                    return;
+                }
             }
         }
 
@@ -592,6 +691,7 @@ export class ClientInteraction<
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
             pathKey,
             network: request.network,
+            additionalMrpDelay: request.additionalMrpDelay,
             resolve: resolver,
             reject: rejecter,
         };
@@ -603,8 +703,7 @@ export class ClientInteraction<
         if (abortSignal) {
             if (abortSignal.aborted) {
                 this.#pendingCommands.delete(commandRef);
-                pending.reject(new AbortedError());
-                return;
+                throw new AbortedError();
             }
 
             const onAbort = () => {
@@ -678,9 +777,10 @@ export class ClientInteraction<
                     await this.#executeBatch(batch);
                 });
             } catch (error) {
-                // Mutex may be closed during shutdown — reject remaining commands
+                // Mutex may be closed during shutdown — reject remaining commands with the close reason
+                const reason = this.#closeReason ?? asError(error);
                 for (const [, pending] of batch) {
-                    pending.reject(error as Error);
+                    pending.reject(reason);
                 }
             }
         }
@@ -732,24 +832,24 @@ export class ClientInteraction<
             }
 
             const commandList = [...commands.values()];
+            const invokeRequests = commandList.map(c => c.request);
 
-            // For single commands, don't include commandRef (optimization)
-            const isSingleCommand = commandList.length === 1;
-            const invokeRequests = isSingleCommand
-                ? [{ ...commandList[0].request, commandRef: undefined }]
-                : commandList.map(c => c.request);
-
-            logger.debug(`Executing ${invokeRequests.length} command(s)${isSingleCommand ? "" : " (batched)"}`);
+            logger.debug(`Executing ${invokeRequests.length} command(s)`);
 
             // Preserve the network profile from the queued commands (all commands in a batch share the same
             // ClientInteraction so they will normally have the same network; pick the first defined value)
             const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
+            const batchAdditionalMrpDelay = commandList.find(
+                c => c.additionalMrpDelay !== undefined,
+            )?.additionalMrpDelay;
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            // Always skip validation here — commands were already validated when originally submitted
+            // Skip validation: already validated on submit. timed=false: only non-timed commands
+            // reach this path (gate in invoke()); prevents Invoke() spec-based auto-promotion.
             const batchRequest = {
-                ...Invoke({ commands: invokeRequests, skipValidation: true }),
+                ...Invoke({ commands: invokeRequests, skipValidation: true, timed: false }),
                 network: batchNetwork,
+                additionalMrpDelay: batchAdditionalMrpDelay,
             } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
@@ -759,23 +859,16 @@ export class ClientInteraction<
 
             for await (const chunk of chunks) {
                 for (const entry of chunk) {
-                    let pending: PendingCommand | undefined;
-
-                    if (isSingleCommand) {
-                        pending = commandList[0];
-                        commands.clear();
-                    } else {
-                        pending = commands.get(entry.commandRef!);
-                        if (!pending) {
-                            if (entry.commandRef !== undefined) {
-                                logger.info(`Response for aborted commandRef ${entry.commandRef} discarded`);
-                            } else {
-                                logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
-                            }
-                            continue;
+                    const pending = commands.get(entry.commandRef!);
+                    if (!pending) {
+                        if (entry.commandRef !== undefined) {
+                            logger.info(`Response for aborted commandRef ${entry.commandRef} discarded`);
+                        } else {
+                            logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
                         }
-                        commands.delete(entry.commandRef!);
+                        continue;
                     }
+                    commands.delete(entry.commandRef!);
 
                     if (pending.aborted) {
                         logger.info(`Response for aborted command discarded`);
@@ -795,7 +888,7 @@ export class ClientInteraction<
         } catch (error) {
             for (const [, pending] of commands) {
                 if (!pending.aborted) {
-                    pending.reject(error as Error);
+                    pending.reject(asError(error));
                 }
             }
         }
@@ -811,8 +904,10 @@ export class ClientInteraction<
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
-        if (subscriptionPathsCount > 3) {
-            logger.info("Subscribe interactions with more than 3 paths might be not allowed by the device.");
+        if (subscriptionPathsCount > this.#exchangeProvider.subscribePathsSupported) {
+            logger.info(
+                `Subscribe interactions with more than ${this.#exchangeProvider.subscribePathsSupported} paths might be not allowed by the device.`,
+            );
         }
 
         const peer = this.#exchangeProvider.peerAddress;
@@ -930,7 +1025,13 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
                 read,
-                probe: abort => this.probe({ abort }),
+                probe: abort =>
+                    this.#exchangeProvider.channelType === ChannelType.TCP
+                        ? // TCP evicts the session when its connection drops, so no liveness probe is needed.
+                          Promise.resolve(true)
+                        : this.#exchangeProvider.verifyReachability({ reason: "session-suspect", abort }),
+                wakefulness: request.icdWakefulness,
+                peerFed: request.icdPeerFed,
             });
         } else {
             subscription = await subscribe(request);
@@ -994,12 +1095,15 @@ export class ClientInteraction<
         // that would dispose prematurely when #begin returns, creating a zombie in the spans Set
         const lifetime = this.#lifetime.join(what);
 
+        // Large Message Quality commands require TCP transport
+        const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
+
         let abort: Abort;
         let messenger: InteractionClientMessenger;
         try {
             if (this.#abort.aborted) {
                 throw new ImplementationError(
-                    `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+                    `Cannot start ${what} ${this.#address ?? this.#exchangeProvider.peerAddress ?? "uncommissioned node"} because interactable is closed`,
                 );
             }
 
@@ -1008,9 +1112,11 @@ export class ClientInteraction<
             try {
                 messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
                     network: request.network ?? this.#network,
+                    additionalMrpDelay: request.additionalMrpDelay,
                     abort,
                     connectionTimeout: session?.connectionTimeout,
                     addressOverride: request.addressOverride,
+                    requiredTransport,
                 });
             } catch (e) {
                 abort[Symbol.dispose]();
@@ -1095,6 +1201,9 @@ export interface ClientProbeOptions {
 
     /** Suppress peer-loss reporting so the session stays alive even if the probe fails. */
     suppressPeerLoss?: boolean;
+
+    /** Cap MRP transmission attempts for this probe (default: MRP.MAX_TRANSMISSIONS). */
+    maxRetransmissions?: number;
 }
 
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {

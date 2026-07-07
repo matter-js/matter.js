@@ -96,7 +96,7 @@ export namespace VendorIdVerification {
      * It requires data read the the device (if relevant read non fabric filtered) for fabrics, nocs and
      * trustedRootCertificates to provide the raw input data for verification.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.10.1.
+     * @see {@link MatterSpecification.v16.Core} § 6.4.10.1.
      */
     export async function verify(
         node: ClientNode,
@@ -123,21 +123,21 @@ export namespace VendorIdVerification {
             }
         } catch (error) {
             ReceivedStatusResponseError.accept(error);
-            logger.error("Could not verify VendorId", error);
+            logger.warn("Could not verify VendorId: peer rejected the signing request", error);
             return undefined;
         }
 
         const peerAddress = node.peerAddress;
         if (!peerAddress) {
             // Should not happen when above command was successful
-            logger.error("Could not verify VendorId: Node is not a commissioned peer");
+            logger.warn("Could not verify VendorId: Node is not a commissioned peer");
             return undefined;
         }
 
         const sessions = node.env.maybeGet(PeerSet)?.get(peerAddress)?.sessions;
         if (!sessions?.size) {
             // Should not happen when above command was successful
-            logger.error("Could not verify VendorId: Node has no session established");
+            logger.warn("Could not verify VendorId: Node has no session established");
             return undefined;
         }
 
@@ -163,7 +163,7 @@ export namespace VendorIdVerification {
     /**
      * Verify VendorId ownership using VID Verification protocol on pure data level
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.10.1.
+     * @see {@link MatterSpecification.v16.Core} § 6.4.10.1.
      */
     export async function verifyData(
         crypto: Crypto,
@@ -216,7 +216,7 @@ export namespace VendorIdVerification {
             await nocCert.verify(crypto, rootCert, icaCert);
         } catch (error) {
             CryptoError.accept(error);
-            logger.error("Could not verify VendorId", error);
+            logger.warn("Could not verify VendorId: certificate chain verification failed", error);
             return false;
         }
 

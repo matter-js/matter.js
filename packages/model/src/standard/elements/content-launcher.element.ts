@@ -21,11 +21,11 @@ export const ContentLauncher = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "CS", constraint: "0", title: "ContentSearch" }),
-        Field({ name: "UP", constraint: "1", title: "UrlPlayback" }),
-        Field({ name: "AS", constraint: "2", title: "AdvancedSeek" }),
-        Field({ name: "TT", constraint: "3", title: "TextTracks" }),
-        Field({ name: "AT", constraint: "4", title: "AudioTracks" })
+        Field({ name: "CS", conformance: "O", constraint: "0", title: "ContentSearch" }),
+        Field({ name: "UP", conformance: "O", constraint: "1", title: "UrlPlayback" }),
+        Field({ name: "AS", conformance: "O", constraint: "2", title: "AdvancedSeek" }),
+        Field({ name: "TT", conformance: "O", constraint: "3", title: "TextTracks" }),
+        Field({ name: "AT", conformance: "O", constraint: "4", title: "AudioTracks" })
     ),
 
     Attribute(
@@ -58,8 +58,8 @@ export const ContentLauncher = Cluster(
             name: "LaunchUrl", id: 0x1, access: "O", conformance: "UP", direction: "request",
             response: "LauncherResponse"
         },
-        Field({ name: "ContentUrl", id: 0x0, type: "string", conformance: "M", constraint: "any" }),
-        Field({ name: "DisplayString", id: 0x1, type: "string", conformance: "O", constraint: "any" }),
+        Field({ name: "ContentUrl", id: 0x0, type: "string", conformance: "M", constraint: "max 8192" }),
+        Field({ name: "DisplayString", id: 0x1, type: "string", conformance: "O", constraint: "max 256" }),
         Field({
             name: "BrandingInformation", id: 0x2, type: "BrandingInformationStruct", conformance: "O",
             constraint: "any"

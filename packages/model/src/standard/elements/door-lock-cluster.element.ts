@@ -18,18 +18,18 @@ import {
 
 export const DoorLock = Cluster(
     { name: "DoorLock", id: 0x101, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 10 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "PIN", conformance: "O", constraint: "0", title: "PinCredential" }),
-        Field({ name: "RID", conformance: "O", constraint: "1", title: "RfidCredential" }),
+        Field({ name: "RID", conformance: "P, O", constraint: "1", title: "RfidCredential" }),
         Field({ name: "FGP", conformance: "P, O", constraint: "2", title: "FingerCredentials" }),
         Field({ name: "WDSCH", conformance: "O", constraint: "4", title: "WeekDayAccessSchedules" }),
         Field({ name: "DPS", conformance: "O", constraint: "5", title: "DoorPositionSensor" }),
         Field({ name: "FACE", conformance: "P, O", constraint: "6", title: "FaceCredentials" }),
         Field({ name: "COTA", conformance: "O", constraint: "7", title: "CredentialOverTheAirAccess" }),
-        Field({ name: "USR", conformance: "ALIRO, [PIN | RID | FGP | FACE]", constraint: "8", title: "User" }),
+        Field({ name: "USR", conformance: "PIN | RID | FGP | FACE | ALIRO", constraint: "8", title: "User" }),
         Field({ name: "YDSCH", conformance: "O", constraint: "10", title: "YearDayAccessSchedules" }),
         Field({ name: "HDSCH", conformance: "O", constraint: "11", title: "HolidaySchedules" }),
         Field({ name: "UBOLT", conformance: "O", constraint: "12", title: "Unbolting" }),
@@ -39,13 +39,13 @@ export const DoorLock = Cluster(
 
     Attribute({
         name: "LockState", id: 0x0, type: "LockStateEnum", access: "R V", conformance: "M",
-        constraint: "desc", quality: "X P"
+        constraint: "desc", quality: "X"
     }),
     Attribute({ name: "LockType", id: 0x1, type: "LockTypeEnum", access: "R V", conformance: "M", constraint: "desc" }),
     Attribute({ name: "ActuatorEnabled", id: 0x2, type: "bool", access: "R V", conformance: "M" }),
     Attribute({
         name: "DoorState", id: 0x3, type: "DoorStateEnum", access: "R V", conformance: "DPS",
-        constraint: "desc", quality: "X P"
+        constraint: "desc", quality: "X"
     }),
     Attribute({ name: "DoorOpenEvents", id: 0x4, type: "uint32", access: "RW VM", conformance: "[DPS]" }),
     Attribute({ name: "DoorClosedEvents", id: 0x5, type: "uint32", access: "RW VM", conformance: "[DPS]" }),
@@ -77,22 +77,13 @@ export const DoorLock = Cluster(
         name: "NumberOfCredentialsSupportedPerUser", id: 0x1c, type: "uint8", access: "R V",
         conformance: "USR", quality: "F"
     }),
-    Attribute({
-        name: "Language", id: 0x21, type: "string", access: "R[W] VM", conformance: "O",
-        constraint: "max 3", quality: "P"
-    }),
-    Attribute({
-        name: "LedSettings", id: 0x22, type: "LEDSettingEnum", access: "R[W] VM", conformance: "O",
-        default: 0, quality: "P"
-    }),
-    Attribute({ name: "AutoRelockTime", id: 0x23, type: "uint32", access: "R[W] VM", conformance: "O", quality: "P" }),
-    Attribute({
-        name: "SoundVolume", id: 0x24, type: "SoundVolumeEnum", access: "R[W] VM", conformance: "O",
-        default: 0, quality: "P"
-    }),
+    Attribute({ name: "Language", id: 0x21, type: "string", access: "R[W] VM", conformance: "O", constraint: "max 3" }),
+    Attribute({ name: "LedSettings", id: 0x22, type: "LEDSettingEnum", access: "R[W] VM", conformance: "O", default: 0 }),
+    Attribute({ name: "AutoRelockTime", id: 0x23, type: "uint32", access: "R[W] VM", conformance: "O" }),
+    Attribute({ name: "SoundVolume", id: 0x24, type: "SoundVolumeEnum", access: "R[W] VM", conformance: "O", default: 0 }),
     Attribute({
         name: "OperatingMode", id: 0x25, type: "OperatingModeEnum", access: "R[W] VM", conformance: "M",
-        constraint: "desc", quality: "P"
+        constraint: "desc"
     }),
     Attribute({
         name: "SupportedOperatingModes", id: 0x26, type: "OperatingModesBitmap", access: "R V",
@@ -100,48 +91,39 @@ export const DoorLock = Cluster(
     }),
     Attribute({
         name: "DefaultConfigurationRegister", id: 0x27, type: "ConfigurationRegisterBitmap", access: "R V",
-        conformance: "O", default: 0, quality: "P"
+        conformance: "O", default: 0
     }),
-    Attribute({
-        name: "EnableLocalProgramming", id: 0x28, type: "bool", access: "R[W] VA", conformance: "O",
-        default: true, quality: "P"
-    }),
-    Attribute({
-        name: "EnableOneTouchLocking", id: 0x29, type: "bool", access: "RW VM", conformance: "O",
-        default: true, quality: "P"
-    }),
-    Attribute({
-        name: "EnableInsideStatusLed", id: 0x2a, type: "bool", access: "RW VM", conformance: "O",
-        default: true, quality: "P"
-    }),
-    Attribute({
-        name: "EnablePrivacyModeButton", id: 0x2b, type: "bool", access: "RW VM", conformance: "O",
-        default: true, quality: "P"
-    }),
+    Attribute(
+        { name: "EnableLocalProgramming", id: 0x28, type: "bool", access: "R[W] VA", conformance: "O", default: true }
+    ),
+    Attribute({ name: "EnableOneTouchLocking", id: 0x29, type: "bool", access: "RW VM", conformance: "O", default: true }),
+    Attribute({ name: "EnableInsideStatusLed", id: 0x2a, type: "bool", access: "RW VM", conformance: "O", default: true }),
+    Attribute(
+        { name: "EnablePrivacyModeButton", id: 0x2b, type: "bool", access: "RW VM", conformance: "O", default: true }
+    ),
     Attribute({
         name: "LocalProgrammingFeatures", id: 0x2c, type: "LocalProgrammingFeaturesBitmap",
-        access: "R[W] VA", conformance: "O", default: 0, quality: "P"
+        access: "R[W] VA", conformance: "O", default: 0
     }),
     Attribute({
         name: "WrongCodeEntryLimit", id: 0x30, type: "uint8", access: "R[W] VA", conformance: "PIN | RID",
-        constraint: "1 to 255", quality: "P"
+        constraint: "1 to 255"
     }),
     Attribute({
         name: "UserCodeTemporaryDisableTime", id: 0x31, type: "uint8", access: "R[W] VA",
-        conformance: "PIN | RID", constraint: "1 to 255", quality: "P"
+        conformance: "PIN | RID", constraint: "1 to 255"
     }),
     Attribute({
         name: "SendPinOverTheAir", id: 0x32, type: "bool", access: "R[W] VA", conformance: "[!USR & PIN]",
-        default: true, quality: "P"
+        default: true
     }),
-    Attribute({
-        name: "RequirePinForRemoteOperation", id: 0x33, type: "bool", access: "R[W] VA",
-        conformance: "COTA & PIN", quality: "P"
-    }),
+    Attribute(
+        { name: "RequirePinForRemoteOperation", id: 0x33, type: "bool", access: "R[W] VA", conformance: "COTA & PIN" }
+    ),
     Attribute({ name: "SecurityLevel", id: 0x34, access: "R V", conformance: "D", default: "0" }),
     Attribute({
         name: "ExpiringUserTimeout", id: 0x35, type: "uint16", access: "R[W] VA", conformance: "[USR]",
-        constraint: "1 to 2880", quality: "P"
+        constraint: "1 to 2880"
     }),
     Attribute({
         name: "AliroReaderVerificationKey", id: 0x80, type: "octstr", access: "R A", conformance: "ALIRO",
@@ -261,72 +243,6 @@ export const DoorLock = Cluster(
         },
         Field({ name: "Timeout", id: 0x0, type: "uint16", conformance: "M" }),
         Field({ name: "PinCode", id: 0x1, type: "octstr", conformance: "[COTA & PIN]" })
-    ),
-
-    Command(
-        {
-            name: "SetPinCode", id: 0x5, access: "A T", conformance: "!USR & PIN", direction: "request",
-            response: "status"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", quality: "X" }),
-        Field({ name: "Pin", id: 0x3, type: "octstr", conformance: "M" })
-    ),
-
-    Command(
-        {
-            name: "GetPinCode", id: 0x6, access: "A", conformance: "!USR & PIN", direction: "request",
-            response: "GetPinCodeResponse"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" })
-    ),
-
-    Command(
-        { name: "GetPinCodeResponse", id: 0x6, conformance: "!USR & PIN", direction: "response" },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "PinCode", id: 0x3, type: "octstr", conformance: "M", quality: "X" })
-    ),
-
-    Command(
-        {
-            name: "ClearPinCode", id: 0x7, access: "A T", conformance: "!USR & PIN", direction: "request",
-            response: "status"
-        },
-        Field({
-            name: "PinSlotIndex", id: 0x0, type: "uint16", conformance: "M",
-            constraint: "1 to numberOfPinUsersSupported, 65534"
-        })
-    ),
-
-    Command({
-        name: "ClearAllPinCodes", id: 0x8, access: "A T", conformance: "!USR & PIN", direction: "request",
-        response: "status"
-    }),
-
-    Command(
-        {
-            name: "SetUserStatus", id: 0x9, access: "A", conformance: "!USR & (PIN | RID | FGP)",
-            direction: "request", response: "status"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc" })
-    ),
-
-    Command(
-        {
-            name: "GetUserStatus", id: 0xa, access: "A", conformance: "!USR & (PIN | RID | FGP)",
-            direction: "request", response: "GetUserStatusResponse"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" })
-    ),
-
-    Command(
-        { name: "GetUserStatusResponse", id: 0xa, conformance: "!USR", direction: "response" },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M" })
     ),
 
     Command(
@@ -506,72 +422,6 @@ export const DoorLock = Cluster(
             constraint: "1 to numberOfHolidaySchedulesSupported, 254"
         })
     ),
-
-    Command(
-        {
-            name: "SetUserType", id: 0x14, access: "A", conformance: "!USR & (PIN | RID | FGP)",
-            direction: "request", response: "status"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserType", id: 0x1, type: "UserTypeEnum", conformance: "M" })
-    ),
-
-    Command(
-        {
-            name: "GetUserType", id: 0x15, access: "A", conformance: "!USR & (PIN | RID | FGP)",
-            direction: "request", response: "GetUserTypeResponse"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" })
-    ),
-
-    Command(
-        { name: "GetUserTypeResponse", id: 0x15, conformance: "!USR", direction: "response" },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserType", id: 0x1, type: "UserTypeEnum", conformance: "M" })
-    ),
-
-    Command(
-        {
-            name: "SetRfidCode", id: 0x16, access: "A T", conformance: "!USR & RID", direction: "request",
-            response: "status"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "RfidCode", id: 0x3, type: "octstr", conformance: "M" })
-    ),
-
-    Command(
-        {
-            name: "GetRfidCode", id: 0x17, access: "A", conformance: "!USR & RID", direction: "request",
-            response: "GetRfidCodeResponse"
-        },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" })
-    ),
-
-    Command(
-        { name: "GetRfidCodeResponse", id: 0x17, conformance: "!USR & RID", direction: "response" },
-        Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", quality: "X" }),
-        Field({ name: "RfidCode", id: 0x3, type: "octstr", conformance: "M", quality: "X" })
-    ),
-
-    Command(
-        {
-            name: "ClearRfidCode", id: 0x18, access: "A T", conformance: "!USR & RID", direction: "request",
-            response: "status"
-        },
-        Field({
-            name: "RfidSlotIndex", id: 0x0, type: "uint16", conformance: "M",
-            constraint: "1 to numberOfRfidUsersSupported, 65534"
-        })
-    ),
-
-    Command({
-        name: "ClearAllRfidCodes", id: 0x19, access: "A T", conformance: "!USR & RID", direction: "request",
-        response: "status"
-    }),
 
     Command(
         { name: "SetUser", id: 0x1a, access: "A T", conformance: "USR", direction: "request", response: "status" },

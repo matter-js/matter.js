@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import {
     DeviceTypeElement as DeviceType,
     RequirementElement as Requirement,
-    FieldElement as Field
+    ConditionElement as Condition
 } from "../../elements/index.js";
 
 export const AggregatorDt = DeviceType(
@@ -22,7 +22,7 @@ export const AggregatorDt = DeviceType(
     Requirement({ name: "Actions", id: 0x25, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "CommissionerControl", id: 0x751, conformance: "FabricSynchronization", element: "serverCluster" }),
-    Field({ name: "conditions", type: "enum8" }, Field({ name: "FabricSynchronization" }))
+    Condition({ name: "FabricSynchronization" })
 );
 
 MatterDefinition.children.push(AggregatorDt);

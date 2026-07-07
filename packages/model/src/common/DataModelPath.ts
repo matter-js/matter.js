@@ -10,6 +10,9 @@ import { Diagnostic } from "@matter/general";
  * Utility for tracking location in the Matter data model.  This location is used for diagnostics.
  *
  * The path consists of a sequence of IDs, optionally with type information.
+ *
+ * Segments with type "marker" attach to the previous segment without an intervening "." separator (used for
+ * diagnostic suffixes such as "[ADD]" or "!").
  */
 export class DataModelPath implements Diagnostic {
     parent?: DataModelPath;
@@ -29,9 +32,10 @@ export class DataModelPath implements Diagnostic {
         return this.id;
     }
 
-    toString(includeType?: boolean) {
+    toString(includeType?: boolean): string {
         if (this.parent) {
-            return `${this.parent}.${this.#identity(includeType)}`;
+            const sep = this.type === "marker" ? "" : ".";
+            return `${this.parent.toString(includeType)}${sep}${this.#identity(includeType)}`;
         }
         return this.#identity(includeType).toString();
     }
@@ -43,15 +47,24 @@ export class DataModelPath implements Diagnostic {
         return [this.id];
     }
 
-    get [Diagnostic.value](): Diagnostic {
+    get [Diagnostic.presentation](): Diagnostic.Presentation {
+        return "squash";
+    }
+
+    get [Diagnostic.value](): unknown {
         const result = Array<unknown>();
-        for (const segment of this.toArray()) {
-            if (result.length) {
+        this.#appendDiagnostic(result);
+        return result;
+    }
+
+    #appendDiagnostic(result: unknown[]) {
+        if (this.parent) {
+            this.parent.#appendDiagnostic(result);
+            if (this.type !== "marker") {
                 result.push(".");
             }
-            result.push(Diagnostic.strong(segment));
         }
-        return Diagnostic.squash(result);
+        result.push(Diagnostic.strong(this.id));
     }
 
     at(id: string | number, type?: string): DataModelPath {

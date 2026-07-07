@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, MatterError } from "@matter/general";
+import { Diagnostic, Logger, MatterError } from "@matter/general";
 import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, QrPairingCodeCodec } from "@matter/types";
-import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning } from "@matter/types/clusters";
+import { BasicInformation, Descriptor, GeneralCommissioning } from "@matter/types/clusters";
 import { NodeCommissioningOptions } from "@project-chip/matter.js";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode.js";
-import { createDiagnosticCallbacks } from "./cmd_nodes.js";
+import { createDiagnosticCallbacks, MatterNode } from "../MatterNode.js";
+
+const logger = Logger.get("Commission");
 
 export default function commands(theNode: MatterNode) {
     return {
@@ -130,30 +131,48 @@ export default function commands(theNode: MatterNode) {
                                         ...createDiagnosticCallbacks(),
                                     } as NodeCommissioningOptions;
 
+                                    // Attestation policy: strict rejects errors but allows warnings/info
+                                    const strictAttestation = await theNode.Store.get<boolean>(
+                                        "StrictAttestationValidation",
+                                        false,
+                                    );
+
                                     options.commissioning = {
                                         nodeId: nodeId !== undefined ? NodeId(nodeId) : undefined,
                                         regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Set to the most restrictive if relevant
                                         regulatoryCountryCode: "XX",
+                                        onAttestationFailure: findings => {
+                                            const accept = strictAttestation
+                                                ? findings.every(f => f.level !== "error")
+                                                : true;
+                                            for (const f of findings) {
+                                                logger.info(
+                                                    `Attestation finding ${accept ? "accepted" : "rejected"} (${f.level}):`,
+                                                    f.type,
+                                                    f.message,
+                                                );
+                                            }
+                                            return accept;
+                                        },
                                     };
 
                                     console.log(Diagnostic.json(options));
 
-                                    if (theNode.Store.has("WiFiSsid") && theNode.Store.has("WiFiPassword")) {
-                                        options.commissioning.wifiNetwork = {
-                                            wifiSsid: await theNode.Store.get<string>("WiFiSsid", ""),
-                                            wifiCredentials: await theNode.Store.get<string>("WiFiPassword", ""),
-                                        };
+                                    await theNode.certificateService();
+
+                                    const wifiSsid = await theNode.Store.get<string>("WiFiSsid", "");
+                                    const wifiCredentials = await theNode.Store.get<string>("WiFiPassword", "");
+                                    if (wifiSsid.length > 0 && wifiCredentials.length > 0) {
+                                        options.commissioning.wifiNetwork = { wifiSsid, wifiCredentials };
                                     }
-                                    if (
-                                        theNode.Store.has("ThreadName") &&
-                                        theNode.Store.has("ThreadOperationalDataset")
-                                    ) {
+                                    const threadOperationalDataset = await theNode.Store.get<string>(
+                                        "ThreadOperationalDataset",
+                                        "",
+                                    );
+                                    if (threadOperationalDataset.length > 0) {
                                         options.commissioning.threadNetwork = {
                                             networkName: await theNode.Store.get<string>("ThreadName", ""),
-                                            operationalDataset: await theNode.Store.get<string>(
-                                                "ThreadOperationalDataset",
-                                                "",
-                                            ),
+                                            operationalDataset: threadOperationalDataset,
                                         };
                                     }
 
@@ -172,7 +191,7 @@ export default function commands(theNode: MatterNode) {
                                     // It is provided to proof the concept
 
                                     // Example to initialize a ClusterClient and access concrete fields as API methods
-                                    const descriptor = node.getRootClusterClient(DescriptorCluster);
+                                    const descriptor = node.getRootClusterClient(Descriptor);
                                     if (descriptor !== undefined) {
                                         console.log(await descriptor.attributes.deviceTypeList.get()); // you can call that way
                                         console.log(await descriptor.getServerListAttribute()); // or more convenient that way
@@ -181,7 +200,7 @@ export default function commands(theNode: MatterNode) {
                                     }
 
                                     // Example to subscribe to a field and get the value
-                                    const info = node.getRootClusterClient(BasicInformationCluster);
+                                    const info = node.getRootClusterClient(BasicInformation);
                                     if (info !== undefined) {
                                         console.log(await info.getProductNameAttribute()); // This call is executed remotely
                                         //console.log(await info.subscribeProductNameAttribute(value => console.log("productName", value), 5, 30));

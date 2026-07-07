@@ -6,7 +6,7 @@
 
 import { Mark } from "#common/Mark.js";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
-import { Bytes, Crypto, Diagnostic, MatterFlowError } from "@matter/general";
+import { Bytes, ChannelType, Crypto, Diagnostic, MatterFlowError } from "@matter/general";
 import { NodeId } from "@matter/types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
 import type { Fabric } from "../fabric/Fabric.js";
@@ -58,7 +58,11 @@ export class UnsecuredSession extends Session {
     }
 
     get via() {
-        return Diagnostic.via(`${Mark.SESSION}unsecured#${this.#initiatorNodeId.toString(16)}`);
+        const transport =
+            !this.isClosed && this.channel.transportChannel.type !== ChannelType.UDP
+                ? `(${this.channel.transportChannel.type})`
+                : "";
+        return Diagnostic.via(`${Mark.SESSION}unsecured#${this.#initiatorNodeId.toString(16)}${transport}`);
     }
 
     get id(): number {

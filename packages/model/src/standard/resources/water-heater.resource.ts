@@ -14,13 +14,13 @@ Resource.add({
         "baths etc.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§14.2.6" },
-        { tag: "requirement", name: "Thermostat", xref: "device§14.2.6" },
-        { tag: "requirement", name: "WaterHeaterManagement", xref: "device§14.2.6" },
-        { tag: "requirement", name: "WaterHeaterMode", xref: "device§14.2.6" },
-        { tag: "requirement", name: "PowerSource", xref: "device§14.2.5" },
-        { tag: "requirement", name: "TemperatureSensor", xref: "device§14.2.5" },
-        { tag: "requirement", name: "ElectricalSensor", xref: "device§14.2.5" },
-        { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.2.5" }
+        { tag: "requirement", name: "Identify", xref: "device§14.2.5" },
+        { tag: "requirement", name: "WaterHeaterManagement", xref: "device§14.2.5" },
+        { tag: "requirement", name: "WaterHeaterMode", xref: "device§14.2.5" },
+        { tag: "requirement", name: "Thermostat", xref: "device§14.2.5" },
+        { tag: "requirement", name: "PowerSource", xref: "device§14.2.7" },
+        { tag: "requirement", name: "TemperatureSensor", xref: "device§14.2.7" },
+        { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.2.7" },
+        { tag: "requirement", name: "ElectricalSensor", xref: "device§14.2.7" }
     ]
 });

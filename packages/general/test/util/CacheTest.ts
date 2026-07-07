@@ -298,4 +298,31 @@ describe("AsyncCache", () => {
             await cache.close();
         });
     });
+
+    describe("evict()", () => {
+        it("closes the cached resource and regenerates on the next get() for the same params", async () => {
+            let calls = 0;
+            const expired = new Array<string>();
+            const cache = new AsyncCache<string>(
+                "test",
+                async (netInterface: string, isIPv4: boolean) => `${netInterface}-${isIPv4}-${++calls}`,
+                Minutes(5),
+                async (_key, value) => {
+                    expired.push(value);
+                },
+            );
+
+            expect(await cache.get("eth0", true)).equals("eth0-true-1");
+            expect(await cache.get("eth0", true)).equals("eth0-true-1");
+            expect(calls).equals(1);
+
+            await cache.evict("eth0", true);
+            expect(expired).deep.equals(["eth0-true-1"]);
+
+            expect(await cache.get("eth0", true)).equals("eth0-true-2");
+            expect(calls).equals(2);
+
+            await cache.close();
+        });
+    });
 });

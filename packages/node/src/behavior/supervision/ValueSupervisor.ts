@@ -7,6 +7,7 @@
 import type { AsyncObservable, Transaction } from "@matter/general";
 import { DataModelPath, Schema } from "@matter/model";
 import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
+import type { FabricIndex } from "@matter/types";
 import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
@@ -83,6 +84,17 @@ export namespace ValueSupervisor {
         acceptInvalid?: boolean;
 
         /**
+         * Present on contexts rooted at a ClientNode (peer node).  Drives substitution of the
+         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors the
+         * post-write peer state.
+         * @see {@link MatterSpecification.v16.Core} § 7.13.6
+         */
+        clientPeerContext?: {
+            /** Fabric index the peer assigned to our identity, when known. */
+            fabricIndexOnPeer?: FabricIndex;
+        };
+
+        /**
          * Controls how per-instance supervision config is scoped.
          *
          * - `"global"`: config mutations persist across sessions (used for view and initialization)
@@ -112,7 +124,13 @@ export namespace ValueSupervisor {
         interactionStarted?: boolean;
     }
 
-    export interface LocalActorSession extends AccessControl.LocalActorSession, SupervisionSettings {}
+    export interface LocalActorSession extends AccessControl.LocalActorSession, SupervisionSettings {
+        /**
+         * If present the session is associated with a local act() invocation.  Emits when the act() transaction
+         * commits.
+         */
+        interactionComplete?: AsyncObservable<[session?: LocalActorSession]>;
+    }
 
     export type Session = LocalActorSession | RemoteActorSession;
 

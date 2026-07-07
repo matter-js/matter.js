@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Water Freeze Detector device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.11
+ * @see {@link MatterSpecification.v16.Device} § 7.11
  */
 export interface WaterFreezeDetectorDevice extends Identity<typeof WaterFreezeDetectorDeviceDefinition> {}
 
@@ -56,7 +56,7 @@ export namespace WaterFreezeDetectorRequirements {
 export const WaterFreezeDetectorDeviceDefinition = MutableEndpoint({
     name: "WaterFreezeDetector",
     deviceType: 0x41,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: WaterFreezeDetectorRequirements,
     behaviors: SupportedBehaviors(
         WaterFreezeDetectorRequirements.server.mandatory.Identify,

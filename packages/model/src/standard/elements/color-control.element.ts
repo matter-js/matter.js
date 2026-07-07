@@ -17,7 +17,7 @@ import {
 
 export const ColorControl = Cluster(
     { name: "ColorControl", id: 0x300, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -30,11 +30,11 @@ export const ColorControl = Cluster(
 
     Attribute({
         name: "CurrentHue", id: 0x0, type: "uint8", access: "R V", conformance: "HS", constraint: "max 254",
-        quality: "N P Q"
+        quality: "N Q"
     }),
     Attribute({
         name: "CurrentSaturation", id: 0x1, type: "uint8", access: "R V", conformance: "HS",
-        constraint: "max 254", quality: "N S P Q"
+        constraint: "max 254", quality: "N S Q"
     }),
     Attribute({
         name: "RemainingTime", id: 0x2, type: "uint16", access: "R V", conformance: "O",
@@ -42,11 +42,11 @@ export const ColorControl = Cluster(
     }),
     Attribute({
         name: "CurrentX", id: 0x3, type: "uint16", access: "R V", conformance: "XY",
-        constraint: "max 65279", quality: "N S P Q"
+        constraint: "max 65279", quality: "N S Q"
     }),
     Attribute({
         name: "CurrentY", id: 0x4, type: "uint16", access: "R V", conformance: "XY",
-        constraint: "max 65279", quality: "N S P Q"
+        constraint: "max 65279", quality: "N S Q"
     }),
     Attribute({ name: "DriftCompensation", id: 0x5, type: "DriftCompensationEnum", access: "R V", conformance: "O" }),
     Attribute(
@@ -54,7 +54,7 @@ export const ColorControl = Cluster(
     ),
     Attribute({
         name: "ColorTemperatureMireds", id: 0x7, type: "uint16", access: "R V", conformance: "CT",
-        constraint: "colorTempPhysicalMinMireds to colorTempPhysicalMaxMireds", quality: "N S P Q"
+        constraint: "colorTempPhysicalMinMireds to colorTempPhysicalMaxMireds", quality: "N S Q"
     }),
     Attribute({ name: "ColorMode", id: 0x8, type: "ColorModeEnum", access: "R V", conformance: "M", quality: "N" }),
     Attribute({ name: "Options", id: 0xf, type: "OptionsBitmap", access: "RW VO", conformance: "M", constraint: "desc" }),
@@ -134,33 +134,17 @@ export const ColorControl = Cluster(
         name: "Primary6Intensity", id: 0x2a, type: "uint8", access: "R V",
         conformance: "NumberOfPrimaries > 5", quality: "X F"
     }),
-    Attribute(
-        { name: "WhitePointX", id: 0x30, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "WhitePointY", id: 0x31, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointRx", id: 0x32, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointRy", id: 0x33, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute({ name: "ColorPointRIntensity", id: 0x34, type: "uint8", access: "RW VM", conformance: "O", quality: "X" }),
-    Attribute(
-        { name: "ColorPointGx", id: 0x36, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointGy", id: 0x37, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute({ name: "ColorPointGIntensity", id: 0x38, type: "uint8", access: "RW VM", conformance: "O", quality: "X" }),
-    Attribute(
-        { name: "ColorPointBx", id: 0x3a, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointBy", id: 0x3b, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute({ name: "ColorPointBIntensity", id: 0x3c, type: "uint8", access: "RW VM", conformance: "O", quality: "X" }),
+    Attribute({ name: "WhitePointX", id: 0x30, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "WhitePointY", id: 0x31, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointRx", id: 0x32, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointRy", id: 0x33, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointRIntensity", id: 0x34, type: "uint8", access: "R V", conformance: "O", quality: "X" }),
+    Attribute({ name: "ColorPointGx", id: 0x36, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointGy", id: 0x37, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointGIntensity", id: 0x38, type: "uint8", access: "R V", conformance: "O", quality: "X" }),
+    Attribute({ name: "ColorPointBx", id: 0x3a, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointBy", id: 0x3b, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointBIntensity", id: 0x3c, type: "uint8", access: "R V", conformance: "O", quality: "X" }),
     Attribute({ name: "EnhancedCurrentHue", id: 0x4000, type: "uint16", access: "R V", conformance: "EHUE", quality: "N S Q" }),
     Attribute({
         name: "EnhancedColorMode", id: 0x4001, type: "EnhancedColorModeEnum", access: "R V",
@@ -183,16 +167,10 @@ export const ColorControl = Cluster(
     Attribute({ name: "ColorLoopTime", id: 0x4004, type: "uint16", access: "R V", conformance: "CL", quality: "N S" }),
     Attribute({ name: "ColorLoopStartEnhancedHue", id: 0x4005, type: "uint16", access: "R V", conformance: "CL" }),
     Attribute({ name: "ColorLoopStoredEnhancedHue", id: 0x4006, type: "uint16", access: "R V", conformance: "CL" }),
-
-    Attribute(
-        { name: "ColorCapabilities", id: 0x400a, type: "map16", access: "R V", conformance: "M", constraint: "max 31" },
-        Field({ name: "HueSaturation", constraint: "0" }),
-        Field({ name: "EnhancedHue", constraint: "1" }),
-        Field({ name: "ColorLoop", constraint: "2" }),
-        Field({ name: "XY", constraint: "3" }),
-        Field({ name: "ColorTemperature", constraint: "4" })
-    ),
-
+    Attribute({
+        name: "ColorCapabilities", id: 0x400a, type: "ColorCapabilitiesBitmap", access: "R V",
+        conformance: "M", constraint: "max 31"
+    }),
     Attribute({
         name: "ColorTempPhysicalMinMireds", id: 0x400b, type: "uint16", access: "R V", conformance: "CT",
         constraint: "1 to 65279"
@@ -403,6 +381,15 @@ export const ColorControl = Cluster(
         Field({ name: "ColorTemperatureMaximumMireds", id: 0x4, type: "uint16", conformance: "M", constraint: "max 65279" }),
         Field({ name: "OptionsMask", id: 0x5, type: "OptionsBitmap", conformance: "M", constraint: "desc" }),
         Field({ name: "OptionsOverride", id: 0x6, type: "OptionsBitmap", conformance: "M", constraint: "desc" })
+    ),
+
+    Datatype(
+        { name: "ColorCapabilitiesBitmap", type: "map16" },
+        Field({ name: "HueSaturation", constraint: "0" }),
+        Field({ name: "EnhancedHue", constraint: "1" }),
+        Field({ name: "ColorLoop", constraint: "2" }),
+        Field({ name: "Xy", constraint: "3" }),
+        Field({ name: "ColorTemperature", constraint: "4" })
     ),
 
     Datatype({ name: "OptionsBitmap", type: "map8" }, Field({ name: "ExecuteIfOff", constraint: "0" })),

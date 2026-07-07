@@ -5,6 +5,7 @@
  */
 
 import { Lifetime } from "#index.js";
+import { MatterAggregateError } from "#MatterError.js";
 import {
     FinalizationError,
     SynchronousTransactionConflictError,
@@ -365,6 +366,60 @@ describe("Transaction", () => {
             await expect(transaction.commit()).rejectedWith(FinalizationError);
 
             p.expect("commit1", "rollback");
+            validateUnlocked(transaction);
+        });
+    });
+
+    describe("propagates commit phase 2 errors to the caller", () => {
+        test("rethrows the original error when a single participant fails", async () => {
+            const original = new SomeError("phase 2 boom");
+            const p = join({
+                async commit2() {
+                    throw original;
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(transaction.commit()).rejectedWith(original);
+
+            p.expect("commit1", "commit2");
+            validateUnlocked(transaction);
+        });
+
+        test("aggregates with MatterAggregateError when multiple participants fail", async () => {
+            const e1 = new SomeError("phase 2 boom 1");
+            const e2 = new SomeError("phase 2 boom 2");
+
+            const p1 = TestParticipant({
+                async commit2() {
+                    throw e1;
+                },
+            });
+            p1.toString = () => "P1";
+            const p2 = TestParticipant({
+                async commit2() {
+                    throw e2;
+                },
+            });
+            p2.toString = () => "P2";
+            transaction.addParticipants(p1, p2);
+
+            await transaction.begin();
+
+            let caught: unknown;
+            try {
+                await transaction.commit();
+            } catch (e) {
+                caught = e;
+            }
+
+            expect(caught).instanceOf(MatterAggregateError);
+            const aggregate = caught as MatterAggregateError;
+            expect(aggregate.errors).deep.equals([e1, e2]);
+
+            p1.expect("commit1", "commit2");
+            p2.expect("commit1", "commit2");
             validateUnlocked(transaction);
         });
     });

@@ -18,7 +18,8 @@ Resource.add({
         "Plug-In Unit, and is marked as superset of this device type (since Matter 1.4.2). For devices " +
         "intended to be mounted permanently, the Mounted On/Off Control device type shall be used, with the " +
         "On/Off Plug-In Unit device type optionally added in the DeviceTypeList of the Descriptor cluster in " +
-        "addition to the On/Off Plug-In Unit device type (see [ref_MountedOnOffControlServerGuidance])." +
+        "addition to the On/Off Plug-In Unit device type (see Mounted On/Off Control server guidance " +
+        "section)." +
         "\n" +
         "Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can " +
         "encounter devices which were made before or after these specification updates. Therefore, clients " +
@@ -28,9 +29,9 @@ Resource.add({
     children: [
         { tag: "requirement", name: "Identify", xref: "device§5.1.4" },
         { tag: "requirement", name: "Groups", xref: "device§5.1.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.1.4" },
         { tag: "requirement", name: "OnOff", xref: "device§5.1.4" },
         { tag: "requirement", name: "LevelControl", xref: "device§5.1.4" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§5.1.4" },
         { tag: "requirement", name: "OccupancySensing", xref: "device§5.1.4" }
     ]
 });

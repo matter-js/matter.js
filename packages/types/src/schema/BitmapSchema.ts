@@ -52,6 +52,14 @@ type MaskOffsetFromBitSchema<T extends BitSchema> = {
     [K in keyof T]: { mask: number; byteOffset: number; bitOffset: number };
 };
 
+/**
+ * Non-enumerable carrier for the raw numeric value a bitmap was decoded from.
+ *
+ * Bitmap decode discards bits that map to no defined field (reserved bits).  We retain the original number here so
+ * higher layers can detect reserved bits set on write; it is invisible to enumeration, serialization and re-encoding.
+ */
+export const BitmapEncodedValue = Symbol("BitmapEncodedValue");
+
 export class BitmapSchemaInternal<T extends BitSchema> extends Schema<TypeFromBitSchema<T>, number> {
     private readonly masks: MaskFromBitSchema<T>;
 
@@ -102,6 +110,7 @@ export class BitmapSchemaInternal<T extends BitSchema> extends Schema<TypeFromBi
                 result[name] = (bitmap & mask) >> offset;
             }
         }
+        Object.defineProperty(result, BitmapEncodedValue, { value: bitmap, enumerable: false });
         return result as TypeFromBitSchema<T>;
     }
 }

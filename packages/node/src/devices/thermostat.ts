@@ -10,21 +10,24 @@ import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/Iden
 import { ThermostatServer as BaseThermostatServer } from "../behaviors/thermostat/ThermostatServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
 import {
-    ThermostatUserInterfaceConfigurationServer as BaseThermostatUserInterfaceConfigurationServer
-} from "../behaviors/thermostat-user-interface-configuration/ThermostatUserInterfaceConfigurationServer.js";
-import {
     EnergyPreferenceServer as BaseEnergyPreferenceServer
 } from "../behaviors/energy-preference/EnergyPreferenceServer.js";
-import { FanControlBehavior as BaseFanControlBehavior } from "../behaviors/fan-control/FanControlBehavior.js";
 import {
-    TemperatureMeasurementBehavior as BaseTemperatureMeasurementBehavior
-} from "../behaviors/temperature-measurement/TemperatureMeasurementBehavior.js";
+    ThermostatUserInterfaceConfigurationServer as BaseThermostatUserInterfaceConfigurationServer
+} from "../behaviors/thermostat-user-interface-configuration/ThermostatUserInterfaceConfigurationServer.js";
+import { FanControlClient as BaseFanControlClient } from "../behaviors/fan-control/FanControlClient.js";
 import {
-    RelativeHumidityMeasurementBehavior as BaseRelativeHumidityMeasurementBehavior
-} from "../behaviors/relative-humidity-measurement/RelativeHumidityMeasurementBehavior.js";
+    TemperatureMeasurementClient as BaseTemperatureMeasurementClient
+} from "../behaviors/temperature-measurement/TemperatureMeasurementClient.js";
 import {
-    OccupancySensingBehavior as BaseOccupancySensingBehavior
-} from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
+    RelativeHumidityMeasurementClient as BaseRelativeHumidityMeasurementClient
+} from "../behaviors/relative-humidity-measurement/RelativeHumidityMeasurementClient.js";
+import {
+    OccupancySensingClient as BaseOccupancySensingClient
+} from "../behaviors/occupancy-sensing/OccupancySensingClient.js";
+import {
+    AmbientContextSensingClient as BaseAmbientContextSensingClient
+} from "../behaviors/ambient-context-sensing/AmbientContextSensingClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -38,7 +41,7 @@ import { Identity } from "@matter/general";
  * ThermostatDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
  * features your device supports. You can add manually using ThermostatDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 9.1
+ * @see {@link MatterSpecification.v16.Device} § 9.1
  */
 export interface ThermostatDevice extends Identity<typeof ThermostatDeviceDefinition> {}
 
@@ -65,6 +68,13 @@ export namespace ThermostatRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
+     * The EnergyPreference cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link EnergyPreferenceServer} for convenience.
+     */
+    export const EnergyPreferenceServer = BaseEnergyPreferenceServer;
+
+    /**
      * The ThermostatUserInterfaceConfiguration cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link ThermostatUserInterfaceConfigurationServer} for
@@ -73,39 +83,39 @@ export namespace ThermostatRequirements {
     export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer;
 
     /**
-     * The EnergyPreference cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link EnergyPreferenceServer} for convenience.
-     */
-    export const EnergyPreferenceServer = BaseEnergyPreferenceServer;
-
-    /**
      * The FanControl cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link FanControlBehavior} for convenience.
+     * We provide this alias to the default implementation {@link FanControlClient} for convenience.
      */
-    export const FanControlBehavior = BaseFanControlBehavior;
+    export const FanControlClient = BaseFanControlClient;
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link TemperatureMeasurementClient} for convenience.
      */
-    export const TemperatureMeasurementBehavior = BaseTemperatureMeasurementBehavior;
+    export const TemperatureMeasurementClient = BaseTemperatureMeasurementClient;
 
     /**
      * The RelativeHumidityMeasurement cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link RelativeHumidityMeasurementBehavior} for convenience.
+     * We provide this alias to the default implementation {@link RelativeHumidityMeasurementClient} for convenience.
      */
-    export const RelativeHumidityMeasurementBehavior = BaseRelativeHumidityMeasurementBehavior;
+    export const RelativeHumidityMeasurementClient = BaseRelativeHumidityMeasurementClient;
 
     /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OccupancySensingClient} for convenience.
      */
-    export const OccupancySensingBehavior = BaseOccupancySensingBehavior;
+    export const OccupancySensingClient = BaseOccupancySensingClient;
+
+    /**
+     * The AmbientContextSensing cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link AmbientContextSensingClient} for convenience.
+     */
+    export const AmbientContextSensingClient = BaseAmbientContextSensingClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -114,8 +124,8 @@ export namespace ThermostatRequirements {
         mandatory: { Identify: IdentifyServer, Thermostat: ThermostatServer },
         optional: {
             Groups: GroupsServer,
-            ThermostatUserInterfaceConfiguration: ThermostatUserInterfaceConfigurationServer,
-            EnergyPreference: EnergyPreferenceServer
+            EnergyPreference: EnergyPreferenceServer,
+            ThermostatUserInterfaceConfiguration: ThermostatUserInterfaceConfigurationServer
         }
     };
 
@@ -124,10 +134,11 @@ export namespace ThermostatRequirements {
      */
     export const client = {
         optional: {
-            FanControl: FanControlBehavior,
-            TemperatureMeasurement: TemperatureMeasurementBehavior,
-            RelativeHumidityMeasurement: RelativeHumidityMeasurementBehavior,
-            OccupancySensing: OccupancySensingBehavior
+            FanControl: FanControlClient,
+            TemperatureMeasurement: TemperatureMeasurementClient,
+            RelativeHumidityMeasurement: RelativeHumidityMeasurementClient,
+            OccupancySensing: OccupancySensingClient,
+            AmbientContextSensing: AmbientContextSensingClient
         },
 
         mandatory: {}
@@ -137,7 +148,7 @@ export namespace ThermostatRequirements {
 export const ThermostatDeviceDefinition = MutableEndpoint({
     name: "Thermostat",
     deviceType: 0x301,
-    deviceRevision: 4,
+    deviceRevision: 6,
     requirements: ThermostatRequirements,
     behaviors: SupportedBehaviors(ThermostatRequirements.server.mandatory.Identify)
 });

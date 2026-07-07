@@ -17,7 +17,7 @@ import {
 
 export const PumpConfigurationAndControl = Cluster(
     { name: "PumpConfigurationAndControl", id: 0x200, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -79,7 +79,7 @@ export const PumpConfigurationAndControl = Cluster(
     }),
     Attribute({
         name: "PumpStatus", id: 0x10, type: "PumpStatusBitmap", access: "R V", conformance: "O",
-        constraint: "desc", default: 0, quality: "P"
+        constraint: "desc", default: 0
     }),
     Attribute({
         name: "EffectiveOperationMode", id: 0x11, type: "OperationModeEnum", access: "R V",
@@ -89,9 +89,7 @@ export const PumpConfigurationAndControl = Cluster(
         name: "EffectiveControlMode", id: 0x12, type: "ControlModeEnum", access: "R V", conformance: "M",
         constraint: "desc", quality: "N"
     }),
-    Attribute(
-        { name: "Capacity", id: 0x13, type: "int16", access: "R V", conformance: "M", default: null, quality: "X P" }
-    ),
+    Attribute({ name: "Capacity", id: 0x13, type: "int16", access: "R V", conformance: "M", default: null, quality: "X" }),
     Attribute({ name: "Speed", id: 0x14, type: "uint16", access: "R V", conformance: "O", default: null, quality: "X" }),
     Attribute({
         name: "LifetimeRunningHours", id: 0x15, type: "uint24", access: "RW VM", conformance: "O",

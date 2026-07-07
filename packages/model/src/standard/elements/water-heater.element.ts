@@ -16,16 +16,28 @@ export const WaterHeaterDt = DeviceType(
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1295, revision: 1 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "WaterHeaterManagement", id: 0x94, conformance: "M", element: "serverCluster" }),
+    Requirement({ name: "WaterHeaterMode", id: 0x9e, conformance: "M", element: "serverCluster" }),
     Requirement(
         { name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster" },
         Requirement({ name: "HEATING", conformance: "M", element: "feature" })
     ),
-    Requirement({ name: "WaterHeaterManagement", id: 0x94, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "WaterHeaterMode", id: 0x9e, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType" }),
     Requirement({ name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType" }),
-    Requirement({ name: "ElectricalSensor", id: 0x510, conformance: "desc", element: "deviceType" }),
-    Requirement({ name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType" })
+
+    Requirement(
+        { name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType" },
+        Requirement(
+            { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
+            Requirement({ name: "POWERFORECASTREPORTING", conformance: "M", element: "feature" })
+        )
+    ),
+
+    Requirement(
+        { name: "ElectricalSensor", id: 0x510, conformance: "desc", element: "deviceType" },
+        Requirement({ name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" }),
+        Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" })
+    )
 );
 
 MatterDefinition.children.push(WaterHeaterDt);

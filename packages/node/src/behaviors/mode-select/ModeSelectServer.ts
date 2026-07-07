@@ -8,7 +8,7 @@ import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { OnOffServer } from "#behaviors/on-off";
 import { ServerNode } from "#node/ServerNode.js";
 import { Logger, MaybePromise } from "@matter/general";
-import { StatusCode, StatusResponseError } from "@matter/types";
+import { Status, StatusResponseError } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ModeSelect } from "@matter/types/clusters/mode-select";
 import { OnOff } from "@matter/types/clusters/on-off";
@@ -89,7 +89,7 @@ export class ModeSelectBaseServer extends ModeSelectBase {
         if (!this.state.supportedModes.some(({ mode: supportedMode }) => supportedMode === mode)) {
             throw new StatusResponseError(
                 `Mode ${mode} provided in ${fieldName} is not supported`,
-                StatusCode.InvalidCommand,
+                Status.InvalidCommand,
             );
         }
     }

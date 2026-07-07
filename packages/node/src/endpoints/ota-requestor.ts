@@ -10,8 +10,8 @@ import {
     OtaSoftwareUpdateRequestorServer as BaseOtaSoftwareUpdateRequestorServer
 } from "../behaviors/ota-software-update-requestor/OtaSoftwareUpdateRequestorServer.js";
 import {
-    OtaSoftwareUpdateProviderBehavior as BaseOtaSoftwareUpdateProviderBehavior
-} from "../behaviors/ota-software-update-provider/OtaSoftwareUpdateProviderBehavior.js";
+    OtaSoftwareUpdateProviderClient as BaseOtaSoftwareUpdateProviderClient
+} from "../behaviors/ota-software-update-provider/OtaSoftwareUpdateProviderClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -20,7 +20,7 @@ import { Identity } from "@matter/general";
 /**
  * An OTA Requestor is a device that is capable of receiving an OTA software update.
  *
- * @see {@link MatterSpecification.v142.Device} § 2.3
+ * @see {@link MatterSpecification.v16.Device} § 2.3
  */
 export interface OtaRequestorEndpoint extends Identity<typeof OtaRequestorEndpointDefinition> {}
 
@@ -35,9 +35,9 @@ export namespace OtaRequestorRequirements {
     /**
      * The OtaSoftwareUpdateProvider cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OtaSoftwareUpdateProviderBehavior} for convenience.
+     * We provide this alias to the default implementation {@link OtaSoftwareUpdateProviderClient} for convenience.
      */
-    export const OtaSoftwareUpdateProviderBehavior = BaseOtaSoftwareUpdateProviderBehavior;
+    export const OtaSoftwareUpdateProviderClient = BaseOtaSoftwareUpdateProviderClient;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -47,7 +47,7 @@ export namespace OtaRequestorRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { mandatory: { OtaSoftwareUpdateProvider: OtaSoftwareUpdateProviderBehavior } };
+    export const client = { mandatory: { OtaSoftwareUpdateProvider: OtaSoftwareUpdateProviderClient } };
 }
 
 export const OtaRequestorEndpointDefinition = MutableEndpoint({

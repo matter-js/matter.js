@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, ConnectionlessTransport, ImplementationError } from "@matter/general";
+import { ChannelType, ImplementationError, Transport } from "@matter/general";
 import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { BleScanner } from "./BleScanner.js";
 import { ReactNativeBleCentralInterface } from "./ReactNativeBleChannel.js";
@@ -17,7 +17,7 @@ export class ReactNativeBle extends Ble {
         super();
     }
 
-    get centralInterface(): ConnectionlessTransport {
+    get centralInterface(): Transport {
         if (this.bleCentral === undefined) {
             this.bleCentral = new ReactNativeBleClient();
         }

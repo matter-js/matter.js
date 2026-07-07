@@ -12,23 +12,20 @@
 // ID and name so we provide both even though only one is required for
 // matching.
 
-import "./AccessControlOverrides.js";
 import "./AdministratorCommissioningOverrides.js";
 import "./AlarmBaseOverrides.js";
 import "./any.js";
 import "./BasicInformationOverrides.js";
-import "./BooleanStateOverrides.js";
-import "./BridgedDeviceBasicInformationOverrides.js";
 import "./ColorControlOverrides.js";
 import "./DimmableLightOverrides.js";
+import "./CommodityTariffOverrides.js";
 import "./DoorLockOverrides.js";
 import "./duration.js";
 import "./ElectricalPowerMeasurementOverrides.js";
 import "./epoch-s.js";
 import "./epoch-us.js";
 import "./FanControl.js";
-import "./GeneralDiagnosticsOverrides.js";
-import "./GroupcastCluster.js";
+import "./GeneralCommissioningOverrides.js";
 import "./GroupKeyManagementOverrides.js";
 import "./GroupsOverrides.js";
 import "./hwadr.js";
@@ -42,10 +39,9 @@ import "./LocalizationConfigurationOverrides.js";
 import "./ModeBaseOverrides.js";
 import "./ModeSelectOverrides.js";
 import "./namespace.js";
-import "./OccupancySensingOverrides.js";
 import "./OnOffLightOverrides.js";
+import "./OnOffOverrides.js";
 import "./OperationalCredentialsOverrides.js";
-import "./OperationalStateOverrides.js";
 import "./OtaSoftwareUpdateRequestor.js";
 import "./PumpConfigurationAndControlOverrides.js";
 import "./RootNodeOverrides.js";

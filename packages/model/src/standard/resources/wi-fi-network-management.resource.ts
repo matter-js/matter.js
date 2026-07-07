@@ -26,10 +26,10 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified. " +
-                "Implementations must be careful to support transferring these byte strings without requiring a " +
-                "particular encoding. The most common encoding is UTF-8, however this is just a convention. Some " +
-                "configurations may use Latin-1 or other character sets."
+                "> NOTE: The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not " +
+                "  specified. Implementations must be careful to support transferring these byte strings without " +
+                "requiring a particular encoding. The most common encoding is UTF-8, however this is just a " +
+                "  convention. Some configurations may use Latin-1 or other character sets."
         },
 
         {
@@ -48,7 +48,7 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> The passphrase itself is not exposed as an attribute to avoid its unintentional retrieval or " +
+                "> NOTE: The passphrase itself is not exposed as an attribute to avoid its unintentional retrieval or " +
                 "caching by clients that use wildcard reads or otherwise routinely read all available attributes. " +
                 "It can be retrieved using the NetworkPassphraseRequest command."
         },
@@ -83,12 +83,12 @@ Resource.add({
                     "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
                     "\n" +
                     "This matches the formats defined for WPA networks by the Credentials field in the Network " +
-                    "Commissioning cluster (see [MatterCore])." +
+                    "Commissioning cluster (see [[MatterCore]](#ref_MatterCore))." +
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> WPA3-Personal permits passphrases shorter than 8 or longer than 63 characters, however the Network " +
-                    "Commissioning cluster does not currently support configuring Matter devices to connect to " +
+                    "> NOTE: WPA3-Personal permits passphrases shorter than 8 or longer than 63 characters, however the " +
+                    "Network Commissioning cluster does not currently support configuring Matter devices to connect to " +
                     "operational networks utilizing such a passphrase."
             }]
         }

@@ -32,7 +32,7 @@ import {
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
 import { assertRemoteActor, MdnsService, SessionManager, Val } from "@matter/protocol";
-import { CommandId, FabricIndex, StatusCode, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
+import { CommandId, FabricIndex, Status, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -99,12 +99,12 @@ export class GeneralDiagnosticsServer extends Base {
     #validateTestEnabledKey(enableKey: Bytes) {
         const keyData = Bytes.of(enableKey);
         if (keyData.every(byte => byte === 0)) {
-            throw new StatusResponseError("Invalid test enable key, all zeros", StatusCode.ConstraintError);
+            throw new StatusResponseError("Invalid test enable key, all zeros", Status.ConstraintError);
         }
         const expectedKeyData = Bytes.of(this.state.deviceTestEnableKey);
         keyData.forEach((byte, index) => {
             if (byte !== expectedKeyData[index]) {
-                throw new StatusResponseError("Invalid test enable key", StatusCode.ConstraintError);
+                throw new StatusResponseError("Invalid test enable key", Status.ConstraintError);
             }
         });
     }
@@ -116,7 +116,7 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     protected triggerTestEvent(eventTrigger: number | bigint) {
-        throw new StatusResponseError(`Unsupported test event trigger ${eventTrigger}`, StatusCode.InvalidCommand);
+        throw new StatusResponseError(`Unsupported test event trigger ${eventTrigger}`, Status.InvalidCommand);
     }
 
     override timeSnapshot(): MaybePromise<GeneralDiagnostics.TimeSnapshotResponse> {
@@ -145,7 +145,7 @@ export class GeneralDiagnosticsServer extends Base {
         this.#validateTestEnabledKey(enableKey);
 
         if (!this.state.testEventTriggersEnabled) {
-            throw new StatusResponseError("Test event triggers are disabled", StatusCode.ConstraintError);
+            throw new StatusResponseError("Test event triggers are disabled", Status.ConstraintError);
         }
 
         const payload = new Uint8Array(count).fill(value);
@@ -180,7 +180,7 @@ export class GeneralDiagnosticsServer extends Base {
         const { exchange } = this.context;
 
         if (responseSize > exchange.maxPayloadSize) {
-            throw new StatusResponseError("Response too large", StatusCode.ResourceExhausted);
+            throw new StatusResponseError("Response too large", Status.ResourceExhausted);
         }
 
         return {
@@ -455,12 +455,11 @@ export namespace GeneralDiagnosticsServer {
                 },
 
                 /**
-                 * Dynamically compute device load metrics from InteractionServer counters and SessionManager.
-                 * Quality "C" means changes are not pushed to subscribers; clients must re-read.
+                 * Dynamically compute device load metrics (Matter 1.6, cluster rev 3) from InteractionServer counters
+                 * and SessionManager.  Quality "C" means changes are not pushed to subscribers; clients re-read.
                  *
-                 * Returns a zeroed struct before the interaction server is online (so the attribute appears in
-                 * attributeList). Throws StatusResponseError if the node is online but the required services are
-                 * unexpectedly absent.
+                 * Returns a zeroed struct before the interaction server is online (so the attribute appears in the
+                 * attributeList).  Throws if the node is online but the required services are unexpectedly absent.
                  */
                 get deviceLoadStatus() {
                     const isOnline = (endpoint.lifecycle as NodeLifecycle).isOnline;
@@ -469,11 +468,9 @@ export namespace GeneralDiagnosticsServer {
                         if (isOnline) {
                             throw new StatusResponseError(
                                 "DeviceLoadStatus unavailable: InteractionServer or SessionManager missing",
-                                StatusCode.Failure,
+                                Status.Failure,
                             );
                         }
-                        // During initialization the interaction server is not yet registered; return zeroed struct so
-                        // the attribute is included in the attributeList once the server comes online.
                         return {
                             currentSubscriptions: 0,
                             currentSubscriptionsForFabric: 0,
@@ -485,7 +482,6 @@ export namespace GeneralDiagnosticsServer {
 
                     const sessionManager = endpoint.env.get(SessionManager);
                     const { counters } = endpoint.env.get(InteractionServer);
-
                     const accessingFabric = session.fabric ?? FabricIndex.NO_FABRIC;
 
                     let currentSubscriptions = 0;

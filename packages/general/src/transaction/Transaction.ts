@@ -65,6 +65,19 @@ export interface Transaction extends Lifetime.Owner {
     onShared(actor: () => void, once?: boolean): void;
 
     /**
+     * Schedule cleanup work to run after the transaction is finalized (i.e. after the next commit or rollback
+     * completes and locks are released).
+     *
+     * The actor runs OUTSIDE the transaction it was registered on: it does not participate in the transaction's
+     * commit/rollback and cannot acquire its locks.  This makes it safe for actors that would otherwise deadlock
+     * against the transaction's own lock-acquiring reactors.
+     *
+     * The actor may be synchronous or asynchronous.  Any error it throws or rejects with is logged and otherwise
+     * swallowed — it never propagates back to the transaction.
+     */
+    onFinalize(actor: () => MaybePromise<void>): void;
+
+    /**
      * Listen for {@link Transaction.status} close.
      */
     onClose(actor: () => void): void;
