@@ -89,6 +89,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Read a collection response as an array, tolerating both the bare-array form and the JSON:API
+ * envelope `{ data: [...] }` that some OTBR builds return depending on the negotiated media type.
+ */
+function asCollectionArray(body: unknown, where: string): unknown[] {
+    if (Array.isArray(body)) return body;
+    if (isRecord(body) && Array.isArray(body["data"])) return body["data"];
+    throw new OtbrRestError("rest_protocol", `${where} did not return a JSON array`);
+}
+
 function expectString(record: Record<string, unknown>, key: string, where: string): string {
     const value = record[key];
     if (typeof value !== "string") {
@@ -555,6 +565,164 @@ export class OtbrRestClient {
      */
     async getEnergyScanTask(body: Record<string, unknown>): Promise<void> {
         await this.#postActions(body);
+    }
+
+    /**
+     * POST a JSON:API action task to `/api/actions` and return the created action's id.
+     *
+     * The collection-based (post-2024) OTBR REST API models network-diagnostic queries and
+     * device discovery as asynchronous actions. Poll {@link getAction} until the returned id
+     * reaches a terminal status.
+     *
+     * @param type - Action type, e.g. `"getNetworkDiagnosticTask"` or `"updateDeviceCollectionTask"`.
+     * @param attributes - Task attributes (destination, types, timeout, …).
+     * @throws {@link OtbrRestError} `"rest_protocol"` when the response carries no action id.
+     */
+    async postAction(type: string, attributes: Record<string, unknown>): Promise<string> {
+        const body = await this.#postJson("/api/actions", { data: [{ type, attributes }] });
+        const data = isRecord(body) ? body["data"] : undefined;
+        const first = Array.isArray(data) ? data[0] : undefined;
+        const id = isRecord(first) ? first["id"] : undefined;
+        if (typeof id !== "string") {
+            throw new OtbrRestError("rest_protocol", "POST /api/actions returned no action id");
+        }
+        return id;
+    }
+
+    /**
+     * GET an action's current status and, once completed, the id of its result item in the
+     * diagnostics collection (`relationships.result.data.id`).
+     *
+     * @param id - Action id returned by {@link postAction}.
+     */
+    async getAction(id: string): Promise<{ status: string; resultId?: string }> {
+        const path = `/api/actions/${id}`;
+        const response = await this.#doFetch(path, "application/vnd.api+json");
+        if (!response.ok) {
+            throw new OtbrRestError(errorCodeForStatus(response.status), `GET ${path} returned ${response.status}`, {
+                httpStatus: response.status,
+            });
+        }
+        let parsed: unknown;
+        try {
+            parsed = normalizeKeys(JSON.parse(response.text));
+        } catch (err) {
+            throw new OtbrRestError("rest_protocol", `GET ${path} returned non-JSON body`, {
+                cause: err instanceof Error ? err : undefined,
+            });
+        }
+        const data = isRecord(parsed) ? parsed["data"] : undefined;
+        const attributes = isRecord(data) ? data["attributes"] : undefined;
+        const status = isRecord(attributes) ? attributes["status"] : undefined;
+        if (typeof status !== "string") {
+            throw new OtbrRestError("rest_protocol", `GET ${path} returned no action status`);
+        }
+        const relationships = isRecord(data) ? data["relationships"] : undefined;
+        const result = isRecord(relationships) ? relationships["result"] : undefined;
+        const resultData = isRecord(result) ? result["data"] : undefined;
+        const resultId = isRecord(resultData) && typeof resultData["id"] === "string" ? resultData["id"] : undefined;
+        return { status, resultId };
+    }
+
+    /**
+     * GET the aggregated network-diagnostics collection (`/api/diagnostics`). Keys are normalized;
+     * feed each entry to {@link translateNodeJson}.
+     */
+    async getDiagnosticsCollection(): Promise<unknown[]> {
+        const { body } = await this.#fetchJson("/api/diagnostics");
+        return asCollectionArray(body, "/api/diagnostics");
+    }
+
+    /** GET the discovered-device directory (`/api/devices`). */
+    async listDevices(): Promise<unknown[]> {
+        const { body } = await this.#fetchJson("/api/devices");
+        return asCollectionArray(body, "/api/devices");
+    }
+
+    /** DELETE the diagnostics result cache so a subsequent collection reflects only fresh results. */
+    async clearDiagnostics(): Promise<void> {
+        await this.#mutate("DELETE", "/api/diagnostics");
+    }
+
+    /**
+     * Detect which diagnostics REST flavor the BR serves: `"collection"` (post-2024 action model
+     * under `/api/diagnostics`), `"legacy"` (the pre-collection `GET /diagnostics` snapshot), or
+     * `"none"` (neither — diagnostics must go via MeshCoP).
+     *
+     * Uses the endpoint's HTTP status only (a 404 is a normal negative signal, not an error), so it
+     * does not throw on the expected misses; genuine network failure still rejects.
+     */
+    async detectDiagnosticsApi(): Promise<"legacy" | "collection" | "none"> {
+        if (await this.#probeOk("/api/diagnostics")) return "collection";
+        if (await this.#probeOk("/diagnostics")) return "legacy";
+        return "none";
+    }
+
+    /**
+     * Status-only probe: whether `path` responds 2xx. Cancels the response body without buffering it
+     * — capability detection needs only the status, and a real `/diagnostics` snapshot can be large.
+     * A 404/other status is a normal negative signal (returns false); only a network failure rejects.
+     */
+    async #probeOk(path: string): Promise<boolean> {
+        const url = `${this.#baseUrl}${path}`;
+        const controller = new AbortController();
+        const timer: Timer = Time.getTimer("otbr-probe-timeout", this.#timeout, () => controller.abort()).start();
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers: { Accept: "application/json" },
+                signal: controller.signal,
+            });
+            await response.body?.cancel().catch(() => {});
+            return response.ok;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            throw new OtbrRestError("rest_unreachable", `GET ${path} failed: ${message}`, {
+                cause: err instanceof Error ? err : undefined,
+            });
+        } finally {
+            timer.stop();
+        }
+    }
+
+    async #postJson(path: string, body: unknown): Promise<unknown> {
+        const url = `${this.#baseUrl}${path}`;
+        const controller = new AbortController();
+        const timer: Timer = Time.getTimer("otbr-post-json-timeout", this.#timeout, () => controller.abort()).start();
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                // The collection API mandates the JSON:API media type on both request and response.
+                headers: { "Content-Type": "application/vnd.api+json", Accept: "application/vnd.api+json" },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            });
+            const text = await response.text();
+            if (!response.ok) {
+                throw new OtbrRestError(
+                    errorCodeForStatus(response.status),
+                    `POST ${path} returned ${response.status}`,
+                    {
+                        httpStatus: response.status,
+                    },
+                );
+            }
+            try {
+                return normalizeKeys(JSON.parse(text));
+            } catch (err) {
+                throw new OtbrRestError("rest_protocol", `POST ${path} returned non-JSON body`, {
+                    cause: err instanceof Error ? err : undefined,
+                });
+            }
+        } catch (err) {
+            if (err instanceof OtbrRestError) throw err;
+            const message = err instanceof Error ? err.message : String(err);
+            throw new OtbrRestError("rest_unreachable", `POST ${path} failed: ${message}`, {
+                cause: err instanceof Error ? err : undefined,
+            });
+        } finally {
+            timer.stop();
+        }
     }
 
     async #postActions(body: Record<string, unknown>): Promise<void> {

@@ -25,13 +25,21 @@ export {
 } from "./util/meshLocalAddr.js";
 
 // Diagnostics: the source abstraction, response shape, and its structured sub-types.
-export { DefaultTlvSet, MeshCopDiagnosticSource, ThreadDiagError, connectMeshcop } from "./diagnostic/index.js";
+export {
+    DefaultTlvSet,
+    HybridDiagnosticSource,
+    MeshCopDiagnosticSource,
+    ThreadDiagError,
+    connectMeshcop,
+} from "./diagnostic/index.js";
 export type {
     ConnectMeshcopOpts,
+    DiagnosticDetailTransport,
     DiagnosticResponse,
     DiagnosticSource,
     EnergyScanEntry,
     EnergyScanOpts,
+    HybridDiagnosticOptions,
     MeshcopHandle,
     PanIdConflict,
     PanIdQueryOpts,
@@ -76,6 +84,7 @@ export type {
     OtbrNodeInfo,
     OtbrRestCapability,
     OtbrRestClientOptions,
+    OtbrRestDiagnosticOptions,
     OtbrRestErrorCode,
     OtbrRestErrorOptions,
 } from "./otbr-rest/index.js";

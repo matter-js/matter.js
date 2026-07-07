@@ -64,10 +64,21 @@ function makeCapability(keyFormat: "camel" | "pascal"): OtbrRestCapability {
         probedAt: 1_700_000_000_000,
         networkName: "TestNet",
         extPanId: Bytes.of(Bytes.fromHex("1122334455667788")),
+        diagnosticsApi: keyFormat === "camel" ? "collection" : "legacy",
     };
 }
 
-type ClientLike = Pick<OtbrRestClient, "getDiagnostics" | "getNode" | "resetDiagnosticCounters">;
+type ClientLike = Pick<
+    OtbrRestClient,
+    | "getDiagnostics"
+    | "getNode"
+    | "resetDiagnosticCounters"
+    | "postAction"
+    | "getAction"
+    | "getDiagnosticsCollection"
+    | "listDevices"
+    | "clearDiagnostics"
+>;
 
 function mockRestClient(onReset?: (body: unknown) => void): ClientLike {
     return {
@@ -78,6 +89,19 @@ function mockRestClient(onReset?: (body: unknown) => void): ClientLike {
         resetDiagnosticCounters: async (body: unknown) => {
             onReset?.(body);
         },
+        postAction: async () => {
+            throw new Error("not used");
+        },
+        getAction: async () => {
+            throw new Error("not used");
+        },
+        getDiagnosticsCollection: async () => {
+            throw new Error("not used");
+        },
+        listDevices: async () => {
+            throw new Error("not used");
+        },
+        clearDiagnostics: async () => {},
     };
 }
 
