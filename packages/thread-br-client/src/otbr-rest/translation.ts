@@ -275,7 +275,7 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
 
     const extAddress = asString(json["extAddress"]);
     if (extAddress !== undefined) {
-        result.extMacAddress = parseHexBytes(extAddress, "extAddress", 8);
+        result.extMacAddress = optionalField("extAddress", () => parseHexBytes(extAddress, "extAddress", 8));
     }
 
     const rloc16 = parseRloc16(json["rloc16"]);

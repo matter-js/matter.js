@@ -89,6 +89,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Read a collection response as an array, tolerating both the bare-array form and the JSON:API
+ * envelope `{ data: [...] }` that some OTBR builds return depending on the negotiated media type.
+ */
+function asCollectionArray(body: unknown, where: string): unknown[] {
+    if (Array.isArray(body)) return body;
+    if (isRecord(body) && Array.isArray(body["data"])) return body["data"];
+    throw new OtbrRestError("rest_protocol", `${where} did not return a JSON array`);
+}
+
 function expectString(record: Record<string, unknown>, key: string, where: string): string {
     const value = record[key];
     if (typeof value !== "string") {
@@ -615,24 +625,18 @@ export class OtbrRestClient {
     }
 
     /**
-     * GET the aggregated network-diagnostics collection (`/api/diagnostics`) as a bare array of
-     * per-node entries. Keys are normalized; feed each entry to {@link translateNodeJson}.
+     * GET the aggregated network-diagnostics collection (`/api/diagnostics`). Keys are normalized;
+     * feed each entry to {@link translateNodeJson}.
      */
     async getDiagnosticsCollection(): Promise<unknown[]> {
         const { body } = await this.#fetchJson("/api/diagnostics");
-        if (!Array.isArray(body)) {
-            throw new OtbrRestError("rest_protocol", "/api/diagnostics did not return a JSON array");
-        }
-        return body;
+        return asCollectionArray(body, "/api/diagnostics");
     }
 
-    /** GET the discovered-device directory (`/api/devices`) as a bare array. */
+    /** GET the discovered-device directory (`/api/devices`). */
     async listDevices(): Promise<unknown[]> {
         const { body } = await this.#fetchJson("/api/devices");
-        if (!Array.isArray(body)) {
-            throw new OtbrRestError("rest_protocol", "/api/devices did not return a JSON array");
-        }
-        return body;
+        return asCollectionArray(body, "/api/devices");
     }
 
     /** DELETE the diagnostics result cache so a subsequent collection reflects only fresh results. */

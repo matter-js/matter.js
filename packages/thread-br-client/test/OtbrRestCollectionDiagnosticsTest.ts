@@ -247,13 +247,15 @@ describe("OtbrRestDiagnosticSource collection API", () => {
         expect(result[0].ipv6Addresses).to.be.undefined;
     });
 
-    it("drops a wholly undecodable entry but keeps the rest of the mesh", async () => {
+    it("keeps a node with a malformed extAddress, dropping only that field", async () => {
         const nodes = new Map([
-            ["badbadbadbadbad0", { extAddress: "NOT-HEX", rloc16: "0x4800" }],
-            ["12ac0f37d73aa693", diagNode("12ac0f37d73aa693", "0xe000")],
+            // 14 hex chars — wrong length for an 8-byte ext address.
+            ["12ac0f37d73aa693", { extAddress: "12ac0f37d73aa6", rloc16: "0x4800" }],
         ]);
         const result = await driveAndCollect(makeSource(nodes));
-        expect(result.map(n => n.rloc16)).to.deep.equal([0xe000]);
+        expect(result).to.have.length(1);
+        expect(result[0].rloc16).to.equal(0x4800);
+        expect(result[0].extMacAddress).to.be.undefined;
     });
 
     it("coalesces concurrent sweeps into a single BR-mutating collection run", async () => {

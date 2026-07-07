@@ -665,8 +665,16 @@ describe("OtbrRestClient collection API", () => {
         expect(server.lastRequest().path).to.equal("/api/diagnostics");
     });
 
-    it("getDiagnosticsCollection throws rest_protocol when the body is not an array", async () => {
-        server.on("GET", "/api/diagnostics", () => jsonResponse(JSON.stringify({ data: [] })));
+    it("getDiagnosticsCollection accepts a JSON:API envelope { data: [...] }", async () => {
+        server.on("GET", "/api/diagnostics", () =>
+            jsonResponse(JSON.stringify({ data: [{ rloc16: "0x4800" }], meta: { collection: { total: 1 } } })),
+        );
+        const list = await client.getDiagnosticsCollection();
+        expect(list).to.have.length(1);
+    });
+
+    it("getDiagnosticsCollection throws rest_protocol when the body is neither array nor envelope", async () => {
+        server.on("GET", "/api/diagnostics", () => jsonResponse(JSON.stringify({ foo: 1 })));
         await expectRestError(client.getDiagnosticsCollection(), "rest_protocol");
     });
 

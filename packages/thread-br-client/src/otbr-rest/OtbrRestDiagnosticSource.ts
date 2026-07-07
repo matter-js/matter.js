@@ -28,9 +28,10 @@ type ClientLike = Pick<
 >;
 
 /**
- * Network-diagnostic TLV types requested per node on the collection API. This is the authoritative
- * queryable set from ot-br-posix's own REST test suite (`getNetworkDiagnosticTask` AllTLVs) — every
- * key here is a valid request type; a type the build rejects fails the whole action with 400.
+ * Network-diagnostic TLV types requested per node on the collection API. A subset of ot-br-posix's
+ * queryable set (`getNetworkDiagnosticTask`) — only the types {@link translateNodeJson} actually
+ * decodes, so we don't make the BR collect data we discard. Every key is a valid request type; a
+ * type the build rejects fails the whole action with 400.
  */
 const DEFAULT_DIAG_TYPES: readonly string[] = [
     "extAddress",
@@ -46,9 +47,6 @@ const DEFAULT_DIAG_TYPES: readonly string[] = [
     "vendorModel",
     "vendorSwVersion",
     "threadStackVersion",
-    "children",
-    "childIpv6Addresses",
-    "routerNeighbors",
     "mleCounters",
 ];
 
@@ -212,6 +210,8 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
         if (this.#inFlight === undefined) {
             const run = this.#collectOnce();
             this.#inFlight = run;
+            // Clear on settle so the next call starts a fresh sweep. The clear is queued before any
+            // awaiter's continuation, so a caller that awaits #collect() then calls again re-sweeps.
             void run
                 .catch(() => {})
                 .finally(() => {
@@ -250,7 +250,13 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
      * diagnostic action (bounded concurrency), then read the aggregated collection.
      */
     async #collectViaActions(): Promise<unknown[]> {
-        await this.#client.clearDiagnostics();
+        // Best-effort: a BR that serves the read side but rejects DELETE must not fail every sweep.
+        // Stale entries then merge with fresh ones, which dedupe tolerates.
+        try {
+            await this.#client.clearDiagnostics();
+        } catch (err) {
+            logger.debug(`clearDiagnostics failed (continuing with a possibly stale cache): ${errorOf(err).message}`);
+        }
 
         const discoverId = await this.#client.postAction("updateDeviceCollectionTask", {
             maxAge: DISCOVER_MAX_AGE_S,
