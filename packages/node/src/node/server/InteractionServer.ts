@@ -972,12 +972,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 }
             }
             // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
-            // endpoint mappings for the group), still emit one event per requested invoke path so
-            // observers see the message arrived. FailedAuth + accessAllowed=false signals denial.
+            // endpoint mappings for the group), still emit one event per requested invoke path so observers see the
+            // message arrived.  The message itself was authenticated and processed, so per core§11.27.7.6.3 the
+            // result is Success with AccessAllowed=false — FailedAuth is reserved for authentication failures.
             if (!emitted) {
                 for (const { commandPath } of invokeRequests) {
                     this.#context.sessions.emitGroupMessage({
-                        result: Groupcast.GroupcastTestResult.FailedAuth,
+                        result: Groupcast.GroupcastTestResult.Success,
                         fabric,
                         groupId,
                         sourceIp,

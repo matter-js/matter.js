@@ -30,6 +30,7 @@ import {
 } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
 
@@ -116,6 +117,10 @@ export class GroupcastServer extends GroupcastBehavior {
         // Membership.KeySetId mirrors the GroupKeyMap link, so any map change re-derives it
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
         this.reactTo(gkmEvents.groupKeyMap$Changed, this.#reconcileUnmappedKeys);
+
+        // Per core§11.27.10 group removal through any means (e.g. the legacy Groups cluster commands, which operate
+        // on the GKM group table) must update Membership and the auxiliary ACL entries derived from it
+        this.reactTo(gkmEvents.groupTable$Changed, this.#reconcileMembershipEndpoints);
 
         // React to fabricUnderTest changes to dynamically subscribe/unsubscribe from group message events.
         // While no fabric is under test, SessionManager.groupMessage emits are a no-op (no listeners).
@@ -560,6 +565,53 @@ export class GroupcastServer extends GroupcastBehavior {
     }
 
     /**
+     * Shrink Membership when endpoints or whole groups are removed through the GKM group table (e.g. by the legacy
+     * Groups cluster commands).  Per core§11.27.10 such removals must update Membership and its derived auxiliary
+     * ACL entries.  Only removals are mirrored; matching {@link leaveGroup}, a listener entry losing all endpoints
+     * stays as sender-only when the Sender feature is enabled and disappears otherwise.
+     */
+    #reconcileMembershipEndpoints(groupTable: GroupKeyManagement.GroupInfoMap[]) {
+        const membership = this.state.membership;
+        const next = new Array<Groupcast.Membership>();
+        const affectedFabrics = new Set<FabricIndex>();
+
+        for (const m of membership) {
+            if (m.endpoints === undefined || m.endpoints.length === 0) {
+                // Sender-only entries carry no endpoints to remove
+                next.push(m);
+                continue;
+            }
+            const tableEndpoints =
+                groupTable.find(e => e.fabricIndex === m.fabricIndex && e.groupId === m.groupId)?.endpoints ?? [];
+            const endpoints = m.endpoints.filter(ep => tableEndpoints.includes(ep));
+            if (endpoints.length === m.endpoints.length) {
+                next.push(m);
+                continue;
+            }
+            affectedFabrics.add(m.fabricIndex);
+            if (endpoints.length > 0) {
+                next.push({ ...m, endpoints });
+            } else if (this.features.sender) {
+                next.push({ ...m, endpoints: [] });
+            }
+        }
+
+        if (affectedFabrics.size === 0) {
+            return;
+        }
+
+        this.state.membership = next;
+        const fabrics = this.env.get(FabricManager);
+        for (const fabricIndex of affectedFabrics) {
+            if (fabrics.has(fabricIndex)) {
+                this.#syncFabricGroups(fabrics.for(fabricIndex));
+            }
+        }
+        this.#updateUsedMcastAddrCount();
+        this.#emitAuxAcl();
+    }
+
+    /**
      * Validate and apply a key set for a group operation.
      * If `key` is provided, validates and creates a new key set in GKM.
      * Otherwise, validates that the key set already exists.
@@ -584,21 +636,26 @@ export class GroupcastServer extends GroupcastBehavior {
     /** Recompute auxiliary ACL entries and emit them via the observable so AccessControlServer updates. */
     #emitAuxAcl() {
         if (!this.endpoint.behaviors.has(AccessControlServer)) return;
-        const entries: AccessControlTypes.AccessControlEntry[] = this.state.membership
-            .filter(m => m.hasAuxiliaryAcl)
-            .map(m => ({
+        // Auxiliary entries grant Operate per listener endpoint (core§11.27.10); sender-only memberships get none
+        const entries = new Array<AccessControlTypes.AccessControlEntry>();
+        for (const m of this.state.membership) {
+            const { endpoints } = m;
+            if (!m.hasAuxiliaryAcl || endpoints === undefined || endpoints.length === 0) {
+                continue;
+            }
+            entries.push({
                 privilege: AccessControlTypes.AccessControlEntryPrivilege.Operate,
                 authMode: AccessControlTypes.AccessControlEntryAuthMode.Group,
                 subjects: [NodeId(BigInt(m.groupId))],
-                targets:
-                    m.endpoints?.map(ep => ({
-                        cluster: null,
-                        endpoint: ep,
-                        deviceType: null,
-                    })) ?? null,
+                targets: endpoints.map(ep => ({
+                    cluster: null,
+                    endpoint: ep,
+                    deviceType: null,
+                })),
                 auxiliaryType: AccessControlTypes.AccessControlAuxiliaryType.Groupcast,
                 fabricIndex: m.fabricIndex,
-            }));
+            });
+        }
 
         this.internal.auxAcl.emit(entries, this.context);
     }

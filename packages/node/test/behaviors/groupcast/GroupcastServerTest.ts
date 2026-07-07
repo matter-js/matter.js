@@ -419,6 +419,38 @@ describe("GroupcastServer", () => {
             expect(keySet?.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + BigInt(1));
         });
 
+        it("shrinks Membership and auxiliary ACLs when groups are removed via the GKM group table", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const exchange = fabricExchange(fi, AccessLevel.Administer);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    useAuxiliaryAcl: true,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
+
+            // Legacy Groups commands operate on the GKM group table; removal must ripple into Membership + aux ACLs.
+            // With the Sender feature enabled the entry survives as sender-only, matching leaveGroup.
+            await node.online({ exchange, command: true }, async agent => {
+                agent.get(GroupKeyManagementServer).state.groupTable = [];
+            });
+            await MockTime.yield3();
+
+            const remaining = node.stateOf(GroupcastServer).membership.filter(m => m.fabricIndex === fi);
+            expect(remaining).to.have.length(1);
+            expect([...(remaining[0].endpoints ?? [])]).deep.equal([]);
+            expect(remaining[0].keySetId).equal(1);
+            expect(node.stateOf(AccessControlServer).auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(0);
+        });
+
         it("membership KeySetId follows the GroupKeyMap link", async () => {
             await using node = await createGroupcastNode();
             const fabric = await node.addFabric();
