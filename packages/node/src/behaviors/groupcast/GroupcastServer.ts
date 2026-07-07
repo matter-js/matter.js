@@ -107,8 +107,10 @@ export class GroupcastServer extends GroupcastBehavior {
         this.#updateUsedMcastAddrCount();
         this.#emitAuxAcl();
 
-        // Keep in sync as fabrics are added or removed
+        // Keep in sync as fabrics are added, replaced or removed.  A replaced fabric gets a fresh Groups instance,
+        // so the multicast address policies and key mappings must be rebuilt from the persisted membership.
         this.reactTo(fabrics.events.added, this.#handleFabricAdded);
+        this.reactTo(fabrics.events.replaced, this.#handleFabricAdded);
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted);
 
         // Membership.KeySetId mirrors the GroupKeyMap link, so any map change re-derives it

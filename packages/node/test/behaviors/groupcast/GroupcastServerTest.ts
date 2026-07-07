@@ -740,6 +740,33 @@ describe("GroupcastServer", () => {
 
             expect(observedAddress).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
         });
+
+        it("restores multicast policies when a fabric is replaced", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+            const fabrics = node.env.get(FabricManager);
+            const realFabric = fabrics.for(fi);
+
+            await node.online({ exchange: fabricExchange(fi), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+
+            // A replaced fabric arrives with a fresh Groups instance; simulate the policy loss and the event
+            realFabric.groups.removeGroupMulticastPolicy(GroupId(0x0001));
+            expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).not.equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+            fabrics.events.replaced.emit(realFabric);
+            await MockTime.yield3();
+
+            expect(realFabric.groups.multicastAddressFor(GroupId(0x0001))).equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+        });
     });
 
     describe("groupcastTesting events", () => {
