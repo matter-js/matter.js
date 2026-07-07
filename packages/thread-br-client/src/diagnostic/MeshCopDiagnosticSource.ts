@@ -263,12 +263,19 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             resolveTeardown();
         };
 
-        // sessionPromise resolves AFTER Commissioner.release() (or the catch
-        // branch) so callers awaiting handle.done / handle.close() see the
-        // commissioner cleanly released before they tear down DTLS. Without
-        // this, COMM_REL would race against socket close and BR would never
-        // see the release ACK (manifested as petition-rejected on retry).
-        const sessionPromise = this.#commissioner
+        let resolveDone!: () => void;
+        let rejectDone!: (error: Error) => void;
+        const done = new Promise<void>((resolve, reject) => {
+            resolveDone = resolve;
+            rejectDone = reject;
+        });
+
+        // `released` settles once the commissioner session has fully torn down — AFTER
+        // Commissioner.release() — so close() can await a clean release before tearing down DTLS.
+        // (Without that ordering COMM_REL races socket close and the BR never sees the release ACK,
+        // manifesting as petition-rejected on the next attempt.) It always resolves; the outcome is
+        // reported through `done`, so close() never observes the error and never has to swallow one.
+        const released = this.#commissioner
             .withSession(async () => {
                 if (closed) return;
                 logger.debug(`queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
@@ -362,28 +369,27 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
 
                 await teardownPromise;
             })
-            .catch(err => {
-                // A terminal session failure (petition rejected, session couldn't establish) yields
-                // zero data — surface it on onError for observers AND reject `done`, so a total
-                // failure isn't mistaken for a clean empty window. (Per-node onError.emit inside the
-                // query loop stay non-fatal; done still resolves for partial success.)
-                const e = errorOf(err);
-                onError.emit(e);
-                teardown();
-                throw e;
-            });
-        // Floor handler: keep a fatal session failure from becoming an unhandled rejection when the
-        // caller only calls close() (or ignores done). Real awaiters of `done` still see the rejection.
-        void sessionPromise.catch(() => {});
+            .then(
+                () => resolveDone(),
+                err => {
+                    // A terminal session failure (petition rejected, session couldn't establish)
+                    // yields zero data — surface it on onError for observers and reject `done`, so a
+                    // total failure isn't mistaken for a clean empty window. (Per-node onError.emit
+                    // inside the query loop stay non-fatal; done still resolves for partial success.)
+                    const e = errorOf(err);
+                    onError.emit(e);
+                    teardown();
+                    rejectDone(e);
+                },
+            );
 
         return {
             onNode,
             onError,
-            done: sessionPromise,
+            done,
             close: async () => {
                 teardown();
-                // close() is idempotent cleanup and must not throw; the failure surfaces via done.
-                await sessionPromise.catch(() => {});
+                await released;
             },
         };
     }
