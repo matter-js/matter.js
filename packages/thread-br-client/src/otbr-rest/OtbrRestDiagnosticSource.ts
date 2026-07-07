@@ -113,6 +113,8 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
     readonly #types: readonly string[];
     readonly #deviceCount: number;
     readonly #retries: number;
+    /** Shared in-flight sweep, so concurrent queries don't race on BR-global collection state. */
+    #inFlight?: Promise<DiagnosticResponse[]>;
 
     constructor(client: ClientLike, capability: OtbrRestCapability, options: OtbrRestDiagnosticOptions = {}) {
         this.#client = client;
@@ -198,8 +200,29 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
         };
     }
 
+    /**
+     * Fetch the full mesh view, coalescing concurrent callers onto one in-flight sweep.
+     *
+     * The collection flow mutates BR-global state (`DELETE /api/diagnostics` + per-node actions), so
+     * two overlapping sweeps against the same BR would race — one clearing the cache while the other
+     * reads it. Since a sweep always fetches the whole mesh, sharing one in-flight result is both
+     * race-free and cheaper.
+     */
+    #collect(): Promise<DiagnosticResponse[]> {
+        if (this.#inFlight === undefined) {
+            const run = this.#collectOnce();
+            this.#inFlight = run;
+            void run
+                .catch(() => {})
+                .finally(() => {
+                    if (this.#inFlight === run) this.#inFlight = undefined;
+                });
+        }
+        return this.#inFlight;
+    }
+
     /** Fetch and decode the full mesh view via the build-appropriate REST flavor. */
-    async #collect(): Promise<DiagnosticResponse[]> {
+    async #collectOnce(): Promise<DiagnosticResponse[]> {
         if (this.#capability.diagnosticsApi === "none") {
             throw new OtbrRestError(
                 "rest_unsupported",

@@ -25,6 +25,8 @@ class MockCollectionOtbr {
     #diagnostics: Array<Record<string, unknown>> = [];
     #seq = 0;
     #diagAttempts = new Map<string, number>();
+    clearCount = 0;
+    discoverCount = 0;
     // extAddress -> the diagnostic entry a getNetworkDiagnosticTask for it yields. Missing = "stopped".
     readonly nodes: Map<string, Record<string, unknown>>;
     // Destinations that stop on their first attempt and only succeed on a retry.
@@ -64,6 +66,7 @@ class MockCollectionOtbr {
             const item = parsed.data?.[0];
             const id = `act-${this.#seq++}`;
             const destination = item?.attributes?.destination;
+            if (item?.type === "updateDeviceCollectionTask") this.discoverCount++;
             if (item?.type === "getNetworkDiagnosticTask" && typeof destination === "string") {
                 this.#diagAttempts.set(destination, (this.#diagAttempts.get(destination) ?? 0) + 1);
             }
@@ -104,6 +107,7 @@ class MockCollectionOtbr {
             });
         }
         if (method === "DELETE" && path === "/api/diagnostics") {
+            this.clearCount++;
             this.#diagnostics = [];
             return new Response("", { status: 200 });
         }
@@ -250,5 +254,30 @@ describe("OtbrRestDiagnosticSource collection API", () => {
         ]);
         const result = await driveAndCollect(makeSource(nodes));
         expect(result.map(n => n.rloc16)).to.deep.equal([0xe000]);
+    });
+
+    it("coalesces concurrent sweeps into a single BR-mutating collection run", async () => {
+        const nodes = new Map([["12ac0f37d73aa693", diagNode("12ac0f37d73aa693", "0x4800")]]);
+        const source = makeSource(nodes);
+        // Two overlapping multicast sweeps on the same source instance.
+        const a: DiagnosticResponse[] = [];
+        const b: DiagnosticResponse[] = [];
+        const ha = source.queryMulticast("ff03::2", { tlvTypes: [], windowMs: 0 });
+        const hb = source.queryMulticast("ff03::2", { tlvTypes: [], windowMs: 0 });
+        ha.onNode.on(n => {
+            a.push(n);
+        });
+        hb.onNode.on(n => {
+            b.push(n);
+        });
+        for (let i = 0; i < 16; i++) {
+            await MockTime.yield();
+            await MockTime.advance(1);
+        }
+        await Promise.all([ha.done, hb.done]);
+        expect(mock.clearCount).to.equal(1);
+        expect(mock.discoverCount).to.equal(1);
+        expect(a.map(n => n.rloc16)).to.deep.equal([0x4800]);
+        expect(b.map(n => n.rloc16)).to.deep.equal([0x4800]);
     });
 });
