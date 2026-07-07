@@ -47,7 +47,8 @@ export function selectSource(opts: SelectSourceOpts): DiagnosticSource | undefin
     const lookupKey = Bytes.toHex(extPanId);
 
     const cap = otbrRestEnabled ? restCapabilities.get(lookupKey) : undefined;
-    const rest = cap !== undefined ? makeRestSource(cap) : undefined;
+    // A cap with diagnosticsApi "none" serves REST but no diagnostics endpoint — not usable here.
+    const rest = cap !== undefined && cap.diagnosticsApi !== "none" ? makeRestSource(cap) : undefined;
 
     const creds = credentials.getCredentials(extPanId);
     const coap = creds !== undefined ? makeMeshcopSource(creds, br) : undefined;

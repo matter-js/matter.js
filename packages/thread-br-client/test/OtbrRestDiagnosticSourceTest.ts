@@ -165,4 +165,25 @@ describe("OtbrRestDiagnosticSource", () => {
         const b = await collect("ff03::2", [], 5000);
         expect(a).to.have.length(b.length);
     });
+
+    it('rejects diagnostics when diagnosticsApi is "none" instead of hitting a 404', async () => {
+        const cap = { ...makeCapability("1122334455667788"), diagnosticsApi: "none" as const };
+        let getDiagnosticsCalled = false;
+        const client: ClientLike = {
+            ...mockClient(),
+            getDiagnostics: async () => {
+                getDiagnosticsCalled = true;
+                return [];
+            },
+        };
+        const source = new OtbrRestDiagnosticSource(client, cap);
+        try {
+            await source.queryUnicast({ rloc16: 18432 }, []);
+            expect.fail("expected OtbrRestError");
+        } catch (err) {
+            expect(err).to.be.instanceOf(OtbrRestError);
+            expect((err as OtbrRestError).code).to.equal("rest_unsupported");
+        }
+        expect(getDiagnosticsCalled).to.equal(false);
+    });
 });

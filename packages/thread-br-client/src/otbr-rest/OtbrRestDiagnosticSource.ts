@@ -200,6 +200,12 @@ export class OtbrRestDiagnosticSource implements DiagnosticSource {
 
     /** Fetch and decode the full mesh view via the build-appropriate REST flavor. */
     async #collect(): Promise<DiagnosticResponse[]> {
+        if (this.#capability.diagnosticsApi === "none") {
+            throw new OtbrRestError(
+                "rest_unsupported",
+                "OtbrRestDiagnosticSource: this Border Router does not serve diagnostics over REST",
+            );
+        }
         const entries =
             this.#capability.diagnosticsApi === "collection"
                 ? await this.#collectViaActions()

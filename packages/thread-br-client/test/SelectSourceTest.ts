@@ -110,6 +110,36 @@ describe("selectSource", () => {
         expect(meshcopCalls).to.have.lengthOf(1);
     });
 
+    it('ignores a REST capability whose diagnosticsApi is "none", using CoAP instead', () => {
+        const restCalls = new Array<OtbrRestCapability>();
+        const cap = { ...makeCap(), diagnosticsApi: "none" as const };
+        const result = selectSource({
+            br: makeBr(),
+            credentials: credsRegistryWith(makeCreds()),
+            restCapabilities: new Map([[EXT_PAN_HEX_LOWER, cap]]),
+            otbrRestEnabled: true,
+            makeRestSource: c => {
+                restCalls.push(c);
+                return STUB_REST;
+            },
+            makeMeshcopSource: () => STUB_MESHCOP,
+        });
+        expect(result).to.equal(STUB_MESHCOP);
+        expect(restCalls).to.have.lengthOf(0);
+    });
+
+    it('returns undefined when the only capability has diagnosticsApi "none" and no creds', () => {
+        const result = selectSource({
+            br: makeBr(),
+            credentials: credsRegistryWith(undefined),
+            restCapabilities: new Map([[EXT_PAN_HEX_LOWER, { ...makeCap(), diagnosticsApi: "none" as const }]]),
+            otbrRestEnabled: true,
+            makeRestSource: () => STUB_REST,
+            makeMeshcopSource: () => STUB_MESHCOP,
+        });
+        expect(result).to.equal(undefined);
+    });
+
     it('builds a hybrid preferring REST when detailTransport="rest" and both are available', () => {
         const result = selectSource({
             br: makeBr(),
