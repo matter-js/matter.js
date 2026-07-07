@@ -986,10 +986,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         destIp,
                     });
                 } else {
-                    // Wildcard expansion produced no dispatches (all paths filtered out by ACL or no endpoint
-                    // mappings for the group).  Still emit one event per requested invoke path so observers see the
-                    // message arrived: the message was authenticated and processed, so per core§11.27.7.6.3 the
-                    // result is Success with AccessAllowed=false
+                    // Wildcard expansion produced no dispatches.  Still emit one event per requested invoke path so
+                    // observers see the message arrived: the message was authenticated and processed, so per
+                    // core§11.27.7.6.3 the result is Success.  When the group has receiving endpoints the expansion
+                    // was filtered by access control (AccessAllowed=false); without endpoints no access evaluation
+                    // took place and the field is omitted.
+                    const memberEndpoints = groupId !== undefined ? fabric.groups.endpoints.get(groupId) : undefined;
+                    const accessAllowed =
+                        memberEndpoints !== undefined && memberEndpoints.length > 0 ? false : undefined;
                     for (const { commandPath } of invokeRequests) {
                         this.#context.sessions.emitGroupMessage({
                             result: Groupcast.GroupcastTestResult.Success,
@@ -1000,7 +1004,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                             endpointId: commandPath.endpointId,
                             clusterId: commandPath.clusterId,
                             elementId: commandPath.commandId,
-                            accessAllowed: false,
+                            accessAllowed,
                         });
                     }
                 }

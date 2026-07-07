@@ -27,6 +27,7 @@ import {
     Fabric,
     FabricManager,
     GroupMessageEventInfo,
+    IANA_GROUPCAST_MULTICAST_ADDRESS,
     SessionManager,
 } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId, Status, StatusResponseError } from "@matter/types";
@@ -439,13 +440,20 @@ export class GroupcastServer extends GroupcastBehavior {
         }
 
         // The datagram destination is not available from the socket, so derive the multicast group address the
-        // message was received on from the group id (the header group id for unauthenticated failures).
+        // message was received on from the group id (the header group id for unauthenticated failures).  An unknown
+        // group's datagram can only have arrived via the shared IANA address, since per-group addresses are joined
+        // per known group.
         let destIp = info.destIp;
         const groupIdForAddress = info.groupId ?? info.headerGroupId;
         if (destIp === undefined && groupIdForAddress !== undefined) {
+            const known = this.state.membership.some(
+                m => m.fabricIndex === fabricUnderTest && m.groupId === groupIdForAddress,
+            );
             const fabrics = this.env.get(FabricManager);
-            if (fabrics.has(fabricUnderTest)) {
+            if (known && fabrics.has(fabricUnderTest)) {
                 destIp = fabrics.for(fabricUnderTest).groups.multicastAddressFor(groupIdForAddress);
+            } else {
+                destIp = IANA_GROUPCAST_MULTICAST_ADDRESS;
             }
         }
 
