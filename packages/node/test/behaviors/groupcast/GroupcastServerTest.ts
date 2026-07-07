@@ -487,6 +487,9 @@ describe("GroupcastServer", () => {
             await MockTime.yield3();
             expect(realFabric.groups.groupKeyIdMap.has(GroupId(0x0001))).equal(true);
             expect(realFabric.groups.groupKeyIdMap.has(GroupId(0x0002))).equal(false);
+
+            // The group itself still exists, so it keeps receiving multicast (endpoints drive the membership)
+            expect(realFabric.groups.endpoints.has(GroupId(0x0002))).equal(true);
         });
 
         it("Groupcast per-fabric cap aligns with GKM maxGroupsPerFabric", async () => {

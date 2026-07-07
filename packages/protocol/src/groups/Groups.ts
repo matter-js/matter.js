@@ -24,7 +24,7 @@ export class Groups {
     readonly #groupKeyIdMap = new BasicMap<GroupId, number>();
 
     /** Operational variant of the group table, maps group Ids to a list of enabled endpoints. */
-    readonly endpointMap = new Map<GroupId, EndpointNumber[]>();
+    readonly endpointMap = new BasicMap<GroupId, EndpointNumber[]>();
 
     /** Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set. */
     readonly #groupMulticastPolicy = new Map<GroupId, GroupMulticastPolicy>();
@@ -50,6 +50,19 @@ export class Groups {
                 this.#groupKeyIdMap.delete(groupId);
             }
         }
+    }
+
+    /**
+     * Whether any group of this fabric currently maps to the given key set.  Group message decryption only considers
+     * keys of mapped key sets — an unmapped key set exists but is not usable for group communication.
+     */
+    isKeySetMapped(keySetId: number) {
+        for (const mapped of this.#groupKeyIdMap.values()) {
+            if (mapped === keySetId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     subjectForGroup(id: GroupId, keySetId: number) {

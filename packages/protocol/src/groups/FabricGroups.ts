@@ -84,6 +84,11 @@ export class FabricGroups {
         return this.#groups.endpointMap;
     }
 
+    /** Whether any group of this fabric currently maps to the given key set. */
+    isKeySetMapped(keySetId: number) {
+        return this.#groups.isKeySetMapped(keySetId);
+    }
+
     currentKeyForGroup(groupId: GroupId) {
         return this.#groups.currentKeyForId(groupId);
     }

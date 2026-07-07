@@ -287,6 +287,10 @@ export class GroupSession extends SecureSession {
             const sessions = fabric.groups.sessions.get(sessionId);
             if (sessions?.length) {
                 for (const session of sessions) {
+                    // A key set is only usable for group communication while a group maps to it in GroupKeyMap
+                    if (!fabric.groups.isKeySetMapped(session.keySetId)) {
+                        continue;
+                    }
                     keys.push({ ...session, fabric });
                 }
             }

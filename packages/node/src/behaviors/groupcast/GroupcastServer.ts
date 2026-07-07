@@ -468,7 +468,7 @@ export class GroupcastServer extends GroupcastBehavior {
         const fabricIndex = fabric.fabricIndex;
         const fabricMemberships = this.state.membership.filter(m => m.fabricIndex === fabricIndex);
 
-        // Set per-group multicast address policies BEFORE updating groupKeyIdMap. The latter triggers
+        // Set per-group multicast address policies BEFORE updating the endpoint map. The latter triggers
         // ServerGroupNetworking to bind the multicast address via multicastAddressFor, which reads the
         // policy map - so the policy must be in place first or it falls back to PerGroupId-derived.
         for (const m of fabricMemberships) {
@@ -476,8 +476,8 @@ export class GroupcastServer extends GroupcastBehavior {
             fabric.groups.setGroupMulticastPolicy(m.groupId, policy);
         }
 
-        // Rebuild group→keySet map.  Unmapped groups are absent so key lookup fails cleanly and the multicast
-        // membership is dropped, rather than pointing at the nonexistent sentinel key set.
+        // Rebuild group→keySet map.  Unmapped groups are absent so key lookup fails cleanly rather than pointing at
+        // the nonexistent sentinel key set.
         const groupKeyIdMap = new Map<GroupId, number>();
         for (const m of fabricMemberships) {
             if (m.keySetId !== UNMAPPED_KEYSET_ID) {

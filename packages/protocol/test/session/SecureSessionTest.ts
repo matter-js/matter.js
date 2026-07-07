@@ -126,6 +126,9 @@ describe("SecureSession", () => {
                 groupKeyMulticastPolicy: 0,
             });
 
+            // Decryption only considers keys of mapped key sets
+            fabric.groups.groupKeyIdMap = new Map([[GroupId(2), 1]]);
+
             return { fabric, fabricManager };
         }
 
@@ -180,6 +183,12 @@ describe("SecureSession", () => {
             expect(result.sourceNodeId).equals(fabric.nodeId);
             expect(result.message.packetHeader.destGroupId).equals(groupId);
             expect(result.message.packetHeader.messageId).equals(0x12345679);
+
+            // A key set without a GroupKeyMap link is not usable for decryption
+            fabric.groups.groupKeyIdMap = new Map();
+            expect(() => GroupSession.decode(fabricManager, decodedPacket, aad)).throws(
+                "No key candidate found for group session decryption",
+            );
         });
     });
 });
