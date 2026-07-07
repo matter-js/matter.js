@@ -45,6 +45,18 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
     }
 
     /**
+     * Returns whether the given group key set holds an operational key equal to the provided one. Used to resolve group
+     * session id collisions: two key sets with identical key material derive the same session id, so the decrypting key
+     * set may differ from the one a group is mapped to while still carrying the key that authenticated the message.
+     */
+    containsOperationalKey(keySetId: number, key: Bytes): boolean {
+        if (this.forId(keySetId) === undefined) {
+            return false;
+        }
+        return this.allKeysForId(keySetId).some(({ key: operationalKey }) => Bytes.areEqual(operationalKey, key));
+    }
+
+    /**
      * Return an operative list of operational keys, start time and their session IDs for a specified
      * group key set id. This is mainly used for receiving messages.
      */

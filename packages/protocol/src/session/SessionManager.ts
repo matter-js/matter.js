@@ -616,7 +616,11 @@ export class SessionManager {
             );
         }
 
-        const session = this.#groupSessions.get(fabric.nodeId)?.get("id", sessionId);
+        // Outbound sessions register under their group node id (see registerGroupSession), so look up the same bucket
+        // and match by key: a session id can be shared by multiple keys, so reuse must verify the operational key.
+        const session = this.#groupSessions
+            .get(address.nodeId)
+            ?.find(s => s.matches(fabric.fabricIndex, sessionId, key));
         if (session) {
             return session;
         }
@@ -681,7 +685,7 @@ export class SessionManager {
         const groupId = GroupId(rawGroupId);
         GroupId.assertGroupId(groupId);
 
-        let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
+        let session = this.#groupSessions.get(sourceNodeId)?.find(s => s.matches(fabric.fabricIndex, sessionId, key));
         if (session === undefined) {
             session = new GroupSession({
                 manager: this,

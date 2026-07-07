@@ -6,7 +6,7 @@
 
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
+import { BasicMap, Bytes, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
@@ -65,10 +65,12 @@ export class Groups {
         return false;
     }
 
-    subjectForGroup(id: GroupId, keySetId: number) {
+    subjectForGroup(id: GroupId, operationalKey: Bytes) {
+        const mappedKeySetId = this.idMap.get(id);
         return Subject.Group({
             id,
-            hasValidMapping: this.idMap.get(id) === keySetId,
+            hasValidMapping:
+                mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey),
             endpoints: this.endpointMap.get(id) ?? [],
         });
     }

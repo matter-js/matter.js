@@ -190,5 +190,30 @@ describe("SecureSession", () => {
                 "No key candidate found for group session decryption",
             );
         });
+
+        it("matches a cached session by fabric, session id and operational key, not by id alone", async () => {
+            const { fabric } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const session = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0002n),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(2)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            expect(session.matches(fabric.fabricIndex, current.sessionId!, Bytes.of(current.key))).equals(true);
+
+            // Same session id but a different operational key (a hash collision) must not match — this is the stale-key
+            // guard: reusing this session would evaluate the message against the wrong key for ACL.
+            expect(
+                session.matches(fabric.fabricIndex, current.sessionId!, b$`ffffffffffffffffffffffffffffffff`),
+            ).equals(false);
+            expect(session.matches(FabricIndex(99), current.sessionId!, Bytes.of(current.key))).equals(false);
+            expect(session.matches(fabric.fabricIndex, current.sessionId! ^ 0x1, Bytes.of(current.key))).equals(false);
+        });
     });
 });

@@ -93,8 +93,8 @@ export class FabricGroups {
         return this.#groups.currentKeyForId(groupId);
     }
 
-    subjectForGroup(id: GroupId, keySetId: number) {
-        return this.#groups.subjectForGroup(id, keySetId);
+    subjectForGroup(id: GroupId, operationalKey: Bytes) {
+        return this.#groups.subjectForGroup(id, operationalKey);
     }
 
     multicastAddressFor(groupId: GroupId): string {
