@@ -92,7 +92,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
         const { wakefulness, useIcdLit } = this.#awaitModeIcdRouting(request);
         if (useIcdLit) {
-            request = { ...request, network: "icdLit" }; // copy, never mutate the caller's request
+            request = { ...request, network: "icdLit" };
         }
 
         // Hold for a LIT peer to wake before the first yield* so we never transmit into a sleeping radio.
@@ -176,8 +176,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
         const { wakefulness, useIcdLit } = this.#awaitModeIcdRouting(request);
         if (useIcdLit) {
-            // Copy, never mutate the caller's request; the spread is not inferrable as T.
-            request = { ...request, network: "icdLit" } as T;
+            request = { ...request, network: "icdLit" } as T; // a generic spread is not inferrable as T
         }
 
         const hold = this.#holdUntilAwake(wakefulness, request.icdAwaitTimeout);
