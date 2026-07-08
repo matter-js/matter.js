@@ -34,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
+    - Fix: Signal subscription "alive" when a sustained subscription (re)establishes so peer structure changes are surfaced immediately instead of at the next periodic report
 
 - @matter/nodejs-shell
     - Feature: Added `icd` shell commands to register/unregister/stay-active ICD clients and inspect/watch node wakefulness and availability
@@ -51,7 +52,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Single-command invokes no longer sending a commandRef on the wire nor require one echoed in the response
     - Fix: Single commands skip auto-batching when the peer accepts only one path per invoke or the response is suppressed
     - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
-    - Fix: Ensure group messaging works correctly when multiple key sets share a group session id (matching by operational key instead of session id for ACL, session caching, and outbound reuse)
+    - Fix: Ensure group messaging works correctly when multiple key sets share a group session id
 
 - @matter/thread-br-client
     - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
