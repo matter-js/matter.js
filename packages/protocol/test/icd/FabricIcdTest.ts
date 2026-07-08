@@ -139,6 +139,7 @@ describe("FabricIcd", () => {
 
     describe("controller role — wakefulness", () => {
         before(MockTime.enable);
+        after(MockTime.disable);
 
         it("wakefulnessFor returns an IcdPeerWakefulness after addPeer", () => {
             const icd = fabricIcd();
