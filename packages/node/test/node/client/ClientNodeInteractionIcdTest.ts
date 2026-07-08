@@ -66,7 +66,8 @@ function recordNetworkSelection(controller: ServerNode, node: ClientNode) {
     const target = node.state.commissioning.peerAddress;
     const profiles = controller.env.get(NetworkProfiles);
     const selected = new Array<string | undefined>();
-    const original = profiles.select.bind(profiles);
+    const hadOwn = Object.hasOwn(profiles, "select");
+    const prior = profiles.select.bind(profiles);
     profiles.select = (peer: Peer, id?: string) => {
         if (
             target !== undefined &&
@@ -75,12 +76,17 @@ function recordNetworkSelection(controller: ServerNode, node: ClientNode) {
         ) {
             selected.push(id);
         }
-        return original(peer, id);
+        return prior(peer, id);
     };
     return {
         selected,
         [Symbol.dispose]() {
-            Reflect.deleteProperty(profiles, "select");
+            // Restore the prior selector rather than blindly deleting, so a pre-existing own override survives.
+            if (hadOwn) {
+                profiles.select = prior;
+            } else {
+                Reflect.deleteProperty(profiles, "select");
+            }
         },
     };
 }

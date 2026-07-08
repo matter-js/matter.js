@@ -15,12 +15,17 @@ describe("NetworkProfiles", () => {
             expect(profiles.get("unlimited").additionalMrpDelay).equals(Millis(0));
         });
 
-        it("icdLit is unthrottled and carries no additive delay", () => {
+        it("icdLit is unthrottled and carries no additive delay", async () => {
             const profiles = new NetworkProfiles();
             const profile = profiles.get("icdLit");
             expect(profile.additionalMrpDelay).equals(Millis(0));
-            expect(profile.semaphore.running).equals(0);
             expect(profile.connect).equals(undefined);
+
+            // Concurrent slots must not queue: a second grant while holding the first proves unbounded concurrency.
+            using _slot1 = await profile.semaphore.obtainSlot();
+            using _slot2 = await profile.semaphore.obtainSlot();
+            expect(profile.semaphore.running).equals(2);
+            expect(profile.semaphore.count).equals(0);
         });
 
         it("conservative, thread and unknown carry 1.5s", () => {
