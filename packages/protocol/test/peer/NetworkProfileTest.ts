@@ -15,6 +15,14 @@ describe("NetworkProfiles", () => {
             expect(profiles.get("unlimited").additionalMrpDelay).equals(Millis(0));
         });
 
+        it("icdLit is unthrottled and carries no additive delay", () => {
+            const profiles = new NetworkProfiles();
+            const profile = profiles.get("icdLit");
+            expect(profile.additionalMrpDelay).equals(Millis(0));
+            expect(profile.semaphore.running).equals(0);
+            expect(profile.connect).equals(undefined);
+        });
+
         it("conservative, thread and unknown carry 1.5s", () => {
             const profiles = new NetworkProfiles();
             expect(profiles.get("conservative").additionalMrpDelay).equals(Seconds(1.5));
