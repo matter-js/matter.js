@@ -100,6 +100,22 @@ export class FabricIcd {
     }
 
     /**
+     * In-memory teardown for shutdown: cancel every peer's wakefulness timers so they do not outlive the fabric (e.g.
+     * delaying node shutdown).  Does not unpersist registrations.
+     */
+    close(): void {
+        for (const { wakefulness } of this.#peers.values()) {
+            wakefulness.close();
+        }
+        this.#peers.clear();
+        this.#registrations.clear();
+    }
+
+    [Symbol.dispose](): void {
+        this.close();
+    }
+
+    /**
      * Trial-decrypts a Check-In payload against all registered peer keys.
      *
      * Returns true if a key matched (even when the counter was a replay), false when no key decrypted the payload.
