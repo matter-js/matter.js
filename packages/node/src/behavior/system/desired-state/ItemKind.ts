@@ -35,6 +35,13 @@ export interface ItemKind<I = unknown> {
     capacity?(node: ClientNode): Promise<CapacityInfo>;
 
     /**
+     * Exclude this kind from pre-flight task admission. Set when `capacity` counts a coarser resource than
+     * this kind's per-item key (e.g. per-endpoint membership sharing a per-group limit), so admitting it
+     * would double-count a slot another kind already gates. `capacity` still serves the reconciler.
+     */
+    readonly excludeFromAdmission?: boolean;
+
+    /**
      * Report whether another live desired-state intent still depends on the `(kind, key)` entry, so a
      * shared entry is not deleted while referenced. Unimplemented ⇒ no dependents ⇒ always removable.
      */
