@@ -263,12 +263,10 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
             resolveTeardown();
         };
 
-        // sessionPromise resolves AFTER Commissioner.release() (or the catch
-        // branch) so callers awaiting handle.done / handle.close() see the
-        // commissioner cleanly released before they tear down DTLS. Without
-        // this, COMM_REL would race against socket close and BR would never
-        // see the release ACK (manifested as petition-rejected on retry).
-        const sessionPromise = this.#commissioner
+        // `done` settles AFTER Commissioner.release() so callers awaiting handle.done / handle.close()
+        // see a clean release before tearing down DTLS. (Without that ordering COMM_REL races socket
+        // close and the BR never sees the release ACK, manifesting as petition-rejected on retry.)
+        const done = this.#commissioner
             .withSession(async () => {
                 if (closed) return;
                 logger.debug(`queryMulticast START tlvs=${opts.tlvTypes.length} window=${windowMs}ms`);
@@ -363,17 +361,25 @@ export class MeshCopDiagnosticSource implements DiagnosticSource {
                 await teardownPromise;
             })
             .catch(err => {
-                onError.emit(errorOf(err));
+                // Reject `done` on a fatal session failure so a total failure isn't mistaken for a
+                // clean empty window; the per-node onError.emit above stay non-fatal.
+                const e = errorOf(err);
+                onError.emit(e);
                 teardown();
+                throw e;
             });
 
         return {
             onNode,
             onError,
-            done: sessionPromise,
+            done,
             close: async () => {
                 teardown();
-                await sessionPromise;
+                // close() is cleanup and must not throw; the failure surfaces via `done`. Logging it
+                // also handles the rejection, so an only-close() caller never hits an unhandled one.
+                await done.catch(error =>
+                    logger.debug(`queryMulticast released after failure: ${errorOf(error).message}`),
+                );
             },
         };
     }
