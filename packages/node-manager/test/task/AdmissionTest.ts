@@ -74,6 +74,35 @@ describe("capacity admission", () => {
         await node.close();
     });
 
+    it("does not reject an excludeFromAdmission kind even at its capacity limit", async () => {
+        const environment = new Environment("test");
+        const peer = new FakePeer("p");
+        // Mirrors membership: capacity is exhausted, but the kind opts out of admission (a coarser kind gates it).
+        peer.itemKind = (kind: string) =>
+            kind === "member"
+                ? {
+                      excludeFromAdmission: true,
+                      async capacity() {
+                          return { limit: 4, used: 4 };
+                      },
+                  }
+                : undefined;
+        TestTaskManager.peers.set("p", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let ran = false;
+        SyntheticTask.plannedChangesByTag["member"] = [{ peerId: "p", kind: "member", key: "1:2", intent: {} }];
+        SyntheticTask.phasesByTag["member"] = [{ name: "runs", run: async () => void (ran = true) }];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-member" });
+        await node.act(a => a.get(TestTaskManager).register("synthetic", SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run("synthetic", { tag: "member" }));
+
+        await awaitState(node, "synthetic:member", "completed");
+        expect(ran).equals(true);
+        await node.close();
+    });
+
     it("admits a task that fits", async () => {
         const environment = new Environment("test");
         const peer = capPeer("p", { limit: 4, used: 1 });

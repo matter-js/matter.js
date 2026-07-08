@@ -241,6 +241,9 @@ export class TaskManagerBehavior extends Behavior {
                 continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
             }
             const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind));
+            if (itemKind?.excludeFromAdmission) {
+                continue; // capacity counts a coarser resource another kind already gates (e.g. membership vs group)
+            }
             const capacity = await itemKind?.capacity?.(peer);
             if (capacity === undefined) {
                 continue; // kind reports no capacity limit (e.g. groupKey) — the device write is the gate

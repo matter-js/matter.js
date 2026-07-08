@@ -32,6 +32,9 @@ export class GroupMembershipItemKind implements ItemKind<GroupMembershipGrant> {
     readonly kind = "endpointGroupMembership";
     readonly priority = PRIORITY_BANDS.membership;
 
+    // capacity is per-group (groupTable) but the key is per-endpoint; the group slot is gated by groupKeyMap.
+    readonly excludeFromAdmission = true;
+
     #commands(node: ClientNode, localEndpoint: number) {
         return node.endpoints.for(localEndpoint).commandsOf(GroupsClient);
     }
