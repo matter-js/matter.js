@@ -161,7 +161,7 @@ export class NetworkClient extends NetworkBehavior {
             if (this.internal.activeSubscription instanceof SustainedSubscription) {
                 this.internal.activeSubscription.active.on(isActive => {
                     this.events.subscriptionStatusChanged.emit(isActive);
-                    // Also signal liveness directly on establishment; the subscriptionId-gated emit below misses the priming report.
+                    // Also signal liveness directly on establishment; the subscriptionId-gated emit in updated() misses the priming report.
                     if (isActive) {
                         this.events.subscriptionAlive.emit();
                     }
