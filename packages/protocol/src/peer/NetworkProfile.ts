@@ -295,6 +295,15 @@ export namespace NetworkProfiles {
          * Interactions only use this profile if you specify explicitly.
          */
         unlimited: Limits;
+
+        /**
+         * Priority profile for interactions with an await-mode (LIT) ICD.
+         *
+         * Applies no concurrency throttle, so a check-in-triggered interaction is not queued behind bulk traffic and
+         * can land inside the peer's brief active window.  MRP timing is unaffected: it derives from the peer's medium
+         * profile, so selecting this profile swaps only the throttle semaphore.
+         */
+        icdLit: Limits;
     }
 
     /**
@@ -318,6 +327,7 @@ export namespace NetworkProfiles {
 
     export const defaults: Templates = {
         unlimited: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
+        icdLit: { exchanges: Infinity, additionalMrpDelay: Millis(0) },
         fast: { exchanges: 200, additionalMrpDelay: Millis(0) },
         thread: conservative,
         conservative,

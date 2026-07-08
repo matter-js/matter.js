@@ -714,7 +714,7 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
-        it("recreates on the unlimited network profile, then reverts to the default on a later loss", async () => {
+        it("recreates on the icdLit network profile, then reverts to the default on a later loss", async () => {
             const wakefulness = litWakefulness();
 
             const networks = new Array<string | undefined>();
@@ -731,18 +731,55 @@ describe("SustainedSubscription", () => {
 
             wakefulness.noteSignal(); // wake -> first (establish) subscribe
             await flush();
-            expect(networks).deep.equal([undefined]);
+            // A LIT peer resubscribes off the shared throttle every iteration, so even the first establish is priority.
+            expect(networks).deep.equal(["icdLit"]);
 
             // A mode-flip recreate must bypass the per-network throttle so the time-critical resubscribe is not queued
             // out of the peer's brief active window.
             wakefulness.requiresAwait = false;
             await flush();
-            expect(networks).deep.equal([undefined, "unlimited"]);
+            expect(networks).deep.equal(["icdLit", "icdLit"]);
 
-            // A subsequent genuine loss is a normal resubscribe, not a mode flip: it must revert to the default profile.
+            // A subsequent genuine loss on the now-SIT peer is a normal resubscribe: it reverts to the default profile.
             lastRequest?.closed?.();
             await flush();
-            expect(networks).deep.equal([undefined, "unlimited", undefined]);
+            expect(networks).deep.equal(["icdLit", "icdLit", undefined]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("keeps a runtime SIT→LIT peer on icdLit for a post-loss resubscribe, not just the flip recreate", async () => {
+            const wakefulness = new IcdPeerWakefulness();
+            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            // Starts SIT (requiresAwait false).
+
+            const networks = new Array<string | undefined>();
+            let lastRequest: SustainedClientSubscribe | undefined;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async (request: Subscribe) => {
+                    const sustained = request as SustainedClientSubscribe;
+                    networks.push(sustained.network);
+                    lastRequest = sustained;
+                    return fakePeerSub();
+                },
+            });
+
+            await flush();
+            expect(networks).deep.equal([undefined]); // SIT establish uses the medium profile
+
+            // SIT→LIT flip: the one-shot recreate is priority.
+            wakefulness.requiresAwait = true;
+            wakefulness.noteSignal();
+            await flush();
+            expect(networks).deep.equal([undefined, "icdLit"]);
+
+            // A genuine loss (not a flip) on the now-LIT peer resubscribes in-window: it must stay on icdLit even
+            // though the network was not captured at subscribe time. This is the live per-iteration routing.
+            lastRequest?.closed?.();
+            await flush();
+            expect(networks).deep.equal([undefined, "icdLit", "icdLit"]);
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
@@ -781,7 +818,7 @@ describe("SustainedSubscription", () => {
             await flush();
 
             expect(subscribeCount).equal(2);
-            expect(networks[1]).equal("unlimited");
+            expect(networks[1]).equal("icdLit");
             expect(subscription.active.value).equal(true);
             expect(emissions.includes(false)).equal(false);
 
@@ -864,7 +901,7 @@ describe("SustainedSubscription", () => {
             // The first feed recreates for the new mode via the existing flip machinery: close + in-window resubscribe.
             expect(closedCount).equal(1);
             expect(subscribeCount).equal(2);
-            expect(networks[1]).equal("unlimited");
+            expect(networks[1]).equal("icdLit");
             expect(subscription.active.value).equal(true);
             expect(emissions.includes(false)).equal(false);
 
