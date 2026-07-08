@@ -198,7 +198,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         // For commands, by default ignore the queue because the user is responsible for managing that themselves
         if (request.network === undefined) {
-            request.network = "unlimited";
+            request = { ...request, network: "unlimited" };
         }
 
         // Hold for a LIT peer to wake before the first yield* so we never transmit into a sleeping radio.
