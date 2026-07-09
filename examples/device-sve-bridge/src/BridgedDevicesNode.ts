@@ -25,6 +25,7 @@ import {
     Time,
     VendorId,
 } from "@matter/main";
+import { AccessControlServer } from "@matter/main/behaviors/access-control";
 import { BasicInformationServer } from "@matter/main/behaviors/basic-information";
 import { BooleanStateServer } from "@matter/main/behaviors/boolean-state";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
@@ -72,6 +73,8 @@ const networkId = Bytes.fromHex("6574682D617070");
  */
 const server = await ServerNode.create(
     ServerNode.RootEndpoint.with(
+        // The Groupcast Listener feature generates auxiliary ACL entries, which requires the Auxiliary feature
+        AccessControlServer.with("Extension", "Auxiliary"),
         GroupcastServer.with("Listener", "Sender", "PerGroup"),
         NetworkCommissioningServer.with("EthernetNetworkInterface"),
     ),
