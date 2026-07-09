@@ -43,10 +43,10 @@ export class Time {
      * time such as epoch values sent on the wire.
      */
     get nowMs() {
-        return Date.now();
+        return Date.now() as Timestamp;
     }
     static get nowMs() {
-        return Time.default.nowMs as Timestamp;
+        return Time.default.nowMs;
     }
 
     /**
