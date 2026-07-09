@@ -140,6 +140,37 @@ export class PeerAddressMonitor {
             return true;
         }
 
+        // A sleeping LIT ICD won't answer a probe, and a failed probe would close a healthy session — so never
+        // probe it. If its address leaves mDNS, adopt a discovered one on trust instead, preferring the session's
+        // IP family since the unreachable family can't be ruled out without a probe.
+        // @see {@link MatterSpecification.v16.Core} § 4.12.2.1
+        // icdActive first: it reads #icd?.hasPeers without invoking the lazily-creating fabric.icd getter, so a non-ICD
+        // fabric does not allocate a FabricIcd on every reachability check.
+        if (
+            this.#peer.fabric.icdActive &&
+            this.#peer.fabric.icd.wakefulnessFor(this.#peer.address.nodeId)?.requiresAwait
+        ) {
+            const icdAddress = channel.networkAddress;
+            const discovered = this.#peer.service.addresses;
+            if (!discovered.size || [...discovered].some(addr => ServerAddress.isEqual(addr, icdAddress))) {
+                return true;
+            }
+            const candidates = [...discovered];
+            const isIpv6 = (ip: string) => ip.includes(":");
+            const next = candidates.find(addr => isIpv6(addr.ip) === isIpv6(icdAddress.ip)) ?? candidates[0];
+            const adopted: ServerAddressUdp = { ...next, type: "udp" };
+            logger.info(
+                session.via,
+                "Sleeping LIT ICD address",
+                Diagnostic.strong(ServerAddress.urlFor(icdAddress)),
+                "left mDNS, adopting",
+                Diagnostic.strong(ServerAddress.urlFor(adopted)),
+                "on trust (no probe)",
+            );
+            session.channel.networkAddress = adopted;
+            return true;
+        }
+
         const currentAddress = channel.networkAddress;
         const discoveredAddresses = this.#peer.service.addresses;
 

@@ -4,17 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { DescriptorClient } from "#behaviors/descriptor";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
 import { PowerSourceClient } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { Node } from "#node/Node.js";
-import { IcdManagement } from "@matter/model";
+import { Seconds } from "@matter/general";
 import { PhysicalDeviceProperties } from "@matter/protocol";
-import { ClusterId, DeviceTypeId } from "@matter/types";
+import { DeviceTypeId } from "@matter/types";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 
@@ -24,6 +27,10 @@ import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-
 export function NodePhysicalProperties(node: Node) {
     const rootEndpointServerList = [...(node.maybeStateOf(DescriptorClient)?.serverList ?? [])];
 
+    const supportsLit = IcdClient.litSupported(node);
+    const operatingMode = node.maybeStateOf(IcdManagementClient)?.operatingMode;
+    const idleModeDuration = node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
+
     const properties: PhysicalDeviceProperties = {
         supportsThread: false,
         supportsWifi: false,
@@ -31,7 +38,9 @@ export function NodePhysicalProperties(node: Node) {
         rootEndpointServerList,
         isMainsPowered: false,
         isBatteryPowered: false,
-        isIntermittentlyConnected: rootEndpointServerList.includes(IcdManagement.id as ClusterId),
+        isIntermittentlyConnected: rootEndpointServerList.includes(IcdManagement.id),
+        isLongIdleTimeOperating: supportsLit && operatingMode === IcdManagement.OperatingMode.Lit,
+        idleModeDuration: idleModeDuration === undefined ? undefined : Seconds(idleModeDuration),
         isThreadSleepyEndDevice: false,
         specificationVersion: node.maybeStateOf(BasicInformationClient)?.specificationVersion,
         deviceTypes: new Set<DeviceTypeId>(),

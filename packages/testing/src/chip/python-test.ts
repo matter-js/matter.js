@@ -98,7 +98,7 @@ export class PythonTest extends BaseTest {
         }
     }
 
-    async invoke(subject: Subject, step: (title: string) => void, args: string[]) {
+    async invoke(subject: Subject, step: (title: string) => void, args: string[], uncommissioned: boolean) {
         let monitor: RestartFlagMonitor | undefined;
         if (this.#restartFlagHostDir) {
             const hostFlagPath = join(this.#restartFlagHostDir, basename(Constants.RestartFlagFile));
@@ -108,7 +108,7 @@ export class PythonTest extends BaseTest {
 
         let testError: unknown;
         try {
-            await this.#runPythonTest(subject, step, args);
+            await this.#runPythonTest(subject, step, args, uncommissioned);
         } catch (e) {
             testError = e;
         }
@@ -130,10 +130,14 @@ export class PythonTest extends BaseTest {
         }
     }
 
-    async #runPythonTest(subject: Subject, step: (title: string) => void, args: string[]) {
-        const terminal = await this.container.exec(await createCommand(this.descriptor, subject, args), Terminal.Line, {
-            cwd: "/tmp",
-        });
+    async #runPythonTest(subject: Subject, step: (title: string) => void, args: string[], uncommissioned: boolean) {
+        const terminal = await this.container.exec(
+            await createCommand(this.descriptor, subject, args, uncommissioned),
+            Terminal.Line,
+            {
+                cwd: "/tmp",
+            },
+        );
 
         let passed = false;
         for await (let line of terminal) {
@@ -216,12 +220,24 @@ function spiffy(line: string) {
  *
  * A program defining mandatory arguments to itself seems silly but we work with what we've got amiright?
  */
-async function createCommand(descriptor: TestFileDescriptor, subject: Subject, extraArgs: string[]) {
+async function createCommand(
+    descriptor: TestFileDescriptor,
+    subject: Subject,
+    extraArgs: string[],
+    uncommissioned: boolean,
+) {
     const command = ["python3", descriptor.path, ...Constants.PythonRunnerArgs];
 
     const args = scriptArgsOf(descriptor);
 
     command.push(...args, ...extraArgs);
+
+    // Uncommissioned subjects read the setup code in setup_class (self-commission, or assert it like TC_SC_7_1).
+    // The QR pairing code encodes discriminator + passcode, so it satisfies both get_setup_payload_info_config and
+    // setup-code tests that reject bare discriminator/passcode.
+    if (uncommissioned && !command.includes("--qr-code")) {
+        command.push("--qr-code", subject.commissioning.qrPairingCode);
+    }
 
     if (!command.includes("--PICS")) {
         command.push("--PICS", await PicsSource.install(subject.pics));

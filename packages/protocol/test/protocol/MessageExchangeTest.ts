@@ -36,6 +36,7 @@ function createExchange(session: ProtocolMocks.NodeSession, protocolId: number =
             session,
             localSessionParameters: SessionParameters(SessionParameters.defaults),
             localAdditionalMrpDelay: Millis(0),
+            localFixedMrpBackoff: Millis(0),
             async peerLost() {
                 peerLostCalled.value = true;
             },
@@ -266,21 +267,24 @@ describe("MessageExchange", () => {
         // an ack so the test does not block.
         async function captureAdditionalDelay(options: {
             localAdditionalMrpDelay: Duration;
+            localFixedMrpBackoff?: Duration;
             peerAdditionalMrpDelay?: Duration;
             network?: NetworkProfile;
-        }): Promise<Duration | undefined> {
+        }): Promise<{ additionalDelay?: Duration; fixedBackoff?: Duration }> {
             // MRP only engages on unreliable transports; the default mock channel is reliable.
             const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
             channel.isReliable = false;
             const session = new ProtocolMocks.NodeSession({ channel });
-            let captured: Duration | undefined;
+            const captured: { additionalDelay?: Duration; fixedBackoff?: Duration } = {};
             (session.channel as any).getMrpResubmissionBackOffTime = (
                 _retransmissionCount: number,
                 _sessionParameters: unknown,
                 _calculateMaximum: boolean,
                 additionalDelay?: Duration,
+                fixedBackoff?: Duration,
             ) => {
-                captured = additionalDelay;
+                captured.additionalDelay = additionalDelay;
+                captured.fixedBackoff = fixedBackoff;
                 throw new NetworkError("captured");
             };
 
@@ -289,6 +293,7 @@ describe("MessageExchange", () => {
                     session,
                     localSessionParameters: SessionParameters(SessionParameters.defaults),
                     localAdditionalMrpDelay: options.localAdditionalMrpDelay,
+                    localFixedMrpBackoff: options.localFixedMrpBackoff ?? Millis(0),
                     async peerLost() {},
                     retry() {},
                 },
@@ -308,7 +313,7 @@ describe("MessageExchange", () => {
                 network: unlimitedThrottle(),
             });
 
-            expect(captured).equals(Seconds(1.5));
+            expect(captured.additionalDelay).equals(Seconds(1.5));
         });
 
         it("falls back to localAdditionalMrpDelay as a floor when no peer margin is given", async () => {
@@ -318,7 +323,7 @@ describe("MessageExchange", () => {
                 network: unlimitedThrottle(),
             });
 
-            expect(captured).equals(Seconds(1.5));
+            expect(captured.additionalDelay).equals(Seconds(1.5));
         });
 
         it("applies no margin when neither local nor peer margin is set", async () => {
@@ -328,7 +333,18 @@ describe("MessageExchange", () => {
                 network: unlimitedThrottle(),
             });
 
-            expect(captured).equals(Millis(0));
+            expect(captured.additionalDelay).equals(Millis(0));
+        });
+
+        it("passes localFixedMrpBackoff through as the fixed backoff pad, separate from additionalDelay", async () => {
+            const captured = await captureAdditionalDelay({
+                localAdditionalMrpDelay: Millis(0),
+                localFixedMrpBackoff: Seconds(0.2),
+                peerAdditionalMrpDelay: undefined,
+            });
+
+            expect(captured.fixedBackoff).equals(Seconds(0.2));
+            expect(captured.additionalDelay).equals(Millis(0));
         });
     });
 });

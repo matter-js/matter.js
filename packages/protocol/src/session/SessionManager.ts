@@ -194,6 +194,12 @@ export class SessionManager {
      * configured "own" network profile; defaults to 0 (treated as a low-latency local network).
      */
     localAdditionalMrpDelay: Duration = Millis(0);
+
+    /**
+     * Fixed sender-side MRP backoff pad added after the exponential backoff (so it is not amplified).
+     * Used to mirror an ICD server's fast-polling-interval grace; defaults to 0.
+     */
+    localFixedMrpBackoff: Duration = Millis(0);
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
@@ -601,7 +607,11 @@ export class SessionManager {
             );
         }
 
-        const session = this.#groupSessions.get(fabric.nodeId)?.get("id", sessionId);
+        // Outbound sessions register under their group node id (see registerGroupSession), so look up the same bucket
+        // and match by key: a session id can be shared by multiple keys, so reuse must verify the operational key.
+        const session = this.#groupSessions
+            .get(address.nodeId)
+            ?.find(s => s.matches(fabric.fabricIndex, sessionId, key));
         if (session) {
             return session;
         }
@@ -652,7 +662,7 @@ export class SessionManager {
         const groupId = GroupId(rawGroupId);
         GroupId.assertGroupId(groupId);
 
-        let session = this.#groupSessions.get(sourceNodeId)?.get("id", sessionId);
+        let session = this.#groupSessions.get(sourceNodeId)?.find(s => s.matches(fabric.fabricIndex, sessionId, key));
         if (session === undefined) {
             session = new GroupSession({
                 manager: this,

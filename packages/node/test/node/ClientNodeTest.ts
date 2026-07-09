@@ -10,6 +10,7 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { AccessControlClient } from "#behaviors/access-control";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import {
@@ -260,6 +261,61 @@ describe("ClientNode", () => {
 
         expect(device.state.commissioning.commissioned).equals(true);
         expect(controller.peers.size).equals(1);
+    });
+
+    it("initializes a newly-commissioned node with autoSubscribe:false without a manual reconnect", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({ passcode, discriminator, timeout: Seconds(90), autoSubscribe: false }),
+            { macrotasks: true },
+        );
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+        expect(peer1.stateOf(NetworkClient).autoSubscribe).equals(false);
+
+        // The one-time post-commission read populated cluster state and endpoint structure without a manual reconnect
+        expect(peer1.maybeStateOf(BasicInformationBehavior)?.vendorName).equals("Matter.js Test Vendor");
+        expect(peer1.parts.size).equals(1);
+    });
+
+    it("skips the post-commission read when autoStateInitialize is false", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            controller.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+            }),
+            { macrotasks: true },
+        );
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        // Opting out leaves the node uninitialized: no post-commission read, so no cluster state and no endpoint structure
+        expect(peer1.maybeStateOf(BasicInformationBehavior)).equals(undefined);
+        expect(peer1.parts.size).equals(0);
     });
 
     it("commissions with an explicit id and restores the peer under that id after restart", async () => {
@@ -2090,6 +2146,7 @@ const PEER1_STATE = {
     },
     network: {
         autoSubscribe: true,
+        autoStateInitialize: undefined,
         isDisabled: false,
         port: 0x15a4,
         operationalPort: -1,

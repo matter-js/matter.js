@@ -10,6 +10,7 @@ import { AllClustersTestInstance } from "../src/AllClustersTestInstance.js";
 import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
+import { IcdTestInstance } from "../src/IcdTestInstance.js";
 import { NodeTestInstance } from "../src/NodeTestInstance.js";
 import { RvcTestInstance } from "../src/RvcTestInstance.js";
 import { TvTestInstance } from "../src/TvTestInstance.js";
@@ -46,6 +47,7 @@ export const AllDevicesApp = App(AllDevicesTestInstance);
 export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);
 export const RvcApp = App(RvcTestInstance);
+export const LitIcdApp = App(IcdTestInstance);
 
 // chip-test-header app names (after generate-test-descriptor normalization: strip ${...},
 // CHIP_/_APP affixes, lower-kebab-case) → factory. When a python test descriptor names an
@@ -55,5 +57,6 @@ chip.subjectFor("all-devices", AllDevicesApp);
 chip.subjectFor("bridge", BridgeApp);
 chip.subjectFor("tv", TvApp);
 chip.subjectFor("rvc", RvcApp);
+chip.subjectFor("lit-icd", LitIcdApp);
 
 chip.defaultSubject = AllClustersApp;

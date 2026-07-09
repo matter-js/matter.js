@@ -44,6 +44,7 @@ import {
     ClusterBehavior,
     Commands,
     EndpointLifecycle,
+    IcdClient,
     NetworkClient,
     type GlobalAttributeState,
 } from "@matter/node";
@@ -339,6 +340,14 @@ export class PairedNode {
             this.#clientNode.eventsOf(NetworkClient).subscriptionAlive,
             this.#handleSubscriptionAlive.bind(this),
         );
+
+        // A missed Check-In escalates a held Reconnecting; a parked subscription alone must not.
+        if (this.#clientNode.behaviors.has(IcdClient)) {
+            this.#observers.on(
+                this.#clientNode.eventsOf(IcdClient).checkInMissed,
+                this.#handleIcdCheckInMissed.bind(this),
+            );
+        }
 
         this.#observers.on(peer.service.changed, () => {
             if (!peer.service.addresses.size && this.#connectionState === NodeStates.Reconnecting) {
@@ -805,6 +814,13 @@ export class PairedNode {
             // Subscription is not active anymore, and we were connected before, we use Reconnecting as state
             // When all sessions disconnect, we go to WaitingForDiscovery
             this.#setConnectionState(NodeStates.Reconnecting);
+        }
+    }
+
+    /** Escalate a held Reconnecting when a registered LIT peer misses its expected Check-In; recovery stays with the liveness handler. */
+    #handleIcdCheckInMissed() {
+        if (this.#connectionState === NodeStates.Reconnecting && !this.#closing && !this.#decommissioned) {
+            this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
         }
     }
 

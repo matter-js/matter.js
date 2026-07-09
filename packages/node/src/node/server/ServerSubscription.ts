@@ -6,6 +6,7 @@
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import { IcdManagementServer } from "#behaviors/icd-management";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
@@ -261,6 +262,50 @@ export class ServerSubscription implements Subscription {
         subscriptionMaxInterval: Duration,
         subscriptionRandomizationWindow: Duration,
     ): { maxInterval: Duration; sendInterval: Duration } {
+        const maxInterval =
+            this.#icdIdleMaxInterval() ??
+            this.#genericMaxInterval(subscriptionMinInterval, subscriptionMaxInterval, subscriptionRandomizationWindow);
+        let sendInterval = Millis.floor(Millis(maxInterval / 2)); // Ideally we send at half the max interval
+        if (sendInterval < Minutes.one) {
+            // But if we have no chance of at least one full resubmission process we do like chip-tool.
+            // One full resubmission process takes 33-45 seconds. So 60s means we reach at least first 2 retries of a
+            // second subscription report after first failed.
+            sendInterval = Duration.max(this.minIntervalFloor, Millis.floor(Millis(maxInterval * 0.8)));
+        }
+        if (sendInterval < subscriptionMinInterval) {
+            // But not faster than once every 2s
+            logger.warn(
+                `Determined subscription send interval of ${Duration.format(sendInterval)} is too low. Using maxInterval (${Duration.format(maxInterval)}) instead.`,
+            );
+            sendInterval = subscriptionMinInterval;
+        }
+        return { maxInterval, sendInterval };
+    }
+
+    /**
+     * Max interval for a LIT-capable ICD publisher, or undefined for non-ICD publishers.
+     *
+     * Mirrors chip's ReadHandler: grants the ICD's IdleModeDuration (its full idle cycle), floored at the subscriber's
+     * MinIntervalFloor. No randomization on the ICD interval. IdleModeDuration is always within the §2.11 ICD publisher
+     * limit MAX(IdleModeDuration, 60min), so no upper clamp is needed.
+     */
+    #icdIdleMaxInterval(): Duration | undefined {
+        const node = this.#context.node;
+        if (node.maybeFeaturesOf(IcdManagementServer)?.longIdleTimeSupport !== true) {
+            return undefined;
+        }
+        const idleModeDuration = node.maybeStateOf(IcdManagementServer)?.idleModeDuration;
+        if (idleModeDuration === undefined) {
+            return undefined;
+        }
+        return Duration.max(this.minIntervalFloor, Seconds(idleModeDuration));
+    }
+
+    #genericMaxInterval(
+        subscriptionMinInterval: Duration,
+        subscriptionMaxInterval: Duration,
+        subscriptionRandomizationWindow: Duration,
+    ): Duration {
         // Max Interval is the Max interval that the controller request, unless the configured one from the developer
         // is lower. In that case we use the configured one. But we make sure to not be smaller than the requested
         // controller minimum. But in general never faster than minimum interval configured or 2 seconds
@@ -268,7 +313,7 @@ export class ServerSubscription implements Subscription {
         // devices sending at the same time. But we make sure not to exceed the global max interval.
         // Spec §8.5.3.2 lower bound: MaxInterval must stay >= MinIntervalFloor even when the floor
         // exceeds the publisher limit, so re-raise after the MAX_INTERVAL_PUBLISHER_LIMIT cap.
-        const maxInterval = Duration.max(
+        return Duration.max(
             this.minIntervalFloor,
             Duration.min(
                 Millis.floor(
@@ -286,21 +331,6 @@ export class ServerSubscription implements Subscription {
                 MAX_INTERVAL_PUBLISHER_LIMIT,
             ),
         );
-        let sendInterval = Millis.floor(Millis(maxInterval / 2)); // Ideally we send at half the max interval
-        if (sendInterval < Minutes.one) {
-            // But if we have no chance of at least one full resubmission process we do like chip-tool.
-            // One full resubmission process takes 33-45 seconds. So 60s means we reach at least first 2 retries of a
-            // second subscription report after first failed.
-            sendInterval = Duration.max(this.minIntervalFloor, Millis.floor(Millis(maxInterval * 0.8)));
-        }
-        if (sendInterval < subscriptionMinInterval) {
-            // But not faster than once every 2s
-            logger.warn(
-                `Determined subscription send interval of ${Duration.format(sendInterval)} is too low. Using maxInterval (${Duration.format(maxInterval)}) instead.`,
-            );
-            sendInterval = subscriptionMinInterval;
-        }
-        return { maxInterval, sendInterval };
     }
 
     #addOutstandingAttributes(endpointId: EndpointNumber, clusterId: ClusterId, changedAttrs: AttributeId[]) {

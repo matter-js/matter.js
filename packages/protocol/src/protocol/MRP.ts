@@ -52,6 +52,10 @@ export namespace MRP {
         isPeerActive: boolean;
         usesMrp?: boolean;
         expectedProcessingTime?: Duration;
+
+        /** Our own sender-side backoff additions, applied to the local (our-retransmissions) direction only. */
+        localAdditionalDelay?: Duration;
+        localFixedBackoff?: Duration;
     }
 
     export function maxPeerResponseTimeOf({
@@ -61,6 +65,8 @@ export namespace MRP {
         isPeerActive,
         usesMrp = channelType === ChannelType.UDP,
         expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
+        localAdditionalDelay,
+        localFixedBackoff,
     }: ResponseTimeInputs): Duration {
         switch (channelType) {
             case "tcp":
@@ -72,10 +78,14 @@ export namespace MRP {
                 if (!usesMrp) {
                     throw new MatterFlowError("No response expected for this message exchange because UDP and no MRP");
                 }
-                // Calculate the maximum time till the peer got our last retry and worst-case for the way back
+                // Calculate the maximum time till the peer got our last retry and worst-case for the way back. The local
+                // direction is our own retransmissions, so it carries our sender-side pad; the peer direction does not.
                 return Millis(
                     (peerSessionParameters !== undefined ? maxResponseTimeOf(peerSessionParameters, isPeerActive) : 0) +
-                        maxResponseTimeOf(localSessionParameters, true) + // We consider us as always active initially
+                        maxResponseTimeOf(localSessionParameters, true, {
+                            additionalDelay: localAdditionalDelay,
+                            fixedBackoff: localFixedBackoff,
+                        }) + // We consider us as always active initially
                         expectedProcessingTime +
                         PEER_RESPONSE_TIME_BUFFER,
                 );
@@ -97,10 +107,18 @@ export namespace MRP {
         isPeerActive: boolean;
 
         /**
-         * Additive margin applied to the base interval on real (non-maximum) sends.  Supplied by the
-         * caller from the combined peer/own network-profile policy; 0 means the bare spec interval.
+         * Additive margin applied to the base interval.  Supplied by the caller from the combined peer/own
+         * network-profile policy; 0 means the bare spec interval.  Because it joins the base interval, it is amplified
+         * by the exponential backoff factor.
          */
         additionalDelay?: Duration;
+
+        /**
+         * Fixed sender-side pad added to the final backoff after margin, exponent and jitter — so it is *not*
+         * amplified.  Used for an ICD sender's fast-polling interval grace (CHIP
+         * {@link ReliableMessageMgr::GetBackoff}); 0 means no pad.
+         */
+        fixedBackoff?: Duration;
     }
 
     /**
@@ -118,12 +136,19 @@ export namespace MRP {
      * side of the exchange.
      *
      * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
-     * Otherwise, the caller-supplied `additionalDelay` (default 0) is added to the base interval.
+     * `additionalDelay` (default 0) joins the base interval (so it is amplified) and `fixedBackoff` (default 0) is
+     * added to the final backoff (so it is not); both apply to the maximum as well so it upper-bounds the real send.
      *
      * @see {@link MatterSpecification.v16.Core}, section 4.12.2.1
      */
     export function retransmissionIntervalOf(
-        { transmissionNumber, sessionParameters, isPeerActive, additionalDelay = Millis(0) }: RetryDelayInputs,
+        {
+            transmissionNumber,
+            sessionParameters,
+            isPeerActive,
+            additionalDelay = Millis(0),
+            fixedBackoff = Millis(0),
+        }: RetryDelayInputs,
         calculateMaximum = false,
     ) {
         const { activeInterval, idleInterval } = sessionParameters;
@@ -131,25 +156,32 @@ export namespace MRP {
         // Every transmission (including the initial one) selects its interval by PeerActiveMode, re-evaluated
         // per (re)transmission, matching CHIP GetMRPBaseTimeout(). isPeerActive already yields idle for a
         // genuinely quiet peer, so no position-based first-message rule is needed.
-        let baseInterval = isPeerActive ? activeInterval : idleInterval;
-        if (!calculateMaximum) {
-            baseInterval += additionalDelay;
-        }
-        return Millis.floor(
-            Millis(
-                baseInterval *
-                    MRP.BACKOFF_MARGIN *
-                    Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
-                    (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER),
-            ),
-        );
+        // additionalDelay/fixedBackoff apply to the maximum too (only the jitter factor differs by calculateMaximum),
+        // so a worst-case timer sized from this is a true upper bound of the real padded schedule — mirrors CHIP
+        // ReliableMessageMgr::GetBackoff, which adds both the fast-polling interval and the sender boost regardless of
+        // computeMaxPossible.
+        const baseInterval = (isPeerActive ? activeInterval : idleInterval) + additionalDelay;
+        let backoff =
+            baseInterval *
+            MRP.BACKOFF_MARGIN *
+            Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD)) *
+            (1 + (calculateMaximum ? 1 : Math.random()) * MRP.BACKOFF_JITTER);
+        // Not amplified by the exponential backoff — mirrors CHIP ReliableMessageMgr::GetBackoff.
+        backoff += fixedBackoff;
+        return Millis.floor(Millis(backoff));
     }
 }
 
 /**
- * Calculates the maximum time the peer might take to respond when using MRP for one direction.
+ * Calculates the maximum time the peer might take to respond when using MRP for one direction. `pad` carries the
+ * sender-side backoff additions (network-profile `additionalDelay`, ICD fast-polling `fixedBackoff`) so a direction
+ * driven by our own retransmissions upper-bounds the real padded schedule; omit it for the peer's direction.
  */
-function maxResponseTimeOf(sessionParameters: SessionParameters, isPeerActive: boolean) {
+function maxResponseTimeOf(
+    sessionParameters: SessionParameters,
+    isPeerActive: boolean,
+    pad?: { additionalDelay?: Duration; fixedBackoff?: Duration },
+) {
     let finalWaitTime = 0;
 
     for (let i = 0; i < MRP.MAX_TRANSMISSIONS; i++) {
@@ -164,6 +196,8 @@ function maxResponseTimeOf(sessionParameters: SessionParameters, isPeerActive: b
                     transmissionNumber: i,
                     sessionParameters,
                     isPeerActive,
+                    additionalDelay: pad?.additionalDelay,
+                    fixedBackoff: pad?.fixedBackoff,
                 }),
         );
     }

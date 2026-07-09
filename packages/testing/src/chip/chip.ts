@@ -308,12 +308,15 @@ function createBuilder(initial: {
             // the whitelist behavior we want.
             let factory = subject;
             let appArgs: string[] | undefined;
-            if (factory === undefined && descriptor.app !== undefined) {
+            if (factory !== undefined) {
+                // An explicit .subject() targets a specific app, so still forward the descriptor's per-run app-args.
+                appArgs = parseAppArgs(descriptor);
+            } else if (descriptor.app !== undefined) {
                 factory = State.subjectForApp(descriptor.app);
                 if (factory === undefined) {
                     this.skip();
                 }
-                // app-args are scoped to the named app; forwarding them to defaultSubject would
+                // app-args are scoped to the named app; forwarding them to the defaultSubject would
                 // pollute the subject cache with per-test variants (e.g. --trace-to paths) and
                 // thrash setup on tests that don't need per-run dispatch.
                 appArgs = parseAppArgs(descriptor);

@@ -15,6 +15,7 @@ export type {
     OtbrRestClientOptions,
 } from "./OtbrRestClient.js";
 export { OtbrRestDiagnosticSource } from "./OtbrRestDiagnosticSource.js";
+export type { OtbrRestDiagnosticOptions } from "./OtbrRestDiagnosticSource.js";
 export { OtbrRestError } from "./OtbrRestError.js";
 export type { OtbrRestErrorCode, OtbrRestErrorOptions } from "./OtbrRestError.js";
 export { OtbrRestProbe } from "./OtbrRestProbe.js";

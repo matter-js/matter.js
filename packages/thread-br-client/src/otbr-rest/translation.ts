@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/general";
+import { Bytes, errorOf, Logger } from "@matter/general";
 import type { DiagnosticResponse } from "../diagnostic/DiagnosticResponse.js";
 import type { ChildTableEntry } from "../tlv/diag/ChildTable.js";
 import type { Connectivity, ParentPriority } from "../tlv/diag/Connectivity.js";
@@ -17,9 +17,25 @@ import type { Route64, Route64Entry } from "../tlv/diag/Route64.js";
 import { OtbrRestError } from "./OtbrRestError.js";
 import { parseHexBytes, parseRloc16 } from "./parseHexBytes.js";
 
+const logger = Logger.get("OtbrRestTranslation");
+
 const TIMEOUT_EXP_MIN = 4;
 const IPV6_BYTES = 16;
 const IPV6_GROUPS = 8;
+
+/**
+ * Run an optional-field translation, skipping (with a debug log) rather than throwing if the BR's
+ * shape for that field is unexpected. REST returns whatever the BR last collected, so one node's
+ * malformed enrichment TLV must not abort the whole mesh view.
+ */
+function optionalField<T>(field: string, fn: () => T): T | undefined {
+    try {
+        return fn();
+    } catch (e) {
+        logger.debug(`skipping OTBR diagnostic field "${field}": ${errorOf(e).message}`);
+        return undefined;
+    }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -143,23 +159,26 @@ function requireBigInt(record: Record<string, unknown>, key: string, where: stri
     return n;
 }
 
+// The OTBR REST diagnostics collection names MLE counters differently from the DiagnosticResponse
+// domain fields (verified live against a real BR): e.g. `radioDisabledCount` → `disabledRole`,
+// `totalTrackingTime` → `trackedTime`.
 function translateMleCounters(input: Record<string, unknown>): MleCounters {
     return {
-        disabledRole: requireNumber(input, "disabledRole", "mleCounters"),
-        detachedRole: requireNumber(input, "detachedRole", "mleCounters"),
-        childRole: requireNumber(input, "childRole", "mleCounters"),
-        routerRole: requireNumber(input, "routerRole", "mleCounters"),
-        leaderRole: requireNumber(input, "leaderRole", "mleCounters"),
-        attachAttempts: requireNumber(input, "attachAttempts", "mleCounters"),
-        partitionIdChanges: requireNumber(input, "partitionIdChanges", "mleCounters"),
-        betterPartitionAttachAttempts: requireNumber(input, "betterPartitionAttachAttempts", "mleCounters"),
-        parentChanges: requireNumber(input, "parentChanges", "mleCounters"),
-        trackedTime: requireBigInt(input, "trackedTime", "mleCounters"),
-        disabledTime: requireBigInt(input, "disabledTime", "mleCounters"),
-        detachedTime: requireBigInt(input, "detachedTime", "mleCounters"),
-        childTime: requireBigInt(input, "childTime", "mleCounters"),
-        routerTime: requireBigInt(input, "routerTime", "mleCounters"),
-        leaderTime: requireBigInt(input, "leaderTime", "mleCounters"),
+        disabledRole: requireNumber(input, "radioDisabledCount", "mleCounters"),
+        detachedRole: requireNumber(input, "detachedRoleCount", "mleCounters"),
+        childRole: requireNumber(input, "childRoleCount", "mleCounters"),
+        routerRole: requireNumber(input, "routerRoleCount", "mleCounters"),
+        leaderRole: requireNumber(input, "leaderRoleCount", "mleCounters"),
+        attachAttempts: requireNumber(input, "attachAttemptsCount", "mleCounters"),
+        partitionIdChanges: requireNumber(input, "partIdChangesCount", "mleCounters"),
+        betterPartitionAttachAttempts: requireNumber(input, "betterPartIdAttachAttemptsCount", "mleCounters"),
+        parentChanges: requireNumber(input, "newParentCount", "mleCounters"),
+        trackedTime: requireBigInt(input, "totalTrackingTime", "mleCounters"),
+        disabledTime: requireBigInt(input, "radioDisabledTime", "mleCounters"),
+        detachedTime: requireBigInt(input, "detachedRoleTime", "mleCounters"),
+        childTime: requireBigInt(input, "childRoleTime", "mleCounters"),
+        routerTime: requireBigInt(input, "routerRoleTime", "mleCounters"),
+        leaderTime: requireBigInt(input, "leaderRoleTime", "mleCounters"),
     };
 }
 
@@ -256,65 +275,79 @@ export function translateNodeJson(json: unknown): DiagnosticResponse {
 
     const extAddress = asString(json["extAddress"]);
     if (extAddress !== undefined) {
-        result.extMacAddress = parseHexBytes(extAddress, "extAddress", 8);
+        result.extMacAddress = optionalField("extAddress", () => parseHexBytes(extAddress, "extAddress", 8));
     }
 
     const rloc16 = parseRloc16(json["rloc16"]);
     if (rloc16 !== undefined) result.rloc16 = rloc16;
 
     const mode = asRecord(json["mode"]);
-    if (mode !== undefined) result.mode = translateMode(mode);
+    if (mode !== undefined) result.mode = optionalField("mode", () => translateMode(mode));
 
     const timeout = asNumber(json["timeout"]);
     if (timeout !== undefined) result.timeout = timeout;
 
     const connectivity = asRecord(json["connectivity"]);
-    if (connectivity !== undefined) result.connectivity = translateConnectivity(connectivity);
+    if (connectivity !== undefined) {
+        result.connectivity = optionalField("connectivity", () => translateConnectivity(connectivity));
+    }
 
     const route = asRecord(json["route"]);
-    if (route !== undefined) result.route64 = translateRoute(route);
+    if (route !== undefined) result.route64 = optionalField("route", () => translateRoute(route));
 
     const leaderData = asRecord(json["leaderData"]);
-    if (leaderData !== undefined) result.leaderData = translateLeaderData(leaderData);
+    if (leaderData !== undefined)
+        result.leaderData = optionalField("leaderData", () => translateLeaderData(leaderData));
 
     const networkData = asString(json["networkData"]);
     if (networkData !== undefined) {
-        result.networkData = NetworkData.decode(parseHexBytes(networkData, "networkData"));
+        result.networkData = optionalField("networkData", () =>
+            NetworkData.decode(parseHexBytes(networkData, "networkData")),
+        );
     }
 
-    const ip6Addresses = asArray(json["ip6AddressList"]);
+    // Legacy builds emit `IP6AddressList` (→ `ip6AddressList` after normalization); post-2024
+    // builds emit `ipv6Addresses`. Accept either, and label logs/errors with the key actually seen.
+    const ip6Key = json["ipv6Addresses"] !== undefined ? "ipv6Addresses" : "ip6AddressList";
+    const ip6Addresses = asArray(json["ipv6Addresses"] ?? json["ip6AddressList"]);
     if (ip6Addresses !== undefined) {
-        const list = new Array<Bytes>();
-        for (const entry of ip6Addresses) {
-            const text = asString(entry);
-            if (text === undefined) {
-                throw new OtbrRestError("rest_protocol", "ip6AddressList: entry is not a string");
+        result.ipv6Addresses = optionalField(ip6Key, () => {
+            const list = new Array<Bytes>();
+            for (const entry of ip6Addresses) {
+                const text = asString(entry);
+                if (text === undefined) {
+                    throw new OtbrRestError("rest_protocol", `${ip6Key}: entry is not a string`);
+                }
+                list.push(parseIpv6(text));
             }
-            list.push(parseIpv6(text));
-        }
-        result.ipv6Addresses = list;
+            return list;
+        });
     }
 
     const macCounters = asRecord(json["macCounters"]);
-    if (macCounters !== undefined) result.macCounters = translateMacCounters(macCounters);
+    if (macCounters !== undefined)
+        result.macCounters = optionalField("macCounters", () => translateMacCounters(macCounters));
 
     const mleCounters = asRecord(json["mleCounters"]);
-    if (mleCounters !== undefined) result.mleCounters = translateMleCounters(mleCounters);
+    if (mleCounters !== undefined)
+        result.mleCounters = optionalField("mleCounters", () => translateMleCounters(mleCounters));
 
     const childTable = asArray(json["childTable"]);
-    if (childTable !== undefined) result.childTable = translateChildTable(childTable);
+    if (childTable !== undefined)
+        result.childTable = optionalField("childTable", () => translateChildTable(childTable));
 
     const channelPages = asString(json["channelPages"]);
     if (channelPages !== undefined) {
-        const bytes = parseHexBytes(channelPages, "channelPages");
-        result.channelPages = Array.from(Bytes.of(bytes));
+        result.channelPages = optionalField("channelPages", () =>
+            Array.from(Bytes.of(parseHexBytes(channelPages, "channelPages"))),
+        );
     }
 
     const maxChildTimeout = asNumber(json["maxChildTimeout"]);
     if (maxChildTimeout !== undefined) result.maxChildTimeout = maxChildTimeout;
 
     const eui64 = asString(json["eui64"]);
-    if (eui64 !== undefined) result.eui64 = parseHexBytes(eui64, "eui64", 8);
+    if (eui64 !== undefined) result.eui64 = optionalField("eui64", () => parseHexBytes(eui64, "eui64", 8));
 
     const version = asNumber(json["version"]);
     if (version !== undefined) result.version = version;

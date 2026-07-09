@@ -96,6 +96,7 @@ function createExchange(session: Session) {
             session,
             localSessionParameters: SessionParameters(SessionParameters.defaults),
             localAdditionalMrpDelay: Millis(0),
+            localFixedMrpBackoff: Millis(0),
             async peerLost() {},
             retry() {},
         },

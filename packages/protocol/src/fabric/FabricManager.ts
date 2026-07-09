@@ -91,6 +91,10 @@ export class FabricManager {
 
     async close() {
         await this.#construction.close();
+        // Release fabric-scoped in-memory resources (ICD wakefulness timers) so they do not delay shutdown.
+        for (const fabric of this.#fabrics) {
+            fabric[Symbol.dispose]();
+        }
     }
 
     static [Environmental.create](env: Environment) {

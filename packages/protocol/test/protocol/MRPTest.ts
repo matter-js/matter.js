@@ -18,12 +18,19 @@ describe("MRP", () => {
 
         const ADDITIONAL = Seconds(1.5);
 
-        function runtimeRangeFor(baseInterval: number, transmissionNumber: number, additional = 0) {
-            const deterministic =
+        const FIXED = Seconds(0.2);
+
+        function runtimeRangeFor(baseInterval: number, transmissionNumber: number, additional = 0, fixed = 0) {
+            // additionalDelay joins the base interval and is therefore amplified by margin/exponent; fixed is a flat
+            // pad added after the backoff (the jitter window shifts by a constant, it is not scaled).
+            const amplified =
                 (baseInterval + additional) *
                 MRP.BACKOFF_MARGIN *
                 Math.pow(MRP.BACKOFF_BASE, Math.max(0, transmissionNumber - MRP.BACKOFF_THRESHOLD));
-            return { min: Math.floor(deterministic), max: Math.floor(deterministic * (1 + MRP.BACKOFF_JITTER)) };
+            return {
+                min: Math.floor(amplified) + fixed,
+                max: Math.floor(amplified * (1 + MRP.BACKOFF_JITTER)) + fixed,
+            };
         }
 
         function expectWithin(value: number, { min, max }: { min: number; max: number }) {
@@ -84,6 +91,33 @@ describe("MRP", () => {
 
             expectWithin(interval, runtimeRangeFor(Millis(500), 0, 0));
         });
+
+        it("adds fixedBackoff as a flat pad after the backoff, not amplified by the exponent", () => {
+            // The fixed pad must shift the window by a constant at every transmission, never scaled by the
+            // exponent — contrast additionalDelay above, which is amplified because it joins the base interval.
+            for (const transmissionNumber of [0, 1, 4]) {
+                const interval = MRP.retransmissionIntervalOf({
+                    transmissionNumber,
+                    sessionParameters,
+                    isPeerActive: true,
+                    fixedBackoff: FIXED,
+                });
+
+                expectWithin(interval, runtimeRangeFor(Millis(500), transmissionNumber, 0, FIXED));
+            }
+        });
+
+        it("applies additionalDelay (amplified) and fixedBackoff (flat) independently", () => {
+            const interval = MRP.retransmissionIntervalOf({
+                transmissionNumber: 2,
+                sessionParameters,
+                isPeerActive: true,
+                additionalDelay: ADDITIONAL,
+                fixedBackoff: FIXED,
+            });
+
+            expectWithin(interval, runtimeRangeFor(Millis(500), 2, ADDITIONAL, FIXED));
+        });
     });
 
     describe("maxRetransmissionIntervalOf", () => {
@@ -139,6 +173,21 @@ describe("MRP", () => {
             });
 
             expect(interval).to.equal(maximumFor(Millis(500), 1));
+        });
+
+        it("includes additionalDelay (amplified) and fixedBackoff (flat) so the maximum upper-bounds real sends", () => {
+            const ADD = Seconds(1.5);
+            const FIXED = Seconds(0.2);
+            const withPad = MRP.maxRetransmissionIntervalOf({
+                transmissionNumber: 1,
+                sessionParameters,
+                isPeerActive: false,
+                additionalDelay: ADD,
+                fixedBackoff: FIXED,
+            });
+
+            expect(withPad).to.equal(maximumFor(Seconds(10) + ADD, 1) + FIXED);
+            expect(withPad).to.be.greaterThan(maximumFor(Seconds(10), 1));
         });
     });
 
@@ -216,6 +265,23 @@ describe("MRP", () => {
 
                 // 4229 (return, active) + 2000 (processing) + 5000 (buffer)
                 expect(timeout).to.equal(Millis(11229));
+            });
+
+            it("adds our sender-side fixedBackoff to the local return leg only", () => {
+                const base = MRP.maxPeerResponseTimeOf({
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: true,
+                });
+                const withPad = MRP.maxPeerResponseTimeOf({
+                    localSessionParameters,
+                    channelType: ChannelType.UDP,
+                    isPeerActive: true,
+                    localFixedBackoff: Millis(200),
+                });
+
+                // The flat pad lands on each of the return leg's transmissions; the peer leg (absent here) is untouched.
+                expect(withPad - base).to.equal(MRP.MAX_TRANSMISSIONS * Millis(200));
             });
         });
 

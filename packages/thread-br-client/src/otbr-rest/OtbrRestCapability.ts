@@ -19,4 +19,11 @@ export interface OtbrRestCapability {
     probedAt: number;
     networkName: string;
     extPanId: Bytes;
+
+    /**
+     * Which diagnostics REST flavor the BR serves: `"collection"` (post-2024 action model under
+     * `/api/diagnostics`), `"legacy"` (the `GET /diagnostics` snapshot), or `"none"` (neither —
+     * REST cannot serve diagnostics, so the consumer must fall back to MeshCoP).
+     */
+    diagnosticsApi: "legacy" | "collection" | "none";
 }

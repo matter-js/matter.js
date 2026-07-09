@@ -104,9 +104,28 @@ export class NetworkClient extends NetworkBehavior {
         const { isDisabled } = this.state;
         const subscriptionDesired = desiredState && !isDisabled;
 
-        const isNewlyCommissioned = this.internal.isNewlyCommissioned;
-        if (isNewlyCommissioned) {
+        const buildSubscribe = () =>
+            Subscribe({
+                fabricFilter: true,
+                keepSubscriptions: false,
+                attributes: [{}],
+                events: [{ isUrgent: true }],
+                ...this.state.defaultSubscription,
+            });
+        // Pin one snapshot of defaultSubscription across the intervening read await so both call sites agree.
+        let builtSubscribe: Subscribe | undefined;
+        const subscribe = () => (builtSubscribe ??= buildSubscribe());
+
+        // A newly-commissioned peer is reachable on the live commissioning session, so read its structure now
+        // (regardless of autoSubscribe) unless the caller opts out.  This guarantees state is available once
+        // commissioning completes and lets any read error surface from the commissioning call.
+        let didInitialRead = false;
+        if (this.internal.isNewlyCommissioned) {
             this.internal.isNewlyCommissioned = false;
+            if (this.state.autoStateInitialize !== false) {
+                for await (const _chunk of this.#node.interaction.read(subscribe()));
+                didInitialRead = true;
+            }
         }
 
         if (subscriptionDesired === !!this.internal.activeSubscription) {
@@ -114,31 +133,13 @@ export class NetworkClient extends NetworkBehavior {
         }
 
         if (subscriptionDesired) {
-            const subscribe = Subscribe({
-                fabricFilter: true,
-                keepSubscriptions: false,
-                attributes: [{}],
-                events: [{ isUrgent: true }],
-                ...this.state.defaultSubscription,
-            });
-
-            let bootstrapWithRead;
-            if (isNewlyCommissioned) {
-                // For startup as part of commissioning process, read here so that any read error throws from the
-                // commissioning function and attributes are otherwise available immediately
-                for await (const _chunk of this.#node.interaction.read(subscribe));
-                bootstrapWithRead = false;
-            } else {
-                // For non-commissioning startup we also perform an initial read but we do it in the context of the
-                // sustained subscription so network errors don't interfere with subscription establishment
-                bootstrapWithRead = true;
-            }
-
             this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
-                ...subscribe,
+                ...subscribe(),
                 sustain: true,
                 eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
-                bootstrapWithRead,
+                // The newly-commissioned read above already primed state; otherwise bootstrap with a read inside the
+                // sustained subscription so network errors don't interfere with subscription establishment.
+                bootstrapWithRead: !didInitialRead,
                 updated: async update => {
                     // Read over all changes
                     for await (const _chunk of update);
@@ -158,9 +159,13 @@ export class NetworkClient extends NetworkBehavior {
             });
 
             if (this.internal.activeSubscription instanceof SustainedSubscription) {
-                this.internal.activeSubscription.active.on(isActive =>
-                    this.events.subscriptionStatusChanged.emit(isActive),
-                );
+                this.internal.activeSubscription.active.on(isActive => {
+                    this.events.subscriptionStatusChanged.emit(isActive);
+                    // Also signal liveness directly on establishment; the subscriptionId-gated emit in updated() misses the priming report.
+                    if (isActive) {
+                        this.events.subscriptionAlive.emit();
+                    }
+                });
             } else {
                 this.events.subscriptionStatusChanged.emit(true);
             }
@@ -261,9 +266,9 @@ export namespace NetworkClient {
         /**
          * Indicates the node is newly commissioned.
          *
-         * When newly commissioned, if automatic subscription is enabled we perform a read before returning from
-         * {@link NetworkClient#startup}.  This ensures we have a complete snapshot of the node's state when
-         * commissioning logic is complete.
+         * When newly commissioned we perform a one-time read before returning from {@link NetworkClient#startup}
+         * (regardless of autoSubscribe, unless {@link NetworkClient.State.autoStateInitialize} is false).  This
+         * ensures we have a complete snapshot of the node's state when commissioning logic is complete.
          */
         isNewlyCommissioned = false;
     }
@@ -298,6 +303,12 @@ export namespace NetworkClient {
          * Newly commissioned nodes default to true.
          */
         autoSubscribe = false;
+
+        /**
+         * When false, skip the one-time read a newly-commissioned node performs to initialize its state.
+         * Undefined or true performs the read.
+         */
+        autoStateInitialize?: boolean;
 
         /**
          * The highest event number seen from this node for the default read/subscription.

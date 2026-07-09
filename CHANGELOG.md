@@ -21,6 +21,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
 
 - @matter/node
+    - Feature: Server-side Intermittently Connected Device (ICD) support via the IcdManagement cluster: client registration/unregistration, StayActiveRequest, SIT/LIT operating modes with DSLS, and Check-In delivery to registered clients
+    - Feature: Controller-side ICD support: automatic client registration with multi-admin protection, Check-In handling, and peer wakefulness/availability tracking for sleepy LIT devices
     - Feature: Implemented the newly-mandatory Matter 1.6 diagnostics attributes
     - Feature: Enabled the BooleanState `StateChange` event by default via the new feature
     - Feature: Emit the OccupancySensing `OccupancyChanged` event automatically when the `OccupancyEvent` feature is enabled
@@ -32,17 +34,25 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
+    - Fix: Signal subscription "alive" when a sustained subscription (re)establishes so peer structure changes are surfaced immediately instead of at the next periodic report
 
 - @matter/nodejs-shell
+    - Feature: Added `icd` shell commands to register/unregister/stay-active ICD clients and inspect/watch node wakefulness and availability
     - Fix: Close a path-containment gap in the optional web server that let requests reach sibling directories sharing the web-root name prefix, and resolve symlinks before serving (reported by tonghuaroot)
     - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
 
 - @matter/protocol
+    - Feature: ICD Check-In protocol: CheckInMessage codec with counter validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
+    - Enhancement: Worst-case MRP response-time now accounts for the sender's fixed-backoff/additional-delay pad
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
     - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
     - Feature: Thread commissioning derives the network name from the operational dataset when none is supplied, and declines when a supplied name contradicts the dataset
     - Enhancement: Optimized Subscription minIntervalFloor: now defaults to 0s; only Thread devices older than Matter 1.3.0 keep a 1s floor, and any node with a Generic Switch endpoint opts back into 0s for faster switch events
+    - Fix: Single-command invokes no longer sending a commandRef on the wire nor require one echoed in the response
+    - Fix: Single commands skip auto-batching when the peer accepts only one path per invoke or the response is suppressed
+    - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
+    - Fix: Ensure group messaging works correctly when multiple key sets share a group session id
 
 - @matter/thread-br-client
     - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
