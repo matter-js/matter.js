@@ -85,6 +85,14 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
         get threadChannel() {
             return props().threadChannel;
         },
+
+        get wifiActive() {
+            return props().wifiActive;
+        },
+
+        get ethernetActive() {
+            return props().ethernetActive;
+        },
     };
 
     cache.set(node, result);
