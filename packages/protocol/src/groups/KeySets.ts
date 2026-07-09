@@ -131,7 +131,7 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
             // epoch key (specifically, the epoch key with the latest start time that is not in the future).
             // TODO Nodes that cannot reliably keep track of time calculate the current epoch key as described in
             //  Section 4.17.3.4, “Epoch Key Rotation without Time Synchronization”.
-            const now = Time.nowUs;
+            const now = Time.nowMs;
             const relevantKeys = operationalKeys.filter(({ startTime }) => startTime <= now);
             if (relevantKeys.length === 0) {
                 throw new ImplementationError(

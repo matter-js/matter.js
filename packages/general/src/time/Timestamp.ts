@@ -83,6 +83,16 @@ export namespace Timestamp {
     }
 
     /**
+     * Convert a timestamp to raw Unix-epoch microseconds, e.g. for a `TlvEpochUs` field.
+     *
+     * Returns a bigint to match the microsecond wire type and preserve any sub-millisecond precision carried by a
+     * high-resolution timestamp (see {@link Time.nowUs}).
+     */
+    export function toMicroseconds(timestamp: Timestamp): bigint {
+        return BigInt(Math.round(timestamp * 1000));
+    }
+
+    /**
      * The UNIX epoch.
      */
     export const zero = Timestamp(0);
