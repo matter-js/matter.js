@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Enhancement: `deepCopy` now clones `Set` and `Map` values instead of turning them into empty objects
+    - Enhancement: Added `Timestamp.toMicroseconds` and clarified `Time.nowUs` as a high-resolution millisecond timestamp (now sub-millisecond precise), not a microsecond value
 
 - @matter/model
     - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
