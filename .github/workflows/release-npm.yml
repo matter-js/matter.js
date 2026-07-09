@@ -124,9 +124,7 @@ jobs:
         if: steps.automerge.outputs.mergeResult == 'merged'
         env:
           PRERELEASE: ${{ contains(steps.version.outputs.result, '-') }}
-        run: |
-          npm install -g npm@latest
-          
+        run: |          
           if [[ "$PRERELEASE" == "true" ]]; then
             npm publish --workspaces --tag dev
           else
