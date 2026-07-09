@@ -36,6 +36,12 @@ export class Time {
         return Time.default.now;
     }
 
+    /**
+     * The current wall-clock time as a millisecond {@link Timestamp}.
+     *
+     * Backed by {@link Date.now} so it tracks UTC including clock adjustments (e.g. NTP steps). Use this for absolute
+     * time such as epoch values sent on the wire.
+     */
     get nowMs() {
         return Date.now();
     }
@@ -43,8 +49,18 @@ export class Time {
         return Time.default.nowMs as Timestamp;
     }
 
+    /**
+     * The current time as a high-resolution {@link Timestamp}.
+     *
+     * Backed by {@link performance} so it carries sub-millisecond precision where the platform supports it (falling
+     * back to {@link nowMs} otherwise). It is monotonic and may drift from UTC, so use it for relative/elapsed timing,
+     * not for absolute wall-clock values.
+     *
+     * Despite the name the value is a millisecond {@link Timestamp}, not microseconds. Use
+     * {@link Timestamp.toMicroseconds} to obtain a microsecond value.
+     */
     get nowUs() {
-        return Math.floor(performance.now() + performance.timeOrigin) as Timestamp;
+        return (performance.now() + performance.timeOrigin) as Timestamp;
     }
     static get nowUs() {
         return Time.default.nowUs;
