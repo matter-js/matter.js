@@ -35,6 +35,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
     - Fix: Signal subscription "alive" when a sustained subscription (re)establishes so peer structure changes are surfaced immediately instead of at the next periodic report
+    - Fix: Also respect local (imported/stored) OTA images when checking for available updates, not only the DCL
 
 - @matter/nodejs-shell
     - Feature: Added `icd` shell commands to register/unregister/stay-active ICD clients and inspect/watch node wakefulness and availability
