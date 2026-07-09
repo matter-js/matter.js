@@ -5,9 +5,18 @@
  */
 
 import type { Node } from "#node/Node.js";
-import { Abort, Construction, ImplementationError } from "@matter/general";
+import { Abort, Construction, Duration, ImplementationError, Logger, Seconds, Time } from "@matter/general";
 import { NodeActivity } from "../../context/NodeActivity.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
+
+const logger = Logger.get("NetworkRuntime");
+
+/**
+ * Upper bound on how long shutdown waits for node activity to settle before force-closing sessions and exchanges.
+ * Guards against an interaction parked on MRP retransmission to an unresponsive peer (e.g. a restarted ICD, whose
+ * backoff spans the idle interval) holding activity open for hours.
+ */
+const ACTIVITY_DRAIN_TIMEOUT = Seconds(5);
 
 /**
  * Base class for networking implementation.
@@ -44,7 +53,18 @@ export abstract class NetworkRuntime {
     async [Construction.destruct]() {
         this.#abort();
         const activity = this.#owner.env.get(NodeActivity);
-        await activity.inactive;
+        if (!activity.inactive.value) {
+            const drainTimeout = Time.sleep("shutdown activity drain", ACTIVITY_DRAIN_TIMEOUT);
+            await Promise.race([activity.inactive, drainTimeout]);
+            if (activity.inactive.value) {
+                drainTimeout.cancel("activity drained");
+            } else {
+                logger.warn(
+                    `Node activity did not settle within ${Duration.format(ACTIVITY_DRAIN_TIMEOUT)}; forcing shutdown`,
+                    activity,
+                );
+            }
+        }
 
         try {
             await this.stop();
