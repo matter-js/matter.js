@@ -15,6 +15,11 @@ describe("NetworkProfiles", () => {
             expect(profiles.get("unlimited").additionalMrpDelay).equals(Millis(0));
         });
 
+        it("wifi carries 1s", () => {
+            const profiles = new NetworkProfiles();
+            expect(profiles.get("wifi").additionalMrpDelay).equals(Seconds(1));
+        });
+
         it("icdLit is unthrottled and carries no additive delay", async () => {
             const profiles = new NetworkProfiles();
             const profile = profiles.get("icdLit");

@@ -44,6 +44,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Feature: ICD Check-In protocol: CheckInMessage codec with counter validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
     - Enhancement: Worst-case MRP response-time now accounts for the sender's fixed-backoff/additional-delay pad
+    - Enhancement: WiFi peers now use a dedicated network profile with a 1s additive MRP retransmission margin, selected by operational medium for dual-stack nodes
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
     - Feature: Source the client read path-count hint from the peer's advertised CapabilityMinima floors
     - Feature: Added a Thread operational dataset codec (`OperationalDataset`, `SecurityPolicy`, MeshCoP TLV helpers)
