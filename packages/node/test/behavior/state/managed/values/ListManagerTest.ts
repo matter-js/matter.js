@@ -6,8 +6,8 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { MaybePromise } from "@matter/general";
+import { MockExchange } from "@matter/node/testing";
 import { FabricIndex, NodeId } from "@matter/types";
-import { MockExchange } from "../../../../node/mock-exchange.js";
 import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
 
 export type ValueList = { value: number }[];

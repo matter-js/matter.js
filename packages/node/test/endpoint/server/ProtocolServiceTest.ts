@@ -21,6 +21,7 @@ import {
     GeneratedCommandList,
     Specification,
 } from "@matter/model";
+import { MockServerNode, interaction } from "@matter/node/testing";
 import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
@@ -50,8 +51,6 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 import { readAllAttrs } from "../../node/read-helpers.js";
 
 const FABRICS_PATH = {

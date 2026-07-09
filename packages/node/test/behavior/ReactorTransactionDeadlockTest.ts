@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MockServerNode } from "@matter/node/testing";
 import { FabricManager, TestFabric } from "@matter/protocol";
-import { MockServerNode } from "../node/mock-server-node.js";
 
 describe("Deferred fabric.delete via transaction.onFinalize", () => {
     it("completes cleanly when scheduled from inside a behavior transaction", async () => {

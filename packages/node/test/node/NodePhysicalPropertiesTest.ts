@@ -20,11 +20,11 @@ import { Node } from "#node/Node.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Instant, Minutes, Seconds } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { PhysicalDeviceProperties, Subscribe } from "@matter/protocol";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { Switch } from "@matter/types/clusters/switch";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("NodePhysicalProperties", () => {
     it("chooses correct default intervals", async () => {

@@ -12,6 +12,7 @@ import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-managem
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { ImplementationError, Millis, Minutes, Seconds, ServerAddressIp, Time } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     ClientSubscribe,
     FabricManager,
@@ -24,8 +25,6 @@ import {
 import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../../../node/icd-helpers.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 

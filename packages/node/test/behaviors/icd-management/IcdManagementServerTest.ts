@@ -11,6 +11,7 @@ import { OperationalCredentialsClient } from "#behaviors/operational-credentials
 import { ServerNode } from "#node/index.js";
 import { Bytes, Crypto, Millis } from "@matter/general";
 import { AccessLevel } from "@matter/model";
+import { MockExchange, MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     activeSubscriptionSubjects,
     Advertiser,
@@ -23,10 +24,6 @@ import {
 } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { MockExchange } from "../../node/mock-exchange.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { subscribedPeer } from "../../node/node-helpers.js";
 
 const RootWithIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 const RootWithIcdOnline = MockServerNode.RootEndpoint.with(IcdManagementServer);

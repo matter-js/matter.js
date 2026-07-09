@@ -7,10 +7,10 @@
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
 import { DataReadQueue, Millis, Seconds } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { MessageExchange, NodeSession } from "@matter/protocol";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
-import { MockServerNode } from "./mock-server-node.js";
 
 const RootWithLitIcd = MockServerNode.RootEndpoint.with(
     IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport, IcdManagement.Feature.LongIdleTimeSupport),

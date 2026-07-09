@@ -6,8 +6,8 @@
 
 import { ServerNode } from "#node/ServerNode.js";
 import { ImplementationError } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { ClientInteraction, Subscribe } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
 
 describe("ClientSubscribe", () => {
     before(() => {

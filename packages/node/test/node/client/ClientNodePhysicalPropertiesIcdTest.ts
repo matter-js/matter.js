@@ -7,10 +7,9 @@
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import { ServerNode } from "#node/index.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, LIT_CONFIG } from "../icd-helpers.js";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
 
 const RootWithCipIcd = ServerNode.RootEndpoint.with(IcdManagementServer);
 
