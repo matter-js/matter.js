@@ -150,18 +150,13 @@ export class GroupSession extends SecureSession {
         return SessionType.Group;
     }
 
-    /*
-     * TODO: enable once clarified with CHIP SDK developers.
-     *
-     * The Matter spec requires group multicasts to be sent with privacy enabled — Core Specification, Secure Channel,
-     * "Sending a group message": the Security Flags "SHALL have only the P Flag set". The CHIP SDK does not set the
-     * privacy flag when sending group messages, so we keep it off to match the dominant implementation until the
-     * spec/SDK divergence is resolved. Enabling it passes the full CHIP controller test suite (interop verified).
-     *
-     * override get usePrivacy() {
-     *     return true;
-     * }
+    /**
+     * Core Specification, Secure Channel, "Sending a group message": the Security Flags SHALL have the P Flag set, so
+     * group multicasts are always sent privacy-enhanced.
      */
+    override get usePrivacy() {
+        return true;
+    }
 
     get fabric(): Fabric {
         return this.#fabric;
