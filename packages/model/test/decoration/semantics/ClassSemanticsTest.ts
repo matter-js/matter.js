@@ -167,10 +167,7 @@ describe("ClassSemantics", () => {
     });
 
     it("initializes metadata when Function.prototype[Symbol.metadata] is non-writable", () => {
-        // The TC39 decorator-metadata proposal (and core-js) install Function.prototype[Symbol.metadata] as a
-        // non-writable property; initializing metadata via a plain assignment through [[Set]] would then throw in
-        // strict mode.  An undecorated class reaches ClassSemantics.of without its own Symbol.metadata, exercising
-        // the initialization path.
+        const original = Object.getOwnPropertyDescriptor(Function.prototype, Symbol.metadata);
         Object.defineProperty(Function.prototype, Symbol.metadata, {
             value: null,
             writable: false,
@@ -186,7 +183,11 @@ describe("ClassSemantics", () => {
             expect(semantics.new).equals(Foo);
             expect(Object.hasOwn(Foo, Symbol.metadata)).true;
         } finally {
-            delete (Function.prototype as { [Symbol.metadata]?: unknown })[Symbol.metadata];
+            if (original === undefined) {
+                delete (Function.prototype as { [Symbol.metadata]?: unknown })[Symbol.metadata];
+            } else {
+                Object.defineProperty(Function.prototype, Symbol.metadata, original);
+            }
         }
     });
 

@@ -239,11 +239,15 @@ export class ClassSemantics extends Semantics {
         // Source is a constructor
         let metadata: MatterMetadata;
         if (!Object.hasOwn(source, Symbol.metadata)) {
-            // Define the own property directly rather than assigning through [[Set]]; the TC39 decorator-metadata
-            // proposal (and core-js) makes Function.prototype[Symbol.metadata] a non-writable property, which would
-            // otherwise cause the assignment to throw in strict mode
+            // Must not assign through [[Set]]: Function.prototype[Symbol.metadata] is non-writable per the TC39
+            // decorator-metadata proposal (and core-js), which makes such an assignment throw in strict mode
             metadata = {};
-            Object.defineProperty(source, Symbol.metadata, { value: metadata, writable: true, configurable: true });
+            Object.defineProperty(source, Symbol.metadata, {
+                value: metadata,
+                writable: true,
+                enumerable: true,
+                configurable: true,
+            });
         } else {
             metadata = source[Symbol.metadata] as MatterMetadata;
         }
