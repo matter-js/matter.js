@@ -82,7 +82,7 @@ export namespace Specification {
     /**
      * Data model revision associated with the default revision of Matter.
      */
-    export const DATA_MODEL_REVISION = 19;
+    export const DATA_MODEL_REVISION = 21;
 
     /**
      * Interaction model revision associated with the default revision of Matter.
