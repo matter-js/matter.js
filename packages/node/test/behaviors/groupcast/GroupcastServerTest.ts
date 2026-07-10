@@ -934,9 +934,19 @@ describe("GroupcastServer", () => {
                 sourceIp: "fe80::1%en0",
             });
 
+            // Fully unknown key with a privacy-obfuscated header: no group id at all, IANA is the only
+            // plausible arrival address
+            sessions.emitGroupMessage({
+                result: Groupcast.GroupcastTestResult.NoAvailableKey,
+                sourceIp: "fd00::2",
+            });
+
             await MockTime.yield3();
 
-            expect(events).length(2);
+            expect(events).length(3);
+            expect(events[2].groupcastTestResult).equal(Groupcast.GroupcastTestResult.NoAvailableKey);
+            expect(events[2].groupId).equal(undefined);
+            expect(events[2].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
             expect(events[0].groupcastTestResult).equal(Groupcast.GroupcastTestResult.Success);
             expect(events[0].groupId).equal(0x0001);
             expect(events[0].accessAllowed).true;

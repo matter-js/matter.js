@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Enhancement: Added cluster-variance rules for the Matter 1.6 conformance idioms
+    - Fix: Initialize class metadata via `Object.defineProperty` so importing matter.js no longer throws when `Function.prototype[Symbol.metadata]` is non-writable (TC39 decorator-metadata / core-js polyfill, reported by Sylvan86)
 
 - @matter/node
     - Feature: Server-side Intermittently Connected Device (ICD) support via the IcdManagement cluster: client registration/unregistration, StayActiveRequest, SIT/LIT operating modes with DSLS, and Check-In delivery to registered clients

@@ -653,8 +653,9 @@ export class SessionManager {
         } catch (error) {
             // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
             // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.  The
-            // unauthenticated header group id is passed separately so the listener can derive the multicast address
-            // (unavailable when privacy obfuscates the header).
+            // header group id is passed separately so the listener can derive the multicast address: from the plain
+            // wire header, or — when privacy obfuscates the header — from a key set that authenticated the message
+            // but is not mapped to any group.
             const headerGroupId =
                 !packet.header.hasPrivacyEnhancements && packet.header.destGroupId !== undefined
                     ? GroupId(packet.header.destGroupId)
@@ -662,7 +663,8 @@ export class SessionManager {
             if (causedBy(error, GroupSessionNoKeyError)) {
                 this.#onGroupMessage.emit({
                     result: Groupcast.GroupcastTestResult.NoAvailableKey,
-                    headerGroupId,
+                    headerGroupId:
+                        headerGroupId ?? (error instanceof GroupSessionNoKeyError ? error.groupId : undefined),
                     sourceIp,
                 });
             } else if (causedBy(error, GroupSessionDecodeError)) {

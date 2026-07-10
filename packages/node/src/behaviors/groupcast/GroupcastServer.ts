@@ -463,6 +463,9 @@ export class GroupcastServer extends GroupcastBehavior {
                 destIp = IANA_GROUPCAST_MULTICAST_ADDRESS;
             }
         }
+        // Without any group knowledge (privacy-obfuscated header and no authenticating key set) the IANA address
+        // remains the only plausible arrival address
+        destIp ??= IANA_GROUPCAST_MULTICAST_ADDRESS;
 
         this.events.groupcastTesting?.emit(
             {
