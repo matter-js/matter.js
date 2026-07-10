@@ -195,7 +195,6 @@ describe("SecureSession", () => {
             }
             expect(noKeyError).instanceOf(GroupSessionNoKeyError);
             if (noKeyError instanceof GroupSessionNoKeyError) {
-                expect(noKeyError.message).contains("not mapped to any group");
                 expect(noKeyError.groupId).equals(groupId);
             }
         });

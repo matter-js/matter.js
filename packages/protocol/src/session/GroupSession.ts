@@ -297,38 +297,36 @@ export class GroupSession extends SecureSession {
         }
 
         const sessionId = header.sessionId;
-        const keys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
+        const mappedKeys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
+        const unmappedKeys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
         for (const fabric of fabrics) {
             const sessions = fabric.groups.sessions.get(sessionId);
             if (sessions?.length) {
                 for (const session of sessions) {
-                    keys.push({ ...session, fabric });
+                    // A key set is only usable for group communication while a group maps to it in GroupKeyMap.
+                    // Unmapped key sets do not participate in decryption; they only recover the group id for
+                    // Groupcast testing when nothing is usable.
+                    if (fabric.groups.isKeySetMapped(session.keySetId)) {
+                        mappedKeys.push({ ...session, fabric });
+                    } else {
+                        unmappedKeys.push({ ...session, fabric });
+                    }
                 }
             }
-        }
-        if (keys.length === 0) {
-            throw new GroupSessionNoKeyError();
         }
 
         const messageFlags = Bytes.of(aad)[0];
         const mic = Bytes.of(applicationPayload).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
 
-        let message: DecodedMessage | undefined;
-        let key: Bytes | undefined;
-        let privacyKey: Bytes | undefined;
-        let fabric: Fabric | undefined;
-        let keySetId: number | undefined;
-        let sourceNodeId: NodeId | undefined;
-        let found = false;
-        let unmappedGroupId: GroupId | undefined;
-        for (const candidate of keys) {
+        /** Deobfuscates the header (when privacy is active) and decrypts with the candidate's key. */
+        const tryDecrypt = (candidate: { key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }) => {
             try {
                 let packetHeader = header;
                 let decryptAad = aad;
                 if (header.hasPrivacyEnhancements) {
                     if (privacyHeader === undefined || candidate.privacyKey === undefined) {
                         logger.debug(`No privacy key for group session candidate ${candidate.keySetId}, skipping`);
-                        continue;
+                        return undefined;
                     }
                     const privacyNonce = MessagePrivacy.buildNonce(sessionId, mic);
                     const deobfuscated = MessagePrivacy.obfuscate(
@@ -352,7 +350,7 @@ export class GroupSession extends SecureSession {
                     packetHeader.messageId,
                     packetHeader.sourceNodeId,
                 );
-                const decrypted = MessageCodec.decodePayload({
+                const message = MessageCodec.decodePayload({
                     header: packetHeader,
                     applicationPayload: candidate.fabric.crypto.decrypt(
                         candidate.key,
@@ -361,34 +359,52 @@ export class GroupSession extends SecureSession {
                         decryptAad,
                     ),
                 });
-
-                // A key set is only usable for group communication while a group maps to it in GroupKeyMap.  The
-                // message authenticated, so remember the group id for reporting, but keep trying: another key set
-                // carrying the same operational key (a session id collision peer) may be mapped.
-                if (!candidate.fabric.groups.isKeySetMapped(candidate.keySetId)) {
-                    unmappedGroupId ??=
-                        packetHeader.destGroupId !== undefined ? GroupId(packetHeader.destGroupId) : undefined;
-                    continue;
-                }
-
-                message = decrypted;
-                key = candidate.key;
-                privacyKey = candidate.privacyKey;
-                keySetId = candidate.keySetId;
-                fabric = candidate.fabric;
-                sourceNodeId = packetHeader.sourceNodeId;
-                found = true;
-                break;
+                return { message, packetHeader };
             } catch (error) {
                 // A wrong key (including a wrong privacy key, whose garbage header yields a different nonce) fails AEAD
                 // decryption; skip to the next candidate. Genuine parse errors on an authenticated payload propagate.
                 CryptoDecryptError.accept(error);
             }
+        };
+
+        /** Group id of the message when an unusable key set authenticates it, for Groupcast testing reporting. */
+        const unmappedGroupId = () => {
+            for (const candidate of unmappedKeys) {
+                const decrypted = tryDecrypt(candidate);
+                if (decrypted?.packetHeader.destGroupId !== undefined) {
+                    return GroupId(decrypted.packetHeader.destGroupId);
+                }
+            }
+        };
+
+        // Matching the CHIP SDK, only mapped key sets count as available: without any, the result is "no key found",
+        // even if an unmapped key set could authenticate the message
+        if (mappedKeys.length === 0) {
+            throw new GroupSessionNoKeyError(undefined, unmappedGroupId());
+        }
+
+        let message: DecodedMessage | undefined;
+        let key: Bytes | undefined;
+        let privacyKey: Bytes | undefined;
+        let fabric: Fabric | undefined;
+        let keySetId: number | undefined;
+        let sourceNodeId: NodeId | undefined;
+        let found = false;
+        for (const candidate of mappedKeys) {
+            const decrypted = tryDecrypt(candidate);
+            if (decrypted === undefined) {
+                continue;
+            }
+            message = decrypted.message;
+            key = candidate.key;
+            privacyKey = candidate.privacyKey;
+            keySetId = candidate.keySetId;
+            fabric = candidate.fabric;
+            sourceNodeId = decrypted.packetHeader.sourceNodeId;
+            found = true;
+            break;
         }
         if (!found || !message || !key || keySetId === undefined || !fabric || sourceNodeId === undefined) {
-            if (unmappedGroupId !== undefined) {
-                throw new GroupSessionNoKeyError("Group message key set is not mapped to any group", unmappedGroupId);
-            }
             throw new GroupSessionDecodeError();
         }
 
