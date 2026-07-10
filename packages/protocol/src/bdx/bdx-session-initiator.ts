@@ -20,7 +20,7 @@ const logger = Logger.get("bdxSessionInitiator");
 function capBlockSizeToTransport(messenger: BdxMessenger, maxBlockSize: number): number {
     const transportMaxBlockSize = messenger.maxPayloadSize - 4;
     if (maxBlockSize > transportMaxBlockSize) {
-        logger.info(`Capping maxBlockSize ${maxBlockSize} to transport max payload size ${transportMaxBlockSize}bytes`);
+        logger.info(`Capping maxBlockSize ${maxBlockSize} to transport max block size ${transportMaxBlockSize} bytes`);
         return transportMaxBlockSize;
     }
     return maxBlockSize;
