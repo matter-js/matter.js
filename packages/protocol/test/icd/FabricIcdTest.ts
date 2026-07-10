@@ -7,7 +7,7 @@
 import { CheckInMessage } from "#icd/CheckInMessage.js";
 import { FabricIcd } from "#icd/FabricIcd.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
-import { Bytes, StandardCrypto } from "@matter/general";
+import { Bytes, Seconds, StandardCrypto } from "@matter/general";
 import { NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 
@@ -138,6 +138,9 @@ describe("FabricIcd", () => {
     });
 
     describe("controller role — wakefulness", () => {
+        before(MockTime.enable);
+        after(MockTime.disable);
+
         it("wakefulnessFor returns an IcdPeerWakefulness after addPeer", () => {
             const icd = fabricIcd();
             icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
@@ -171,6 +174,25 @@ describe("FabricIcd", () => {
         it("wakefulnessFor returns undefined for unknown peer", () => {
             const icd = fabricIcd();
             expect(icd.wakefulnessFor(NodeId(99))).undefined;
+        });
+
+        it("close cancels peer wakefulness timers and clears peers", async () => {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            const wakefulness = icd.wakefulnessFor(NodeId(11))!;
+            wakefulness.requiresAwait = true;
+            wakefulness.noteSignal(); // arms the availability-expiry timer
+            expect(wakefulness.available.value).true;
+
+            icd.close();
+
+            expect(icd.hasPeers).false;
+            expect(icd.wakefulnessFor(NodeId(11))).undefined;
+
+            // The expiry timer was cancelled: advancing well past the window fires no leaked callback, so the value
+            // is frozen rather than flipping to false.
+            await MockTime.advance(Seconds(600));
+            expect(wakefulness.available.value).true;
         });
 
         it("peerFed emits the peer node ID on addPeer", () => {

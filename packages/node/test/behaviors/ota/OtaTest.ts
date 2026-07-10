@@ -457,6 +457,40 @@ describe("Ota", () => {
         expect(updateFailedEvents).length(0);
     }).timeout(10_000);
 
+    it("Done status clears the consent for the completed version", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+        });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).hasConsent(peerAddress))).equals(true);
+
+        await otaProvider.act(agent => {
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, OtaUpdateStatus.Done, targetSoftwareVersion);
+        });
+
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).hasConsent(peerAddress))).equals(false);
+        expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates)).length(0);
+    }).timeout(10_000);
+
     it("Apply failure detected when startUp fires after Applying state", async () => {
         // This test verifies the status ordering fix: previousProgressStatus is saved BEFORE the
         // clearing block in #onSoftwareVersionChanged, so the Applying check on startUp works correctly.
@@ -1089,16 +1123,21 @@ describe("Ota", () => {
     }).timeout(10_000);
 
     it("Cleanup purges stored test-mode OTA when allowTestOtaImages is disabled, preserves prod/local", async () => {
-        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
-            requestUserConsentForUpdate: false,
+        // Device intentionally has no OTA requestor, so it is not an update target: the periodic check offers
+        // nothing and #cleanupObsoleteUpdates is exercised in isolation.
+        const site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: {
+                type: ServerNode.RootEndpoint,
+                parts: [{ id: "ota-provider", type: OtaProviderEndpoint }],
+            },
         });
-        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
-
-        const { site, device, controller, otaProvider } = await initOtaSite(
-            TestOtaProviderServer,
-            TestOtaRequestorServer,
-        );
         await using _localSite = site;
+
+        const otaProvider = controller.parts.get("ota-provider")!;
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
+        });
 
         // Store a test-mode OTA image via the helper (matches device vid/pid, version = peer + 1).
         const { otaImage } = await addTestOtaImage(device, controller);

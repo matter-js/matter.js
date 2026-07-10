@@ -224,6 +224,10 @@ export const MockTime = {
         return nowMs;
     },
 
+    get nowUs() {
+        return nowMs;
+    },
+
     getTimer(name: string, duration: number, callback: TimerCallback): MockTimer {
         return new MockTimer(this, name, duration, callback);
     },

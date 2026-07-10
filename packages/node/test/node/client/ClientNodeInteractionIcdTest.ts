@@ -10,7 +10,8 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Seconds } from "@matter/general";
-import { Read } from "@matter/protocol";
+import type { Peer } from "@matter/protocol";
+import { NetworkProfiles, Read } from "@matter/protocol";
 import { EndpointNumber, NodeId, SubjectId } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
@@ -54,6 +55,41 @@ async function registeredLitPair(site: MockSite) {
     await MockTime.advance(Seconds(6));
     await MockTime.resolve(Promise.resolve(), { macrotasks: true });
     return { controller, device, peer1 };
+}
+
+/**
+ * Record network-profile ids selected for {@link node}'s peer, restoring the original selector on disposal.  Filtered
+ * by peer address because {@link NetworkProfiles} is a shared Environmental singleton, so another peer's concurrent
+ * selection would otherwise pollute the recording.
+ */
+function recordNetworkSelection(controller: ServerNode, node: ClientNode) {
+    const target = node.state.commissioning.peerAddress;
+    const profiles = controller.env.get(NetworkProfiles);
+    const selected = new Array<string | undefined>();
+    const hadOwn = Object.hasOwn(profiles, "select");
+    const originalSelect = profiles.select; // exact function to restore
+    const delegate = originalSelect.bind(profiles); // bound copy only for delegating while recording
+    profiles.select = (peer: Peer, id?: string) => {
+        if (
+            target !== undefined &&
+            peer.address.nodeId === target.nodeId &&
+            peer.address.fabricIndex === target.fabricIndex
+        ) {
+            selected.push(id);
+        }
+        return delegate(peer, id);
+    };
+    return {
+        selected,
+        [Symbol.dispose]() {
+            // Restore the exact prior selector rather than blindly deleting, so a pre-existing own override survives.
+            if (hadOwn) {
+                profiles.select = originalSelect;
+            } else {
+                Reflect.deleteProperty(profiles, "select");
+            }
+        },
+    };
 }
 
 async function drainRead(peer: ClientNode) {
@@ -147,6 +183,22 @@ describe("ClientNodeInteraction ICD hold", () => {
 
         // No wakeDevice, no MockTime advance: forget() dropped the fed peer, so the interaction no longer holds.
         await MockTime.resolve(drainRead(peer1), { macrotasks: true });
+    });
+
+    it("routes a woken LIT read through the icdLit network profile", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer1 } = await registeredLitPair(site);
+
+        using recording = recordNetworkSelection(controller, peer1);
+        expect(wakefulnessOf(controller, peer1)!.awake.value).false;
+
+        const read = drainRead(peer1);
+        await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+        await wakeDevice(device);
+        await MockTime.resolve(read, { macrotasks: true });
+
+        expect(recording.selected.includes("icdLit")).true;
     });
 
     it("honors a per-call timeout override that expires before the default window", async () => {

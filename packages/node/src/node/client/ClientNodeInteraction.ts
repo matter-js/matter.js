@@ -30,6 +30,7 @@ import {
     ClientInvoke,
     ClientProbeOptions,
     ClientRead,
+    type ClientRequest,
     ClientSubscribe,
     ClientSubscription,
     ClientSubscriptions,
@@ -89,8 +90,13 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * request to skip version injection and always receive a full response from the server.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
+        const { wakefulness, useIcdLit } = this.#awaitModeIcdRouting(request);
+        if (useIcdLit) {
+            request = { ...request, network: "icdLit" };
+        }
+
         // Hold for a LIT peer to wake before the first yield* so we never transmit into a sleeping radio.
-        const hold = this.#holdUntilAwake(request.icdAwaitTimeout);
+        const hold = this.#holdUntilAwake(wakefulness, request.icdAwaitTimeout);
         if (hold !== undefined) {
             await hold;
         }
@@ -118,6 +124,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * established; or an error is returned if this was not possible.
      */
     async subscribe(request: ClientSubscribe, context?: ActionContext): Promise<ClientSubscription> {
+        // ICD network routing for the subscription is applied by SustainedSubscription, not here.
         const intermediateRequest: ClientSubscribe = {
             ...this.#structure.injectVersionFilters(request),
             ...PhysicalDeviceProperties.subscriptionIntervalBoundsFor({
@@ -125,6 +132,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
                 properties: ClientNodePhysicalProperties(this.#node),
                 request,
             }),
+
+            network: request.network,
 
             sustain: !!request.sustain,
 
@@ -165,7 +174,12 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * The returned attribute write status information is returned.
      */
     async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
-        const hold = this.#holdUntilAwake(request.icdAwaitTimeout);
+        const { wakefulness, useIcdLit } = this.#awaitModeIcdRouting(request);
+        if (useIcdLit) {
+            request = { ...request, network: "icdLit" } as T; // a generic spread is not inferrable as T
+        }
+
+        const hold = this.#holdUntilAwake(wakefulness, request.icdAwaitTimeout);
         if (hold !== undefined) {
             await hold;
         }
@@ -184,11 +198,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         // For commands, by default ignore the queue because the user is responsible for managing that themselves
         if (request.network === undefined) {
-            request.network = "unlimited";
+            request = { ...request, network: "unlimited" };
         }
 
         // Hold for a LIT peer to wake before the first yield* so we never transmit into a sleeping radio.
-        const hold = this.#holdUntilAwake(request.icdAwaitTimeout);
+        const hold = this.#holdUntilAwake(this.#icdWakefulness(), request.icdAwaitTimeout);
         if (hold !== undefined) {
             await hold;
         }
@@ -279,17 +293,30 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     }
 
     /**
+     * Resolve the peer wakefulness and whether an await-mode (LIT) ICD interaction should route through the
+     * unthrottled `icdLit` network profile, so a Check-In-triggered interaction is not queued behind bulk traffic and
+     * lands inside the peer's brief active window.  Non-LIT peers and a caller-pinned network keep their profile.
+     *
+     * The caller applies the routing to a copy of its request rather than mutating the caller's object, so a reused
+     * request never caches the decision across a DSLS SIT⇄LIT flip.  The wakefulness is returned so the caller hands
+     * it to {@link #holdUntilAwake} without a second lookup.
+     */
+    #awaitModeIcdRouting(request: ClientRequest) {
+        const wakefulness = this.#icdWakefulness();
+        return { wakefulness, useIcdLit: request.network === undefined && wakefulness?.requiresAwait === true };
+    }
+
+    /**
      * Hold a one-shot operation until an idle LIT peer wakes, bounded by a timeout.
      *
      * Returns `undefined` for the common passthrough cases (non-LIT peer, unregistered peer, or an already-awake LIT
      * peer) so callers add no latency and no microtask boundary on the hot path — important for same-tick invoke
      * batching.  Returns a promise only when the operation must actually park; it resolves when a Check-In re-arms the
      * awake window and rejects with {@link IcdPeerAsleepError} if the timeout elapses first.
+     *
+     * requiresAwait is read live so a DSLS SIT⇄LIT flip is honored per interaction.
      */
-    #holdUntilAwake(timeout?: Duration): Promise<void> | undefined {
-        // requiresAwait is the live LIT classification (kept current through DSLS flips by IcdClient), so it gates the
-        // hold without rebuilding physical properties on every interaction.
-        const wakefulness = this.#icdWakefulness();
+    #holdUntilAwake(wakefulness: IcdPeerWakefulness | undefined, timeout?: Duration): Promise<void> | undefined {
         if (wakefulness === undefined || !wakefulness.requiresAwait || wakefulness.awake.value === true) {
             return undefined;
         }

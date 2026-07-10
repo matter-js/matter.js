@@ -4,22 +4,73 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffClient } from "#behaviors/on-off";
 import { ThreadNetworkDiagnosticsServer } from "#behaviors/thread-network-diagnostics";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
 import { ServerNode } from "#index.js";
-import { causedBy, Crypto, Millis, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
+import { Bytes, causedBy, Crypto, Millis, MockCrypto, MockNetwork, Network, Seconds } from "@matter/general";
 import { NetworkProfiles, PeerSet, PeerTimingParameters, PeerUnreachableError, SessionManager } from "@matter/protocol";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
+
+class EthernetCommissioningServer extends NetworkCommissioningServer.with("EthernetNetworkInterface") {
+    override initialize() {
+        this.state.maxNetworks = 1;
+        this.state.interfaceEnabled = true;
+        this.state.networks = [{ networkId: Bytes.fromHex("00"), connected: true }];
+    }
+}
+
+const EthernetRoot = MockServerNode.RootEndpoint.with(EthernetCommissioningServer);
+
+class WifiCommissioningServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
+    override initialize() {
+        this.state.maxNetworks = 1;
+        this.state.interfaceEnabled = true;
+        this.state.scanMaxTimeSeconds = 20;
+        this.state.connectMaxTimeSeconds = 40;
+        this.state.supportedWiFiBands = [NetworkCommissioning.WiFiBand["2G4"]];
+        this.state.networks = [{ networkId: Bytes.fromHex("00"), connected: true }];
+    }
+}
+
+const WifiRoot = MockServerNode.RootEndpoint.with(WifiCommissioningServer);
 
 describe("ClientTuningTest", () => {
     before(() => {
         MockTime.init();
         MockTime.forceMacrotasks = true;
+    });
+
+    it("ethernet-operational peers use the fast profile with no MRP margin", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addNode(EthernetRoot, { device: OnOffLightDevice });
+
+        await commission(controller, device);
+
+        const peer = [...controller.env.get(PeerSet)][0];
+        expect(peer.physicalProperties?.ethernetActive).equals(true);
+        expect(peer.network.id).equals("fast");
+        expect(peer.network.additionalMrpDelay).equals(Millis(0));
+    });
+
+    it("wifi-operational peers use the wifi profile with a 1s MRP margin", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addNode(WifiRoot, { device: OnOffLightDevice });
+
+        await commission(controller, device);
+
+        const peer = [...controller.env.get(PeerSet)][0];
+        expect(peer.physicalProperties?.wifiActive).equals(true);
+        expect(peer.network.id).equals("wifi");
+        expect(peer.network.additionalMrpDelay).equals(Seconds(1));
     });
 
     it("uses default timing when not configured", async () => {

@@ -7,6 +7,7 @@
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { DescriptorClient } from "#behaviors/descriptor";
+import { GeneralDiagnosticsClient } from "#behaviors/general-diagnostics";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
 import { PowerSourceClient } from "#behaviors/power-source";
@@ -17,6 +18,7 @@ import { Node } from "#node/Node.js";
 import { Seconds } from "@matter/general";
 import { PhysicalDeviceProperties } from "@matter/protocol";
 import { DeviceTypeId } from "@matter/types";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
@@ -73,6 +75,19 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
             }
             if (networkFeatures.ethernetNetworkInterface) {
                 properties.supportsEthernet = true;
+            }
+        }
+
+        // Operational medium: distinguishes which interface a dual-stack node actually uses, so we can apply the WiFi
+        // MRP margin only when WiFi is live rather than merely supported.
+        const networkInterfaces = endpoint.maybeStateOf(GeneralDiagnosticsClient)?.networkInterfaces;
+        if (networkInterfaces !== undefined) {
+            for (const { type, isOperational } of networkInterfaces) {
+                if (type === GeneralDiagnostics.InterfaceType.WiFi) {
+                    properties.wifiActive = (properties.wifiActive ?? false) || isOperational;
+                } else if (type === GeneralDiagnostics.InterfaceType.Ethernet) {
+                    properties.ethernetActive = (properties.ethernetActive ?? false) || isOperational;
+                }
             }
         }
 
