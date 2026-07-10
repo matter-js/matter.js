@@ -16,6 +16,16 @@ import { BDX_VERSION, BdxInit, BdxTransferControlBitmap } from "./schema/BdxInit
 
 const logger = Logger.get("bdxSessionInitiator");
 
+/** Cap a negotiated block size to what the transport can carry (payload size minus the 4-byte block counter). */
+function capBlockSizeToTransport(messenger: BdxMessenger, maxBlockSize: number): number {
+    const transportMaxBlockSize = messenger.maxPayloadSize - 4;
+    if (maxBlockSize > transportMaxBlockSize) {
+        logger.info(`Capping maxBlockSize ${maxBlockSize} to transport max payload size ${transportMaxBlockSize}bytes`);
+        return transportMaxBlockSize;
+    }
+    return maxBlockSize;
+}
+
 /**
  * Handles the initiation of a BDX session by exchanging *Init and *Accept messages and negotiating the transfer
  * parameters.
@@ -185,6 +195,8 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
             throw new BdxError("Can not determine a valid transfer mode", BdxStatusCode.TransferMethodNotSupported);
         }
 
+        maxBlockSize = capBlockSizeToTransport(messenger, maxBlockSize);
+
         const requestedMaxBlockSize = config.transferConfig.maxBlockSize;
         if (requestedMaxBlockSize !== undefined && maxBlockSize > requestedMaxBlockSize) {
             maxBlockSize = requestedMaxBlockSize;
@@ -216,8 +228,8 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
     ): Flow.TransferOptions {
         const {
             transferControl: { senderDrive, asynchronousTransfer },
-            maxBlockSize,
         } = acceptMessage;
+        let { maxBlockSize } = acceptMessage;
         if (asynchronousTransfer) {
             // Async is not supported by matter SDK and such, so always decline this for now
             throw new BdxError(
@@ -225,6 +237,8 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
                 BdxStatusCode.TransferMethodNotSupported,
             );
         }
+
+        maxBlockSize = capBlockSizeToTransport(messenger, maxBlockSize);
 
         const dataLength =
             "length" in acceptMessage && acceptMessage.length !== undefined
