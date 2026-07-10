@@ -215,5 +215,22 @@ describe("SecureSession", () => {
             expect(session.matches(FabricIndex(99), current.sessionId!, Bytes.of(current.key))).equals(false);
             expect(session.matches(fabric.fabricIndex, current.sessionId! ^ 0x1, Bytes.of(current.key))).equals(false);
         });
+
+        it("always sends group messages with the privacy flag set", async () => {
+            const { fabric } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const session = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0002n),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(2)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            expect(session.usePrivacy).equals(true);
+        });
     });
 });

@@ -582,6 +582,49 @@ describe("MeshCopDiagnosticSource", () => {
         const want = Bytes.of(deriveMeshLocalAddress(ML_PREFIX, (29 << 10) & 0xffff));
         expect(proxyTxTargets.some(t => t.length === want.length && t.every((b, i) => b === want[i]))).to.equal(true);
     });
+
+    it("queryMulticast: done rejects when the commissioner session fails fatally (petition rejected)", async () => {
+        const failing: CommissionerLike = {
+            withSession: async <T>(_fn: (sessionId: number) => Promise<T>): Promise<T> => {
+                throw new Error("petition rejected");
+            },
+        };
+        const source = new MeshCopDiagnosticSource(
+            failing,
+            { request: async () => ackMessage(), listen: () => () => {} },
+            environment,
+            ML_PREFIX,
+        );
+        const handle = source.queryMulticast("ff03::2", { tlvTypes: [], windowMs: 100 });
+        let errored: Error | undefined;
+        handle.onError.on(e => {
+            errored = e;
+        });
+        let rejected = false;
+        await handle.done.catch(() => {
+            rejected = true;
+        });
+        expect(rejected).to.equal(true);
+        expect(errored?.message).to.equal("petition rejected");
+    });
+
+    it("queryMulticast: close() does not throw even when the session failed fatally", async () => {
+        const failing: CommissionerLike = {
+            withSession: async <T>(_fn: (sessionId: number) => Promise<T>): Promise<T> => {
+                throw new Error("boom");
+            },
+        };
+        const source = new MeshCopDiagnosticSource(
+            failing,
+            { request: async () => ackMessage(), listen: () => () => {} },
+            environment,
+            ML_PREFIX,
+        );
+        const handle = source.queryMulticast("ff03::2", { tlvTypes: [], windowMs: 100 });
+        handle.onError.on(() => {});
+        await handle.close(); // must resolve, not throw
+        await handle.done.catch(() => {}); // consume the fatal rejection
+    });
 });
 
 describe("missingRouterIds", () => {

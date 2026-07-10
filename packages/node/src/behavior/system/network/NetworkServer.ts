@@ -128,6 +128,9 @@ export namespace NetworkServer {
         fast?: LimitsConfig;
 
         @field(LimitsConfig)
+        wifi?: LimitsConfig;
+
+        @field(LimitsConfig)
         thread?: LimitsConfig;
 
         @field(LimitsConfig)
@@ -138,6 +141,9 @@ export namespace NetworkServer {
 
         @field(LimitsConfig)
         unlimited?: LimitsConfig;
+
+        @field(LimitsConfig)
+        icdLit?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {

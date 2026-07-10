@@ -412,6 +412,43 @@ describe("ClientConnectivityTest", () => {
         expect(ep1.stateOf(OnOffClient).onOff).true;
     });
 
+    it("signals subscription alive when a sustained subscription re-establishes", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        SustainedSubscription.assert(subscription);
+
+        let aliveCount = 0;
+        peer1.eventsOf(NetworkClient).subscriptionAlive.on(() => {
+            aliveCount++;
+        });
+
+        // *** DEVICE RESTARTS AND SUBSCRIPTION RE-ESTABLISHES ***
+
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(subscription.inactive);
+        expect(subscription.subscriptionId).equals(ClientSubscription.NO_SUBSCRIPTION);
+
+        // Count only liveness signals produced by the re-establishment itself
+        aliveCount = 0;
+
+        const crypto = device.env.get(Crypto) as MockCrypto;
+        crypto.entropic = true;
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(subscription.active);
+        crypto.entropic = false;
+
+        expect(subscription.subscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
+
+        // Re-establishment itself must signal liveness.  Consumers (e.g. PairedNode, which flushes pending
+        // endpoint-structure changes on "alive") must not be stranded until the next periodic report.
+        expect(aliveCount).greaterThan(0);
+    });
+
     it("resubscribes after extended offline period", async () => {
         // *** SETUP ***
 

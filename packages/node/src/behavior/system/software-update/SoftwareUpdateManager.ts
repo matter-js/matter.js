@@ -371,7 +371,7 @@ export class SoftwareUpdateManager extends Behavior {
 
     /** Triggered by a Timer to call the update with different parameters */
     async #checkAvailableUpdates() {
-        await this.queryUpdates();
+        await this.queryUpdates({ includeStoredUpdates: true });
         await this.#cleanupObsoleteUpdates();
     }
 
@@ -454,8 +454,9 @@ export class SoftwareUpdateManager extends Behavior {
      *
      * Returns a list of peers for which updates are available along with the collected update info.
      *
-     * If `includeStoredUpdates` is set to true available and known local update will be returned without checking the
-     * DCL again.
+     * If `includeStoredUpdates` is set to true, locally stored/imported OTA images are considered as update candidates
+     * alongside the DCL. The DCL is always queried regardless; across all candidates the highest applicable and allowed
+     * version wins.
      */
     async queryUpdates(options: { peerToCheck?: ClientNode; includeStoredUpdates?: boolean } = {}) {
         const { peerToCheck, includeStoredUpdates = false } = options;
@@ -526,14 +527,6 @@ export class SoftwareUpdateManager extends Behavior {
     async #checkProductForUpdates(infos: CollectedNodesUpdateInfo, includeStoredUpdates: boolean) {
         const { vendorId, productId, softwareVersion, otaEndpoints } = infos;
 
-        // No need to query again if we already did and know that updates are available
-        if (
-            includeStoredUpdates &&
-            [...otaEndpoints.values()].every(({ peerAddress }) => this.internal.knownUpdates.has(peerAddress))
-        ) {
-            return [...otaEndpoints.values()].map(({ peerAddress }) => peerAddress);
-        }
-
         const updateDetails = await this.internal.otaService.checkForUpdate({
             vendorId,
             productId,
@@ -552,7 +545,7 @@ export class SoftwareUpdateManager extends Behavior {
                 vendorId,
                 productId,
                 softwareVersion,
-                file: `ota/${fd.text}`,
+                file: fd.text,
                 peers: [...otaEndpoints.values()].map(({ peerAddress }) => peerAddress.toString()),
             }),
         );
@@ -1086,10 +1079,19 @@ export class SoftwareUpdateManager extends Behavior {
         const entry = this.internal.updateQueue[entryIndex];
         if (status === OtaUpdateStatus.Done) {
             logger.info(`OTA update completed for node`, peerAddress.toString());
+            const completedVersion = toVersion ?? entry.targetSoftwareVersion;
             this.internal.updateQueue.splice(entryIndex, 1);
             this.internal.knownUpdates.delete(peerAddress);
             this.internal.pendingStartUpSuppress.delete(peerAddress);
             this.events.updateDone.emit(peerAddress);
+
+            // Also clean up consents (mirrors the software-version-change path, which is not reached when the Done
+            // status arrives directly instead of via a subsequent version-change event)
+            this.internal.consents = this.internal.consents.filter(
+                ({ peerAddress: consentAddress, targetSoftwareVersion }) =>
+                    !PeerAddress.is(peerAddress, consentAddress) || targetSoftwareVersion > completedVersion,
+            );
+
             this.#triggerQueuedUpdate();
         } else if (status === OtaUpdateStatus.Cancelled) {
             // BDX transport interruption: reset the entry so it can be retried.

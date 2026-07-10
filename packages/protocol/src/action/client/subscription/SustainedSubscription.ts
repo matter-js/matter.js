@@ -109,14 +109,19 @@ export class SustainedSubscription extends ClientSubscription {
         // A mode-flip recreate is time-critical: it must land inside the peer's brief active window. Carry a one-shot
         // flag so the recreate's subscribe bypasses the per-network throttle rather than queuing behind it.
         let recreateWithPriorityNetwork = false;
+        const priorityNetwork = "icdLit";
 
         try {
             while (true) {
                 // Create a request and promise that will inform us when the underlying subscription closes
                 let request: SustainedClientSubscribe = { ...this.#request, updated };
                 if (recreateWithPriorityNetwork) {
-                    request.network = "unlimited";
+                    request.network = priorityNetwork;
                     recreateWithPriorityNetwork = false;
+                } else if (request.network === undefined && this.#wakefulness?.()?.requiresAwait) {
+                    // Live each iteration, not captured at subscribe, so a peer that became LIT at runtime is
+                    // prioritized on its next park-resume too, not only on the mode-flip recreate above.
+                    request.network = priorityNetwork;
                 }
                 if (this.#request.updated) {
                     const bound = this.#request.updated.bind(request);
