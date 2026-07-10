@@ -8,7 +8,7 @@ import { Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
-import { GroupSession } from "#session/GroupSession.js";
+import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
@@ -184,11 +184,20 @@ describe("SecureSession", () => {
             expect(result.message.packetHeader.destGroupId).equals(groupId);
             expect(result.message.packetHeader.messageId).equals(0x12345679);
 
-            // A key set without a GroupKeyMap link is not usable for decryption
+            // A key set without a GroupKeyMap link is not usable for decryption, but since the message
+            // authenticated, the group id is reported for Groupcast testing
             fabric.groups.groupKeyIdMap = new Map();
-            expect(() => GroupSession.decode(fabricManager, decodedPacket, aad)).throws(
-                "No key candidate found for group session decryption",
-            );
+            let noKeyError: unknown;
+            try {
+                GroupSession.decode(fabricManager, decodedPacket, aad);
+            } catch (error) {
+                noKeyError = error;
+            }
+            expect(noKeyError).instanceOf(GroupSessionNoKeyError);
+            if (noKeyError instanceof GroupSessionNoKeyError) {
+                expect(noKeyError.message).contains("not mapped to any group");
+                expect(noKeyError.groupId).equals(groupId);
+            }
         });
 
         it("matches a cached session by fabric, session id and operational key, not by id alone", async () => {

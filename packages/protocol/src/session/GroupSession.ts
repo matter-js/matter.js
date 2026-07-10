@@ -34,8 +34,15 @@ import { SessionManager } from "./SessionManager.js";
 
 /** Thrown by {@link GroupSession.decode} when no installed key can be a candidate for the received group message. */
 export class GroupSessionNoKeyError extends MatterFlowError {
-    constructor(message = "No key candidate found for group session decryption") {
+    /**
+     * Group id of the message, when a key set decrypted it successfully but is not usable because no group maps to it.
+     * The id is authenticated in that case, so Groupcast testing may report it.
+     */
+    readonly groupId?: GroupId;
+
+    constructor(message = "No key candidate found for group session decryption", groupId?: GroupId) {
         super(message);
+        this.groupId = groupId;
     }
 }
 
@@ -295,10 +302,6 @@ export class GroupSession extends SecureSession {
             const sessions = fabric.groups.sessions.get(sessionId);
             if (sessions?.length) {
                 for (const session of sessions) {
-                    // A key set is only usable for group communication while a group maps to it in GroupKeyMap
-                    if (!fabric.groups.isKeySetMapped(session.keySetId)) {
-                        continue;
-                    }
                     keys.push({ ...session, fabric });
                 }
             }
@@ -317,6 +320,7 @@ export class GroupSession extends SecureSession {
         let keySetId: number | undefined;
         let sourceNodeId: NodeId | undefined;
         let found = false;
+        let unmappedGroupId: GroupId | undefined;
         for (const candidate of keys) {
             try {
                 let packetHeader = header;
@@ -348,7 +352,7 @@ export class GroupSession extends SecureSession {
                     packetHeader.messageId,
                     packetHeader.sourceNodeId,
                 );
-                message = MessageCodec.decodePayload({
+                const decrypted = MessageCodec.decodePayload({
                     header: packetHeader,
                     applicationPayload: candidate.fabric.crypto.decrypt(
                         candidate.key,
@@ -357,6 +361,17 @@ export class GroupSession extends SecureSession {
                         decryptAad,
                     ),
                 });
+
+                // A key set is only usable for group communication while a group maps to it in GroupKeyMap.  The
+                // message authenticated, so remember the group id for reporting, but keep trying: another key set
+                // carrying the same operational key (a session id collision peer) may be mapped.
+                if (!candidate.fabric.groups.isKeySetMapped(candidate.keySetId)) {
+                    unmappedGroupId ??=
+                        packetHeader.destGroupId !== undefined ? GroupId(packetHeader.destGroupId) : undefined;
+                    continue;
+                }
+
+                message = decrypted;
                 key = candidate.key;
                 privacyKey = candidate.privacyKey;
                 keySetId = candidate.keySetId;
@@ -371,6 +386,9 @@ export class GroupSession extends SecureSession {
             }
         }
         if (!found || !message || !key || keySetId === undefined || !fabric || sourceNodeId === undefined) {
+            if (unmappedGroupId !== undefined) {
+                throw new GroupSessionNoKeyError("Group message key set is not mapped to any group", unmappedGroupId);
+            }
             throw new GroupSessionDecodeError();
         }
 
