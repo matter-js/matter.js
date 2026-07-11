@@ -40,6 +40,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Also signal subscription "alive" on empty max-interval keepalive reports, so a quiet peer keeps refreshing its liveness signal
     - Fix: Bound node shutdown so an interaction parked awaiting an MRP ack from an unresponsive peer (e.g. a restarted ICD) can no longer hang close
     - Fix: Also respect local (imported/stored) OTA images when checking for available updates, not only the DCL
+    - Fix: Harden endpoint structure processing against non-compliant peers that omit mandatory Descriptor list attributes, treating an absent list as empty instead of crashing
 
 - @matter/nodejs-shell
     - Feature: Added `icd` shell commands to register/unregister/stay-active ICD clients and inspect/watch node wakefulness and availability
@@ -67,6 +68,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
+
+- @project-chip/matter.js
+    - Fix: Harden endpoint structure processing against non-compliant peers that omit mandatory Descriptor list attributes; treat an absent list as empty and warn-and-ignore missing device types instead of crashing
 
 ## 0.17.4 (2026-07-01)
 
