@@ -60,6 +60,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
     - Fix: Ensure group messaging works correctly when multiple key sets share a group session id
     - Fix: Cap a peer-negotiated BDX block size to the transport payload size, so OTA blocks no longer exceed the UDP message limit
+    - Fix: Report a sustained subscription's fallback `maxInterval` in seconds instead of a millisecond value while no subscription is established
 
 - @matter/thread-br-client
     - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
