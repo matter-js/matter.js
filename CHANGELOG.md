@@ -37,6 +37,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
     - Fix: Signal subscription "alive" when a sustained subscription (re)establishes so peer structure changes are surfaced immediately instead of at the next periodic report
+    - Fix: Also signal subscription "alive" on empty max-interval keepalive reports, so a quiet peer keeps refreshing its liveness signal
     - Fix: Bound node shutdown so an interaction parked awaiting an MRP ack from an unresponsive peer (e.g. a restarted ICD) can no longer hang close
     - Fix: Also respect local (imported/stored) OTA images when checking for available updates, not only the DCL
 
@@ -59,6 +60,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
     - Fix: Ensure group messaging works correctly when multiple key sets share a group session id
     - Fix: Cap a peer-negotiated BDX block size to the transport payload size, so OTA blocks no longer exceed the UDP message limit
+    - Fix: Report a sustained subscription's fallback `maxInterval` in seconds instead of a millisecond value while no subscription is established
 
 - @matter/thread-br-client
     - Feature: Added as new package to support communication with Thread Border Routers through CoAP and with OpenThread Border Routers via REST (if exposed)
