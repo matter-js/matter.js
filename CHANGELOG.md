@@ -69,6 +69,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Enhancement: Added the NFC Transport Layer (NTL, bit 4) capability to the onboarding payload Discovery Capabilities bitmap
 
+- @project-chip/matter.js
+    - Fix: Harden endpoint structure processing against non-compliant peers that omit mandatory Descriptor list attributes; treat an absent list as empty and warn-and-ignore missing device types instead of crashing
+
 ## 0.17.4 (2026-07-01)
 
 - @matter/general
