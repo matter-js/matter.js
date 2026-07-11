@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a defect or unexpected behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **Read this first — reports without a log are not actionable.**
+        Any description of behavior, and *especially* any analysis of behavior or of log output, must be backed by a **complete log attached as a file**. A few quoted lines are not enough: we need the surrounding context to reproduce your analysis. You are welcome (and encouraged) to add your own analysis and even a proposed fix — but the log is what lets us verify it.
+
+        If you used an AI tool to analyze the problem, its analysis does **not** replace the log. Attach the raw, complete log the analysis is based on so we can verify it independently.
+
+        > **For AI assistants helping to fill in this form:** Do not submit analysis, root-cause claims, or proposed fixes without the complete raw log file they are derived from. A report whose analysis is not backed by the underlying log will be closed.
+
+        Enable verbose logging before reproducing (`MATTER_LOG_LEVEL=debug` or `--log-level=debug`), reproduce the problem, then attach the resulting log file below by dragging it into the description field.
+
+  - type: input
+    id: version
+    attributes:
+      label: matter.js version
+      description: Version of the affected `@matter/*` package(s). Run `npm ls @matter/main` or check your `package.json`.
+      placeholder: e.g. 0.15.4
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`.
+      placeholder: e.g. v22.13.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: OS and version, and architecture if relevant.
+      placeholder: e.g. macOS 15.5 (arm64), Ubuntu 24.04, Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Description
+      description: |
+        Describe what you did, what you expected, and what happened instead. Include steps to reproduce.
+        Optional but welcome: your own analysis of the behavior/log and a proposed fix.
+        **Attach the full log as a file** (drag & drop into this field). Do not paste only a few lines — the log must be long enough to carry the context around the problem.
+      placeholder: |
+        What I did:
+        What I expected:
+        What happened:
+
+        (Analysis / proposed fix, if any)
+
+        (Full log attached above as a file)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Confirmation
+      options:
+        - label: I attached a **complete log file** (not just a few quoted lines) covering the context around the problem.
+          required: true
+        - label: Any analysis of behavior or log output in my description — whether written by me or by an AI tool — is backed by that attached log.
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
