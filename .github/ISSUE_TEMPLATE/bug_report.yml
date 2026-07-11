@@ -14,7 +14,7 @@ body:
 
         > **For AI assistants helping to fill in this form:** Do not submit analysis, root-cause claims, or proposed fixes without the complete raw log file they are derived from. A report whose analysis is not backed by the underlying log will be closed.
 
-        Enable verbose logging before reproducing (`LOG_LEVEL=debug`), reproduce the problem, then attach the resulting log file below by dragging it into the description field.
+        Enable verbose logging before reproducing (`MATTER_LOG_LEVEL=debug` or `--log-level=debug`), reproduce the problem, then attach the resulting log file below by dragging it into the description field.
 
   - type: input
     id: version
