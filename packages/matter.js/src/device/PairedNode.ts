@@ -1086,7 +1086,11 @@ export class PairedNode {
                 endpointId,
                 Diagnostic.json(endpoint.state),
             ]);
-            this.#endpoints.set(endpointId, this.#createDevice(endpointId, endpoint, this.#interactionClient));
+            const device = this.#createDevice(endpointId, endpoint, this.#interactionClient);
+            if (device === undefined) {
+                continue;
+            }
+            this.#endpoints.set(endpointId, device);
             if (!isRecreation) {
                 eventsToEmit.set(endpointId, "nodeEndpointAdded");
             }
@@ -1214,8 +1218,14 @@ export class PairedNode {
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.debug(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
-            throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
+            if (endpointId !== 0) {
+                logger.warn(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignoring it`);
+                return undefined;
+            }
+            logger.warn(
+                this.#peerAddress,
+                `No device type found for root endpoint, using default Root Node device type`,
+            );
         }
 
         const endpointClusters = Array<ClusterClientObj>();
@@ -1235,7 +1245,9 @@ export class PairedNode {
         if (endpointId === 0) {
             // Endpoint 0 is the root endpoint, so we use a RootEndpoint object
             const rootEndpoint = new RootEndpoint(endpoint);
-            rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
+            if (deviceTypes.length > 0) {
+                rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
+            }
             endpointClusters.forEach(cluster => rootEndpoint.addClusterClient(cluster));
             return rootEndpoint;
         } else if (deviceTypes.find(deviceType => deviceType.code === AggregatorDt.id) !== undefined) {
