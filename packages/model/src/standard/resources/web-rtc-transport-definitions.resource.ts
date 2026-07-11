@@ -64,22 +64,24 @@ Resource.add({
         {
             tag: "datatype", name: "ICEServerStruct", xref: "cluster§11.4.5.3",
 
-            details: "This type shall specify the RFC 8825 compliant ICE servers used to facilitate the negotiation of " +
-                "peer-to-peer connections through NATs (Network Address Translators) and firewalls. It mimics the " +
-                "model used in the W3C WebRTC API RTCIceServer dictionary with the addition of a Matter specific " +
-                "field for specifying the Root Certificate of any ICE servers that require TLS." +
+            details: "This type shall specify the [[RFC8825]](#ref_Rfc8825) compliant ICE servers " +
+                "[[RFC8839]](#ref_Rfc8839) used to facilitate the negotiation of peer-to-peer connections through " +
+                "NATs (Network Address Translators) and firewalls. It mimics the model used in the W3C WebRTC API " +
+                "RTCIceServer dictionary with the addition of a Matter specific field for specifying the Root " +
+                "Certificate of any ICE servers that require TLS." +
                 "\n" +
                 "There are two types of ICE Servers which help to discover the public IP address of a device and " +
                 "relay media traffic when direct peer-to-peer communication is not possible:" +
                 "\n" +
-                "  - STUN Servers, which help to discover the public IP address and NAT/Firewall type if any, of a " +
-                "    device. When a WebRTC session starts, it contacts the STUN server, which returns the device's " +
-                "public IP and port number. This information is used to generate ICE candidates for the " +
-                "peer-to-peer connection setup." +
+                "  - STUN [[RFC8489]](#ref_Rfc8489) Servers, which help to discover the public IP address and " +
+                "NAT/Firewall type if any, of a device. When a WebRTC session starts, it contacts the STUN " +
+                "server, which returns the device's public IP and port number. This information is used to " +
+                "generate ICE candidates for the peer-to-peer connection setup." +
                 "\n" +
-                "  - TURN Servers, which are used when STUN is not sufficient to establish a peer-to-peer " +
-                "connection—typically such as when devices are behind symmetric NATs, which STUN cannot traverse. " +
-                "TURN servers act as a relay between the peers, routing the media traffic between them.",
+                "  - TURN [[RFC8656]](#ref_Rfc8656) Servers, which are used when STUN is not sufficient to establish " +
+                "a peer-to-peer connection—typically such as when devices are behind symmetric NATs, which STUN " +
+                "cannot traverse. TURN servers act as a relay between the peers, routing the media traffic " +
+                "between them.",
 
             children: [
                 {
@@ -91,16 +93,16 @@ Resource.add({
 
                 {
                     tag: "field", name: "Username", xref: "cluster§11.4.5.3.2",
-                    details: "(Optional for STUN, usually required for TURN) The RFC 8489 compliant UTF-8 encoded username " +
-                        "required for authentication with the STUN or TURN servers found in the URLs field. This field maps " +
-                        "to the RTCIceServer username field."
+                    details: "(Optional for STUN, usually required for TURN) The [[RFC8489]](#ref_Rfc8489) compliant UTF-8 encoded " +
+                        "username required for authentication with the STUN or TURN servers found in the URLs field. This " +
+                        "field maps to the RTCIceServer username field."
                 },
 
                 {
                     tag: "field", name: "Credential", xref: "cluster§11.4.5.3.3",
-                    details: "(Optional for STUN, usually required for TURN) The RFC 8489 compliant UTF-8 encoded short-term " +
-                        "credential (password) used for authentication with the STUN or TURN servers found in the URLs field. " +
-                        "This field maps to the RTCIceServer credential field."
+                    details: "(Optional for STUN, usually required for TURN) The [[RFC8489]](#ref_Rfc8489) compliant UTF-8 encoded " +
+                        "short-term credential (password) used for authentication with the STUN or TURN servers found in the " +
+                        "URLs field. This field maps to the RTCIceServer credential field."
                 },
 
                 {
@@ -116,17 +118,18 @@ Resource.add({
 
         {
             tag: "datatype", name: "ICECandidateStruct", xref: "cluster§11.4.5.4",
-            details: "This type shall specify the RFC 8825 compliant ICE Candidate used to facilitate the negotiation of " +
-                "peer-to-peer connections through NATs (Network Address Translators) and firewalls. It mimics the " +
-                "model used in the W3C WebRTC API RTCIceCandidate dictionary.",
+            details: "This type shall specify the [[RFC8825]](#ref_Rfc8825) compliant ICE Candidate " +
+                "[[RFC8839]](#ref_Rfc8839) used to facilitate the negotiation of peer-to-peer connections through " +
+                "NATs (Network Address Translators) and firewalls. It mimics the model used in the W3C WebRTC API " +
+                "RTCIceCandidate dictionary.",
 
             children: [
                 {
                     tag: "field", name: "Candidate", xref: "cluster§11.4.5.4.1",
 
-                    details: "This field shall specify the RFC 8825 compliant RFC 8839 candidate-attribute field in string form. " +
-                        "This is the same value as the W3C WebRTC API RTCIceCandidate candidate value. The RFCs define no min " +
-                        "or max length on this value." +
+                    details: "This field shall specify the [[RFC8825]](#ref_Rfc8825) compliant [[RFC8839]](#ref_Rfc8839) " +
+                        "candidate-attribute field in string form. This is the same value as the W3C WebRTC API " +
+                        "RTCIceCandidate candidate value. The RFCs define no min or max length on this value." +
                         "\n" +
                         "Note: This string is not the same string as doing a candidate.toString() on a RTCIceCandidate " +
                         "ECMAScript object itself. Some browsers and ECMAScript libraries use non-standard ways to serialize " +
@@ -145,9 +148,10 @@ Resource.add({
 
                 {
                     tag: "field", name: "SdpmLineIndex", xref: "cluster§11.4.5.4.3",
-                    details: "This field shall specify the zero-based index number of the media description (as defined in RFC " +
-                        "8866) in the SDP with which the Candidate is associated or null if no such association exists. This " +
-                        "is the same value as the W3C WebRTC API RTCIceCandidate sdpMLineIndex value."
+                    details: "This field shall specify the zero-based index number of the media description (as defined in " +
+                        "[[RFC8866]](#ref_Rfc8866)) in the SDP with which the Candidate is associated or null if no such " +
+                        "association exists. This is the same value as the W3C WebRTC API RTCIceCandidate sdpMLineIndex " +
+                        "value."
                 }
             ]
         },

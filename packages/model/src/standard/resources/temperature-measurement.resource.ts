@@ -31,12 +31,15 @@ Resource.add({
 
         {
             tag: "attribute", name: "MaxMeasuredValue", xref: "cluster§2.3.4.3",
-            details: "This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See " +
-                "Measured Value for more details." +
+            details: "Indicates the maximum value of MeasuredValue that is capable of being measured. See Measured Value " +
+                "for more details." +
                 "\n" +
                 "The null value indicates that the value is not available."
         },
 
-        { tag: "attribute", name: "Tolerance", xref: "cluster§2.3.4.4", details: "See Measured Value." }
+        {
+            tag: "attribute", name: "Tolerance", xref: "cluster§2.3.4.4",
+            details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+        }
     ]
 });

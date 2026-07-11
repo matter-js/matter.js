@@ -164,8 +164,8 @@ export declare namespace JointFabricAdministrator {
         statusCode: IcaccsrResponseStatusCode;
 
         /**
-         * This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing Request
-         * (CSR).
+         * This field shall be a DER-encoded octet string of a properly encoded PKCS #10 [[RFC2986]](#ref_Rfc2986)
+         * Certificate Signing Request (CSR).
          *
          * @see {@link MatterSpecification.v16.Core} § 11.25.6.2.1
          */

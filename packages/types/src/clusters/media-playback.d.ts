@@ -166,16 +166,16 @@ export declare namespace MediaPlayback {
      */
     export interface AudioTracksAttributes {
         /**
-         * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of null
-         * shall indicate that no Audio Track corresponding to the current media is currently being played.
+         * Indicates the Audio track currently set and being used for the streaming media. A value of null shall
+         * indicate that no Audio Track corresponding to the current media is currently being played.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.8
          */
         activeAudioTrack: Track | null;
 
         /**
-         * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A value
-         * of null shall indicate that no Audio Tracks corresponding to the current media are selectable by the client.
+         * Indicates the list of Audio tracks available for the current title being played. A value of null shall
+         * indicate that no Audio Tracks corresponding to the current media are selectable by the client.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.9
          */
@@ -187,18 +187,17 @@ export declare namespace MediaPlayback {
      */
     export interface TextTracksAttributes {
         /**
-         * ActiveTrack refers to the Text track currently set and being used for the streaming media. This can be nil. A
-         * value of null shall indicate that no Text Track corresponding to the current media is currently being
-         * displayed.
+         * Indicates the Text track currently set and being used for the streaming media. This can be nil. A value of
+         * null shall indicate that no Text Track corresponding to the current media is currently being displayed.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.10
          */
         activeTextTrack: Track | null;
 
         /**
-         * AvailableTextTracks refers to the list of Text tracks available for the current title being played. This can
-         * be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current media are
-         * selectable by the client.
+         * Indicates the list of Text tracks available for the current title being played. This can be an empty list. A
+         * value of null shall indicate that no Text Tracks corresponding to the current media are selectable by the
+         * client.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.11
          */
@@ -317,34 +316,33 @@ export declare namespace MediaPlayback {
         seekRangeStart: number | bigint | null;
 
         /**
-         * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of null
-         * shall indicate that no Audio Track corresponding to the current media is currently being played.
+         * Indicates the Audio track currently set and being used for the streaming media. A value of null shall
+         * indicate that no Audio Track corresponding to the current media is currently being played.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.8
          */
         activeAudioTrack: Track | null;
 
         /**
-         * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A value
-         * of null shall indicate that no Audio Tracks corresponding to the current media are selectable by the client.
+         * Indicates the list of Audio tracks available for the current title being played. A value of null shall
+         * indicate that no Audio Tracks corresponding to the current media are selectable by the client.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.9
          */
         availableAudioTracks: Track[] | null;
 
         /**
-         * ActiveTrack refers to the Text track currently set and being used for the streaming media. This can be nil. A
-         * value of null shall indicate that no Text Track corresponding to the current media is currently being
-         * displayed.
+         * Indicates the Text track currently set and being used for the streaming media. This can be nil. A value of
+         * null shall indicate that no Text Track corresponding to the current media is currently being displayed.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.10
          */
         activeTextTrack: Track | null;
 
         /**
-         * AvailableTextTracks refers to the list of Text tracks available for the current title being played. This can
-         * be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current media are
-         * selectable by the client.
+         * Indicates the list of Text tracks available for the current title being played. This can be an empty list. A
+         * value of null shall indicate that no Text Tracks corresponding to the current media are selectable by the
+         * client.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.6.11
          */
@@ -1037,7 +1035,7 @@ export declare namespace MediaPlayback {
         InvalidStateForCommand = 1,
 
         /**
-         * Requested playback command is not allowed in the current playback state. For example, attempting to
+         * Requested playback command is not allowed in the current playback state For example, attempting to
          * fast-forward during a commercial might return NotAllowed.
          */
         NotAllowed = 2,
@@ -1111,7 +1109,7 @@ export declare namespace MediaPlayback {
         /**
          * Textual information meant for display when no other text representation is selected. It is used to clarify
          * dialogue, alternate languages, texted graphics or location/person IDs that are not otherwise covered in the
-         * dubbed/localized audio.
+         * dubbed/localized audio
          */
         ForcedSubtitles = 0,
 
@@ -1122,12 +1120,12 @@ export declare namespace MediaPlayback {
         DescribesVideo = 1,
 
         /**
-         * Simplified or reduced captions as specified in [United States Code Title 47 CFR 79.103(c)(9)].
+         * Simplified or reduced captions as specified in [United States Code Title 47 CFR 79.103(c)(9)]
          */
         EasyToRead = 2,
 
         /**
-         * A media characteristic that indicates that a track selection option includes frame-based content.
+         * A media characteristic that indicates that a track selection option includes frame-based content
          */
         FrameBased = 3,
 
@@ -1137,19 +1135,19 @@ export declare namespace MediaPlayback {
         MainProgram = 4,
 
         /**
-         * A media characteristic that indicates that a track or media selection option contains original content.
+         * A media characteristic that indicates that a track or media selection option contains original content
          */
         OriginalContent = 5,
 
         /**
          * A media characteristic that indicates that a track or media selection option contains a language translation
-         * and verbal interpretation of spoken dialog.
+         * and verbal interpretation of spoken dialog
          */
         VoiceOverTranslation = 6,
 
         /**
          * Textual media component containing transcriptions of spoken dialog and auditory cues such as sound effects
-         * and music for the hearing impaired.
+         * and music for the hearing impaired
          */
         Caption = 7,
 
@@ -1160,13 +1158,13 @@ export declare namespace MediaPlayback {
 
         /**
          * Textual media component containing transcriptions of spoken dialog and auditory cues such as sound effects
-         * and music for the hearing impaired.
+         * and music for the hearing impaired
          */
         Alternate = 9,
 
         /**
          * Media content component that is supplementary to a media content component of a different media component
-         * type.
+         * type
          */
         Supplementary = 10,
 
@@ -1188,7 +1186,7 @@ export declare namespace MediaPlayback {
         Description = 13,
 
         /**
-         * Media component containing information intended to be processed by application specific elements.
+         * Media component containing information intended to be processed by application specific elements
          */
         Metadata = 14,
 
@@ -1200,13 +1198,13 @@ export declare namespace MediaPlayback {
         /**
          * Experience that provides information, about a current emergency, that is intended to enable the protection of
          * life, health, safety, and property, and may also include critical details regarding the emergency and how to
-         * respond to the emergency.
+         * respond to the emergency
          */
         Emergency = 16,
 
         /**
          * Textual representation of a songs’ lyrics, usually in the same language as the associated song as specified
-         * in [SMPTE ST 2067-2].
+         * in [SMPTE ST 2067-2]
          */
         Karaoke = 17
     }
@@ -1220,8 +1218,8 @@ export declare namespace MediaPlayback {
         constructor(values?: Partial<TrackAttributes>);
 
         /**
-         * The value is a String containing one of the standard Tags for Identifying Languages RFC 5646, which
-         * identifies the primary language used in the Track.
+         * The value is a String containing one of the standard Tags for Identifying Languages
+         * [[RFC5646]](#ref_Rfc5646), which identifies the primary language used in the Track.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.5.6.1
          */

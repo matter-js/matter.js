@@ -98,25 +98,25 @@ export declare namespace CameraAvStreamManagement {
         streamUsagePriorities: StreamUsage[];
 
         /**
-         * This attribute indicates the current value of the hard privacy mode for all streams. This is controlled via a
-         * physical button or switch, potentially. A value of TRUE indicates that all streams are currently paused. When
-         * FALSE, the streams may resume if they are not already paused by their corresponding soft privacy mode.
+         * Indicates the current value of the hard privacy mode for all streams. This is controlled via a physical
+         * button or switch, potentially. A value of TRUE indicates that all streams are currently paused. When FALSE,
+         * the streams may resume if they are not already paused by their corresponding soft privacy mode.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.22
          */
         hardPrivacyModeOn?: boolean;
 
         /**
-         * This attribute indicates whether the status light has been enabled or not. A value of TRUE indicates the
-         * status light has been enabled. When enabled, the camera may use it for visual signaling purposes to indicate
-         * various states of the camera.
+         * Indicates whether the status light has been enabled or not. A value of TRUE indicates the status light has
+         * been enabled. When enabled, the camera may use it for visual signaling purposes to indicate various states of
+         * the camera.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.40
          */
         statusLightEnabled?: boolean;
 
         /**
-         * This attribute indicates the brightness level of the status light.
+         * Indicates the brightness level of the status light.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.41
          */
@@ -172,8 +172,8 @@ export declare namespace CameraAvStreamManagement {
         minViewportResolution: VideoResolution;
 
         /**
-         * This attribute shall list the set of rate distortion trade-off points between resolution, frame rate and
-         * bitrate for each supported hardware encoder.
+         * Indicates this attribute shall list the set of rate distortion trade-off points between resolution, frame
+         * rate and bitrate for each supported hardware encoder.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.6
          */
@@ -194,7 +194,7 @@ export declare namespace CameraAvStreamManagement {
         allocatedVideoStreams: VideoStream[];
 
         /**
-         * This attribute shall be a ViewportStruct representing the viewport to apply to all streams.
+         * Indicates the viewport to apply to all streams.
          *
          * The coordinate values represent the upper left corner and lower right corner coordinates of the source
          * rectangle on the sensor. The coordinate values are within the two-dimensional Cartesian plane of size
@@ -231,20 +231,20 @@ export declare namespace CameraAvStreamManagement {
         nightVisionUsesInfrared: boolean;
 
         /**
-         * This attribute indicates the currently selected Night Vision mode. A value of Off means the device will never
-         * activate its Night Vision mode of operation. A value of On means the Night Vision mode of operation is always
-         * active. A value of Auto means the device will automatically move between active and inactive based on the
-         * light level it detects.
+         * Indicates the currently selected Night Vision mode. A value of Off means the device will never activate its
+         * Night Vision mode of operation. A value of On means the Night Vision mode of operation is always active. A
+         * value of Auto means the device will automatically move between active and inactive based on the light level
+         * it detects.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.23
          */
         nightVision: TriStateAuto;
 
         /**
-         * This attribute indicates the currently selected the Night Vision Illumination mode. A value of Off means the
-         * device will never activate its built-in Night Vision Illumination. A value of On means the built-in Night
-         * Vision Illumination is always active. A value of Auto means the device will automatically enable its built-in
-         * Night Vision Illumination based on the light level it detects.
+         * Indicates the currently selected the Night Vision Illumination mode. A value of Off means the device will
+         * never activate its built-in Night Vision Illumination. A value of On means the built-in Night Vision
+         * Illumination is always active. A value of Auto means the device will automatically enable its built-in Night
+         * Vision Illumination based on the light level it detects.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.24
          */
@@ -271,38 +271,38 @@ export declare namespace CameraAvStreamManagement {
         allocatedAudioStreams: AudioStream[];
 
         /**
-         * This attribute indicates whether the microphone is currently muted or not. A value of TRUE indicates that the
-         * microphone has been muted. In this state, the microphone data shall be replaced with all 0 bits, representing
-         * silence. A value of FALSE indicates that the microphone is On and is capable of transmitting audio.
+         * Indicates whether the microphone is currently muted or not. A value of TRUE indicates that the microphone has
+         * been muted. In this state, the microphone data shall be replaced with all 0 bits, representing silence. A
+         * value of FALSE indicates that the microphone is On and is capable of transmitting audio.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.30
          */
         microphoneMuted: boolean;
 
         /**
-         * This attribute indicates the current gain or volume level of the microphone.
+         * Indicates the current gain or volume level of the microphone.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.31
          */
         microphoneVolumeLevel: number;
 
         /**
-         * This attribute indicates the maximum value of the MicrophoneVolumeLevel that can be assigned.
+         * Indicates the maximum value of the MicrophoneVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.32
          */
         microphoneMaxLevel: number;
 
         /**
-         * This attribute indicates the minimum value of the MicrophoneVolumeLevel that can be assigned.
+         * Indicates the minimum value of the MicrophoneVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.33
          */
         microphoneMinLevel: number;
 
         /**
-         * This attribute indicates the currently selected AGC (Automatic Gain Control) mode for the microphone. A value
-         * of TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled.
+         * Indicates the currently selected AGC (Automatic Gain Control) mode for the microphone. A value of TRUE
+         * indicates that microphone AGC is enabled. Otherwise, it is disabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.34
          */
@@ -329,29 +329,29 @@ export declare namespace CameraAvStreamManagement {
         twoWayTalkSupport: TwoWayTalkSupportType;
 
         /**
-         * This attribute indicates whether the speaker is currently muted or not. A value of TRUE indicates that the
-         * speaker has been muted and shall not play anything. A value of FALSE indicates that the Speaker is enabled.
+         * Indicates whether the speaker is currently muted or not. A value of TRUE indicates that the speaker has been
+         * muted and shall not play anything. A value of FALSE indicates that the Speaker is enabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.26
          */
         speakerMuted: boolean;
 
         /**
-         * This attribute indicates the current volume level of the speaker.
+         * Indicates the current volume level of the speaker.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.27
          */
         speakerVolumeLevel: number;
 
         /**
-         * This attribute indicates the maximum value of the SpeakerVolumeLevel that can be assigned.
+         * Indicates the maximum value of the SpeakerVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.28
          */
         speakerMaxLevel: number;
 
         /**
-         * This attribute indicates the minimum value of the SpeakerVolumeLevel that can be assigned.
+         * Indicates the minimum value of the SpeakerVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.29
          */
@@ -383,8 +383,8 @@ export declare namespace CameraAvStreamManagement {
      */
     export interface HighDynamicRangeAttributes {
         /**
-         * This attribute indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE indicates that
-         * HDR video capturing is enabled. Otherwise, HDR video capturing is disabled.
+         * Indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE indicates that HDR video
+         * capturing is enabled. Otherwise, HDR video capturing is disabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.14
          */
@@ -396,11 +396,11 @@ export declare namespace CameraAvStreamManagement {
      */
     export interface PrivacyAttributes {
         /**
-         * This attribute indicates the current value of the soft privacy mode for transports using the Stream Usage
-         * types Recording and Analysis. A value of TRUE indicates that delivery of video frames and audio samples from
-         * any streams to these transports is skipped. A value of TRUE also indicates that no new transports using these
-         * stream usage values can be created or started. When FALSE, these transports can be resumed or started, and
-         * have video frames and audio samples delivered.
+         * Indicates the current value of the soft privacy mode for transports using the Stream Usage types Recording
+         * and Analysis. A value of TRUE indicates that delivery of video frames and audio samples from any streams to
+         * these transports is skipped. A value of TRUE also indicates that no new transports using these stream usage
+         * values can be created or started. When FALSE, these transports can be resumed or started, and have video
+         * frames and audio samples delivered.
          *
          * When this attribute is set to TRUE, any active WebRTC transports using these stream usage types shall
          * terminate the session by calling End using WebRTCEndReasonEnum PrivacyMode.
@@ -410,11 +410,11 @@ export declare namespace CameraAvStreamManagement {
         softRecordingPrivacyModeEnabled: boolean;
 
         /**
-         * This attribute indicates the current value of the soft privacy mode for transports using the Stream Usage
-         * type LiveView. A value of TRUE indicates that delivery of video frames and audio samples from any streams to
-         * these transports is skipped. A value of TRUE also indicates that no new transports using this stream usage
-         * type can be created or started. When FALSE, these transports can be resumed or started, and have video frames
-         * and audio samples delivered.
+         * Indicates the current value of the soft privacy mode for transports using the Stream Usage type LiveView. A
+         * value of TRUE indicates that delivery of video frames and audio samples from any streams to these transports
+         * is skipped. A value of TRUE also indicates that no new transports using this stream usage type can be created
+         * or started. When FALSE, these transports can be resumed or started, and have video frames and audio samples
+         * delivered.
          *
          * When this attribute is set to TRUE, any active WebRTC transports using this stream usage type shall terminate
          * the session by calling End using WebRTCEndReasonEnum PrivacyMode.
@@ -429,7 +429,7 @@ export declare namespace CameraAvStreamManagement {
      */
     export interface ImageControlAttributes {
         /**
-         * This attribute indicates the amount of clockwise rotation in degrees that the image has been subjected to.
+         * Indicates the amount of clockwise rotation in degrees that the image has been subjected to.
          *
          * This attribute may be present if the underlying hardware allows for arbitrary angle rotation within the full
          * 360 degree range. If this attribute is not present, then discrete angle rotation may be supported via the
@@ -440,16 +440,16 @@ export declare namespace CameraAvStreamManagement {
         imageRotation?: number;
 
         /**
-         * This attribute indicates whether the image has been flipped horizontally or not. A value of TRUE indicates
-         * that the image has been flipped horizontally.
+         * Indicates whether the image has been flipped horizontally or not. A value of TRUE indicates that the image
+         * has been flipped horizontally.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.36
          */
         imageFlipHorizontal?: boolean;
 
         /**
-         * This attribute indicates whether the image has been flipped vertically or not. A value of TRUE indicates that
-         * the image has been flipped vertically.
+         * Indicates whether the image has been flipped vertically or not. A value of TRUE indicates that the image has
+         * been flipped vertically.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.37
          */
@@ -472,8 +472,8 @@ export declare namespace CameraAvStreamManagement {
      */
     export interface VideoAndLocalStorageAttributes {
         /**
-         * This attribute indicates whether local storage based video recording is enabled. A value of TRUE indicates
-         * that local storage based video recording has been enabled.
+         * Indicates whether local storage based video recording is enabled. A value of TRUE indicates that local
+         * storage based video recording has been enabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.38
          */
@@ -485,8 +485,8 @@ export declare namespace CameraAvStreamManagement {
      */
     export interface SnapshotAndLocalStorageAttributes {
         /**
-         * This attribute indicates whether local storage based snapshot recording is enabled. A value of TRUE indicates
-         * that local storage based snapshot recording has been enabled.
+         * Indicates whether local storage based snapshot recording is enabled. A value of TRUE indicates that local
+         * storage based snapshot recording has been enabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.39
          */
@@ -543,25 +543,25 @@ export declare namespace CameraAvStreamManagement {
         streamUsagePriorities: StreamUsage[];
 
         /**
-         * This attribute indicates the current value of the hard privacy mode for all streams. This is controlled via a
-         * physical button or switch, potentially. A value of TRUE indicates that all streams are currently paused. When
-         * FALSE, the streams may resume if they are not already paused by their corresponding soft privacy mode.
+         * Indicates the current value of the hard privacy mode for all streams. This is controlled via a physical
+         * button or switch, potentially. A value of TRUE indicates that all streams are currently paused. When FALSE,
+         * the streams may resume if they are not already paused by their corresponding soft privacy mode.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.22
          */
         hardPrivacyModeOn: boolean;
 
         /**
-         * This attribute indicates whether the status light has been enabled or not. A value of TRUE indicates the
-         * status light has been enabled. When enabled, the camera may use it for visual signaling purposes to indicate
-         * various states of the camera.
+         * Indicates whether the status light has been enabled or not. A value of TRUE indicates the status light has
+         * been enabled. When enabled, the camera may use it for visual signaling purposes to indicate various states of
+         * the camera.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.40
          */
         statusLightEnabled: boolean;
 
         /**
-         * This attribute indicates the brightness level of the status light.
+         * Indicates the brightness level of the status light.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.41
          */
@@ -607,8 +607,8 @@ export declare namespace CameraAvStreamManagement {
         minViewportResolution: VideoResolution;
 
         /**
-         * This attribute shall list the set of rate distortion trade-off points between resolution, frame rate and
-         * bitrate for each supported hardware encoder.
+         * Indicates this attribute shall list the set of rate distortion trade-off points between resolution, frame
+         * rate and bitrate for each supported hardware encoder.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.6
          */
@@ -629,7 +629,7 @@ export declare namespace CameraAvStreamManagement {
         allocatedVideoStreams: VideoStream[];
 
         /**
-         * This attribute shall be a ViewportStruct representing the viewport to apply to all streams.
+         * Indicates the viewport to apply to all streams.
          *
          * The coordinate values represent the upper left corner and lower right corner coordinates of the source
          * rectangle on the sensor. The coordinate values are within the two-dimensional Cartesian plane of size
@@ -661,20 +661,20 @@ export declare namespace CameraAvStreamManagement {
         nightVisionUsesInfrared: boolean;
 
         /**
-         * This attribute indicates the currently selected Night Vision mode. A value of Off means the device will never
-         * activate its Night Vision mode of operation. A value of On means the Night Vision mode of operation is always
-         * active. A value of Auto means the device will automatically move between active and inactive based on the
-         * light level it detects.
+         * Indicates the currently selected Night Vision mode. A value of Off means the device will never activate its
+         * Night Vision mode of operation. A value of On means the Night Vision mode of operation is always active. A
+         * value of Auto means the device will automatically move between active and inactive based on the light level
+         * it detects.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.23
          */
         nightVision: TriStateAuto;
 
         /**
-         * This attribute indicates the currently selected the Night Vision Illumination mode. A value of Off means the
-         * device will never activate its built-in Night Vision Illumination. A value of On means the built-in Night
-         * Vision Illumination is always active. A value of Auto means the device will automatically enable its built-in
-         * Night Vision Illumination based on the light level it detects.
+         * Indicates the currently selected the Night Vision Illumination mode. A value of Off means the device will
+         * never activate its built-in Night Vision Illumination. A value of On means the built-in Night Vision
+         * Illumination is always active. A value of Auto means the device will automatically enable its built-in Night
+         * Vision Illumination based on the light level it detects.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.24
          */
@@ -696,38 +696,38 @@ export declare namespace CameraAvStreamManagement {
         allocatedAudioStreams: AudioStream[];
 
         /**
-         * This attribute indicates whether the microphone is currently muted or not. A value of TRUE indicates that the
-         * microphone has been muted. In this state, the microphone data shall be replaced with all 0 bits, representing
-         * silence. A value of FALSE indicates that the microphone is On and is capable of transmitting audio.
+         * Indicates whether the microphone is currently muted or not. A value of TRUE indicates that the microphone has
+         * been muted. In this state, the microphone data shall be replaced with all 0 bits, representing silence. A
+         * value of FALSE indicates that the microphone is On and is capable of transmitting audio.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.30
          */
         microphoneMuted: boolean;
 
         /**
-         * This attribute indicates the current gain or volume level of the microphone.
+         * Indicates the current gain or volume level of the microphone.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.31
          */
         microphoneVolumeLevel: number;
 
         /**
-         * This attribute indicates the maximum value of the MicrophoneVolumeLevel that can be assigned.
+         * Indicates the maximum value of the MicrophoneVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.32
          */
         microphoneMaxLevel: number;
 
         /**
-         * This attribute indicates the minimum value of the MicrophoneVolumeLevel that can be assigned.
+         * Indicates the minimum value of the MicrophoneVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.33
          */
         microphoneMinLevel: number;
 
         /**
-         * This attribute indicates the currently selected AGC (Automatic Gain Control) mode for the microphone. A value
-         * of TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled.
+         * Indicates the currently selected AGC (Automatic Gain Control) mode for the microphone. A value of TRUE
+         * indicates that microphone AGC is enabled. Otherwise, it is disabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.34
          */
@@ -749,29 +749,29 @@ export declare namespace CameraAvStreamManagement {
         twoWayTalkSupport: TwoWayTalkSupportType;
 
         /**
-         * This attribute indicates whether the speaker is currently muted or not. A value of TRUE indicates that the
-         * speaker has been muted and shall not play anything. A value of FALSE indicates that the Speaker is enabled.
+         * Indicates whether the speaker is currently muted or not. A value of TRUE indicates that the speaker has been
+         * muted and shall not play anything. A value of FALSE indicates that the Speaker is enabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.26
          */
         speakerMuted: boolean;
 
         /**
-         * This attribute indicates the current volume level of the speaker.
+         * Indicates the current volume level of the speaker.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.27
          */
         speakerVolumeLevel: number;
 
         /**
-         * This attribute indicates the maximum value of the SpeakerVolumeLevel that can be assigned.
+         * Indicates the maximum value of the SpeakerVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.28
          */
         speakerMaxLevel: number;
 
         /**
-         * This attribute indicates the minimum value of the SpeakerVolumeLevel that can be assigned.
+         * Indicates the minimum value of the SpeakerVolumeLevel that can be assigned.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.29
          */
@@ -793,19 +793,19 @@ export declare namespace CameraAvStreamManagement {
         allocatedSnapshotStreams: SnapshotStream[];
 
         /**
-         * This attribute indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE indicates that
-         * HDR video capturing is enabled. Otherwise, HDR video capturing is disabled.
+         * Indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE indicates that HDR video
+         * capturing is enabled. Otherwise, HDR video capturing is disabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.14
          */
         hdrModeEnabled: boolean;
 
         /**
-         * This attribute indicates the current value of the soft privacy mode for transports using the Stream Usage
-         * types Recording and Analysis. A value of TRUE indicates that delivery of video frames and audio samples from
-         * any streams to these transports is skipped. A value of TRUE also indicates that no new transports using these
-         * stream usage values can be created or started. When FALSE, these transports can be resumed or started, and
-         * have video frames and audio samples delivered.
+         * Indicates the current value of the soft privacy mode for transports using the Stream Usage types Recording
+         * and Analysis. A value of TRUE indicates that delivery of video frames and audio samples from any streams to
+         * these transports is skipped. A value of TRUE also indicates that no new transports using these stream usage
+         * values can be created or started. When FALSE, these transports can be resumed or started, and have video
+         * frames and audio samples delivered.
          *
          * When this attribute is set to TRUE, any active WebRTC transports using these stream usage types shall
          * terminate the session by calling End using WebRTCEndReasonEnum PrivacyMode.
@@ -815,11 +815,11 @@ export declare namespace CameraAvStreamManagement {
         softRecordingPrivacyModeEnabled: boolean;
 
         /**
-         * This attribute indicates the current value of the soft privacy mode for transports using the Stream Usage
-         * type LiveView. A value of TRUE indicates that delivery of video frames and audio samples from any streams to
-         * these transports is skipped. A value of TRUE also indicates that no new transports using this stream usage
-         * type can be created or started. When FALSE, these transports can be resumed or started, and have video frames
-         * and audio samples delivered.
+         * Indicates the current value of the soft privacy mode for transports using the Stream Usage type LiveView. A
+         * value of TRUE indicates that delivery of video frames and audio samples from any streams to these transports
+         * is skipped. A value of TRUE also indicates that no new transports using this stream usage type can be created
+         * or started. When FALSE, these transports can be resumed or started, and have video frames and audio samples
+         * delivered.
          *
          * When this attribute is set to TRUE, any active WebRTC transports using this stream usage type shall terminate
          * the session by calling End using WebRTCEndReasonEnum PrivacyMode.
@@ -829,7 +829,7 @@ export declare namespace CameraAvStreamManagement {
         softLivestreamPrivacyModeEnabled: boolean;
 
         /**
-         * This attribute indicates the amount of clockwise rotation in degrees that the image has been subjected to.
+         * Indicates the amount of clockwise rotation in degrees that the image has been subjected to.
          *
          * This attribute may be present if the underlying hardware allows for arbitrary angle rotation within the full
          * 360 degree range. If this attribute is not present, then discrete angle rotation may be supported via the
@@ -840,16 +840,16 @@ export declare namespace CameraAvStreamManagement {
         imageRotation: number;
 
         /**
-         * This attribute indicates whether the image has been flipped horizontally or not. A value of TRUE indicates
-         * that the image has been flipped horizontally.
+         * Indicates whether the image has been flipped horizontally or not. A value of TRUE indicates that the image
+         * has been flipped horizontally.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.36
          */
         imageFlipHorizontal: boolean;
 
         /**
-         * This attribute indicates whether the image has been flipped vertically or not. A value of TRUE indicates that
-         * the image has been flipped vertically.
+         * Indicates whether the image has been flipped vertically or not. A value of TRUE indicates that the image has
+         * been flipped vertically.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.37
          */
@@ -867,16 +867,16 @@ export declare namespace CameraAvStreamManagement {
         imageRotationDiscreteAngles: number;
 
         /**
-         * This attribute indicates whether local storage based video recording is enabled. A value of TRUE indicates
-         * that local storage based video recording has been enabled.
+         * Indicates whether local storage based video recording is enabled. A value of TRUE indicates that local
+         * storage based video recording has been enabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.38
          */
         localVideoRecordingEnabled: boolean;
 
         /**
-         * This attribute indicates whether local storage based snapshot recording is enabled. A value of TRUE indicates
-         * that local storage based snapshot recording has been enabled.
+         * Indicates whether local storage based snapshot recording is enabled. A value of TRUE indicates that local
+         * storage based snapshot recording has been enabled.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.2.7.39
          */
@@ -2167,8 +2167,8 @@ export declare namespace CameraAvStreamManagement {
      * This struct is used to encode the metadata generated by the device and is included by the various transports that
      * handle audio and video streams.
      *
-     * When encoded in TLV binary format and placed inside other standards, this shall be represented using the RFC 8141
-     * compliant string urn:csa:matter:av-metadata.
+     * When encoded in TLV binary format and placed inside other standards, this shall be represented using the
+     * [[RFC8141]](#ref_Rfc8141) compliant string urn:csa:matter:av-metadata.
      *
      * @see {@link MatterSpecification.v16.Cluster} § 11.2.6.14
      */

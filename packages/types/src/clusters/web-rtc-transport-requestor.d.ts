@@ -48,8 +48,7 @@ export declare namespace WebRtcTransportRequestor {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions on
-         * this Node.
+         * Indicates a list of all the active WebRTC Sessions on this Node.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.6.4.1
          */
@@ -61,8 +60,7 @@ export declare namespace WebRtcTransportRequestor {
      */
     export interface Attributes {
         /**
-         * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions on
-         * this Node.
+         * Indicates a list of all the active WebRTC Sessions on this Node.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.6.4.1
          */
@@ -100,10 +98,11 @@ export declare namespace WebRtcTransportRequestor {
         answer(request: AnswerRequest): MaybePromise;
 
         /**
-         * This command allows for the object based ICE candidates generated after the initial Offer / Answer exchange,
-         * via a JSEP onicecandidate event, a DOM rtcpeerconnectioniceevent event, or other WebRTC compliant
-         * implementations, to be added to a session during the gathering phase. This is typically used for STUN or TURN
-         * discovered candidates, or to indicate the end of gathering state.
+         * This command allows for the object based ICE candidates [[RFC8839]](#ref_Rfc8839), Section 5.1, generated
+         * after the initial Offer / Answer exchange, via a JSEP onicecandidate event [[RFC9429]](#ref_Rfc9429), Section
+         * 4.1.20, a DOM rtcpeerconnectioniceevent event, or other WebRTC compliant implementations, to be added to a
+         * session during the gathering phase. This is typically used for STUN or TURN discovered candidates, or to
+         * indicate the end of gathering state.
          *
          * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry
          * in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing
@@ -151,8 +150,8 @@ export declare namespace WebRtcTransportRequestor {
         webRtcSessionId: number;
 
         /**
-         * This field shall contain the string based SDP Offer. See WebRTC Transport for further details on SDP and
-         * Offer/Answer semantics.
+         * This field shall contain the string based SDP Offer [[RFC8866]](#ref_Rfc8866). See WebRTC Transport for
+         * further details on SDP and Offer/Answer semantics.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.6.5.1.2
          */
@@ -196,8 +195,8 @@ export declare namespace WebRtcTransportRequestor {
         webRtcSessionId: number;
 
         /**
-         * This field shall contain the string based SDP Answer. See WebRTC Transport for further details on SDP and
-         * Offer/Answer semantics.
+         * This field shall contain the string based SDP Answer [[RFC8866]](#ref_Rfc8866). See WebRTC Transport for
+         * further details on SDP and Offer/Answer semantics.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.6.5.2.2
          */
@@ -205,10 +204,11 @@ export declare namespace WebRtcTransportRequestor {
     }
 
     /**
-     * This command allows for the object based ICE candidates generated after the initial Offer / Answer exchange, via
-     * a JSEP onicecandidate event, a DOM rtcpeerconnectioniceevent event, or other WebRTC compliant implementations, to
-     * be added to a session during the gathering phase. This is typically used for STUN or TURN discovered candidates,
-     * or to indicate the end of gathering state.
+     * This command allows for the object based ICE candidates [[RFC8839]](#ref_Rfc8839), Section 5.1, generated after
+     * the initial Offer / Answer exchange, via a JSEP onicecandidate event [[RFC9429]](#ref_Rfc9429), Section 4.1.20, a
+     * DOM rtcpeerconnectioniceevent event, or other WebRTC compliant implementations, to be added to a session during
+     * the gathering phase. This is typically used for STUN or TURN discovered candidates, or to indicate the end of
+     * gathering state.
      *
      * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry in
      * CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing fabric
@@ -227,7 +227,8 @@ export declare namespace WebRtcTransportRequestor {
         webRtcSessionId: number;
 
         /**
-         * This field shall contain a list of JSEP compliant ICE Candidate Format objects.
+         * This field shall contain a list of JSEP [[RFC9429]](#ref_Rfc9429) compliant ICE Candidate Format objects per
+         * [[RFC9429]](#ref_Rfc9429), Section 3.5.2.1.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.6.5.3.2
          */

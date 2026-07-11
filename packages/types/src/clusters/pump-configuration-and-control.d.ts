@@ -49,8 +49,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface BaseAttributes {
         /**
-         * This attribute specifies the maximum pressure the pump can achieve. It is a physical limit, and does not
-         * apply to any specific control mode or operation mode.
+         * Indicates the maximum pressure the pump can achieve. It is a physical limit, and does not apply to any
+         * specific control mode or operation mode.
          *
          * Valid range is -3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -59,8 +59,8 @@ export declare namespace PumpConfigurationAndControl {
         maxPressure: number | null;
 
         /**
-         * This attribute specifies the maximum speed the pump can achieve. It is a physical limit, and does not apply
-         * to any specific control mode or operation mode.
+         * Indicates the maximum speed the pump can achieve. It is a physical limit, and does not apply to any specific
+         * control mode or operation mode.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -69,8 +69,8 @@ export declare namespace PumpConfigurationAndControl {
         maxSpeed: number | null;
 
         /**
-         * This attribute specifies the maximum flow the pump can achieve. It is a physical limit, and does not apply to
-         * any specific control mode or operation mode.
+         * Indicates the maximum flow the pump can achieve. It is a physical limit, and does not apply to any specific
+         * control mode or operation mode.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -79,7 +79,7 @@ export declare namespace PumpConfigurationAndControl {
         maxFlow: number | null;
 
         /**
-         * This attribute specifies current effective operation mode of the pump as defined in OperationModeEnum.
+         * Indicates the currently effective operation mode of the pump as defined in OperationModeEnum.
          *
          * The value of the EffectiveOperationMode attribute is the same as the OperationMode attribute, unless one of
          * the following points are true:
@@ -96,7 +96,7 @@ export declare namespace PumpConfigurationAndControl {
         effectiveOperationMode: OperationMode;
 
         /**
-         * This attribute specifies the current effective control mode of the pump as defined in ControlModeEnum.
+         * Indicates the currently effective control mode of the pump as defined in ControlModeEnum.
          *
          * This attribute contains the control mode that currently applies to the pump. It will have the value of the
          * ControlMode attribute, unless one of the following points are true:
@@ -119,8 +119,8 @@ export declare namespace PumpConfigurationAndControl {
         effectiveControlMode: ControlMode;
 
         /**
-         * This attribute specifies the actual capacity of the pump as a percentage of the effective maximum setpoint
-         * value. It is updated dynamically as the speed of the pump changes.
+         * Indicates the actual capacity of the pump as a percentage of the effective maximum setpoint value. It is
+         * updated dynamically as the speed of the pump changes.
          *
          * If the value is not available (the measurement or estimation of the speed is done in the pump), this
          * attribute will indicate the null value.
@@ -133,7 +133,7 @@ export declare namespace PumpConfigurationAndControl {
         capacity: number | null;
 
         /**
-         * This attribute specifies the operation mode of the pump as defined in OperationModeEnum.
+         * Indicates the operation mode of the pump as defined in OperationModeEnum.
          *
          * The actual operating mode of the pump is a result of the setting of the attributes OperationMode, ControlMode
          * and the optional connection of a remote sensor. The operation and control is prioritized as shown in the
@@ -163,17 +163,17 @@ export declare namespace PumpConfigurationAndControl {
         operationMode: OperationMode;
 
         /**
-         * This attribute specifies the activity status of the pump functions as listed in PumpStatusBitmap. Where a
-         * pump controller function is active, the corresponding bit shall be set to 1. Where a pump controller function
-         * is not active, the corresponding bit shall be set to 0.
+         * Indicates the activity status of the pump functions as listed in PumpStatusBitmap. Where a pump controller
+         * function is active, the corresponding bit shall be set to 1. Where a pump controller function is not active,
+         * the corresponding bit shall be set to 0.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.14
          */
         pumpStatus?: PumpStatus;
 
         /**
-         * This attribute specifies the actual speed of the pump measured in RPM. It is updated dynamically as the speed
-         * of the pump changes.
+         * Indicates the actual speed of the pump measured in RPM. It is updated dynamically as the speed of the pump
+         * changes.
          *
          * If the value is not available (the measurement or estimation of the speed is done in the pump), this
          * attribute will indicate the null value.
@@ -185,8 +185,8 @@ export declare namespace PumpConfigurationAndControl {
         speed?: number | null;
 
         /**
-         * This attribute specifies the accumulated number of hours that the pump has been powered and the motor has
-         * been running. It is updated dynamically as it increases. It is preserved over power cycles of the pump. If
+         * Indicates the accumulated number of hours that the pump has been powered and the motor has been running. It
+         * is updated dynamically as it increases. It is preserved over power cycles of the pump. If
          * LifeTimeRunningHours rises above maximum value it “rolls over” and starts at 0 (zero).
          *
          * This attribute is writeable, in order to allow setting to an appropriate value after maintenance. If the
@@ -199,8 +199,8 @@ export declare namespace PumpConfigurationAndControl {
         lifetimeRunningHours?: number | null;
 
         /**
-         * This attribute specifies the actual power consumption of the pump in Watts. The value of this attribute is
-         * updated dynamically as the power consumption of the pump changes.
+         * Indicates the actual power consumption of the pump in Watts. The value of this attribute is updated
+         * dynamically as the power consumption of the pump changes.
          *
          * This attribute is read only. If the value is not available (the measurement of power consumption is not done
          * in the pump), this attribute will indicate the null value.
@@ -212,10 +212,9 @@ export declare namespace PumpConfigurationAndControl {
         power?: number | null;
 
         /**
-         * This attribute specifies the accumulated energy consumption of the pump through the entire lifetime of the
-         * pump in kWh. The value of the LifetimeEnergyConsumed attribute is updated dynamically as the energy
-         * consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it “rolls over” and
-         * starts at 0 (zero).
+         * Indicates the accumulated energy consumption of the pump through the entire lifetime of the pump in kWh. The
+         * value of the LifetimeEnergyConsumed attribute is updated dynamically as the energy consumption of the pump
+         * increases. If LifetimeEnergyConsumed rises above maximum value it “rolls over” and starts at 0 (zero).
          *
          * This attribute is writeable, in order to allow setting to an appropriate value after maintenance.
          *
@@ -226,7 +225,7 @@ export declare namespace PumpConfigurationAndControl {
         lifetimeEnergyConsumed?: number | null;
 
         /**
-         * This attribute specifies the control mode of the pump as defined in ControlModeEnum.
+         * Indicates the control mode of the pump as defined in ControlModeEnum.
          *
          * See OperationMode Attribute for a detailed description of the operation and control of the pump.
          *
@@ -253,8 +252,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface ConstantPressureAttributes {
         /**
-         * This attribute specifies the minimum pressure the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantPressure.
+         * Indicates the minimum pressure the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -263,8 +262,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstPressure: number | null;
 
         /**
-         * This attribute specifies the maximum pressure the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantPressure.
+         * Indicates the maximum pressure the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -278,8 +277,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface AutomaticAttributes {
         /**
-         * This attribute specifies the minimum pressure the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantPressure.
+         * Indicates the minimum pressure the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -288,8 +287,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstPressure?: number | null;
 
         /**
-         * This attribute specifies the maximum pressure the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantPressure.
+         * Indicates the maximum pressure the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -298,8 +297,8 @@ export declare namespace PumpConfigurationAndControl {
         maxConstPressure?: number | null;
 
         /**
-         * This attribute specifies the minimum compensated pressure the pump can achieve when it is working with the
-         * ControlMode attribute set to ProportionalPressure.
+         * Indicates the minimum compensated pressure the pump can achieve when it is working with the ControlMode
+         * attribute set to ProportionalPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -308,8 +307,8 @@ export declare namespace PumpConfigurationAndControl {
         minCompPressure?: number | null;
 
         /**
-         * This attribute specifies the maximum compensated pressure the pump can achieve when it is working with the
-         * ControlMode attribute set to ProportionalPressure.
+         * Indicates the maximum compensated pressure the pump can achieve when it is working with the ControlMode
+         * attribute set to ProportionalPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -318,8 +317,8 @@ export declare namespace PumpConfigurationAndControl {
         maxCompPressure?: number | null;
 
         /**
-         * This attribute specifies the minimum speed the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantSpeed.
+         * Indicates the minimum speed the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantSpeed.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -328,8 +327,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstSpeed?: number | null;
 
         /**
-         * This attribute specifies the maximum speed the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantSpeed.
+         * Indicates the maximum speed the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantSpeed.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -338,8 +337,8 @@ export declare namespace PumpConfigurationAndControl {
         maxConstSpeed?: number | null;
 
         /**
-         * This attribute specifies the minimum flow the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantFlow.
+         * Indicates the minimum flow the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantFlow.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -348,8 +347,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstFlow?: number | null;
 
         /**
-         * This attribute specifies the maximum flow the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantFlow.
+         * Indicates the maximum flow the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantFlow.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -358,8 +357,8 @@ export declare namespace PumpConfigurationAndControl {
         maxConstFlow?: number | null;
 
         /**
-         * This attribute specifies the minimum temperature the pump can maintain in the system when it is working with
-         * the ControlMode attribute set to ConstantTemperature.
+         * Indicates the minimum temperature the pump can maintain in the system when it is working with the ControlMode
+         * attribute set to ConstantTemperature.
          *
          * Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid.
          *
@@ -368,8 +367,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstTemp?: number | null;
 
         /**
-         * This attribute specifies the maximum temperature the pump can maintain in the system when it is working with
-         * the ControlMode attribute set to ConstantTemperature.
+         * Indicates the maximum temperature the pump can maintain in the system when it is working with the ControlMode
+         * attribute set to ConstantTemperature.
          *
          * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps of
          * 0.01 °C). Null if the value is invalid.
@@ -384,8 +383,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface CompensatedPressureAttributes {
         /**
-         * This attribute specifies the minimum compensated pressure the pump can achieve when it is working with the
-         * ControlMode attribute set to ProportionalPressure.
+         * Indicates the minimum compensated pressure the pump can achieve when it is working with the ControlMode
+         * attribute set to ProportionalPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -394,8 +393,8 @@ export declare namespace PumpConfigurationAndControl {
         minCompPressure: number | null;
 
         /**
-         * This attribute specifies the maximum compensated pressure the pump can achieve when it is working with the
-         * ControlMode attribute set to ProportionalPressure.
+         * Indicates the maximum compensated pressure the pump can achieve when it is working with the ControlMode
+         * attribute set to ProportionalPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -409,8 +408,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface ConstantSpeedAttributes {
         /**
-         * This attribute specifies the minimum speed the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantSpeed.
+         * Indicates the minimum speed the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantSpeed.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -419,8 +418,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstSpeed: number | null;
 
         /**
-         * This attribute specifies the maximum speed the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantSpeed.
+         * Indicates the maximum speed the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantSpeed.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -434,8 +433,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface ConstantFlowAttributes {
         /**
-         * This attribute specifies the minimum flow the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantFlow.
+         * Indicates the minimum flow the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantFlow.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -444,8 +443,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstFlow: number | null;
 
         /**
-         * This attribute specifies the maximum flow the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantFlow.
+         * Indicates the maximum flow the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantFlow.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -459,8 +458,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface ConstantTemperatureAttributes {
         /**
-         * This attribute specifies the minimum temperature the pump can maintain in the system when it is working with
-         * the ControlMode attribute set to ConstantTemperature.
+         * Indicates the minimum temperature the pump can maintain in the system when it is working with the ControlMode
+         * attribute set to ConstantTemperature.
          *
          * Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid.
          *
@@ -469,8 +468,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstTemp: number | null;
 
         /**
-         * This attribute specifies the maximum temperature the pump can maintain in the system when it is working with
-         * the ControlMode attribute set to ConstantTemperature.
+         * Indicates the maximum temperature the pump can maintain in the system when it is working with the ControlMode
+         * attribute set to ConstantTemperature.
          *
          * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps of
          * 0.01 °C). Null if the value is invalid.
@@ -488,8 +487,8 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface Attributes {
         /**
-         * This attribute specifies the maximum pressure the pump can achieve. It is a physical limit, and does not
-         * apply to any specific control mode or operation mode.
+         * Indicates the maximum pressure the pump can achieve. It is a physical limit, and does not apply to any
+         * specific control mode or operation mode.
          *
          * Valid range is -3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -498,8 +497,8 @@ export declare namespace PumpConfigurationAndControl {
         maxPressure: number | null;
 
         /**
-         * This attribute specifies the maximum speed the pump can achieve. It is a physical limit, and does not apply
-         * to any specific control mode or operation mode.
+         * Indicates the maximum speed the pump can achieve. It is a physical limit, and does not apply to any specific
+         * control mode or operation mode.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -508,8 +507,8 @@ export declare namespace PumpConfigurationAndControl {
         maxSpeed: number | null;
 
         /**
-         * This attribute specifies the maximum flow the pump can achieve. It is a physical limit, and does not apply to
-         * any specific control mode or operation mode.
+         * Indicates the maximum flow the pump can achieve. It is a physical limit, and does not apply to any specific
+         * control mode or operation mode.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -518,7 +517,7 @@ export declare namespace PumpConfigurationAndControl {
         maxFlow: number | null;
 
         /**
-         * This attribute specifies current effective operation mode of the pump as defined in OperationModeEnum.
+         * Indicates the currently effective operation mode of the pump as defined in OperationModeEnum.
          *
          * The value of the EffectiveOperationMode attribute is the same as the OperationMode attribute, unless one of
          * the following points are true:
@@ -535,7 +534,7 @@ export declare namespace PumpConfigurationAndControl {
         effectiveOperationMode: OperationMode;
 
         /**
-         * This attribute specifies the current effective control mode of the pump as defined in ControlModeEnum.
+         * Indicates the currently effective control mode of the pump as defined in ControlModeEnum.
          *
          * This attribute contains the control mode that currently applies to the pump. It will have the value of the
          * ControlMode attribute, unless one of the following points are true:
@@ -558,8 +557,8 @@ export declare namespace PumpConfigurationAndControl {
         effectiveControlMode: ControlMode;
 
         /**
-         * This attribute specifies the actual capacity of the pump as a percentage of the effective maximum setpoint
-         * value. It is updated dynamically as the speed of the pump changes.
+         * Indicates the actual capacity of the pump as a percentage of the effective maximum setpoint value. It is
+         * updated dynamically as the speed of the pump changes.
          *
          * If the value is not available (the measurement or estimation of the speed is done in the pump), this
          * attribute will indicate the null value.
@@ -572,7 +571,7 @@ export declare namespace PumpConfigurationAndControl {
         capacity: number | null;
 
         /**
-         * This attribute specifies the operation mode of the pump as defined in OperationModeEnum.
+         * Indicates the operation mode of the pump as defined in OperationModeEnum.
          *
          * The actual operating mode of the pump is a result of the setting of the attributes OperationMode, ControlMode
          * and the optional connection of a remote sensor. The operation and control is prioritized as shown in the
@@ -602,17 +601,17 @@ export declare namespace PumpConfigurationAndControl {
         operationMode: OperationMode;
 
         /**
-         * This attribute specifies the activity status of the pump functions as listed in PumpStatusBitmap. Where a
-         * pump controller function is active, the corresponding bit shall be set to 1. Where a pump controller function
-         * is not active, the corresponding bit shall be set to 0.
+         * Indicates the activity status of the pump functions as listed in PumpStatusBitmap. Where a pump controller
+         * function is active, the corresponding bit shall be set to 1. Where a pump controller function is not active,
+         * the corresponding bit shall be set to 0.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.14
          */
         pumpStatus: PumpStatus;
 
         /**
-         * This attribute specifies the actual speed of the pump measured in RPM. It is updated dynamically as the speed
-         * of the pump changes.
+         * Indicates the actual speed of the pump measured in RPM. It is updated dynamically as the speed of the pump
+         * changes.
          *
          * If the value is not available (the measurement or estimation of the speed is done in the pump), this
          * attribute will indicate the null value.
@@ -624,8 +623,8 @@ export declare namespace PumpConfigurationAndControl {
         speed: number | null;
 
         /**
-         * This attribute specifies the accumulated number of hours that the pump has been powered and the motor has
-         * been running. It is updated dynamically as it increases. It is preserved over power cycles of the pump. If
+         * Indicates the accumulated number of hours that the pump has been powered and the motor has been running. It
+         * is updated dynamically as it increases. It is preserved over power cycles of the pump. If
          * LifeTimeRunningHours rises above maximum value it “rolls over” and starts at 0 (zero).
          *
          * This attribute is writeable, in order to allow setting to an appropriate value after maintenance. If the
@@ -638,8 +637,8 @@ export declare namespace PumpConfigurationAndControl {
         lifetimeRunningHours: number | null;
 
         /**
-         * This attribute specifies the actual power consumption of the pump in Watts. The value of this attribute is
-         * updated dynamically as the power consumption of the pump changes.
+         * Indicates the actual power consumption of the pump in Watts. The value of this attribute is updated
+         * dynamically as the power consumption of the pump changes.
          *
          * This attribute is read only. If the value is not available (the measurement of power consumption is not done
          * in the pump), this attribute will indicate the null value.
@@ -651,10 +650,9 @@ export declare namespace PumpConfigurationAndControl {
         power: number | null;
 
         /**
-         * This attribute specifies the accumulated energy consumption of the pump through the entire lifetime of the
-         * pump in kWh. The value of the LifetimeEnergyConsumed attribute is updated dynamically as the energy
-         * consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it “rolls over” and
-         * starts at 0 (zero).
+         * Indicates the accumulated energy consumption of the pump through the entire lifetime of the pump in kWh. The
+         * value of the LifetimeEnergyConsumed attribute is updated dynamically as the energy consumption of the pump
+         * increases. If LifetimeEnergyConsumed rises above maximum value it “rolls over” and starts at 0 (zero).
          *
          * This attribute is writeable, in order to allow setting to an appropriate value after maintenance.
          *
@@ -665,7 +663,7 @@ export declare namespace PumpConfigurationAndControl {
         lifetimeEnergyConsumed: number | null;
 
         /**
-         * This attribute specifies the control mode of the pump as defined in ControlModeEnum.
+         * Indicates the control mode of the pump as defined in ControlModeEnum.
          *
          * See OperationMode Attribute for a detailed description of the operation and control of the pump.
          *
@@ -687,8 +685,8 @@ export declare namespace PumpConfigurationAndControl {
         alarmMask: number;
 
         /**
-         * This attribute specifies the minimum pressure the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantPressure.
+         * Indicates the minimum pressure the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -697,8 +695,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstPressure: number | null;
 
         /**
-         * This attribute specifies the maximum pressure the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantPressure.
+         * Indicates the maximum pressure the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -707,8 +705,8 @@ export declare namespace PumpConfigurationAndControl {
         maxConstPressure: number | null;
 
         /**
-         * This attribute specifies the minimum compensated pressure the pump can achieve when it is working with the
-         * ControlMode attribute set to ProportionalPressure.
+         * Indicates the minimum compensated pressure the pump can achieve when it is working with the ControlMode
+         * attribute set to ProportionalPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -717,8 +715,8 @@ export declare namespace PumpConfigurationAndControl {
         minCompPressure: number | null;
 
         /**
-         * This attribute specifies the maximum compensated pressure the pump can achieve when it is working with the
-         * ControlMode attribute set to ProportionalPressure.
+         * Indicates the maximum compensated pressure the pump can achieve when it is working with the ControlMode
+         * attribute set to ProportionalPressure.
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
@@ -727,8 +725,8 @@ export declare namespace PumpConfigurationAndControl {
         maxCompPressure: number | null;
 
         /**
-         * This attribute specifies the minimum speed the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantSpeed.
+         * Indicates the minimum speed the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantSpeed.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -737,8 +735,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstSpeed: number | null;
 
         /**
-         * This attribute specifies the maximum speed the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantSpeed.
+         * Indicates the maximum speed the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantSpeed.
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
@@ -747,8 +745,8 @@ export declare namespace PumpConfigurationAndControl {
         maxConstSpeed: number | null;
 
         /**
-         * This attribute specifies the minimum flow the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantFlow.
+         * Indicates the minimum flow the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantFlow.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -757,8 +755,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstFlow: number | null;
 
         /**
-         * This attribute specifies the maximum flow the pump can achieve when it is working with the ControlMode
-         * attribute set to ConstantFlow.
+         * Indicates the maximum flow the pump can achieve when it is working with the ControlMode attribute set to
+         * ConstantFlow.
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
@@ -767,8 +765,8 @@ export declare namespace PumpConfigurationAndControl {
         maxConstFlow: number | null;
 
         /**
-         * This attribute specifies the minimum temperature the pump can maintain in the system when it is working with
-         * the ControlMode attribute set to ConstantTemperature.
+         * Indicates the minimum temperature the pump can maintain in the system when it is working with the ControlMode
+         * attribute set to ConstantTemperature.
          *
          * Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid.
          *
@@ -777,8 +775,8 @@ export declare namespace PumpConfigurationAndControl {
         minConstTemp: number | null;
 
         /**
-         * This attribute specifies the maximum temperature the pump can maintain in the system when it is working with
-         * the ControlMode attribute set to ConstantTemperature.
+         * Indicates the maximum temperature the pump can maintain in the system when it is working with the ControlMode
+         * attribute set to ConstantTemperature.
          *
          * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps of
          * 0.01 °C). Null if the value is invalid.

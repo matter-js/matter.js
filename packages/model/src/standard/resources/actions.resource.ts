@@ -52,21 +52,21 @@ Resource.add(
         children: [
             {
                 tag: "attribute", name: "ActionList", xref: "core§9.14.5.1",
-                details: "The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and " +
-                    "its EndpointListID shall exist in the EndpointLists attribute."
+                details: "Indicates a list of actions. Each entry shall have an unique ActionID, and its EndpointListID shall " +
+                    "exist in the EndpointLists attribute."
             },
             {
                 tag: "attribute", name: "EndpointLists", xref: "core§9.14.5.2",
-                details: "The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique " +
-                    "EndpointListID."
+                details: "Indicates a list of endpoint lists. Each entry shall have an unique EndpointListID."
             },
 
             {
                 tag: "attribute", name: "SetupUrl", xref: "core§9.14.5.3",
 
-                details: "The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as " +
-                    "specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location " +
-                    "referenced by this URL shall provide additional information for the actions provided:" +
+                details: "Indicates the SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the " +
+                    "syntax as specified in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https " +
+                    "scheme. The location referenced by this URL shall provide additional information for the actions " +
+                    "provided:" +
                     "\n" +
                     "  - When used without suffix, it shall provide information about the various actions which the " +
                     "cluster provides." +

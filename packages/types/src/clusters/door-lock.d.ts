@@ -54,13 +54,15 @@ export declare namespace DoorLock {
      */
     export interface BaseAttributes {
         /**
+         * Indicates the state of the lock.
+         *
          * This attribute may be NULL if the lock hardware does not currently know the status of the locking mechanism.
          * For example, a lock may not know the LockState status after a power cycle until the first lock actuation is
          * completed.
          *
-         * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
-         * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
-         * not in a dead latched state.
+         * The NotFullyLocked value is used by a lock to indicate that the state of the lock is somewhere between Locked
+         * and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and not in
+         * a dead latched state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.1
          */
@@ -89,8 +91,7 @@ export declare namespace DoorLock {
         operatingMode: OperatingMode;
 
         /**
-         * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by the
-         * lock.
+         * Indicates a bitmap with all operating bits of the OperatingMode attribute supported by the lock.
          *
          * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
          * indicate that the mode is not supported.
@@ -158,7 +159,7 @@ export declare namespace DoorLock {
         defaultConfigurationRegister?: ConfigurationRegister;
 
         /**
-         * This attribute shall enable/disable local programming on the door lock of certain features (see
+         * Indicates the local programming state (enable/disable) on the door lock of certain features (see
          * LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled on the
          * door lock for all features. If it is set to FALSE then local programming is disabled on the door lock for
          * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
@@ -169,14 +170,15 @@ export declare namespace DoorLock {
         enableLocalProgramming?: boolean;
 
         /**
-         * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
+         * Indicates the state (enable/disable) of the ability to lock the door lock with a single touch on the door
+         * lock.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.28
          */
         enableOneTouchLocking?: boolean;
 
         /**
-         * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
+         * Indicates the state (enable/disable) of an inside LED that allows the user to see at a glance if the door is
          * locked.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.29
@@ -184,7 +186,7 @@ export declare namespace DoorLock {
         enableInsideStatusLed?: boolean;
 
         /**
-         * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
+         * Indicates whether (enable/disable) a button inside the door that is used to put the lock into privacy mode.
          * When the lock is in privacy mode it cannot be manipulated from the outside.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.30
@@ -225,22 +227,22 @@ export declare namespace DoorLock {
         doorState: DoorState | null;
 
         /**
-         * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
+         * Indicates the number of door open events that have occurred since it was last zeroed.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.5
          */
         doorOpenEvents?: number;
 
         /**
-         * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
+         * Indicates the number of door closed events that have occurred since it was last zeroed.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.6
          */
         doorClosedEvents?: number;
 
         /**
-         * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
-         * from closed to open.
+         * Indicates the number of minutes the door has been open since the last time it transitioned from closed to
+         * open.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.7
          */
@@ -259,8 +261,7 @@ export declare namespace DoorLock {
         numberOfTotalUsersSupported: number;
 
         /**
-         * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
-         * this device.
+         * Indicates a bitmap with the bits set for the values of CredentialRuleEnum supported on this device.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.18
          */
@@ -550,13 +551,15 @@ export declare namespace DoorLock {
      */
     export interface Attributes {
         /**
+         * Indicates the state of the lock.
+         *
          * This attribute may be NULL if the lock hardware does not currently know the status of the locking mechanism.
          * For example, a lock may not know the LockState status after a power cycle until the first lock actuation is
          * completed.
          *
-         * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
-         * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
-         * not in a dead latched state.
+         * The NotFullyLocked value is used by a lock to indicate that the state of the lock is somewhere between Locked
+         * and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and not in
+         * a dead latched state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.1
          */
@@ -585,8 +588,7 @@ export declare namespace DoorLock {
         operatingMode: OperatingMode;
 
         /**
-         * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by the
-         * lock.
+         * Indicates a bitmap with all operating bits of the OperatingMode attribute supported by the lock.
          *
          * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
          * indicate that the mode is not supported.
@@ -654,7 +656,7 @@ export declare namespace DoorLock {
         defaultConfigurationRegister: ConfigurationRegister;
 
         /**
-         * This attribute shall enable/disable local programming on the door lock of certain features (see
+         * Indicates the local programming state (enable/disable) on the door lock of certain features (see
          * LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled on the
          * door lock for all features. If it is set to FALSE then local programming is disabled on the door lock for
          * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
@@ -665,14 +667,15 @@ export declare namespace DoorLock {
         enableLocalProgramming: boolean;
 
         /**
-         * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
+         * Indicates the state (enable/disable) of the ability to lock the door lock with a single touch on the door
+         * lock.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.28
          */
         enableOneTouchLocking: boolean;
 
         /**
-         * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
+         * Indicates the state (enable/disable) of an inside LED that allows the user to see at a glance if the door is
          * locked.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.29
@@ -680,7 +683,7 @@ export declare namespace DoorLock {
         enableInsideStatusLed: boolean;
 
         /**
-         * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
+         * Indicates whether (enable/disable) a button inside the door that is used to put the lock into privacy mode.
          * When the lock is in privacy mode it cannot be manipulated from the outside.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.30
@@ -716,22 +719,22 @@ export declare namespace DoorLock {
         doorState: DoorState | null;
 
         /**
-         * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
+         * Indicates the number of door open events that have occurred since it was last zeroed.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.5
          */
         doorOpenEvents: number;
 
         /**
-         * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
+         * Indicates the number of door closed events that have occurred since it was last zeroed.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.6
          */
         doorClosedEvents: number;
 
         /**
-         * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
-         * from closed to open.
+         * Indicates the number of minutes the door has been open since the last time it transitioned from closed to
+         * open.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.7
          */
@@ -745,8 +748,7 @@ export declare namespace DoorLock {
         numberOfTotalUsersSupported: number;
 
         /**
-         * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
-         * this device.
+         * Indicates a bitmap with the bits set for the values of CredentialRuleEnum supported on this device.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.18
          */
@@ -1031,7 +1033,7 @@ export declare namespace DoorLock {
          *
          *   - FAILURE, if some unexpected internal error occurred setting User.
          *
-         *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+         *   - Occupied, if OperationType is Add and UserIndex points to an occupied slot.
          *
          *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify
          *     and UserIndex points to an available slot.
@@ -1611,7 +1613,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.19
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18
      */
     export enum LockState {
         /**
@@ -1636,7 +1638,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.20
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.19
      */
     export enum LockType {
         /**
@@ -1714,20 +1716,20 @@ export declare namespace DoorLock {
      *   commands. The door lock shall NOT disable the radio or otherwise unbind or leave the network. It shall still
      *   respond to all other commands and requests.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14
      */
     export enum OperatingMode {
         /**
          * The lock operates normally. All interfaces are enabled.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.1
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14.1
          */
         Normal = 0,
 
         /**
          * Only remote interaction is enabled. The keypad shall only be operable by the master user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.2
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14.2
          */
         Vacation = 1,
 
@@ -1736,7 +1738,7 @@ export declare namespace DoorLock {
          * All external interaction with the door lock is disabled. This mode is intended to be used so that users,
          * presumably inside the property, will have control over the entrance.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.3
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14.3
          */
         Privacy = 2,
 
@@ -1744,7 +1746,7 @@ export declare namespace DoorLock {
          * This mode only disables remote interaction with the lock. This does not apply to any remote proprietary means
          * of communication. It specifically applies to the Lock, Unlock, Toggle, and Unlock with Timeout Commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.4
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14.4
          */
         NoRemoteLockUnlock = 3,
 
@@ -1752,7 +1754,7 @@ export declare namespace DoorLock {
          * The lock is open or can be opened or closed at will without the use of a Keypad or other means of user
          * validation (e.g. a lock for a business during work hours).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.5
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14.5
          */
         Passage = 4
     }
@@ -1806,7 +1808,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.21
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.20
      */
     export enum LedSetting {
         /**
@@ -1826,7 +1828,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.22
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.21
      */
     export enum SoundVolume {
         /**
@@ -1997,7 +1999,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the current door state.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.11
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.10
      */
     export enum DoorState {
         /**
@@ -2140,7 +2142,7 @@ export declare namespace DoorLock {
      *
      *   - FAILURE, if some unexpected internal error occurred setting User.
      *
-     *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+     *   - Occupied, if OperationType is Add and UserIndex points to an occupied slot.
      *
      *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify and
      *     UserIndex points to an available slot.
@@ -2455,12 +2457,12 @@ export declare namespace DoorLock {
          *
          *   - FAILURE, if some unexpected internal error occurred setting user credential.
          *
-         *   - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
+         *   - Occupied, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
          *
-         *   - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match the
+         *   - Occupied, if OperationType is Modify and CredentialIndex in Credential structure does not match the
          *     CredentialIndex that is already associated with the provided UserIndex.
          *
-         *   - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same CredentialType
+         *   - Duplicate, if CredentialData provided is a duplicate of another credential with the same CredentialType
          *     (e.g. duplicate PIN code).
          *
          *   - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
@@ -3429,46 +3431,9 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.6
-     */
-    export class AlarmMask {
-        constructor(values?: Partial<AlarmMask> | number);
-
-        /**
-         * Locking Mechanism Jammed
-         */
-        lockJammed?: boolean;
-
-        /**
-         * Lock Reset to Factory Defaults
-         */
-        lockFactoryReset?: boolean;
-
-        /**
-         * RF Module Power Cycled
-         */
-        lockRadioPowerCycled?: boolean;
-
-        /**
-         * Tamper Alarm - wrong code entry limit
-         */
-        wrongCodeEntryLimit?: boolean;
-
-        /**
-         * Tamper Alarm - front escutcheon removed from main
-         */
-        frontEscutcheonRemoved?: boolean;
-
-        /**
-         * Forced Door Open under Door Locked Condition
-         */
-        doorForcedOpen?: boolean;
-    }
-
-    /**
      * This enumeration shall indicate the alarm type.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.7
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.6
      */
     export enum AlarmCode {
         /**
@@ -3515,7 +3480,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the credential rule that can be applied to a particular user.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.8
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.7
      */
     export enum CredentialRule {
         /**
@@ -3537,7 +3502,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the credential type.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.8
      */
     export enum CredentialType {
         /**
@@ -3606,7 +3571,7 @@ export declare namespace DoorLock {
          * created, the credential associated with the changes in the LockOperation events shall be the
          * AliroCredentialIssuerKey credential used for the step-up.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9.1
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.8.1
          */
         AliroCredentialIssuerKey = 6,
 
@@ -3616,7 +3581,7 @@ export declare namespace DoorLock {
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
          * of SEC 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9.2
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.8.2
          */
         AliroEvictableEndpointKey = 7,
 
@@ -3627,7 +3592,7 @@ export declare namespace DoorLock {
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
          * of SEC 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9.3
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.8.3
          */
         AliroNonEvictableEndpointKey = 8
     }
@@ -3635,7 +3600,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the data operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.10
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9
      */
     export enum DataOperationType {
         /**
@@ -3657,7 +3622,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the data type that is being or has changed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.12
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.11
      */
     export enum LockDataType {
         /**
@@ -3734,7 +3699,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the type of Lock operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.13
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.12
      */
     export enum LockOperationType {
         /**
@@ -3766,7 +3731,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the error cause of the Lock/Unlock operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.13
      */
     export enum OperationError {
         /**
@@ -3798,7 +3763,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the source of the Lock/Unlock or user change operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.16
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15
      */
     export enum OperationSource {
         /**
@@ -3861,7 +3826,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate what the status is for a specific user ID.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.16
      */
     export enum UserStatus {
         /**
@@ -3883,7 +3848,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate what the type is for a specific user ID.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17
      */
     export enum UserType {
         /**
@@ -3891,7 +3856,7 @@ export declare namespace DoorLock {
          *
          * This value shall indicate the user has access 24/7 provided proper PIN or RFID is supplied (e.g., owner).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.1
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.1
          */
         UnrestrictedUser = 0,
 
@@ -3908,7 +3873,7 @@ export declare namespace DoorLock {
          *     falls within at least one of the YearDaySchedules. If current time is not known, user access shall NOT be
          *     granted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.2
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.2
          */
         YearDayScheduleUser = 1,
 
@@ -3926,7 +3891,7 @@ export declare namespace DoorLock {
          *     falls within at least one of the WeekDaySchedules. If current time is not known, user access shall NOT be
          *     granted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.3
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.3
          */
         WeekDayScheduleUser = 2,
 
@@ -3937,7 +3902,7 @@ export declare namespace DoorLock {
          * manage the users and user schedules. In all other respects this user matches the unrestricted (default) user.
          * ProgrammingUser is the only user that can disable the user interface (keypad, remote, etc…).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.4
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.4
          */
         ProgrammingUser = 3,
 
@@ -3947,7 +3912,7 @@ export declare namespace DoorLock {
          * This value shall indicate the user is recognized by the lock but does not have the ability to open the lock.
          * This user will only cause the lock to generate the appropriate event notification to any bound devices.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.5
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.5
          */
         NonAccessUser = 4,
 
@@ -3958,7 +3923,7 @@ export declare namespace DoorLock {
          * ForcedUser silent alarm will be emitted to allow a notified Node to alert emergency services or contacts on
          * the user account when used.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.6
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.6
          */
         ForcedUser = 5,
 
@@ -3968,7 +3933,7 @@ export declare namespace DoorLock {
          * This value shall indicate the user has the ability to open lock once after which the lock shall change the
          * corresponding user record UserStatus value to OccupiedDisabled automatically.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.7
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.7
          */
         DisposableUser = 6,
 
@@ -3980,7 +3945,7 @@ export declare namespace DoorLock {
          * minutes the corresponding user record UserStatus value shall be set to OccupiedDisabled automatically by the
          * lock. The lock shall persist the timeout across reboots such that the ExpiringUserTimeout is honored.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.8
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.8
          */
         ExpiringUser = 7,
 
@@ -4003,7 +3968,7 @@ export declare namespace DoorLock {
          *     granted if and only if the current time falls within at least one of the WeekDaySchedules AND the current
          *     time falls within at least one of the YearDaySchedules.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.9
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.9
          */
         ScheduleRestrictedUser = 8,
 
@@ -4015,13 +3980,13 @@ export declare namespace DoorLock {
          * prevent a PIN code credential created for them from being used at the keypad. The PIN code credential would
          * only be provided over-the-air for the lock/unlock commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.10
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17.10
          */
         RemoteOnlyUser = 9
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.23
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.22
      */
     export enum EventType {
         /**
@@ -4044,7 +4009,7 @@ export declare namespace DoorLock {
      * This struct shall indicate the credential types and their corresponding indices (if any) for the event or user
      * record.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.24
+     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.23
      */
     export class Credential {
         constructor(values?: Partial<Credential>);
@@ -4052,7 +4017,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the credential field used to authorize the lock operation.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.24.1
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.23.1
          */
         credentialType: CredentialType;
 
@@ -4061,7 +4026,7 @@ export declare namespace DoorLock {
          * list of credentials identified by CredentialType (e.g. PIN, RFID, etc.). This field shall be set to 0 if
          * CredentialType is ProgrammingPIN or does not correspond to a list that can be indexed into.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.24.2
+         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.23.2
          */
         credentialIndex: number;
     }

@@ -70,7 +70,7 @@ export declare namespace Descriptor {
      */
     export interface BaseAttributes {
         /**
-         * This is a list of device types and corresponding revisions declaring endpoint conformance (see Section
+         * Indicates a list of device types and corresponding revisions declaring endpoint conformance (see Section
          * 9.5.5.1, "DeviceTypeStruct Type"). At least one device type entry shall be present.
          *
          * An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that is in
@@ -82,22 +82,22 @@ export declare namespace Descriptor {
         deviceTypeList: DeviceType[];
 
         /**
-         * This attribute shall list each cluster ID for the server clusters present on the endpoint instance.
+         * Indicates a list containing each cluster ID for the server clusters present on the endpoint instance.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.5.6.2
          */
         serverList: ClusterId[];
 
         /**
-         * This attribute shall list each cluster ID for the client clusters present on the endpoint instance.
+         * Indicates a list containing each cluster ID for the client clusters present on the endpoint instance.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.5.6.3
          */
         clientList: ClusterId[];
 
         /**
-         * This attribute indicates composition of the device type instance. Device type instance composition shall
-         * include the endpoints in this list.
+         * Indicates composition of the device type instance. Device type instance composition shall include the
+         * endpoints in this list.
          *
          * See Endpoint Composition for more information about which endpoints to include in this list.
          *
@@ -128,10 +128,10 @@ export declare namespace Descriptor {
      */
     export interface TagListAttributes {
         /**
-         * This attribute shall be used to disambiguate sibling endpoints in certain situations, as defined in the
-         * Disambiguation section in the System Model specification. An example of such a situation might be a device
-         * with two buttons, with this attribute being used to indicate which of the two endpoints corresponds to the
-         * button on the left side.
+         * Indicates a list of tags associated with the endpoint instance and shall be used to disambiguate sibling
+         * endpoints in certain situations, as defined in the Disambiguation section in the System Model specification.
+         * An example of such a situation might be a device with two buttons, with this attribute being used to indicate
+         * which of the two endpoints corresponds to the button on the left side.
          *
          * It may also be used to provide information about an endpoint (e.g. the relative location of a Temperature
          * sensor in a Temperature Controlled Cabinet).
@@ -159,7 +159,7 @@ export declare namespace Descriptor {
      */
     export interface Attributes {
         /**
-         * This is a list of device types and corresponding revisions declaring endpoint conformance (see Section
+         * Indicates a list of device types and corresponding revisions declaring endpoint conformance (see Section
          * 9.5.5.1, "DeviceTypeStruct Type"). At least one device type entry shall be present.
          *
          * An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that is in
@@ -171,22 +171,22 @@ export declare namespace Descriptor {
         deviceTypeList: DeviceType[];
 
         /**
-         * This attribute shall list each cluster ID for the server clusters present on the endpoint instance.
+         * Indicates a list containing each cluster ID for the server clusters present on the endpoint instance.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.5.6.2
          */
         serverList: ClusterId[];
 
         /**
-         * This attribute shall list each cluster ID for the client clusters present on the endpoint instance.
+         * Indicates a list containing each cluster ID for the client clusters present on the endpoint instance.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.5.6.3
          */
         clientList: ClusterId[];
 
         /**
-         * This attribute indicates composition of the device type instance. Device type instance composition shall
-         * include the endpoints in this list.
+         * Indicates composition of the device type instance. Device type instance composition shall include the
+         * endpoints in this list.
          *
          * See Endpoint Composition for more information about which endpoints to include in this list.
          *
@@ -212,10 +212,10 @@ export declare namespace Descriptor {
         endpointUniqueId: string;
 
         /**
-         * This attribute shall be used to disambiguate sibling endpoints in certain situations, as defined in the
-         * Disambiguation section in the System Model specification. An example of such a situation might be a device
-         * with two buttons, with this attribute being used to indicate which of the two endpoints corresponds to the
-         * button on the left side.
+         * Indicates a list of tags associated with the endpoint instance and shall be used to disambiguate sibling
+         * endpoints in certain situations, as defined in the Disambiguation section in the System Model specification.
+         * An example of such a situation might be a device with two buttons, with this attribute being used to indicate
+         * which of the two endpoints corresponds to the button on the left side.
          *
          * It may also be used to provide information about an endpoint (e.g. the relative location of a Temperature
          * sensor in a Temperature Controlled Cabinet).

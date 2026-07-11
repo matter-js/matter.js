@@ -64,7 +64,7 @@ export declare namespace ModeSelect {
      */
     export interface BaseAttributes {
         /**
-         * This attribute describes the purpose of the server, in readable text.
+         * Indicates the purpose of the server, in readable text.
          *
          * For example, a coffee machine may have a Mode Select cluster for the amount of milk to add, and another Mode
          * Select cluster for the amount of sugar to add. In this case, the first instance can have the description Milk
@@ -76,26 +76,26 @@ export declare namespace ModeSelect {
         description: string;
 
         /**
-         * This attribute, when not null, shall indicate a single standard namespace for any standard semantic tag value
-         * supported in this or any other cluster instance with the same value of this attribute. A null value indicates
-         * no standard namespace, and therefore, no standard semantic tags are provided in this cluster instance. Each
-         * standard namespace and corresponding values and value meanings shall be defined in another document.
+         * Indicates the standard namespace for any standard semantic tag value supported in this or any other cluster
+         * instance with the same value of this attribute. A null value indicates no standard namespace, and therefore,
+         * no standard semantic tags are provided in this cluster instance. Each standard namespace and corresponding
+         * values and value meanings shall be defined in another document.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.9.6.2
          */
         standardNamespace: Namespace | null;
 
         /**
-         * This attribute is the list of supported modes that may be selected for the CurrentMode attribute. Each item
-         * in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each entry in
-         * this list shall have a unique value for the Mode field.
+         * Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item in this
+         * list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each entry in this list
+         * shall have a unique value for the Mode field.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.9.6.3
          */
         supportedModes: ModeOption[];
 
         /**
-         * This attribute represents the current mode of the server.
+         * Indicates the current mode of the server.
          *
          * The value of this field must match the Mode field of one of the entries in the SupportedModes attribute.
          *
@@ -104,8 +104,7 @@ export declare namespace ModeSelect {
         currentMode: number;
 
         /**
-         * The StartUpMode attribute value indicates the desired startup mode for the server when it is supplied with
-         * power.
+         * Indicates the desired startup mode for the server when it is supplied with power.
          *
          * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
          * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute (see
@@ -147,7 +146,7 @@ export declare namespace ModeSelect {
      */
     export interface Attributes {
         /**
-         * This attribute describes the purpose of the server, in readable text.
+         * Indicates the purpose of the server, in readable text.
          *
          * For example, a coffee machine may have a Mode Select cluster for the amount of milk to add, and another Mode
          * Select cluster for the amount of sugar to add. In this case, the first instance can have the description Milk
@@ -159,26 +158,26 @@ export declare namespace ModeSelect {
         description: string;
 
         /**
-         * This attribute, when not null, shall indicate a single standard namespace for any standard semantic tag value
-         * supported in this or any other cluster instance with the same value of this attribute. A null value indicates
-         * no standard namespace, and therefore, no standard semantic tags are provided in this cluster instance. Each
-         * standard namespace and corresponding values and value meanings shall be defined in another document.
+         * Indicates the standard namespace for any standard semantic tag value supported in this or any other cluster
+         * instance with the same value of this attribute. A null value indicates no standard namespace, and therefore,
+         * no standard semantic tags are provided in this cluster instance. Each standard namespace and corresponding
+         * values and value meanings shall be defined in another document.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.9.6.2
          */
         standardNamespace: Namespace | null;
 
         /**
-         * This attribute is the list of supported modes that may be selected for the CurrentMode attribute. Each item
-         * in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each entry in
-         * this list shall have a unique value for the Mode field.
+         * Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item in this
+         * list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each entry in this list
+         * shall have a unique value for the Mode field.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.9.6.3
          */
         supportedModes: ModeOption[];
 
         /**
-         * This attribute represents the current mode of the server.
+         * Indicates the current mode of the server.
          *
          * The value of this field must match the Mode field of one of the entries in the SupportedModes attribute.
          *
@@ -187,8 +186,7 @@ export declare namespace ModeSelect {
         currentMode: number;
 
         /**
-         * The StartUpMode attribute value indicates the desired startup mode for the server when it is supplied with
-         * power.
+         * Indicates the desired startup mode for the server when it is supplied with power.
          *
          * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
          * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute (see

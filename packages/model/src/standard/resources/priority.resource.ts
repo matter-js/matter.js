@@ -22,7 +22,7 @@ Resource.add({
         },
         {
             tag: "field", name: "Critical",
-            description: "Information or notification that impacts safety, a critical function, or ongoing reliable operation of the node or application supported on an endpoint."
+            description: "Information or notification that impacts safety, a critical function, or ongoing reliable operation of the node or application supported on an endpoint"
         }
     ]
 });

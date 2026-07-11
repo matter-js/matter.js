@@ -49,6 +49,8 @@ export declare namespace EnergyEvseMode {
      */
     export interface BaseAttributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags field
          * list.
          *
@@ -77,6 +79,8 @@ export declare namespace EnergyEvseMode {
      */
     export interface Attributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags field
          * list.
          *

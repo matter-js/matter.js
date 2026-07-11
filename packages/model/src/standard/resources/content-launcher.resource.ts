@@ -36,10 +36,10 @@ Resource.add({
                 {
                     tag: "field", name: "AS",
                     details: "Enables clients to implement more advanced media seeking behavior in their user interface, such as " +
-                        "for example a \"seek bar\"."
+                        "for example a \"seek bar\""
                 },
-                { tag: "field", name: "TT", details: "Device or app supports Text Tracks." },
-                { tag: "field", name: "AT", details: "Device or app supports Audio Tracks." }
+                { tag: "field", name: "TT", details: "Device or app supports Text Tracks" },
+                { tag: "field", name: "AT", details: "Device or app supports Audio Tracks" }
             ]
         },
 
@@ -129,7 +129,7 @@ Resource.add({
                 {
                     tag: "field", name: "ContentUrl", xref: "cluster§6.7.7.2.1",
                     details: "This field shall indicate the URL of content to launch. The syntax of this field shall follow the " +
-                        "syntax as specified in RFC 1738 and shall use the https scheme."
+                        "syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme."
                 },
                 {
                     tag: "field", name: "DisplayString", xref: "cluster§6.7.7.2.2",
@@ -191,7 +191,7 @@ Resource.add({
 
             children: [
                 { tag: "field", name: "Success", description: "Command succeeded" },
-                { tag: "field", name: "UrlNotAvailable", description: "Requested URL could not be reached by device." },
+                { tag: "field", name: "UrlNotAvailable", description: "Requested URL could not be reached by device" },
                 { tag: "field", name: "AuthFailed", description: "Requested URL returned 401 error code." },
                 {
                     tag: "field", name: "TextTrackNotAvailable",
@@ -226,15 +226,21 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Event",
-                    description: "An event is a reference to a type of event; examples would include sports, music, or other types of events. For example, searching for \"Football games\" would search for a 'game' event entity and a 'football' sport entity."
+                    description: "An event is a reference to a type of event; examples would include sports, music, or other types of events; for example, searching for \"Football games\" would search for a 'game' event entity and a 'football' sport entity"
                 },
+
                 {
                     tag: "field", name: "Franchise",
-                    description: "A franchise is a video entity which can represent a number of video entities, like movies or TV shows. For example, take the fictional franchise \"Intergalactic Wars\" which represents a collection of movie trilogies, as well as animated and live action TV shows. This entity type was introduced to account for requests by customers such as \"Find Intergalactic Wars movies\", which would search for all 'Intergalactic Wars' programs of the MOVIE MediaType, rather than attempting to match to a single title."
+                    description: "A franchise is a video entity which can represent a number of video entities, like movies or TV shows; for example, take the fictional franchise \"Intergalactic Wars\" which represents a collection of movie trilogies, as well as animated and live action TV shows",
+                    xref: "cluster§6.7.5.3.1",
+                    details: "This value shall indicate a franchise, this entity type was introduced to account for requests by " +
+                        "customers such as \"Find Intergalactic Wars movies\", which would search for all 'Intergalactic Wars' " +
+                        "programs of the MOVIE MediaType, rather than attempting to match to a single title."
                 },
+
                 {
                     tag: "field", name: "Genre",
-                    description: "Genre represents the genre of video media content such as action, drama or comedy."
+                    description: "Genre represents the genre of video media content such as action, drama or comedy"
                 },
                 {
                     tag: "field", name: "League",
@@ -242,11 +248,11 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Popularity",
-                    description: "Popularity indicates whether the user asks for popular content."
+                    description: "Popularity indicates whether the user asks for popular content"
                 },
                 {
                     tag: "field", name: "Provider",
-                    description: "The provider (MSP) the user wants this media to be played on; for example, \"Netflix\"."
+                    description: "The provider (MSP) the user wants this media to be played on; for example, \"Netflix\""
                 },
                 {
                     tag: "field", name: "Sport",
@@ -262,19 +268,19 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Video",
-                    description: "Video represents the identifying data for a specific piece of video content; for example, \"Manchester by the Sea\"."
+                    description: "Video represents the identifying data for a specific piece of video content; for example, \"Manchester by the Sea\""
                 },
                 {
                     tag: "field", name: "Season",
-                    description: "Season represents the specific season number within a TV series."
+                    description: "Season represents the specific season number within a TV series"
                 },
                 {
                     tag: "field", name: "Episode",
-                    description: "Episode represents a specific episode number within a Season in a TV series."
+                    description: "Episode represents a specific episode number within a Season in a TV series"
                 },
                 {
                     tag: "field", name: "Any",
-                    description: "Represents a search text input across many parameter types or even outside of the defined param types."
+                    description: "Represents a search text input across many parameter types or even outside of the defined param types"
                 }
             ]
         },
@@ -378,8 +384,8 @@ Resource.add({
                 {
                     tag: "field", name: "ImageUrl", xref: "cluster§6.7.5.9.1",
                     details: "This field shall indicate the URL of image used for Styling different Video Player sections like " +
-                        "Logo, Watermark etc. The syntax of this field shall follow the syntax as specified in RFC 1738 and " +
-                        "shall use the https scheme."
+                        "Logo, Watermark etc. The syntax of this field shall follow the syntax as specified in " +
+                        "[[RFC1738]](#ref_Rfc1738) and shall use the https scheme."
                 },
 
                 {
@@ -482,8 +488,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "LanguageCode", xref: "cluster§6.7.5.12.1",
-                    details: "This field shall contain one of the standard Tags for Identifying Languages RFC 5646, which " +
-                        "identifies the primary language used in the Track."
+                    details: "This field shall contain one of the standard Tags for Identifying Languages " +
+                        "[[RFC5646]](#ref_Rfc5646), which identifies the primary language used in the Track."
                 },
 
                 {

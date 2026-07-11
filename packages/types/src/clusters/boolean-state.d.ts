@@ -45,7 +45,7 @@ export declare namespace BooleanState {
      */
     export interface BaseAttributes {
         /**
-         * This represents a boolean state.
+         * Indicates a boolean state.
          *
          * The semantics of this boolean state are defined by the device type using this cluster. For example, in a
          * Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
@@ -63,7 +63,7 @@ export declare namespace BooleanState {
      */
     export interface Attributes {
         /**
-         * This represents a boolean state.
+         * Indicates a boolean state.
          *
          * The semantics of this boolean state are defined by the device type using this cluster. For example, in a
          * Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.

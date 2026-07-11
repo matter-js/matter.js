@@ -46,8 +46,8 @@ export declare namespace OnOff {
      */
     export interface BaseAttributes {
         /**
-         * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on, in
-         * these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
+         * Indicates whether the device type implemented on the endpoint is turned off or turned on, in these cases the
+         * value of the OnOff attribute equals FALSE, or TRUE respectively.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.2
          */
@@ -59,6 +59,8 @@ export declare namespace OnOff {
      */
     export interface LightingAttributes {
         /**
+         * Indicates the state of the global scene control.
+         *
          * In order to support the use case where the user gets back the last setting of a set of devices (e.g. level
          * settings for lights), a global scene is introduced which is stored when the devices are turned off and
          * recalled when the devices are turned on. The global scene is defined as the scene that is stored with group
@@ -72,17 +74,17 @@ export declare namespace OnOff {
          * set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or a
          * OnWithRecallGlobalScene command.
          *
-         * This attribute is set to FALSE after reception of a OffWithEffect command.
+         * This attribute is set to FALSE after reception of an OffWithEffect command.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.3
          */
         globalSceneControl: boolean;
 
         /**
-         * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
-         * automatically transitioning to the Off state when using the OnWithTimedOff command.
+         * Indicates the length of time (in 1/10ths second) that the On state shall be maintained before automatically
+         * transitioning to the Off state when using the OnWithTimedOff command.
          *
-         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state.
          *
          * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
          * OnWithTimedOff for more details.
@@ -92,10 +94,9 @@ export declare namespace OnOff {
         onTime: number;
 
         /**
-         * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
-         * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
-         * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
-         * back on).
+         * Indicates the length of time (in 1/10ths second) that the Off state shall be guarded to prevent another
+         * OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room, the lights are
+         * turned off but an occupancy sensor detects the leaving person and attempts to turn the lights back on).
          *
          * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state
          * followed by a transition to the Delayed Off state, or in the Delayed Off state.
@@ -108,9 +109,9 @@ export declare namespace OnOff {
         offWaitTime: number;
 
         /**
-         * This attribute shall define the desired startup behavior of a device when it is supplied with power and this
-         * state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its
-         * previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
+         * Indicates the desired startup behavior of a device when it is supplied with power and this state shall be
+         * reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its previous value.
+         * Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
          *
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute shall
          * return to its value prior to the restart.
@@ -128,14 +129,16 @@ export declare namespace OnOff {
      */
     export interface Attributes {
         /**
-         * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on, in
-         * these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
+         * Indicates whether the device type implemented on the endpoint is turned off or turned on, in these cases the
+         * value of the OnOff attribute equals FALSE, or TRUE respectively.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.2
          */
         onOff: boolean;
 
         /**
+         * Indicates the state of the global scene control.
+         *
          * In order to support the use case where the user gets back the last setting of a set of devices (e.g. level
          * settings for lights), a global scene is introduced which is stored when the devices are turned off and
          * recalled when the devices are turned on. The global scene is defined as the scene that is stored with group
@@ -149,17 +152,17 @@ export declare namespace OnOff {
          * set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or a
          * OnWithRecallGlobalScene command.
          *
-         * This attribute is set to FALSE after reception of a OffWithEffect command.
+         * This attribute is set to FALSE after reception of an OffWithEffect command.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.3
          */
         globalSceneControl: boolean;
 
         /**
-         * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
-         * automatically transitioning to the Off state when using the OnWithTimedOff command.
+         * Indicates the length of time (in 1/10ths second) that the On state shall be maintained before automatically
+         * transitioning to the Off state when using the OnWithTimedOff command.
          *
-         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state.
          *
          * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
          * OnWithTimedOff for more details.
@@ -169,10 +172,9 @@ export declare namespace OnOff {
         onTime: number;
 
         /**
-         * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
-         * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
-         * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
-         * back on).
+         * Indicates the length of time (in 1/10ths second) that the Off state shall be guarded to prevent another
+         * OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room, the lights are
+         * turned off but an occupancy sensor detects the leaving person and attempts to turn the lights back on).
          *
          * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state
          * followed by a transition to the Delayed Off state, or in the Delayed Off state.
@@ -185,9 +187,9 @@ export declare namespace OnOff {
         offWaitTime: number;
 
         /**
-         * This attribute shall define the desired startup behavior of a device when it is supplied with power and this
-         * state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its
-         * previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
+         * Indicates the desired startup behavior of a device when it is supplied with power and this state shall be
+         * reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its previous value.
+         * Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
          *
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute shall
          * return to its value prior to the restart.

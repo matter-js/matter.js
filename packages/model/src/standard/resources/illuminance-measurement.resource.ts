@@ -46,7 +46,10 @@ Resource.add(
                 details: "Indicates the maximum value of MeasuredValue that can be measured. A value of null indicates that " +
                     "this attribute is not defined. See Measured Value for more details."
             },
-            { tag: "attribute", name: "Tolerance", xref: "cluster§2.2.5.4", details: "See Measured Value." },
+            {
+                tag: "attribute", name: "Tolerance", xref: "cluster§2.2.5.4",
+                details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+            },
             {
                 tag: "attribute", name: "LightSensorType", xref: "cluster§2.2.5.5",
                 details: "Indicates the electronic type of the light sensor. This attribute shall be set to one of the " +

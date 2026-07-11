@@ -17,44 +17,44 @@ import { BitFlag } from "../schema/BitmapSchema.js";
  */
 export const WildcardPathFlags = {
     /**
-     * Skip the Root Node endpoint (endpoint 0) during wildcard expansion.
+     * Skip the Root Node endpoint (endpoint 0) during wildcard expansion
      */
     wildcardSkipRootNode: BitFlag(0),
 
     /**
-     * Skip several large global attributes during wildcard expansion.
+     * Skip several large global attributes during wildcard expansion
      */
     wildcardSkipGlobalAttributes: BitFlag(1),
 
     /**
-     * Skip the AttributeList global attribute during wildcard expansion.
+     * Skip the AttributeList global attribute during wildcard expansion
      */
     wildcardSkipAttributeList: BitFlag(2),
 
     doNotUse: BitFlag(3),
 
     /**
-     * Skip the AcceptedCommandList and GeneratedCommandList global attributes during wildcard expansion.
+     * Skip the AcceptedCommandList and GeneratedCommandList global attributes during wildcard expansion
      */
     wildcardSkipCommandLists: BitFlag(4),
 
     /**
-     * Skip any manufacturer-specific clusters or attributes during wildcard expansion.
+     * Skip any manufacturer-specific clusters or attributes during wildcard expansion
      */
     wildcardSkipCustomElements: BitFlag(5),
 
     /**
-     * Skip any Fixed (F) quality attributes during wildcard expansion.
+     * Skip any Fixed (F) quality attributes during wildcard expansion
      */
     wildcardSkipFixedAttributes: BitFlag(6),
 
     /**
-     * Skip any Changes Omitted (C) quality attributes during wildcard expansion.
+     * Skip any Changes Omitted (C) quality attributes during wildcard expansion
      */
     wildcardSkipChangesOmittedAttributes: BitFlag(7),
 
     /**
-     * Skip all clusters with the Diagnostics (K) quality during wildcard expansion.
+     * Skip all clusters with the Diagnostics (K) quality during wildcard expansion
      */
     wildcardSkipDiagnosticsClusters: BitFlag(8)
 };

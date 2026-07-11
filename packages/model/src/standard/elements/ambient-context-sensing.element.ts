@@ -34,7 +34,7 @@ export const AmbientContextSensing = Cluster(
 
     Attribute(
         {
-            name: "AmbientContextType", id: 0x3, type: "list", access: "R V", conformance: "P, HA, OI, AUD",
+            name: "AmbientContextType", id: 0x3, type: "list", access: "R V", conformance: "P, HA | OI | AUD",
             constraint: "1 to simultaneousDetectionLimit"
         },
         Field({ name: "entry", type: "AmbientContextTypeStruct" })
@@ -43,23 +43,23 @@ export const AmbientContextSensing = Cluster(
     Attribute(
         {
             name: "AmbientContextTypeSupported", id: 0x4, type: "list", access: "R V",
-            conformance: "P, HA, OI, AUD", constraint: "max 50"
+            conformance: "P, HA | OI | AUD", constraint: "max 50"
         },
         Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
     ),
 
-    Attribute({ name: "ObjectCountReached", id: 0x5, type: "bool", access: "R V", conformance: "P, OC & OI" }),
+    Attribute({ name: "ObjectCountThresholdReached", id: 0x5, type: "bool", access: "R V", conformance: "P, OC & OI" }),
     Attribute({
         name: "ObjectCountConfig", id: 0x6, type: "ObjectCountConfigStruct", access: "RW VM",
         conformance: "P, OC & OI", quality: "N"
     }),
     Attribute({
         name: "ObjectCount", id: 0x7, type: "uint16", access: "R V", conformance: "P, [OC & OI]",
-        constraint: "min 1", default: null
+        constraint: "min 1", default: 0
     }),
     Attribute({
-        name: "SimultaneousDetectionLimit", id: 0x8, type: "uint8", access: "RW", conformance: "P, M",
-        constraint: "max 10"
+        name: "SimultaneousDetectionLimit", id: 0x8, type: "uint8", access: "R V", conformance: "P, M",
+        constraint: "1 to 10", quality: "F"
     }),
     Attribute({
         name: "HoldTime", id: 0x9, type: "uint16", access: "RW VM", conformance: "P, M",
@@ -77,14 +77,14 @@ export const AmbientContextSensing = Cluster(
 
     Event(
         {
-            name: "AmbientContextDetectStarted", id: 0x0, access: "V", conformance: "P, HA, OI, AUD, OC & OI",
-            priority: "info"
+            name: "AmbientContextDetectStarted", id: 0x0, access: "V",
+            conformance: "P, HA | OI | AUD | OC & OI", priority: "info"
         },
         Field({
             name: "AmbientContextDetected", id: 0x0, type: "AmbientContextTypeStruct",
-            conformance: "P, HA, OI, OC, AUD"
+            conformance: "P, HA | OI | OC | AUD"
         }),
-        Field({ name: "ObjectCountReached", id: 0x1, type: "bool", conformance: "P, OC & OI" }),
+        Field({ name: "ObjectCountThresholdReached", id: 0x1, type: "bool", conformance: "P, OC & OI" }),
         Field({
             name: "ObjectCount", id: 0x2, type: "uint16", conformance: "P, [OC & OI]", constraint: "min 1",
             default: null
@@ -93,10 +93,10 @@ export const AmbientContextSensing = Cluster(
 
     Event(
         {
-            name: "AmbientContextDetectEnded", id: 0x1, access: "V", conformance: "P, HA, OI, AUD, OC & OI",
+            name: "AmbientContextDetectEnded", id: 0x1, access: "V", conformance: "P, HA | OI | AUD | OC & OI",
             priority: "info"
         },
-        Field({ name: "EventStartTime", id: 0x0, type: "posix-ms", conformance: "P, M" })
+        Field({ name: "EventStartTimePos", id: 0x0, type: "posix-ms", conformance: "P, O.a" })
     ),
 
     Datatype(
@@ -127,10 +127,15 @@ export const AmbientContextSensing = Cluster(
         { name: "PredictedActivityStruct", type: "struct" },
         Field({ name: "StartTimestamp", id: 0x0, type: "epoch-s", conformance: "P, M", constraint: "max endTimestamp - 1" }),
         Field({ name: "EndTimestamp", id: 0x1, type: "epoch-s", conformance: "P, M", constraint: "min startTimestamp + 1" }),
+
         Field(
-            { name: "AmbientContextType", id: 0x2, type: "list", conformance: "P, HA, OI, AUD", constraint: "max 100" },
+            {
+                name: "AmbientContextType", id: 0x2, type: "list", conformance: "P, HA | OI | AUD",
+                constraint: "max 100"
+            },
             Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
         ),
+
         Field({ name: "CrowdDetected", id: 0x3, type: "bool", conformance: "P, OC" }),
         Field({ name: "CrowdCount", id: 0x4, type: "uint8", conformance: "P, [OC]", constraint: "1 to 254" }),
         Field({ name: "Confidence", id: 0x5, type: "percent", conformance: "P, M" })

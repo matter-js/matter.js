@@ -346,8 +346,7 @@ Resource.add({
         {
             tag: "attribute", name: "Forecast", xref: "cluster§9.2.8.7",
 
-            details: "This attribute allows an ESA to share its intended forecast with a client (such as an Energy " +
-                "Management System)." +
+            details: "Indicates the forecast from e.g. an ESA." +
                 "\n" +
                 "A null value indicates that there is no forecast currently available (for example, a program has not " +
                 "yet been selected by the user)." +
@@ -700,7 +699,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "NormalCompletion",
-                    description: "The ESA completed the power adjustment as requested"
+                    description: "The ESA completed the adjustment as requested"
                 },
                 { tag: "field", name: "Offline", description: "The ESA was set to offline" },
                 {

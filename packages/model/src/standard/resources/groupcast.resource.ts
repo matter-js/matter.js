@@ -52,7 +52,7 @@ Resource.add(
                             "those multicast addresses."
                     },
 
-                    { tag: "field", name: "PGA", details: "Supports PerGroup multicast addresses." }
+                    { tag: "field", name: "PGA", details: "Supports PerGroup multicast addresses" }
                 ]
             },
 
@@ -455,8 +455,9 @@ Resource.add(
                             "reducing the state it must maintain. This approach comes at the cost of receiving multicast traffic " +
                             "for all groups that use this policy, potentially from any fabric. The node will then filter this " +
                             "traffic at the message layer by attempting decryption with its available group keys. Due to various " +
-                            "network infrastructure scalability limits, such as the maximum number of MPL registrations a Border " +
-                            "Router can support, a controller SHOULD default to configure all groups to use the AllNodes address."
+                            "network infrastructure scalability limits, such as the maximum number of MPL " +
+                            "[[RFC7731]](#ref_Rfc7731) registrations a Border Router can support, a controller SHOULD default to " +
+                            "configure all groups to use the AllNodes address."
                     },
 
                     {

@@ -49,7 +49,10 @@ Resource.add({
         {
             tag: "attribute", name: "GroupKeyMap", xref: "core§11.2.6.1",
 
-            details: "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
+            details: "Indicates a list of group key sets entries. Each entry associates a logical Group ID with a " +
+                "particular group key set." +
+                "\n" +
+                "If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the " +
                 "accessing Fabric:" +
                 "\n" +
                 "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
@@ -68,16 +71,15 @@ Resource.add({
                 "a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute " +
                 "for a given fabric, then the Groupcast cluster's membership attribute shall use placeholder " +
                 "value 65535 for the KeySetID. While this KeySetID is technically valid, administrators SHOULD " +
-                "avoid allocating it for actual usage to avoid value aliasing for this field." +
-                "\n" +
-                "This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with " +
-                "a particular group key set."
+                "avoid allocating it for actual usage to avoid value aliasing for this field."
         },
 
         {
             tag: "attribute", name: "GroupTable", xref: "core§11.2.6.2",
 
-            details: "If the GCAST feature is set in the FeatureMap:" +
+            details: "Indicates a list of group information." +
+                "\n" +
+                "If the GCAST feature is set in the FeatureMap:" +
                 "\n" +
                 "  - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the " +
                 "GroupcastAdopted field set to true, then this field shall be empty." +
@@ -85,11 +87,10 @@ Resource.add({
                 "  - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast " +
                 "cluster's Membership attribute (one mapping per group per fabric)." +
                 "\n" +
-                "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
-                "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
-                "The content of this attribute reflects data managed via the Groups cluster (see " +
-                "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
-                "Table'." +
+                "Each entry provides read-only information about how a given logical Group ID maps to a particular " +
+                "set of endpoints, and a name for the group. The content of this attribute reflects data managed via " +
+                "the Groups cluster (see [[AppClusters]](#ref_AppClusters)), and is in general terms referred to as " +
+                "the 'node-wide Group Table'." +
                 "\n" +
                 "The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If " +
                 "a RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped " +

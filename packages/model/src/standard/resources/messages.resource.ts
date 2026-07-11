@@ -191,7 +191,7 @@ Resource.add({
         {
             tag: "datatype", name: "MessageID", xref: "cluster§1.16.5.1",
             details: "This data type is an octstr of fixed length 16, containing the binary encoding of a UUID as " +
-                "specified in RFC 4122."
+                "specified in [[RFC4122]](#ref_Rfc4122)."
         },
 
         {

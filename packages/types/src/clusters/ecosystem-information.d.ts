@@ -74,20 +74,20 @@ export declare namespace EcosystemInformation {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time this
-         * will contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An
-         * empty list indicates that the information is not available.
+         * Indicates a list of logical devices represented by a Bridged Node. Most of the time this will contain a
+         * single entry, but may grow with more complex device compositions (e.g. another bridge.) An empty list
+         * indicates that the information is not available.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.17.5.1
          */
         deviceDirectory: EcosystemDevice[];
 
         /**
-         * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory entries,
-         * and shall NOT contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location
-         * that is generated and removed based on the user being home is not permitted. However, an initially generated
-         * location name that does not quickly change is acceptable.) An empty list indicates that the information is
-         * not available.
+         * Indicates a list of rooms, areas and groups associated with the DeviceDirectory entries, and shall NOT
+         * contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location that is
+         * generated and removed based on the user being home is not permitted. However, an initially generated location
+         * name that does not quickly change is acceptable.) An empty list indicates that the information is not
+         * available.
          *
          * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
          *
@@ -101,20 +101,20 @@ export declare namespace EcosystemInformation {
      */
     export interface Attributes {
         /**
-         * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time this
-         * will contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An
-         * empty list indicates that the information is not available.
+         * Indicates a list of logical devices represented by a Bridged Node. Most of the time this will contain a
+         * single entry, but may grow with more complex device compositions (e.g. another bridge.) An empty list
+         * indicates that the information is not available.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.17.5.1
          */
         deviceDirectory: EcosystemDevice[];
 
         /**
-         * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory entries,
-         * and shall NOT contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location
-         * that is generated and removed based on the user being home is not permitted. However, an initially generated
-         * location name that does not quickly change is acceptable.) An empty list indicates that the information is
-         * not available.
+         * Indicates a list of rooms, areas and groups associated with the DeviceDirectory entries, and shall NOT
+         * contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location that is
+         * generated and removed based on the user being home is not permitted. However, an initially generated location
+         * name that does not quickly change is acceptable.) An empty list indicates that the information is not
+         * available.
          *
          * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
          *

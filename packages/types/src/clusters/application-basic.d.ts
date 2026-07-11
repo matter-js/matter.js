@@ -205,7 +205,7 @@ export declare namespace ApplicationBasic {
          * This field shall indicate the application identifier, expressed as a string, such as "123456-5433",
          * "PruneVideo" or "Company X". This field shall be unique within a catalog.
          *
-         * For the DIAL registry catalog, this value shall be the DIAL prefix.
+         * For the DIAL registry catalog, this value shall be the DIAL prefix (see [DIAL Registry]).
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.3.4.2.2
          */

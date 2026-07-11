@@ -76,6 +76,8 @@ export declare namespace IcdManagement {
         activeModeThreshold: number;
 
         /**
+         * Indicates information on how to transition the device to Active Mode.
+         *
          * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
          * conformance is in indicated in the "dependency" column in UserActiveModeTriggerHint table. The
          * UserActiveModeTriggerInstruction attribute may give additional information on how to transition the device to
@@ -110,10 +112,9 @@ export declare namespace IcdManagement {
      */
     export interface CheckInProtocolSupportAttributes {
         /**
-         * This attribute shall contain all clients registered to receive notification if their subscription is lost.
-         * The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric
-         * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
-         * Credentials cluster.
+         * Indicates a list of all clients registered to receive notification if their subscription is lost. The maximum
+         * number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric supported on the
+         * server, as indicated by the value of the SupportedFabrics attribute in the Operational Credentials cluster.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.16.6.4
          */
@@ -217,6 +218,8 @@ export declare namespace IcdManagement {
         activeModeThreshold: number;
 
         /**
+         * Indicates information on how to transition the device to Active Mode.
+         *
          * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
          * conformance is in indicated in the "dependency" column in UserActiveModeTriggerHint table. The
          * UserActiveModeTriggerInstruction attribute may give additional information on how to transition the device to
@@ -246,10 +249,9 @@ export declare namespace IcdManagement {
         userActiveModeTriggerInstruction: string;
 
         /**
-         * This attribute shall contain all clients registered to receive notification if their subscription is lost.
-         * The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric
-         * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
-         * Credentials cluster.
+         * Indicates a list of all clients registered to receive notification if their subscription is lost. The maximum
+         * number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric supported on the
+         * server, as indicated by the value of the SupportedFabrics attribute in the Operational Credentials cluster.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.16.6.4
          */

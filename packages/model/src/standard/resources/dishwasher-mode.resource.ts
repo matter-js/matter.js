@@ -18,11 +18,15 @@ Resource.add({
             tag: "attribute", name: "FeatureMap", xref: "cluster§8.3.4",
             children: [{ tag: "field", name: "DEPONOFF", details: "Dependency with the OnOff cluster" }]
         },
+
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§8.3.6.1",
-            details: "At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
+            details: "Indicates the list of supported modes." +
+                "\n" +
+                "At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags " +
                 "field list."
         },
+
         { tag: "attribute", name: "CurrentMode", xref: "cluster§8.3.6" },
         { tag: "attribute", name: "StartUpMode", xref: "cluster§8.3.6" },
         { tag: "attribute", name: "OnMode", xref: "cluster§8.3.6" },

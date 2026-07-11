@@ -47,9 +47,9 @@ export declare namespace PowerSourceConfiguration {
      */
     export interface BaseAttributes {
         /**
-         * This list shall contain the set of all power sources capable of participating in the power system of this
-         * Node. Each entry in the list shall be the endpoint number of an endpoint having a Power Source cluster, which
-         * corresponds to a physical power source. The endpoint number shall be unique within the list.
+         * Indicates a list of all power sources capable of participating in the power system of this Node. Each entry
+         * in the list shall be the endpoint number of an endpoint having a Power Source cluster, which corresponds to a
+         * physical power source. The endpoint number shall be unique within the list.
          *
          * The order of power sources on a Node is defined by the Order attribute of its associated Power Source cluster
          * provided on the endpoint. List entries shall be sorted in increasing order, that is, an entry with a lower
@@ -66,9 +66,9 @@ export declare namespace PowerSourceConfiguration {
      */
     export interface Attributes {
         /**
-         * This list shall contain the set of all power sources capable of participating in the power system of this
-         * Node. Each entry in the list shall be the endpoint number of an endpoint having a Power Source cluster, which
-         * corresponds to a physical power source. The endpoint number shall be unique within the list.
+         * Indicates a list of all power sources capable of participating in the power system of this Node. Each entry
+         * in the list shall be the endpoint number of an endpoint having a Power Source cluster, which corresponds to a
+         * physical power source. The endpoint number shall be unique within the list.
          *
          * The order of power sources on a Node is defined by the Order attribute of its associated Power Source cluster
          * provided on the endpoint. List entries shall be sorted in increasing order, that is, an entry with a lower

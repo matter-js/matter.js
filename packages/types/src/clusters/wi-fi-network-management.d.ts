@@ -65,8 +65,8 @@ export declare namespace WiFiNetworkManagement {
         ssid: Bytes | null;
 
         /**
-         * This attribute shall contain an arbitrary numeric value; this value shall increase whenever the passphrase or
-         * PSK associated with the primary Wi-Fi network provided by this device changes.
+         * Indicates an arbitrary numeric value; this value shall increase whenever the passphrase or PSK associated
+         * with the primary Wi-Fi network provided by this device changes.
          *
          * A value of null shall indicate that no primary Wi-Fi network is available.
          *
@@ -109,8 +109,8 @@ export declare namespace WiFiNetworkManagement {
         ssid: Bytes | null;
 
         /**
-         * This attribute shall contain an arbitrary numeric value; this value shall increase whenever the passphrase or
-         * PSK associated with the primary Wi-Fi network provided by this device changes.
+         * Indicates an arbitrary numeric value; this value shall increase whenever the passphrase or PSK associated
+         * with the primary Wi-Fi network provided by this device changes.
          *
          * A value of null shall indicate that no primary Wi-Fi network is available.
          *

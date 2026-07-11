@@ -234,28 +234,28 @@ export declare namespace Channel {
         /**
          * ChannelList (CL)
          *
-         * Provides list of available channels.
+         * Provides list of available channels
          */
         ChannelList = "ChannelList",
 
         /**
          * LineupInfo (LI)
          *
-         * Provides lineup info, which is a reference to an external source of lineup information.
+         * Provides lineup info, which is a reference to an external source of lineup information
          */
         LineupInfo = "LineupInfo",
 
         /**
          * ElectronicGuide (EG)
          *
-         * Provides electronic program guide information.
+         * Provides electronic program guide information
          */
         ElectronicGuide = "ElectronicGuide",
 
         /**
          * RecordProgram (RP)
          *
-         * Provides ability to record program.
+         * Provides ability to record program
          */
         RecordProgram = "RecordProgram"
     }
@@ -796,8 +796,8 @@ export declare namespace Channel {
 
         /**
          * This field shall indicate the audio language for the specific program. The value is a string containing one
-         * of the standard Tags for Identifying Languages RFC 5646. This field is optional but shall be provided if
-         * known.
+         * of the standard Tags for Identifying Languages [[RFC5646]](#ref_Rfc5646). This field is optional but shall be
+         * provided if known.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.6.5.7.8
          */
@@ -816,7 +816,8 @@ export declare namespace Channel {
 
         /**
          * This field shall represent a URL of a thumbnail that clients can use to render an image for the program. The
-         * syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the https scheme.
+         * syntax of this field shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the
+         * https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.6.5.7.10
          */
@@ -824,8 +825,8 @@ export declare namespace Channel {
 
         /**
          * This field shall represent a URL of a poster that clients can use to render an image for the program on the
-         * detail view. The syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the
-         * https scheme.
+         * detail view. The syntax of this field shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and
+         * shall use the https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.6.5.7.11
          */
@@ -833,7 +834,7 @@ export declare namespace Channel {
 
         /**
          * This field shall represent the DVB-I URL associated to the program. The syntax of this field shall follow the
-         * syntax as specified in RFC 1738 and shall use the https scheme.
+         * syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.6.5.7.12
          */

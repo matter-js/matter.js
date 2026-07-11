@@ -24,7 +24,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "StateValue", xref: "cluster§1.7.5.1",
-            details: "This represents a boolean state." +
+            details: "Indicates a boolean state." +
                 "\n" +
                 "The semantics of this boolean state are defined by the device type using this cluster. For example, " +
                 "in a Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact."

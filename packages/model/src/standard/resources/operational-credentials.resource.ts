@@ -17,8 +17,7 @@ Resource.add({
         {
             tag: "attribute", name: "Nocs", xref: "core§11.18.5.1",
 
-            details: "This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of " +
-                "NOCStruct." +
+            details: "Indicates a list of all NOCs applicable to this Node, encoded as a read-only list of NOCStruct." +
                 "\n" +
                 "Operational Certificates shall be added through the AddNOC command, and shall be removed through the " +
                 "RemoveFabric command." +
@@ -63,8 +62,8 @@ Resource.add({
         {
             tag: "attribute", name: "TrustedRootCertificates", xref: "core§11.18.5.5",
 
-            details: "This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, " +
-                "as octet strings containing their Matter Certificate Encoding representation." +
+            details: "Indicates a list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet strings " +
+                "containing their Matter Certificate Encoding representation." +
                 "\n" +
                 "These certificates are installed through the AddTrustedRootCertificate command." +
                 "\n" +
@@ -129,7 +128,12 @@ Resource.add({
             details: "This command is used to request a certificate from the device attestation certificate chain." +
                 "\n" +
                 "If the CertificateType is not a valid value per CertificateChainTypeEnum then the command shall fail " +
-                "with a Status Code of INVALID_COMMAND."
+                "with a Status Code of INVALID_COMMAND.",
+            children: [{
+                tag: "field", name: "CertificateType", xref: "core§11.18.6.3.1",
+                details: "This field shall indicate the type of element being requested from the device attestation " +
+                    "credentials."
+            }]
         },
 
         {
@@ -138,7 +142,7 @@ Resource.add({
                 "shall be generated in response to a CertificateChainRequest command.",
             children: [{
                 tag: "field", name: "Certificate", xref: "core§11.18.6.4.1",
-                details: "This field shall be the DER encoded certificate corresponding to the CertificateType field in the " +
+                details: "This field shall be the DER-encoded certificate corresponding to the CertificateType field in the " +
                     "CertificateChainRequest command."
             }]
         },

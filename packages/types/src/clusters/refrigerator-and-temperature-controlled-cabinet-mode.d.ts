@@ -49,6 +49,8 @@ export declare namespace RefrigeratorAndTemperatureControlledCabinetMode {
      */
     export interface BaseAttributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * At least one entry in the SupportedModes attribute shall include the Auto mode tag in the ModeTags field
          * list.
          *
@@ -70,6 +72,8 @@ export declare namespace RefrigeratorAndTemperatureControlledCabinetMode {
      */
     export interface Attributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * At least one entry in the SupportedModes attribute shall include the Auto mode tag in the ModeTags field
          * list.
          *

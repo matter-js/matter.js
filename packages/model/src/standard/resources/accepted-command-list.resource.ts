@@ -11,8 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "attribute", name: "AcceptedCommandList", xref: "core§7.13.4",
 
-    details: "This attribute is a list of client generated commands which are supported by this cluster server " +
-        "instance." +
+    details: "Indicates a list of client generated commands which are supported by this cluster server instance." +
         "\n" +
         "Each instance of a cluster shall support this attribute." +
         "\n" +

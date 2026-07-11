@@ -20,7 +20,7 @@ export const ApplicationLauncher = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "AP", constraint: "0", title: "ApplicationPlatform" })
+        Field({ name: "AP", conformance: "O", constraint: "0", title: "ApplicationPlatform" })
     ),
     Attribute(
         { name: "CatalogList", id: 0x0, type: "list", access: "R V", conformance: "AP", quality: "N" },

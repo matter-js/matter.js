@@ -74,36 +74,36 @@ export declare namespace JointFabricDatastore {
      */
     export interface BaseAttributes {
         /**
-         * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
-         * fabric. A null value indicates that the Joint Fabric is not yet formed.
+         * Indicates the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing fabric. A
+         * null value indicates that the Joint Fabric is not yet formed.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.1
          */
         anchorRootCa: Bytes;
 
         /**
-         * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+         * Indicates the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.2
          */
         anchorNodeId: NodeId;
 
         /**
-         * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+         * Indicates the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.3
          */
         anchorVendorId: VendorId;
 
         /**
-         * Friendly name for the accessing fabric.
+         * Indicates the friendly name for the accessing fabric which can be propagated to nodes.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.4
          */
         friendlyName: string;
 
         /**
-         * This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the accessing fabric.
+         * Indicates a list of group key sets used in the Joint Fabric for the accessing fabric.
          *
          * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
          *
@@ -112,7 +112,7 @@ export declare namespace JointFabricDatastore {
         groupKeySetList: DatastoreGroupKeySet[];
 
         /**
-         * This shall indicate the list of groups in the Joint Fabric for the accessing fabric.
+         * Indicates a list of groups in the Joint Fabric for the accessing fabric.
          *
          * This list shall include, at a minimum, one group with GroupCAT value set to Administrator CAT and one group
          * with GroupCAT value set to Anchor CAT.
@@ -122,14 +122,14 @@ export declare namespace JointFabricDatastore {
         groupList: DatastoreGroupInformationEntry[];
 
         /**
-         * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
+         * Indicates a list of nodes in the Joint Fabric for the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.7
          */
         nodeList: DatastoreNodeInformationEntry[];
 
         /**
-         * This shall indicate the list of administrators in the Joint Fabric for the accessing fabric.
+         * Indicates a list of administrators in the Joint Fabric for the accessing fabric.
          *
          * Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall have index
          * value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater.
@@ -141,7 +141,7 @@ export declare namespace JointFabricDatastore {
         adminList: DatastoreAdministratorInformationEntry[];
 
         /**
-         * This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
+         * Indicates the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
          *
          * The value shall be one of the following states:
          *
@@ -157,35 +157,35 @@ export declare namespace JointFabricDatastore {
         status: DatastoreStatusEntry;
 
         /**
-         * This shall indicate the group membership of endpoints in the accessing fabric.
+         * Indicates a list of group membership of endpoints in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.10
          */
         endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
 
         /**
-         * This shall indicate the binding list for endpoints in the accessing fabric.
+         * Indicates a list of bindings for endpoints in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.11
          */
         endpointBindingList: DatastoreEndpointBindingEntry[];
 
         /**
-         * This shall indicate the KeySet entries for nodes in the accessing fabric.
+         * Indicates a list of KeySet entries for nodes in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.12
          */
         nodeKeySetList: DatastoreNodeKeySetEntry[];
 
         /**
-         * This shall indicate the ACL entries for nodes in the accessing fabric.
+         * Indicates a list of ACL entries for nodes in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.13
          */
         nodeAclList: DatastoreAclEntry[];
 
         /**
-         * This shall indicate the Endpoint entries for nodes in the accessing fabric.
+         * Indicates a list of Endpoint entries for nodes in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.14
          */
@@ -197,36 +197,36 @@ export declare namespace JointFabricDatastore {
      */
     export interface Attributes {
         /**
-         * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
-         * fabric. A null value indicates that the Joint Fabric is not yet formed.
+         * Indicates the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing fabric. A
+         * null value indicates that the Joint Fabric is not yet formed.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.1
          */
         anchorRootCa: Bytes;
 
         /**
-         * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+         * Indicates the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.2
          */
         anchorNodeId: NodeId;
 
         /**
-         * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+         * Indicates the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.3
          */
         anchorVendorId: VendorId;
 
         /**
-         * Friendly name for the accessing fabric.
+         * Indicates the friendly name for the accessing fabric which can be propagated to nodes.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.4
          */
         friendlyName: string;
 
         /**
-         * This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the accessing fabric.
+         * Indicates a list of group key sets used in the Joint Fabric for the accessing fabric.
          *
          * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
          *
@@ -235,7 +235,7 @@ export declare namespace JointFabricDatastore {
         groupKeySetList: DatastoreGroupKeySet[];
 
         /**
-         * This shall indicate the list of groups in the Joint Fabric for the accessing fabric.
+         * Indicates a list of groups in the Joint Fabric for the accessing fabric.
          *
          * This list shall include, at a minimum, one group with GroupCAT value set to Administrator CAT and one group
          * with GroupCAT value set to Anchor CAT.
@@ -245,14 +245,14 @@ export declare namespace JointFabricDatastore {
         groupList: DatastoreGroupInformationEntry[];
 
         /**
-         * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
+         * Indicates a list of nodes in the Joint Fabric for the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.7
          */
         nodeList: DatastoreNodeInformationEntry[];
 
         /**
-         * This shall indicate the list of administrators in the Joint Fabric for the accessing fabric.
+         * Indicates a list of administrators in the Joint Fabric for the accessing fabric.
          *
          * Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall have index
          * value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater.
@@ -264,7 +264,7 @@ export declare namespace JointFabricDatastore {
         adminList: DatastoreAdministratorInformationEntry[];
 
         /**
-         * This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
+         * Indicates the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
          *
          * The value shall be one of the following states:
          *
@@ -280,35 +280,35 @@ export declare namespace JointFabricDatastore {
         status: DatastoreStatusEntry;
 
         /**
-         * This shall indicate the group membership of endpoints in the accessing fabric.
+         * Indicates a list of group membership of endpoints in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.10
          */
         endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
 
         /**
-         * This shall indicate the binding list for endpoints in the accessing fabric.
+         * Indicates a list of bindings for endpoints in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.11
          */
         endpointBindingList: DatastoreEndpointBindingEntry[];
 
         /**
-         * This shall indicate the KeySet entries for nodes in the accessing fabric.
+         * Indicates a list of KeySet entries for nodes in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.12
          */
         nodeKeySetList: DatastoreNodeKeySetEntry[];
 
         /**
-         * This shall indicate the ACL entries for nodes in the accessing fabric.
+         * Indicates a list of ACL entries for nodes in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.13
          */
         nodeAclList: DatastoreAclEntry[];
 
         /**
-         * This shall indicate the Endpoint entries for nodes in the accessing fabric.
+         * Indicates a list of Endpoint entries for nodes in the accessing fabric.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.6.14
          */
@@ -496,7 +496,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.5
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.8
      */
     export class DatastoreGroupInformationEntry {
         constructor(values?: Partial<DatastoreGroupInformationEntry>);
@@ -504,14 +504,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the group.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.5.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.1
          */
         groupId: number | bigint;
 
         /**
          * The friendly name for the group.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.5.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.2
          */
         friendlyName: string;
 
@@ -524,7 +524,7 @@ export declare namespace JointFabricDatastore {
          * A value of 0 is not allowed since this value is reserved for IPK and the group entry for this value is not
          * managed by the Datastore.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.5.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.3
          */
         groupKeySetId: number | null;
 
@@ -535,7 +535,7 @@ export declare namespace JointFabricDatastore {
          *
          * This value may be null when unicast communication is not used for the group.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.5.4
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.4
          */
         groupCat: number | null;
 
@@ -544,7 +544,7 @@ export declare namespace JointFabricDatastore {
          *
          * This value shall be null when GroupCAT value is null.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.5.5
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.5
          */
         groupCatVersion: number | null;
 
@@ -552,13 +552,13 @@ export declare namespace JointFabricDatastore {
          * The permission level associated with ACL entries for this group. There should be only one Administrator group
          * per fabric, and at most one Manage group per Ecosystem (Vendor Entry).
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.5.6
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.6
          */
         groupPermission: DatastoreAccessControlEntryPrivilege;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.14
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.16
      */
     export class DatastoreNodeInformationEntry {
         constructor(values?: Partial<DatastoreNodeInformationEntry>);
@@ -566,7 +566,7 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.14.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.16.1
          */
         nodeId: NodeId;
 
@@ -578,7 +578,7 @@ export declare namespace JointFabricDatastore {
          * Administrators may keep this field in sync with the NodeLabel field from the Basic Information or Bridged
          * Basic Information clusters.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.14.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.16.2
          */
         friendlyName: string;
 
@@ -586,13 +586,13 @@ export declare namespace JointFabricDatastore {
          * Set to Pending prior to completing commissioning, set to Committed after commissioning complete is
          * successful, or set to CommitFailed if commissioning failed with the FailureCode Field set to the error.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.14.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.16.3
          */
         commissioningStatusEntry: DatastoreStatusEntry;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.15
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.17
      */
     export class DatastoreAdministratorInformationEntry {
         constructor(values?: Partial<DatastoreAdministratorInformationEntry>);
@@ -600,34 +600,34 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.17.1
          */
         nodeId: NodeId;
 
         /**
          * Friendly name for this node which is not propagated to nodes.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.17.2
          */
         friendlyName: string;
 
         /**
          * The Vendor ID for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.17.3
          */
         vendorId: VendorId;
 
         /**
          * The ICAC used to issue the NOC.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.4
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.17.4
          */
         icac: Bytes;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.2
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.6
      */
     export class DatastoreStatusEntry {
         constructor(values?: Partial<DatastoreStatusEntry>);
@@ -635,14 +635,14 @@ export declare namespace JointFabricDatastore {
         /**
          * This field shall contain the current state of the target device operation.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.2.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.1
          */
         state: DatastoreState;
 
         /**
          * This field shall contain the timestamp of the last update.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.2.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.2
          */
         updateTimestamp: number;
 
@@ -650,13 +650,13 @@ export declare namespace JointFabricDatastore {
          * This field shall contain the Status Code of the last failed operation where the State field is set to
          * CommitFailure.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.2.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.3
          */
         failureCode: Status;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.8
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.11
      */
     export class DatastoreEndpointGroupIdEntry {
         constructor(values?: Partial<DatastoreEndpointGroupIdEntry>);
@@ -664,34 +664,34 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.11.1
          */
         nodeId: NodeId;
 
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.11.2
          */
         endpointId: EndpointNumber;
 
         /**
          * The unique identifier for the group.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.11.3
          */
         groupId: GroupId;
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.8.4
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.11.4
          */
         statusEntry: DatastoreStatusEntry;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.7
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.10
      */
     export class DatastoreEndpointBindingEntry {
         constructor(values?: Partial<DatastoreEndpointBindingEntry>);
@@ -699,14 +699,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.10.1
          */
         nodeId: NodeId;
 
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.10.2
          */
         endpointId: EndpointNumber;
 
@@ -717,27 +717,27 @@ export declare namespace JointFabricDatastore {
          * This field is used to uniquely identify an entry in the EndpointBindingList attribute for the purpose of
          * deletion (RemoveBindingFromEndpointForNode Command).
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.10.3
          */
         listId: number;
 
         /**
          * The binding target structure.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.4
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.10.4
          */
         binding: DatastoreBindingTarget;
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.5
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.10.5
          */
         statusEntry: DatastoreStatusEntry;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.3
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.7
      */
     export class DatastoreNodeKeySetEntry {
         constructor(values?: Partial<DatastoreNodeKeySetEntry>);
@@ -745,7 +745,7 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.3.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.1
          */
         nodeId: NodeId;
 
@@ -754,7 +754,7 @@ export declare namespace JointFabricDatastore {
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.3.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.7.3
          */
         statusEntry: DatastoreStatusEntry;
     }
@@ -764,7 +764,7 @@ export declare namespace JointFabricDatastore {
      * is managed by the Datastore. Only ACLs on a specific Node that are fabric-scoped to the Joint Fabric are managed
      * by the Datastore. As a result, references to nodes and groups are specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.13
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.15
      */
     export class DatastoreAclEntry {
         constructor(values?: Partial<DatastoreAclEntry>);
@@ -772,28 +772,28 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.13.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.1
          */
         nodeId: NodeId;
 
         /**
          * The unique identifier for the ACL entry in the Datastore's list of DatastoreACLEntry.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.13.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.2
          */
         listId: number;
 
         /**
          * The Access Control Entry structure.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.13.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.3
          */
         aclEntry: DatastoreAccessControlEntry;
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.13.4
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.15.4
          */
         statusEntry: DatastoreStatusEntry;
     }
@@ -803,7 +803,7 @@ export declare namespace JointFabricDatastore {
      * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
      * the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.9
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.12
      */
     export class DatastoreEndpointEntry {
         constructor(values?: Partial<DatastoreEndpointEntry>);
@@ -811,14 +811,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.1
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.12.1
          */
         endpointId: EndpointNumber;
 
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.2
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.12.2
          */
         nodeId: NodeId;
 
@@ -833,7 +833,7 @@ export declare namespace JointFabricDatastore {
          * Administrators may keep this field in sync with the NodeLabel field from the Basic Information or Bridged
          * Basic Information clusters.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.3
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.12.3
          */
         friendlyName: string;
     }
@@ -1854,7 +1854,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.4
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.2
      */
     export enum DatastoreAccessControlEntryPrivilege {
         /**
@@ -1879,52 +1879,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * The DatastoreBindingTargetStruct represents a Binding on a specific Node (identified by the
-     * DatastoreEndpointBindingEntryStruct) which is managed by the Datastore. Only bindings on a specific Node that are
-     * fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are
-     * specific to the Joint Fabric.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.6
-     */
-    export class DatastoreBindingTarget {
-        constructor(values?: Partial<DatastoreBindingTarget>);
-
-        /**
-         * This field is the binding's remote target node ID. If the Endpoint field is present, this field shall be
-         * present.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.1
-         */
-        node?: NodeId;
-
-        /**
-         * This field is the binding's target group ID that represents remote endpoints. If the Endpoint field is
-         * present, this field shall NOT be present.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.2
-         */
-        group?: GroupId;
-
-        /**
-         * This field is the binding's remote endpoint that the local endpoint is bound to. If the Group field is
-         * present, this field shall NOT be present.
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.3
-         */
-        endpoint?: EndpointNumber;
-
-        /**
-         * This field is the binding's cluster ID (client & server) on the local and target endpoint(s). If this field
-         * is present, the client cluster shall also exist on this endpoint (with this Binding cluster). If this field
-         * is present, the target shall be this cluster on the target endpoint(s).
-         *
-         * @see {@link MatterSpecification.v16.Core} § 11.24.5.6.4
-         */
-        cluster?: ClusterId;
-    }
-
-    /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.10
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.3
      */
     export enum DatastoreAccessControlEntryAuthMode {
         /**
@@ -1944,7 +1899,77 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.11
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.4
+     */
+    export enum DatastoreGroupKeySecurityPolicy {
+        /**
+         * Message counter synchronization using trust-first
+         */
+        TrustFirst = 0
+    }
+
+    /**
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.5
+     */
+    export enum DatastoreGroupKeyMulticastPolicy {
+        /**
+         * Indicates filtering of multicast messages for a specific Group ID
+         */
+        PerGroupId = 0,
+
+        /**
+         * Indicates not filtering of multicast messages
+         */
+        AllNodes = 1
+    }
+
+    /**
+     * The DatastoreBindingTargetStruct represents a Binding on a specific Node (identified by the
+     * DatastoreEndpointBindingEntryStruct) which is managed by the Datastore. Only bindings on a specific Node that are
+     * fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are
+     * specific to the Joint Fabric.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.9
+     */
+    export class DatastoreBindingTarget {
+        constructor(values?: Partial<DatastoreBindingTarget>);
+
+        /**
+         * This field is the binding's remote target node ID. If the Endpoint field is present, this field shall be
+         * present.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.1
+         */
+        node?: NodeId;
+
+        /**
+         * This field is the binding's target group ID that represents remote endpoints. If the Endpoint field is
+         * present, this field shall NOT be present.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.2
+         */
+        group?: GroupId;
+
+        /**
+         * This field is the binding's remote endpoint that the local endpoint is bound to. If the Group field is
+         * present, this field shall NOT be present.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.3
+         */
+        endpoint?: EndpointNumber;
+
+        /**
+         * This field is the binding's cluster ID (client & server) on the local and target endpoint(s). If this field
+         * is present, the client cluster shall also exist on this endpoint (with this Binding cluster). If this field
+         * is present, the target shall be this cluster on the target endpoint(s).
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.24.5.9.4
+         */
+        cluster?: ClusterId;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.13
      */
     export class DatastoreAccessControlTarget {
         constructor(values?: Partial<DatastoreAccessControlTarget>);
@@ -1959,7 +1984,7 @@ export declare namespace JointFabricDatastore {
      * to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are specific to the
      * Joint Fabric.
      *
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.12
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.14
      */
     export class DatastoreAccessControlEntry {
         constructor(values?: Partial<DatastoreAccessControlEntry>);
@@ -1967,31 +1992,6 @@ export declare namespace JointFabricDatastore {
         authMode: DatastoreAccessControlEntryAuthMode;
         subjects: SubjectId[] | null;
         targets: DatastoreAccessControlTarget[] | null;
-    }
-
-    /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.16
-     */
-    export enum DatastoreGroupKeySecurityPolicy {
-        /**
-         * Message counter synchronization using trust-first
-         */
-        TrustFirst = 0
-    }
-
-    /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.17
-     */
-    export enum DatastoreGroupKeyMulticastPolicy {
-        /**
-         * Indicates filtering of multicast messages for a specific Group ID
-         */
-        PerGroupId = 0,
-
-        /**
-         * Indicates not filtering of multicast messages
-         */
-        AllNodes = 1
     }
 
     /**

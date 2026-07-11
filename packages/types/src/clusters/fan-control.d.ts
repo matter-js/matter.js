@@ -77,7 +77,7 @@ export declare namespace FanControl {
         fanMode: FanMode;
 
         /**
-         * This attribute indicates the fan speed ranges that shall be supported by the server.
+         * Indicates the fan speed ranges that shall be supported by the server.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.4.6.2
          */
@@ -169,7 +169,7 @@ export declare namespace FanControl {
      */
     export interface RockingAttributes {
         /**
-         * This attribute is a bitmap that indicates the rocking motions that are supported by the server.
+         * Indicates the rocking motions that are supported by the server.
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
@@ -178,9 +178,9 @@ export declare namespace FanControl {
         rockSupport: Rock;
 
         /**
-         * This attribute is a bitmap that indicates the currently active fan rocking motion setting. Each bit shall
-         * only be set to 1, if the corresponding bit in the RockSupport attribute is set to 1, otherwise a status code
-         * of CONSTRAINT_ERROR shall be returned.
+         * Indicates the currently active fan rocking motion setting. Each bit shall only be set to 1, if the
+         * corresponding bit in the RockSupport attribute is set to 1, otherwise a status code of CONSTRAINT_ERROR shall
+         * be returned.
          *
          * If a combination of supported bits is set by a client, and the server does not support the combination, the
          * lowest supported single bit in the combination shall be set and active, and all other bits shall indicate
@@ -201,7 +201,7 @@ export declare namespace FanControl {
      */
     export interface WindAttributes {
         /**
-         * This attribute is a bitmap that indicates what wind modes are supported by the server.
+         * Indicates which wind modes are supported by the server.
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
@@ -210,9 +210,9 @@ export declare namespace FanControl {
         windSupport: Wind;
 
         /**
-         * This attribute is a bitmap that indicates the current active fan wind feature settings. Each bit shall only
-         * be set to 1, if the corresponding bit in the WindSupport attribute is set to 1, otherwise a status code of
-         * CONSTRAINT_ERROR shall be returned.
+         * Indicates the currently active fan wind feature settings. Each bit shall only be set to 1, if the
+         * corresponding bit in the WindSupport attribute is set to 1, otherwise a status code of CONSTRAINT_ERROR shall
+         * be returned.
          *
          * If a combination of supported bits is set by a client, and the server does not support the combination, the
          * lowest supported single bit in the combination shall be set and active, and all other bits shall indicate
@@ -281,7 +281,7 @@ export declare namespace FanControl {
         fanMode: FanMode;
 
         /**
-         * This attribute indicates the fan speed ranges that shall be supported by the server.
+         * Indicates the fan speed ranges that shall be supported by the server.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.4.6.2
          */
@@ -363,7 +363,7 @@ export declare namespace FanControl {
         speedCurrent: number;
 
         /**
-         * This attribute is a bitmap that indicates the rocking motions that are supported by the server.
+         * Indicates the rocking motions that are supported by the server.
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
@@ -372,9 +372,9 @@ export declare namespace FanControl {
         rockSupport: Rock;
 
         /**
-         * This attribute is a bitmap that indicates the currently active fan rocking motion setting. Each bit shall
-         * only be set to 1, if the corresponding bit in the RockSupport attribute is set to 1, otherwise a status code
-         * of CONSTRAINT_ERROR shall be returned.
+         * Indicates the currently active fan rocking motion setting. Each bit shall only be set to 1, if the
+         * corresponding bit in the RockSupport attribute is set to 1, otherwise a status code of CONSTRAINT_ERROR shall
+         * be returned.
          *
          * If a combination of supported bits is set by a client, and the server does not support the combination, the
          * lowest supported single bit in the combination shall be set and active, and all other bits shall indicate
@@ -390,7 +390,7 @@ export declare namespace FanControl {
         rockSetting: Rock;
 
         /**
-         * This attribute is a bitmap that indicates what wind modes are supported by the server.
+         * Indicates which wind modes are supported by the server.
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
@@ -399,9 +399,9 @@ export declare namespace FanControl {
         windSupport: Wind;
 
         /**
-         * This attribute is a bitmap that indicates the current active fan wind feature settings. Each bit shall only
-         * be set to 1, if the corresponding bit in the WindSupport attribute is set to 1, otherwise a status code of
-         * CONSTRAINT_ERROR shall be returned.
+         * Indicates the currently active fan wind feature settings. Each bit shall only be set to 1, if the
+         * corresponding bit in the WindSupport attribute is set to 1, otherwise a status code of CONSTRAINT_ERROR shall
+         * be returned.
          *
          * If a combination of supported bits is set by a client, and the server does not support the combination, the
          * lowest supported single bit in the combination shall be set and active, and all other bits shall indicate

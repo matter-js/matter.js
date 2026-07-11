@@ -38,7 +38,7 @@ Resource.add(
             {
                 tag: "attribute", name: "Type", xref: "cluster§5.3.6.2",
 
-                details: "This attribute shall identify the type of window covering." +
+                details: "Indicates the type of window covering." +
                     "\n" +
                     "If the window covering supports the LF feature and not the TL feature, the following types shall be " +
                     "used as the constraint for this attribute:" +
@@ -63,7 +63,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "ConfigStatus", xref: "cluster§5.3.6.5",
-                details: "This attribute specifies the configuration and status information of the window covering." +
+                details: "Indicates the configuration and status information of the window covering." +
                     "\n" +
                     "To change settings, devices shall write to the Mode attribute. The behavior causing the setting or " +
                     "clearing of each bit is vendor specific."
@@ -97,7 +97,7 @@ Resource.add(
             {
                 tag: "attribute", name: "EndProductType", xref: "cluster§5.3.6.13",
 
-                details: "This attribute SHOULD provide more detail about the product type than can be determined from the " +
+                details: "Indicates the product type and is intended to provide more detail than can be determined from the " +
                     "main category indicated by the Type attribute." +
                     "\n" +
                     "If the window covering supports the LF feature and not the TL feature, the following types shall be " +
@@ -126,9 +126,9 @@ Resource.add(
             {
                 tag: "attribute", name: "Mode", xref: "cluster§5.3.6.14",
 
-                details: "The Mode attribute allows configuration of the window covering, such as: reversing the motor " +
-                    "direction, placing the window covering into calibration mode, placing the motor into maintenance " +
-                    "mode, disabling the network, and disabling status LEDs." +
+                details: "Indicates the configuration of the window covering, such as: reversing the motor direction, placing " +
+                    "the window covering into calibration mode, placing the motor into maintenance mode, disabling the " +
+                    "network, and disabling status LEDs." +
                     "\n" +
                     "In the case a device does not support or implement a specific mode, e.g. the device has a specific " +
                     "installation method and reversal is not relevant or the device does not include a maintenance mode, " +
@@ -138,9 +138,9 @@ Resource.add(
 
             {
                 tag: "attribute", name: "SafetyStatus", xref: "cluster§5.3.6.15",
-                details: "The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing " +
-                    "movements. By default for nominal operation all flags are cleared (0). A device might support none, " +
-                    "one or several bit flags from this attribute (all optional)."
+                details: "Indicates the state of the safety sensors and the common issues preventing movements. By default for " +
+                    "nominal operation all flags are cleared (0). A device might support none, one or several bit flags " +
+                    "from this attribute (all optional)."
             },
 
             {
@@ -231,13 +231,7 @@ Resource.add(
                     "Upon receipt of this command, the server will adjust the window covering to the lift/slide " +
                     "percentage specified in the payload of this command." +
                     "\n" +
-                    "If the command includes LiftPercent100thsValue, then TargetPositionLiftPercent100ths attribute shall " +
-                    "be set to LiftPercent100thsValue. Otherwise the TargetPositionLiftPercent100ths attribute shall be " +
-                    "set to LiftPercentageValue * 100." +
-                    "\n" +
-                    "If a client includes LiftPercent100thsValue in the command, the LiftPercentageValue shall be set to " +
-                    "LiftPercent100thsValue / 100, so a legacy server which only supports LiftPercentageValue (not " +
-                    "LiftPercent100thsValue) has a value to set the target position." +
+                    "The TargetPositionLiftPercent100ths attribute shall be set to LiftPercent100thsValue." +
                     "\n" +
                     "If the server does not support the PositionAware feature, then a zero percentage shall be treated as " +
                     "a UpOrOpen command and a non-zero percentage shall be treated as an DownOrClose command. If the " +
@@ -254,17 +248,11 @@ Resource.add(
                     "Upon receipt of this command, the server will adjust the window covering to the tilt percentage " +
                     "specified in the payload of this command." +
                     "\n" +
-                    "If the command includes TiltPercent100thsValue, then TargetPositionTiltPercent100ths attribute shall " +
-                    "be set to TiltPercent100thsValue. Otherwise the TargetPositionTiltPercent100ths attribute shall be " +
-                    "set to TiltPercentageValue * 100." +
-                    "\n" +
-                    "If a client includes TiltPercent100thsValue in the command, the TiltPercentageValue shall be set to " +
-                    "TiltPercent100thsValue / 100, so a legacy server which only supports TiltPercentageValue (not " +
-                    "TiltPercent100thsValue) has a value to set the target position." +
+                    "The TargetPositionTiltPercent100ths attribute shall be set to TiltPercent100thsValue." +
                     "\n" +
                     "If the server does not support the PositionAware feature, then a zero percentage shall be treated as " +
                     "a UpOrOpen command and a non-zero percentage shall be treated as an DownOrClose command. If the " +
-                    "device is only a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND " +
+                    "device is only a lift control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND " +
                     "status SHOULD be returned."
             },
 

@@ -31,89 +31,85 @@ Resource.add({
 
         {
             tag: "attribute", name: "NetworkInterfaces", xref: "core§11.12.6.1",
-            details: "The NetworkInterfaces attribute shall be a list of NetworkInterface structs. Each logical network " +
-                "interface on the Node shall be represented by a single entry within the NetworkInterfaces attribute."
+            details: "Indicates a list of network interfaces. Each logical network interface on the Node shall be " +
+                "represented by a single entry within the NetworkInterfaces attribute."
         },
 
         {
             tag: "attribute", name: "RebootCount", xref: "core§11.12.6.2",
-            details: "The RebootCount attribute shall indicate a best-effort count of the number of times the Node has " +
-                "rebooted. The RebootCount attribute SHOULD be incremented each time the Node reboots. The " +
-                "RebootCount attribute shall NOT be incremented when a Node wakes from a low-power or sleep state. " +
-                "The RebootCount attribute shall only be reset to 0 upon a factory reset of the Node."
+            details: "Indicates a best-effort count of the number of times the Node has rebooted. The RebootCount " +
+                "attribute SHOULD be incremented each time the Node reboots. The RebootCount attribute shall NOT be " +
+                "incremented when a Node wakes from a low-power or sleep state. The RebootCount attribute shall only " +
+                "be reset to 0 upon a factory reset of the Node."
         },
 
         {
             tag: "attribute", name: "UpTime", xref: "core§11.12.6.3",
-            details: "The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, " +
-                "since the Node's last reboot. This attribute SHOULD be incremented to account for the periods of " +
-                "time that a Node is in a low-power or sleep state. This attribute shall only be reset upon a device " +
-                "reboot. This attribute shall be based on the same System Time source as those used to fulfill any " +
-                "usage of the systime-us and systime-ms data types within the server."
+            details: "Indicates a best-effort assessment of the length of time, in seconds, since the Node's last reboot. " +
+                "This attribute SHOULD be incremented to account for the periods of time that a Node is in a " +
+                "low-power or sleep state. This attribute shall only be reset upon a device reboot. This attribute " +
+                "shall be based on the same System Time source as those used to fulfill any usage of the systime-us " +
+                "and systime-ms data types within the server."
         },
 
         {
             tag: "attribute", name: "TotalOperationalHours", xref: "core§11.12.6.4",
-            details: "The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of " +
-                "time, in hours, that the Node has been operational. The TotalOperationalHours attribute SHOULD be " +
-                "incremented to account for the periods of time that a Node is in a low-power or sleep state. The " +
-                "TotalOperationalHours attribute shall only be reset upon a factory reset of the Node."
+            details: "Indicates a best-effort attempt at tracking the length of time, in hours, that the Node has been " +
+                "operational. The TotalOperationalHours attribute SHOULD be incremented to account for the periods of " +
+                "time that a Node is in a low-power or sleep state. The TotalOperationalHours attribute shall only be " +
+                "reset upon a factory reset of the Node."
         },
 
         {
             tag: "attribute", name: "BootReason", xref: "core§11.12.6.5",
-            details: "The BootReason attribute shall indicate the reason for the Node's most recent boot."
+            details: "Indicates the reason for the Node's most recent boot."
         },
 
         {
             tag: "attribute", name: "ActiveHardwareFaults", xref: "core§11.12.6.6",
 
-            details: "The ActiveHardwareFaults attribute shall indicate the set of faults currently detected by the Node. " +
-                "When the Node detects a fault has been raised, the appropriate HardwareFaultEnum value shall be " +
-                "added to this list. This list shall NOT contain more than one instance of a specific " +
-                "HardwareFaultEnum value. When the Node detects that all conditions contributing to a fault has been " +
-                "cleared, the corresponding HardwareFaultEnum value shall be removed from this list. An empty list " +
-                "shall indicate there are currently no active faults. The order of this list SHOULD have no " +
-                "significance. Clients interested in monitoring changes in active faults may subscribe to this " +
-                "attribute, or they may subscribe to HardwareFaultChange."
+            details: "Indicates the set of faults currently detected by the Node. When the Node detects a fault has been " +
+                "raised, the appropriate HardwareFaultEnum value shall be added to this list. This list shall NOT " +
+                "contain more than one instance of a specific HardwareFaultEnum value. When the Node detects that all " +
+                "conditions contributing to a fault has been cleared, the corresponding HardwareFaultEnum value shall " +
+                "be removed from this list. An empty list shall indicate there are currently no active faults. The " +
+                "order of this list SHOULD have no significance. Clients interested in monitoring changes in active " +
+                "faults may subscribe to this attribute, or they may subscribe to HardwareFaultChange."
         },
 
         {
             tag: "attribute", name: "ActiveRadioFaults", xref: "core§11.12.6.7",
 
-            details: "The ActiveRadioFaults attribute shall indicate the set of faults currently detected by the Node. " +
-                "When the Node detects a fault has been raised, the appropriate RadioFaultEnum value shall be added " +
-                "to this list. This list shall NOT contain more than one instance of a specific RadioFaultEnum value. " +
-                "When the Node detects that all conditions contributing to a fault has been cleared, the " +
-                "corresponding RadioFaultEnum value shall be removed from this list. An empty list shall indicate " +
-                "there are currently no active faults. The order of this list SHOULD have no significance. Clients " +
-                "interested in monitoring changes in active faults may subscribe to this attribute, or they may " +
-                "subscribe to RadioFaultChange."
+            details: "Indicates the set of faults currently detected by the Node. When the Node detects a fault has been " +
+                "raised, the appropriate RadioFaultEnum value shall be added to this list. This list shall NOT " +
+                "contain more than one instance of a specific RadioFaultEnum value. When the Node detects that all " +
+                "conditions contributing to a fault has been cleared, the corresponding RadioFaultEnum value shall be " +
+                "removed from this list. An empty list shall indicate there are currently no active faults. The order " +
+                "of this list SHOULD have no significance. Clients interested in monitoring changes in active faults " +
+                "may subscribe to this attribute, or they may subscribe to RadioFaultChange."
         },
 
         {
             tag: "attribute", name: "ActiveNetworkFaults", xref: "core§11.12.6.8",
 
-            details: "The ActiveNetworkFaults attribute shall indicate the set of faults currently detected by the Node. " +
-                "When the Node detects a fault has been raised, the appropriate NetworkFaultEnum value shall be added " +
-                "to this list. This list shall NOT contain more than one instance of a specific NetworkFaultEnum " +
-                "value. When the Node detects that all conditions contributing to a fault has been cleared, the " +
-                "corresponding NetworkFaultEnum value shall be removed from this list. An empty list shall indicate " +
-                "there are currently no active faults. The order of this list SHOULD have no significance. Clients " +
-                "interested in monitoring changes in active faults may subscribe to this attribute, or they may " +
-                "subscribe to NetworkFaultChange."
+            details: "Indicates the set of faults currently detected by the Node. When the Node detects a fault has been " +
+                "raised, the appropriate NetworkFaultEnum value shall be added to this list. This list shall NOT " +
+                "contain more than one instance of a specific NetworkFaultEnum value. When the Node detects that all " +
+                "conditions contributing to a fault has been cleared, the corresponding NetworkFaultEnum value shall " +
+                "be removed from this list. An empty list shall indicate there are currently no active faults. The " +
+                "order of this list SHOULD have no significance. Clients interested in monitoring changes in active " +
+                "faults may subscribe to this attribute, or they may subscribe to NetworkFaultChange."
         },
 
         {
             tag: "attribute", name: "TestEventTriggersEnabled", xref: "core§11.12.6.9",
 
-            details: "The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger " +
-                "configured. When this attribute is true, the Node has been configured with one or more test event " +
-                "triggers by virtue of the internally programmed EnableKey value (see Section 11.12.7.1, " +
-                "\"TestEventTrigger Command\") being set to a non-zero value. This attribute can be used by " +
-                "Administrators to detect if a device was inadvertently commissioned with test event trigger mode " +
-                "enabled, and take appropriate action (e.g. warn the user and/or offer to remove all fabrics on the " +
-                "Node)."
+            details: "Indicates whether the Node has any TestEventTrigger configured. When this attribute is true, the " +
+                "Node has been configured with one or more test event triggers by virtue of the internally programmed " +
+                "EnableKey value (see TestEventTrigger Command) being set to a non-zero value. This attribute can be " +
+                "used by Administrators to detect if a device was inadvertently commissioned with test event trigger " +
+                "mode enabled, and take appropriate action (e.g. warn the user and/or offer to remove all fabrics on " +
+                "the Node)."
         },
 
         { tag: "attribute", name: "DoNotUse", xref: "core§11.12.6" },

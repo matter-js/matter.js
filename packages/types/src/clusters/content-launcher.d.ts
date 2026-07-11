@@ -177,21 +177,21 @@ export declare namespace ContentLauncher {
          * AdvancedSeek (AS)
          *
          * Enables clients to implement more advanced media seeking behavior in their user interface, such as for
-         * example a "seek bar".
+         * example a "seek bar"
          */
         AdvancedSeek = "AdvancedSeek",
 
         /**
          * TextTracks (TT)
          *
-         * Device or app supports Text Tracks.
+         * Device or app supports Text Tracks
          */
         TextTracks = "TextTracks",
 
         /**
          * AudioTracks (AT)
          *
-         * Device or app supports Audio Tracks.
+         * Device or app supports Audio Tracks
          */
         AudioTracks = "AudioTracks"
     }
@@ -236,7 +236,7 @@ export declare namespace ContentLauncher {
 
         /**
          * This field shall indicate the URL of content to launch. The syntax of this field shall follow the syntax as
-         * specified in RFC 1738 and shall use the https scheme.
+         * specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.7.7.2.1
          */
@@ -367,7 +367,7 @@ export declare namespace ContentLauncher {
         Success = 0,
 
         /**
-         * Requested URL could not be reached by device.
+         * Requested URL could not be reached by device
          */
         UrlNotAvailable = 1,
 
@@ -448,23 +448,27 @@ export declare namespace ContentLauncher {
         Director = 3,
 
         /**
-         * An event is a reference to a type of event; examples would include sports, music, or other types of events.
-         * For example, searching for "Football games" would search for a 'game' event entity and a 'football' sport
-         * entity.
+         * An event is a reference to a type of event; examples would include sports, music, or other types of events;
+         * for example, searching for "Football games" would search for a 'game' event entity and a 'football' sport
+         * entity
          */
         Event = 4,
 
         /**
-         * A franchise is a video entity which can represent a number of video entities, like movies or TV shows. For
+         * A franchise is a video entity which can represent a number of video entities, like movies or TV shows; for
          * example, take the fictional franchise "Intergalactic Wars" which represents a collection of movie trilogies,
-         * as well as animated and live action TV shows. This entity type was introduced to account for requests by
-         * customers such as "Find Intergalactic Wars movies", which would search for all 'Intergalactic Wars' programs
-         * of the MOVIE MediaType, rather than attempting to match to a single title.
+         * as well as animated and live action TV shows
+         *
+         * This value shall indicate a franchise, this entity type was introduced to account for requests by customers
+         * such as "Find Intergalactic Wars movies", which would search for all 'Intergalactic Wars' programs of the
+         * MOVIE MediaType, rather than attempting to match to a single title.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 6.7.5.3.1
          */
         Franchise = 5,
 
         /**
-         * Genre represents the genre of video media content such as action, drama or comedy.
+         * Genre represents the genre of video media content such as action, drama or comedy
          */
         Genre = 6,
 
@@ -474,12 +478,12 @@ export declare namespace ContentLauncher {
         League = 7,
 
         /**
-         * Popularity indicates whether the user asks for popular content.
+         * Popularity indicates whether the user asks for popular content
          */
         Popularity = 8,
 
         /**
-         * The provider (MSP) the user wants this media to be played on; for example, "Netflix".
+         * The provider (MSP) the user wants this media to be played on; for example, "Netflix"
          */
         Provider = 9,
 
@@ -502,22 +506,22 @@ export declare namespace ContentLauncher {
 
         /**
          * Video represents the identifying data for a specific piece of video content; for example, "Manchester by the
-         * Sea".
+         * Sea"
          */
         Video = 13,
 
         /**
-         * Season represents the specific season number within a TV series.
+         * Season represents the specific season number within a TV series
          */
         Season = 14,
 
         /**
-         * Episode represents a specific episode number within a Season in a TV series.
+         * Episode represents a specific episode number within a Season in a TV series
          */
         Episode = 15,
 
         /**
-         * Represents a search text input across many parameter types or even outside of the defined param types.
+         * Represents a search text input across many parameter types or even outside of the defined param types
          */
         Any = 16
     }
@@ -661,8 +665,8 @@ export declare namespace ContentLauncher {
 
         /**
          * This field shall indicate the URL of image used for Styling different Video Player sections like Logo,
-         * Watermark etc. The syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the
-         * https scheme.
+         * Watermark etc. The syntax of this field shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and
+         * shall use the https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.7.5.9.1
          */
@@ -794,8 +798,8 @@ export declare namespace ContentLauncher {
         constructor(values?: Partial<TrackPreference>);
 
         /**
-         * This field shall contain one of the standard Tags for Identifying Languages RFC 5646, which identifies the
-         * primary language used in the Track.
+         * This field shall contain one of the standard Tags for Identifying Languages [[RFC5646]](#ref_Rfc5646), which
+         * identifies the primary language used in the Track.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.7.5.12.1
          */

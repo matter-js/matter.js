@@ -22,7 +22,9 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§9.8.6.1",
 
-            details: "At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the " +
+            details: "Indicates the list of supported modes." +
+                "\n" +
+                "At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the " +
                 "ModeTags field." +
                 "\n" +
                 "At least one entry in the SupportedModes attribute shall include the LocalOptimization mode tag in " +

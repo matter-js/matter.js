@@ -219,7 +219,7 @@ export declare namespace OtaSoftwareUpdateProvider {
 
         /**
          * This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Software Image. The
-         * syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986.
+         * syntax of the ImageURI field shall follow the URI syntax as specified in [[RFC3986]](#ref_Rfc3986).
          *
          * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
          * "QueryImageResponse Command".
@@ -552,8 +552,8 @@ export declare namespace OtaSoftwareUpdateProvider {
     }
 
     /**
-     * Note that only HTTP over TLS (HTTPS) is supported (see RFC 7230). Using HTTP without TLS shall NOT be supported,
-     * as there is no way to authenticate the involved participants.
+     * Note that only HTTP over TLS (HTTPS) is supported (see [[RFC7230]](#ref_Rfc7230)). Using HTTP without TLS shall
+     * NOT be supported, as there is no way to authenticate the involved participants.
      *
      * > [!NOTE]
      *

@@ -47,6 +47,8 @@ export declare namespace UserLabel {
      */
     export interface BaseAttributes {
         /**
+         * Indicates a list of user defined string tuples.
+         *
          * The server shall support the storage of up to 4 list entries in this attribute. The server may support the
          * storage of more than 4 entries in this attribute.
          *
@@ -67,6 +69,8 @@ export declare namespace UserLabel {
      */
     export interface Attributes {
         /**
+         * Indicates a list of user defined string tuples.
+         *
          * The server shall support the storage of up to 4 list entries in this attribute. The server may support the
          * storage of more than 4 entries in this attribute.
          *

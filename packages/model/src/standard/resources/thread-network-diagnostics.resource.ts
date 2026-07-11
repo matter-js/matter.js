@@ -23,20 +23,20 @@ Resource.add({
                 {
                     tag: "field", name: "PKTCNT",
                     details: "Server supports the counts for the number of received and transmitted packets on the Thread " +
-                        "interface."
+                        "interface"
                 },
                 {
                     tag: "field", name: "ERRCNT",
                     details: "Server supports the counts for the number of errors that have occurred during the reception and " +
-                        "transmission of packets on the Thread interface."
+                        "transmission of packets on the Thread interface"
                 },
                 {
                     tag: "field", name: "MLECNT",
-                    details: "Server supports the counts for various MLE layer happenings."
+                    details: "Server supports the counts for various MLE layer happenings"
                 },
                 {
                     tag: "field", name: "MACCNT",
-                    details: "Server supports the counts for various MAC layer happenings."
+                    details: "Server supports the counts for various MAC layer happenings"
                 }
             ]
         },
@@ -386,15 +386,17 @@ Resource.add({
 
         {
             tag: "attribute", name: "ActiveTimestamp", xref: "core§11.14.6.57",
-            details: "Null when there is no dataset configured."
+            details: "Indicates the timestamp of the currently active operational dataset. Null when there is no dataset " +
+                "configured."
         },
         {
             tag: "attribute", name: "PendingTimestamp", xref: "core§11.14.6.58",
-            details: "Null when there is no dataset configured."
+            details: "Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset " +
+                "configured."
         },
         {
             tag: "attribute", name: "Delay", xref: "core§11.14.6.59",
-            details: "Null when there is no dataset configured."
+            details: "Indicates the delay value of the operational dataset. Null when there is no dataset configured."
         },
         {
             tag: "attribute", name: "SecurityPolicy", xref: "core§11.14.6.60",

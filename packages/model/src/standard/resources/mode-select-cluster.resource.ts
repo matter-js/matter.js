@@ -44,7 +44,7 @@ Resource.add({
         {
             tag: "attribute", name: "Description", xref: "cluster§1.9.6.1",
 
-            details: "This attribute describes the purpose of the server, in readable text." +
+            details: "Indicates the purpose of the server, in readable text." +
                 "\n" +
                 "For example, a coffee machine may have a Mode Select cluster for the amount of milk to add, and " +
                 "another Mode Select cluster for the amount of sugar to add. In this case, the first instance can " +
@@ -54,23 +54,22 @@ Resource.add({
 
         {
             tag: "attribute", name: "StandardNamespace", xref: "cluster§1.9.6.2",
-            details: "This attribute, when not null, shall indicate a single standard namespace for any standard semantic " +
-                "tag value supported in this or any other cluster instance with the same value of this attribute. A " +
-                "null value indicates no standard namespace, and therefore, no standard semantic tags are provided in " +
-                "this cluster instance. Each standard namespace and corresponding values and value meanings shall be " +
-                "defined in another document."
+            details: "Indicates the standard namespace for any standard semantic tag value supported in this or any other " +
+                "cluster instance with the same value of this attribute. A null value indicates no standard " +
+                "namespace, and therefore, no standard semantic tags are provided in this cluster instance. Each " +
+                "standard namespace and corresponding values and value meanings shall be defined in another document."
         },
 
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§1.9.6.3",
-            details: "This attribute is the list of supported modes that may be selected for the CurrentMode attribute. " +
-                "Each item in this list represents a unique mode as indicated by the Mode field of the " +
-                "ModeOptionStruct. Each entry in this list shall have a unique value for the Mode field."
+            details: "Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item " +
+                "in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each " +
+                "entry in this list shall have a unique value for the Mode field."
         },
 
         {
             tag: "attribute", name: "CurrentMode", xref: "cluster§1.9.6.4",
-            details: "This attribute represents the current mode of the server." +
+            details: "Indicates the current mode of the server." +
                 "\n" +
                 "The value of this field must match the Mode field of one of the entries in the SupportedModes " +
                 "attribute."
@@ -79,8 +78,7 @@ Resource.add({
         {
             tag: "attribute", name: "StartUpMode", xref: "cluster§1.9.6.5",
 
-            details: "The StartUpMode attribute value indicates the desired startup mode for the server when it is " +
-                "supplied with power." +
+            details: "Indicates the desired startup mode for the server when it is supplied with power." +
                 "\n" +
                 "If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when " +
                 "the server is powered up, except in the case when the OnMode attribute overrides the StartUpMode " +

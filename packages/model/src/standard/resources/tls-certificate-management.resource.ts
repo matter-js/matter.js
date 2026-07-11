@@ -153,7 +153,8 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Csr", xref: "core§14.4.6.9.2",
-                    details: "This field shall be a DER-encoded octet string of a PKCS #10 format Certificate Signing Request."
+                    details: "This field shall be a DER-encoded octet string of a PKCS #10 [[RFC2986]](#ref_Rfc2986) format " +
+                        "Certificate Signing Request."
                 },
                 {
                     tag: "field", name: "NonceSignature", xref: "core§14.4.6.9.3",

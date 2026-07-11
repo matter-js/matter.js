@@ -24,7 +24,7 @@ Resource.add({
             tag: "attribute", name: "FeatureMap", xref: "core§11.4.4",
             children: [{
                 tag: "field", name: "CALFMT",
-                details: "The Node can be configured to use different calendar formats when conveying values to a user."
+                details: "The Node can be configured to use different calendar formats when conveying values to a user"
             }]
         },
 

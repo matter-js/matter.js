@@ -20,14 +20,14 @@ Resource.add({
             tag: "attribute", name: "FeatureMap", xref: "core§11.13.4",
             children: [{
                 tag: "field", name: "WTRMRK",
-                details: "Node makes available the metrics for high watermark related to memory consumption."
+                details: "Node makes available the metrics for high watermark related to memory consumption"
             }]
         },
 
         {
             tag: "attribute", name: "ThreadMetrics", xref: "core§11.13.6.1",
-            details: "This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall " +
-                "be represented by a single entry within the ThreadMetrics attribute."
+            details: "Indicates a list of thread metrics. Each active thread on the Node shall be represented by a single " +
+                "entry in the list."
         },
         {
             tag: "attribute", name: "CurrentHeapFree", xref: "core§11.13.6.2",

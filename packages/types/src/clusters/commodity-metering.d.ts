@@ -47,16 +47,16 @@ export declare namespace CommodityMetering {
      */
     export interface BaseAttributes {
         /**
-         * The most recent summed value of a commodity delivered to and consumed in the premises. A null value indicates
-         * that metering data is currently unavailable.
+         * Indicates the most recent summed value of a commodity delivered to and consumed in the premises. A null value
+         * indicates that metering data is currently unavailable.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.11.5.1
          */
         meteredQuantity: MeteredQuantity[] | null;
 
         /**
-         * The timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null value
-         * indicates that metering data is currently unavailable.
+         * Indicates the timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null
+         * value indicates that metering data is currently unavailable.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.11.5.2
          */
@@ -84,16 +84,16 @@ export declare namespace CommodityMetering {
      */
     export interface Attributes {
         /**
-         * The most recent summed value of a commodity delivered to and consumed in the premises. A null value indicates
-         * that metering data is currently unavailable.
+         * Indicates the most recent summed value of a commodity delivered to and consumed in the premises. A null value
+         * indicates that metering data is currently unavailable.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.11.5.1
          */
         meteredQuantity: MeteredQuantity[] | null;
 
         /**
-         * The timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null value
-         * indicates that metering data is currently unavailable.
+         * Indicates the timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null
+         * value indicates that metering data is currently unavailable.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.11.5.2
          */

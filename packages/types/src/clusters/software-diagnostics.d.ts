@@ -48,8 +48,8 @@ export declare namespace SoftwareDiagnostics {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
-         * represented by a single entry within the ThreadMetrics attribute.
+         * Indicates a list of thread metrics. Each active thread on the Node shall be represented by a single entry in
+         * the list.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.13.6.1
          */
@@ -92,8 +92,8 @@ export declare namespace SoftwareDiagnostics {
      */
     export interface Attributes {
         /**
-         * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
-         * represented by a single entry within the ThreadMetrics attribute.
+         * Indicates a list of thread metrics. Each active thread on the Node shall be represented by a single entry in
+         * the list.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.13.6.1
          */
@@ -188,7 +188,7 @@ export declare namespace SoftwareDiagnostics {
         /**
          * Watermarks (WTRMRK)
          *
-         * Node makes available the metrics for high watermark related to memory consumption.
+         * Node makes available the metrics for high watermark related to memory consumption
          */
         Watermarks = "Watermarks"
     }

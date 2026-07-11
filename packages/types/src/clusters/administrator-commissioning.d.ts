@@ -88,9 +88,9 @@ export declare namespace AdministratorCommissioning {
         windowStatus: CommissioningWindowStatus;
 
         /**
-         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the FabricIndex
-         * associated with the Fabric scoping of the Administrator that opened the window. This may be used to
-         * cross-reference in the Fabrics attribute of the Operational Credentials cluster.
+         * Indicates the FabricIndex associated with the Fabric scoping of the Administrator that opened the window,
+         * when the WindowStatus attribute is not set to WindowNotOpen. This may be used to cross-reference in the
+         * Fabrics attribute of the Operational Credentials cluster.
          *
          * If, during an open commissioning window, the fabric for the Administrator that opened the window is removed,
          * then this attribute shall be set to null.
@@ -102,11 +102,11 @@ export declare namespace AdministratorCommissioning {
         adminFabricIndex: FabricIndex | null;
 
         /**
-         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
-         * associated with the Fabric scoping of the Administrator that opened the window. This field shall match the
-         * VendorID field of the Fabrics attribute list entry associated with the Administrator having opened the
-         * window, at the time of window opening. If the fabric for the Administrator that opened the window is removed
-         * from the node while the commissioning window is still open, this attribute shall NOT be updated.
+         * Indicates the Vendor ID associated with the Fabric scoping of the Administrator that opened the window, when
+         * the WindowStatus attribute is not set to WindowNotOpen. This field shall match the VendorID field of the
+         * Fabrics attribute list entry associated with the Administrator having opened the window, at the time of
+         * window opening. If the fabric for the Administrator that opened the window is removed from the node while the
+         * commissioning window is still open, this attribute shall NOT be updated.
          *
          * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
          *
@@ -139,9 +139,9 @@ export declare namespace AdministratorCommissioning {
         windowStatus: CommissioningWindowStatus;
 
         /**
-         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the FabricIndex
-         * associated with the Fabric scoping of the Administrator that opened the window. This may be used to
-         * cross-reference in the Fabrics attribute of the Operational Credentials cluster.
+         * Indicates the FabricIndex associated with the Fabric scoping of the Administrator that opened the window,
+         * when the WindowStatus attribute is not set to WindowNotOpen. This may be used to cross-reference in the
+         * Fabrics attribute of the Operational Credentials cluster.
          *
          * If, during an open commissioning window, the fabric for the Administrator that opened the window is removed,
          * then this attribute shall be set to null.
@@ -153,11 +153,11 @@ export declare namespace AdministratorCommissioning {
         adminFabricIndex: FabricIndex | null;
 
         /**
-         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
-         * associated with the Fabric scoping of the Administrator that opened the window. This field shall match the
-         * VendorID field of the Fabrics attribute list entry associated with the Administrator having opened the
-         * window, at the time of window opening. If the fabric for the Administrator that opened the window is removed
-         * from the node while the commissioning window is still open, this attribute shall NOT be updated.
+         * Indicates the Vendor ID associated with the Fabric scoping of the Administrator that opened the window, when
+         * the WindowStatus attribute is not set to WindowNotOpen. This field shall match the VendorID field of the
+         * Fabrics attribute list entry associated with the Administrator having opened the window, at the time of
+         * window opening. If the fabric for the Administrator that opened the window is removed from the node while the
+         * commissioning window is still open, this attribute shall NOT be updated.
          *
          * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
          *
@@ -267,7 +267,7 @@ export declare namespace AdministratorCommissioning {
         /**
          * Basic (BC)
          *
-         * Node supports Basic Commissioning Method.
+         * Node supports Basic Commissioning Method
          */
         Basic = "Basic"
     }

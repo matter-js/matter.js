@@ -76,10 +76,9 @@ export declare namespace OperationalState {
         phaseList: string[] | null;
 
         /**
-         * This attribute represents the current phase of operation being performed by the server. This shall be the
-         * positional index representing the value from the set provided in the PhaseList Attribute, where the first
-         * item in that list is an index of 0. Thus, this attribute shall have a maximum value that is
-         * "length(PhaseList) - 1".
+         * Indicates the current phase of operation being performed by the server. This shall be the positional index
+         * representing the value from the set provided in the PhaseList Attribute, where the first item in that list is
+         * an index of 0. Thus, this attribute shall have a maximum value that is "length(PhaseList) - 1".
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
@@ -88,9 +87,9 @@ export declare namespace OperationalState {
         currentPhase: number | null;
 
         /**
-         * This attribute describes the set of possible operational states that the device exposes. An operational state
-         * is a fundamental device state such as Running or Error. Details of the phase of a device when, for example,
-         * in a state of Running are provided by the CurrentPhase attribute.
+         * Indicates the set of possible operational states that the device exposes. An operational state is a
+         * fundamental device state such as Running or Error. Details of the phase of a device when, for example, in a
+         * state of Running are provided by the CurrentPhase attribute.
          *
          * All devices shall, at a minimum, expose the set of states matching the commands that are also supported by
          * the cluster instance, in addition to Error. The set of possible device states are defined in the
@@ -102,17 +101,17 @@ export declare namespace OperationalState {
         operationalStateList: OperationalStateStruct[];
 
         /**
-         * This attribute specifies the current operational state of a device. This shall be populated with a valid
-         * OperationalStateID from the set of values in the OperationalStateList Attribute.
+         * Indicates the current operational state of a device. This shall be populated with a valid OperationalStateID
+         * from the set of values in the OperationalStateList Attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.5
          */
         operationalState: OperationalStateEnum;
 
         /**
-         * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
-         * general requirements on the population of this attribute.
+         * Indicates the details of any current error condition being experienced on the device when the
+         * OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for general
+         * requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
@@ -174,10 +173,9 @@ export declare namespace OperationalState {
         phaseList: string[] | null;
 
         /**
-         * This attribute represents the current phase of operation being performed by the server. This shall be the
-         * positional index representing the value from the set provided in the PhaseList Attribute, where the first
-         * item in that list is an index of 0. Thus, this attribute shall have a maximum value that is
-         * "length(PhaseList) - 1".
+         * Indicates the current phase of operation being performed by the server. This shall be the positional index
+         * representing the value from the set provided in the PhaseList Attribute, where the first item in that list is
+         * an index of 0. Thus, this attribute shall have a maximum value that is "length(PhaseList) - 1".
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
@@ -186,9 +184,9 @@ export declare namespace OperationalState {
         currentPhase: number | null;
 
         /**
-         * This attribute describes the set of possible operational states that the device exposes. An operational state
-         * is a fundamental device state such as Running or Error. Details of the phase of a device when, for example,
-         * in a state of Running are provided by the CurrentPhase attribute.
+         * Indicates the set of possible operational states that the device exposes. An operational state is a
+         * fundamental device state such as Running or Error. Details of the phase of a device when, for example, in a
+         * state of Running are provided by the CurrentPhase attribute.
          *
          * All devices shall, at a minimum, expose the set of states matching the commands that are also supported by
          * the cluster instance, in addition to Error. The set of possible device states are defined in the
@@ -200,17 +198,17 @@ export declare namespace OperationalState {
         operationalStateList: OperationalStateStruct[];
 
         /**
-         * This attribute specifies the current operational state of a device. This shall be populated with a valid
-         * OperationalStateID from the set of values in the OperationalStateList Attribute.
+         * Indicates the current operational state of a device. This shall be populated with a valid OperationalStateID
+         * from the set of values in the OperationalStateList Attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.14.5.5
          */
         operationalState: OperationalStateEnum;
 
         /**
-         * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
-         * general requirements on the population of this attribute.
+         * Indicates the details of any current error condition being experienced on the device when the
+         * OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for general
+         * requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *

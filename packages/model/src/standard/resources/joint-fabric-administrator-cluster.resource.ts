@@ -35,8 +35,8 @@ Resource.add({
                 "Check ICAC Cross Signing for details about the generation of the ICACCSR.",
             children: [{
                 tag: "field", name: "Icaccsr", xref: "core§11.25.6.2.1",
-                details: "This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing " +
-                    "Request (CSR)."
+                details: "This field shall be a DER-encoded octet string of a properly encoded PKCS #10 " +
+                    "[[RFC2986]](#ref_Rfc2986) Certificate Signing Request (CSR)."
             }]
         },
 

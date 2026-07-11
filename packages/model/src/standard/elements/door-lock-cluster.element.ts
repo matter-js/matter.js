@@ -624,16 +624,6 @@ export const DoorLock = Cluster(
     ),
 
     Datatype(
-        { name: "AlarmMaskBitmap", type: "map16" },
-        Field({ name: "LockJammed", constraint: "0" }),
-        Field({ name: "LockFactoryReset", constraint: "1" }),
-        Field({ name: "LockRadioPowerCycled", constraint: "3" }),
-        Field({ name: "WrongCodeEntryLimit", constraint: "4" }),
-        Field({ name: "FrontEscutcheonRemoved", constraint: "5" }),
-        Field({ name: "DoorForcedOpen", constraint: "6" })
-    ),
-
-    Datatype(
         { name: "AlarmCodeEnum", type: "enum8" },
         Field({ name: "LockJammed", id: 0x0, conformance: "M" }),
         Field({ name: "LockFactoryReset", id: 0x1, conformance: "O" }),

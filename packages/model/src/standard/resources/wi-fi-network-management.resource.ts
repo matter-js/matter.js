@@ -35,8 +35,8 @@ Resource.add({
         {
             tag: "attribute", name: "PassphraseSurrogate", xref: "cluster§10.2.4.2",
 
-            details: "This attribute shall contain an arbitrary numeric value; this value shall increase whenever the " +
-                "passphrase or PSK associated with the primary Wi-Fi network provided by this device changes." +
+            details: "Indicates an arbitrary numeric value; this value shall increase whenever the passphrase or PSK " +
+                "associated with the primary Wi-Fi network provided by this device changes." +
                 "\n" +
                 "A value of null shall indicate that no primary Wi-Fi network is available." +
                 "\n" +

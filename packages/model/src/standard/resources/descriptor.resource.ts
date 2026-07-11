@@ -48,7 +48,7 @@ Resource.add({
         {
             tag: "attribute", name: "DeviceTypeList", xref: "core§9.5.6.1",
 
-            details: "This is a list of device types and corresponding revisions declaring endpoint conformance (see " +
+            details: "Indicates a list of device types and corresponding revisions declaring endpoint conformance (see " +
                 "Section 9.5.5.1, \"DeviceTypeStruct Type\"). At least one device type entry shall be present." +
                 "\n" +
                 "An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that " +
@@ -58,17 +58,19 @@ Resource.add({
 
         {
             tag: "attribute", name: "ServerList", xref: "core§9.5.6.2",
-            details: "This attribute shall list each cluster ID for the server clusters present on the endpoint instance."
+            details: "Indicates a list containing each cluster ID for the server clusters present on the endpoint " +
+                "instance."
         },
         {
             tag: "attribute", name: "ClientList", xref: "core§9.5.6.3",
-            details: "This attribute shall list each cluster ID for the client clusters present on the endpoint instance."
+            details: "Indicates a list containing each cluster ID for the client clusters present on the endpoint " +
+                "instance."
         },
 
         {
             tag: "attribute", name: "PartsList", xref: "core§9.5.6.4",
-            details: "This attribute indicates composition of the device type instance. Device type instance composition " +
-                "shall include the endpoints in this list." +
+            details: "Indicates composition of the device type instance. Device type instance composition shall include " +
+                "the endpoints in this list." +
                 "\n" +
                 "See Endpoint Composition for more information about which endpoints to include in this list."
         },
@@ -76,10 +78,11 @@ Resource.add({
         {
             tag: "attribute", name: "TagList", xref: "core§9.5.6.5",
 
-            details: "This attribute shall be used to disambiguate sibling endpoints in certain situations, as defined in " +
-                "the Disambiguation section in the System Model specification. An example of such a situation might " +
-                "be a device with two buttons, with this attribute being used to indicate which of the two endpoints " +
-                "corresponds to the button on the left side." +
+            details: "Indicates a list of tags associated with the endpoint instance and shall be used to disambiguate " +
+                "sibling endpoints in certain situations, as defined in the Disambiguation section in the System " +
+                "Model specification. An example of such a situation might be a device with two buttons, with this " +
+                "attribute being used to indicate which of the two endpoints corresponds to the button on the left " +
+                "side." +
                 "\n" +
                 "It may also be used to provide information about an endpoint (e.g. the relative location of a " +
                 "Temperature sensor in a Temperature Controlled Cabinet)." +

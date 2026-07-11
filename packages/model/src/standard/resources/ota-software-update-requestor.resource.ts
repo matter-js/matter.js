@@ -16,7 +16,7 @@ Resource.add({
         {
             tag: "attribute", name: "DefaultOtaProviders", xref: "core§11.20.7.5.1",
 
-            details: "This field is a list of ProviderLocation whose entries shall be set by Administrators, either during " +
+            details: "Indicates a list of ProviderLocation whose entries shall be set by Administrators, either during " +
                 "Commissioning or at a later time, to set the ProviderLocation for the default OTA Provider Node to " +
                 "use for software updates on a given Fabric." +
                 "\n" +
@@ -29,33 +29,36 @@ Resource.add({
 
         {
             tag: "attribute", name: "UpdatePossible", xref: "core§11.20.7.5.2",
-            details: "This field shall be set to True if the OTA Requestor is currently able to be updated. Otherwise, it " +
-                "shall be set to False in case of any condition preventing update being possible, such as " +
-                "insufficient capacity of an internal battery. This field is merely informational for diagnostics " +
-                "purposes and shall NOT affect the responses provided by an OTA Provider to an OTA Requestor."
+
+            details: "Indicates whether the OTA Requestor is currently able to be updated." +
+                "\n" +
+                "The attribute shall be set to True if update is possible. Otherwise, it shall be set to False in " +
+                "case of any condition preventing update being possible, such as insufficient capacity of an internal " +
+                "battery. This field is merely informational for diagnostics purposes and shall NOT affect the " +
+                "responses provided by an OTA Provider to an OTA Requestor."
         },
 
         {
             tag: "attribute", name: "UpdateState", xref: "core§11.20.7.5.3",
-            details: "This field shall reflect the current state of the OTA Requestor with regards to obtaining software " +
-                "updates. See Section 11.20.7.4.2, \"UpdateStateEnum Type\" for possible values." +
+            details: "Indicates the current state of the OTA Requestor with regards to obtaining software updates. See " +
+                "Section 11.20.7.4.2, \"UpdateStateEnum Type\" for possible values." +
                 "\n" +
-                "This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates."
+                "This attribute SHOULD be updated in a timely manner whenever OTA Requestor internal state updates."
         },
 
         {
             tag: "attribute", name: "UpdateStateProgress", xref: "core§11.20.7.5.4",
 
-            details: "This field shall reflect the percentage value of progress, relative to the current UpdateState, if " +
-                "applicable to the state." +
+            details: "Indicates the percentage value of progress, relative to the current UpdateState, if applicable to " +
+                "the state." +
                 "\n" +
                 "The value of this field shall be null if a progress indication does not apply to the current state." +
                 "\n" +
                 "A value of 0 shall indicate that the beginning has occurred. A value of 100 shall indicate " +
                 "completion." +
                 "\n" +
-                "This field may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting " +
-                "progress when this attribute is part of a subscription."
+                "This attribute may be updated infrequently. Some care SHOULD be taken by Nodes to avoid " +
+                "over-reporting progress when this attribute is part of a subscription."
         },
 
         {
@@ -204,7 +207,7 @@ Resource.add({
 
                 {
                     tag: "field", name: "UpdateAvailable",
-                    description: "An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image MAY be available.",
+                    description: "An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image MAY be available",
                     xref: "core§11.20.7.4.1.2",
                     details: "An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software " +
                         "Image may be available. The details may only be obtained by executing a OTA Software Update Query " +

@@ -201,21 +201,23 @@ export declare namespace ThreadNetworkDiagnostics {
         rloc16: number | null;
 
         /**
-         * Null when there is no dataset configured.
+         * Indicates the timestamp of the currently active operational dataset. Null when there is no dataset
+         * configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
          */
         activeTimestamp?: number | bigint | null;
 
         /**
-         * Null when there is no dataset configured.
+         * Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset
+         * configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.58
          */
         pendingTimestamp?: number | bigint | null;
 
         /**
-         * Null when there is no dataset configured.
+         * Indicates the delay value of the operational dataset. Null when there is no dataset configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
          */
@@ -761,21 +763,23 @@ export declare namespace ThreadNetworkDiagnostics {
         rloc16: number | null;
 
         /**
-         * Null when there is no dataset configured.
+         * Indicates the timestamp of the currently active operational dataset. Null when there is no dataset
+         * configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.57
          */
         activeTimestamp: number | bigint | null;
 
         /**
-         * Null when there is no dataset configured.
+         * Indicates the timestamp of the currently pending operational dataset. Null when there is no dataset
+         * configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.58
          */
         pendingTimestamp: number | bigint | null;
 
         /**
-         * Null when there is no dataset configured.
+         * Indicates the delay value of the operational dataset. Null when there is no dataset configured.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.14.6.59
          */
@@ -1229,7 +1233,7 @@ export declare namespace ThreadNetworkDiagnostics {
         /**
          * PacketCounts (PKTCNT)
          *
-         * Server supports the counts for the number of received and transmitted packets on the Thread interface.
+         * Server supports the counts for the number of received and transmitted packets on the Thread interface
          */
         PacketCounts = "PacketCounts",
 
@@ -1237,21 +1241,21 @@ export declare namespace ThreadNetworkDiagnostics {
          * ErrorCounts (ERRCNT)
          *
          * Server supports the counts for the number of errors that have occurred during the reception and transmission
-         * of packets on the Thread interface.
+         * of packets on the Thread interface
          */
         ErrorCounts = "ErrorCounts",
 
         /**
          * MleCounts (MLECNT)
          *
-         * Server supports the counts for various MLE layer happenings.
+         * Server supports the counts for various MLE layer happenings
          */
         MleCounts = "MleCounts",
 
         /**
          * MacCounts (MACCNT)
          *
-         * Server supports the counts for various MAC layer happenings.
+         * Server supports the counts for various MAC layer happenings
          */
         MacCounts = "MacCounts"
     }

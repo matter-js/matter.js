@@ -65,8 +65,8 @@ export declare namespace TemperatureMeasurement {
         minMeasuredValue: number | null;
 
         /**
-         * This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See Measured
-         * Value for more details.
+         * Indicates the maximum value of MeasuredValue that is capable of being measured. See Measured Value for more
+         * details.
          *
          * The null value indicates that the value is not available.
          *
@@ -75,7 +75,7 @@ export declare namespace TemperatureMeasurement {
         maxMeasuredValue: number | null;
 
         /**
-         * See Measured Value.
+         * Indicates the tolerance of the measurement. For further details, see Measured Value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.4
          */
@@ -108,8 +108,8 @@ export declare namespace TemperatureMeasurement {
         minMeasuredValue: number | null;
 
         /**
-         * This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See Measured
-         * Value for more details.
+         * Indicates the maximum value of MeasuredValue that is capable of being measured. See Measured Value for more
+         * details.
          *
          * The null value indicates that the value is not available.
          *
@@ -118,7 +118,7 @@ export declare namespace TemperatureMeasurement {
         maxMeasuredValue: number | null;
 
         /**
-         * See Measured Value.
+         * Indicates the tolerance of the measurement. For further details, see Measured Value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.3.4.4
          */

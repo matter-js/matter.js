@@ -76,7 +76,7 @@ export declare namespace FlowMeasurement {
         maxMeasuredValue: number | null;
 
         /**
-         * See Measured Value.
+         * Indicates the tolerance of the measurement. For further details, see Measured Value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.5.4.4
          */
@@ -120,7 +120,7 @@ export declare namespace FlowMeasurement {
         maxMeasuredValue: number | null;
 
         /**
-         * See Measured Value.
+         * Indicates the tolerance of the measurement. For further details, see Measured Value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.5.4.4
          */

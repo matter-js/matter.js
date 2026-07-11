@@ -58,8 +58,8 @@ export declare namespace TimeSynchronization {
      */
     export interface BaseAttributes {
         /**
-         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
-         * epoch-us (Epoch Time in Microseconds).
+         * Indicates the current time, if the node has achieved time synchronization, as a UTC epoch-us (Epoch Time in
+         * Microseconds).
          *
          * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
          * when a SetUTCTime is received.
@@ -120,8 +120,8 @@ export declare namespace TimeSynchronization {
          * default IANA assigned NTP port of 123 shall be used to access the NTP server.
          *
          * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
-         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
-         * NOT contain a port number.
+         * format, as specified in [[RFC5952]](#ref_Rfc5952). The address format shall follow the recommendations in
+         * Section 4 and shall NOT contain a port number.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.17.8.5
          */
@@ -141,10 +141,10 @@ export declare namespace TimeSynchronization {
      */
     export interface TimeZoneAttributes {
         /**
-         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
-         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
-         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
-         * "DSTOffset Attribute" for daylight savings time).
+         * Indicates a list of time zone offsets from UTC and when they shall take effect. This attribute uses a list of
+         * time offset configurations to allow Nodes to handle scheduled regulatory time zone changes. This attribute
+         * shall NOT be used to indicate daylight savings time changes (see DSTOffset Attribute for daylight savings
+         * time).
          *
          * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
          * time.
@@ -175,7 +175,7 @@ export declare namespace TimeSynchronization {
         timeZone: TimeZone[];
 
         /**
-         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
+         * Indicates a list of offsets to apply for daylight savings time, and their validity period.
          *
          * List entries shall be sorted by ValidStarting time.
          *
@@ -238,7 +238,8 @@ export declare namespace TimeSynchronization {
      */
     export interface NtpServerAttributes {
         /**
-         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
+         * Indicates if the node is running an [[RFC5905]](#ref_Rfc5905) NTPv4 compliant server on port 123, this value
+         * shall be True.
          *
          * If the node is not currently running an NTP server, this value shall be False.
          *
@@ -255,8 +256,8 @@ export declare namespace TimeSynchronization {
      */
     export interface Attributes {
         /**
-         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
-         * epoch-us (Epoch Time in Microseconds).
+         * Indicates the current time, if the node has achieved time synchronization, as a UTC epoch-us (Epoch Time in
+         * Microseconds).
          *
          * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
          * when a SetUTCTime is received.
@@ -307,8 +308,8 @@ export declare namespace TimeSynchronization {
          * default IANA assigned NTP port of 123 shall be used to access the NTP server.
          *
          * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
-         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
-         * NOT contain a port number.
+         * format, as specified in [[RFC5952]](#ref_Rfc5952). The address format shall follow the recommendations in
+         * Section 4 and shall NOT contain a port number.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.17.8.5
          */
@@ -323,10 +324,10 @@ export declare namespace TimeSynchronization {
         supportsDnsResolve: boolean;
 
         /**
-         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
-         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
-         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
-         * "DSTOffset Attribute" for daylight savings time).
+         * Indicates a list of time zone offsets from UTC and when they shall take effect. This attribute uses a list of
+         * time offset configurations to allow Nodes to handle scheduled regulatory time zone changes. This attribute
+         * shall NOT be used to indicate daylight savings time changes (see DSTOffset Attribute for daylight savings
+         * time).
          *
          * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
          * time.
@@ -357,7 +358,7 @@ export declare namespace TimeSynchronization {
         timeZone: TimeZone[];
 
         /**
-         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
+         * Indicates a list of offsets to apply for daylight savings time, and their validity period.
          *
          * List entries shall be sorted by ValidStarting time.
          *
@@ -415,7 +416,8 @@ export declare namespace TimeSynchronization {
         dstOffsetListMaxSize: number;
 
         /**
-         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
+         * Indicates if the node is running an [[RFC5905]](#ref_Rfc5905) NTPv4 compliant server on port 123, this value
+         * shall be True.
          *
          * If the node is not currently running an NTP server, this value shall be False.
          *

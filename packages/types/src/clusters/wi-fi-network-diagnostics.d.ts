@@ -370,7 +370,7 @@ export declare namespace WiFiNetworkDiagnostics {
         /**
          * PacketCounts (PKTCNT)
          *
-         * Node makes available the counts for the number of received and transmitted packets on the Wi-Fi interface.
+         * Node makes available the counts for the number of received and transmitted packets on the Wi-Fi interface
          */
         PacketCounts = "PacketCounts",
 
@@ -378,7 +378,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * ErrorCounts (ERRCNT)
          *
          * Node makes available the counts for the number of errors that have occurred during the reception and
-         * transmission of packets on the Wi-Fi interface.
+         * transmission of packets on the Wi-Fi interface
          */
         ErrorCounts = "ErrorCounts"
     }

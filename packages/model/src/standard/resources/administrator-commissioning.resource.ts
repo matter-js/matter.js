@@ -39,7 +39,7 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "FeatureMap", xref: "core§11.19.4",
-            children: [{ tag: "field", name: "BC", details: "Node supports Basic Commissioning Method." }]
+            children: [{ tag: "field", name: "BC", details: "Node supports Basic Commissioning Method" }]
         },
 
         {
@@ -60,9 +60,9 @@ Resource.add({
         {
             tag: "attribute", name: "AdminFabricIndex", xref: "core§11.19.7.2",
 
-            details: "When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the " +
-                "FabricIndex associated with the Fabric scoping of the Administrator that opened the window. This may " +
-                "be used to cross-reference in the Fabrics attribute of the Operational Credentials cluster." +
+            details: "Indicates the FabricIndex associated with the Fabric scoping of the Administrator that opened the " +
+                "window, when the WindowStatus attribute is not set to WindowNotOpen. This may be used to " +
+                "cross-reference in the Fabrics attribute of the Operational Credentials cluster." +
                 "\n" +
                 "If, during an open commissioning window, the fabric for the Administrator that opened the window is " +
                 "removed, then this attribute shall be set to null." +
@@ -73,12 +73,12 @@ Resource.add({
         {
             tag: "attribute", name: "AdminVendorId", xref: "core§11.19.7.3",
 
-            details: "When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the " +
-                "Vendor ID associated with the Fabric scoping of the Administrator that opened the window. This field " +
-                "shall match the VendorID field of the Fabrics attribute list entry associated with the Administrator " +
-                "having opened the window, at the time of window opening. If the fabric for the Administrator that " +
-                "opened the window is removed from the node while the commissioning window is still open, this " +
-                "attribute shall NOT be updated." +
+            details: "Indicates the Vendor ID associated with the Fabric scoping of the Administrator that opened the " +
+                "window, when the WindowStatus attribute is not set to WindowNotOpen. This field shall match the " +
+                "VendorID field of the Fabrics attribute list entry associated with the Administrator having opened " +
+                "the window, at the time of window opening. If the fabric for the Administrator that opened the " +
+                "window is removed from the node while the commissioning window is still open, this attribute shall " +
+                "NOT be updated." +
                 "\n" +
                 "When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null."
         },

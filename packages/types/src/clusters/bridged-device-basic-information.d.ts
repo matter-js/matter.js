@@ -71,14 +71,14 @@ export declare namespace BridgedDeviceBasicInformation {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall be used to indicate whether the bridged device is reachable by the bridge, so a Matter
-         * Node which wants to communicate with a bridged device can get an indication that this might fail (when the
-         * attribute is False). Determination of reachability might not be perfect (e.g. depending on technology
-         * employed), so the Matter Node SHOULD be aware of the risk of false positives and negatives on reachability
-         * determination. For example, a bridged device may be marked as unreachable while it could actually be reached,
-         * and vice-versa. Also, detection (and indication) that a bridged device is not longer reachable may be delayed
-         * due to the technique employed (e.g. detecting that a number of expected messages from the bridged device did
-         * not arrive). Also see event ReachableChanged below.
+         * Indicates whether the bridged device is reachable by the bridge, so a Matter Node which wants to communicate
+         * with a bridged device can get an indication that this might fail (when the attribute is False). Determination
+         * of reachability might not be perfect (e.g. depending on technology employed), so the Matter Node SHOULD be
+         * aware of the risk of false positives and negatives on reachability determination. For example, a bridged
+         * device may be marked as unreachable while it could actually be reached, and vice-versa. Also, detection (and
+         * indication) that a bridged device is not longer reachable may be delayed due to the technique employed (e.g.
+         * detecting that a number of expected messages from the bridged device did not arrive). Also see event
+         * ReachableChanged below.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.13.5.2
          */
@@ -155,6 +155,8 @@ export declare namespace BridgedDeviceBasicInformation {
         serialNumber?: string;
 
         /**
+         * Indicates a unique identifier for the bridged device.
+         *
          * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
          * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
          * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
@@ -174,8 +176,8 @@ export declare namespace BridgedDeviceBasicInformation {
         productAppearance?: BasicInformation.ProductAppearance;
 
         /**
-         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
-         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
+         * Indicates the current version number for the configuration of the bridged device. A larger value of
+         * ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
          * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
@@ -196,14 +198,14 @@ export declare namespace BridgedDeviceBasicInformation {
      */
     export interface Attributes {
         /**
-         * This attribute shall be used to indicate whether the bridged device is reachable by the bridge, so a Matter
-         * Node which wants to communicate with a bridged device can get an indication that this might fail (when the
-         * attribute is False). Determination of reachability might not be perfect (e.g. depending on technology
-         * employed), so the Matter Node SHOULD be aware of the risk of false positives and negatives on reachability
-         * determination. For example, a bridged device may be marked as unreachable while it could actually be reached,
-         * and vice-versa. Also, detection (and indication) that a bridged device is not longer reachable may be delayed
-         * due to the technique employed (e.g. detecting that a number of expected messages from the bridged device did
-         * not arrive). Also see event ReachableChanged below.
+         * Indicates whether the bridged device is reachable by the bridge, so a Matter Node which wants to communicate
+         * with a bridged device can get an indication that this might fail (when the attribute is False). Determination
+         * of reachability might not be perfect (e.g. depending on technology employed), so the Matter Node SHOULD be
+         * aware of the risk of false positives and negatives on reachability determination. For example, a bridged
+         * device may be marked as unreachable while it could actually be reached, and vice-versa. Also, detection (and
+         * indication) that a bridged device is not longer reachable may be delayed due to the technique employed (e.g.
+         * detecting that a number of expected messages from the bridged device did not arrive). Also see event
+         * ReachableChanged below.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.13.5.2
          */
@@ -280,6 +282,8 @@ export declare namespace BridgedDeviceBasicInformation {
         serialNumber: string;
 
         /**
+         * Indicates a unique identifier for the bridged device.
+         *
          * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
          * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
          * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
@@ -299,8 +303,8 @@ export declare namespace BridgedDeviceBasicInformation {
         productAppearance: BasicInformation.ProductAppearance;
 
         /**
-         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
-         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
+         * Indicates the current version number for the configuration of the bridged device. A larger value of
+         * ConfigurationVersion shall indicate a newer configuration than a lower value.
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
          * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as

@@ -26,6 +26,11 @@ const TEST_DEFINITIONS = [
     "WBL",
     "AX | WBL",
     "AX, WBL",
+
+    // Pipe "otherwise" list with a conjunction term (spec 1.6.1 feature conformance, e.g. AmbientContextSensing)
+    "HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD",
     "[WIRED]",
     "!AB",
     "!(LT | DF)",
@@ -71,6 +76,9 @@ const TEST_DEFINITIONS = [
 
 const TEST_DEFINITIONS2 = {
     "(AX | WBL)": "AX | WBL",
+    // Redundant parens around a conjunction term drop on serialization (& binds tighter than |)
+    "HA | OI | AUD | (OC & OI)": "HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD | (OC & OI)": "P, HA | OI | AUD | OC & OI",
     "[!(LT)]": "[!LT]",
     "!((LT | DF))": "!(LT | DF)",
     "RequiresEncodedPixels == True": "RequiresEncodedPixels == true",

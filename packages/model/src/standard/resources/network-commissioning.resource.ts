@@ -37,9 +37,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "MaxNetworks", xref: "core§11.9.6.1",
-            details: "This shall indicate the maximum number of network configuration entries that can be added, based on " +
-                "available device resources. The length of the Networks attribute shall be less than or equal to this " +
-                "value."
+            details: "Indicates the maximum number of network configuration entries that can be added, based on available " +
+                "device resources. The length of the Networks attribute shall be less than or equal to this value."
         },
 
         {
@@ -324,9 +323,6 @@ Resource.add({
                 "\n" +
                 "The Credentials associated with the network are not readable after execution of this command, as " +
                 "they do not appear in the Networks attribute, for security reasons." +
-                "\n" +
-                "If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a " +
-                "matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND." +
                 "\n" +
                 "See Section 11.9.7.5, \"Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork\" for " +
                 "behavior of addition/update.",

@@ -145,33 +145,29 @@ Resource.add({
             details: "Indicates the earliest valid position to which a client may seek back, in milliseconds from start of " +
                 "the media. A value of NULL shall indicate that seeking backwards is not allowed."
         },
-
         {
             tag: "attribute", name: "ActiveAudioTrack", xref: "cluster§6.10.6.8",
-            details: "ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value " +
-                "of null shall indicate that no Audio Track corresponding to the current media is currently being " +
-                "played."
+            details: "Indicates the Audio track currently set and being used for the streaming media. A value of null " +
+                "shall indicate that no Audio Track corresponding to the current media is currently being played."
         },
-
         {
             tag: "attribute", name: "AvailableAudioTracks", xref: "cluster§6.10.6.9",
-            details: "AvailableAudioTracks refers to the list of Audio tracks available for the current title being " +
-                "played. A value of null shall indicate that no Audio Tracks corresponding to the current media are " +
-                "selectable by the client."
+            details: "Indicates the list of Audio tracks available for the current title being played. A value of null " +
+                "shall indicate that no Audio Tracks corresponding to the current media are selectable by the client."
         },
 
         {
             tag: "attribute", name: "ActiveTextTrack", xref: "cluster§6.10.6.10",
-            details: "ActiveTrack refers to the Text track currently set and being used for the streaming media. This can " +
-                "be nil. A value of null shall indicate that no Text Track corresponding to the current media is " +
-                "currently being displayed."
+            details: "Indicates the Text track currently set and being used for the streaming media. This can be nil. A " +
+                "value of null shall indicate that no Text Track corresponding to the current media is currently " +
+                "being displayed."
         },
 
         {
             tag: "attribute", name: "AvailableTextTracks", xref: "cluster§6.10.6.11",
-            details: "AvailableTextTracks refers to the list of Text tracks available for the current title being played. " +
-                "This can be an empty list. A value of null shall indicate that no Text Tracks corresponding to the " +
-                "current media are selectable by the client."
+            details: "Indicates the list of Text tracks available for the current title being played. This can be an empty " +
+                "list. A value of null shall indicate that no Text Tracks corresponding to the current media are " +
+                "selectable by the client."
         },
 
         {
@@ -497,7 +493,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "NotAllowed",
-                    description: "Requested playback command is not allowed in the current playback state. For example, attempting to fast-forward during a commercial might return NotAllowed."
+                    description: "Requested playback command is not allowed in the current playback state For example, attempting to fast-forward during a commercial might return NotAllowed."
                 },
                 { tag: "field", name: "NotActive", description: "This endpoint is not active for playback." },
                 {
@@ -517,7 +513,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "ForcedSubtitles",
-                    description: "Textual information meant for display when no other text representation is selected. It is used to clarify dialogue, alternate languages, texted graphics or location/person IDs that are not otherwise covered in the dubbed/localized audio."
+                    description: "Textual information meant for display when no other text representation is selected. It is used to clarify dialogue, alternate languages, texted graphics or location/person IDs that are not otherwise covered in the dubbed/localized audio"
                 },
                 {
                     tag: "field", name: "DescribesVideo",
@@ -525,11 +521,11 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "EasyToRead",
-                    description: "Simplified or reduced captions as specified in [United States Code Title 47 CFR 79.103(c)(9)]."
+                    description: "Simplified or reduced captions as specified in [United States Code Title 47 CFR 79.103(c)(9)]"
                 },
                 {
                     tag: "field", name: "FrameBased",
-                    description: "A media characteristic that indicates that a track selection option includes frame-based content."
+                    description: "A media characteristic that indicates that a track selection option includes frame-based content"
                 },
                 {
                     tag: "field", name: "MainProgram",
@@ -537,24 +533,24 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "OriginalContent",
-                    description: "A media characteristic that indicates that a track or media selection option contains original content."
+                    description: "A media characteristic that indicates that a track or media selection option contains original content"
                 },
                 {
                     tag: "field", name: "VoiceOverTranslation",
-                    description: "A media characteristic that indicates that a track or media selection option contains a language translation and verbal interpretation of spoken dialog."
+                    description: "A media characteristic that indicates that a track or media selection option contains a language translation and verbal interpretation of spoken dialog"
                 },
                 {
                     tag: "field", name: "Caption",
-                    description: "Textual media component containing transcriptions of spoken dialog and auditory cues such as sound effects and music for the hearing impaired."
+                    description: "Textual media component containing transcriptions of spoken dialog and auditory cues such as sound effects and music for the hearing impaired"
                 },
                 { tag: "field", name: "Subtitle", description: "Textual transcriptions of spoken dialog." },
                 {
                     tag: "field", name: "Alternate",
-                    description: "Textual media component containing transcriptions of spoken dialog and auditory cues such as sound effects and music for the hearing impaired."
+                    description: "Textual media component containing transcriptions of spoken dialog and auditory cues such as sound effects and music for the hearing impaired"
                 },
                 {
                     tag: "field", name: "Supplementary",
-                    description: "Media content component that is supplementary to a media content component of a different media component type."
+                    description: "Media content component that is supplementary to a media content component of a different media component type"
                 },
                 {
                     tag: "field", name: "Commentary",
@@ -570,7 +566,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Metadata",
-                    description: "Media component containing information intended to be processed by application specific elements."
+                    description: "Media component containing information intended to be processed by application specific elements"
                 },
                 {
                     tag: "field", name: "EnhancedAudioIntelligibility",
@@ -578,11 +574,11 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Emergency",
-                    description: "Experience that provides information, about a current emergency, that is intended to enable the protection of life, health, safety, and property, and may also include critical details regarding the emergency and how to respond to the emergency."
+                    description: "Experience that provides information, about a current emergency, that is intended to enable the protection of life, health, safety, and property, and may also include critical details regarding the emergency and how to respond to the emergency"
                 },
                 {
                     tag: "field", name: "Karaoke",
-                    description: "Textual representation of a songs’ lyrics, usually in the same language as the associated song as specified in [SMPTE ST 2067-2]."
+                    description: "Textual representation of a songs’ lyrics, usually in the same language as the associated song as specified in [SMPTE ST 2067-2]"
                 }
             ]
         },
@@ -636,8 +632,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "LanguageCode", xref: "cluster§6.10.5.6.1",
-                    details: "The value is a String containing one of the standard Tags for Identifying Languages RFC 5646, which " +
-                        "identifies the primary language used in the Track."
+                    details: "The value is a String containing one of the standard Tags for Identifying Languages " +
+                        "[[RFC5646]](#ref_Rfc5646), which identifies the primary language used in the Track."
                 },
 
                 {

@@ -48,7 +48,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "NameSupport", xref: "cluster§1.3.6.1",
-            details: "This attribute provides legacy, read-only access to whether the Group Names feature is supported. " +
+            details: "Indicates if group names are supported." +
+                "\n" +
+                "This attribute provides legacy, read-only access to whether the Group Names feature is supported. " +
                 "The most significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute " +
                 "(GN Feature). All other bits shall be 0."
         },

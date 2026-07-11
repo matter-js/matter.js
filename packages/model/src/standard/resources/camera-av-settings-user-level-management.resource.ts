@@ -43,25 +43,24 @@ Resource.add({
 
         {
             tag: "attribute", name: "MptzPosition", xref: "cluster§11.3.6.1",
-            details: "This attribute indicates the currently selected mechanical pan, tilt, and zoom position."
+            details: "Indicates the currently selected mechanical pan, tilt, and zoom position."
         },
         {
             tag: "attribute", name: "MaxPresets", xref: "cluster§11.3.6.2",
-            details: "This attribute indicates the maximum number of presets for the mechanical pan, tilt, zoom."
+            details: "Indicates the maximum number of presets for the mechanical pan, tilt, zoom."
         },
-
         {
             tag: "attribute", name: "MptzPresets", xref: "cluster§11.3.6.3",
-            details: "This attribute shall be a list of MPTZPresetStruct. Each entry in the list contains a preset for " +
-                "mechanical pan, tilt, and/or zoom, the values for which are represented by an instance of an " +
-                "MPTZStruct."
+            details: "Indicates a list of presets for mechanical pan, tilt, and/or zoom."
         },
 
         {
             tag: "attribute", name: "DptzStreams", xref: "cluster§11.3.6.4",
-            details: "This attribute is a list of DPTZStruct. If a video stream is listed, it means digital movement is " +
-                "supported via DPTZSetViewport or DPTZRelativeMove. The initial values for each Viewport entry shall " +
-                "be the values found in the global Viewport."
+            details: "Indicates a list of streams which supports digital movement." +
+                "\n" +
+                "If a video stream is listed, it means digital movement is supported via DPTZSetViewport or " +
+                "DPTZRelativeMove. The initial values for each Viewport entry shall be the values found in the global " +
+                "Viewport."
         },
 
         {

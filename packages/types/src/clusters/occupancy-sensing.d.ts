@@ -65,9 +65,9 @@ export declare namespace OccupancySensing {
         occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied state
-         * after the last detection of occupancy in the sensed area. This is equivalent to the legacy
-         * *OccupiedToUnoccupiedDelay attributes.
+         * Indicates the time delay, in seconds, before the sensor changes to its unoccupied state after the last
+         * detection of occupancy in the sensed area. This is equivalent to the legacy *OccupiedToUnoccupiedDelay
+         * attributes.
          *
          * Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 for
          * HoldTime shall NOT be used.
@@ -104,23 +104,23 @@ export declare namespace OccupancySensing {
      */
     export interface PassiveInfraredAttributes {
         /**
-         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
-         * state after the last detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the PIR sensor changes to its unoccupied state after the last
+         * detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.6
          */
         pirOccupiedToUnoccupiedDelay?: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied state
-         * after the first detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the PIR sensor changes to its occupied state after the first
+         * detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.7
          */
         pirUnoccupiedToOccupiedDelay?: number;
 
         /**
-         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * Indicates the number of occupancy detection events that must occur in the period
          * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.8
@@ -133,23 +133,23 @@ export declare namespace OccupancySensing {
      */
     export interface UltrasonicAttributes {
         /**
-         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
-         * unoccupied state after the last detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its unoccupied state after the
+         * last detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.9
          */
         ultrasonicOccupiedToUnoccupiedDelay?: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its occupied
-         * state after the first detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its occupied state after the
+         * first detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.10
          */
         ultrasonicUnoccupiedToOccupiedDelay?: number;
 
         /**
-         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * Indicates the number of occupancy detection events that must occur in the period
          * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.11
@@ -162,23 +162,23 @@ export declare namespace OccupancySensing {
      */
     export interface PhysicalContactAttributes {
         /**
-         * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor changes
-         * to its unoccupied state after detecting the unoccupied event.
+         * Indicates the time delay, in seconds, before the physical contact occupancy sensor changes to its unoccupied
+         * state after detecting the unoccupied event.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.12
          */
         physicalContactOccupiedToUnoccupiedDelay?: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to its
-         * occupied state after the first detection of the occupied event.
+         * Indicates the time delay, in seconds, before the physical contact sensor changes to its occupied state after
+         * the first detection of the occupied event.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.13
          */
         physicalContactUnoccupiedToOccupiedDelay?: number;
 
         /**
-         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * Indicates the number of occupancy detection events that must occur in the period
          * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.14
@@ -213,9 +213,9 @@ export declare namespace OccupancySensing {
         occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied state
-         * after the last detection of occupancy in the sensed area. This is equivalent to the legacy
-         * *OccupiedToUnoccupiedDelay attributes.
+         * Indicates the time delay, in seconds, before the sensor changes to its unoccupied state after the last
+         * detection of occupancy in the sensed area. This is equivalent to the legacy *OccupiedToUnoccupiedDelay
+         * attributes.
          *
          * Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 for
          * HoldTime shall NOT be used.
@@ -247,23 +247,23 @@ export declare namespace OccupancySensing {
         holdTimeLimits: HoldTimeLimits;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
-         * state after the last detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the PIR sensor changes to its unoccupied state after the last
+         * detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.6
          */
         pirOccupiedToUnoccupiedDelay: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied state
-         * after the first detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the PIR sensor changes to its occupied state after the first
+         * detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.7
          */
         pirUnoccupiedToOccupiedDelay: number;
 
         /**
-         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * Indicates the number of occupancy detection events that must occur in the period
          * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.8
@@ -271,23 +271,23 @@ export declare namespace OccupancySensing {
         pirUnoccupiedToOccupiedThreshold: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
-         * unoccupied state after the last detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its unoccupied state after the
+         * last detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.9
          */
         ultrasonicOccupiedToUnoccupiedDelay: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its occupied
-         * state after the first detection of occupancy in the sensed area.
+         * Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its occupied state after the
+         * first detection of occupancy in the sensed area.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.10
          */
         ultrasonicUnoccupiedToOccupiedDelay: number;
 
         /**
-         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * Indicates the number of occupancy detection events that must occur in the period
          * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.11
@@ -295,23 +295,23 @@ export declare namespace OccupancySensing {
         ultrasonicUnoccupiedToOccupiedThreshold: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor changes
-         * to its unoccupied state after detecting the unoccupied event.
+         * Indicates the time delay, in seconds, before the physical contact occupancy sensor changes to its unoccupied
+         * state after detecting the unoccupied event.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.12
          */
         physicalContactOccupiedToUnoccupiedDelay: number;
 
         /**
-         * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to its
-         * occupied state after the first detection of the occupied event.
+         * Indicates the time delay, in seconds, before the physical contact sensor changes to its occupied state after
+         * the first detection of the occupied event.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.13
          */
         physicalContactUnoccupiedToOccupiedDelay: number;
 
         /**
-         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * Indicates the number of occupancy detection events that must occur in the period
          * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied state.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.14

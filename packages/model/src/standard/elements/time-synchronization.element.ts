@@ -22,10 +22,10 @@ export const TimeSynchronization = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "TZ", constraint: "0", title: "TimeZone" }),
-        Field({ name: "NTPC", constraint: "1", title: "NtpClient" }),
-        Field({ name: "NTPS", constraint: "2", title: "NtpServer" }),
-        Field({ name: "TSC", constraint: "3", title: "TimeSyncClient" })
+        Field({ name: "TZ", conformance: "O", constraint: "0", title: "TimeZone" }),
+        Field({ name: "NTPC", conformance: "O", constraint: "1", title: "NtpClient" }),
+        Field({ name: "NTPS", conformance: "O", constraint: "2", title: "NtpServer" }),
+        Field({ name: "TSC", conformance: "O", constraint: "3", title: "TimeSyncClient" })
     ),
 
     Attribute(

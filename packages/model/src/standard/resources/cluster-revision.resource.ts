@@ -11,10 +11,10 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "attribute", name: "ClusterRevision", xref: "core§7.13.1",
 
-    details: "The ClusterRevision attribute indicates the revision of the server cluster specification supported " +
-        "by the cluster instance. An implementation of a cluster specification before the ClusterRevision " +
-        "attribute was added shall have an assumed cluster revision of 0 (zero). For a new cluster " +
-        "specification, the initial value for the ClusterRevision attribute shall be 1 (not zero)." +
+    details: "Indicates the revision of the server cluster specification supported by the cluster instance. An " +
+        "implementation of a cluster specification before the ClusterRevision attribute was added shall have " +
+        "an assumed cluster revision of 0 (zero). For a new cluster specification, the initial value for the " +
+        "ClusterRevision attribute shall be 1 (not zero)." +
         "\n" +
         "A history of revision numbers for a cluster specification release is listed in the Revision History " +
         "section for a cluster specification. Each new revision of a cluster specification shall specify a " +

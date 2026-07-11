@@ -26,7 +26,9 @@ Resource.add({
         {
             tag: "attribute", name: "ScheduleProgrammingVisibility", xref: "cluster§4.5.6.3",
 
-            details: "This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat " +
+            details: "Indicates the visibility of the schedule programming functionality." +
+                "\n" +
+                "The attribute is used to hide the weekly schedule programming functionality or menu on a thermostat " +
                 "from a user to prevent local user programming of the weekly schedule. The schedule programming may " +
                 "still be performed via a remote interface, and the thermostat may operate in schedule programming " +
                 "mode." +

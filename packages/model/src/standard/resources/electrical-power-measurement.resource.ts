@@ -44,26 +44,26 @@ Resource.add({
 
         {
             tag: "attribute", name: "PowerMode", xref: "cluster§2.13.6.1",
-            details: "This shall indicate the current mode of the server. For some servers, such as an EV, this may change " +
+            details: "Indicates the current mode of the server. For some servers, such as an EV, this might change " +
                 "depending on the mode of charging or discharging."
         },
         {
             tag: "attribute", name: "NumberOfMeasurementTypes", xref: "cluster§2.13.6.2",
-            details: "This shall indicate the maximum number of measurement types the server is capable of reporting."
+            details: "Indicates the maximum number of measurement types the server is capable of reporting."
         },
 
         {
             tag: "attribute", name: "Accuracy", xref: "cluster§2.13.6.3",
-            details: "This shall indicate a list of accuracy specifications for the measurement types supported by the " +
-                "server. There shall be an entry for ActivePower, as well as any other measurement types implemented " +
-                "by this server."
+            details: "Indicates a list of accuracy specifications for the measurement types supported by the server. There " +
+                "shall be an entry for ActivePower, as well as any other measurement types implemented by this " +
+                "server."
         },
 
         {
             tag: "attribute", name: "Ranges", xref: "cluster§2.13.6.4",
 
-            details: "This shall indicate a list of measured ranges for different measurement types. Each measurement type " +
-                "shall have at most one entry in this list, representing the range of measurements in the most recent " +
+            details: "Indicates a list of measured ranges for different measurement types. Each measurement type shall " +
+                "have at most one entry in this list, representing the range of measurements in the most recent " +
                 "measurement period." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
@@ -79,7 +79,7 @@ Resource.add({
         {
             tag: "attribute", name: "Voltage", xref: "cluster§2.13.6.5",
 
-            details: "This shall indicate the most recent Voltage reading in millivolts (mV)." +
+            details: "Indicates the most recent Voltage reading in millivolts (mV)." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -96,7 +96,7 @@ Resource.add({
         {
             tag: "attribute", name: "ActiveCurrent", xref: "cluster§2.13.6.6",
 
-            details: "This shall indicate the most recent ActiveCurrent reading in milliamps (mA)." +
+            details: "Indicates the most recent ActiveCurrent reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -116,7 +116,7 @@ Resource.add({
         {
             tag: "attribute", name: "ReactiveCurrent", xref: "cluster§2.13.6.7",
 
-            details: "This shall indicate the most recent ReactiveCurrent reading in milliamps (mA)." +
+            details: "Indicates the most recent ReactiveCurrent reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -136,8 +136,8 @@ Resource.add({
         {
             tag: "attribute", name: "ApparentCurrent", xref: "cluster§2.13.6.8",
 
-            details: "This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and " +
-                "reactive currents) reading in milliamps (mA)." +
+            details: "Indicates the most recent ApparentCurrent (square root sum of the squares of active and reactive " +
+                "currents) reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -157,8 +157,8 @@ Resource.add({
         {
             tag: "attribute", name: "ActivePower", xref: "cluster§2.13.6.9",
 
-            details: "This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be " +
-                "measured, a value of null shall be returned." +
+            details: "Indicates the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured, a " +
+                "value of null shall be returned." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -178,7 +178,7 @@ Resource.add({
         {
             tag: "attribute", name: "ReactivePower", xref: "cluster§2.13.6.10",
 
-            details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
+            details: "Indicates the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -200,7 +200,7 @@ Resource.add({
         {
             tag: "attribute", name: "ApparentPower", xref: "cluster§2.13.6.11",
 
-            details: "This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA)." +
+            details: "Indicates the most recent ApparentPower reading in millivolt-amps (mVA)." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -219,7 +219,7 @@ Resource.add({
         {
             tag: "attribute", name: "RmsVoltage", xref: "cluster§2.13.6.12",
 
-            details: "This shall indicate the most recent RMSVoltage reading in millivolts (mV)." +
+            details: "Indicates the most recent RMSVoltage reading in millivolts (mV)." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -236,7 +236,7 @@ Resource.add({
         {
             tag: "attribute", name: "RmsCurrent", xref: "cluster§2.13.6.13",
 
-            details: "This shall indicate the most recent RMSCurrent reading in milliamps (mA)." +
+            details: "Indicates the most recent RMSCurrent reading in milliamps (mA)." +
                 "\n" +
                 "A positive value represents current flowing into the server, while a negative value represents " +
                 "current flowing out of the server." +
@@ -256,7 +256,7 @@ Resource.add({
         {
             tag: "attribute", name: "RmsPower", xref: "cluster§2.13.6.14",
 
-            details: "This shall indicate the most recent RMSPower reading in milliwatts (mW)." +
+            details: "Indicates the most recent RMSPower reading in milliwatts (mW)." +
                 "\n" +
                 "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
@@ -275,7 +275,7 @@ Resource.add({
         {
             tag: "attribute", name: "Frequency", xref: "cluster§2.13.6.15",
 
-            details: "This shall indicate the most recent Frequency reading in millihertz (mHz)." +
+            details: "Indicates the most recent Frequency reading in millihertz (mHz)." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -292,7 +292,7 @@ Resource.add({
         {
             tag: "attribute", name: "HarmonicCurrents", xref: "cluster§2.13.6.16",
 
-            details: "This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
+            details: "Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
                 "representing the harmonic current reading for the harmonic order specified by Order." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
@@ -308,7 +308,7 @@ Resource.add({
         {
             tag: "attribute", name: "HarmonicPhases", xref: "cluster§2.13.6.17",
 
-            details: "This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
+            details: "Indicates a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct " +
                 "representing the most recent phase of the harmonic current reading for the harmonic order specified " +
                 "by Order." +
                 "\n" +
@@ -325,7 +325,7 @@ Resource.add({
         {
             tag: "attribute", name: "PowerFactor", xref: "cluster§2.13.6.18",
 
-            details: "This shall indicate the Power Factor ratio in +/- 1/100ths of a percent." +
+            details: "Indicates the Power Factor ratio in +/- 1/100ths of a percent." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -340,8 +340,8 @@ Resource.add({
         {
             tag: "attribute", name: "NeutralCurrent", xref: "cluster§2.13.6.19",
 
-            details: "This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a " +
-                "derived value, taking the magnitude of the vector sum of phase currents." +
+            details: "Indicates the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived " +
+                "value, taking the magnitude of the vector sum of phase currents." +
                 "\n" +
                 "If the neutral current cannot be measured or derived, a value of null shall be returned." +
                 "\n" +

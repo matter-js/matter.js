@@ -49,6 +49,8 @@ export declare namespace RvcRunMode {
      */
     export interface BaseAttributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags field.
          *
          * At least one entry in the SupportedModes attribute (different from the one above) shall include the Cleaning
@@ -75,6 +77,8 @@ export declare namespace RvcRunMode {
      */
     export interface Attributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags field.
          *
          * At least one entry in the SupportedModes attribute (different from the one above) shall include the Cleaning

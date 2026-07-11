@@ -39,34 +39,32 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "AnchorRootCa", xref: "core§11.24.6.1",
-            details: "This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the " +
-                "accessing fabric. A null value indicates that the Joint Fabric is not yet formed."
+            details: "Indicates the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing " +
+                "fabric. A null value indicates that the Joint Fabric is not yet formed."
         },
         {
             tag: "attribute", name: "AnchorNodeId", xref: "core§11.24.6.2",
-            details: "This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric."
+            details: "Indicates the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric."
         },
         {
             tag: "attribute", name: "AnchorVendorId", xref: "core§11.24.6.3",
-            details: "This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing " +
-                "fabric."
+            details: "Indicates the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric."
         },
         {
             tag: "attribute", name: "FriendlyName", xref: "core§11.24.6.4",
-            details: "Friendly name for the accessing fabric."
+            details: "Indicates the friendly name for the accessing fabric which can be propagated to nodes."
         },
 
         {
             tag: "attribute", name: "GroupKeySetList", xref: "core§11.24.6.5",
-            details: "This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the " +
-                "accessing fabric." +
+            details: "Indicates a list of group key sets used in the Joint Fabric for the accessing fabric." +
                 "\n" +
                 "This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0."
         },
 
         {
             tag: "attribute", name: "GroupList", xref: "core§11.24.6.6",
-            details: "This shall indicate the list of groups in the Joint Fabric for the accessing fabric." +
+            details: "Indicates a list of groups in the Joint Fabric for the accessing fabric." +
                 "\n" +
                 "This list shall include, at a minimum, one group with GroupCAT value set to Administrator CAT and " +
                 "one group with GroupCAT value set to Anchor CAT."
@@ -74,13 +72,13 @@ Resource.add({
 
         {
             tag: "attribute", name: "NodeList", xref: "core§11.24.6.7",
-            details: "This shall indicate the list of nodes in the Joint Fabric for the accessing fabric."
+            details: "Indicates a list of nodes in the Joint Fabric for the accessing fabric."
         },
 
         {
             tag: "attribute", name: "AdminList", xref: "core§11.24.6.8",
 
-            details: "This shall indicate the list of administrators in the Joint Fabric for the accessing fabric." +
+            details: "Indicates a list of administrators in the Joint Fabric for the accessing fabric." +
                 "\n" +
                 "Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall " +
                 "have index value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater." +
@@ -91,8 +89,7 @@ Resource.add({
         {
             tag: "attribute", name: "Status", xref: "core§11.24.6.9",
 
-            details: "This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing " +
-                "fabric." +
+            details: "Indicates the current state of the Joint Fabric Datastore Cluster for the accessing fabric." +
                 "\n" +
                 "The value shall be one of the following states:" +
                 "\n" +
@@ -106,23 +103,23 @@ Resource.add({
 
         {
             tag: "attribute", name: "EndpointGroupIdList", xref: "core§11.24.6.10",
-            details: "This shall indicate the group membership of endpoints in the accessing fabric."
+            details: "Indicates a list of group membership of endpoints in the accessing fabric."
         },
         {
             tag: "attribute", name: "EndpointBindingList", xref: "core§11.24.6.11",
-            details: "This shall indicate the binding list for endpoints in the accessing fabric."
+            details: "Indicates a list of bindings for endpoints in the accessing fabric."
         },
         {
             tag: "attribute", name: "NodeKeySetList", xref: "core§11.24.6.12",
-            details: "This shall indicate the KeySet entries for nodes in the accessing fabric."
+            details: "Indicates a list of KeySet entries for nodes in the accessing fabric."
         },
         {
             tag: "attribute", name: "NodeAclList", xref: "core§11.24.6.13",
-            details: "This shall indicate the ACL entries for nodes in the accessing fabric."
+            details: "Indicates a list of ACL entries for nodes in the accessing fabric."
         },
         {
             tag: "attribute", name: "NodeEndpointList", xref: "core§11.24.6.14",
-            details: "This shall indicate the Endpoint entries for nodes in the accessing fabric."
+            details: "Indicates a list of Endpoint entries for nodes in the accessing fabric."
         },
 
         {
@@ -1005,42 +1002,7 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "DatastoreStatusEntryStruct", xref: "core§11.24.5.2",
-
-            children: [
-                {
-                    tag: "field", name: "State", xref: "core§11.24.5.2.1",
-                    details: "This field shall contain the current state of the target device operation."
-                },
-                {
-                    tag: "field", name: "UpdateTimestamp", xref: "core§11.24.5.2.2",
-                    details: "This field shall contain the timestamp of the last update."
-                },
-                {
-                    tag: "field", name: "FailureCode", xref: "core§11.24.5.2.3",
-                    details: "This field shall contain the Status Code of the last failed operation where the State field is set " +
-                        "to CommitFailure."
-                }
-            ]
-        },
-
-        {
-            tag: "datatype", name: "DatastoreNodeKeySetEntryStruct", xref: "core§11.24.5.3",
-
-            children: [
-                {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.3.1",
-                    details: "The unique identifier for the node."
-                },
-                {
-                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.3.3",
-                    details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
-                }
-            ]
-        },
-
-        {
-            tag: "datatype", name: "DatastoreAccessControlEntryPrivilegeEnum", xref: "core§11.24.5.4",
+            tag: "datatype", name: "DatastoreAccessControlEntryPrivilegeEnum", xref: "core§11.24.5.2",
 
             children: [
                 { tag: "field", name: "View", description: "Can read and observe all (except Access Control Cluster)" },
@@ -1060,20 +1022,83 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "DatastoreGroupInformationEntryStruct", xref: "core§11.24.5.5",
+            tag: "datatype", name: "DatastoreAccessControlEntryAuthModeEnum", xref: "core§11.24.5.3",
+            children: [
+                { tag: "field", name: "Pase", description: "Passcode authenticated session" },
+                { tag: "field", name: "Case", description: "Certificate authenticated session" },
+                { tag: "field", name: "Group", description: "Group authenticated session" }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DatastoreGroupKeySecurityPolicyEnum", xref: "core§11.24.5.4",
+            children: [
+                { tag: "field", name: "TrustFirst", description: "Message counter synchronization using trust-first" }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DatastoreGroupKeyMulticastPolicyEnum", xref: "core§11.24.5.5",
 
             children: [
                 {
-                    tag: "field", name: "GroupId", xref: "core§11.24.5.5.1",
+                    tag: "field", name: "PerGroupId",
+                    description: "Indicates filtering of multicast messages for a specific Group ID"
+                },
+                { tag: "field", name: "AllNodes", description: "Indicates not filtering of multicast messages" }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DatastoreStatusEntryStruct", xref: "core§11.24.5.6",
+
+            children: [
+                {
+                    tag: "field", name: "State", xref: "core§11.24.5.6.1",
+                    details: "This field shall contain the current state of the target device operation."
+                },
+                {
+                    tag: "field", name: "UpdateTimestamp", xref: "core§11.24.5.6.2",
+                    details: "This field shall contain the timestamp of the last update."
+                },
+                {
+                    tag: "field", name: "FailureCode", xref: "core§11.24.5.6.3",
+                    details: "This field shall contain the Status Code of the last failed operation where the State field is set " +
+                        "to CommitFailure."
+                }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DatastoreNodeKeySetEntryStruct", xref: "core§11.24.5.7",
+
+            children: [
+                {
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.7.1",
+                    details: "The unique identifier for the node."
+                },
+                {
+                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.7.3",
+                    details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
+                }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DatastoreGroupInformationEntryStruct", xref: "core§11.24.5.8",
+
+            children: [
+                {
+                    tag: "field", name: "GroupId", xref: "core§11.24.5.8.1",
                     details: "The unique identifier for the group."
                 },
                 {
-                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.5.2",
+                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.8.2",
                     details: "The friendly name for the group."
                 },
 
                 {
-                    tag: "field", name: "GroupKeySetId", xref: "core§11.24.5.5.3",
+                    tag: "field", name: "GroupKeySetId", xref: "core§11.24.5.8.3",
 
                     details: "The unique identifier for the group key set." +
                         "\n" +
@@ -1085,7 +1110,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "GroupCat", xref: "core§11.24.5.5.4",
+                    tag: "field", name: "GroupCat", xref: "core§11.24.5.8.4",
 
                     details: "CAT value for this group. This is used for control of individual members of a group (non-broadcast " +
                         "commands)." +
@@ -1097,14 +1122,14 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "GroupCatVersion", xref: "core§11.24.5.5.5",
+                    tag: "field", name: "GroupCatVersion", xref: "core§11.24.5.8.5",
                     details: "Current version number for this CAT." +
                         "\n" +
                         "This value shall be null when GroupCAT value is null."
                 },
 
                 {
-                    tag: "field", name: "GroupPermission", xref: "core§11.24.5.5.6",
+                    tag: "field", name: "GroupPermission", xref: "core§11.24.5.8.6",
                     details: "The permission level associated with ACL entries for this group. There should be only one " +
                         "Administrator group per fabric, and at most one Manage group per Ecosystem (Vendor Entry)."
                 }
@@ -1112,7 +1137,7 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "DatastoreBindingTargetStruct", xref: "core§11.24.5.6",
+            tag: "datatype", name: "DatastoreBindingTargetStruct", xref: "core§11.24.5.9",
             details: "The DatastoreBindingTargetStruct represents a Binding on a specific Node (identified by the " +
                 "DatastoreEndpointBindingEntryStruct) which is managed by the Datastore. Only bindings on a specific " +
                 "Node that are fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, " +
@@ -1120,23 +1145,23 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "Node", xref: "core§11.24.5.6.1",
+                    tag: "field", name: "Node", xref: "core§11.24.5.9.1",
                     details: "This field is the binding's remote target node ID. If the Endpoint field is present, this field " +
                         "shall be present."
                 },
                 {
-                    tag: "field", name: "Group", xref: "core§11.24.5.6.2",
+                    tag: "field", name: "Group", xref: "core§11.24.5.9.2",
                     details: "This field is the binding's target group ID that represents remote endpoints. If the Endpoint field " +
                         "is present, this field shall NOT be present."
                 },
                 {
-                    tag: "field", name: "Endpoint", xref: "core§11.24.5.6.3",
+                    tag: "field", name: "Endpoint", xref: "core§11.24.5.9.3",
                     details: "This field is the binding's remote endpoint that the local endpoint is bound to. If the Group field " +
                         "is present, this field shall NOT be present."
                 },
 
                 {
-                    tag: "field", name: "Cluster", xref: "core§11.24.5.6.4",
+                    tag: "field", name: "Cluster", xref: "core§11.24.5.9.4",
                     details: "This field is the binding's cluster ID (client & server) on the local and target endpoint(s). If " +
                         "this field is present, the client cluster shall also exist on this endpoint (with this Binding " +
                         "cluster). If this field is present, the target shall be this cluster on the target endpoint(s)."
@@ -1145,20 +1170,20 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "DatastoreEndpointBindingEntryStruct", xref: "core§11.24.5.7",
+            tag: "datatype", name: "DatastoreEndpointBindingEntryStruct", xref: "core§11.24.5.10",
 
             children: [
                 {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.7.1",
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.10.1",
                     details: "The unique identifier for the node."
                 },
                 {
-                    tag: "field", name: "EndpointId", xref: "core§11.24.5.7.2",
+                    tag: "field", name: "EndpointId", xref: "core§11.24.5.10.2",
                     details: "The unique identifier for the endpoint."
                 },
 
                 {
-                    tag: "field", name: "ListId", xref: "core§11.24.5.7.3",
+                    tag: "field", name: "ListId", xref: "core§11.24.5.10.3",
                     details: "The unique identifier for the entry in the Datastore's EndpointBindingList attribute, which is a " +
                         "list of DatastoreEndpointBindingEntryStruct." +
                         "\n" +
@@ -1166,55 +1191,55 @@ Resource.add({
                         "purpose of deletion (RemoveBindingFromEndpointForNode Command)."
                 },
 
-                { tag: "field", name: "Binding", xref: "core§11.24.5.7.4", details: "The binding target structure." },
+                { tag: "field", name: "Binding", xref: "core§11.24.5.10.4", details: "The binding target structure." },
                 {
-                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.7.5",
+                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.10.5",
                     details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
                 }
             ]
         },
 
         {
-            tag: "datatype", name: "DatastoreEndpointGroupIDEntryStruct", xref: "core§11.24.5.8",
+            tag: "datatype", name: "DatastoreEndpointGroupIDEntryStruct", xref: "core§11.24.5.11",
 
             children: [
                 {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.8.1",
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.11.1",
                     details: "The unique identifier for the node."
                 },
                 {
-                    tag: "field", name: "EndpointId", xref: "core§11.24.5.8.2",
+                    tag: "field", name: "EndpointId", xref: "core§11.24.5.11.2",
                     details: "The unique identifier for the endpoint."
                 },
                 {
-                    tag: "field", name: "GroupId", xref: "core§11.24.5.8.3",
+                    tag: "field", name: "GroupId", xref: "core§11.24.5.11.3",
                     details: "The unique identifier for the group."
                 },
                 {
-                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.8.4",
+                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.11.4",
                     details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
                 }
             ]
         },
 
         {
-            tag: "datatype", name: "DatastoreEndpointEntryStruct", xref: "core§11.24.5.9",
+            tag: "datatype", name: "DatastoreEndpointEntryStruct", xref: "core§11.24.5.12",
             details: "The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the " +
                 "Datastore. Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to " +
                 "NodeID are specific to the Joint Fabric.",
 
             children: [
                 {
-                    tag: "field", name: "EndpointId", xref: "core§11.24.5.9.1",
+                    tag: "field", name: "EndpointId", xref: "core§11.24.5.12.1",
                     details: "The unique identifier for the endpoint."
                 },
                 {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.9.2",
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.12.2",
                     details: "The unique identifier for the node."
                 },
 
                 {
-                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.9.3",
+                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.12.3",
 
                     details: "This field shall indicate a user-assigned label for this endpoint, as captured by a Joint Fabric " +
                         "Administrator's user interface. By maintaining this value in the Joint Fabric Datastore, all Joint " +
@@ -1229,19 +1254,10 @@ Resource.add({
             ]
         },
 
-        {
-            tag: "datatype", name: "DatastoreAccessControlEntryAuthModeEnum", xref: "core§11.24.5.10",
-            children: [
-                { tag: "field", name: "Pase", description: "Passcode authenticated session" },
-                { tag: "field", name: "Case", description: "Certificate authenticated session" },
-                { tag: "field", name: "Group", description: "Group authenticated session" }
-            ]
-        },
-
-        { tag: "datatype", name: "DatastoreAccessControlTargetStruct", xref: "core§11.24.5.11" },
+        { tag: "datatype", name: "DatastoreAccessControlTargetStruct", xref: "core§11.24.5.13" },
 
         {
-            tag: "datatype", name: "DatastoreAccessControlEntryStruct", xref: "core§11.24.5.12",
+            tag: "datatype", name: "DatastoreAccessControlEntryStruct", xref: "core§11.24.5.14",
             details: "The DatastoreAccessControlEntryStruct represents an ACL on a specific Node (identified by the " +
                 "DatastoreACLEntryStruct) which is managed by the Datastore. Only ACLs on a specific Node that are " +
                 "fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and " +
@@ -1249,7 +1265,7 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "DatastoreACLEntryStruct", xref: "core§11.24.5.13",
+            tag: "datatype", name: "DatastoreACLEntryStruct", xref: "core§11.24.5.15",
             details: "The DatastoreACLEntryStruct is a holder for an ACL (DatastoreAccessControlEntryStruct) on a specific " +
                 "Node which is managed by the Datastore. Only ACLs on a specific Node that are fabric-scoped to the " +
                 "Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are specific " +
@@ -1257,35 +1273,35 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.13.1",
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.15.1",
                     details: "The unique identifier for the node."
                 },
                 {
-                    tag: "field", name: "ListId", xref: "core§11.24.5.13.2",
+                    tag: "field", name: "ListId", xref: "core§11.24.5.15.2",
                     details: "The unique identifier for the ACL entry in the Datastore's list of DatastoreACLEntry."
                 },
                 {
-                    tag: "field", name: "AclEntry", xref: "core§11.24.5.13.3",
+                    tag: "field", name: "AclEntry", xref: "core§11.24.5.15.3",
                     details: "The Access Control Entry structure."
                 },
                 {
-                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.13.4",
+                    tag: "field", name: "StatusEntry", xref: "core§11.24.5.15.4",
                     details: "Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed."
                 }
             ]
         },
 
         {
-            tag: "datatype", name: "DatastoreNodeInformationEntryStruct", xref: "core§11.24.5.14",
+            tag: "datatype", name: "DatastoreNodeInformationEntryStruct", xref: "core§11.24.5.16",
 
             children: [
                 {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.14.1",
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.16.1",
                     details: "The unique identifier for the node."
                 },
 
                 {
-                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.14.2",
+                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.16.2",
 
                     details: "This field shall contain a user-assigned label for this node, as captured by a Joint Fabric " +
                         "Administrator's user interface. By maintaining this value in the Joint Fabric Datastore, all Joint " +
@@ -1297,7 +1313,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "CommissioningStatusEntry", xref: "core§11.24.5.14.3",
+                    tag: "field", name: "CommissioningStatusEntry", xref: "core§11.24.5.16.3",
                     details: "Set to Pending prior to completing commissioning, set to Committed after commissioning complete is " +
                         "successful, or set to CommitFailed if commissioning failed with the FailureCode Field set to the " +
                         "error."
@@ -1306,38 +1322,19 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "DatastoreAdministratorInformationEntryStruct", xref: "core§11.24.5.15",
+            tag: "datatype", name: "DatastoreAdministratorInformationEntryStruct", xref: "core§11.24.5.17",
 
             children: [
                 {
-                    tag: "field", name: "NodeId", xref: "core§11.24.5.15.1",
+                    tag: "field", name: "NodeId", xref: "core§11.24.5.17.1",
                     details: "The unique identifier for the node."
                 },
                 {
-                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.15.2",
+                    tag: "field", name: "FriendlyName", xref: "core§11.24.5.17.2",
                     details: "Friendly name for this node which is not propagated to nodes."
                 },
-                { tag: "field", name: "VendorId", xref: "core§11.24.5.15.3", details: "The Vendor ID for the node." },
-                { tag: "field", name: "Icac", xref: "core§11.24.5.15.4", details: "The ICAC used to issue the NOC." }
-            ]
-        },
-
-        {
-            tag: "datatype", name: "DatastoreGroupKeySecurityPolicyEnum", xref: "core§11.24.5.16",
-            children: [
-                { tag: "field", name: "TrustFirst", description: "Message counter synchronization using trust-first" }
-            ]
-        },
-
-        {
-            tag: "datatype", name: "DatastoreGroupKeyMulticastPolicyEnum", xref: "core§11.24.5.17",
-
-            children: [
-                {
-                    tag: "field", name: "PerGroupId",
-                    description: "Indicates filtering of multicast messages for a specific Group ID"
-                },
-                { tag: "field", name: "AllNodes", description: "Indicates not filtering of multicast messages" }
+                { tag: "field", name: "VendorId", xref: "core§11.24.5.17.3", details: "The Vendor ID for the node." },
+                { tag: "field", name: "Icac", xref: "core§11.24.5.17.4", details: "The ICAC used to issue the NOC." }
             ]
         },
 

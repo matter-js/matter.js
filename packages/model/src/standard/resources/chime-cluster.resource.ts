@@ -16,8 +16,8 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "InstalledChimeSounds", xref: "cluster§11.8.5.1",
-            details: "This attribute shall contain all installed chime sounds, represented by a list of Chime Sounds. Each " +
-                "entry in this list shall have a unique ChimeID value and a unique Name value."
+            details: "Indicates a list of installed chime sounds. Each entry in this list shall have a unique ChimeID " +
+                "value and a unique Name value."
         },
 
         {

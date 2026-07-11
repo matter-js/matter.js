@@ -58,8 +58,8 @@ export declare namespace NetworkCommissioning {
      */
     export interface BaseAttributes {
         /**
-         * This shall indicate the maximum number of network configuration entries that can be added, based on available
-         * device resources. The length of the Networks attribute shall be less than or equal to this value.
+         * Indicates the maximum number of network configuration entries that can be added, based on available device
+         * resources. The length of the Networks attribute shall be less than or equal to this value.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.9.6.1
          */
@@ -227,8 +227,8 @@ export declare namespace NetworkCommissioning {
      */
     export interface Attributes {
         /**
-         * This shall indicate the maximum number of network configuration entries that can be added, based on available
-         * device resources. The length of the Networks attribute shall be less than or equal to this value.
+         * Indicates the maximum number of network configuration entries that can be added, based on available device
+         * resources. The length of the Networks attribute shall be less than or equal to this value.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.9.6.1
          */
@@ -552,9 +552,6 @@ export declare namespace NetworkCommissioning {
          *
          * The Credentials associated with the network are not readable after execution of this command, as they do not
          * appear in the Networks attribute, for security reasons.
-         *
-         * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
-         * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
          *
          * See Section 11.9.7.5, "Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork" for behavior
          * of addition/update.
@@ -1300,9 +1297,6 @@ export declare namespace NetworkCommissioning {
      *
      * The Credentials associated with the network are not readable after execution of this command, as they do not
      * appear in the Networks attribute, for security reasons.
-     *
-     * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
-     * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
      *
      * See Section 11.9.7.5, "Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork" for behavior of
      * addition/update.

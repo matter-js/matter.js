@@ -160,7 +160,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "LatchControlModes", xref: "cluster§5.4.7.6",
-                details: "This attribute shall specify whether the latch mechanism can be latched or unlatched remotely."
+                details: "Indicates whether the latch mechanism can be latched or unlatched remotely."
             },
 
             {

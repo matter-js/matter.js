@@ -255,7 +255,7 @@ export declare namespace ClosureDimension {
      */
     export interface MotionLatchingAttributes {
         /**
-         * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
+         * Indicates whether the latch mechanism can be latched or unlatched remotely.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.5.7.12
          */
@@ -430,7 +430,7 @@ export declare namespace ClosureDimension {
         modulationType: ModulationType;
 
         /**
-         * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
+         * Indicates whether the latch mechanism can be latched or unlatched remotely.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.5.7.12
          */

@@ -52,7 +52,7 @@ export declare namespace OperationalCredentials {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
+         * Indicates a list of all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
          *
          * Operational Certificates shall be added through the AddNOC command, and shall be removed through the
          * RemoveFabric command.
@@ -102,8 +102,8 @@ export declare namespace OperationalCredentials {
         commissionedFabrics: number;
 
         /**
-         * This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet
-         * strings containing their Matter Certificate Encoding representation.
+         * Indicates a list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet strings containing
+         * their Matter Certificate Encoding representation.
          *
          * These certificates are installed through the AddTrustedRootCertificate command.
          *
@@ -136,7 +136,7 @@ export declare namespace OperationalCredentials {
      */
     export interface Attributes {
         /**
-         * This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
+         * Indicates a list of all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
          *
          * Operational Certificates shall be added through the AddNOC command, and shall be removed through the
          * RemoveFabric command.
@@ -186,8 +186,8 @@ export declare namespace OperationalCredentials {
         commissionedFabrics: number;
 
         /**
-         * This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet
-         * strings containing their Matter Certificate Encoding representation.
+         * Indicates a list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet strings containing
+         * their Matter Certificate Encoding representation.
          *
          * These certificates are installed through the AddTrustedRootCertificate command.
          *
@@ -609,6 +609,12 @@ export declare namespace OperationalCredentials {
      */
     export class CertificateChainRequest {
         constructor(values?: Partial<CertificateChainRequest>);
+
+        /**
+         * This field shall indicate the type of element being requested from the device attestation credentials.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.18.6.3.1
+         */
         certificateType: CertificateChainType;
     }
 
@@ -622,7 +628,7 @@ export declare namespace OperationalCredentials {
         constructor(values?: Partial<CertificateChainResponse>);
 
         /**
-         * This field shall be the DER encoded certificate corresponding to the CertificateType field in the
+         * This field shall be the DER-encoded certificate corresponding to the CertificateType field in the
          * CertificateChainRequest command.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.18.6.4.1

@@ -42,7 +42,10 @@ Resource.add(
                     "The null value indicates that the value is not available."
             },
 
-            { tag: "attribute", name: "Tolerance", xref: "cluster§2.5.4.4", details: "See Measured Value." }
+            {
+                tag: "attribute", name: "Tolerance", xref: "cluster§2.5.4.4",
+                details: "Indicates the tolerance of the measurement. For further details, see Measured Value."
+            }
         ]
     }
 );

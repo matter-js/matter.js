@@ -73,7 +73,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "FanModeSequence", xref: "cluster§4.4.6.2",
-                details: "This attribute indicates the fan speed ranges that shall be supported by the server."
+                details: "Indicates the fan speed ranges that shall be supported by the server."
             },
 
             {
@@ -151,7 +151,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "RockSupport", xref: "cluster§4.4.6.8",
-                details: "This attribute is a bitmap that indicates the rocking motions that are supported by the server." +
+                details: "Indicates the rocking motions that are supported by the server." +
                     "\n" +
                     "If this attribute is supported by the server, at least one bit shall be set in this attribute."
             },
@@ -159,9 +159,9 @@ Resource.add(
             {
                 tag: "attribute", name: "RockSetting", xref: "cluster§4.4.6.9",
 
-                details: "This attribute is a bitmap that indicates the currently active fan rocking motion setting. Each bit " +
-                    "shall only be set to 1, if the corresponding bit in the RockSupport attribute is set to 1, otherwise " +
-                    "a status code of CONSTRAINT_ERROR shall be returned." +
+                details: "Indicates the currently active fan rocking motion setting. Each bit shall only be set to 1, if the " +
+                    "corresponding bit in the RockSupport attribute is set to 1, otherwise a status code of " +
+                    "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "If a combination of supported bits is set by a client, and the server does not support the " +
                     "combination, the lowest supported single bit in the combination shall be set and active, and all " +
@@ -175,7 +175,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "WindSupport", xref: "cluster§4.4.6.10",
-                details: "This attribute is a bitmap that indicates what wind modes are supported by the server." +
+                details: "Indicates which wind modes are supported by the server." +
                     "\n" +
                     "If this attribute is supported by the server, at least one bit shall be set in this attribute."
             },
@@ -183,9 +183,9 @@ Resource.add(
             {
                 tag: "attribute", name: "WindSetting", xref: "cluster§4.4.6.11",
 
-                details: "This attribute is a bitmap that indicates the current active fan wind feature settings. Each bit " +
-                    "shall only be set to 1, if the corresponding bit in the WindSupport attribute is set to 1, otherwise " +
-                    "a status code of CONSTRAINT_ERROR shall be returned." +
+                details: "Indicates the currently active fan wind feature settings. Each bit shall only be set to 1, if the " +
+                    "corresponding bit in the WindSupport attribute is set to 1, otherwise a status code of " +
+                    "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "If a combination of supported bits is set by a client, and the server does not support the " +
                     "combination, the lowest supported single bit in the combination shall be set and active, and all " +

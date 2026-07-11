@@ -60,8 +60,8 @@ export declare namespace ServiceArea {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's list.
-         * Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
+         * Indicates the list of areas that can be included in the SelectedAreas attribute's list. Each item in this
+         * list represents a unique area, as indicated by the AreaID field of AreaStruct.
          *
          * Each entry in this list shall have a unique value for the AreaID field.
          *
@@ -131,8 +131,8 @@ export declare namespace ServiceArea {
         selectedAreas: number[];
 
         /**
-         * If the device is mobile, this attribute shall indicate the area where the device is currently located,
-         * regardless of whether it is operating or not, such as while traveling between areas.
+         * Indicates the area where the device is currently located, if the device is mobile, regardless of whether it
+         * is operating or not, such as while traveling between areas.
          *
          * If the device is not mobile and can operate at multiple areas sequentially, this attribute shall indicate the
          * area which is currently being serviced, or the area which is currently traversed by the device. For example,
@@ -196,7 +196,7 @@ export declare namespace ServiceArea {
      */
     export interface MapsAttributes {
         /**
-         * This attribute shall contain the list of supported maps.
+         * Indicates the list of supported maps.
          *
          * A map is a full or a partial representation of a home, known to the device. For example:
          *
@@ -301,8 +301,8 @@ export declare namespace ServiceArea {
      */
     export interface Attributes {
         /**
-         * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's list.
-         * Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
+         * Indicates the list of areas that can be included in the SelectedAreas attribute's list. Each item in this
+         * list represents a unique area, as indicated by the AreaID field of AreaStruct.
          *
          * Each entry in this list shall have a unique value for the AreaID field.
          *
@@ -372,8 +372,8 @@ export declare namespace ServiceArea {
         selectedAreas: number[];
 
         /**
-         * If the device is mobile, this attribute shall indicate the area where the device is currently located,
-         * regardless of whether it is operating or not, such as while traveling between areas.
+         * Indicates the area where the device is currently located, if the device is mobile, regardless of whether it
+         * is operating or not, such as while traveling between areas.
          *
          * If the device is not mobile and can operate at multiple areas sequentially, this attribute shall indicate the
          * area which is currently being serviced, or the area which is currently traversed by the device. For example,
@@ -432,7 +432,7 @@ export declare namespace ServiceArea {
         estimatedEndTime: number | null;
 
         /**
-         * This attribute shall contain the list of supported maps.
+         * Indicates the list of supported maps.
          *
          * A map is a full or a partial representation of a home, known to the device. For example:
          *
@@ -948,25 +948,25 @@ export declare namespace ServiceArea {
      */
     export enum SelectAreasStatus {
         /**
-         * Attempting to operate in the areas identified by the entries of the NewAreas field is allowed and possible.
-         * The SelectedAreas attribute is set to the value of the NewAreas field.
+         * Attempting to operate in the areas identified by the entries of the NewAreas field is allowed and possible,
+         * the SelectedAreas attribute is set to the value of the NewAreas field
          */
         Success = 0,
 
         /**
          * The value of at least one of the entries of the NewAreas field doesn't match any entries in the
-         * SupportedAreas attribute.
+         * SupportedAreas attribute
          */
         UnsupportedArea = 1,
 
         /**
-         * The received request cannot be handled due to the current mode of the device.
+         * The received request cannot be handled due to the current mode of the device
          */
         InvalidInMode = 2,
 
         /**
          * The set of values is invalid. For example, areas on different floors, that a robot knows it can't reach on
-         * its own.
+         * its own
          */
         InvalidSet = 3
     }
@@ -977,7 +977,7 @@ export declare namespace ServiceArea {
     export enum SkipAreaStatus {
         /**
          * Skipping the area is allowed and possible, or the device was operating at the last available area and has
-         * stopped.
+         * stopped
          */
         Success = 0,
 
@@ -988,12 +988,12 @@ export declare namespace ServiceArea {
 
         /**
          * The received request cannot be handled due to the current mode of the device. For example, the CurrentArea
-         * attribute is null or the device is not operating.
+         * attribute is null or the device is not operating
          */
         InvalidInMode = 2,
 
         /**
-         * The SkippedArea field doesn't match an entry in the SupportedAreas list.
+         * The SkippedArea field doesn't match an entry in the SupportedAreas list
          */
         InvalidSkippedArea = 3
     }

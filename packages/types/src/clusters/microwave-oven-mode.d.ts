@@ -48,6 +48,8 @@ export declare namespace MicrowaveOvenMode {
      */
     export interface BaseAttributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field.
          *
          * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode's
@@ -71,6 +73,8 @@ export declare namespace MicrowaveOvenMode {
      */
     export interface Attributes {
         /**
+         * Indicates the list of supported modes.
+         *
          * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field.
          *
          * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode's

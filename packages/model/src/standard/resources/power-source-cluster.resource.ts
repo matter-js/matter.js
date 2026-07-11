@@ -47,9 +47,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "Description", xref: "core§11.7.7.3",
-            details: "This attribute shall provide a user-facing description of this source, used to distinguish it from " +
-                "other power sources, e.g. \"DC Power\", \"Primary Battery\" or \"Battery back-up\". This attribute shall " +
-                "NOT be used to convey information such as battery form factor, or chemistry."
+            details: "Indicates a user-facing description of this source, used to distinguish it from other power sources, " +
+                "e.g. \"DC Power\", \"Primary Battery\" or \"Battery back-up\". This attribute shall NOT be used to convey " +
+                "information such as battery form factor, or chemistry."
         },
 
         {
@@ -185,11 +185,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "BatReplacementDescription", xref: "core§11.7.7.20",
-            details: "This attribute shall provide a user-facing description of this battery, which SHOULD contain " +
-                "information required to identify a replacement, such as form factor, chemistry or preferred " +
-                "manufacturer."
+            details: "Indicates a user-facing description of this battery, which SHOULD contain information required to " +
+                "identify a replacement, such as form factor, chemistry or preferred manufacturer."
         },
-
         {
             tag: "attribute", name: "BatCommonDesignation", xref: "core§11.7.7.21",
             details: "Indicates the ID of the common or colloquial designation of the battery, as specified in " +

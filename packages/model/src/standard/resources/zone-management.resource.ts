@@ -58,54 +58,48 @@ Resource.add({
 
         {
             tag: "attribute", name: "MaxUserDefinedZones", xref: "cluster§2.14.6.1",
-            details: "This attribute shall specify the maximum number of user-defined zones that can be supported by the " +
-                "Node. This value is manufacturer-defined."
-        },
-
-        {
-            tag: "attribute", name: "MaxZones", xref: "cluster§2.14.6.2",
-            details: "This attribute shall specify the maximum number of zones allowed to created. This value shall be the " +
-                "sum of the number of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is " +
+            details: "Indicates the maximum number of user-defined zones that can be supported by the Node. This value is " +
                 "manufacturer-defined."
         },
-
+        {
+            tag: "attribute", name: "MaxZones", xref: "cluster§2.14.6.2",
+            details: "Indicates the maximum number of zones allowed to created. This value shall be the sum of the number " +
+                "of predefined Mfg Zones, and MaxUserDefinedZones, if supported. This value is manufacturer-defined."
+        },
         {
             tag: "attribute", name: "Zones", xref: "cluster§2.14.6.3",
-            details: "This attribute shall specify all currently defined zones as a list of ZoneInformationStruct. Use the " +
-                "commands from this cluster to add, update or remove entries."
+            details: "Indicates a list of all currently defined zones. Use the commands from this cluster to add, update " +
+                "or remove entries."
         },
-
         {
             tag: "attribute", name: "Triggers", xref: "cluster§2.14.6.4",
-            details: "This attribute shall specify all currently defined triggers controlling the generation of " +
-                "ZoneTriggered and ZoneStopped events and shall be a list of ZoneTriggerControlStruct. To add an " +
-                "entry use CreateOrUpdateTrigger. To remove an entry use RemoveTrigger."
+            details: "Indicates a list of all currently defined triggers controlling the generation of ZoneTriggered and " +
+                "ZoneStopped events. To add an entry use CreateOrUpdateTrigger. To remove an entry use RemoveTrigger."
         },
 
         {
             tag: "attribute", name: "SensitivityMax", xref: "cluster§2.14.6.5",
 
-            details: "This attribute shall specify the hardware specific value for the number of supported sensitivity " +
-                "levels. This value is manufacturer defined. If the PerZoneSensitivity feature is supported, the " +
-                "value of this attribute determines valid values for the Sensitivity field in " +
-                "ZoneTriggerControlStruct; if the PerZoneSensitivity feature is not supported, the value of this " +
-                "attribute determines valid values for the Sensitivity Attribute. Implementations require two to ten " +
-                "levels of sensitivity control in order to ensure that there is some user-level customization of the " +
-                "Trigger."
+            details: "Indicates the hardware specific value for the number of supported sensitivity levels. This value is " +
+                "manufacturer defined. If the PerZoneSensitivity feature is supported, the value of this attribute " +
+                "determines valid values for the Sensitivity field in ZoneTriggerControlStruct; if the " +
+                "PerZoneSensitivity feature is not supported, the value of this attribute determines valid values for " +
+                "the Sensitivity Attribute. Implementations require two to ten levels of sensitivity control in order " +
+                "to ensure that there is some user-level customization of the Trigger."
         },
 
         {
             tag: "attribute", name: "Sensitivity", xref: "cluster§2.14.6.6",
-            details: "This attribute shall specify the sensitivity of the underlying zone triggering detection mechanism " +
-                "if the PerZoneSensitivity features is not supported. The higher the value the more sensitive the " +
-                "detection. The actual meaning of the values is implementation specific."
+            details: "Indicates the sensitivity of the underlying zone triggering detection mechanism if the " +
+                "PerZoneSensitivity features is not supported. The higher the value the more sensitive the detection. " +
+                "The actual meaning of the values is implementation specific."
         },
 
         {
             tag: "attribute", name: "TwoDCartesianMax", xref: "cluster§2.14.6.7",
-            details: "This attribute shall specify the maximum X and Y points that are allowed for TwoD Cartesian Zones. " +
-                "If this cluster is on the same endpoint as Camera AV Stream Management Cluster, these values shall " +
-                "be equal to the value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute."
+            details: "Indicates the maximum X and Y points that are allowed for TwoD Cartesian Zones. If this cluster is " +
+                "on the same endpoint as Camera AV Stream Management Cluster, these values shall be equal to the " +
+                "value of SensorWidth - 1 and SensorHeight - 1 from the VideoSensorParams attribute."
         },
 
         {

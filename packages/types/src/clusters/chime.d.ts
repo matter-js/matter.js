@@ -46,8 +46,8 @@ export declare namespace Chime {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall contain all installed chime sounds, represented by a list of Chime Sounds. Each entry in
-         * this list shall have a unique ChimeID value and a unique Name value.
+         * Indicates a list of installed chime sounds. Each entry in this list shall have a unique ChimeID value and a
+         * unique Name value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.8.5.1
          */
@@ -80,8 +80,8 @@ export declare namespace Chime {
      */
     export interface Attributes {
         /**
-         * This attribute shall contain all installed chime sounds, represented by a list of Chime Sounds. Each entry in
-         * this list shall have a unique ChimeID value and a unique Name value.
+         * Indicates a list of installed chime sounds. Each entry in this list shall have a unique ChimeID value and a
+         * unique Name value.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.8.5.1
          */

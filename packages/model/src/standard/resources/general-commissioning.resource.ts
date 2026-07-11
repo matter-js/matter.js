@@ -29,7 +29,9 @@ Resource.add(
             {
                 tag: "attribute", name: "Breadcrumb", xref: "core§11.10.6.1",
 
-                details: "This attribute allows for the storage of a client-provided small payload which Administrators and " +
+                details: "Indicates the current breadcrumb value." +
+                    "\n" +
+                    "The attribute allows for the storage of a client-provided small payload which Administrators and " +
                     "Commissioners may write and then subsequently read, to keep track of their own progress. This may be " +
                     "used by the Commissioner to avoid repeating already-executed actions upon re-establishing a " +
                     "commissioning link after an error." +
@@ -47,8 +49,8 @@ Resource.add(
 
             {
                 tag: "attribute", name: "BasicCommissioningInfo", xref: "core§11.10.6.2",
-                details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow. See " +
-                    "Section 11.10.5.4, \"BasicCommissioningInfo\" for more information."
+                details: "Indicates critical parameters needed at the beginning of commissioning flow. See " +
+                    "BasicCommissioningInfo for more information."
             },
 
             {
@@ -62,11 +64,11 @@ Resource.add(
             {
                 tag: "attribute", name: "LocationCapability", xref: "core§11.10.6.4",
 
-                details: "LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told " +
-                    "an exact RegulatoryLocation. For example a Node which is \"Indoor Only\" would not be certified for " +
-                    "outdoor use at all, and thus there is no need for a commissioner to set or ask the user about " +
-                    "whether the device will be used inside or outside. However a device which states its capability is " +
-                    "\"Indoor/Outdoor\" means it would like clarification if possible." +
+                details: "Indicates if this Node needs to be told an exact RegulatoryLocation and is statically set by the " +
+                    "manufacturer. For example a Node which is \"Indoor Only\" would not be certified for outdoor use at " +
+                    "all, and thus there is no need for a commissioner to set or ask the user about whether the device " +
+                    "will be used inside or outside. However a device which states its capability is \"Indoor/Outdoor\" " +
+                    "means it would like clarification if possible." +
                     "\n" +
                     "For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor " +
                     "shall always be used." +
@@ -154,9 +156,9 @@ Resource.add(
             {
                 tag: "attribute", name: "RecoveryIdentifier", xref: "core§11.10.6.11",
 
-                details: "This attribute shall contain the identifier to be included in the advertisements used during the " +
-                    "Network Recovery Flow. This identifier is intended to be advertised over the air and used by an " +
-                    "Administrator to establish a Node's identity without revealing its Node ID." +
+                details: "Indicates the identifier to be included in the advertisements used during the Network Recovery Flow. " +
+                    "This identifier is intended to be advertised over the air and used by an Administrator to establish " +
+                    "a Node's identity without revealing its Node ID." +
                     "\n" +
                     "The attribute shall contain a random 64-bit value, that value shall be reset on factory reset and " +
                     "shall remain unchanged until a next factory reset. It is important that this value be selected at " +
@@ -166,14 +168,17 @@ Resource.add(
 
             {
                 tag: "attribute", name: "NetworkRecoveryReason", xref: "core§11.10.6.12",
-                details: "This attribute shall contain the primary reason that triggered the Network Recovery flow and its " +
-                    "associated advertisements. Null when the Node is not undergoing a Network Recovery flow."
+                details: "Indicates the primary reason that triggered the Network Recovery flow and its associated " +
+                    "advertisements. Null when the Node is not undergoing a Network Recovery flow."
             },
 
             {
                 tag: "attribute", name: "IsCommissioningWithoutPower", xref: "core§11.10.6.13",
 
-                details: "The server shall set this attribute to true if and only if is currently operating on the " +
+                details: "Indicates if commissioning is being performed without the device being powered by an operational " +
+                    "power source." +
+                    "\n" +
+                    "The server shall set this attribute to true if and only if is currently operating on the " +
                     "commissioning channel but cannot operate on the operational channel because it is not powered." +
                     "\n" +
                     "This may happen during NFC-based commissioning, when the commissioning channel is NFC Transport " +
@@ -400,7 +405,7 @@ Resource.add(
                         tag: "field", name: "TcUserResponse", xref: "core§11.10.7.8.2",
                         details: "This field shall contain the user responses to the Enhanced Setup Flow Terms & Conditions as a map " +
                             "where each bit set in the bitmap corresponds to an accepted term in the file located at Section " +
-                            "11.23.6.23, \"EnhancedSetupFlowTCUrl\"."
+                            "11.23.7.23, \"EnhancedSetupFlowTCUrl\"."
                     }
                 ]
             },

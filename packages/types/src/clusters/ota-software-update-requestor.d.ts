@@ -50,7 +50,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
      */
     export interface BaseAttributes {
         /**
-         * This field is a list of ProviderLocation whose entries shall be set by Administrators, either during
+         * Indicates a list of ProviderLocation whose entries shall be set by Administrators, either during
          * Commissioning or at a later time, to set the ProviderLocation for the default OTA Provider Node to use for
          * software updates on a given Fabric.
          *
@@ -65,35 +65,36 @@ export declare namespace OtaSoftwareUpdateRequestor {
         defaultOtaProviders: ProviderLocation[];
 
         /**
-         * This field shall be set to True if the OTA Requestor is currently able to be updated. Otherwise, it shall be
-         * set to False in case of any condition preventing update being possible, such as insufficient capacity of an
-         * internal battery. This field is merely informational for diagnostics purposes and shall NOT affect the
-         * responses provided by an OTA Provider to an OTA Requestor.
+         * Indicates whether the OTA Requestor is currently able to be updated.
+         *
+         * The attribute shall be set to True if update is possible. Otherwise, it shall be set to False in case of any
+         * condition preventing update being possible, such as insufficient capacity of an internal battery. This field
+         * is merely informational for diagnostics purposes and shall NOT affect the responses provided by an OTA
+         * Provider to an OTA Requestor.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.5.2
          */
         updatePossible: boolean;
 
         /**
-         * This field shall reflect the current state of the OTA Requestor with regards to obtaining software updates.
-         * See Section 11.20.7.4.2, "UpdateStateEnum Type" for possible values.
+         * Indicates the current state of the OTA Requestor with regards to obtaining software updates. See Section
+         * 11.20.7.4.2, "UpdateStateEnum Type" for possible values.
          *
-         * This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates.
+         * This attribute SHOULD be updated in a timely manner whenever OTA Requestor internal state updates.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.5.3
          */
         updateState: UpdateState;
 
         /**
-         * This field shall reflect the percentage value of progress, relative to the current UpdateState, if applicable
-         * to the state.
+         * Indicates the percentage value of progress, relative to the current UpdateState, if applicable to the state.
          *
          * The value of this field shall be null if a progress indication does not apply to the current state.
          *
          * A value of 0 shall indicate that the beginning has occurred. A value of 100 shall indicate completion.
          *
-         * This field may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting progress
-         * when this attribute is part of a subscription.
+         * This attribute may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting
+         * progress when this attribute is part of a subscription.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.5.4
          */
@@ -105,7 +106,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
      */
     export interface Attributes {
         /**
-         * This field is a list of ProviderLocation whose entries shall be set by Administrators, either during
+         * Indicates a list of ProviderLocation whose entries shall be set by Administrators, either during
          * Commissioning or at a later time, to set the ProviderLocation for the default OTA Provider Node to use for
          * software updates on a given Fabric.
          *
@@ -120,35 +121,36 @@ export declare namespace OtaSoftwareUpdateRequestor {
         defaultOtaProviders: ProviderLocation[];
 
         /**
-         * This field shall be set to True if the OTA Requestor is currently able to be updated. Otherwise, it shall be
-         * set to False in case of any condition preventing update being possible, such as insufficient capacity of an
-         * internal battery. This field is merely informational for diagnostics purposes and shall NOT affect the
-         * responses provided by an OTA Provider to an OTA Requestor.
+         * Indicates whether the OTA Requestor is currently able to be updated.
+         *
+         * The attribute shall be set to True if update is possible. Otherwise, it shall be set to False in case of any
+         * condition preventing update being possible, such as insufficient capacity of an internal battery. This field
+         * is merely informational for diagnostics purposes and shall NOT affect the responses provided by an OTA
+         * Provider to an OTA Requestor.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.5.2
          */
         updatePossible: boolean;
 
         /**
-         * This field shall reflect the current state of the OTA Requestor with regards to obtaining software updates.
-         * See Section 11.20.7.4.2, "UpdateStateEnum Type" for possible values.
+         * Indicates the current state of the OTA Requestor with regards to obtaining software updates. See Section
+         * 11.20.7.4.2, "UpdateStateEnum Type" for possible values.
          *
-         * This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates.
+         * This attribute SHOULD be updated in a timely manner whenever OTA Requestor internal state updates.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.5.3
          */
         updateState: UpdateState;
 
         /**
-         * This field shall reflect the percentage value of progress, relative to the current UpdateState, if applicable
-         * to the state.
+         * Indicates the percentage value of progress, relative to the current UpdateState, if applicable to the state.
          *
          * The value of this field shall be null if a progress indication does not apply to the current state.
          *
          * A value of 0 shall indicate that the beginning has occurred. A value of 100 shall indicate completion.
          *
-         * This field may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting progress
-         * when this attribute is part of a subscription.
+         * This attribute may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting
+         * progress when this attribute is part of a subscription.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.5.4
          */
@@ -539,7 +541,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
 
         /**
          * An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image MAY
-         * be available.
+         * be available
          *
          * An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image may
          * be available. The details may only be obtained by executing a OTA Software Update Query procedure. A

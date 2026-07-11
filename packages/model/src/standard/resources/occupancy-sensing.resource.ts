@@ -54,8 +54,8 @@ Resource.add({
         {
             tag: "attribute", name: "HoldTime", xref: "cluster§2.7.6.3",
 
-            details: "This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied " +
-                "state after the last detection of occupancy in the sensed area. This is equivalent to the legacy " +
+            details: "Indicates the time delay, in seconds, before the sensor changes to its unoccupied state after the " +
+                "last detection of occupancy in the sensed area. This is equivalent to the legacy " +
                 "*OccupiedToUnoccupiedDelay attributes." +
                 "\n" +
                 "Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 " +
@@ -84,48 +84,48 @@ Resource.add({
         },
         {
             tag: "attribute", name: "PirOccupiedToUnoccupiedDelay", xref: "cluster§2.7.6.6",
-            details: "This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its " +
-                "unoccupied state after the last detection of occupancy in the sensed area."
+            details: "Indicates the time delay, in seconds, before the PIR sensor changes to its unoccupied state after " +
+                "the last detection of occupancy in the sensed area."
         },
         {
             tag: "attribute", name: "PirUnoccupiedToOccupiedDelay", xref: "cluster§2.7.6.7",
-            details: "This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its " +
-                "occupied state after the first detection of occupancy in the sensed area."
+            details: "Indicates the time delay, in seconds, before the PIR sensor changes to its occupied state after the " +
+                "first detection of occupancy in the sensed area."
         },
         {
             tag: "attribute", name: "PirUnoccupiedToOccupiedThreshold", xref: "cluster§2.7.6.8",
-            details: "This attribute shall specify the number of occupancy detection events that must occur in the period " +
+            details: "Indicates the number of occupancy detection events that must occur in the period " +
                 "PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state."
         },
         {
             tag: "attribute", name: "UltrasonicOccupiedToUnoccupiedDelay", xref: "cluster§2.7.6.9",
-            details: "This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its " +
-                "unoccupied state after the last detection of occupancy in the sensed area."
+            details: "Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its unoccupied state " +
+                "after the last detection of occupancy in the sensed area."
         },
         {
             tag: "attribute", name: "UltrasonicUnoccupiedToOccupiedDelay", xref: "cluster§2.7.6.10",
-            details: "This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its " +
-                "occupied state after the first detection of occupancy in the sensed area."
+            details: "Indicates the time delay, in seconds, before the Ultrasonic sensor changes to its occupied state " +
+                "after the first detection of occupancy in the sensed area."
         },
         {
             tag: "attribute", name: "UltrasonicUnoccupiedToOccupiedThreshold", xref: "cluster§2.7.6.11",
-            details: "This attribute shall specify the number of occupancy detection events that must occur in the period " +
+            details: "Indicates the number of occupancy detection events that must occur in the period " +
                 "UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state."
         },
         {
             tag: "attribute", name: "PhysicalContactOccupiedToUnoccupiedDelay", xref: "cluster§2.7.6.12",
-            details: "This attribute shall specify the time delay, in seconds, before the physical contact occupancy " +
-                "sensor changes to its unoccupied state after detecting the unoccupied event."
+            details: "Indicates the time delay, in seconds, before the physical contact occupancy sensor changes to its " +
+                "unoccupied state after detecting the unoccupied event."
         },
         {
             tag: "attribute", name: "PhysicalContactUnoccupiedToOccupiedDelay", xref: "cluster§2.7.6.13",
-            details: "This attribute shall specify the time delay, in seconds, before the physical contact sensor changes " +
-                "to its occupied state after the first detection of the occupied event."
+            details: "Indicates the time delay, in seconds, before the physical contact sensor changes to its occupied " +
+                "state after the first detection of the occupied event."
         },
 
         {
             tag: "attribute", name: "PhysicalContactUnoccupiedToOccupiedThreshold", xref: "cluster§2.7.6.14",
-            details: "This attribute shall specify the number of occupancy detection events that must occur in the period " +
+            details: "Indicates the number of occupancy detection events that must occur in the period " +
                 "PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied " +
                 "state."
         },

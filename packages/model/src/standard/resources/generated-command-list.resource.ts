@@ -11,8 +11,8 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "attribute", name: "GeneratedCommandList", xref: "core§7.13.5",
 
-    details: "This attribute is a list of server generated commands. A server generated command is a server to " +
-        "client command." +
+    details: "Indicates a list of server generated commands. A server generated command is a server to client " +
+        "command." +
         "\n" +
         "Each instance of a cluster shall support this attribute." +
         "\n" +

@@ -58,8 +58,8 @@ export declare namespace ModeBase {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall contain the list of supported modes that may be selected for the CurrentMode attribute.
-         * Each item in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct.
+         * Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item in this
+         * list represents a unique mode as indicated by the Mode field of the ModeOptionStruct.
          *
          * Each entry in this list shall have a unique value for the Mode field.
          *
@@ -135,8 +135,8 @@ export declare namespace ModeBase {
      */
     export interface Attributes {
         /**
-         * This attribute shall contain the list of supported modes that may be selected for the CurrentMode attribute.
-         * Each item in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct.
+         * Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item in this
+         * list represents a unique mode as indicated by the Mode field of the ModeOptionStruct.
          *
          * Each entry in this list shall have a unique value for the Mode field.
          *

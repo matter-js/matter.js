@@ -46,9 +46,8 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§1.10.6.1",
 
-            details: "This attribute shall contain the list of supported modes that may be selected for the CurrentMode " +
-                "attribute. Each item in this list represents a unique mode as indicated by the Mode field of the " +
-                "ModeOptionStruct." +
+            details: "Indicates the list of supported modes that may be selected for the CurrentMode attribute. Each item " +
+                "in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct." +
                 "\n" +
                 "Each entry in this list shall have a unique value for the Mode field." +
                 "\n" +

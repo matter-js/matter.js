@@ -82,6 +82,8 @@ export declare namespace ThreadBorderRouterManagement {
         interfaceEnabled: boolean;
 
         /**
+         * Indicates the timestamp of the active dataset.
+         *
          * Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp value
          * extracted from the Active Dataset value configured by the Thread Node to which the border router is
          * connected. This attribute shall be updated when a new Active dataset is configured on the Thread network to
@@ -92,6 +94,8 @@ export declare namespace ThreadBorderRouterManagement {
         activeDatasetTimestamp: number | bigint | null;
 
         /**
+         * Indicates the timestamp of the pending dataset.
+         *
          * Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the timestamp value
          * extracted from the Pending Dataset value configured by the Thread Node to which the border router is
          * connected. This attribute shall be updated when a new Pending dataset is configured on the Thread network to
@@ -144,6 +148,8 @@ export declare namespace ThreadBorderRouterManagement {
         interfaceEnabled: boolean;
 
         /**
+         * Indicates the timestamp of the active dataset.
+         *
          * Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp value
          * extracted from the Active Dataset value configured by the Thread Node to which the border router is
          * connected. This attribute shall be updated when a new Active dataset is configured on the Thread network to
@@ -154,6 +160,8 @@ export declare namespace ThreadBorderRouterManagement {
         activeDatasetTimestamp: number | bigint | null;
 
         /**
+         * Indicates the timestamp of the pending dataset.
+         *
          * Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the timestamp value
          * extracted from the Pending Dataset value configured by the Thread Node to which the border router is
          * connected. This attribute shall be updated when a new Pending dataset is configured on the Thread network to

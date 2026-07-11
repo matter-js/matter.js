@@ -43,7 +43,7 @@ export declare namespace GroupKeyManagement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the GroupKeyManagement cluster.
@@ -57,6 +57,9 @@ export declare namespace GroupKeyManagement {
      */
     export interface BaseAttributes {
         /**
+         * Indicates a list of group key sets entries. Each entry associates a logical Group ID with a particular group
+         * key set.
+         *
          * If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the accessing
          * Fabric:
          *
@@ -78,14 +81,13 @@ export declare namespace GroupKeyManagement {
          *     KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid value
          *     aliasing for this field.
          *
-         * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
-         * particular group key set.
-         *
          * @see {@link MatterSpecification.v16.Core} § 11.2.6.1
          */
         groupKeyMap: GroupKeyMap[];
 
         /**
+         * Indicates a list of group information.
+         *
          * If the GCAST feature is set in the FeatureMap:
          *
          *   - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the
@@ -94,10 +96,10 @@ export declare namespace GroupKeyManagement {
          *   - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast cluster's
          *     Membership attribute (one mapping per group per fabric).
          *
-         * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
-         * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
-         * attribute reflects data managed via the Groups cluster (see [[AppClusters]](#ref_AppClusters)), and is in
-         * general terms referred to as the 'node-wide Group Table'.
+         * Each entry provides read-only information about how a given logical Group ID maps to a particular set of
+         * endpoints, and a name for the group. The content of this attribute reflects data managed via the Groups
+         * cluster (see [[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group
+         * Table'.
          *
          * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
          * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
@@ -160,6 +162,9 @@ export declare namespace GroupKeyManagement {
      */
     export interface Attributes {
         /**
+         * Indicates a list of group key sets entries. Each entry associates a logical Group ID with a particular group
+         * key set.
+         *
          * If the GCAST feature bit is set in the FeatureMap attribute, the following rules apply to the accessing
          * Fabric:
          *
@@ -181,14 +186,13 @@ export declare namespace GroupKeyManagement {
          *     KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid value
          *     aliasing for this field.
          *
-         * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
-         * particular group key set.
-         *
          * @see {@link MatterSpecification.v16.Core} § 11.2.6.1
          */
         groupKeyMap: GroupKeyMap[];
 
         /**
+         * Indicates a list of group information.
+         *
          * If the GCAST feature is set in the FeatureMap:
          *
          *   - If the GroupcastAdoption attribute has an entry for the accessing Fabric and that entry has the
@@ -197,10 +201,10 @@ export declare namespace GroupKeyManagement {
          *   - Else this attribute shall contain the Group mappings computed in equivalence to the Groupcast cluster's
          *     Membership attribute (one mapping per group per fabric).
          *
-         * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
-         * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
-         * attribute reflects data managed via the Groups cluster (see [[AppClusters]](#ref_AppClusters)), and is in
-         * general terms referred to as the 'node-wide Group Table'.
+         * Each entry provides read-only information about how a given logical Group ID maps to a particular set of
+         * endpoints, and a name for the group. The content of this attribute reflects data managed via the Groups
+         * cluster (see [[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group
+         * Table'.
          *
          * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
          * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,

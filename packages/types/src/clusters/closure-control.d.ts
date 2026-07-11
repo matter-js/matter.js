@@ -145,7 +145,7 @@ export declare namespace ClosureControl {
      */
     export interface MotionLatchingAttributes {
         /**
-         * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
+         * Indicates whether the latch mechanism can be latched or unlatched remotely.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.4.7.6
          */
@@ -248,7 +248,7 @@ export declare namespace ClosureControl {
         countdownTime: number | null;
 
         /**
-         * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
+         * Indicates whether the latch mechanism can be latched or unlatched remotely.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.4.7.6
          */

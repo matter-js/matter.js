@@ -19,7 +19,7 @@ Resource.add(
             {
                 tag: "attribute", name: "MeasuredValue", xref: "cluster§2.6.4.1",
 
-                details: "MeasuredValue represents the water content in % as follows:" +
+                details: "Indicates measured water content value in % as follows:" +
                     "\n" +
                     "MeasuredValue = 100 x water content" +
                     "\n" +
@@ -37,15 +37,18 @@ Resource.add(
 
             {
                 tag: "attribute", name: "MinMeasuredValue", xref: "cluster§2.6.4.2",
-                details: "The MinMeasuredValue attribute indicates the minimum value of MeasuredValue that can be measured. " +
-                    "The null value means this attribute is not defined. See Measured Value for more details."
+                details: "Indicates the minimum value of MeasuredValue that can be measured. The null value means this " +
+                    "attribute is not defined. See Measured Value for more details."
             },
             {
                 tag: "attribute", name: "MaxMeasuredValue", xref: "cluster§2.6.4.3",
-                details: "The MaxMeasuredValue attribute indicates the maximum value of MeasuredValue that can be measured. " +
-                    "The null value means this attribute is not defined. See Measured Value for more details."
+                details: "Indicates the maximum value of MeasuredValue that can be measured. The null value means this " +
+                    "attribute is not defined. See Measured Value for more details."
             },
-            { tag: "attribute", name: "Tolerance", xref: "cluster§2.6.4.4", details: "See Measured Value." }
+            {
+                tag: "attribute", name: "Tolerance", xref: "cluster§2.6.4.4",
+                details: "Indicates the tolerance of the measurement. For further, details see Measured Value."
+            }
         ]
     }
 );

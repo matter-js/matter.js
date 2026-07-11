@@ -70,7 +70,7 @@ export namespace Specification {
     /**
      * The default specification revision for Matter.js.
      */
-    export const REVISION = "1.6.0";
+    export const REVISION = "1.6.1";
 
     /**
      * Binary version of specification revision defined by Basic Information Cluster.

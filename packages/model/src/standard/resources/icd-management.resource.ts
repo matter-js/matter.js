@@ -65,10 +65,10 @@ Resource.add({
 
         {
             tag: "attribute", name: "RegisteredClients", xref: "core§9.16.6.4",
-            details: "This attribute shall contain all clients registered to receive notification if their subscription is " +
-                "lost. The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for " +
-                "each fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in " +
-                "the Operational Credentials cluster."
+            details: "Indicates a list of all clients registered to receive notification if their subscription is lost. " +
+                "The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each " +
+                "fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in the " +
+                "Operational Credentials cluster."
         },
 
         {
@@ -103,7 +103,9 @@ Resource.add({
         {
             tag: "attribute", name: "UserActiveModeTriggerInstruction", xref: "core§9.16.6.8",
 
-            details: "The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and " +
+            details: "Indicates information on how to transition the device to Active Mode." +
+                "\n" +
+                "The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and " +
                 "the conformance is in indicated in the \"dependency\" column in UserActiveModeTriggerHint table. The " +
                 "UserActiveModeTriggerInstruction attribute may give additional information on how to transition the " +
                 "device to Active Mode. If the attribute is present, the value shall be encoded as a valid UTF-8 " +

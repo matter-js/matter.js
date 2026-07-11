@@ -199,8 +199,7 @@ export declare namespace DeviceEnergyManagement {
      */
     export interface PowerForecastReportingOrStateForecastReportingAttributes {
         /**
-         * This attribute allows an ESA to share its intended forecast with a client (such as an Energy Management
-         * System).
+         * Indicates the forecast from e.g. an ESA.
          *
          * A null value indicates that there is no forecast currently available (for example, a program has not yet been
          * selected by the user).
@@ -371,8 +370,7 @@ export declare namespace DeviceEnergyManagement {
         powerAdjustmentCapability: PowerAdjustCapability | null;
 
         /**
-         * This attribute allows an ESA to share its intended forecast with a client (such as an Energy Management
-         * System).
+         * Indicates the forecast from e.g. an ESA.
          *
          * A null value indicates that there is no forecast currently available (for example, a program has not yet been
          * selected by the user).
@@ -1387,7 +1385,7 @@ export declare namespace DeviceEnergyManagement {
      */
     export enum Cause {
         /**
-         * The ESA completed the power adjustment as requested
+         * The ESA completed the adjustment as requested
          */
         NormalCompletion = 0,
 

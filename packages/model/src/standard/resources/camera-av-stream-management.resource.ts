@@ -128,8 +128,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "RateDistortionTradeOffPoints", xref: "cluster§11.2.7.6",
-            details: "This attribute shall list the set of rate distortion trade-off points between resolution, frame rate " +
-                "and bitrate for each supported hardware encoder."
+            details: "Indicates this attribute shall list the set of rate distortion trade-off points between resolution, " +
+                "frame rate and bitrate for each supported hardware encoder."
         },
 
         {
@@ -172,8 +172,8 @@ Resource.add({
         },
         {
             tag: "attribute", name: "HdrModeEnabled", xref: "cluster§11.2.7.14",
-            details: "This attribute indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE " +
-                "indicates that HDR video capturing is enabled. Otherwise, HDR video capturing is disabled."
+            details: "Indicates the currently selected High Dynamic Range (HDR) mode. A value of TRUE indicates that HDR " +
+                "video capturing is enabled. Otherwise, HDR video capturing is disabled."
         },
 
         {
@@ -213,11 +213,11 @@ Resource.add({
         {
             tag: "attribute", name: "SoftRecordingPrivacyModeEnabled", xref: "cluster§11.2.7.20",
 
-            details: "This attribute indicates the current value of the soft privacy mode for transports using the Stream " +
-                "Usage types Recording and Analysis. A value of TRUE indicates that delivery of video frames and " +
-                "audio samples from any streams to these transports is skipped. A value of TRUE also indicates that " +
-                "no new transports using these stream usage values can be created or started. When FALSE, these " +
-                "transports can be resumed or started, and have video frames and audio samples delivered." +
+            details: "Indicates the current value of the soft privacy mode for transports using the Stream Usage types " +
+                "Recording and Analysis. A value of TRUE indicates that delivery of video frames and audio samples " +
+                "from any streams to these transports is skipped. A value of TRUE also indicates that no new " +
+                "transports using these stream usage values can be created or started. When FALSE, these transports " +
+                "can be resumed or started, and have video frames and audio samples delivered." +
                 "\n" +
                 "When this attribute is set to TRUE, any active WebRTC transports using these stream usage types " +
                 "shall terminate the session by calling End using WebRTCEndReasonEnum PrivacyMode."
@@ -226,11 +226,11 @@ Resource.add({
         {
             tag: "attribute", name: "SoftLivestreamPrivacyModeEnabled", xref: "cluster§11.2.7.21",
 
-            details: "This attribute indicates the current value of the soft privacy mode for transports using the Stream " +
-                "Usage type LiveView. A value of TRUE indicates that delivery of video frames and audio samples from " +
-                "any streams to these transports is skipped. A value of TRUE also indicates that no new transports " +
-                "using this stream usage type can be created or started. When FALSE, these transports can be resumed " +
-                "or started, and have video frames and audio samples delivered." +
+            details: "Indicates the current value of the soft privacy mode for transports using the Stream Usage type " +
+                "LiveView. A value of TRUE indicates that delivery of video frames and audio samples from any streams " +
+                "to these transports is skipped. A value of TRUE also indicates that no new transports using this " +
+                "stream usage type can be created or started. When FALSE, these transports can be resumed or started, " +
+                "and have video frames and audio samples delivered." +
                 "\n" +
                 "When this attribute is set to TRUE, any active WebRTC transports using this stream usage type shall " +
                 "terminate the session by calling End using WebRTCEndReasonEnum PrivacyMode."
@@ -238,32 +238,32 @@ Resource.add({
 
         {
             tag: "attribute", name: "HardPrivacyModeOn", xref: "cluster§11.2.7.22",
-            details: "This attribute indicates the current value of the hard privacy mode for all streams. This is " +
-                "controlled via a physical button or switch, potentially. A value of TRUE indicates that all streams " +
-                "are currently paused. When FALSE, the streams may resume if they are not already paused by their " +
-                "corresponding soft privacy mode."
+            details: "Indicates the current value of the hard privacy mode for all streams. This is controlled via a " +
+                "physical button or switch, potentially. A value of TRUE indicates that all streams are currently " +
+                "paused. When FALSE, the streams may resume if they are not already paused by their corresponding " +
+                "soft privacy mode."
         },
 
         {
             tag: "attribute", name: "NightVision", xref: "cluster§11.2.7.23",
-            details: "This attribute indicates the currently selected Night Vision mode. A value of Off means the device " +
-                "will never activate its Night Vision mode of operation. A value of On means the Night Vision mode of " +
-                "operation is always active. A value of Auto means the device will automatically move between active " +
-                "and inactive based on the light level it detects."
+            details: "Indicates the currently selected Night Vision mode. A value of Off means the device will never " +
+                "activate its Night Vision mode of operation. A value of On means the Night Vision mode of operation " +
+                "is always active. A value of Auto means the device will automatically move between active and " +
+                "inactive based on the light level it detects."
         },
 
         {
             tag: "attribute", name: "NightVisionIllum", xref: "cluster§11.2.7.24",
-            details: "This attribute indicates the currently selected the Night Vision Illumination mode. A value of Off " +
-                "means the device will never activate its built-in Night Vision Illumination. A value of On means the " +
-                "built-in Night Vision Illumination is always active. A value of Auto means the device will " +
-                "automatically enable its built-in Night Vision Illumination based on the light level it detects."
+            details: "Indicates the currently selected the Night Vision Illumination mode. A value of Off means the device " +
+                "will never activate its built-in Night Vision Illumination. A value of On means the built-in Night " +
+                "Vision Illumination is always active. A value of Auto means the device will automatically enable its " +
+                "built-in Night Vision Illumination based on the light level it detects."
         },
 
         {
             tag: "attribute", name: "Viewport", xref: "cluster§11.2.7.25",
 
-            details: "This attribute shall be a ViewportStruct representing the viewport to apply to all streams." +
+            details: "Indicates the viewport to apply to all streams." +
                 "\n" +
                 "The coordinate values represent the upper left corner and lower right corner coordinates of the " +
                 "source rectangle on the sensor. The coordinate values are within the two-dimensional Cartesian plane " +
@@ -283,55 +283,51 @@ Resource.add({
 
         {
             tag: "attribute", name: "SpeakerMuted", xref: "cluster§11.2.7.26",
-            details: "This attribute indicates whether the speaker is currently muted or not. A value of TRUE indicates " +
-                "that the speaker has been muted and shall not play anything. A value of FALSE indicates that the " +
-                "Speaker is enabled."
+            details: "Indicates whether the speaker is currently muted or not. A value of TRUE indicates that the speaker " +
+                "has been muted and shall not play anything. A value of FALSE indicates that the Speaker is enabled."
         },
-
         {
             tag: "attribute", name: "SpeakerVolumeLevel", xref: "cluster§11.2.7.27",
-            details: "This attribute indicates the current volume level of the speaker."
+            details: "Indicates the current volume level of the speaker."
         },
         {
             tag: "attribute", name: "SpeakerMaxLevel", xref: "cluster§11.2.7.28",
-            details: "This attribute indicates the maximum value of the SpeakerVolumeLevel that can be assigned."
+            details: "Indicates the maximum value of the SpeakerVolumeLevel that can be assigned."
         },
         {
             tag: "attribute", name: "SpeakerMinLevel", xref: "cluster§11.2.7.29",
-            details: "This attribute indicates the minimum value of the SpeakerVolumeLevel that can be assigned."
+            details: "Indicates the minimum value of the SpeakerVolumeLevel that can be assigned."
         },
 
         {
             tag: "attribute", name: "MicrophoneMuted", xref: "cluster§11.2.7.30",
-            details: "This attribute indicates whether the microphone is currently muted or not. A value of TRUE indicates " +
-                "that the microphone has been muted. In this state, the microphone data shall be replaced with all 0 " +
-                "bits, representing silence. A value of FALSE indicates that the microphone is On and is capable of " +
+            details: "Indicates whether the microphone is currently muted or not. A value of TRUE indicates that the " +
+                "microphone has been muted. In this state, the microphone data shall be replaced with all 0 bits, " +
+                "representing silence. A value of FALSE indicates that the microphone is On and is capable of " +
                 "transmitting audio."
         },
 
         {
             tag: "attribute", name: "MicrophoneVolumeLevel", xref: "cluster§11.2.7.31",
-            details: "This attribute indicates the current gain or volume level of the microphone."
+            details: "Indicates the current gain or volume level of the microphone."
         },
         {
             tag: "attribute", name: "MicrophoneMaxLevel", xref: "cluster§11.2.7.32",
-            details: "This attribute indicates the maximum value of the MicrophoneVolumeLevel that can be assigned."
+            details: "Indicates the maximum value of the MicrophoneVolumeLevel that can be assigned."
         },
         {
             tag: "attribute", name: "MicrophoneMinLevel", xref: "cluster§11.2.7.33",
-            details: "This attribute indicates the minimum value of the MicrophoneVolumeLevel that can be assigned."
+            details: "Indicates the minimum value of the MicrophoneVolumeLevel that can be assigned."
         },
         {
             tag: "attribute", name: "MicrophoneAgcEnabled", xref: "cluster§11.2.7.34",
-            details: "This attribute indicates the currently selected AGC (Automatic Gain Control) mode for the " +
-                "microphone. A value of TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled."
+            details: "Indicates the currently selected AGC (Automatic Gain Control) mode for the microphone. A value of " +
+                "TRUE indicates that microphone AGC is enabled. Otherwise, it is disabled."
         },
 
         {
             tag: "attribute", name: "ImageRotation", xref: "cluster§11.2.7.35",
-
-            details: "This attribute indicates the amount of clockwise rotation in degrees that the image has been " +
-                "subjected to." +
+            details: "Indicates the amount of clockwise rotation in degrees that the image has been subjected to." +
                 "\n" +
                 "This attribute may be present if the underlying hardware allows for arbitrary angle rotation within " +
                 "the full 360 degree range. If this attribute is not present, then discrete angle rotation may be " +
@@ -340,35 +336,35 @@ Resource.add({
 
         {
             tag: "attribute", name: "ImageFlipHorizontal", xref: "cluster§11.2.7.36",
-            details: "This attribute indicates whether the image has been flipped horizontally or not. A value of TRUE " +
-                "indicates that the image has been flipped horizontally."
+            details: "Indicates whether the image has been flipped horizontally or not. A value of TRUE indicates that the " +
+                "image has been flipped horizontally."
         },
         {
             tag: "attribute", name: "ImageFlipVertical", xref: "cluster§11.2.7.37",
-            details: "This attribute indicates whether the image has been flipped vertically or not. A value of TRUE " +
-                "indicates that the image has been flipped vertically."
+            details: "Indicates whether the image has been flipped vertically or not. A value of TRUE indicates that the " +
+                "image has been flipped vertically."
         },
         {
             tag: "attribute", name: "LocalVideoRecordingEnabled", xref: "cluster§11.2.7.38",
-            details: "This attribute indicates whether local storage based video recording is enabled. A value of TRUE " +
-                "indicates that local storage based video recording has been enabled."
+            details: "Indicates whether local storage based video recording is enabled. A value of TRUE indicates that " +
+                "local storage based video recording has been enabled."
         },
         {
             tag: "attribute", name: "LocalSnapshotRecordingEnabled", xref: "cluster§11.2.7.39",
-            details: "This attribute indicates whether local storage based snapshot recording is enabled. A value of TRUE " +
-                "indicates that local storage based snapshot recording has been enabled."
+            details: "Indicates whether local storage based snapshot recording is enabled. A value of TRUE indicates that " +
+                "local storage based snapshot recording has been enabled."
         },
 
         {
             tag: "attribute", name: "StatusLightEnabled", xref: "cluster§11.2.7.40",
-            details: "This attribute indicates whether the status light has been enabled or not. A value of TRUE indicates " +
-                "the status light has been enabled. When enabled, the camera may use it for visual signaling purposes " +
-                "to indicate various states of the camera."
+            details: "Indicates whether the status light has been enabled or not. A value of TRUE indicates the status " +
+                "light has been enabled. When enabled, the camera may use it for visual signaling purposes to " +
+                "indicate various states of the camera."
         },
 
         {
             tag: "attribute", name: "StatusLightBrightness", xref: "cluster§11.2.7.41",
-            details: "This attribute indicates the brightness level of the status light."
+            details: "Indicates the brightness level of the status light."
         },
 
         {
@@ -1140,7 +1136,7 @@ Resource.add({
                 "transports that handle audio and video streams." +
                 "\n" +
                 "When encoded in TLV binary format and placed inside other standards, this shall be represented using " +
-                "the RFC 8141 compliant string urn:csa:matter:av-metadata.",
+                "the [[RFC8141]](#ref_Rfc8141) compliant string urn:csa:matter:av-metadata.",
 
             children: [
                 {

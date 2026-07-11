@@ -32,9 +32,12 @@ Resource.add({
 
         {
             tag: "attribute", name: "SupportedModes", xref: "cluster§7.3.6.1",
-            details: "At least one entry in the SupportedModes attribute shall include the Vacuum and/or the Mop mode tag " +
+            details: "Indicates the list of supported modes." +
+                "\n" +
+                "At least one entry in the SupportedModes attribute shall include the Vacuum and/or the Mop mode tag " +
                 "in the ModeTags field list."
         },
+
         { tag: "attribute", name: "CurrentMode", xref: "cluster§7.3.6" },
         { tag: "attribute", name: "StartUpMode", xref: "cluster§7.3.6" },
         { tag: "attribute", name: "OnMode", xref: "cluster§7.3.6" },

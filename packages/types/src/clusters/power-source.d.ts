@@ -67,9 +67,9 @@ export declare namespace PowerSource {
         order: number;
 
         /**
-         * This attribute shall provide a user-facing description of this source, used to distinguish it from other
-         * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to
-         * convey information such as battery form factor, or chemistry.
+         * Indicates a user-facing description of this source, used to distinguish it from other power sources, e.g. "DC
+         * Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to convey information such
+         * as battery form factor, or chemistry.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.7.7.3
          */
@@ -299,8 +299,8 @@ export declare namespace PowerSource {
      */
     export interface ReplaceableAttributes {
         /**
-         * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
-         * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
+         * Indicates a user-facing description of this battery, which SHOULD contain information required to identify a
+         * replacement, such as form factor, chemistry or preferred manufacturer.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.7.7.20
          */
@@ -442,9 +442,9 @@ export declare namespace PowerSource {
         order: number;
 
         /**
-         * This attribute shall provide a user-facing description of this source, used to distinguish it from other
-         * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to
-         * convey information such as battery form factor, or chemistry.
+         * Indicates a user-facing description of this source, used to distinguish it from other power sources, e.g. "DC
+         * Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to convey information such
+         * as battery form factor, or chemistry.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.7.7.3
          */
@@ -659,8 +659,8 @@ export declare namespace PowerSource {
         activeBatFaults: BatFault[];
 
         /**
-         * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
-         * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
+         * Indicates a user-facing description of this battery, which SHOULD contain information required to identify a
+         * replacement, such as form factor, chemistry or preferred manufacturer.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.7.7.20
          */
