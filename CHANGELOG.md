@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/\*:
-    - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible.
+    - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible
 
 - @matter/general
     - Enhancement: `deepCopy` now clones `Set` and `Map` values instead of turning them into empty objects
@@ -31,13 +31,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Advertise the BasicInformation CapabilityMinima defaults and enforce the read/subscribe path-count ceiling
     - Feature: Added a ConfigurationVersion increment convenience API and reject ConfigurationVersion bumps on bridged devices that do not enable the attribute
     - Feature: Added a `configurationVersionChanged` endpoint/node lifecycle event that fires when a client peer's ConfigurationVersion changes (BasicInformation on the node, BridgedDeviceBasicInformation on bridged endpoints)
-    - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
+    - Feature: Preparations for Groupcast support (still provisional in Matter 1.6.0)
     - Feature: Adds a default WebRtcTransportRequestorServer implementation with session tracking, fabric/peer identity checks on commands, transport events, and ACL auto-install for the requestor cluster
     - Fix: Prune GroupKeyMap entries when a key set is removed
     - Fix: Tag manufacturer-extension (MEI) attributes with `WildcardSkipCustomElements` so wildcard reads skip them
     - Fix: Manufacturer-specific attributes in standard clusters are now filtered by the `WildcardSkipCustomElements` flag instead of `WildcardSkipGlobalAttributes` during wildcard path expansion
     - Fix: Signal subscription "alive" when a sustained subscription (re)establishes so peer structure changes are surfaced immediately instead of at the next periodic report
-    - Fix: Also signal subscription "alive" on empty max-interval keepalive reports, so a quiet peer keeps refreshing its liveness signal
+    - Fix: Signal subscription "alive" on empty max-interval keepalive reports, so a quiet peer keeps refreshing its liveness signal
     - Fix: Bound node shutdown so an interaction parked awaiting an MRP ack from an unresponsive peer (e.g. a restarted ICD) can no longer hang close
     - Fix: Also respect local (imported/stored) OTA images when checking for available updates, not only the DCL
     - Fix: Harden endpoint structure processing against non-compliant peers that omit mandatory Descriptor list attributes, treating an absent list as empty instead of crashing
@@ -48,7 +48,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
 
 - @matter/protocol
-    - Feature: ICD Check-In protocol: CheckInMessage codec with counter validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
+    - Feature: ICD Check-In protocol: CheckInMessage codec with counter-validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
     - Enhancement: Worst-case MRP response-time now accounts for the sender's fixed-backoff/additional-delay pad
     - Enhancement: WiFi peers now use a dedicated network profile with a 1s additive MRP retransmission margin, selected by operational medium for dual-stack nodes
     - Feature: Preparations for Groupcast support (provisional in Matter 1.6.0)
@@ -59,7 +59,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Single-command invokes no longer sending a commandRef on the wire nor require one echoed in the response
     - Fix: Single commands skip auto-batching when the peer accepts only one path per invoke or the response is suppressed
     - Fix: Closing a client interaction aborts an in-flight command batch instead of awaiting its response
-    - Fix: Ensure group messaging works correctly when multiple key sets share a group session id
+    - Fix: Ensures group messaging works correctly when multiple key sets share a group session id
     - Fix: Cap a peer-negotiated BDX block size to the transport payload size, so OTA blocks no longer exceed the UDP message limit
     - Fix: Report a sustained subscription's fallback `maxInterval` in seconds instead of a millisecond value while no subscription is established
 
