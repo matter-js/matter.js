@@ -35,6 +35,16 @@ describe("LeadKa", () => {
             const entries = BasicTlv.walk(payload);
             expect(entries[1].value).to.deep.equal(new Uint8Array([0x00, 0x00]));
         });
+
+        it("encodes State(reject) when resigning", () => {
+            const payload = LeadKa.buildRequest(0x0007, "reject");
+            const entries = BasicTlv.walk(payload);
+            expect(entries).to.have.lengthOf(2);
+            expect(entries[0].type).to.equal(MeshCopTlvType.STATE);
+            expect(entries[0].value).to.deep.equal(new Uint8Array([0xff]));
+            expect(entries[1].type).to.equal(MeshCopTlvType.COMMISSIONER_SESSION_ID);
+            expect(entries[1].value).to.deep.equal(new Uint8Array([0x00, 0x07]));
+        });
     });
 
     describe("parseResponse", () => {

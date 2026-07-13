@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/thread-br-client
+    - Fix: Use the correct MeshCoP commissioner keep-alive URI (`c/ca`) and resign the session with a rejecting keep-alive instead of a nonexistent `c/cr` release URI that Border Routers answered with 4.04
+
 ## 0.17.5 (2026-07-13)
 
 - @matter/\*:
