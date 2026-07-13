@@ -891,7 +891,7 @@ export class ObserverGroup {
      * @param observable the observable to observe
      */
     observes(observable: Observable<any[], any> | AsyncObservable<any>) {
-        return this.#observers.get(observable)?.length ?? 0 > 0;
+        return (this.#observers.get(observable)?.length ?? 0) > 0;
     }
 
     /**
