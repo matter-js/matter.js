@@ -10,10 +10,10 @@ The Matter standard evolves continuously and delivers two updates per year. matt
 - **Matter 1.4.2**: matter.js 0.16.x and higher
 - **Matter 1.5**: skipped
 - **Matter 1.5.1**: matter.js 0.17.x and higher
+- **Matter 1.6**: matter.js 0.17.5 and higher
 
 The following Matter protocol level features are not yet supported by matter.js:
 * Groups persistence for controller not yet implemented
-* ICD is not yet implemented on the client and server side
 * UDC is not yet implemented
 * NFC and WPAF commissioning are not yet implemented
 * GeneralCommissioning Cluster TC (Terms&Conditions) feature (and Enhanced commissioning flow) not yet implemented
