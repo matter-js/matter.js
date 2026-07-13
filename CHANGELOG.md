@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.5 (2026-07-13)
 
 - @matter/\*:
     - Upgraded to Matter specification version 1.6.0. Newly-mandatory attributes are seeded with conservative defaults, and new/provisional clusters stay behind feature guards, so existing code should remain backward compatible
