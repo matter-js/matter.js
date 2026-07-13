@@ -9,11 +9,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
-
-- @matter/node
-    - Fix: Log peer cluster structure changes (e.g. after a device firmware upgrade) at info level instead of warn
-
 ## 0.17.5 (2026-07-13)
 
 - @matter/\*:
