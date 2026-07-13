@@ -179,13 +179,9 @@ export abstract class BehaviorBacking {
 
     set type(type: Behavior.Type) {
         if (!type.supports(this.#type)) {
-            // This is unlikely to cause issues because we limit to peer contexts.  In that case we implement elements
-            // fairly expansively regardless of reported support.  So worst case scenario the metadata reported earlier
-            // may be out of sync with the device.  There is a small possibility this causes problems, though, so log a
-            // warning
-            logger.warn(
-                `The cluster for active behavior ${this} may no longer be strictly compatible with local implementation`,
-            );
+            // Peer-only: a changed data version already forced a full re-read, so the new type and its values are
+            // current and the change reaches consumers via ServersChanged.  Informational, not a compatibility fault.
+            logger.info(`Updated behavior ${this} to match changed peer cluster structure`);
         }
         this.#type = type;
     }
