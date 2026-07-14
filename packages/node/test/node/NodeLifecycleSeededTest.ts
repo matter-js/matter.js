@@ -83,4 +83,45 @@ describe("NodeLifecycle#isSeeded/seeded", () => {
         expect(peer.lifecycle.isSeeded).true;
         expect(seededCount).equals(1);
     });
+
+    it("disposes its structural-change listener once seeding latches", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peerAddress = controller.peers.get("peer1")!.peerAddress!;
+        await MockTime.resolve(controller.peers.get("peer1")!.delete());
+
+        const peer = await controller.peers.forAddress(peerAddress);
+
+        const changed = peer.lifecycle.changed;
+        let onCalls = 0;
+        let offCalls = 0;
+        const originalOn = changed.on.bind(changed);
+        const originalOff = changed.off.bind(changed);
+        changed.on = observer => {
+            onCalls++;
+            return originalOn(observer);
+        };
+        changed.off = observer => {
+            offCalls++;
+            return originalOff(observer);
+        };
+
+        // Installing BasicInformation with only the root endpoint present registers the tracking listener.
+        peer.behaviors.require(BasicInformationClient);
+        controller.env.get(ClientStructureEvents).emitCluster(peer, BasicInformationClient);
+        expect(peer.lifecycle.isSeeded).false;
+        expect(onCalls).equals(1);
+        expect(offCalls).equals(0);
+
+        // Adding an endpoint beyond the root satisfies the seed criteria and must remove the listener.
+        peer.endpoints.require(1);
+        expect(peer.lifecycle.isSeeded).true;
+        expect(offCalls).equals(1);
+
+        // Further structural changes must not re-add or otherwise re-trigger the disposed listener.
+        peer.endpoints.require(2);
+        expect(onCalls).equals(1);
+        expect(offCalls).equals(1);
+    });
 });

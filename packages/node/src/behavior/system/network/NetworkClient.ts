@@ -99,6 +99,8 @@ export class NetworkClient extends NetworkBehavior {
 
         if (this.#node.nodeType !== "group") {
             if (this.endpoint.behaviors.has(IcdClient)) {
+                // Gated on startup-time presence only; ICD support installed later falls back to the slower
+                // establishment-unresponsive path for offline detection rather than this check-in fast path.
                 this.reactTo(this.endpoint.eventsOf(IcdClient).checkInMissed, this.#markLikelyOffline, {
                     offline: true,
                 });

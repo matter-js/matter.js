@@ -494,7 +494,16 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         this.#evaluateSeeded(node);
         if (!node.lifecycle.isSeeded) {
-            node.lifecycle.changed.on(() => this.#evaluateSeeded(node));
+            // Self-disposing: removes itself once seeding latches so no dead listener persists for the node's
+            // remaining lifetime.  Safe to call off() from within this callback because Observable#emit iterates a
+            // snapshot of its observers.
+            const onChanged = () => {
+                this.#evaluateSeeded(node);
+                if (node.lifecycle.isSeeded) {
+                    node.lifecycle.changed.off(onChanged);
+                }
+            };
+            node.lifecycle.changed.on(onChanged);
         }
     }
 
