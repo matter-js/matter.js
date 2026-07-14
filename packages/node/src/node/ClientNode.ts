@@ -22,6 +22,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     DependencyLifecycleError,
     Diagnostic,
+    Duration,
     Identity,
     ImplementationError,
     InternalError,
@@ -151,6 +152,25 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
 
         await this.delete();
+    }
+
+    /**
+     * Open a Basic Commissioning Window on this peer (uses the passcode originally printed on the device).
+     *
+     * This is an optional feature and not all devices support it; use {@link openEnhancedCommissioningWindow} unless
+     * you specifically need the basic commissioning method.
+     */
+    async openBasicCommissioningWindow(commissioningTimeout?: Duration) {
+        await this.act(agent => agent.commissioning.openBasicCommissioningWindow(commissioningTimeout));
+    }
+
+    /**
+     * Open an Enhanced Commissioning Window on this peer using a freshly generated random passcode.
+     *
+     * @returns the manual and QR pairing codes encoding the generated passcode.
+     */
+    async openEnhancedCommissioningWindow(commissioningTimeout?: Duration) {
+        return await this.act(agent => agent.commissioning.openEnhancedCommissioningWindow(commissioningTimeout));
     }
 
     /**

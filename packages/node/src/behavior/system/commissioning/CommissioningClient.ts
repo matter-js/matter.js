@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
+import { AdministratorCommissioningClient } from "#behaviors/administrator-commissioning";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
@@ -16,6 +17,8 @@ import type { ServerNode } from "#node/ServerNode.js";
 import {
     causedBy,
     ClassExtends,
+    Crypto,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -61,6 +64,7 @@ import {
     FabricRemovedError,
     LocatedNodeCommissioningOptions,
     OperationalAddress,
+    PaseClient,
     Peer,
     PeerAddress,
     PeerInitiatedCloseError,
@@ -74,14 +78,20 @@ import {
 } from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
+    CommissioningFlowType,
     DeviceTypeId,
     DiscoveryCapabilitiesBitmap,
+    DiscoveryCapabilitiesSchema,
     FabricIndex,
     ManualPairingCodeCodec,
     NodeId,
+    QrPairingCodeCodec,
+    Status,
+    StatusResponseError,
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { ControllerBehavior } from "../controller/ControllerBehavior.js";
 import { NetworkClient } from "../network/NetworkClient.js";
@@ -400,6 +410,93 @@ export class CommissioningClient extends Behavior {
             );
         } finally {
             leaveEvents?.off(onLeave);
+        }
+    }
+
+    /**
+     * Open a Basic Commissioning Window (uses the passcode originally printed on the device).
+     *
+     * This is an optional feature and not all devices support it; use {@link openEnhancedCommissioningWindow} unless
+     * you specifically need the basic commissioning method.
+     */
+    async openBasicCommissioningWindow(commissioningTimeout: Duration = Seconds(900)) {
+        if (!this.endpoint.featuresOf(AdministratorCommissioningClient).basic) {
+            throw new ImplementationError(`${this.endpoint} does not support the basic commissioning method`);
+        }
+
+        const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
+        await this.#revokeStaleCommissioningWindow(adminCommissioning);
+
+        await adminCommissioning.openBasicCommissioningWindow({
+            commissioningTimeout: Seconds.of(commissioningTimeout),
+        });
+    }
+
+    /**
+     * Open an Enhanced Commissioning Window using a freshly generated random passcode.
+     *
+     * @returns the manual and QR pairing codes encoding the generated passcode.
+     */
+    async openEnhancedCommissioningWindow(
+        commissioningTimeout: Duration = Seconds(900),
+    ): Promise<{ manualPairingCode: string; qrPairingCode: string }> {
+        const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
+        await this.#revokeStaleCommissioningWindow(adminCommissioning);
+
+        const crypto = this.env.get(Crypto);
+        const discriminator = PaseClient.generateRandomDiscriminator(crypto);
+        const passcode = PaseClient.generateRandomPasscode(crypto);
+        const salt = crypto.randomBytes(32);
+        const iterations = CRYPTO_PBKDF_ITERATIONS_MIN;
+        const pakePasscodeVerifier = await PaseClient.generatePakePasscodeVerifier(crypto, passcode, {
+            iterations,
+            salt,
+        });
+
+        await adminCommissioning.openCommissioningWindow({
+            commissioningTimeout: Seconds.of(commissioningTimeout),
+            pakePasscodeVerifier,
+            salt,
+            iterations,
+            discriminator,
+        });
+
+        const { vendorId, productId } = this.agent.get(BasicInformationClient).state;
+
+        // TODO: If the timeout is shorter than 15 minutes, also encode it in the QR code's TLV data.
+        const qrPairingCode = QrPairingCodeCodec.encode([
+            {
+                version: 0,
+                vendorId,
+                productId,
+                flowType: CommissioningFlowType.Standard,
+                discriminator,
+                passcode,
+                discoveryCapabilities: DiscoveryCapabilitiesSchema.encode({ onIpNetwork: true }),
+            },
+        ]);
+
+        return {
+            manualPairingCode: ManualPairingCodeCodec.encode({
+                discriminator,
+                passcode,
+                flowType: CommissioningFlowType.Standard,
+            }),
+            qrPairingCode,
+        };
+    }
+
+    /** Tolerates the device reporting that no window is currently open, so a stale window can be revoked blindly. */
+    async #revokeStaleCommissioningWindow(adminCommissioning: AdministratorCommissioningClient) {
+        try {
+            await adminCommissioning.revokeCommissioning();
+        } catch (error) {
+            if (
+                !StatusResponseError.is(error, Status.Failure) ||
+                StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
+            ) {
+                throw error;
+            }
         }
     }
 
