@@ -62,7 +62,7 @@ describe("RebootResubscribeArmer", () => {
 
     it("re-subscribes when no report arrives within the grace window", async () => {
         const { armer, emitSession, closeForPeerCalls } = setup();
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
         emitSession();
         expect(closeForPeerCalls.length).equals(0);
         await MockTime.advance(Seconds(30));
@@ -72,7 +72,7 @@ describe("RebootResubscribeArmer", () => {
 
     it("keeps the subscription when a report arrives within the grace window", async () => {
         const { armer, emitSession, setLastReportAt, closeForPeerCalls } = setup();
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
         emitSession();
         setLastReportAt(Time.nowMs); // device fed the existing subscription after returning
         await MockTime.advance(Seconds(30));
@@ -84,7 +84,7 @@ describe("RebootResubscribeArmer", () => {
         const { armer, emitSession, setLastReportAt, closeForPeerCalls } = setup();
         setLastReportAt(Time.nowMs); // stale report from before the reboot
         await MockTime.advance(Seconds(5));
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
         emitSession();
         await MockTime.advance(Seconds(30));
         expect(closeForPeerCalls).deep.equals([PEER]);
@@ -100,7 +100,7 @@ describe("RebootResubscribeArmer", () => {
 
     it("disarm cancels a pending re-subscribe", async () => {
         const { armer, emitSession, closeForPeerCalls } = setup();
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
         emitSession();
         armer.disarm(PEER);
         await MockTime.advance(Seconds(30));
@@ -121,7 +121,7 @@ describe("RebootResubscribeArmer", () => {
 
     it("ignores a controller-initiated session (isInitiator true) even for an armed peer", async () => {
         const { armer, emitSession, closeOlderCalls, closeForPeerCalls } = setup();
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
         emitSession(PEER, true);
         expect(closeOlderCalls.length).equals(0);
         await MockTime.advance(Seconds(30));
@@ -133,12 +133,12 @@ describe("RebootResubscribeArmer", () => {
         const { armer, emitSession, closeForPeerCalls } = setup();
 
         // First cycle: arm, session arrives, grace starts.
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
         emitSession();
 
         // Re-arm before the first grace expires — this must drop the first cycle's timer/target.
         await MockTime.advance(Seconds(10));
-        armer.arm(PEER, { grace: Seconds(30) });
+        armer.arm(PEER);
 
         // Advance by the remainder of the FIRST cycle's grace (would fire at t=30 if the old timer
         // survived re-arming). No new session has arrived in the second cycle, so nothing should fire.

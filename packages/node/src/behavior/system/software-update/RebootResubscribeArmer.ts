@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Logger, Observable, ObserverGroup, Seconds, Time, Timer, Timestamp } from "@matter/general";
+import { Logger, Observable, ObserverGroup, Seconds, Time, Timer, Timestamp } from "@matter/general";
 import { NodeSession, PeerAddress, PeerAddressMap } from "@matter/protocol";
 
 const logger = Logger.get("RebootResubscribeArmer");
 
 /** Grace after the returning device's new session before we force re-subscription. */
-export const DEFAULT_REBOOT_RESUBSCRIBE_GRACE = Seconds(30);
+const DEFAULT_REBOOT_RESUBSCRIBE_GRACE = Seconds(30);
 
 interface ArmState {
-    grace: Duration;
     newSessionAt?: Timestamp;
     graceTimer?: Timer;
 }
@@ -39,16 +38,14 @@ export class RebootResubscribeArmer {
         this.#observers.on(deps.onSessionAdded, session => this.#onSessionAdded(session));
     }
 
-    arm(peerAddress: PeerAddress, options?: RebootResubscribeArmer.ArmOptions) {
+    arm(peerAddress: PeerAddress) {
         peerAddress = PeerAddress(peerAddress);
-        const grace = options?.grace ?? DEFAULT_REBOOT_RESUBSCRIBE_GRACE;
 
         let state = this.#armed.get(peerAddress);
         if (state === undefined) {
-            this.#armed.set(peerAddress, (state = { grace }));
+            this.#armed.set(peerAddress, (state = {}));
         } else {
             // Re-arming starts a fresh cycle; drop any grace timer/target from a previous arm.
-            state.grace = grace;
             state.graceTimer?.stop();
             state.graceTimer = undefined;
             state.newSessionAt = undefined;
@@ -86,7 +83,7 @@ export class RebootResubscribeArmer {
 
         state.newSessionAt = session.createdAt;
         state.graceTimer?.stop();
-        state.graceTimer = Time.getTimer("OTA reboot resubscribe grace", state.grace, () =>
+        state.graceTimer = Time.getTimer("OTA reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
             this.#onGraceExpired(peerAddress),
         );
         state.graceTimer.start();
@@ -127,9 +124,5 @@ export namespace RebootResubscribeArmer {
         closeOlderSessions(address: PeerAddress, asOf: Timestamp): Promise<void> | void;
         lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined;
         closeForPeer(address: PeerAddress): void;
-    }
-
-    export interface ArmOptions {
-        grace?: Duration;
     }
 }
