@@ -82,6 +82,7 @@ const logger = Logger.get("PairedNode");
 /** Delay after receiving a changed partList  from a device to update the device structure */
 const STRUCTURE_UPDATE_TIMEOUT = Seconds(5);
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export enum NodeStates {
     /**
      * Node seems active nd last communications were successful and subscription updates were received and all data is
@@ -108,7 +109,7 @@ export enum NodeStates {
     WaitingForDeviceDiscovery = 3,
 }
 
-/** @deprecated */
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export enum NodeStateInformation {
     /**
      * Node seems active nd last communications were successful and subscription updates were received and all data is
@@ -146,6 +147,7 @@ export enum NodeStateInformation {
     Decommissioned = 5,
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export type CommissioningControllerNodeOptions = {
     /**
      * Unless set to false the node will be automatically connected when initialized. When set to false use
@@ -203,6 +205,7 @@ export type CommissioningControllerNodeOptions = {
     readonly caseAuthenticatedTags?: CaseAuthenticatedTag[];
 };
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export class NodeNotConnectedError extends MatterError {}
 
 /**
@@ -222,6 +225,8 @@ function areNumberListsSame(list1: Immutable<number[]>, list2: Immutable<number[
 /**
  * Class to represents one node that is paired/commissioned with the matter.js Controller. Instances are returned by
  * the CommissioningController on commissioning or when connecting.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class PairedNode {
     readonly #clientNode: ClientNode;
@@ -262,6 +267,7 @@ export class PairedNode {
      */
     #registeredEndpointStructureChanges = new Map<EndpointNumber, ClusterId[] | null>();
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     readonly events: PairedNode.Events = {
         initialized: AsyncObservable<[details: DeviceInformationData]>(),
         initializedFromRemote: AsyncObservable<[details: DeviceInformationData]>(),
@@ -277,6 +283,7 @@ export class PairedNode {
         connectionAlive: Observable<[void]>(),
     };
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     static async create(
         nodeId: NodeId,
         commissioningController: CommissioningController,
@@ -301,6 +308,7 @@ export class PairedNode {
         return node;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     constructor(
         readonly nodeId: NodeId,
         commissioningController: CommissioningController,
@@ -402,53 +410,78 @@ export class PairedNode {
         });
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get construction() {
         return this.#construction;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get isConnected() {
         return this.#connectionState === NodeStates.Connected;
     }
 
-    /** Returns the Node connection state. */
+    /**
+     * Returns the Node connection state.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get connectionState() {
         return this.#connectionState;
     }
 
-    /** Returns the BasicInformation cluster metadata collected from the device. */
+    /**
+     * Returns the BasicInformation cluster metadata collected from the device.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get basicInformation() {
         return this.#nodeDetails.basicInformation;
     }
 
-    /** Returns the general capability metadata collected from the device. */
+    /**
+     * Returns the general capability metadata collected from the device.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get deviceInformation() {
         return this.#nodeDetails.meta;
     }
 
-    /** Is the Node fully initialized with formerly stored subscription data? False when the node was never connected so far. */
+    /**
+     * Is the Node fully initialized with formerly stored subscription data? False when the node was never connected so far.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get localInitializationDone() {
         return this.#localInitializationDone;
     }
 
-    /** Is the Node fully initialized with remote subscription or read data? */
+    /**
+     * Is the Node fully initialized with remote subscription or read data?
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get remoteInitializationDone() {
         return this.#remoteInitializationDone;
     }
 
-    /** Is the Node initialized - locally or remotely? */
+    /**
+     * Is the Node initialized - locally or remotely?
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get initialized() {
         return this.#remoteInitializationDone || this.#localInitializationDone;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get id() {
         return this.#clientNode.id;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get node() {
         return this.#clientNode;
     }
 
-    /** If a subscription is established, then this is the interval in seconds, otherwise undefined */
+    /**
+     * If a subscription is established, then this is the interval in seconds, otherwise undefined
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get currentSubscriptionIntervalSeconds() {
         const sub = this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription;
         return sub?.maxInterval !== undefined ? sub.maxInterval : undefined;
@@ -515,6 +548,8 @@ export class PairedNode {
      * The connection happens in the background. Please monitor the state events of the node to see if the
      * connection was successful.
      * The provided connection options will be set and used internally if the node reconnects successfully.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     connect(connectOptions?: CommissioningControllerNodeOptions) {
         if (this.#decommissioned) {
@@ -565,6 +600,8 @@ export class PairedNode {
      * Trigger a reconnection to the device. This method is non-blocking and will return immediately.
      * The reconnection happens in the background. Please monitor the state events of the node to see if the
      * reconnection was successful.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     triggerReconnect() {
         this.reconnect().catch(error => logger.error(this.#peerAddress, `Failed to reconnect to node`, error));
@@ -572,6 +609,8 @@ export class PairedNode {
 
     /**
      * Force a reconnection by tearing down and re-establishing the sustained subscription.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async reconnect(connectOptions?: CommissioningControllerNodeOptions) {
         if (this.#decommissioned) {
@@ -828,12 +867,17 @@ export class PairedNode {
      * Request the current InteractionClient for custom special interactions with the device. Usually the
      * ClusterClients of the Devices of the node should be used instead. An own InteractionClient is only needed
      * when you want to read or write multiple attributes or events in a single request or send batch invokes.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getInteractionClient() {
         return this.#interactionClient;
     }
 
-    /** Method to log the structure of this node with all endpoints and clusters. */
+    /**
+     * Method to log the structure of this node with all endpoints and clusters.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     logStructure() {
         logger.info(this.#clientNode);
     }
@@ -1276,7 +1320,10 @@ export class PairedNode {
         }
     }
 
-    /** Returns all parts (endpoints) known for the Root Endpoint of this node. */
+    /**
+     * Returns all parts (endpoints) known for the Root Endpoint of this node.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get parts() {
         return this.getRootEndpoint()?.parts ?? new Map<number, Endpoint>();
     }
@@ -1289,22 +1336,34 @@ export class PairedNode {
         return this.#endpoints!;
     }
 
-    /** Returns the functional devices/endpoints (the "children" of the Root Endpoint) known for this node. */
+    /**
+     * Returns the functional devices/endpoints (the "children" of the Root Endpoint) known for this node.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     getDevices(): Endpoint[] {
         return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getChildEndpoints() ?? [];
     }
 
-    /** Returns the device/endpoint with the given endpoint ID. */
+    /**
+     * Returns the device/endpoint with the given endpoint ID.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     getDeviceById(endpointId: number) {
         return this.#ensureLegacyEndpointStructure().get(EndpointNumber(endpointId));
     }
 
-    /** Returns the Root Endpoint of the device. */
+    /**
+     * Returns the Root Endpoint of the device.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     getRootEndpoint() {
         return this.getDeviceById(0);
     }
 
-    /** De-Commission (unpair) the device from this controller by removing the fabric from the device. */
+    /**
+     * De-Commission (unpair) the device from this controller by removing the fabric from the device.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     async decommission() {
         if (
             this.#connectionState === NodeStates.Reconnecting ||
@@ -1339,6 +1398,8 @@ export class PairedNode {
      * Opens a Basic Commissioning Window (uses the original Passcode printed on the device) with the device.
      * This is an optional method, so it might not be supported by all devices and could be rejected with an error in
      * this case! Better use openEnhancedCommissioningWindow() instead.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async openBasicCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
         const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
@@ -1366,7 +1427,10 @@ export class PairedNode {
         await adminCommissioningCluster.commands.openBasicCommissioningWindow({ commissioningTimeout });
     }
 
-    /** Opens an Enhanced Commissioning Window (uses a generated random Passcode) with the device. */
+    /**
+     * Opens an Enhanced Commissioning Window (uses a generated random Passcode) with the device.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     async openEnhancedCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
         const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
         if (adminCommissioningCluster === undefined) {
@@ -1434,7 +1498,10 @@ export class PairedNode {
         };
     }
 
-    /** Closes the current session, ends the subscription and disconnects the device. The node can be reconnected via connect(). */
+    /**
+     * Closes the current session, ends the subscription and disconnects the device. The node can be reconnected via connect().
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     async disconnect() {
         // Unlike close() this keeps the instance (observers, construction) intact so connect() can reconnect it; the
         // node is disabled via disconnectNode() which ends the subscription.
@@ -1443,7 +1510,10 @@ export class PairedNode {
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
 
-    /** Closes the subscription and ends all timers used by this PairedNode instance. */
+    /**
+     * Closes the subscription and ends all timers used by this PairedNode instance.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     close(sendDecommissionedStatus = false) {
         this.#closing = true;
         this.#observers.close();
@@ -1462,6 +1532,7 @@ export class PairedNode {
      * Get a cluster client from the root endpoint. This is mainly used internally and not needed to be called by the user.
      *
      * @param cluster ClusterClient to get or undefined if not existing
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getRootClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
     getRootClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
@@ -1473,6 +1544,7 @@ export class PairedNode {
      *
      * @param endpointId EndpointNumber to get the cluster from
      * @param cluster ClusterClient to get or undefined if not existing
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getClusterClientForDevice<const N extends ClusterType.Concrete>(
         endpointId: EndpointNumber,
@@ -1482,6 +1554,7 @@ export class PairedNode {
         return this.getDeviceById(endpointId)?.getClusterClient(cluster);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get [Diagnostic.value](): unknown {
         const root = this.getRootEndpoint();
 
@@ -1511,6 +1584,8 @@ export class PairedNode {
     /**
      * Access to cached cluster state values of the root endpoint using node.state.clusterNameOrId.attributeNameOrId
      * Returns immutable cached attribute values from cluster clients
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get state() {
         return this.#clientNode.state;
@@ -1519,6 +1594,8 @@ export class PairedNode {
     /**
      * Access to cluster commands of the root endpoint using node.commands.clusterNameOrId.commandName
      * Returns async functions that can be called to invoke commands on cluster clients
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get commands() {
         return this.#clientNode.commands;
@@ -1530,6 +1607,8 @@ export class PairedNode {
      * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
      * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
      * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     stateOf(type: string): Immutable<Val.Struct>;
 
@@ -1538,6 +1617,8 @@ export class PairedNode {
      *
      * This is the recommended way to access state for a specific behavior because it provides proper type checking
      * and enforces the correctness of the used Behavior type including all enabled features.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
@@ -1547,11 +1628,15 @@ export class PairedNode {
 
     /**
      * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
 
     /**
      * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
 
@@ -1559,37 +1644,59 @@ export class PairedNode {
         return this.#clientNode.maybeStateOf(type as any);
     }
 
-    /** Cluster commands for a behavior id on the root endpoint (untyped). */
+    /**
+     * Cluster commands for a behavior id on the root endpoint (untyped).
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     commandsOf(type: string): Record<string, Commands.Command>;
 
-    /** Typed variant of {@link commandsOf}. */
+    /**
+     * Typed variant of {@link commandsOf}.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T>;
 
     commandsOf(type: Behavior.Type | string): unknown {
         return this.#clientNode.commandsOf(type as Behavior.Type);
     }
 
-    /** Activated cluster features for a behavior id on the root endpoint (untyped). */
+    /**
+     * Activated cluster features for a behavior id on the root endpoint (untyped).
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     featuresOf(type: string): Immutable<Record<string, boolean>>;
 
-    /** Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type. */
+    /**
+     * Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
 
     featuresOf(type: ClusterBehavior.Type | string) {
         return this.#clientNode.featuresOf(type as ClusterBehavior.Type);
     }
 
-    /** {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors. */
+    /**
+     * {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     maybeFeaturesOf(type: string): Immutable<Record<string, boolean>> | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     maybeFeaturesOf<T extends ClusterBehavior.Type>(type: T): T["features"] | undefined;
     maybeFeaturesOf(type: ClusterBehavior.Type | string) {
         return this.#clientNode.maybeFeaturesOf(type as ClusterBehavior.Type);
     }
 
-    /** Global cluster attribute state for a behavior id on the root endpoint (untyped). */
+    /**
+     * Global cluster attribute state for a behavior id on the root endpoint (untyped).
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     globalsOf(type: string): Immutable<GlobalAttributeState>;
 
-    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
+    /**
+     * Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     globalsOf<T extends ClusterBehavior.Type>(
         type: T,
     ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
@@ -1598,8 +1705,12 @@ export class PairedNode {
         return this.#clientNode.globalsOf(type as ClusterBehavior.Type);
     }
 
-    /** {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors. */
+    /**
+     * {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     maybeGlobalsOf(type: string): Immutable<GlobalAttributeState> | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     maybeGlobalsOf<T extends ClusterBehavior.Type>(
         type: T,
     ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }> | undefined;
@@ -1611,8 +1722,10 @@ export class PairedNode {
      * Read selected behavior state on the root endpoint via the underlying client node.
      *
      * @see {@link ClientEndpoint.get}
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get(): Promise<unknown>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get(selector: object | undefined, options?: ClientEndpoint.GetOptions): Promise<unknown>;
     get(selector?: object, options?: ClientEndpoint.GetOptions): Promise<unknown> {
         return this.#clientNode.get(selector as never, options);
@@ -1622,17 +1735,20 @@ export class PairedNode {
      * Read state for a single behavior on the root endpoint via the underlying client node.
      *
      * @see {@link ClientEndpoint.getStateOf}
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getStateOf<B extends Behavior.Type>(
         type: B,
         selector?: true,
         options?: ClientEndpoint.GetOptions,
     ): Promise<Behavior.StateOf<B>>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getStateOf<B extends Behavior.Type, K extends keyof Behavior.StateOf<B>>(
         type: B,
         selector: readonly K[],
         options?: ClientEndpoint.GetOptions,
     ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getStateOf(type: string, selector?: readonly string[], options?: ClientEndpoint.GetOptions): Promise<Val.Struct>;
     getStateOf(
         type: Behavior.Type | string,
@@ -1652,6 +1768,8 @@ export class PairedNode {
      * Note: this exposes per-behavior events of the root endpoint. The {@link events} field on this class is the
      * lifecycle event bus of the {@link PairedNode} itself ({@link PairedNode.Events}) and unrelated to behavior
      * events.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
 
@@ -1660,6 +1778,8 @@ export class PairedNode {
      *
      * This is the recommended way to access events for a specific behavior because it provides proper type checking
      * and enforces the correctness of the used Behavior type including all enabled features.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
 
@@ -1668,57 +1788,92 @@ export class PairedNode {
     }
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export namespace PairedNode {
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     export interface NodeStructureEvents {
-        /** Emitted when endpoints are added. */
+        /**
+         * Emitted when endpoints are added.
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         nodeEndpointAdded: Observable<[EndpointNumber]>;
 
-        /** Emitted when endpoints are removed. */
+        /**
+         * Emitted when endpoints are removed.
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         nodeEndpointRemoved: Observable<[EndpointNumber]>;
 
-        /** Emitted when endpoints are updated (e.g. device type changed, structure changed). */
+        /**
+         * Emitted when endpoints are updated (e.g. device type changed, structure changed).
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         nodeEndpointChanged: Observable<[EndpointNumber]>;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     export interface Events extends NodeStructureEvents {
         /**
          * Emitted when the node is initialized from local data. These data usually are stale, but you can still already
          * use the node to interact with the device. If no local data are available this event will be emitted together
          * with the initializedFromRemote event.
+         *
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
          */
         initialized: AsyncObservable<[details: DeviceInformationData]>;
 
         /**
          * Emitted when the node is fully initialized from remote and all attributes and events are subscribed.
          * This event can also be awaited if code needs to be blocked until the node is fully initialized.
+         *
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
          */
         initializedFromRemote: AsyncObservable<[details: DeviceInformationData]>;
 
         /**
          * Emitted when the device information changes.
+         *
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
          */
         deviceInformationChanged: AsyncObservable<[details: DeviceInformationData]>;
 
-        /** Emitted when the state of the node changes. */
+        /**
+         * Emitted when the state of the node changes.
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         stateChanged: Observable<[nodeState: NodeStates]>;
 
-        /** Emitted when an attribute value changes. */
+        /**
+         * Emitted when an attribute value changes.
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         attributeChanged: Observable<[data: DecodedAttributeReportValue<any>]>;
 
-        /** Emitted when an event is triggered. */
+        /**
+         * Emitted when an event is triggered.
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         eventTriggered: Observable<[DecodedEventReportValue<any>]>;
 
         /**
          * Emitted when all node structure changes were applied (Endpoints got added or also removed).
          * You can alternatively use the nodeEndpointAdded, nodeEndpointRemoved, and nodeEndpointChanged events to react on specific changes.
          * This event is emitted after all nodeEndpointAdded, nodeEndpointRemoved, and nodeEndpointChanged events are emitted.
+         *
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
          */
         structureChanged: Observable<[void]>;
 
-        /** Emitted when the node is decommissioned. */
+        /**
+         * Emitted when the node is decommissioned.
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         decommissioned: Observable<[void]>;
 
-        /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
+        /**
+         * Emitted when a subscription alive trigger is received (max interval trigger or any data update)
+         * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+         */
         connectionAlive: Observable<[void]>;
     }
 }

@@ -27,11 +27,13 @@ import { Val } from "@matter/protocol";
 import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export interface EndpointOptions {
     endpointId?: EndpointNumber;
     uniqueStorageKey?: string;
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export class Endpoint {
     private readonly clusterClients = new Map<ClusterId, ClusterClientObj>();
     private readonly childEndpoints = new Map<number, Endpoint>();
@@ -49,6 +51,7 @@ export class Endpoint {
      * @param endpoint The ClientEndpoint this Endpoint represents
      * @param deviceTypes One or multiple DeviceTypeDefinitions of the endpoint
      * @param options Options for the endpoint
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     constructor(
         endpoint: ClientEndpoint,
@@ -69,6 +72,8 @@ export class Endpoint {
     /**
      * Access to cached cluster state values using endpoint.state.clusterNameOrId.attributeNameOrId
      * Returns immutable cached attribute values from cluster clients
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get state() {
         return this.#endpoint.state;
@@ -77,6 +82,8 @@ export class Endpoint {
     /**
      * Access to cluster commands using endpoint.commands.clusterNameOrId.commandName
      * Returns async functions that can be called to invoke commands on cluster clients
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get commands() {
         return this.#endpoint.commands;
@@ -88,6 +95,8 @@ export class Endpoint {
      * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
      * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
      * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     stateOf(type: string): Immutable<Val.Struct>;
 
@@ -96,6 +105,8 @@ export class Endpoint {
      *
      * This is the recommended way to access state for a specific behavior because it provides proper type checking
      * and enforces the correctness of the used Behavior type including all enabled features.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
@@ -105,11 +116,15 @@ export class Endpoint {
 
     /**
      * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
 
     /**
      * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior is unsupported.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
 
@@ -127,6 +142,7 @@ export class Endpoint {
      *
      * @param type the {@link Behavior} to patch
      * @param values the values to change
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     setStateOf<T extends Behavior.Type>(type: T, values: Behavior.PatchStateOf<T>): Promise<void>;
 
@@ -141,6 +157,7 @@ export class Endpoint {
      *
      * @param type the {@link Behavior} to patch
      * @param values the values to change
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     setStateOf(type: string, values: Val.Struct): Promise<void>;
 
@@ -148,37 +165,59 @@ export class Endpoint {
         return this.#endpoint.setStateOf(type as Behavior.Type, values);
     }
 
-    /** Cluster commands for a behavior id (untyped: each command is `Commands.Command`). */
+    /**
+     * Cluster commands for a behavior id (untyped: each command is `Commands.Command`).
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     commandsOf(type: string): Record<string, Commands.Command>;
 
-    /** Typed variant of {@link commandsOf}; preserves the behavior's command interface. */
+    /**
+     * Typed variant of {@link commandsOf}; preserves the behavior's command interface.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T>;
 
     commandsOf(type: Behavior.Type | string): unknown {
         return this.#endpoint.commandsOf(type as Behavior.Type);
     }
 
-    /** Activated cluster features for a behavior id (untyped). */
+    /**
+     * Activated cluster features for a behavior id (untyped).
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     featuresOf(type: string): Immutable<Record<string, boolean>>;
 
-    /** Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type. */
+    /**
+     * Typed variant of {@link featuresOf}; preserves the cluster's per-feature flag type.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     featuresOf<T extends ClusterBehavior.Type>(type: T): T["features"];
 
     featuresOf(type: ClusterBehavior.Type | string) {
         return this.#endpoint.featuresOf(type as ClusterBehavior.Type);
     }
 
-    /** {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors. */
+    /**
+     * {@link featuresOf} variant returning undefined for unknown or non-cluster behaviors.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     maybeFeaturesOf(type: string): Immutable<Record<string, boolean>> | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     maybeFeaturesOf<T extends ClusterBehavior.Type>(type: T): T["features"] | undefined;
     maybeFeaturesOf(type: ClusterBehavior.Type | string) {
         return this.#endpoint.maybeFeaturesOf(type as ClusterBehavior.Type);
     }
 
-    /** Global cluster attribute state (clusterRevision, featureMap, attributeList, ...) for a behavior id. */
+    /**
+     * Global cluster attribute state (clusterRevision, featureMap, attributeList, ...) for a behavior id.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     globalsOf(type: string): Immutable<GlobalAttributeState>;
 
-    /** Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type. */
+    /**
+     * Typed variant of {@link globalsOf}; narrows `featureMap` to the cluster's per-feature flag type.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     globalsOf<T extends ClusterBehavior.Type>(
         type: T,
     ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }>;
@@ -187,8 +226,12 @@ export class Endpoint {
         return this.#endpoint.globalsOf(type as ClusterBehavior.Type);
     }
 
-    /** {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors. */
+    /**
+     * {@link globalsOf} variant returning undefined for unknown or non-cluster behaviors.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     maybeGlobalsOf(type: string): Immutable<GlobalAttributeState> | undefined;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     maybeGlobalsOf<T extends ClusterBehavior.Type>(
         type: T,
     ): Immutable<Omit<GlobalAttributeState, "featureMap"> & { featureMap: T["features"] }> | undefined;
@@ -200,8 +243,10 @@ export class Endpoint {
      * Read selected behavior state via the underlying client endpoint.
      *
      * @see {@link ClientEndpoint.get}
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get(): Promise<unknown>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get(selector: object | undefined, options?: ClientEndpoint.GetOptions): Promise<unknown>;
     get(selector?: object, options?: ClientEndpoint.GetOptions): Promise<unknown> {
         return this.#endpoint.get(selector as never, options);
@@ -211,17 +256,20 @@ export class Endpoint {
      * Read state for a single behavior via the underlying client endpoint.
      *
      * @see {@link ClientEndpoint.getStateOf}
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     getStateOf<B extends Behavior.Type>(
         type: B,
         selector?: true,
         options?: ClientEndpoint.GetOptions,
     ): Promise<Behavior.StateOf<B>>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getStateOf<B extends Behavior.Type, K extends keyof Behavior.StateOf<B>>(
         type: B,
         selector: readonly K[],
         options?: ClientEndpoint.GetOptions,
     ): Promise<{ readonly [P in K]?: Behavior.StateOf<B>[P] }>;
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getStateOf(type: string, selector?: readonly string[], options?: ClientEndpoint.GetOptions): Promise<Val.Struct>;
     getStateOf(
         type: Behavior.Type | string,
@@ -237,6 +285,8 @@ export class Endpoint {
      * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
      * Behavior type including all enabled features. Because of this each event is typed as Observable | undefined.
      * Please ensure to have proper checks in place when using this method with string type.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
 
@@ -245,6 +295,8 @@ export class Endpoint {
      *
      * This is the recommended way to access events for a specific behavior because it provides proper type checking
      * and enforces the correctness of the used Behavior type including all enabled features.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     eventsOf<T extends Behavior.Type>(type: T): Behavior.EventsOf<T>;
 
@@ -252,23 +304,30 @@ export class Endpoint {
         return this.#endpoint.eventsOf(type as any);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get behaviors() {
         return this.#endpoint.behaviors;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get endpoint() {
         return this.#endpoint;
     }
 
-    /** Get all child endpoints aka parts */
+    /**
+     * Get all child endpoints aka parts
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     get parts() {
         return this.childEndpoints;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get deviceType(): DeviceTypeId {
         return this.deviceTypes[0].code;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     setStructureChangedCallback(callback: () => void) {
         this.structureChangedCallback = callback;
         for (const endpoint of this.childEndpoints.values()) {
@@ -276,6 +335,7 @@ export class Endpoint {
         }
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     removeFromStructure() {
         this.structureChangedCallback = () => {
             /** noop **/
@@ -285,10 +345,12 @@ export class Endpoint {
         }
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     close() {
         // noop — server cleanup removed
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getNumber() {
         if (this.number === undefined) {
             throw new InternalError("Endpoint has not been assigned yet");
@@ -296,27 +358,33 @@ export class Endpoint {
         return this.number;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     addClusterClient(cluster: ClusterClientObj) {
         this.clusterClients.set(cluster.id, cluster);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
     getClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.clusterClients.get(cluster.id) as ClusterClientObj;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getClusterClientById(clusterId: ClusterId): ClusterClientObj | undefined {
         return this.clusterClients.get(clusterId);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     hasClusterClient(cluster: ClusterType.Concrete): boolean {
         return this.clusterClients.has(cluster.id);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getDeviceTypes(): AtLeastOne<DeviceTypeDefinition> {
         return this.deviceTypes;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     setDeviceTypes(deviceTypes: AtLeastOne<DeviceTypeDefinition>): void {
         // Remove duplicates, for now we ignore that there could be different revisions
         const deviceTypeList = new Map<number, DeviceTypeDefinition>();
@@ -325,6 +393,7 @@ export class Endpoint {
         this.name = deviceTypes[0].name;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     addChildEndpoint(endpoint: Endpoint): void {
         if (!(endpoint instanceof Endpoint)) {
             throw new InternalError("Only supported EndpointInterface implementation is Endpoint");
@@ -340,14 +409,17 @@ export class Endpoint {
         this.structureChangedCallback(); // Inform parent about structure change
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getChildEndpoint(id: EndpointNumber): Endpoint | undefined {
         return this.childEndpoints.get(id);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getChildEndpoints(): Endpoint[] {
         return Array.from(this.childEndpoints.values());
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     removeChildEndpoint(endpoint: Endpoint): void {
         const id = endpoint.getNumber();
         const knownEndpoint = this.childEndpoints.get(id);
@@ -359,6 +431,7 @@ export class Endpoint {
         this.structureChangedCallback(); // Inform parent about structure change
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     determineUniqueID(): string | undefined {
         // if the options in constructor contained a custom uniqueStorageKey, use this
         if (this.uniqueStorageKey !== undefined) {
@@ -366,6 +439,7 @@ export class Endpoint {
         }
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     public verifyRequiredClusters(): void {
         this.deviceTypes.forEach(deviceType => {
             if (this.clusterClients.size > 0) {
@@ -387,12 +461,15 @@ export class Endpoint {
         });
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getAllClusterClients(): ClusterClientObj[] {
         return Array.from(this.clusterClients.values());
     }
 
     /**
      * Hierarchical diagnostics of endpoint and children.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     get [Diagnostic.value](): unknown[] {
         return [

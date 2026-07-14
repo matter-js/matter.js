@@ -26,6 +26,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Fix: `ObjectSchema.injectField`/`removeField` no longer crash on fabric-scoped commands that omit an optional nested struct field
 
+- @project-chip/matter.js
+    - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is deprecated and will be removed in 0.19; migrate to @matter/node
+
 ## 0.17.5 (2026-07-13)
 
 - @matter/\*:

@@ -23,6 +23,7 @@ import {
 
 const logger = Logger.get("DecodedDataReport");
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export type DecodedAttributeReportEntry = {
     path: {
         nodeId?: NodeId;
@@ -33,18 +34,25 @@ export type DecodedAttributeReportEntry = {
     };
 };
 
-/** Represents a fully qualified and decoded attribute value from a received DataReport. */
+/**
+ * Represents a fully qualified and decoded attribute value from a received DataReport.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export type DecodedAttributeReportValue<T> = DecodedAttributeReportEntry & {
     version: number;
     value: T;
 };
 
-/** Represents a fully qualified and decoded attribute status from a received DataReport. */
+/**
+ * Represents a fully qualified and decoded attribute status from a received DataReport.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export type DecodedAttributeReportStatus = DecodedAttributeReportEntry & {
     status: Status;
     clusterStatus?: number;
 };
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export type DecodedEventData<T> = {
     eventNumber: EventNumber;
     priority: Priority;
@@ -55,6 +63,7 @@ export type DecodedEventData<T> = {
     data?: T;
 };
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export type DecodedEventReportEntry = {
     path: {
         nodeId?: NodeId;
@@ -65,12 +74,18 @@ export type DecodedEventReportEntry = {
     };
 };
 
-/** Represents a fully qualified and decoded event value from a received DataReport. */
+/**
+ * Represents a fully qualified and decoded event value from a received DataReport.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export type DecodedEventReportValue<T> = DecodedEventReportEntry & {
     events: DecodedEventData<T>[];
 };
 
-/** Represents a fully qualified and decoded event status from a received DataReport. */
+/**
+ * Represents a fully qualified and decoded event status from a received DataReport.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export type DecodedEventReportStatus = DecodedEventReportEntry & {
     status: Status;
     clusterStatus?: number;
@@ -83,6 +98,8 @@ export type DecodedEventReportStatus = DecodedEventReportEntry & {
  *
  * Kept here in the matter.js package while the legacy `InteractionClient` / `ClusterClient` / `EventClient` /
  * `PairedNode` callbacks consume it. The modern path consumes `ReadResult.Chunk` directly via {@link InputChunk}.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export interface DecodedDataReport extends DataReport {
     attributeReports: DecodedAttributeReportValue<any>[];
@@ -97,6 +114,8 @@ export interface DecodedDataReport extends DataReport {
  * span multiple incoming reports.
  *
  * For new code prefer consuming the chunk stream directly.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export async function decodeDataReport(
     report: DataReport,
@@ -133,7 +152,10 @@ export async function decodeDataReport(
     };
 }
 
-/** Build a legacy {@link DecodedAttributeReportValue} from a streaming chunk. */
+/**
+ * Build a legacy {@link DecodedAttributeReportValue} from a streaming chunk.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export function toDecodedAttributeReportValue(chunk: ReadResult.AttributeValue): DecodedAttributeReportValue<any> {
     return {
         path: resolveAttributePath(chunk.path),
@@ -142,7 +164,10 @@ export function toDecodedAttributeReportValue(chunk: ReadResult.AttributeValue):
     };
 }
 
-/** Build a legacy {@link DecodedAttributeReportStatus} from a streaming chunk. */
+/**
+ * Build a legacy {@link DecodedAttributeReportStatus} from a streaming chunk.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export function toDecodedAttributeReportStatus(chunk: ReadResult.AttributeStatus): DecodedAttributeReportStatus {
     return {
         path: resolveAttributePath(chunk.path),
@@ -151,7 +176,10 @@ export function toDecodedAttributeReportStatus(chunk: ReadResult.AttributeStatus
     };
 }
 
-/** Build a legacy {@link DecodedEventReportValue} from a streaming chunk; forwards all four wire timestamp variants. */
+/**
+ * Build a legacy {@link DecodedEventReportValue} from a streaming chunk; forwards all four wire timestamp variants.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export function toDecodedEventReportValue(chunk: ReadResult.EventValue): DecodedEventReportValue<any> {
     return {
         path: resolveEventPath(chunk.path),
@@ -169,7 +197,10 @@ export function toDecodedEventReportValue(chunk: ReadResult.EventValue): Decoded
     };
 }
 
-/** Build a legacy {@link DecodedEventReportStatus} from a streaming chunk. */
+/**
+ * Build a legacy {@link DecodedEventReportStatus} from a streaming chunk.
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+ */
 export function toDecodedEventReportStatus(chunk: ReadResult.EventStatus): DecodedEventReportStatus {
     return {
         path: resolveEventPath(chunk.path),

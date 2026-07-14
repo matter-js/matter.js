@@ -12,6 +12,8 @@ import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an AttributeClient for a given attribute.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export function createAttributeClient<T>(
     attribute: ClusterType.Attribute<T>,
@@ -33,6 +35,8 @@ export function createAttributeClient<T>(
 
 /**
  * General class for AttributeClients
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class AttributeClient<T = any> {
     readonly #isWritable: boolean;
@@ -43,6 +47,7 @@ export class AttributeClient<T = any> {
     readonly id: AttributeId;
     readonly #interactionClient: InteractionClient;
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     constructor(
         readonly attribute: ClusterType.Attribute<T>,
         readonly name: string,
@@ -62,6 +67,8 @@ export class AttributeClient<T = any> {
     /**
      * Set the value of the attribute. When dataVersion parameter is provided the value is only set when the
      * cluster dataVersion of the server matches. If it does not match it is rejected with an Error.
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async set(value: T, dataVersion?: number) {
         if (!this.#isWritable) throw new ImplementationError(`Attribute ${this.name} is not writable`);
@@ -109,10 +116,12 @@ export class AttributeClient<T = any> {
         });
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     get fabricScoped() {
         return this.#isFabricScoped;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     getLocal() {
         if (this.endpointId === undefined) {
             throw new ImplementationError(`Cannot read attribute ${this.name} without endpointId.`);
@@ -130,6 +139,8 @@ export class AttributeClient<T = any> {
      * - `true` forces a remote read
      * - `false` forces a local read, return undefined if no value is available
      * - `undefined` returns local values if available or if the read is fabric filtered, otherwise remote read
+     *
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     async get(requestFromRemote?: boolean, isFabricFiltered = true) {
         if (this.endpointId === undefined) {
@@ -149,7 +160,10 @@ export class AttributeClient<T = any> {
         });
     }
 
-    /** Subscribe to the attribute. */
+    /**
+     * Subscribe to the attribute.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     async subscribe(
         minIntervalFloorSeconds: number,
         maxIntervalCeilingSeconds: number,
@@ -182,12 +196,18 @@ export class AttributeClient<T = any> {
         this.#listeners.forEach(listener => listener(value));
     }
 
-    /** Add a listener to the attribute. */
+    /**
+     * Add a listener to the attribute.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     addListener(listener: (newValue: T) => void) {
         this.#listeners.push(listener);
     }
 
-    /** Remove a listener from the attribute. */
+    /**
+     * Remove a listener from the attribute.
+     * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
+     */
     removeListener(listener: (newValue: T) => void) {
         const entryIndex = this.#listeners.indexOf(listener);
         if (entryIndex !== -1) {
@@ -198,11 +218,15 @@ export class AttributeClient<T = any> {
 
 /**
  * Special AttributeClient class to allow identifying attributes that are supported because reported by the Devices.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class SupportedAttributeClient<T> extends AttributeClient<T> {}
 
 /**
  * Special AttributeClient class to allow identifying attributes that are supported because reported by the Devices,
  * but the contained attribute is unknown.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class UnknownSupportedAttributeClient extends SupportedAttributeClient<any> {}

@@ -11,6 +11,8 @@ import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an EventClient for a given event.
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export function createEventClient<T>(
     event: ClusterType.Event<T>,
@@ -24,12 +26,15 @@ export function createEventClient<T>(
 
 /**
  * General class for EventClients
+ *
+ * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
  */
 export class EventClient<T = any> {
     readonly #listeners = new Array<(event: DecodedEventData<T>) => void>();
     readonly id: EventId;
     readonly #interactionClient: InteractionClient;
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     constructor(
         readonly event: ClusterType.Event<T>,
         readonly name: string,
@@ -41,6 +46,7 @@ export class EventClient<T = any> {
         this.#interactionClient = interactionClient;
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async get(
         minimumEventNumber?: EventNumber,
         isFabricFiltered?: boolean,
@@ -57,6 +63,7 @@ export class EventClient<T = any> {
         });
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     async subscribe(
         minIntervalFloorSeconds: Duration,
         maxIntervalCeilingSeconds: Duration,
@@ -80,16 +87,19 @@ export class EventClient<T = any> {
         });
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     update(newEvent: DecodedEventData<T>) {
         for (const listener of this.#listeners) {
             listener(newEvent);
         }
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     addListener(listener: (newValue: DecodedEventData<T>) => void) {
         this.#listeners.push(listener);
     }
 
+    /** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
     removeListener(listener: (newValue: DecodedEventData<T>) => void) {
         const entryIndex = this.#listeners.indexOf(listener);
         if (entryIndex !== -1) {

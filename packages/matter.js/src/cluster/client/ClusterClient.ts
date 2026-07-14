@@ -28,6 +28,7 @@ import { InteractionClient } from "./InteractionClient.js";
 
 const logger = Logger.get("ClusterClient");
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export function GroupClusterClient<const N extends ClusterType.Concrete>(
     clusterDef: N,
     interactionClient: InteractionClient,
@@ -46,6 +47,7 @@ export function GroupClusterClient(
     return ClusterClient(clusterDef as any, undefined, interactionClient, globalAttributeValues) as any;
 }
 
+/** @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md. */
 export function ClusterClient<const N extends ClusterType.Concrete>(
     clusterDef: N,
     endpointId: EndpointNumber | undefined,
