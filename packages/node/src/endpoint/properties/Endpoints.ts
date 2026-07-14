@@ -42,7 +42,7 @@ export class Endpoints implements ImmutableSet<Endpoint> {
     }
 
     get size(): number {
-        return this.#list.length + 1;
+        return this.#list.length;
     }
 
     map<R>(mapper: (item: Endpoint<EndpointType.Empty>) => R): R[] {

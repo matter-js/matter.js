@@ -12,6 +12,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Feature: Added `NodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read at least once
+    - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
 
 - @matter/protocol

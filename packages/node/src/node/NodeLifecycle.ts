@@ -19,8 +19,10 @@ export class NodeLifecycle extends EndpointLifecycle {
     #commissioned = Observable<[context: ActionContext]>();
     #decommissioned = Observable<[context: ActionContext]>();
     #initialized = Observable<[isCommissioned: boolean]>();
+    #seeded = Observable<[context: ActionContext]>();
     #onlineAt?: Date;
     #isCommissioned = false;
+    #isSeeded = false;
     #mutex: Mutex;
     #targetState: "online" | "offline" = "offline";
 
@@ -107,6 +109,32 @@ export class NodeLifecycle extends EndpointLifecycle {
      */
     get decommissioned() {
         return this.#decommissioned;
+    }
+
+    /**
+     * True once the node's structure has been read at least once (BasicInformation present and more than just the
+     * root endpoint present).  Only driven for client (peer) nodes.
+     */
+    get isSeeded() {
+        return this.#isSeeded;
+    }
+
+    /**
+     * Emits the first time the node becomes {@link isSeeded}.
+     */
+    get seeded() {
+        return this.#seeded;
+    }
+
+    /**
+     * Transitions the node to seeded. No-op if already seeded, so {@link seeded} emits at most once.
+     */
+    markSeeded(context: ActionContext) {
+        if (this.#isSeeded) {
+            return;
+        }
+        this.#isSeeded = true;
+        this.#seeded.emit(context);
     }
 
     /**

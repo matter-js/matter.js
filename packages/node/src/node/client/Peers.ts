@@ -491,6 +491,25 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
         node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
+
+        this.#evaluateSeeded(node);
+        if (!node.lifecycle.isSeeded) {
+            node.lifecycle.changed.on(() => this.#evaluateSeeded(node));
+        }
+    }
+
+    /**
+     * A node is seeded once its structure has been read at least once: BasicInformation is present and at least one
+     * endpoint beyond the root is present.  Re-evaluated on BasicInformation install and on any endpoint tree change.
+     */
+    #evaluateSeeded(node: ClientNode) {
+        if (node.lifecycle.isSeeded) {
+            return;
+        }
+        if (node.maybeStateOf(BasicInformationClient) === undefined || node.endpoints.size <= 1) {
+            return;
+        }
+        node.lifecycle.markSeeded(LocalActorContext.ReadOnly);
     }
 
     /**
