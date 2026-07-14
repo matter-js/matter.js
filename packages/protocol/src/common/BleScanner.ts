@@ -67,6 +67,7 @@ export class BleScanner implements Scanner {
         }
     >();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
+    #closed = false;
 
     constructor(client: BleScannerClient) {
         this.#client = client;
@@ -363,7 +364,7 @@ export class BleScanner implements Scanner {
             },
         );
 
-        while (!canceled) {
+        while (!canceled && !this.#closed) {
             this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
                 const { deviceIdentifier } = deviceData;
                 if (!discoveredDevices.has(deviceIdentifier)) {
@@ -395,9 +396,12 @@ export class BleScanner implements Scanner {
     }
 
     async close() {
+        // A continuous-discovery loop is driven by an external cancelSignal, so it has no cancelResolver we can
+        // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
+        this.#closed = true;
         await this.closeClient();
-        [...this.#recordWaiters.keys()].forEach(queryId =>
-            this.#finishWaiter(queryId, !!this.#recordWaiters.get(queryId)?.timer),
-        );
+        for (const queryId of [...this.#recordWaiters.keys()]) {
+            this.#finishWaiter(queryId, true);
+        }
     }
 }

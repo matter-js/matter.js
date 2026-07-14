@@ -96,4 +96,45 @@ describe("BleScanner", () => {
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1000 })).to.have.lengthOf(1);
         });
     });
+
+    describe("close", () => {
+        it("settles a timeout-less continuous discovery driven by an external cancel signal", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            // Mirrors Discovery.ts: no timeout, external cancelSignal that never resolves during shutdown.
+            const cancelSignal = new Promise<void>(() => {});
+
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevicesContinuously({ longDiscriminator: 1737 }, () => {}, undefined, cancelSignal)
+                .then(() => (settled = true));
+
+            await Promise.resolve();
+            expect(settled).to.equal(false);
+
+            await scanner.close();
+            await discovery;
+
+            expect(settled).to.equal(true);
+        });
+
+        it("settles a timeout-less continuous discovery with an internal cancel signal", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevicesContinuously({ longDiscriminator: 1737 }, () => {})
+                .then(() => (settled = true));
+
+            await Promise.resolve();
+            expect(settled).to.equal(false);
+
+            await scanner.close();
+            await discovery;
+
+            expect(settled).to.equal(true);
+        });
+    });
 });
