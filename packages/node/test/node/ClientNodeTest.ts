@@ -5,7 +5,6 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
@@ -1477,7 +1476,7 @@ describe("ClientNode", () => {
 
         await MockTime.resolve(replaced);
 
-        expect((clientEp1.stateOf(WindowCoveringClient) as unknown as GlobalAttributeState).featureMap).deep.equals({
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap).deep.equals({
             lift: true,
             positionAwareLift: true,
             tilt: true,
@@ -1560,7 +1559,7 @@ describe("ClientNode", () => {
         expect(tilt).deep.equals({ currentPositionTiltPercent100ths: 0 });
 
         // The local featureMap view must reflect the new feature set, not the stale Lift-only one
-        expect((clientEp1.stateOf(WindowCoveringClient) as unknown as GlobalAttributeState).featureMap).deep.equals({
+        expect(clientEp1.globalsOf(WindowCoveringClient).featureMap).deep.equals({
             lift: true,
             positionAwareLift: true,
             tilt: true,
@@ -1594,7 +1593,8 @@ describe("ClientNode", () => {
         changeService.change.on(change => {
             if (
                 change.kind === "update" &&
-                (change.behavior as ClusterBehavior.Type).cluster?.id === WindowCoveringClient.cluster.id &&
+                ClusterBehavior.is(change.behavior) &&
+                change.behavior.cluster.id === WindowCoveringClient.cluster.id &&
                 change.properties?.some(p => p === "featureMap" || p === "attributeList")
             ) {
                 globalUpdates.push({ properties: change.properties });
