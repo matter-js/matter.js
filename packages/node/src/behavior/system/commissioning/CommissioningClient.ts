@@ -435,6 +435,9 @@ export class CommissioningClient extends Behavior {
     /**
      * Open an Enhanced Commissioning Window using a freshly generated random passcode.
      *
+     * Requires the peer's BasicInformation to already be seeded, else the QR pairing code's vendor/product ID
+     * fields are absent (the passcode and discriminator, and thus pairing, remain unaffected).
+     *
      * @returns the manual and QR pairing codes encoding the generated passcode.
      */
     async openEnhancedCommissioningWindow(

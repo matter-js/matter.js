@@ -7,5 +7,4 @@
 export * from "./ClientEndpointInitializer.js";
 export * from "./ClientNodeInteraction.js";
 export * from "./ClientNodePhysicalProperties.js";
-export * from "./ClusterNaming.js";
 export * from "./Peers.js";

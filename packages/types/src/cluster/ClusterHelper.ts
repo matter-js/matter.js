@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Diagnostic } from "@matter/general";
-import { AttributeModel, ClusterModel, CommandModel, EventModel, Matter } from "@matter/model";
+import { AttributeModel, ClusterModel, CommandModel, EventModel, Matter, MatterModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
 import { EndpointNumber } from "../datatype/EndpointNumber.js";
 import { NodeId } from "../datatype/NodeId.js";
@@ -14,14 +14,15 @@ function toHex(value: number | bigint | undefined) {
     return value === undefined ? "*" : `0x${value.toString(16)}`;
 }
 
-export function getClusterNameById(clusterId: ClusterId): string {
-    return Matter.clusters(clusterId)?.name ?? `Unknown cluster ${Diagnostic.hex(clusterId)}`;
+export function getClusterNameById(clusterId: ClusterId, matter: MatterModel = Matter): string {
+    return matter.clusters(clusterId)?.name ?? `Unknown cluster ${Diagnostic.hex(clusterId)}`;
 }
 
 function resolveEndpointClusterName(
     nodeId: NodeId | undefined,
     endpointId: EndpointNumber | undefined,
     clusterId: ClusterId | undefined,
+    matter: MatterModel,
 ) {
     let elementName = nodeId === undefined ? "" : `${toHex(nodeId)}/`;
     if (endpointId === undefined) {
@@ -33,7 +34,7 @@ function resolveEndpointClusterName(
     if (clusterId === undefined) {
         return `${elementName}/*`;
     }
-    const name = Matter.clusters(clusterId)?.name;
+    const name = matter.clusters(clusterId)?.name;
     if (name === undefined) {
         return `${elementName}/unknown(${toHex(clusterId)})`;
     }
@@ -52,12 +53,15 @@ function resolveElementName(cluster: ClusterModel | undefined, tag: string, elem
     return undefined;
 }
 
-export function resolveAttributeName({ nodeId, endpointId, clusterId, attributeId }: AttributePath) {
-    const endpointClusterName = resolveEndpointClusterName(nodeId, endpointId, clusterId);
+export function resolveAttributeName(
+    { nodeId, endpointId, clusterId, attributeId }: AttributePath,
+    matter: MatterModel = Matter,
+) {
+    const endpointClusterName = resolveEndpointClusterName(nodeId, endpointId, clusterId, matter);
     if (endpointId === undefined || clusterId === undefined || attributeId === undefined) {
         return `${endpointClusterName}/${toHex(attributeId)}`;
     }
-    const cluster = Matter.clusters(clusterId);
+    const cluster = matter.clusters(clusterId);
     const name = resolveElementName(cluster, AttributeModel.Tag, attributeId);
     if (name === undefined) {
         return `${endpointClusterName}/unknown(${toHex(attributeId)})`;
@@ -65,13 +69,16 @@ export function resolveAttributeName({ nodeId, endpointId, clusterId, attributeI
     return `${endpointClusterName}/${name}(${toHex(attributeId)})`;
 }
 
-export function resolveEventName({ nodeId, endpointId, clusterId, eventId, isUrgent }: EventPath) {
+export function resolveEventName(
+    { nodeId, endpointId, clusterId, eventId, isUrgent }: EventPath,
+    matter: MatterModel = Matter,
+) {
     const isUrgentStr = isUrgent ? "!" : "";
-    const endpointClusterName = resolveEndpointClusterName(nodeId, endpointId, clusterId);
+    const endpointClusterName = resolveEndpointClusterName(nodeId, endpointId, clusterId, matter);
     if (endpointId === undefined || clusterId === undefined || eventId === undefined) {
         return `${isUrgentStr}${endpointClusterName}/${toHex(eventId)}`;
     }
-    const cluster = Matter.clusters(clusterId);
+    const cluster = matter.clusters(clusterId);
     const name = resolveElementName(cluster, EventModel.Tag, eventId);
     if (name === undefined) {
         return `${isUrgentStr}${endpointClusterName}/unknown(${toHex(eventId)})`;
@@ -79,15 +86,86 @@ export function resolveEventName({ nodeId, endpointId, clusterId, eventId, isUrg
     return `${isUrgentStr}${endpointClusterName}/${name}(${toHex(eventId)})`;
 }
 
-export function resolveCommandName({ endpointId, clusterId, commandId }: CommandPath) {
-    const endpointClusterName = resolveEndpointClusterName(undefined, endpointId, clusterId);
+export function resolveCommandName({ endpointId, clusterId, commandId }: CommandPath, matter: MatterModel = Matter) {
+    const endpointClusterName = resolveEndpointClusterName(undefined, endpointId, clusterId, matter);
     if (endpointId === undefined || clusterId === undefined || commandId === undefined) {
         return `${endpointClusterName}/${toHex(commandId)}`;
     }
-    const cluster = Matter.clusters(clusterId);
+    const cluster = matter.clusters(clusterId);
     const name = resolveElementName(cluster, CommandModel.Tag, commandId);
     if (name === undefined) {
         return `${endpointClusterName}/unknown(${toHex(commandId)})`;
     }
     return `${endpointClusterName}/${name}(${toHex(commandId)})`;
+}
+
+/**
+ * Resolve the numeric ID of an attribute given its name or ID, scoped to a specific cluster within a
+ * {@link MatterModel}.
+ */
+export function attributeId(
+    clusterId: ClusterId,
+    nameOrId: string | number,
+    matter: MatterModel = Matter,
+): number | undefined {
+    return matter.clusters(clusterId)?.attributes(nameOrId)?.id;
+}
+
+/**
+ * Resolve the camelCase name of an attribute given its name or ID, scoped to a specific cluster within a
+ * {@link MatterModel}.
+ */
+export function attributeName(
+    clusterId: ClusterId,
+    nameOrId: string | number,
+    matter: MatterModel = Matter,
+): string | undefined {
+    return matter.clusters(clusterId)?.attributes(nameOrId)?.propertyName;
+}
+
+/**
+ * Resolve the numeric ID of an event given its name or ID, scoped to a specific cluster within a {@link MatterModel}.
+ */
+export function eventId(
+    clusterId: ClusterId,
+    nameOrId: string | number,
+    matter: MatterModel = Matter,
+): number | undefined {
+    return matter.clusters(clusterId)?.events(nameOrId)?.id;
+}
+
+/**
+ * Resolve the camelCase name of an event given its name or ID, scoped to a specific cluster within a
+ * {@link MatterModel}.
+ */
+export function eventName(
+    clusterId: ClusterId,
+    nameOrId: string | number,
+    matter: MatterModel = Matter,
+): string | undefined {
+    return matter.clusters(clusterId)?.events(nameOrId)?.propertyName;
+}
+
+/**
+ * Resolve the numeric ID of a command given its name or ID, scoped to a specific cluster within a
+ * {@link MatterModel}.
+ */
+export function commandId(
+    clusterId: ClusterId,
+    nameOrId: string | number,
+    matter: MatterModel = Matter,
+): number | undefined {
+    return matter.clusters(clusterId)?.commands(nameOrId)?.id;
+}
+
+/**
+ * Resolve the camelCase name of a command given its name or ID, scoped to a specific cluster within a
+ * {@link MatterModel}.
+ */
+export function commandName(
+    clusterId: ClusterId,
+    nameOrId: string | number,
+    matter: MatterModel = Matter,
+): string | undefined {
+    return matter.clusters(clusterId)?.commands(nameOrId)?.propertyName;
 }
