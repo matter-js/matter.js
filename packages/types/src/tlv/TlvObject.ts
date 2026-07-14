@@ -307,7 +307,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
                     field.schema.validate(fieldValue); // Make sure type matches
                     (value as any)[k] = fieldValue;
                 }
-            } else {
+            } else if ((value as any)[k] !== undefined && (value as any)[k] !== null) {
                 (value as any)[k] = field.schema.injectField((value as any)[k], fieldId, fieldValue, injectChecker);
             }
         }
@@ -326,7 +326,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
                 if ((value as any)[k] !== undefined && removeChecker((value as any)[k])) {
                     delete (value as any)[k];
                 }
-            } else {
+            } else if ((value as any)[k] !== undefined && (value as any)[k] !== null) {
                 (value as any)[k] = field.schema.removeField((value as any)[k], fieldId, removeChecker);
             }
         }
