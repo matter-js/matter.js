@@ -262,6 +262,16 @@ describe("TlvObject tests", () => {
                     { mandatoryField: 2, optionalField: "test" },
                 ]);
             });
+
+            it("injects field value when an optional nested struct field is omitted", () => {
+                const schema = TlvObject({
+                    nested: TlvOptionalField(2, TlvObject({ cipherSuite: TlvField(0, TlvUInt8) })),
+                    fabricIndex: TlvField(254, TlvFabricIndex),
+                });
+
+                const result = schema.injectField({ fabricIndex: FabricIndex(0) }, 254, FabricIndex(1), () => true);
+                expect(result).deep.equal({ fabricIndex: FabricIndex(1) });
+            });
         });
 
         describe("ValidationError", () => {
@@ -322,6 +332,16 @@ describe("TlvObject tests", () => {
                     () => true,
                 );
                 expect(result).deep.equal([{ mandatoryField: 1 }, { mandatoryField: 2 }]);
+            });
+
+            it("removes field value when an optional nested struct field is omitted", () => {
+                const schema = TlvObject({
+                    nested: TlvOptionalField(2, TlvObject({ cipherSuite: TlvField(0, TlvUInt8) })),
+                    fabricIndex: TlvField(254, TlvFabricIndex),
+                });
+
+                const result = schema.removeField({ fabricIndex: FabricIndex(1) }, 254, () => true);
+                expect(result).deep.equal({});
             });
         });
     });
