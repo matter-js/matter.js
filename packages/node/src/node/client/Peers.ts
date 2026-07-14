@@ -221,6 +221,11 @@ export class Peers extends EndpointContainer<ClientNode> {
         return this.owner.env.get(ClientStructureEvents).clusterInstalled(type);
     }
 
+    /** Commissioned operational peers. Excludes commissionable discoveries and group nodes. */
+    get commissioned(): ClientNode[] {
+        return [...this].filter(node => node.nodeType === "client" && node.lifecycle.isCommissioned);
+    }
+
     /**
      * Emits when fixed attributes
      */
