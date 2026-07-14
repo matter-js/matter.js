@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
 
+- @matter/protocol
+    - Fix: `BleScanner.close()` no longer orphans a timeout-less continuous discovery, which previously blocked shutdown when a BLE commission was in flight
+
 - @matter/thread-br-client
     - Fix: Use the correct MeshCoP commissioner keep-alive URI (`c/ca`) and resign the session with a rejecting keep-alive instead of a nonexistent `c/cr` release URI that Border Routers answered with 4.04
 
