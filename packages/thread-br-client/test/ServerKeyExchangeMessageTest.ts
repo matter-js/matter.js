@@ -5,25 +5,17 @@
  */
 
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
 import { ServerKeyExchangeMessage } from "../src/dtls/handshake/ServerKeyExchangeMessage.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
 interface MbedTlsVectors {
     srv_two: string;
     cli_two: string;
 }
 
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
-}
-
 describe("ServerKeyExchangeMessage.parse", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("parses srv_two (mbedTLS oracle) and exposes the embedded ECJPAKEKeyKP", () => {
         const body = Bytes.of(Bytes.fromHex(vectors.srv_two));

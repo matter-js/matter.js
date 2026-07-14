@@ -6,24 +6,26 @@
 
 import { Bytes } from "@matter/main";
 import { OperationalDataset } from "@matter/protocol";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
+import { data as baIdJson } from "./fixtures/otbr-rest/ba-id.json.js";
+import { data as datasetActiveHex } from "./fixtures/otbr-rest/dataset-active.hex.js";
+import { data as diagnosticsJson } from "./fixtures/otbr-rest/diagnostics.json.js";
+import { data as extAddressJson } from "./fixtures/otbr-rest/ext-address.json.js";
+import { data as leaderDataJson } from "./fixtures/otbr-rest/leader-data.json.js";
+import { data as networkNameJson } from "./fixtures/otbr-rest/network-name.json.js";
+import { data as nodeCamelJson } from "./fixtures/otbr-rest/node-camel.json.js";
+import { data as nodeJson } from "./fixtures/otbr-rest/node.json.js";
+import { data as numOfRouterJson } from "./fixtures/otbr-rest/num-of-router.json.js";
+import { data as rloc16Json } from "./fixtures/otbr-rest/rloc16.json.js";
+import { data as stateJson } from "./fixtures/otbr-rest/state.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
-
-function fixture(name: string): string {
-    return readFileSync(resolve(FIXTURE_DIR, name), "utf8").trim();
-}
-
-const NODE_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node.json"), "utf8");
-const NODE_CAMEL_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "node-camel.json"), "utf8");
-const DIAGNOSTICS_FIXTURE = readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8");
+const NODE_FIXTURE = JSON.stringify(nodeJson);
+const NODE_CAMEL_FIXTURE = JSON.stringify(nodeCamelJson);
+const DIAGNOSTICS_FIXTURE = JSON.stringify(diagnosticsJson);
 
 // A valid, decodable active-dataset TLV blob (synthetic network "MockThread") — no real network data.
-const DATASET_HEX_FIXTURE = fixture("dataset-active.hex");
+const DATASET_HEX_FIXTURE = datasetActiveHex.trim();
 
 type FetchHandler = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -336,12 +338,12 @@ describe("OtbrRestClient read-only getters", () => {
     afterEach(() => server.uninstall());
 
     it("getState returns the node role", async () => {
-        server.on("GET", "/node/state", () => jsonResponse(fixture("state.json")));
+        server.on("GET", "/node/state", () => jsonResponse(JSON.stringify(stateJson)));
         expect(await client.getState()).to.equal("router");
     });
 
     it("getNetworkName returns the Thread network name", async () => {
-        server.on("GET", "/node/network-name", () => jsonResponse(fixture("network-name.json")));
+        server.on("GET", "/node/network-name", () => jsonResponse(JSON.stringify(networkNameJson)));
         expect(await client.getNetworkName()).to.equal("TestNet");
     });
 
@@ -351,17 +353,17 @@ describe("OtbrRestClient read-only getters", () => {
     });
 
     it("getRloc16 returns the 16-bit RLOC", async () => {
-        server.on("GET", "/node/rloc16", () => jsonResponse(fixture("rloc16.json")));
+        server.on("GET", "/node/rloc16", () => jsonResponse(JSON.stringify(rloc16Json)));
         expect(await client.getRloc16()).to.equal(29696);
     });
 
     it("getNumOfRouter returns the router count", async () => {
-        server.on("GET", "/node/num-of-router", () => jsonResponse(fixture("num-of-router.json")));
+        server.on("GET", "/node/num-of-router", () => jsonResponse(JSON.stringify(numOfRouterJson)));
         expect(await client.getNumOfRouter()).to.equal(5);
     });
 
     it("getExtAddress decodes the EUI-64 hex", async () => {
-        server.on("GET", "/node/ext-address", () => jsonResponse(fixture("ext-address.json")));
+        server.on("GET", "/node/ext-address", () => jsonResponse(JSON.stringify(extAddressJson)));
         expect(Bytes.toHex(await client.getExtAddress())).to.equal("0011223344556601");
     });
 
@@ -371,12 +373,12 @@ describe("OtbrRestClient read-only getters", () => {
     });
 
     it("getBorderAgentId decodes the 16-byte BA ID hex", async () => {
-        server.on("GET", "/node/ba-id", () => jsonResponse(fixture("ba-id.json")));
+        server.on("GET", "/node/ba-id", () => jsonResponse(JSON.stringify(baIdJson)));
         expect(Bytes.toHex(await client.getBorderAgentId())).to.equal("00112233445566778899aabbccddeeff");
     });
 
     it("getLeaderData returns the normalized leader record", async () => {
-        server.on("GET", "/node/leader-data", () => jsonResponse(fixture("leader-data.json")));
+        server.on("GET", "/node/leader-data", () => jsonResponse(JSON.stringify(leaderDataJson)));
         const leader = await client.getLeaderData();
         expect(leader.partitionId).to.equal(305419896);
         expect(leader.weighting).to.equal(64);
