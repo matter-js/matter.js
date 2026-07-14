@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Observable, ObserverGroup, Seconds, Time, Timer, Timestamp } from "@matter/general";
-import { NodeSession, PeerAddress, PeerAddressMap } from "@matter/protocol";
+import { ClientSubscriptions } from "#action/client/subscription/ClientSubscriptions.js";
+import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import type { NodeSession } from "#session/NodeSession.js";
+import { SessionManager } from "#session/SessionManager.js";
+import { Logger, ObserverGroup, Seconds, Time, Timer, Timestamp } from "@matter/general";
 
 const logger = Logger.get("RebootResubscribeArmer");
 
@@ -18,24 +21,23 @@ interface ArmState {
 }
 
 /**
- * Speeds up controller re-subscription after an OTA reboot for devices that do NOT persist subscriptions.
+ * Speeds up controller re-subscription after a peer reboot for devices that do NOT persist subscriptions.
  *
- * Once OTA reaches `Applying` we know the device will reboot and return, so we arm the peer.  When its new session
- * appears we (A) close older sessions and (B) start a grace window: if the existing subscription receives a report
- * within it (a persistent device fed it), we leave the subscription alone; otherwise we force re-subscription.
+ * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
+ * peer's new session appears we (A) close older sessions and (B) start a grace window: if the existing subscription
+ * receives a report within it (a persistent device fed it), we leave the subscription alone; otherwise we force
+ * re-subscription.
  */
 export class RebootResubscribeArmer {
-    readonly #closeOlderSessions: (address: PeerAddress, asOf: Timestamp) => Promise<void> | void;
-    readonly #lastReportStartedAtFor: (address: PeerAddress) => Timestamp | undefined;
-    readonly #closeForPeer: (address: PeerAddress) => void;
+    readonly #sessions: SessionManager;
+    readonly #subscriptions: ClientSubscriptions;
     readonly #armed = new PeerAddressMap<ArmState>();
     readonly #observers = new ObserverGroup();
 
-    constructor(deps: RebootResubscribeArmer.Dependencies) {
-        this.#closeOlderSessions = deps.closeOlderSessions;
-        this.#lastReportStartedAtFor = deps.lastReportStartedAtFor;
-        this.#closeForPeer = deps.closeForPeer;
-        this.#observers.on(deps.onSessionAdded, session => this.#onSessionAdded(session));
+    constructor(sessions: SessionManager, subscriptions: ClientSubscriptions) {
+        this.#sessions = sessions;
+        this.#subscriptions = subscriptions;
+        this.#observers.on(sessions.sessions.added, session => this.#onSessionAdded(session));
     }
 
     arm(peerAddress: PeerAddress) {
@@ -76,14 +78,13 @@ export class RebootResubscribeArmer {
         }
 
         // Mechanism A — drop the dead pre-reboot sessions so probe/re-subscribe cannot pick them.
-        const closing = this.#closeOlderSessions(peerAddress, session.createdAt);
-        if (closing instanceof Promise) {
-            closing.catch(error => logger.warn(peerAddress, "Failed to close older sessions", error));
-        }
+        this.#sessions
+            .handlePeerShutdown(peerAddress, session.createdAt)
+            .catch(error => logger.warn(peerAddress, "Failed to close older sessions", error));
 
         state.newSessionAt = session.createdAt;
         state.graceTimer?.stop();
-        state.graceTimer = Time.getTimer("OTA reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
+        state.graceTimer = Time.getTimer("Reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
             this.#onGraceExpired(peerAddress),
         );
         state.graceTimer.start();
@@ -95,7 +96,7 @@ export class RebootResubscribeArmer {
             return;
         }
 
-        const lastReportStartedAt = this.#lastReportStartedAtFor(peerAddress);
+        const lastReportStartedAt = this.#subscriptions.lastReportStartedAtFor(peerAddress);
         const fedSinceReturn =
             lastReportStartedAt !== undefined &&
             state.newSessionAt !== undefined &&
@@ -103,7 +104,7 @@ export class RebootResubscribeArmer {
 
         if (!fedSinceReturn) {
             // Mechanism B — the subscription is stale; force re-subscription on the fresh session.
-            this.#closeForPeer(peerAddress);
+            this.#subscriptions.closeForPeer(peerAddress);
         }
 
         this.disarm(peerAddress);
@@ -115,14 +116,5 @@ export class RebootResubscribeArmer {
         }
         this.#armed.clear();
         this.#observers.close();
-    }
-}
-
-export namespace RebootResubscribeArmer {
-    export interface Dependencies {
-        readonly onSessionAdded: Observable<[session: NodeSession]>;
-        closeOlderSessions(address: PeerAddress, asOf: Timestamp): Promise<void> | void;
-        lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined;
-        closeForPeer(address: PeerAddress): void;
     }
 }

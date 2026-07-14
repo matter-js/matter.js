@@ -8,7 +8,6 @@ import { Behavior } from "#behavior/Behavior.js";
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
-import { RebootResubscribeArmer } from "#behavior/system/software-update/RebootResubscribeArmer.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -45,6 +44,7 @@ import {
     OtaUpdateSource,
     PeerAddress,
     PeerAddressMap,
+    RebootResubscribeArmer,
     SessionManager,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
@@ -240,14 +240,10 @@ export class SoftwareUpdateManager extends Behavior {
 
     get #rebootResubscribeArmer() {
         if (this.internal.rebootResubscribeArmer === undefined) {
-            const sessionManager = this.env.get(SessionManager);
-            const subscriptions = this.env.get(ClientSubscriptions);
-            this.internal.rebootResubscribeArmer = new RebootResubscribeArmer({
-                onSessionAdded: sessionManager.sessions.added,
-                closeOlderSessions: (address, asOf) => sessionManager.handlePeerShutdown(address, asOf),
-                lastReportStartedAtFor: address => subscriptions.lastReportStartedAtFor(address),
-                closeForPeer: address => subscriptions.closeForPeer(address),
-            });
+            this.internal.rebootResubscribeArmer = new RebootResubscribeArmer(
+                this.env.get(SessionManager),
+                this.env.get(ClientSubscriptions),
+            );
         }
         return this.internal.rebootResubscribeArmer;
     }
@@ -717,7 +713,6 @@ export class SoftwareUpdateManager extends Behavior {
                 );
                 this.internal.updateQueue.splice(entryIndex, 1);
                 this.internal.pendingStartUpSuppress.delete(peerAddress);
-                this.internal.rebootResubscribeArmer?.disarm(peerAddress);
                 this.events.updateFailed.emit(peerAddress);
                 this.#triggerQueuedUpdate();
                 return;
