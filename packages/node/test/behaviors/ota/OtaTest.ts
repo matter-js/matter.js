@@ -6,7 +6,7 @@
 
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { OtaUpdateStatus, SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
-import { BasicInformationServer } from "#behaviors/basic-information";
+import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import {
     OtaSoftwareUpdateRequestorClient,
@@ -28,6 +28,7 @@ import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { MockSite } from "../../node/mock-site.js";
+import { subscribedPeer } from "../../node/node-helpers.js";
 import {
     addTestOtaImage,
     initOtaSite,
@@ -361,6 +362,53 @@ describe("Ota", () => {
         await MockTime.macrotasks;
 
         expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("a real inbound subscription report advances ClientSubscriptions.lastReportStartedAtFor", async () => {
+        // Exercises the actual stamp in ClientSubscriptionHandler and its aggregation in
+        // ClientSubscriptions, with no patch of either — the RebootResubscribeArmer's grace-window
+        // decision depends entirely on this real path staying correct.
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        // subscribedPeer waits for the sustained subscription to be genuinely active; without that wait, a
+        // state change made immediately after commissioning can race the initial bootstrap read and land via
+        // that read's response rather than a real subscription report.
+        const peer1 = await subscribedPeer(controller, "peer1");
+        // #peers is keyed by the interned PeerAddress instance (reference equality); state.commissioning.peerAddress
+        // is not itself interned, so it must be normalized before use as a lookup key here — same as production
+        // callers (e.g. SoftwareUpdateManager.forceUpdate) do via PeerAddress(peerAddress).
+        const peerAddress = PeerAddress(peer1.state.commissioning.peerAddress!);
+
+        const subscriptions = await otaProvider.act(agent => agent.env.get(ClientSubscriptions));
+        // Baseline is undefined here: only device-pushed reports flow through ClientSubscriptionHandler (which does
+        // the stamp); the subscription's initial priming report comes back inline in the subscribe exchange and
+        // never touches that path. So the meaningful proof below is the undefined→defined transition — deleting the
+        // stamp keeps `after` undefined and fails the test.
+        const baseline = subscriptions.lastReportStartedAtFor(peerAddress);
+
+        const versionChanged = new Promise<void>(resolve => {
+            peer1.eventsOf(BasicInformationClient).softwareVersion$Changed.once(() => resolve());
+        });
+
+        // Change a subscribed attribute on the device — the report flows to the controller over the real
+        // subscription and through ClientSubscriptionHandler.
+        await device.setStateOf(BasicInformationServer, { softwareVersion: 99 });
+        await MockTime.resolve(versionChanged);
+
+        const after = subscriptions.lastReportStartedAtFor(peerAddress);
+        expect(after).not.undefined;
+        if (baseline !== undefined) {
+            expect(after!).greaterThan(baseline);
+        }
 
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);

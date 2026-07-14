@@ -5,7 +5,7 @@
  */
 
 import { Duration, Logger, Observable, ObserverGroup, Seconds, Time, Timer, Timestamp } from "@matter/general";
-import { PeerAddress, PeerAddressMap } from "@matter/protocol";
+import { NodeSession, PeerAddress, PeerAddressMap } from "@matter/protocol";
 
 const logger = Logger.get("RebootResubscribeArmer");
 
@@ -25,14 +25,14 @@ interface ArmState {
  * appears we (A) close older sessions and (B) start a grace window: if the existing subscription receives a report
  * within it (a persistent device fed it), we leave the subscription alone; otherwise we force re-subscription.
  */
-export class RebootResubscribeArmer<S extends RebootResubscribeArmer.SessionLike = RebootResubscribeArmer.SessionLike> {
+export class RebootResubscribeArmer {
     readonly #closeOlderSessions: (address: PeerAddress, asOf: Timestamp) => Promise<void> | void;
     readonly #lastReportStartedAtFor: (address: PeerAddress) => Timestamp | undefined;
     readonly #closeForPeer: (address: PeerAddress) => void;
     readonly #armed = new PeerAddressMap<ArmState>();
     readonly #observers = new ObserverGroup();
 
-    constructor(deps: RebootResubscribeArmer.Dependencies<S>) {
+    constructor(deps: RebootResubscribeArmer.Dependencies) {
         this.#closeOlderSessions = deps.closeOlderSessions;
         this.#lastReportStartedAtFor = deps.lastReportStartedAtFor;
         this.#closeForPeer = deps.closeForPeer;
@@ -65,7 +65,13 @@ export class RebootResubscribeArmer<S extends RebootResubscribeArmer.SessionLike
         this.#armed.delete(peerAddress);
     }
 
-    #onSessionAdded(session: S) {
+    #onSessionAdded(session: NodeSession) {
+        if (session.isInitiator) {
+            // Only a device-pushed (incoming) session represents a reboot return; a session we ourselves
+            // initiated is our own connect and must not trigger the armer.
+            return;
+        }
+
         const peerAddress = PeerAddress(session.peerAddress);
         const state = this.#armed.get(peerAddress);
         if (state === undefined) {
@@ -116,13 +122,8 @@ export class RebootResubscribeArmer<S extends RebootResubscribeArmer.SessionLike
 }
 
 export namespace RebootResubscribeArmer {
-    export interface SessionLike {
-        readonly peerAddress: PeerAddress;
-        readonly createdAt: Timestamp;
-    }
-
-    export interface Dependencies<S extends SessionLike = SessionLike> {
-        readonly onSessionAdded: Observable<[session: S]>;
+    export interface Dependencies {
+        readonly onSessionAdded: Observable<[session: NodeSession]>;
         closeOlderSessions(address: PeerAddress, asOf: Timestamp): Promise<void> | void;
         lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined;
         closeForPeer(address: PeerAddress): void;

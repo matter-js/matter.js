@@ -6,13 +6,18 @@
 
 import { RebootResubscribeArmer } from "#behavior/system/software-update/RebootResubscribeArmer.js";
 import { Observable, Seconds, Time, Timestamp } from "@matter/general";
-import { PeerAddress } from "@matter/protocol";
+import { NodeSession, PeerAddress } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 
 const PEER = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(0x44cn) });
 
+/** Fake NodeSession carrying only the fields the armer reads. */
+function fakeSession(peerAddress: PeerAddress, createdAt: Timestamp, isInitiator: boolean): NodeSession {
+    return { peerAddress, createdAt, isInitiator } as unknown as NodeSession;
+}
+
 function setup() {
-    const added = Observable<[RebootResubscribeArmer.SessionLike]>();
+    const added = Observable<[NodeSession]>();
     const closeOlderCalls = new Array<{ address: PeerAddress; asOf: Timestamp }>();
     const closeForPeerCalls = new Array<PeerAddress>();
     let lastReportStartedAt: Timestamp | undefined;
@@ -28,8 +33,8 @@ function setup() {
         },
     });
 
-    function emitSession(peerAddress = PEER) {
-        added.emit({ peerAddress, createdAt: Time.nowMs });
+    function emitSession(peerAddress = PEER, isInitiator = false) {
+        added.emit(fakeSession(peerAddress, Time.nowMs, isInitiator));
     }
 
     return {
@@ -111,6 +116,46 @@ describe("RebootResubscribeArmer", () => {
         expect(closeForPeerCalls.length).equals(0);
         emitSession(); // arrives late; the arm is still live
         expect(closeOlderCalls.length).equals(1);
+        armer[Symbol.dispose]();
+    });
+
+    it("ignores a controller-initiated session (isInitiator true) even for an armed peer", async () => {
+        const { armer, emitSession, closeOlderCalls, closeForPeerCalls } = setup();
+        armer.arm(PEER, { grace: Seconds(30) });
+        emitSession(PEER, true);
+        expect(closeOlderCalls.length).equals(0);
+        await MockTime.advance(Seconds(30));
+        expect(closeForPeerCalls.length).equals(0);
+        armer[Symbol.dispose]();
+    });
+
+    it("re-arming drops the prior grace timer so it cannot fire closeForPeer on its own schedule", async () => {
+        const { armer, emitSession, closeForPeerCalls } = setup();
+
+        // First cycle: arm, session arrives, grace starts.
+        armer.arm(PEER, { grace: Seconds(30) });
+        emitSession();
+
+        // Re-arm before the first grace expires — this must drop the first cycle's timer/target.
+        await MockTime.advance(Seconds(10));
+        armer.arm(PEER, { grace: Seconds(30) });
+
+        // Advance by the remainder of the FIRST cycle's grace (would fire at t=30 if the old timer
+        // survived re-arming). No new session has arrived in the second cycle, so nothing should fire.
+        await MockTime.advance(Seconds(20));
+        expect(closeForPeerCalls.length).equals(0);
+
+        // A new session in the second cycle starts a fresh grace that still resolves normally.
+        emitSession();
+        await MockTime.advance(Seconds(30));
+        expect(closeForPeerCalls).deep.equals([PEER]);
+
+        armer[Symbol.dispose]();
+    });
+
+    it("disarm of an un-armed peer is a no-op", () => {
+        const { armer } = setup();
+        expect(() => armer.disarm(PEER)).not.throw();
         armer[Symbol.dispose]();
     });
 });
