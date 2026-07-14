@@ -15,7 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
 
 - @matter/nodejs-ble
-  - Fix: Update noble dependencyto fix some DBUS related isssues
+    - Fix: Update noble dependency to fix some DBUS related issues
 
 - @matter/protocol
     - Fix: `BleScanner.close()` no longer orphans a timeout-less continuous discovery, which previously blocked shutdown when a BLE commission was in flight
