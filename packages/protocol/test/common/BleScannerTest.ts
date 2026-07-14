@@ -15,8 +15,11 @@ class MockBleScannerClient implements BleScannerClient {
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void) {
         this.callback = callback;
     }
+    stopScanningError?: Error;
     async startScanning() {}
-    async stopScanning() {}
+    async stopScanning() {
+        if (this.stopScanningError) throw this.stopScanningError;
+    }
 
     discover(address: string, data: Bytes) {
         this.callback!({ address }, data);
@@ -135,6 +138,20 @@ describe("BleScanner", () => {
             await discovery;
 
             expect(settled).to.equal(true);
+        });
+
+        it("releases waiters and rethrows when the client fails to stop scanning", async () => {
+            const client = new MockBleScannerClient();
+            client.stopScanningError = new Error("stop failed");
+            const scanner = new BleScanner(client);
+
+            // Would hang (mocha timeout) if close() left the waiter orphaned on the closeClient() throw.
+            const discovery = scanner.findCommissionableDevicesContinuously({ longDiscriminator: 1737 }, () => {});
+
+            await Promise.resolve();
+
+            await expect(scanner.close()).to.be.rejectedWith("stop failed");
+            await expect(discovery).to.be.rejectedWith("stop failed");
         });
     });
 });

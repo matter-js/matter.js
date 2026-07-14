@@ -399,9 +399,12 @@ export class BleScanner implements Scanner {
         // A continuous-discovery loop is driven by an external cancelSignal, so it has no cancelResolver we can
         // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
         this.#closed = true;
-        await this.closeClient();
-        for (const queryId of [...this.#recordWaiters.keys()]) {
-            this.#finishWaiter(queryId, true);
+        try {
+            await this.closeClient();
+        } finally {
+            for (const queryId of [...this.#recordWaiters.keys()]) {
+                this.#finishWaiter(queryId, true);
+            }
         }
     }
 }
