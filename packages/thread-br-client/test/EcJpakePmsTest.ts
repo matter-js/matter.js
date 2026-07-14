@@ -6,13 +6,9 @@
 
 import { Bytes, StandardCrypto } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { EcJpakePms } from "../src/dtls/ecjpake/EcJpakePms.js";
 import { EcJpakeRound } from "../src/dtls/ecjpake/EcJpakeRound.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
 const crypto = new StandardCrypto();
 
@@ -27,10 +23,6 @@ interface MbedTlsVectors {
     pms: string;
 }
 
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
-}
-
 function bigintFromHex(hex: string): bigint {
     return BigInt("0x" + hex);
 }
@@ -43,7 +35,7 @@ function pointBytes(scalar: bigint): Uint8Array {
 }
 
 describe("EcJpakePms.derive (mbedTLS oracle)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("client side: PMS = mbedTLS test_pms when fed srv_two + own (x2, X4)", async () => {
         const Xp = EcJpakeRound.parseRound2(Bytes.of(Bytes.fromHex(vectors.srv_two)), {

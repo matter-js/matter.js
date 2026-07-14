@@ -5,19 +5,16 @@
  */
 
 import { Bytes, Crypto, NodeJsStyleCrypto, StandardCrypto } from "@matter/general";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { TlsPrf } from "../src/dtls/prf/TlsPrf.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/dtls/tls-prf-vectors.json");
+import { data as tlsPrfVectors } from "./fixtures/dtls/tls-prf-vectors.json.js";
 
 // Exercise both MaybePromise<Bytes> shapes returned by Crypto.signHmac: StandardCrypto
-// resolves asynchronously, NodeJsStyleCrypto returns synchronously.
-const cryptos: [string, Crypto][] = [
-    ["StandardCrypto", new StandardCrypto()],
-    ["NodeJsStyleCrypto", new NodeJsStyleCrypto()],
-];
+// resolves asynchronously, NodeJsStyleCrypto returns synchronously. NodeJsStyleCrypto is
+// node-only (synchronous node:crypto), so it is skipped in the browser test runner.
+const cryptos: [string, Crypto][] = [["StandardCrypto", new StandardCrypto()]];
+if (typeof window === "undefined") {
+    cryptos.push(["NodeJsStyleCrypto", new NodeJsStyleCrypto()]);
+}
 
 interface PrfVector {
     name: string;
@@ -62,7 +59,8 @@ interface Fixture {
 }
 
 function loadFixture(): Fixture {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as Fixture;
+    // Cast needed: the fixture module's inferred type widens role to string, not the "client" | "server" union.
+    return tlsPrfVectors as Fixture;
 }
 
 for (const [cryptoName, crypto] of cryptos) {

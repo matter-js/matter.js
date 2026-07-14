@@ -6,13 +6,9 @@
 
 import { Bytes, StandardCrypto } from "@matter/general";
 import { p256 } from "@noble/curves/nist.js";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { ECJPAKE_ID_CLIENT, ECJPAKE_ID_SERVER } from "../src/dtls/ecjpake/EcJpakeRound.js";
 import { SchnorrZkp } from "../src/dtls/ecjpake/SchnorrZkp.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE = resolve(PACKAGE_ROOT, "test/fixtures/ecjpake/mbedtls-self-test-vectors.json");
+import { data as mbedtlsVectors } from "./fixtures/ecjpake/mbedtls-self-test-vectors.json.js";
 
 const crypto = new StandardCrypto();
 
@@ -23,10 +19,6 @@ interface MbedTlsVectors {
     x4: string;
     cli_one: string;
     srv_one: string;
-}
-
-function loadVectors(): MbedTlsVectors {
-    return JSON.parse(readFileSync(FIXTURE, "utf8")) as MbedTlsVectors;
 }
 
 function bigintFromHex(hex: string): bigint {
@@ -59,7 +51,7 @@ function sliceKkp(
 }
 
 describe("SchnorrZkp.verify (mbedTLS oracle)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("accepts both ZKPs in mbedTLS cli_one (id='client')", async () => {
         const buf = Bytes.of(Bytes.fromHex(vectors.cli_one));
@@ -162,7 +154,7 @@ describe("SchnorrZkp.verify (mbedTLS oracle)", () => {
 });
 
 describe("SchnorrZkp.generate -> verify round-trip", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     it("produces a verifiable ZKP for known fixed scalars (id='client')", async () => {
         const x = bigintFromHex(vectors.x1);
@@ -261,7 +253,7 @@ describe("SchnorrZkp.generate -> verify round-trip", () => {
 });
 
 describe("SchnorrZkp custom generator (round-2 prep)", () => {
-    const vectors = loadVectors();
+    const vectors: MbedTlsVectors = mbedtlsVectors;
 
     function makeCompositeGenerator() {
         // G' = (x1*G) + (x2*G) + (x3*G), the same shape mbedTLS uses for round 2.
