@@ -20,6 +20,9 @@ export class PeerSubscription extends ClientSubscription {
 
     timeoutAt?: Timestamp;
 
+    /** Wall-clock time the most recent inbound report (data or keepalive) started arriving on this subscription. */
+    lastReportStartedAt?: Timestamp;
+
     constructor(config: PeerSubscription.Configuration) {
         const {
             maxPeerResponseTime,
