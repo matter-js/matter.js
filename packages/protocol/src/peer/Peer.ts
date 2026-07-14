@@ -31,6 +31,7 @@ import {
     Lifetime,
     Logger,
     Millis,
+    Observable,
     ObserverGroup,
     QuietObservable,
     Seconds,
@@ -85,6 +86,7 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
+    #establishmentUnresponsive = Observable<[]>();
     #addressMonitor?: PeerAddressMonitor;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
@@ -174,6 +176,15 @@ export class Peer {
      */
     get updated() {
         return this.#updated;
+    }
+
+    /**
+     * Emits when a CASE establishment attempt has retransmitted past the MRP budget without a response, indicating
+     * the peer is likely unresponsive.  The latch re-arms per attempt (and per handshake message), so a later stall
+     * can emit again.  Retransmission itself is unchanged; this is only a signal.
+     */
+    get establishmentUnresponsive(): Observable<[]> {
+        return this.#establishmentUnresponsive;
     }
 
     get lifetime() {
