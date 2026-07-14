@@ -12,7 +12,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Enhancement: After an approved OTA update, the controller re-subscribes to a rebooted device that does not persist subscriptions within ~30s instead of waiting out the previous subscription's timeout
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
+
+- @matter/protocol
+    - Fix: Peer session selection now prefers the session the peer was last heard from and skips peer-lost sessions, so a dead session still retransmitting no longer outranks a freshly established one
 
 - @matter/thread-br-client
     - Fix: Use the correct MeshCoP commissioner keep-alive URI (`c/ca`) and resign the session with a rejecting keep-alive instead of a nonexistent `c/cr` release URI that Border Routers answered with 4.04
