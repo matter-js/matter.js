@@ -518,7 +518,7 @@ export class SessionManager {
         // work with broken peers (e.g. CHIP test harness).
         let found: NodeSession | undefined;
         for (const session of this.#sessions) {
-            if (!session.peerIs(address) || session.isClosing) {
+            if (!session.peerIs(address) || session.isClosing || session.isPeerLost) {
                 continue;
             }
 
