@@ -227,7 +227,10 @@ export class NetworkClient extends NetworkBehavior {
         if (this.subscriptionActive) {
             this.internal.likelyOffline = false;
             state = NodeConnectionState.Connected;
-        } else if (this.state.isDisabled || !lifecycle.isCommissioned) {
+        } else if (this.state.isDisabled || lifecycle.shouldBeOffline) {
+            // Disabled, stopped or not yet started.  Reset the offline latch so a later re-enable/restart does not
+            // resume in WaitingForDeviceDiscovery before any fresh session.
+            this.internal.likelyOffline = false;
             state = NodeConnectionState.Disconnected;
         } else if (this.internal.likelyOffline) {
             state = NodeConnectionState.WaitingForDeviceDiscovery;
@@ -343,8 +346,8 @@ export namespace NetworkClient {
 
         /**
          * Latch indicating the peer is likely offline (unresponsive establishment, hard send failure or a missed ICD
-         * check-in).  Set by liveness signals, cleared on a fresh session or an active subscription.  Drives
-         * {@link NodeConnectionState.WaitingForDeviceDiscovery}.
+         * check-in).  Set by liveness signals, cleared on a fresh session, an active subscription or when the node is
+         * disabled/stopped.  Drives {@link NodeConnectionState.WaitingForDeviceDiscovery}.
          */
         likelyOffline = false;
     }

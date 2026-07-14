@@ -22,8 +22,8 @@ export enum NodeConnectionState {
     Connected = 0,
 
     /**
-     * The node is disconnected because it is disabled, closed or decommissioned.  No connection is attempted and data
-     * is stale.
+     * The node is disconnected because it is disabled, stopped or not yet started.  No connection is attempted and
+     * data is stale.
      */
     Disconnected = 1,
 

@@ -121,10 +121,44 @@ describe("ConnectionState", () => {
         const peer1 = await subscribedPeer(controller, "peer1");
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Connected);
 
+        // Disabling goes straight to Disconnected without a spurious Reconnecting flash as the subscription drops.
+        const states = new Array<NodeConnectionState>();
+        peer1.lifecycle.connectionStateChanged.on(state => void states.push(state));
+
         await MockTime.resolve(peer1.disable(), { macrotasks: true });
 
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
         expect(peer1.lifecycle.isConnected).false;
+        expect(states).deep.equals([NodeConnectionState.Disconnected]);
+    });
+
+    it("transitions to Disconnected when the node is stopped", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Connected);
+
+        await MockTime.resolve(peer1.stop(), { macrotasks: true });
+
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+        expect(peer1.lifecycle.isConnected).false;
+    });
+
+    it("reports Disconnected for a known peer that has not been started", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+
+        // Reload the controller so the peer is known from storage but never started; a not-started node must read the
+        // initial Disconnected, not the enum's numeric default 0 (== Connected).
+        await MockTime.resolve(controller.close());
+        const controller2 = await site.addController({ index: 1 });
+
+        const peer = controller2.peers.get("peer1")!;
+        expect(peer).not.undefined;
+
+        expect(peer.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+        expect(peer.lifecycle.isConnected).false;
     });
 
     it("transitions to WaitingForDeviceDiscovery when a registered ICD misses its check-in", async () => {

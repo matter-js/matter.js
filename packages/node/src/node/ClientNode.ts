@@ -205,7 +205,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             return;
         }
 
+        // A disabled node should be offline; setting this before teardown also lets the connection-state engine settle
+        // straight to Disconnected instead of flashing Reconnecting as the subscription drops.
+        this.lifecycle.targetState = "offline";
         await this.lifecycle.mutex.produce(async () => {
+            // Drop the subscription before flipping isDisabled so the connection-state engine cannot momentarily read
+            // Connected while disabling (subscriptionActive is checked ahead of isDisabled).
             await this.cancelWithMutex();
             await this.setStateOf(NetworkClient, { isDisabled: true });
         });
