@@ -75,6 +75,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #closed = false;
     #commissioning = new Set<ClientNode>();
     #instrumented = new WeakSet<ClientNode>();
+    #bridgedInstrumented = new WeakSet<Endpoint>();
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -535,6 +536,12 @@ export class Peers extends EndpointContainer<ClientNode> {
      * through the same endpoint lifecycle event used for the node's `BasicInformation`.
      */
     #instrumentBridgedConfigurationVersion(endpoint: Endpoint, type: typeof BridgedDeviceBasicInformationClient) {
+        // clusterInstalled re-emits per endpoint; register once
+        if (this.#bridgedInstrumented.has(endpoint)) {
+            return;
+        }
+        this.#bridgedInstrumented.add(endpoint);
+
         endpoint
             .eventsOf(type)
             .configurationVersion$Changed?.on(() => endpoint.lifecycle.configurationVersionChanged.emit());
