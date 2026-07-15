@@ -43,9 +43,9 @@ export class RebootResubscribeArmer {
     arm(peerAddress: PeerAddress) {
         peerAddress = PeerAddress(peerAddress);
 
-        let state = this.#armed.get(peerAddress);
+        const state = this.#armed.get(peerAddress);
         if (state === undefined) {
-            this.#armed.set(peerAddress, (state = {}));
+            this.#armed.set(peerAddress, {});
         } else {
             // Re-arming starts a fresh cycle; drop any grace timer/target from a previous arm.
             state.graceTimer?.stop();
