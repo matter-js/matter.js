@@ -155,25 +155,49 @@ offline (establishment past the MRP budget, or a missed ICD check-in for registe
 
 ## Attribute / event changes (the `PairedNode.events` bus)
 
-PairedNode aggregated all peer changes into flat per-node observables. There is no single replacement
-bus by design — you observe the specific behavior/lifecycle signal you care about. Rough mapping:
+The default replacement for PairedNode's flat per-node event bus is the node-level
+**`ChangeNotificationService`** — one aggregate change stream covering every endpoint on the controller
+node **and all of its peers**. This is what a consumer feeding a push/sync pipeline (dashboards, bridges)
+should use; PairedNode's flat events were themselves implemented on top of it.
 
-| Legacy `node.events.*` | New |
+```ts
+import { ChangeNotificationService } from "@matter/node";
+
+const changes = serverNode.env.get(ChangeNotificationService);
+changes.change.on(change => {
+    switch (change.kind) {
+        case "update": // attribute/state change
+            // change.endpoint, change.behavior, change.properties?, change.version
+            break;
+        case "event":  // Matter event occurred
+            // change.endpoint, change.behavior, change.event, change.payload?, change.number, change.timestamp, change.priority
+            break;
+        case "delete": // endpoint/node removed — drop its data subtree
+            // change.endpoint
+            break;
+    }
+});
+```
+
+Mapping from the legacy flat bus:
+
+| Legacy `node.events.*` | New (`ChangeNotificationService.change`, unless noted) |
 | --- | --- |
-| `attributeChanged` | `reactTo` the specific behavior's `<attr>$Changed` (e.g. `endpoint.eventsOf(XxxClient).<attr>$Changed`), or subscribe via `clientNode.interaction` |
-| `eventTriggered` | the behavior's own event: `endpoint.eventsOf(XxxClient).<event>` |
-| `structureChanged` | `clientNode.lifecycle.changed` (endpoint/parts changes) |
-| `nodeEndpoint{Added,Removed}` | `clientNode.endpoints` + `lifecycle.changed` |
-| `deviceInformationChanged` | `reactTo` `BasicInformationClient` state changes |
-| `connectionAlive` | `NetworkClient` `subscriptionAlive`, or `lifecycle.connectionStateChanged` |
+| `attributeChanged` | `change.kind === "update"` (`endpoint` + `behavior` + `properties`) |
+| `eventTriggered` | `change.kind === "event"` (`endpoint` + `behavior` + `event` + occurrence) |
+| `deviceInformationChanged` | `"update"` on `BasicInformationClient` |
+| `nodeEndpointRemoved` / node removed | `change.kind === "delete"` |
+| `structureChanged` / `nodeEndpointAdded` | `clientNode.lifecycle.changed` + `clientNode.endpoints` (structure signal; `ChangeNotificationService` reports deletions, additions surface as endpoints appear) |
+| `connectionAlive` | `NetworkClient` `subscriptionAlive`, or `lifecycle.connectionStateChanged` (connection, not a data change) |
 | `stateChanged` | `lifecycle.connectionStateChanged` (see Connection state) |
 | `initialized` / init-done flags | `lifecycle.isSeeded` / `seeded` (see "Is the node ready?") |
 
-Prefer `reactTo`/`stopReacting` from within a behavior (fault-isolated, torn down with the behavior) over
-raw `.on`. A `ChangeNotificationService`-based aggregate stream may be documented later.
+For a single specific value you can instead `reactTo` that behavior's `<attr>$Changed` (or the behavior's
+own event) directly — fault-isolated and torn down with the behavior. That is the exception, not the
+common case; reach for `ChangeNotificationService` when you need the whole node/peer change feed.
 
-> Concrete before/after code for the attribute/event subscription patterns is filled as the shell and
-> server migrations verify the exact idioms.
+> Concrete before/after for the `#handleNodeChange` fan-out and connection/data-cache wiring is filled as
+> the shell and server migrations verify the exact idioms.
 
 ---
 
