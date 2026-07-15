@@ -539,7 +539,8 @@ export class Peer {
     }
 
     newestSession(type?: ChannelType) {
-        // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
+        // Prefer the session we last heard from the peer on (highest activeTimestamp).  A dead session
+        // still retransmitting keeps a high `timestamp`, so ordering by that would pick it over a fresh one.
         let found: NodeSession | undefined;
 
         for (const session of this.#sessions) {
@@ -551,7 +552,7 @@ export class Peer {
                 continue;
             }
 
-            if (!found || found.timestamp < session.timestamp) {
+            if (!found || found.activeTimestamp < session.activeTimestamp) {
                 found = session;
             }
         }
