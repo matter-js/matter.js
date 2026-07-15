@@ -6,6 +6,8 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
+import { ClientNodeLifecycle } from "#node/ClientNodeLifecycle.js";
+import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { MockSite } from "./mock-site.js";
 
 describe("NodeLifecycle#isSeeded/seeded", () => {
@@ -123,5 +125,22 @@ describe("NodeLifecycle#isSeeded/seeded", () => {
         peer.endpoints.require(2);
         expect(onCalls).equals(1);
         expect(offCalls).equals(1);
+    });
+});
+
+describe("client/server lifecycle split", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    it("uses ClientNodeLifecycle for a client node and plain NodeLifecycle for a server node", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer = controller.peers.get("peer1")!;
+
+        expect(peer.lifecycle).instanceof(ClientNodeLifecycle);
+        expect(controller.lifecycle).instanceof(NodeLifecycle);
+        expect(controller.lifecycle instanceof ClientNodeLifecycle).false;
     });
 });

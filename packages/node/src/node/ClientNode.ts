@@ -34,6 +34,7 @@ import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
+import { ClientNodeLifecycle } from "./ClientNodeLifecycle.js";
 import { Node } from "./Node.js";
 import type { ServerNode } from "./ServerNode.js";
 
@@ -80,6 +81,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      */
     get matter() {
         return this.#matter;
+    }
+
+    override get lifecycle(): ClientNodeLifecycle {
+        return super.lifecycle as ClientNodeLifecycle;
     }
 
     override get endpoints(): ClientNodeEndpoints {
@@ -240,6 +245,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     protected override async resetWithMutex() {
         this.#cachedPeerAddress = undefined;
         await super.resetWithMutex();
+    }
+
+    protected override createLifecycle(): ClientNodeLifecycle {
+        return new ClientNodeLifecycle(this);
     }
 
     protected createRuntime(): NetworkRuntime {

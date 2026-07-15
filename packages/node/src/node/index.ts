@@ -6,6 +6,7 @@
 
 export * from "./client/index.js";
 export * from "./ClientNode.js";
+export * from "./ClientNodeLifecycle.js";
 export * from "./integration/index.js";
 export * from "./Node.js";
 export * from "./NodeLifecycle.js";

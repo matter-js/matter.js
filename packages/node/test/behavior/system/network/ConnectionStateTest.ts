@@ -8,7 +8,7 @@ import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
-import { NodeConnectionState } from "#node/NodeLifecycle.js";
+import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, MockCrypto } from "@matter/general";
 import { Peer, SustainedSubscription } from "@matter/protocol";
