@@ -74,6 +74,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #mutex = new Mutex(this);
     #closed = false;
     #commissioning = new Set<ClientNode>();
+    #instrumented = new WeakSet<ClientNode>();
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -486,6 +487,14 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (!(node instanceof ClientNode)) {
             return;
         }
+
+        // clusterInstalled re-emits per node (endpoint-install, cluster-add, structure rebuilds), so register the
+        // device-event handlers below once per node to avoid duplicate side effects on repeat emits.
+        if (this.#instrumented.has(node)) {
+            this.#evaluateSeeded(node);
+            return;
+        }
+        this.#instrumented.add(node);
 
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
