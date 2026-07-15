@@ -11,8 +11,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: `Observable.detachObservers()` now disarms the source observable and `attachObservers()` preserves once-semantics of the transferred observers
+
 - @matter/node
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
+    - Fix: Event listeners now survive a behavior drop/re-inject cycle (observer transplant was silently dropping them) and the rebuilt events surface is correctly wired for event reporting
 
 - @matter/protocol
     - Fix: `BleScanner.close()` no longer orphans a timeout-less continuous discovery, which previously blocked shutdown when a BLE commission was in flight

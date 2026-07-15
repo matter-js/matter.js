@@ -8,8 +8,42 @@ import { Behavior } from "#behavior/Behavior.js";
 import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { MockEndpoint } from "../mock-endpoint.js";
 
 describe("Behaviors", () => {
+    it("transplants observers when a behavior is dropped and re-injected", async () => {
+        const light = await MockEndpoint.create(OnOffLightDevice);
+
+        const changes = new Array<boolean>();
+        light.eventsOf(OnOffServer).onOff$Changed.on(value => {
+            changes.push(value);
+        });
+
+        const installedType = light.behaviors.supported[OnOffServer.id];
+        await light.behaviors.drop(OnOffServer.id);
+        light.behaviors.inject(installedType);
+
+        await light.set({ onOff: { onOff: true } });
+
+        expect(changes).deep.equals([true]);
+
+        await light.close();
+    });
+
+    it("sets context on transplanted events", async () => {
+        const light = await MockEndpoint.create(OnOffLightDevice);
+
+        light.eventsOf(OnOffServer).onOff$Changed.on(() => {});
+
+        const installedType = light.behaviors.supported[OnOffServer.id];
+        await light.behaviors.drop(OnOffServer.id);
+        light.behaviors.inject(installedType);
+
+        expect(light.eventsOf(OnOffServer).endpoint).equals(light);
+
+        await light.close();
+    });
+
     it("accepts different base class for cluster requirements", () => {
         class MyOnOffServer extends OnOffServer {}
 
