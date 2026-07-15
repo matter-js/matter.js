@@ -99,6 +99,41 @@ subscription, so there is no persistent liveness signal. Read current status via
 
 ---
 
+## Enabling / disabling nodes and bulk connect
+
+Per-node enable/disable is on `ClientNode`:
+
+| Legacy | New |
+| --- | --- |
+| `controller.disconnectNode(id)` / "disable node" | `clientNode.disable()` — drops the subscription and prevents reconnection until re-enabled |
+| `controller.connectNode(id)` / "enable node" | `clientNode.enable()` — brings a disabled, reachable node back online |
+| — (read) | `clientNode.state.network.isDisabled` |
+
+`disable()` sets the persisted `network.isDisabled` flag, so a node stays disabled across controller
+restarts.
+
+**Bulk "connect all nodes" is no longer a manual loop.** When the controller `ServerNode` comes online,
+its `Peers` container automatically starts every commissioned peer that is not disabled — disabled peers
+are skipped and stay offline until explicitly `enable()`d. So the legacy pattern
+
+```ts
+// legacy: connect every commissioned node
+for (const node of controller.getCommissionedNodes()) {
+    await controller.connectNode(node);
+}
+```
+
+has no new-API equivalent — it happens automatically on controller start. To act on all peers explicitly
+(e.g. disable all), iterate the peers directly:
+
+```ts
+for (const peer of serverNode.peers.commissioned) {
+    await peer.disable();
+}
+```
+
+---
+
 ## Connection state
 
 `ClientNode` now exposes the 4-state connection status on `lifecycle`, replacing PairedNode's `NodeStates`:
