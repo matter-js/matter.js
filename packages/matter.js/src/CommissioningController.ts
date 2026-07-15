@@ -742,7 +742,7 @@ export class CommissioningController {
     }
 
     /**
-     * Returns true if t least one node is commissioned/paired with this controller instance.
+     * Returns true if at least one node is commissioned/paired with this controller instance.
      * @deprecated Legacy API, removed in 0.19. Migrate to @matter/node — see docs/MIGRATION_CONTROLLER_018.md.
      */
     isCommissioned() {
