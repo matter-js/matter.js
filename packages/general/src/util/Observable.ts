@@ -412,10 +412,11 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         try {
             while (promise) {
                 const next = await promise;
-                if (next) {
-                    promise = next.promise;
-                    yield next.value[0];
+                if (!next) {
+                    break;
                 }
+                promise = next.promise;
+                yield next.value[0];
             }
         } finally {
             this.#removeIterator?.();
@@ -423,7 +424,9 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
     }
 
     detachObservers(): DetachedObservers<T, R> | undefined {
-        if (!this.#observers) {
+        this.#stopIteration?.();
+
+        if (!this.#observers?.size) {
             return;
         }
 
@@ -467,7 +470,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         function observer(...args: T): undefined {
             const oldResolve = resolve;
             promise = newPromise();
-            oldResolve({ value: args[0], promise });
+            oldResolve({ value: args, promise });
         }
 
         this.on(observer);
@@ -478,7 +481,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         };
 
         this.#removeIterator = () => {
-            if (!iteratorCount--) {
+            if (!--iteratorCount) {
                 this.#stopIteration?.();
             }
         };
@@ -486,9 +489,12 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         this.#stopIteration = () => {
             this.off(observer);
             resolve(undefined);
+            this.#joinIteration = undefined;
             this.#stopIteration = undefined;
             this.#removeIterator = undefined;
         };
+
+        return promise;
     }
 }
 

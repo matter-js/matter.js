@@ -12,7 +12,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
-    - Fix: `Observable.detachObservers()` now disarms the source observable and `attachObservers()` preserves once-semantics of the transferred observers
+    - Fix: `Observable.detachObservers()` now disarms the source observable (including active async iteration) and `attachObservers()` preserves once-semantics of the transferred observers
+    - Fix: Async iteration over an `Observable` now delivers emitted values (previously it ended immediately) and terminates cleanly on dispose instead of spinning
 
 - @matter/node
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
