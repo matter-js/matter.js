@@ -103,7 +103,6 @@ export class RebootResubscribeArmer {
             lastReportStartedAt >= state.newSessionAt;
 
         if (!fedSinceReturn) {
-            // Mechanism B — the subscription is stale; force re-subscription on the fresh session.
             this.#subscriptions.closeForPeer(peerAddress);
         }
 
