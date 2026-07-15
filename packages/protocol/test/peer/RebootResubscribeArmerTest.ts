@@ -16,6 +16,7 @@ import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Environment,
     MemoryStorageDriver,
+    Minutes,
     Seconds,
     StandardCrypto,
     StorageContext,
@@ -185,18 +186,83 @@ describe("RebootResubscribeArmer", () => {
         armer[Symbol.dispose]();
     });
 
-    it("stays armed indefinitely and still handles a late session if the device never returns", async () => {
+    it("still handles a late session if the device returns before the deadline", async () => {
         const { armer, createSession, sessionLives, whenClosed } = await setup();
         const older = await createSession();
         armer.arm(PEER);
-        await MockTime.advance(Seconds(600));
+        await MockTime.advance(Minutes(4)); // still short of the return deadline
         expect(sessionLives(older)).equals(true); // nothing happened while waiting
 
         const olderClosed = whenClosed(older);
-        const returned = await createSession(); // arrives late; the arm is still live
+        const returned = await createSession(); // arrives before the deadline; the arm is still live
         await MockTime.resolve(olderClosed);
         expect(sessionLives(older)).equals(false);
         expect(sessionLives(returned)).equals(true);
+        armer[Symbol.dispose]();
+    });
+
+    it("recovers the peer when no session returns within the return deadline", async () => {
+        const { armer, createSession, registerSubscription, isSubscribed, sessionLives } = await setup();
+        const subscription = registerSubscription();
+        const stale = await createSession(); // pre-reboot session, established before arming
+        armer.arm(PEER);
+
+        await MockTime.advance(Minutes(5)); // device never returns
+        // The recovery is a fire-and-forget chain (handlePeerLoss then closeForPeer); wait for both effects.
+        await MockTime.resolve(
+            (async () => {
+                while (sessionLives(stale) || isSubscribed(subscription)) {
+                    await MockTime.yield();
+                }
+            })(),
+        );
+
+        expect(sessionLives(stale)).equals(false); // handlePeerLoss dropped the stale session
+        expect(isSubscribed(subscription)).equals(false); // closeForPeer forced re-subscription
+        armer[Symbol.dispose]();
+    });
+
+    it("cancels the return deadline once the device returns", async () => {
+        const { armer, sessions, createSession } = await setup();
+        await createSession(); // pre-reboot session
+
+        let peerLossCount = 0;
+        const realHandlePeerLoss = sessions.handlePeerLoss.bind(sessions);
+        sessions.handlePeerLoss = (address, cause, asOf) => {
+            peerLossCount++;
+            return realHandlePeerLoss(address, cause, asOf);
+        };
+
+        armer.arm(PEER);
+        await MockTime.advance(Seconds(1));
+        await createSession(); // device returns and cancels the deadline
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Minutes(5)); // past the original deadline
+        await MockTime.macrotasks;
+
+        expect(peerLossCount).equals(0); // return-timeout recovery never ran
+        armer[Symbol.dispose]();
+    });
+
+    it("disarm before the deadline cancels the recovery", async () => {
+        const { armer, sessions, createSession } = await setup();
+        await createSession(); // pre-reboot session
+
+        let peerLossCount = 0;
+        const realHandlePeerLoss = sessions.handlePeerLoss.bind(sessions);
+        sessions.handlePeerLoss = (address, cause, asOf) => {
+            peerLossCount++;
+            return realHandlePeerLoss(address, cause, asOf);
+        };
+
+        armer.arm(PEER);
+        armer.disarm(PEER);
+
+        await MockTime.advance(Minutes(5));
+        await MockTime.macrotasks;
+
+        expect(peerLossCount).equals(0);
         armer[Symbol.dispose]();
     });
 
