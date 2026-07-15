@@ -427,10 +427,14 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             return;
         }
 
-        return {
+        const detached = {
             observers: this.#observers,
             once: this.#once,
         };
+
+        this.#observers = this.#once = undefined;
+
+        return detached;
     }
 
     attachObservers(detached: DetachedObservers<T, R>) {
@@ -438,7 +442,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             return;
         }
         for (const observer of detached.observers) {
-            if (this.#once?.has(observer)) {
+            if (detached.once?.has(observer)) {
                 this.once(observer);
             } else {
                 this.on(observer);

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Observable, ObservableValue, ObserverGroup } from "#util/Observable.js";
+import { AsyncObservable, BasicObservable, Observable, ObservableValue, ObserverGroup } from "#util/Observable.js";
 
 // Observable deserves proper unit tests but is tested heavily via other modules.  Currently this file just tests a
 // few spot cases
@@ -50,6 +50,47 @@ describe("ObservableGroup", () => {
         observers.close();
 
         expect(observable.isObserved).false;
+    });
+});
+
+describe("Observable", () => {
+    it("preserves once semantics across detach/attach", () => {
+        const source = new BasicObservable<[value: number]>();
+        const target = new BasicObservable<[value: number]>();
+
+        const onceValues = new Array<number>();
+        const persistentValues = new Array<number>();
+        source.once(value => {
+            onceValues.push(value);
+        });
+        source.on(value => {
+            persistentValues.push(value);
+        });
+
+        const detached = source.detachObservers();
+        expect(detached).not.undefined;
+        target.attachObservers(detached!);
+
+        target.emit(1);
+        target.emit(2);
+
+        expect(onceValues).deep.equals([1]);
+        expect(persistentValues).deep.equals([1, 2]);
+    });
+
+    it("disarms the source on detach", () => {
+        const source = new BasicObservable<[value: number]>();
+
+        const values = new Array<number>();
+        source.on(value => {
+            values.push(value);
+        });
+
+        source.detachObservers();
+
+        expect(source.isObserved).false;
+        source.emit(1);
+        expect(values).deep.equals([]);
     });
 });
 
