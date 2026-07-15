@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Fix: Peer session selection now prefers the session the peer was last heard from and skips peer-lost sessions, so a dead session still retransmitting no longer outranks a freshly established one
+    - Fix: `BleScanner.close()` no longer orphans a timeout-less continuous discovery, which previously blocked shutdown when a BLE commission was in flight
 
 - @matter/thread-br-client
     - Fix: Use the correct MeshCoP commissioner keep-alive URI (`c/ca`) and resign the session with a rejecting keep-alive instead of a nonexistent `c/cr` release URI that Border Routers answered with 4.04
