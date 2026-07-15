@@ -75,22 +75,27 @@ Device info: `basicInformation` / `deviceInformation` → `new DeviceInformation
 needed** — the `NetworkClient`'s `SustainedSubscription` establishes and re-establishes the subscription
 automatically once the node is enabled.
 
-| Legacy (`PairedNode`) | New (`ClientNode`) |
+There is no separate "auto-connect" toggle: a node is *connected* when it is enabled (`!isDisabled`) and
+holds a sustained subscription (`autoSubscribe`). The legacy node options map directly onto `NetworkClient`
+state:
+
+| Legacy | New (`NetworkClient` state, via `clientNode.set({ network: … })`) |
 | --- | --- |
-| `node.connect()` / implicit auto-connect | `clientNode.enable()` (or `start()`) — subscription follows automatically |
+| `autoConnect` | `isDisabled` (**inverse**): `autoConnect: false` → `isDisabled: true`. Or use `clientNode.enable()` / `disable()`. |
+| `autoSubscribe` | `autoSubscribe` (same meaning) |
+| `subscribeAllAttributesAndEvents(opts)` / interval tuning | `defaultSubscription` (a `Subscribe` / `Subscribe.Options` carrying the interval floor/ceiling); the subscription re-applies automatically when you change it |
+| `node.connect()` | `clientNode.enable()` (subscription follows automatically) |
 | `node.disconnect()` | `clientNode.disable()` |
 | `node.reconnect()` / `triggerReconnect()` | not needed — `SustainedSubscription` re-establishes; observe `lifecycle.connectionState` |
-| `node.subscribeAllAttributesAndEvents(opts)` | configure once via the `NetworkClient` behavior state (`autoSubscribe` + the default-subscription interval floor/ceiling); the subscription is created automatically |
-
-Subscription tuning lives on the node's network behavior state rather than a per-call argument:
 
 ```ts
-clientNode.set({ network: { autoSubscribe: true, /* default-subscription interval floor/ceiling */ } });
+clientNode.set({ network: { autoSubscribe: true, defaultSubscription: { /* Subscribe.Options: interval floor/ceiling, filters */ } } });
 ```
 
-> The exact `network` sub-keys for the default subscription interval are validated against the shell/server
-> migration and filled here once confirmed; read the current subscription status via `NetworkClient`
-> (`subscriptionActive` / `subscriptionAlive`).
+Notes: a newly-commissioned node performs a one-time state read on start regardless of `autoSubscribe`
+(unless `autoStateInitialize` is false). With `autoSubscribe: false` the node holds no sustained
+subscription, so there is no persistent liveness signal. Read current status via `NetworkClient`
+(`subscriptionActive` / `subscriptionAlive`).
 
 ---
 
