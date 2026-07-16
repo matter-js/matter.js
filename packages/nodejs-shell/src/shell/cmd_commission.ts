@@ -196,8 +196,8 @@ export default function commands(theNode: MatterNode) {
                                     }
 
                                     // MIGRATION-GAP: shell-diagnostic-callbacks — the legacy per-connect attribute/event/state
-                                    // diagnostic logging (createDiagnosticCallbacks) has no equivalent for the new commission
-                                    // options; a ChangeNotificationService-backed replacement is filed at
+                                    // diagnostic logging has no equivalent for the new commission options; a
+                                    // ChangeNotificationService-backed replacement is filed at
                                     // ~/.todos/matter.js/decease-legacy-controller/shell-diagnostic-callbacks.md (same gap as
                                     // cmd_nodes.ts `connect`/`add`).
 
@@ -267,7 +267,7 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeId, timeout } = argv;
                         await theNode.start();
-                        const node = (await theNode.connectAndGetClientNodes(nodeId, { autoSubscribe: false }))[0];
+                        const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
                         if (!node.lifecycle.isSeeded) {
                             await node.lifecycle.seeded;
                         }
@@ -296,7 +296,7 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         await theNode.start();
                         const { nodeId, timeout } = argv;
-                        const node = (await theNode.connectAndGetClientNodes(nodeId, { autoSubscribe: false }))[0];
+                        const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
                         if (!node.lifecycle.isSeeded) {
                             await node.lifecycle.seeded;
                         }
@@ -342,9 +342,7 @@ export default function commands(theNode: MatterNode) {
                             }
                             await node.delete();
                         } else {
-                            const node = (
-                                await theNode.connectAndGetClientNodes(nodeIdStr, { autoSubscribe: false })
-                            )[0];
+                            const node = (await theNode.connectAndGetNodes(nodeIdStr, { autoSubscribe: false }))[0];
                             if (!node.lifecycle.isSeeded) {
                                 await node.lifecycle.seeded;
                             }

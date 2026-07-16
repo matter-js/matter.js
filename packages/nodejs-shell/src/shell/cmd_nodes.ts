@@ -127,7 +127,7 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         const { nodeId } = argv;
-                        const node = (await theNode.connectAndGetClientNodes(nodeId))[0];
+                        const node = (await theNode.connectAndGetNodes(nodeId))[0];
                         if (!node.lifecycle.isSeeded) {
                             await node.lifecycle.seeded;
                         }
@@ -237,10 +237,10 @@ export default function commands(theNode: MatterNode) {
                         const autoSubscribe = minSubscriptionInterval !== undefined;
 
                         // MIGRATION-GAP: shell-diagnostic-callbacks — the legacy per-connect attribute/event/state
-                        // diagnostic logging (createDiagnosticCallbacks) has no equivalent on
-                        // ConnectClientNodeOptions; a ChangeNotificationService-backed replacement is filed at
+                        // diagnostic logging has no equivalent on ConnectClientNodeOptions; a
+                        // ChangeNotificationService-backed replacement is filed at
                         // ~/.todos/matter.js/decease-legacy-controller/shell-diagnostic-callbacks.md
-                        await theNode.connectAndGetClientNodes(nodeIdStr !== "all" ? nodeIdStr : undefined, {
+                        await theNode.connectAndGetNodes(nodeIdStr !== "all" ? nodeIdStr : undefined, {
                             autoSubscribe,
                             subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
                             subscribeMaxIntervalCeilingSeconds: autoSubscribe ? maxSubscriptionInterval : undefined,
@@ -480,7 +480,7 @@ export default function commands(theNode: MatterNode) {
 
                         // MIGRATION-GAP: shell-diagnostic-callbacks — see the `connect` command above; same dropped
                         // per-connect diagnostic logging, same filed todo.
-                        await theNode.connectAndGetClientNodes(nodeIdStr, {
+                        await theNode.connectAndGetNodes(nodeIdStr, {
                             autoSubscribe,
                             subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
                             subscribeMaxIntervalCeilingSeconds: autoSubscribe ? maxSubscriptionInterval : undefined,

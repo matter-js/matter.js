@@ -52,7 +52,7 @@ function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode
         async argv => {
             const { nodeId, endpointId, clusterId, attributeId: rawAttributeId, fabricFiltered } = argv;
             const attributeId = rawAttributeId === "*" ? undefined : parseInt(rawAttributeId);
-            const node = (await theNode.connectAndGetClientNodes(nodeId))[0];
+            const node = (await theNode.connectAndGetNodes(nodeId))[0];
 
             try {
                 const values = await readAttributesRemote(

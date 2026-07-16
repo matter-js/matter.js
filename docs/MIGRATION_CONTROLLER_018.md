@@ -196,8 +196,51 @@ For a single specific value you can instead `reactTo` that behavior's `<attr>$Ch
 own event) directly — fault-isolated and torn down with the behavior. That is the exception, not the
 common case; reach for `ChangeNotificationService` when you need the whole node/peer change feed.
 
-> Concrete before/after for the `#handleNodeChange` fan-out and connection/data-cache wiring is filled as
-> the shell and server migrations verify the exact idioms.
+### Verified shell idiom: watch one node's changes (`subscribe` command)
+
+The aggregate stream covers the controller node **and every peer**, so a per-node watcher filters to the
+target node's endpoint subtree. This is the proven replacement for the legacy per-`PairedNode` event bus
+(shell `cmd_subscribe.ts`):
+
+```ts
+import { ChangeNotificationService, ClusterBehavior, NetworkClient } from "@matter/node";
+
+// `node` is the target ClientNode; the node is its own root endpoint, so an endpoint belongs to it when
+// the node appears on the endpoint's owner chain.
+function ownedBy(endpoint, node) {
+    for (let e = endpoint; e !== undefined; e = e.owner) if (e === node) return true;
+    return false;
+}
+
+const observers = new ObserverGroup(); // one group per watcher; close it to unsubscribe
+observers.on(serverNode.env.get(ChangeNotificationService).change, change => {
+    if (!ownedBy(change.endpoint, node)) return; // ignore other peers / the controller node
+    switch (change.kind) {
+        case "update": {
+            if (!ClusterBehavior.is(change.behavior)) break;
+            const state = change.endpoint.stateOf(change.behavior.id);
+            const changed = change.properties?.reduce((o, n) => ((o[n] = state[n]), o), {}) ?? state;
+            // change.version carries the data version
+            break;
+        }
+        case "event":  /* change.behavior/event/number/timestamp/priority/payload */ break;
+        case "delete": /* change.endpoint removed */ break;
+    }
+});
+
+// Liveness (subscription established / dropped / re-established), replacing PairedNode connection events:
+observers.on(node.eventsOf(NetworkClient).subscriptionStatusChanged, isActive => { /* ... */ });
+
+// Establishing the sustained subscription is just a state write; changes then flow to the listener above:
+await node.set({ network: { autoSubscribe: true } });
+
+// Tear down when the node goes away, and when re-subscribing the same node:
+observers.on(node.lifecycle.destroyed, () => observers.close());
+```
+
+The legacy per-connect diagnostic callbacks (`attributeChangedCallback` / `eventTriggeredCallback` /
+`stateInformationCallback`) map onto exactly this: register **one** `ChangeNotificationService` listener
+covering all peers rather than a callback bundle per connect.
 
 ---
 
@@ -240,4 +283,20 @@ each accepts an optional `MatterModel`, defaulting to the global model, so custo
 **Do I need to poll for reachability?** No. Read `clientNode.lifecycle.connectionState` (or `isConnected`) and
 react to `connectionStateChanged`; drop any reconnect timers / availability debounce.
 
-> Further Qs added as the migrations surface them.
+**How do I get the `ClientNode`s to work with?** `await serverNode.start()` then read `serverNode.peers.commissioned`
+(the commissioned `ClientNode`s). Enabling a peer is `clientNode.enable()` (disabled) / `clientNode.start()`
+(already enabled). There is no `connectAndGetNodes` bulk call — enumerate `peers.commissioned` and enable as
+needed (bulk connect happens automatically on controller start; see above).
+
+**How do I subscribe to a node's changes?** Register a listener on
+`serverNode.env.get(ChangeNotificationService).change` and filter to the node's endpoint subtree (see the
+verified shell idiom above), then `await clientNode.set({ network: { autoSubscribe: true } })`. Do **not** look
+for a `subscribeAllAttributesAndEvents` — the sustained subscription is state-driven.
+
+**Where did the per-connect diagnostic callbacks go?** There is no per-connect callback bundle. Wire a single
+node-wide `ChangeNotificationService` listener (plus `NetworkClient.subscriptionStatusChanged` for liveness) that
+covers every peer — one registration instead of callbacks threaded through each connect call.
+
+**How do I wait until a node's structure is usable?** `if (!clientNode.lifecycle.isSeeded) await clientNode.lifecycle.seeded;`
+before reading its endpoints/behaviors. For an offline peer this can wait indefinitely, so bound it (timeout /
+abort on `WaitingForDeviceDiscovery`) if the caller must not hang.

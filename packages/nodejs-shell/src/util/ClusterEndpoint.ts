@@ -26,7 +26,7 @@ export async function resolveClusterEndpoint(
     endpointId: number,
     clusterId: number,
 ): Promise<ResolvedClusterEndpoint | undefined> {
-    const node = (await theNode.connectAndGetClientNodes(nodeIdStr))[0];
+    const node = (await theNode.connectAndGetNodes(nodeIdStr))[0];
     if (!node.lifecycle.isSeeded) {
         await node.lifecycle.seeded;
     }

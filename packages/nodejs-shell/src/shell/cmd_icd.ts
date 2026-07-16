@@ -94,7 +94,7 @@ async function eachNode(theNode: MatterNode, nodeIdStr: string, action: (nodeId:
 
 /** Connect to `nodeId` and verify it exposes IcdManagement, throwing an {@link ImplementationError} otherwise. */
 async function connectedIcdNode(theNode: MatterNode, nodeId: NodeId): Promise<ClientNode> {
-    const clientNode = (await theNode.connectAndGetClientNodes(String(nodeId)))[0];
+    const clientNode = (await theNode.connectAndGetNodes(String(nodeId)))[0];
     if (clientNode === undefined) {
         throw new ImplementationError(`Node ${nodeId} not found / not connected`);
     }

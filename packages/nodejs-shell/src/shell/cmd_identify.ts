@@ -34,13 +34,13 @@ export default function commands(theNode: MatterNode) {
 
         handler: async (argv: any) => {
             const { nodeId, time = 10, endpointId } = argv;
-            const nodes = await theNode.connectAndGetClientNodes(nodeId);
+            const nodes = await theNode.connectAndGetNodes(nodeId);
             for (const node of nodes) {
                 if (!node.lifecycle.isSeeded) {
                     await node.lifecycle.seeded;
                 }
             }
-            await theNode.iterateClientNodeDevices(
+            await theNode.iterateNodeDevices(
                 nodes,
                 async (device, node) => {
                     if (device.number === 0 || !device.behaviors.has(IdentifyClient)) {

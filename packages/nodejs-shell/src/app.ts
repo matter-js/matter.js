@@ -134,6 +134,15 @@ async function main() {
                     webAddress,
                 } = argv;
 
+                // Install BLE before the controller node initializes: the Ble service is registered reactively
+                // when `ble.enable` flips, and the node reads its availability during initialize().
+                if (bleEnable) {
+                    Environment.default.vars.set("ble.enable", true);
+                }
+                if (bleHciId !== undefined) {
+                    Environment.default.vars.set("ble.hci.id", bleHciId);
+                }
+
                 theNode = new MatterNode(nodeNum, netInterface);
                 await theNode.initialize(factoryReset);
 
@@ -157,14 +166,6 @@ async function main() {
                     initializeWebPlumbing(theNode, nodeNum, webSocketPort, webServer, webAddress); // set up but wait for connect to create Shell
                 } else {
                     theShell = new Shell(theNode, nodeNum, PROMPT, process.stdin, process.stdout);
-                }
-
-                if (bleEnable) {
-                    Environment.default.vars.set("ble.enable", true);
-                }
-
-                if (bleHciId !== undefined) {
-                    Environment.default.vars.set("ble.hci.id", bleHciId);
                 }
 
                 console.log(`Started Node #${nodeNum} (Type: ${nodeType}) ${bleEnable ? "with" : "without"} BLE`);
