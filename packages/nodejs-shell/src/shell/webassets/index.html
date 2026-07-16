@@ -285,7 +285,7 @@
                     logMessage(`Received: "${trimmed}"`, trimmed.toLowerCase().includes('error') ? 'error' : 'received');
 
                     // result of nodes log command
-                    let matches = message.match(/INFO\s+PairedNode [^0-9]*(\d+)\D*/);
+                    let matches = message.match(/Logging structure of Node\s+(\d+)/);
                     if (matches) { // could save this message of extensive node data for later use
                         let currentNode = matches[1];
                         let currentEndpoint = null;

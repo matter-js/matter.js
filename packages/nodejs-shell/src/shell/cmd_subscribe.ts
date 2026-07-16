@@ -35,7 +35,7 @@ export default function commands(theNode: MatterNode) {
 
         handler: async (argv: any) => {
             const { nodeId: subscribeNodeId } = argv;
-            const node = (await theNode.connectAndGetClientNodes(subscribeNodeId))[0];
+            const node = (await theNode.connectAndGetNodes(subscribeNodeId))[0];
             if (node === undefined) {
                 throw new ImplementationError("No commissioned node to subscribe to");
             }

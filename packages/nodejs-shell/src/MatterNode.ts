@@ -6,11 +6,11 @@
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import {
-    Diagnostic,
     Duration,
     Environment,
     Filesystem,
     ImplementationError,
+    InternalError,
     Logger,
     ObserverGroup,
     Seconds,
@@ -19,74 +19,25 @@ import {
     StorageService,
 } from "@matter/general";
 import {
-    Endpoint as ClientEndpoint,
     ClientNode,
+    ControllerBehavior,
     DclBehavior,
+    Endpoint,
     NetworkClient,
     ServerNode,
     SoftwareUpdateManager,
 } from "@matter/node";
 import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
+import { Ble, Fabric, FabricAuthority } from "@matter/protocol";
 import { NodeId } from "@matter/types";
-import { CommissioningController } from "@project-chip/matter.js";
-import {
-    CommissioningControllerNodeOptions,
-    Endpoint,
-    NodeStateInformation,
-    PairedNode,
-} from "@project-chip/matter.js/device";
 import { join } from "node:path";
-
-/**
- * The shell's default per-node diagnostic callbacks — state-information, attribute-change and event logging. Applied by
- * default to every {@link MatterNode.connectAndGetNodes} connection so any command that reaches a node (not just
- * `nodes connect`) gets the same logging regardless of which command touched the node first.
- */
-export function createDiagnosticCallbacks(): Partial<CommissioningControllerNodeOptions> {
-    return {
-        attributeChangedCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
-            console.log(
-                `attributeChangedCallback ${peerNodeId}: Attribute ${nodeId}/${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
-                    value,
-                )}`,
-            ),
-        eventTriggeredCallback: (peerNodeId, { path: { nodeId, clusterId, endpointId, eventName }, events }) =>
-            console.log(
-                `eventTriggeredCallback ${peerNodeId}: Event ${nodeId}/${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
-                    events,
-                )}`,
-            ),
-        stateInformationCallback: (peerNodeId, info) => {
-            switch (info) {
-                case NodeStateInformation.Connected:
-                    console.log(`stateInformationCallback Node ${peerNodeId} connected`);
-                    break;
-                case NodeStateInformation.Disconnected:
-                    console.log(`stateInformationCallback Node ${peerNodeId} disconnected`);
-                    break;
-                case NodeStateInformation.Reconnecting:
-                    console.log(`stateInformationCallback Node ${peerNodeId} reconnecting`);
-                    break;
-                case NodeStateInformation.WaitingForDeviceDiscovery:
-                    console.log(
-                        `stateInformationCallback Node ${peerNodeId} waiting that device gets discovered again`,
-                    );
-                    break;
-                case NodeStateInformation.StructureChanged:
-                    console.log(`stateInformationCallback Node ${peerNodeId} structure changed`);
-                    break;
-                case NodeStateInformation.Decommissioned:
-                    console.log(`stateInformationCallback Node ${peerNodeId} decommissioned`);
-                    break;
-            }
-        },
-    };
-}
 
 const logger = Logger.get("Node");
 
+const ADMIN_FABRIC_LABEL = "matter.js Shell";
+
 /**
- * Options for {@link MatterNode.connectAndGetClientNodes}, expressed in the legacy vocabulary and mapped onto
+ * Options for {@link MatterNode.connectAndGetNodes}, expressed in the legacy vocabulary and mapped onto
  * {@link NetworkClient} state per docs/MIGRATION_CONTROLLER_018.md.
  */
 export interface ConnectClientNodeOptions {
@@ -105,7 +56,8 @@ export class MatterNode {
     #storageManager?: StorageManager;
     #storageContext?: StorageContext;
     readonly #environment: Environment;
-    commissioningController?: CommissioningController;
+    #node?: ServerNode;
+    #fabric?: Fabric;
     #started = false;
     readonly #nodeNum: number;
     readonly #netInterface?: string;
@@ -130,20 +82,18 @@ export class MatterNode {
     }
 
     get node(): ServerNode {
-        if (this.commissioningController === undefined) {
-            throw new Error("CommissioningController not initialized. Start first");
+        if (this.#node === undefined) {
+            throw new ImplementationError("Controller node not initialized. Call initialize() first.");
         }
-        return this.commissioningController.node;
+        return this.#node;
     }
 
     /**
-     * The OTA provider endpoint on the shared controller node. Requires `enableOtaProvider: true`, which the
-     * shell always sets. The cast is unavoidable: `endpoints.for(id)` resolves by runtime id lookup, so it
-     * cannot statically know which endpoint type lives at "ota-provider" (the legacy CommissioningController's
-     * equivalent accessor casts the same way).
+     * The OTA provider endpoint on the controller node. The cast is unavoidable: `endpoints.for(id)` resolves by
+     * runtime id lookup, so it cannot statically know which endpoint type lives at "ota-provider".
      */
-    get otaProviderEndpoint(): ClientEndpoint<OtaProviderEndpoint> {
-        return this.node.endpoints.for("ota-provider") as ClientEndpoint<OtaProviderEndpoint>;
+    get otaProviderEndpoint(): Endpoint<OtaProviderEndpoint> {
+        return this.node.endpoints.for("ota-provider") as Endpoint<OtaProviderEndpoint>;
     }
 
     async otaService() {
@@ -165,71 +115,71 @@ export class MatterNode {
     }
 
     async initialize(resetStorage: boolean) {
-        /**
-         * Initialize the storage system.
-         *
-         * The Matter server then also uses the storage manager, so this code block in general is required,
-         * but you can choose a different storage backend as long as it implements the required API.
-         */
+        if (this.#netInterface !== undefined) {
+            this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
+        }
 
-        if (this.#environment) {
-            if (this.#netInterface !== undefined) {
-                this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
-            }
+        const id = `shell-${this.#nodeNum.toString()}`;
 
-            const id = `shell-${this.#nodeNum.toString()}`;
+        // Scope the controller node's services (storage, mDNS) under its id, mirroring the legacy controller wrapper.
+        const nodeEnvironment = new Environment(id, this.#environment);
 
-            // Open storage up front so persisted settings can flow into the CommissioningController constructor.
-            this.#storageManager = await this.#environment.get(StorageService).open(id);
-            this.#storageContext = this.#storageManager.createContext("Node");
+        // Open storage up front so persisted settings are available before the controller node is built.
+        this.#storageManager = await nodeEnvironment.get(StorageService).open(id);
+        this.#storageContext = this.#storageManager.createContext("Node");
 
-            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
-            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
-            const storedPref = await this.#storageContext.get<string>("TransportPreference", "");
-            this.#transportPreference = storedPref === "tcp" || storedPref === "udp" ? storedPref : undefined;
+        this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
+        this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
+        const storedPref = await this.#storageContext.get<string>("TransportPreference", "");
+        this.#transportPreference = storedPref === "tcp" || storedPref === "udp" ? storedPref : undefined;
 
-            // Build up the "Not-so-legacy" Controller
-            this.commissioningController = new CommissioningController({
-                environment: {
-                    environment: this.#environment,
-                    id,
-                },
-                autoConnect: false,
-                adminFabricLabel: "matter.js Shell",
-                enableOtaProvider: true,
+        const ble = (nodeEnvironment.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)) !== undefined;
+
+        this.#node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+            environment: nodeEnvironment,
+            id,
+            network: {
+                ble: false,
                 tcp: true,
                 transportPreference: this.#transportPreference,
-                basicInformation: {
-                    productName: "matter.js Shell",
-                },
-            });
+            },
+            basicInformation: {
+                productName: ADMIN_FABRIC_LABEL,
+            },
+            controller: {
+                adminFabricLabel: ADMIN_FABRIC_LABEL,
+                ble,
+            },
+            commissioning: {
+                enabled: false, // The controller node is never commissionable itself.
+            },
+            subscriptions: {
+                persistenceEnabled: false, // Subscription persistence is a device feature, not a controller one.
+            },
+        });
 
-            const env = this.commissioningController.env;
-            if (env.has(Filesystem)) {
-                this.#storageLocation = join(env.get(Filesystem).path, id);
-            }
+        // Pulls in SoftwareUpdateManager (and thereby DclBehavior on the root node) for OTA provider support.
+        await this.#node.add(new Endpoint(OtaProviderEndpoint, { id: "ota-provider" }));
 
-            if (resetStorage) {
-                await this.commissioningController.node.erase();
-            }
-        } else {
-            console.log(
-                "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",
-            );
-            process.exit(1);
+        if (nodeEnvironment.has(Filesystem)) {
+            this.#storageLocation = join(nodeEnvironment.get(Filesystem).path, id);
+        }
+
+        if (resetStorage) {
+            await this.#node.erase();
         }
     }
 
     get Store() {
         if (!this.#storageContext) {
-            throw new Error("Storage uninitialized");
+            throw new ImplementationError("Storage uninitialized");
         }
         return this.#storageContext;
     }
 
     async close() {
         try {
-            await this.commissioningController?.close();
+            await this.#node?.close();
         } finally {
             this.#observers?.close();
             await this.#storageManager?.close();
@@ -242,28 +192,28 @@ export class MatterNode {
         }
         logger.info(`matter.js shell controller started for node ${this.#nodeNum}`);
 
-        if (this.commissioningController !== undefined) {
-            await this.commissioningController.start();
+        const node = this.node;
 
-            await this.commissioningController.node.setStateOf(DclBehavior, {
-                fetchTestCertificates: this.#dclFetchTestCertificates,
-            });
+        // Reuse the existing controller fabric (matched by CA) or create one, rotating the NOC once per runtime.
+        const fabricAuthority = await node.env.load(FabricAuthority);
+        this.#fabric = await fabricAuthority.defaultFabric({ adminFabricLabel: ADMIN_FABRIC_LABEL });
 
-            await this.commissioningController.otaProvider.setStateOf(SoftwareUpdateManager, {
-                allowTestOtaImages: this.#allowTestOtaImages,
-            });
+        await node.start();
 
-            if (await this.Store.has("ControllerFabricLabel")) {
-                await this.commissioningController.updateFabricLabel(
-                    await this.Store.get<string>("ControllerFabricLabel", "matter.js Shell"),
-                );
-            }
-        } else {
-            throw new Error("No controller initialized");
+        await node.setStateOf(DclBehavior, {
+            fetchTestCertificates: this.#dclFetchTestCertificates,
+        });
+
+        await this.otaProviderEndpoint.setStateOf(SoftwareUpdateManager, {
+            allowTestOtaImages: this.#allowTestOtaImages,
+        });
+
+        if (await this.Store.has("ControllerFabricLabel")) {
+            await this.#fabric.setLabel(await this.Store.get<string>("ControllerFabricLabel", ADMIN_FABRIC_LABEL));
         }
 
         this.#observers = this.#observers ?? new ObserverGroup(this.#environment.runtime);
-        const updateManagerEvents = this.commissioningController.otaProvider.eventsOf(SoftwareUpdateManager);
+        const updateManagerEvents = this.otaProviderEndpoint.eventsOf(SoftwareUpdateManager);
         this.#observers.on(updateManagerEvents.updateAvailable, (peer, details) => {
             logger.info(`Update available for peer`, peer, `:`, details);
         });
@@ -277,40 +227,12 @@ export class MatterNode {
         this.#started = true;
     }
 
-    async connectAndGetNodes(nodeIdStr?: string, connectOptions?: CommissioningControllerNodeOptions) {
-        await this.start();
-        const nodeId = nodeIdStr !== undefined ? NodeId(BigInt(nodeIdStr)) : undefined;
-
-        if (this.commissioningController === undefined) {
-            throw new Error("CommissioningController not initialized");
-        }
-
-        // Default the shell's diagnostic callbacks so a node reached via any command (icd, cluster-*, subscribe, …),
-        // not just `nodes connect`, gets the same logging. A caller-supplied option still wins.
-        const options = { ...createDiagnosticCallbacks(), ...connectOptions };
-
-        if (nodeId === undefined) {
-            return await this.commissioningController.connect(options);
-        }
-
-        const node = await this.commissioningController.connectNode(nodeId, {
-            ...options /*autoConnect: false*/,
-        });
-        if (!node.initialized) {
-            await node.events.initialized;
-        }
-        return [node];
-    }
-
     /**
-     * ServerNode/peers-backed replacement for {@link connectAndGetNodes}, returning {@link ClientNode}s from the
-     * controller's peer collection. Nodes connect asynchronously; await `node.lifecycle.seeded` (guarded by
-     * `node.lifecycle.isSeeded`) before relying on the endpoint structure.
+     * Returns the {@link ClientNode}s for the commissioned peers, connecting them (unless `autoConnect: false`).
+     * Nodes connect asynchronously; await `node.lifecycle.seeded` (guarded by `node.lifecycle.isSeeded`) before
+     * relying on the endpoint structure.
      */
-    async connectAndGetClientNodes(
-        nodeIdStr?: string,
-        connectOptions?: ConnectClientNodeOptions,
-    ): Promise<ClientNode[]> {
+    async connectAndGetNodes(nodeIdStr?: string, connectOptions?: ConnectClientNodeOptions): Promise<ClientNode[]> {
         await this.start();
 
         const commissioned = this.node.peers.commissioned;
@@ -370,38 +292,13 @@ export class MatterNode {
         }
     }
 
-    get controller() {
-        if (this.commissioningController === undefined) {
-            throw new Error("CommissioningController not initialized. Start first");
-        }
-        return this.commissioningController;
-    }
-
-    async iterateNodeDevices(
-        nodes: PairedNode[],
-        callback: (device: Endpoint, node: PairedNode) => Promise<void>,
-        endpointId?: number,
-    ) {
-        for (const node of nodes) {
-            let devices = node.getDevices();
-            if (endpointId !== undefined) {
-                devices = devices.filter(device => device.number === endpointId);
-            }
-
-            for (const device of devices) {
-                await callback(device, node);
-            }
-        }
-    }
-
     /**
-     * ServerNode/peers-backed replacement for {@link iterateNodeDevices}, iterating the endpoints of each
-     * {@link ClientNode}. Unlike the legacy `getDevices()`, this includes the root endpoint (number 0); pass
+     * Iterates the endpoints of each {@link ClientNode}, including the root endpoint (number 0); pass
      * {@link endpointIds} to restrict iteration.
      */
-    async iterateClientNodeDevices(
+    async iterateNodeDevices(
         nodes: ClientNode[],
-        callback: (device: ClientEndpoint, node: ClientNode) => Promise<void>,
+        callback: (device: Endpoint, node: ClientNode) => Promise<void>,
         endpointIds?: number[],
     ): Promise<void> {
         for (const node of nodes) {
@@ -414,7 +311,16 @@ export class MatterNode {
         }
     }
 
-    updateFabricLabel(label: string) {
-        return this.commissioningController?.updateFabricLabel(label);
+    /**
+     * Updates the controller's admin fabric label on the local fabric. Propagation to already-connected peers is not
+     * reproduced and moves to the node-management layer per docs/MIGRATION_CONTROLLER_018.md.
+     * MIGRATION-GAP: updatefabriclabel-note.
+     */
+    async updateFabricLabel(label: string) {
+        await this.start();
+        if (this.#fabric === undefined) {
+            throw new InternalError("Controller fabric not initialized");
+        }
+        await this.#fabric.setLabel(label);
     }
 }
