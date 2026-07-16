@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { attributeId, attributeName, commandId, commandName, eventId, eventName } from "#cluster/ClusterHelper.js";
+import { ClusterLookup } from "#cluster/ClusterHelper.js";
 import { BooleanState } from "#clusters/boolean-state.js";
 import { OnOff } from "#clusters/on-off.js";
 import { ClusterId } from "#datatype/ClusterId.js";
 import { ClusterModel, MatterModel } from "@matter/model";
 
-describe("ClusterNaming", () => {
+const { attributeId, attributeName, commandId, commandName, eventId, eventName } = ClusterLookup;
+
+describe("ClusterLookup", () => {
     const onOffId = OnOff.Cluster.id;
     const booleanStateId = BooleanState.Cluster.id;
     const unknownClusterId = ClusterId(0xffff, false);

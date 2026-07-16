@@ -100,72 +100,58 @@ export function resolveCommandName({ endpointId, clusterId, commandId }: Command
 }
 
 /**
- * Resolve the numeric ID of an attribute given its name or ID, scoped to a specific cluster within a
- * {@link MatterModel}.
+ * Bidirectional name↔ID resolution for cluster attributes, events and commands.
+ *
+ * Each function is scoped to a cluster within a {@link MatterModel}, defaulting to the global {@link Matter} model;
+ * pass a node's model (`node.matter`) so custom/vendor clusters resolve.  Lookups accept either the camelCase name
+ * or the numeric ID and return `undefined` when unknown.
  */
-export function attributeId(
-    clusterId: ClusterId,
-    nameOrId: string | number,
-    matter: MatterModel = Matter,
-): number | undefined {
-    return matter.clusters(clusterId)?.attributes(nameOrId)?.id;
-}
+export namespace ClusterLookup {
+    export function attributeId(
+        clusterId: ClusterId,
+        nameOrId: string | number,
+        matter: MatterModel = Matter,
+    ): number | undefined {
+        return matter.clusters(clusterId)?.attributes(nameOrId)?.id;
+    }
 
-/**
- * Resolve the camelCase name of an attribute given its name or ID, scoped to a specific cluster within a
- * {@link MatterModel}.
- */
-export function attributeName(
-    clusterId: ClusterId,
-    nameOrId: string | number,
-    matter: MatterModel = Matter,
-): string | undefined {
-    return matter.clusters(clusterId)?.attributes(nameOrId)?.propertyName;
-}
+    export function attributeName(
+        clusterId: ClusterId,
+        nameOrId: string | number,
+        matter: MatterModel = Matter,
+    ): string | undefined {
+        return matter.clusters(clusterId)?.attributes(nameOrId)?.propertyName;
+    }
 
-/**
- * Resolve the numeric ID of an event given its name or ID, scoped to a specific cluster within a {@link MatterModel}.
- */
-export function eventId(
-    clusterId: ClusterId,
-    nameOrId: string | number,
-    matter: MatterModel = Matter,
-): number | undefined {
-    return matter.clusters(clusterId)?.events(nameOrId)?.id;
-}
+    export function eventId(
+        clusterId: ClusterId,
+        nameOrId: string | number,
+        matter: MatterModel = Matter,
+    ): number | undefined {
+        return matter.clusters(clusterId)?.events(nameOrId)?.id;
+    }
 
-/**
- * Resolve the camelCase name of an event given its name or ID, scoped to a specific cluster within a
- * {@link MatterModel}.
- */
-export function eventName(
-    clusterId: ClusterId,
-    nameOrId: string | number,
-    matter: MatterModel = Matter,
-): string | undefined {
-    return matter.clusters(clusterId)?.events(nameOrId)?.propertyName;
-}
+    export function eventName(
+        clusterId: ClusterId,
+        nameOrId: string | number,
+        matter: MatterModel = Matter,
+    ): string | undefined {
+        return matter.clusters(clusterId)?.events(nameOrId)?.propertyName;
+    }
 
-/**
- * Resolve the numeric ID of a command given its name or ID, scoped to a specific cluster within a
- * {@link MatterModel}.
- */
-export function commandId(
-    clusterId: ClusterId,
-    nameOrId: string | number,
-    matter: MatterModel = Matter,
-): number | undefined {
-    return matter.clusters(clusterId)?.commands(nameOrId)?.id;
-}
+    export function commandId(
+        clusterId: ClusterId,
+        nameOrId: string | number,
+        matter: MatterModel = Matter,
+    ): number | undefined {
+        return matter.clusters(clusterId)?.commands(nameOrId)?.id;
+    }
 
-/**
- * Resolve the camelCase name of a command given its name or ID, scoped to a specific cluster within a
- * {@link MatterModel}.
- */
-export function commandName(
-    clusterId: ClusterId,
-    nameOrId: string | number,
-    matter: MatterModel = Matter,
-): string | undefined {
-    return matter.clusters(clusterId)?.commands(nameOrId)?.propertyName;
+    export function commandName(
+        clusterId: ClusterId,
+        nameOrId: string | number,
+        matter: MatterModel = Matter,
+    ): string | undefined {
+        return matter.clusters(clusterId)?.commands(nameOrId)?.propertyName;
+    }
 }

@@ -232,9 +232,10 @@ instances in `serverNode.peers`; `PairedNode` (and `CommissioningController`) ar
 returns the `ClientNode`. Enumerate with `serverNode.peers.commissioned`.
 
 **How do I read/invoke a cluster when I only have a numeric cluster id?** `endpoint.stateOf(behaviors.forCluster(id))`
-/ `commandsOf(...)`. For name↔id conversion use the resolvers in `@matter/types` `ClusterHelper`
-(`attributeId`/`attributeName`/… — accept an optional `MatterModel`, defaulting to the global model, so
-custom clusters resolve via `clientNode.matter`).
+/ `commandsOf(...)`. For name↔id conversion use the `ClusterLookup` namespace from `@matter/types`
+(`ClusterLookup.attributeId` / `attributeName` / `eventId` / `eventName` / `commandId` / `commandName` —
+each accepts an optional `MatterModel`, defaulting to the global model, so custom clusters resolve via
+`clientNode.matter`).
 
 **Do I need to poll for reachability?** No. Read `clientNode.lifecycle.connectionState` (or `isConnected`) and
 react to `connectionStateChanged`; drop any reconnect timers / availability debounce.
