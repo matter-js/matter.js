@@ -13,3 +13,6 @@ isolated-*.log
 /.caude/
 .claude/
 docs/plans/
+
+# Local planning/SDD scratch (never committed)
+docs/superpowers/
