@@ -26,6 +26,7 @@ import {
     ServerNode,
     SoftwareUpdateManager,
 } from "@matter/node";
+import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
 import {
@@ -133,6 +134,16 @@ export class MatterNode {
             throw new Error("CommissioningController not initialized. Start first");
         }
         return this.commissioningController.node;
+    }
+
+    /**
+     * The OTA provider endpoint on the shared controller node. Requires `enableOtaProvider: true`, which the
+     * shell always sets. The cast is unavoidable: `endpoints.for(id)` resolves by runtime id lookup, so it
+     * cannot statically know which endpoint type lives at "ota-provider" (the legacy CommissioningController's
+     * equivalent accessor casts the same way).
+     */
+    get otaProviderEndpoint(): ClientEndpoint<OtaProviderEndpoint> {
+        return this.node.endpoints.for("ota-provider") as ClientEndpoint<OtaProviderEndpoint>;
     }
 
     async otaService() {
