@@ -336,8 +336,11 @@ export class MatterNode {
             return;
         }
 
-        if (options.autoConnect !== undefined) {
-            await node.setStateOf(NetworkClient, { isDisabled: !options.autoConnect });
+        // disable() drops any live subscription before persisting isDisabled; a bare setStateOf would leave a
+        // still-connected node reporting Connected while persisted disabled.  Enabling is handled by the caller's
+        // enable()/start() loop.
+        if (options.autoConnect === false) {
+            await node.disable();
         }
         if (options.autoSubscribe !== undefined) {
             await node.setStateOf(NetworkClient, { autoSubscribe: options.autoSubscribe });
@@ -389,7 +392,7 @@ export class MatterNode {
         nodes: ClientNode[],
         callback: (device: ClientEndpoint, node: ClientNode) => Promise<void>,
         endpointIds?: number[],
-    ) {
+    ): Promise<void> {
         for (const node of nodes) {
             for (const device of node.endpoints) {
                 if (endpointIds !== undefined && !endpointIds.includes(device.number)) {
