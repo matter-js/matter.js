@@ -17,10 +17,12 @@ const logger = Logger.get("RebootResubscribeArmer");
 const DEFAULT_REBOOT_RESUBSCRIBE_GRACE = Seconds(30);
 
 /**
- * How long we wait for an armed device to re-establish a session before assuming it restarted silently.  Matches the
- * BDX idle timeout, giving generous headroom over apply+reboot so a slow-applying device isn't torn down prematurely.
+ * How long we wait for an armed device to re-establish a session before assuming it restarted silently and forcing
+ * recovery.  A device applying an update has normally rebooted and returned within this window, so it is a backstop
+ * rather than the common path; kept short so a silently-restarted device recovers well before the full subscription
+ * liveness timeout.
  */
-const EXPECTED_RETURN_TIMEOUT = Minutes(5);
+const EXPECTED_RETURN_TIMEOUT = Minutes(3);
 
 interface ArmState {
     newSessionAt?: Timestamp;

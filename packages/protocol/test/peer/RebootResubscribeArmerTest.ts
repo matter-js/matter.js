@@ -190,7 +190,7 @@ describe("RebootResubscribeArmer", () => {
         const { armer, createSession, sessionLives, whenClosed } = await setup();
         const older = await createSession();
         armer.arm(PEER);
-        await MockTime.advance(Minutes(4)); // still short of the return deadline
+        await MockTime.advance(Minutes(2)); // still short of the return deadline
         expect(sessionLives(older)).equals(true); // nothing happened while waiting
 
         const olderClosed = whenClosed(older);
