@@ -10,6 +10,7 @@ import {
     decamelize,
     Diagnostic,
     ImplementationError,
+    InternalError,
     Logger,
     ServerAddress,
 } from "@matter/general";
@@ -21,7 +22,7 @@ import {
     SoftwareUpdateManager,
 } from "@matter/node";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
-import { PeerSet } from "@matter/protocol";
+import { FabricAuthority, PeerSet } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
@@ -258,10 +259,7 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         const { nodeId: nodeIdStr } = argv;
-                        if (theNode.commissioningController === undefined) {
-                            console.log("Controller not initialized, nothing to disconnect.");
-                            return;
-                        }
+                        await theNode.start();
 
                         let nodes = theNode.node.peers.commissioned;
                         if (nodeIdStr !== "all") {
@@ -471,7 +469,12 @@ export default function commands(theNode: MatterNode) {
                             throw new ImplementationError(`Node ${nodeIdStr} already known`);
                         }
 
-                        await theNode.node.peers.forAddress(theNode.controller.fabric.addressOf(cmdNodeId));
+                        // Single-fabric shell: the controller's own (first-owned) fabric is the one to address peers on.
+                        const fabric = theNode.node.env.get(FabricAuthority).fabrics[0];
+                        if (fabric === undefined) {
+                            throw new InternalError("No controller fabric present after start");
+                        }
+                        await theNode.node.peers.forAddress(fabric.addressOf(cmdNodeId));
 
                         const autoSubscribe = minSubscriptionInterval !== undefined;
 
@@ -509,9 +512,6 @@ export default function commands(theNode: MatterNode) {
                                     const { nodeId: nodeIdStr, local } = argv;
 
                                     await theNode.start();
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
 
                                     let peerToCheck: ClientNode | undefined = undefined;
                                     if (nodeIdStr !== undefined) {
@@ -522,11 +522,10 @@ export default function commands(theNode: MatterNode) {
                                         }
                                     }
 
-                                    const updatesAvailable = await theNode.commissioningController.otaProvider.act(
-                                        agent =>
-                                            agent
-                                                .get(SoftwareUpdateManager)
-                                                .queryUpdates({ peerToCheck, includeStoredUpdates: local }),
+                                    const updatesAvailable = await theNode.otaProviderEndpoint.act(agent =>
+                                        agent
+                                            .get(SoftwareUpdateManager)
+                                            .queryUpdates({ peerToCheck, includeStoredUpdates: local }),
                                     );
 
                                     if (updatesAvailable.length) {
@@ -750,10 +749,6 @@ export default function commands(theNode: MatterNode) {
 
                                     await theNode.start();
 
-                                    if (theNode.commissioningController === undefined) {
-                                        throw new Error("CommissioningController not initialized");
-                                    }
-
                                     const nodeId = NodeId(BigInt(nodeIdStr));
                                     const node = findCommissionedNode(theNode, nodeId);
                                     if (node === undefined) {
@@ -839,7 +834,7 @@ export default function commands(theNode: MatterNode) {
                                         throw new ImplementationError(`Node ${nodeIdStr} has no peer address`);
                                     }
 
-                                    await theNode.commissioningController.otaProvider.act(agent => {
+                                    await theNode.otaProviderEndpoint.act(agent => {
                                         return agent
                                             .get(SoftwareUpdateManager)
                                             .forceUpdate(
