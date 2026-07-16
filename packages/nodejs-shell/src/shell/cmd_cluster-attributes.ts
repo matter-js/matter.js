@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "@matter/general";
+import { Diagnostic, ImplementationError } from "@matter/general";
 import { AttributeModel, ClusterModel, Matter } from "@matter/model";
-import { AttributeId, ClusterId, EndpointNumber, ValidationError } from "@matter/types";
-import { SupportedAttributeClient } from "@project-chip/matter.js/cluster";
+import { AttributeId, ClusterId, ClusterLookup, EndpointNumber, ValidationError } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { readAttributesRemote, resolveClusterEndpoint, ResolvedClusterEndpoint } from "../util/ClusterEndpoint.js";
 import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode) {
@@ -52,34 +52,35 @@ function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode
         async argv => {
             const { nodeId, endpointId, clusterId, attributeId: rawAttributeId, fabricFiltered } = argv;
             const attributeId = rawAttributeId === "*" ? undefined : parseInt(rawAttributeId);
-            const node = (await theNode.connectAndGetNodes(nodeId))[0];
+            const node = (await theNode.connectAndGetClientNodes(nodeId))[0];
 
             try {
-                const interactionClient = await node.getInteractionClient();
-                const result = await interactionClient.getMultipleAttributes({
-                    attributes: [
+                const values = await readAttributesRemote(
+                    node,
+                    [
                         {
                             endpointId: EndpointNumber(endpointId),
                             clusterId: ClusterId(clusterId),
                             attributeId: attributeId !== undefined ? AttributeId(attributeId) : undefined,
                         },
                     ],
-                    isFabricFiltered: fabricFiltered,
-                });
+                    fabricFiltered,
+                );
                 console.log(
-                    `Attribute values for cluster ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attributeId}:`,
+                    `Attribute values for cluster ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attributeId}:`,
                 );
                 for (const {
-                    path: { attributeId, attributeName },
+                    path: { attributeId: id },
                     value,
-                } of result) {
+                } of values) {
+                    const attributeName = ClusterLookup.attributeName(ClusterId(clusterId), id, node.matter);
                     console.log(
-                        `    ${Diagnostic.hex(attributeId)}${attributeName !== undefined ? ` (${attributeName})` : ""}: ${Diagnostic.json(value)}`,
+                        `    ${Diagnostic.hex(id)}${attributeName !== undefined ? ` (${attributeName})` : ""}: ${Diagnostic.json(value)}`,
                     );
                 }
             } catch (error) {
                 console.log(
-                    `ERROR: Could not get attribute ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attributeId}: ${error}`,
+                    `ERROR: Could not get attribute ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attributeId}: ${error}`,
                 );
             }
         },
@@ -132,35 +133,31 @@ function generateClusterAttributeHandlers(yargs: Argv, cluster: ClusterModel, th
                                 });
                         },
                         async argv => {
-                            const clusterId = cluster.id;
                             const { nodeId, endpointId, remote, fabricFiltered } = argv;
-                            const requestRemote = remote ? true : undefined;
-                            const node = (await theNode.connectAndGetNodes(nodeId))[0];
-
-                            const clusterClient = node
-                                .getDeviceById(endpointId)
-                                ?.getClusterClientById(ClusterId(clusterId!));
-                            if (clusterClient === undefined) {
-                                console.log(
-                                    `ERROR: Cluster ${node.nodeId.toString()}/${endpointId}/${clusterId} not found.`,
-                                );
+                            const resolved = await resolveClusterEndpoint(theNode, nodeId, endpointId, clusterId!);
+                            if (resolved === undefined) {
                                 return;
                             }
+                            const { node, endpoint, behaviorType } = resolved;
+
                             console.log(
-                                `Attribute values for cluster ${cluster.name} (${node.nodeId.toString()}/${endpointId}/${clusterId}):`,
+                                `Attribute values for cluster ${cluster.name} (${node.peerAddress?.nodeId}/${endpointId}/${clusterId}):`,
                             );
                             for (const attribute of cluster.attributes) {
                                 const attributeName = attribute.propertyName;
-                                const attributeClient = clusterClient.attributes[attributeName];
                                 if (
-                                    attributeClient === undefined ||
-                                    (!remote && !(attributeClient instanceof SupportedAttributeClient))
+                                    !remote &&
+                                    !endpoint.behaviors.elementsOf(behaviorType).attributes.has(attributeName)
                                 ) {
                                     continue;
                                 }
-                                console.log(
-                                    `    ${attributeName} (${attribute.id}): ${Diagnostic.json(await attributeClient.get(requestRemote, fabricFiltered))}`,
-                                );
+                                try {
+                                    console.log(
+                                        `    ${attributeName} (${attribute.id}): ${Diagnostic.json(await getAttributeValue(resolved, clusterId!, attribute, remote, fabricFiltered))}`,
+                                    );
+                                } catch (error) {
+                                    console.log(`    ${attributeName} (${attribute.id}): ERROR: ${error}`);
+                                }
                             }
                         },
                     );
@@ -204,6 +201,35 @@ function generateClusterAttributeHandlers(yargs: Argv, cluster: ClusterModel, th
     return yargs;
 }
 
+/** Fetch a single attribute's value: cached behavior state, or a live interaction read when `requestRemote`. */
+async function getAttributeValue(
+    resolved: ResolvedClusterEndpoint,
+    clusterId: number,
+    attribute: AttributeModel,
+    requestRemote: boolean,
+    fabricFiltered: boolean,
+): Promise<unknown> {
+    const { node, endpoint, behaviorType } = resolved;
+    if (requestRemote) {
+        const values = await readAttributesRemote(
+            node,
+            [
+                {
+                    endpointId: endpoint.number,
+                    clusterId: ClusterId(clusterId),
+                    attributeId: AttributeId(attribute.id),
+                },
+            ],
+            fabricFiltered,
+        );
+        if (values.length === 0) {
+            throw new ImplementationError(`No value returned for attribute ${attribute.propertyName}`);
+        }
+        return values[0].value;
+    }
+    return endpoint.stateOf(behaviorType.id)[attribute.propertyName];
+}
+
 function generateAttributeReadHandler(
     yargs: Argv,
     clusterId: number,
@@ -242,24 +268,21 @@ function generateAttributeReadHandler(
                 }),
         async argv => {
             const { nodeId, endpointId, remote, fabricFiltered } = argv;
-            const requestRemote = remote ? true : undefined;
-            const node = (await theNode.connectAndGetNodes(nodeId))[0];
-
-            const clusterClient = node.getDeviceById(endpointId)?.getClusterClientById(ClusterId(clusterId));
-            if (clusterClient === undefined) {
-                console.log(`ERROR: Cluster ${node.nodeId.toString()}/${endpointId}/${clusterId} not found.`);
+            const resolved = await resolveClusterEndpoint(theNode, nodeId, endpointId, clusterId);
+            if (resolved === undefined) {
                 return;
             }
-            const attributeClient = clusterClient.attributes[attributeName];
-            if (attributeClient === undefined || (!remote && !(attributeClient instanceof SupportedAttributeClient))) {
+            const { node, endpoint, behaviorType } = resolved;
+
+            if (!remote && !endpoint.behaviors.elementsOf(behaviorType).attributes.has(attributeName)) {
                 console.log(
-                    `ERROR: Attribute ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
+                    `ERROR: Attribute ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
                 );
                 return;
             }
             try {
                 console.log(
-                    `Attribute value for ${attributeName} ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id}: ${Diagnostic.json(await attributeClient.get(requestRemote, fabricFiltered))}`,
+                    `Attribute value for ${attributeName} ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attribute.id}: ${Diagnostic.json(await getAttributeValue(resolved, clusterId, attribute, remote, fabricFiltered))}`,
                 );
             } catch (error) {
                 console.log(`ERROR: Could not get attribute ${attribute.name}: ${error}`);
@@ -275,8 +298,6 @@ function generateAttributeWriteHandler(
     attribute: AttributeModel,
     theNode: MatterNode,
 ) {
-    //console.log("Generating attribute handler for ", attribute.name, attribute);
-    //console.log(attribute.definingModel);
     const attributeName = attribute.propertyName;
     const typeHint = `${attribute.type}${attribute.definingModel === undefined ? "" : " as JSON string"}`;
     return yargs.command(
@@ -321,17 +342,15 @@ function generateAttributeWriteHandler(
                 }
             }
 
-            const node = (await theNode.connectAndGetNodes(nodeId))[0];
-
-            const clusterClient = node.getDeviceById(endpointId)?.getClusterClientById(ClusterId(clusterId));
-            if (clusterClient === undefined) {
-                console.log(`ERROR: Cluster ${node.nodeId.toString()}/${endpointId}/${clusterId} not found.`);
+            const resolved = await resolveClusterEndpoint(theNode, nodeId, endpointId, clusterId);
+            if (resolved === undefined) {
                 return;
             }
-            const attributeClient = clusterClient.attributes[attributeName];
-            if (!force && !(attributeClient instanceof SupportedAttributeClient)) {
+            const { node, endpoint, behaviorType } = resolved;
+
+            if (!force && !endpoint.behaviors.elementsOf(behaviorType).attributes.has(attributeName)) {
                 console.log(
-                    `ERROR: Attribute ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
+                    `ERROR: Attribute ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
                 );
                 return;
             }
@@ -339,9 +358,9 @@ function generateAttributeWriteHandler(
             try {
                 parsedValue = convertJsonDataWithModel(attribute, parsedValue);
 
-                await attributeClient.set(parsedValue);
+                await endpoint.setStateOf(behaviorType.id, { [attributeName]: parsedValue });
                 console.log(
-                    `Attribute ${attributeName} ${node.nodeId.toString()}/${endpointId}/${clusterId}/${attribute.id} set to ${Diagnostic.json(value)}`,
+                    `Attribute ${attributeName} ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attribute.id} set to ${Diagnostic.json(value)}`,
                 );
             } catch (error) {
                 if (error instanceof ValidationError) {
