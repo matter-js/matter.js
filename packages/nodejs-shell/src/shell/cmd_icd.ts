@@ -4,22 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, ObserverGroup } from "@matter/general";
-import { IcdClient, IcdMultiAdminError } from "@matter/node";
+import { Duration, ImplementationError, Millis, ObserverGroup } from "@matter/general";
+import { ClientNode, IcdClient, IcdMultiAdminError, NodeConnectionState } from "@matter/node";
 import { IcdManagementClient } from "@matter/node/behaviors/icd-management";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { NodeStates, PairedNode } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 
 const watchers = new Map<string, ObserverGroup>();
 
-async function printStatus(paired: PairedNode) {
-    const clientNode = paired.node;
+/** Look up a commissioned peer by node id without connecting or awaiting remote initialization. */
+function findCommissionedNode(theNode: MatterNode, nodeId: NodeId): ClientNode | undefined {
+    return theNode.node.peers.commissioned.find(peer => peer.peerAddress?.nodeId === nodeId);
+}
+
+async function printStatus(nodeId: NodeId, clientNode: ClientNode) {
     if (!clientNode.behaviors.has(IcdClient)) {
-        if (!paired.initialized) {
-            console.log(`node ${paired.nodeId}: uninitialized (no cached data yet)`);
+        if (!clientNode.lifecycle.isSeeded) {
+            console.log(`node ${nodeId}: uninitialized (no cached data yet)`);
         }
         return;
     }
@@ -31,10 +34,10 @@ async function printStatus(paired: PairedNode) {
         mgmt === undefined
             ? "n/a"
             : (IcdManagement.OperatingMode[mgmt.operatingMode ?? -1] ?? mgmt.operatingMode ?? "unknown");
-    const marker = paired.initialized ? "" : " [uninitialized]";
+    const marker = clientNode.lifecycle.isSeeded ? "" : " [uninitialized]";
     console.log(
         [
-            `node ${paired.nodeId}:${marker}`,
+            `node ${nodeId}:${marker}`,
             `  registered=${icd.registered}`,
             `  available=${icd.available}`,
             `  awake=${awake}`,
@@ -58,7 +61,12 @@ function selectsAll(nodeIdStr: string) {
 /** Resolve a node-id argument to concrete ids: `all` expands to every commissioned node, otherwise a single id. */
 async function targetNodeIds(theNode: MatterNode, nodeIdStr: string): Promise<NodeId[]> {
     await theNode.start();
-    return selectsAll(nodeIdStr) ? theNode.controller.getCommissionedNodes() : [NodeId(BigInt(nodeIdStr))];
+    if (!selectsAll(nodeIdStr)) {
+        return [NodeId(BigInt(nodeIdStr))];
+    }
+    return theNode.node.peers.commissioned
+        .map(peer => peer.peerAddress?.nodeId)
+        .filter((nodeId): nodeId is NodeId => nodeId !== undefined);
 }
 
 /**
@@ -84,19 +92,20 @@ async function eachNode(theNode: MatterNode, nodeIdStr: string, action: (nodeId:
     }
 }
 
-async function pairedNodeFor(theNode: MatterNode, nodeId: NodeId) {
-    const paired = (await theNode.connectAndGetNodes(String(nodeId)))[0];
-    if (paired === undefined) {
-        throw new Error(`Node ${nodeId} not found / not connected`);
+/** Connect to `nodeId` and verify it exposes IcdManagement, throwing an {@link ImplementationError} otherwise. */
+async function connectedIcdNode(theNode: MatterNode, nodeId: NodeId): Promise<ClientNode> {
+    const clientNode = (await theNode.connectAndGetClientNodes(String(nodeId)))[0];
+    if (clientNode === undefined) {
+        throw new ImplementationError(`Node ${nodeId} not found / not connected`);
     }
-    if (!paired.node.behaviors.has(IcdClient)) {
-        throw new Error(`Node ${nodeId} is not an ICD device (no IcdManagement cluster)`);
+    // Behaviors populate as part of seeding; await it so a not-yet-seeded peer isn't misread as non-ICD.
+    if (!clientNode.lifecycle.isSeeded) {
+        await clientNode.lifecycle.seeded;
     }
-    return paired;
-}
-
-async function clientNodeFor(theNode: MatterNode, nodeId: NodeId) {
-    return (await pairedNodeFor(theNode, nodeId)).node;
+    if (!clientNode.behaviors.has(IcdClient)) {
+        throw new ImplementationError(`Node ${nodeId} is not an ICD device (no IcdManagement cluster)`);
+    }
+    return clientNode;
 }
 
 function stopWatch(nodeIdStr: string) {
@@ -120,8 +129,7 @@ async function startWatch(theNode: MatterNode, nodeId: NodeId) {
     watchers.get(key)?.close();
     watchers.delete(key);
 
-    const paired = await pairedNodeFor(theNode, nodeId);
-    const clientNode = paired.node;
+    const clientNode = await connectedIcdNode(theNode, nodeId);
     const observers = new ObserverGroup();
     const stamp = (msg: string) => console.log(`[icd ${nodeId}] ${msg}`);
     // Event emitters discard emit()'s promise, so a rejection from this async read must not escape.
@@ -145,7 +153,9 @@ async function startWatch(theNode: MatterNode, nodeId: NodeId) {
     observers.on(events.checkInMissed, async () => stamp(`check-in MISSED ${await wakefulnessSuffix()}`));
     observers.on(events.keyRefreshed, () => stamp("key refreshed"));
     observers.on(events.available$Changed, (value: boolean) => stamp(`available=${value}`));
-    observers.on(paired.events.stateChanged, state => stamp(`connection=${NodeStates[state] ?? state}`));
+    observers.on(clientNode.lifecycle.connectionStateChanged, state =>
+        stamp(`connection=${NodeConnectionState[state] ?? state}`),
+    );
     watchers.set(key, observers);
     // Drop the watcher when the node goes away so it doesn't leak in the map.
     clientNode.lifecycle.destroyed.once(() => {
@@ -198,7 +208,7 @@ export default function commands(theNode: MatterNode) {
                             ignoredVendors: argv.ignoreVendor?.map((v: string | number) => VendorId(Number(v))),
                         };
                         await eachNode(theNode, argv.nodeId, async nodeId => {
-                            const clientNode = await clientNodeFor(theNode, nodeId);
+                            const clientNode = await connectedIcdNode(theNode, nodeId);
                             try {
                                 await clientNode.act(agent => agent.get(IcdClient).register(options));
                                 console.log(`Registered as Check-In client on node ${nodeId}`);
@@ -235,9 +245,14 @@ export default function commands(theNode: MatterNode) {
                             if (argv.force) {
                                 // A registered-but-unreachable LIT peer parks every connecting/peer-I/O path on its
                                 // never-coming Check-In; reach it via the non-connecting accessor and forget() locally.
-                                const clientNode = (await theNode.controller.getNode(nodeId)).node;
+                                const clientNode = findCommissionedNode(theNode, nodeId);
+                                if (clientNode === undefined) {
+                                    throw new ImplementationError(`Node ${nodeId} is not commissioned`);
+                                }
                                 if (!clientNode.behaviors.has(IcdClient)) {
-                                    throw new Error(`Node ${nodeId} is not an ICD device (no IcdManagement cluster)`);
+                                    throw new ImplementationError(
+                                        `Node ${nodeId} is not an ICD device (no IcdManagement cluster)`,
+                                    );
                                 }
                                 await clientNode.act(agent => agent.get(IcdClient).forget());
                                 console.log(
@@ -245,7 +260,7 @@ export default function commands(theNode: MatterNode) {
                                 );
                                 return;
                             }
-                            const clientNode = await clientNodeFor(theNode, nodeId);
+                            const clientNode = await connectedIcdNode(theNode, nodeId);
                             await clientNode.act(agent => agent.get(IcdClient).unregister());
                             console.log(`Unregistered Check-In client on node ${nodeId}`);
                         });
@@ -269,7 +284,7 @@ export default function commands(theNode: MatterNode) {
                             }),
                     handler: async (argv: any) => {
                         await eachNode(theNode, argv.nodeId, async nodeId => {
-                            const clientNode = await clientNodeFor(theNode, nodeId);
+                            const clientNode = await connectedIcdNode(theNode, nodeId);
                             const promised = await clientNode.act(agent =>
                                 agent.get(IcdClient).stayActive(Millis(argv.durationMs)),
                             );
@@ -283,7 +298,7 @@ export default function commands(theNode: MatterNode) {
                     builder: (y: Argv) =>
                         y.positional("node-id", { describe: "node id, or 'all'", type: "string", demandOption: true }),
                     handler: async (argv: any) => {
-                        // getNode() never awaits remote init, unlike connectAndGetNodes(), so a peer stuck mid-read can't hang this command.
+                        // findCommissionedNode never connects/awaits remote init, so a peer stuck mid-read can't hang this command.
                         const nodeIds = await targetNodeIds(theNode, argv.nodeId);
                         if (nodeIds.length === 0) {
                             console.log("No commissioned nodes.");
@@ -292,7 +307,11 @@ export default function commands(theNode: MatterNode) {
                         // Diagnostic command: report an unreachable node inline rather than aborting, even for a single id.
                         for (const nodeId of nodeIds) {
                             try {
-                                await printStatus(await theNode.controller.getNode(nodeId));
+                                const clientNode = findCommissionedNode(theNode, nodeId);
+                                if (clientNode === undefined) {
+                                    throw new ImplementationError(`Node ${nodeId} is not commissioned`);
+                                }
+                                await printStatus(nodeId, clientNode);
                             } catch (e) {
                                 console.log(
                                     `node ${nodeId}: unavailable (${e instanceof Error ? e.message : String(e)})`,
