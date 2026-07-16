@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/node
+    - Fix: Optimize Cluster data updates when structures change for ClientNodes
+
 ## 0.17.6 (2026-07-16)
 
 - @matter/general
