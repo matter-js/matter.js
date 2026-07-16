@@ -115,7 +115,16 @@ export default function commands(theNode: MatterNode) {
                             scannerFilter: scanner =>
                                 scanner.type === ChannelType.UDP || (ble && scanner.type === ChannelType.BLE),
                         });
+                        // A re-advertising device fires `discovered` again for the same node; dedupe by its
+                        // canonical identity so the log doesn't spam duplicate lines.
+                        const seen = new Set<string>();
                         discovery.discovered.on(node => {
+                            const { deviceIdentifier, addresses } = node.state.commissioning;
+                            const id = deviceIdentifier || JSON.stringify(addresses ?? []);
+                            if (seen.has(id)) {
+                                return;
+                            }
+                            seen.add(id);
                             console.log(`Discovered device ${Diagnostic.json(node.state.commissioning)}`);
                             if (once) {
                                 discovery.stop();

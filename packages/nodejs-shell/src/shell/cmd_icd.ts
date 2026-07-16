@@ -158,7 +158,7 @@ async function startWatch(theNode: MatterNode, nodeId: NodeId) {
     );
     watchers.set(key, observers);
     // Drop the watcher when the node goes away so it doesn't leak in the map.
-    clientNode.lifecycle.destroyed.once(() => {
+    observers.on(clientNode.lifecycle.destroyed, () => {
         watchers.get(key)?.close();
         watchers.delete(key);
     });
