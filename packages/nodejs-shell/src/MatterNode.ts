@@ -7,15 +7,25 @@
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import {
     Diagnostic,
+    Duration,
     Environment,
     Filesystem,
+    ImplementationError,
     Logger,
     ObserverGroup,
+    Seconds,
     StorageContext,
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
+import {
+    Endpoint as ClientEndpoint,
+    ClientNode,
+    DclBehavior,
+    NetworkClient,
+    ServerNode,
+    SoftwareUpdateManager,
+} from "@matter/node";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
 import {
@@ -73,6 +83,21 @@ export function createDiagnosticCallbacks(): Partial<CommissioningControllerNode
 }
 
 const logger = Logger.get("Node");
+
+/**
+ * Options for {@link MatterNode.connectAndGetClientNodes}, expressed in the legacy vocabulary and mapped onto
+ * {@link NetworkClient} state per docs/MIGRATION_CONTROLLER_018.md.
+ */
+export interface ConnectClientNodeOptions {
+    /** Maps to {@link NetworkClient.State.isDisabled} (inverse). `false` keeps the node offline instead of connecting. */
+    autoConnect?: boolean;
+    /** Maps to {@link NetworkClient.State.autoSubscribe}. */
+    autoSubscribe?: boolean;
+    /** Maps to {@link NetworkClient.State.defaultSubscription}.minIntervalFloor. */
+    subscribeMinIntervalFloorSeconds?: number;
+    /** Maps to {@link NetworkClient.State.defaultSubscription}.maxIntervalCeiling. */
+    subscribeMaxIntervalCeilingSeconds?: number;
+}
 
 export class MatterNode {
     #storageLocation?: string;
@@ -266,6 +291,71 @@ export class MatterNode {
         return [node];
     }
 
+    /**
+     * ServerNode/peers-backed replacement for {@link connectAndGetNodes}, returning {@link ClientNode}s from the
+     * controller's peer collection. Nodes connect asynchronously; await `node.lifecycle.seeded` (guarded by
+     * `node.lifecycle.isSeeded`) before relying on the endpoint structure.
+     */
+    async connectAndGetClientNodes(
+        nodeIdStr?: string,
+        connectOptions?: ConnectClientNodeOptions,
+    ): Promise<ClientNode[]> {
+        await this.start();
+
+        const commissioned = this.node.peers.commissioned;
+
+        let nodes: ClientNode[];
+        if (nodeIdStr !== undefined) {
+            const nodeId = NodeId(BigInt(nodeIdStr));
+            const node = commissioned.find(peer => peer.peerAddress?.nodeId === nodeId);
+            if (node === undefined) {
+                throw new ImplementationError(`Node ${nodeId} is not commissioned!`);
+            }
+            nodes = [node];
+        } else {
+            nodes = commissioned;
+        }
+
+        for (const node of nodes) {
+            await this.#applyClientNodeNetworkOptions(node, connectOptions);
+            if (connectOptions?.autoConnect === false) {
+                continue;
+            }
+            if (node.stateOf(NetworkClient).isDisabled) {
+                await node.enable();
+            } else {
+                await node.start();
+            }
+        }
+
+        return nodes;
+    }
+
+    async #applyClientNodeNetworkOptions(node: ClientNode, options?: ConnectClientNodeOptions) {
+        if (options === undefined) {
+            return;
+        }
+
+        if (options.autoConnect !== undefined) {
+            await node.setStateOf(NetworkClient, { isDisabled: !options.autoConnect });
+        }
+        if (options.autoSubscribe !== undefined) {
+            await node.setStateOf(NetworkClient, { autoSubscribe: options.autoSubscribe });
+        }
+
+        const { subscribeMinIntervalFloorSeconds, subscribeMaxIntervalCeilingSeconds } = options;
+        if (subscribeMinIntervalFloorSeconds !== undefined || subscribeMaxIntervalCeilingSeconds !== undefined) {
+            const defaultSubscription: { minIntervalFloor?: Duration; maxIntervalCeiling?: Duration } = {};
+            if (subscribeMinIntervalFloorSeconds !== undefined) {
+                defaultSubscription.minIntervalFloor = Seconds(subscribeMinIntervalFloorSeconds);
+            }
+            if (subscribeMaxIntervalCeilingSeconds !== undefined) {
+                defaultSubscription.maxIntervalCeiling = Seconds(subscribeMaxIntervalCeilingSeconds);
+            }
+            await node.setStateOf(NetworkClient, { defaultSubscription });
+        }
+    }
+
     get controller() {
         if (this.commissioningController === undefined) {
             throw new Error("CommissioningController not initialized. Start first");
@@ -285,6 +375,26 @@ export class MatterNode {
             }
 
             for (const device of devices) {
+                await callback(device, node);
+            }
+        }
+    }
+
+    /**
+     * ServerNode/peers-backed replacement for {@link iterateNodeDevices}, iterating the endpoints of each
+     * {@link ClientNode}. Unlike the legacy `getDevices()`, this includes the root endpoint (number 0); pass
+     * {@link endpointIds} to restrict iteration.
+     */
+    async iterateClientNodeDevices(
+        nodes: ClientNode[],
+        callback: (device: ClientEndpoint, node: ClientNode) => Promise<void>,
+        endpointIds?: number[],
+    ) {
+        for (const node of nodes) {
+            for (const device of node.endpoints) {
+                if (endpointIds !== undefined && !endpointIds.includes(device.number)) {
+                    continue;
+                }
                 await callback(device, node);
             }
         }
