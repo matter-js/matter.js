@@ -566,7 +566,6 @@ export class ClientStructure {
         }
 
         if (attributeSetChanged) {
-            // Rebuilding on any difference honors both added and removed attributes.
             cluster.behavior = undefined;
         }
 
@@ -591,9 +590,8 @@ export class ClientStructure {
      * Mark values for attributes dropped by a new attribute list for deletion.
      *
      * The client store keys attribute values by both numeric attribute ID (protocol updates) and property name (seed
-     * data), so we clear both forms.  Names come from the outgoing behavior's schema, which still describes the dropped
-     * attributes.  Entries are added to {@link values} so the pending {@link Datasource.ExternallyMutableStore.externalSet}
-     * removes them; a value of `undefined` deletes a key.
+     * data), so we clear both forms.  Entries added to {@link values} are removed by the pending
+     * {@link Datasource.ExternallyMutableStore.externalSet}; a value of `undefined` deletes a key.
      */
     #pruneDroppedAttributes(cluster: ClusterStructure, newAttributeList: readonly unknown[], values: Val.StructMap) {
         if (!cluster.attributes) {
