@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.17.6 (2026-07-16)
 
 - @matter/general
     - Fix: `Observable.detachObservers()` now disarms the source observable (including active async iteration) and `attachObservers()` preserves once-semantics of the transferred observers
