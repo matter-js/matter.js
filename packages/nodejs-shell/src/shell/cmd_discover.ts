@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Seconds } from "@matter/general";
+import { ChannelType, Diagnostic, Seconds } from "@matter/general";
 import { CommissionableDeviceIdentifiers } from "@matter/protocol";
 import { ManualPairingCodeCodec, VendorId } from "@matter/types";
 import type { Argv } from "yargs";
@@ -88,9 +88,6 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         await theNode.start();
-                        if (theNode.commissioningController === undefined) {
-                            throw new Error("CommissioningController not initialized");
-                        }
 
                         const identifierData: CommissionableDeviceIdentifiers =
                             discriminator !== undefined
@@ -111,25 +108,26 @@ export default function commands(theNode: MatterNode) {
                             )} for ${once ? "first match or " : ""}${timeoutSeconds} seconds.`,
                         );
 
-                        const results = await theNode.commissioningController.discoverCommissionableDevices(
-                            identifierData,
-                            {
-                                ble,
-                                onIpNetwork: true,
-                            },
-                            device => {
-                                console.log(`Discovered device ${Diagnostic.json(device)}`);
-                                if (once) {
-                                    theNode.commissioningController?.cancelCommissionableDeviceDiscovery(
-                                        identifierData,
-                                        { ble, onIpNetwork: true },
-                                    );
-                                }
-                            },
-                            Seconds(timeoutSeconds),
-                        );
+                        // scannerFilter mirrors the discoveryCapabilities->filter mapping in CommissioningDiscovery.
+                        const discovery = theNode.node.peers.discover({
+                            ...identifierData,
+                            timeout: Seconds(timeoutSeconds),
+                            scannerFilter: scanner =>
+                                scanner.type === ChannelType.UDP || (ble && scanner.type === ChannelType.BLE),
+                        });
+                        discovery.discovered.on(node => {
+                            console.log(`Discovered device ${Diagnostic.json(node.state.commissioning)}`);
+                            if (once) {
+                                discovery.stop();
+                            }
+                        });
 
-                        console.log(`Discovered ${results.length} devices`, results);
+                        const results = await discovery;
+
+                        console.log(
+                            `Discovered ${results.length} devices`,
+                            results.map(node => node.state.commissioning),
+                        );
                     },
                 ),
         handler: async (argv: any) => {
