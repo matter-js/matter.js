@@ -451,13 +451,15 @@ describe("Ota", () => {
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
 
-    it("OTA reboot: a FAILED apply does NOT disarm the peer, so it stays armed for fast re-subscription", async () => {
+    it("OTA reboot: the failed-apply detection path does not disarm the peer", async () => {
         // The armer refreshes the subscription only when the returning device opens a device-initiated session; in
         // this harness that session appears via notifyUpdateApplied, which a FAILED apply never sends (the device
         // instead schedules a much-later retry query). So the observable proof here is the invariant the fix relies
-        // on: the failed-apply detection path must NOT disarm the peer. If it did, the eventual retry-query session
-        // would find the armer inert and re-subscription would fall back to the full ~1m47s liveness timeout. The
-        // sibling Mechanism-B test covers the closeForPeer behaviour once such a session exists.
+        // on: the failed-apply detection path must NOT disarm the peer, so a retry-query session arriving within the
+        // return-timeout window still finds the armer live and re-subscribes fast instead of falling back to the full
+        // liveness timeout. (A return slower than that window is recovered by the armer's own return-timeout backstop
+        // — a separate path exercised in RebootResubscribeArmerTest.) The sibling Mechanism-B test covers the
+        // closeForPeer behaviour once such a session exists.
         const data = { expectedOtaImage: Bytes.fromHex("") };
 
         const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
@@ -519,6 +521,17 @@ describe("Ota", () => {
 
         await MockTime.resolve(device.stop());
         await MockTime.resolve(subscription.inactive);
+
+        // While the device is down, the return-timeout backstop (#onReturnTimeout) elapses and recovers the peer
+        // (disarm + re-subscribe) — a separate path from the failed-apply detection this test guards, and one that
+        // cannot be confused with it because detection only runs once the device is back up. Wait for it here, then
+        // discard its disarm so the assertion below sees only disarm calls that could originate from the detection
+        // code. (This backstop is covered directly in RebootResubscribeArmerTest.)
+        while (!disarmCalls.some(a => PeerAddress.is(a, peerAddress))) {
+            await MockTime.advance(Seconds(10));
+        }
+        disarmCalls.length = 0;
+
         // Keep the original softwareVersion (do NOT set it to targetSoftwareVersion).
         await MockTime.resolve(device.start());
         await MockTime.resolve(subscription.active);
