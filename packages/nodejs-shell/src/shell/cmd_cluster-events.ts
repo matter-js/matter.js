@@ -6,9 +6,10 @@
 
 import { Diagnostic } from "@matter/general";
 import { ClusterModel, EventModel, Matter } from "@matter/model";
-import { ClusterId } from "@matter/types";
+import { ClusterId, EventId } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { readEventsRemote, resolveClusterEndpoint } from "../util/ClusterEndpoint.js";
 
 function generateAllEventHandlersForCluster(yargs: Argv, theNode: MatterNode) {
     Matter.clusters.forEach(cluster => {
@@ -47,7 +48,6 @@ function generateEventHandler(
     event: EventModel,
     theNode: MatterNode,
 ) {
-    //console.log("Generating event handler for ", event.name, JSON.stringify(event));
     const eventName = event.propertyName;
     return yargs.command(
         [`${event.name.toLowerCase()} <node-id> <endpoint-id>`, `0x${event.id.toString(16)}`],
@@ -66,17 +66,44 @@ function generateEventHandler(
                 }),
         async argv => {
             const { nodeId, endpointId } = argv;
-            const node = (await theNode.connectAndGetNodes(nodeId))[0];
-
-            const clusterClient = node.getDeviceById(endpointId)?.getClusterClientById(ClusterId(clusterId));
-            if (clusterClient === undefined) {
-                console.log(`ERROR: Cluster ${node.nodeId.toString()}/${endpointId}/${clusterId} not found.`);
+            const resolved = await resolveClusterEndpoint(theNode, nodeId, endpointId, clusterId);
+            if (resolved === undefined) {
                 return;
             }
-            const eventClient = clusterClient.events[eventName];
-            console.log(
-                `Event value for ${eventName} ${node.nodeId.toString()}/${endpointId}/${clusterId}/${event.id}: ${Diagnostic.json(await eventClient.get())}`,
-            );
+            const { node, endpoint } = resolved;
+
+            try {
+                // No local event cache; every read is a live interaction round trip, same as the legacy EventClient.
+                const reports = await readEventsRemote(
+                    node,
+                    [{ endpointId: endpoint.number, clusterId: ClusterId(clusterId), eventId: EventId(event.id) }],
+                    true,
+                );
+                const events = reports.map(
+                    ({
+                        number,
+                        priority,
+                        epochTimestamp,
+                        systemTimestamp,
+                        deltaEpochTimestamp,
+                        deltaSystemTimestamp,
+                        value,
+                    }) => ({
+                        eventNumber: number,
+                        priority,
+                        epochTimestamp,
+                        systemTimestamp,
+                        deltaEpochTimestamp,
+                        deltaSystemTimestamp,
+                        data: value,
+                    }),
+                );
+                console.log(
+                    `Event value for ${eventName} ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${event.id}: ${Diagnostic.json(events)}`,
+                );
+            } catch (error) {
+                console.log(`ERROR: Could not get event ${event.name}: ${error}`);
+            }
         },
     );
 }
