@@ -6,12 +6,8 @@
 
 import { StandardCrypto } from "@matter/general";
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { Pskc } from "../src/crypto/Pskc.js";
-
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures");
+import { data as pskcVectors } from "./fixtures/pskc-vectors.json.js";
 
 interface PskcFixture {
     vectors: Array<{
@@ -24,14 +20,10 @@ interface PskcFixture {
     }>;
 }
 
-function loadJson<T>(name: string): T {
-    return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), "utf8")) as T;
-}
-
 const crypto = new StandardCrypto();
 
 describe("Pskc.derive", () => {
-    const fixture = loadJson<PskcFixture>("pskc-vectors.json");
+    const fixture: PskcFixture = pskcVectors;
 
     for (const vector of fixture.vectors) {
         it(`matches ${vector.name}`, () => {

@@ -7,7 +7,7 @@
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import { SubscriptionId } from "#interaction/Subscription.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import {
     BasicSet,
     createPromise,
@@ -29,7 +29,7 @@ import type { PeerSubscription } from "./PeerSubscription.js";
 export class ClientSubscriptions implements Lifetime.Owner {
     #lifetime: Lifetime;
     #active = new BasicSet<ClientSubscription>();
-    #peers = new Map<PeerAddress, Map<number, PeerSubscription>>();
+    #peers = new PeerAddressMap<Map<number, PeerSubscription>>();
     #timeout?: Timer;
     #blocked = false;
     #inFlightCount = 0;
@@ -142,6 +142,25 @@ export class ClientSubscriptions implements Lifetime.Owner {
      */
     getPeer(address: PeerAddress, id: SubscriptionId) {
         return this.#peers.get(address)?.get(id);
+    }
+
+    /**
+     * The most recent {@link PeerSubscription.lastReportStartedAt} across a peer's subscriptions, or `undefined` if
+     * the peer has no subscription that has yet started receiving a report.
+     */
+    lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined {
+        const forPeer = this.#peers.get(address);
+        if (forPeer === undefined) {
+            return undefined;
+        }
+        let latest: Timestamp | undefined;
+        for (const subscription of forPeer.values()) {
+            const reportedAt = subscription.lastReportStartedAt;
+            if (reportedAt !== undefined && (latest === undefined || reportedAt > latest)) {
+                latest = reportedAt;
+            }
+        }
+        return latest;
     }
 
     /**

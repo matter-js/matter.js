@@ -960,10 +960,8 @@ export class PairedNode {
             return;
         }
         collectedData.set(endpointId, endpoint);
-        if (descriptorData.partsList.length) {
-            for (const partEndpointId of descriptorData.partsList) {
-                this.#collectEndpoints(partEndpointId, collectedData);
-            }
+        for (const partEndpointId of descriptorData.partsList ?? []) {
+            this.#collectEndpoints(partEndpointId, collectedData);
         }
     }
 
@@ -976,12 +974,12 @@ export class PairedNode {
         return !(
             areNumberListsSame(
                 device.getDeviceTypes().map(({ code }) => code),
-                descriptorData.deviceTypeList.map(({ deviceType }) => deviceType),
+                (descriptorData.deviceTypeList ?? []).map(({ deviceType }) => deviceType),
             ) &&
             // Check if the cluster clients are the same - they map to the serverList attribute
             areNumberListsSame(
                 device.getAllClusterClients().map(({ id }) => id),
-                descriptorData.serverList,
+                descriptorData.serverList ?? [],
             )
         );
     }
@@ -1088,7 +1086,11 @@ export class PairedNode {
                 endpointId,
                 Diagnostic.json(endpoint.state),
             ]);
-            this.#endpoints.set(endpointId, this.#createDevice(endpointId, endpoint, this.#interactionClient));
+            const device = this.#createDevice(endpointId, endpoint, this.#interactionClient);
+            if (device === undefined) {
+                continue;
+            }
+            this.#endpoints.set(endpointId, device);
             if (!isRecreation) {
                 eventsToEmit.set(endpointId, "nodeEndpointAdded");
             }
@@ -1130,7 +1132,7 @@ export class PairedNode {
             throw new InternalError("Endpoints not initialized yet! Should never happen");
         }
         const partLists = Array.from(descriptors.entries()).map(
-            ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
+            ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList ?? []] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
         logger.debug(() => [this.#peerAddress, `Endpoints from PartsLists`, Diagnostic.json(partLists)]);
 
@@ -1198,7 +1200,7 @@ export class PairedNode {
     #createDevice(endpointId: EndpointNumber, endpoint: ClientEndpoint, interactionClient: InteractionClient) {
         const descriptorData = endpoint.stateOf(DescriptorClient);
 
-        const deviceTypes = descriptorData.deviceTypeList.flatMap(({ deviceType, revision }) => {
+        const deviceTypes = (descriptorData.deviceTypeList ?? []).flatMap(({ deviceType, revision }) => {
             const deviceTypeDefinition = getDeviceTypeDefinitionFromModelByCode(deviceType);
             if (deviceTypeDefinition === undefined) {
                 logger.info(
@@ -1216,14 +1218,20 @@ export class PairedNode {
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.debug(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
-            throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
+            if (endpointId !== 0) {
+                logger.warn(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignoring it`);
+                return undefined;
+            }
+            logger.warn(
+                this.#peerAddress,
+                `No device type found for root endpoint, using default Root Node device type`,
+            );
         }
 
         const endpointClusters = Array<ClusterClientObj>();
 
         // Add ClusterClients for all server clusters of the device
-        for (const clusterId of descriptorData.serverList) {
+        for (const clusterId of descriptorData.serverList ?? []) {
             const clusterModel = Matter.clusters(clusterId);
             const cluster = (
                 clusterModel !== undefined
@@ -1237,7 +1245,9 @@ export class PairedNode {
         if (endpointId === 0) {
             // Endpoint 0 is the root endpoint, so we use a RootEndpoint object
             const rootEndpoint = new RootEndpoint(endpoint);
-            rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
+            if (deviceTypes.length > 0) {
+                rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
+            }
             endpointClusters.forEach(cluster => rootEndpoint.addClusterClient(cluster));
             return rootEndpoint;
         } else if (deviceTypes.find(deviceType => deviceType.code === AggregatorDt.id) !== undefined) {
@@ -1248,7 +1258,7 @@ export class PairedNode {
             return aggregator;
         } else {
             // It seems to be device but has a partsList, so it is a composed device
-            if (descriptorData.partsList.length > 0) {
+            if ((descriptorData.partsList ?? []).length > 0) {
                 const composedDevice = new ComposedDevice(endpoint, deviceTypes[0], [], { endpointId });
                 composedDevice.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
                 endpointClusters.forEach(cluster => composedDevice.addClusterClient(cluster));

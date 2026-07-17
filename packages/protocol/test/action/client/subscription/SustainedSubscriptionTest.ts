@@ -240,6 +240,46 @@ describe("SustainedSubscription", () => {
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
+
+        it("reports maxInterval in seconds, using a seconds fallback before a subscription is established", async () => {
+            const subscription = build();
+
+            // Hours.one in seconds, not its 3_600_000 ms Duration value.
+            expect(subscription.maxInterval).equal(3600);
+
+            await flush();
+            expect(subscription.maxInterval).equal(60);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("forwards a caller-provided keepaliveReceived when no wakefulness is registered", async () => {
+            let callerCalls = 0;
+            let capturedKeepalive: SustainedClientSubscribe["keepaliveReceived"];
+            const subscription = build({
+                request: {
+                    sustain: true,
+                    updated: async () => {},
+                    keepaliveReceived: () => {
+                        callerCalls++;
+                    },
+                } as unknown as SustainedClientSubscribe,
+                subscribe: async (request: Subscribe) => {
+                    capturedKeepalive = (request as SustainedClientSubscribe).keepaliveReceived;
+                    return fakePeerSub();
+                },
+            });
+
+            await flush();
+            expect(subscription.active.value).equal(true);
+
+            capturedKeepalive?.();
+            expect(callerCalls).equal(1);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
     });
 
     describe("ICD await-mode behavior", () => {

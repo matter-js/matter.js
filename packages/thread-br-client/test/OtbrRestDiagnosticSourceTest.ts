@@ -5,17 +5,14 @@
  */
 
 import { Bytes } from "@matter/main";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { normalizeKeys } from "../src/otbr-rest/caseNormalizer.js";
 import type { OtbrRestCapability } from "../src/otbr-rest/OtbrRestCapability.js";
 import type { OtbrNodeInfo, OtbrRestClient } from "../src/otbr-rest/OtbrRestClient.js";
 import { OtbrRestDiagnosticSource } from "../src/otbr-rest/OtbrRestDiagnosticSource.js";
 import { OtbrRestError } from "../src/otbr-rest/OtbrRestError.js";
+import { data as diagnosticsJson } from "./fixtures/otbr-rest/diagnostics.json.js";
 
-const PACKAGE_ROOT = process.cwd();
-const FIXTURE_DIR = resolve(PACKAGE_ROOT, "test/fixtures/otbr-rest");
-const RAW_DIAGNOSTICS: unknown = JSON.parse(readFileSync(resolve(FIXTURE_DIR, "diagnostics.json"), "utf8"));
+const RAW_DIAGNOSTICS: unknown = diagnosticsJson;
 
 type ClientLike = Pick<
     OtbrRestClient,
