@@ -2284,7 +2284,7 @@ const PEER1_STATE = {
         autoSubscribe: true,
         autoStateInitialize: undefined,
         isDisabled: false,
-        port: 0x15a4,
+        port: undefined,
         operationalPort: -1,
         defaultSubscription: undefined,
         maxEventNumber: 3n,
