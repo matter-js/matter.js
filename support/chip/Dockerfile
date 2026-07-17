@@ -168,6 +168,9 @@ WORKDIR /
 # Some scripts expect pigweed root
 ENV PW_PROJECT_ROOT=/
 
+# chiptest derives CHIP_ROOT by walking parents of its own file for this marker (upstream #72527)
+COPY --from=source /connectedhomeip/SPECIFICATION_VERSION /SPECIFICATION_VERSION
+
 # YAML tests of course use a different data model
 COPY --from=source /connectedhomeip/src/app/zap-templates/zcl/data-model/chip \
     /src/app/zap-templates/zcl/data-model/chip
