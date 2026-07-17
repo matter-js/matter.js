@@ -135,9 +135,14 @@ for (const peer of serverNode.peers.commissioned) {
 **Opting out of the automatic bulk connect.** The online-time bulk connect is gated by
 `NetworkServer.autoStartCommissionedPeers` (default `true` = auto-connect commissioned peers on online).
 Set it to `false` at `ServerNode.create` (`network: { autoStartCommissionedPeers: false }`) for manual /
-on-demand control — the node then connects no peer on online; start each explicitly with `peer.start()`.
-Peers stay enabled (not disabled), so this is distinct from per-node `disable()`. The nodejs-shell uses
-`false` so a debug session connects only the peers you ask for.
+on-demand control — the node then connects **no** peer on online. With it off, a commissioned peer is only
+usable **after you explicitly bring it online**: call `clientNode.enable()` for a peer that is `isDisabled`
+(this clears the flag and starts it — `start()` alone throws `UncommissionedError` on a disabled peer), or
+`clientNode.start()` for an already-enabled peer. This is the new-API replacement for the legacy
+`pairedNode.connect()` call: there is no implicit connect, you `enable()`/`start()` on demand. Enabling a
+peer while `autoStartCommissionedPeers` is `false` does **not** cause it to auto-connect on the next online
+— the sweep is off regardless of `isDisabled`. The nodejs-shell uses `false` so a debug session connects
+only the peers you ask for.
 
 ---
 
