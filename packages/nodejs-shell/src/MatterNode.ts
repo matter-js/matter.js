@@ -292,7 +292,13 @@ export class MatterNode {
             if (connectOptions?.autoConnect === false) {
                 continue;
             }
-            await node.start();
+            // A disabled peer (persisted from a prior run) rejects start(); enable() clears isDisabled and starts it.
+            // Safe because autoStartCommissionedPeers is off, so the now-enabled peer won't auto-connect on next boot.
+            if (node.stateOf(NetworkClient).isDisabled) {
+                await node.enable();
+            } else {
+                await node.start();
+            }
         }
 
         return nodes;
