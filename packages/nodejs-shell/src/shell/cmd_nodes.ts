@@ -271,7 +271,9 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         for (const node of nodes) {
-                            await node.disable();
+                            // Stop (not disable): peers stay enabled for on-demand reconnect, and the sweep being off
+                            // keeps them disconnected across restarts anyway.
+                            await node.stop();
                         }
                     },
                 )

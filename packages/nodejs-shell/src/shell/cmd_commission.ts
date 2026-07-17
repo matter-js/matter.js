@@ -158,6 +158,8 @@ export default function commands(theNode: MatterNode) {
                                         passcode: setupPinCode,
                                         discriminator,
                                         nodeId,
+                                        // The shell subscribes on demand via the `subscribe` command, not at commission.
+                                        autoSubscribe: false,
                                         regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Set to the most restrictive if relevant
                                         regulatoryCountryCode: "XX",
                                         onAttestationFailure: findings => {

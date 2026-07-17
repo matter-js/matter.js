@@ -41,9 +41,9 @@ const ADMIN_FABRIC_LABEL = "matter.js Shell";
  * {@link NetworkClient} state per docs/MIGRATION_CONTROLLER_018.md.
  */
 export interface ConnectClientNodeOptions {
-    /** Maps to {@link NetworkClient.State.isDisabled} (inverse). `false` keeps the node offline instead of connecting. */
+    /** When `false`, the node is not connected (left offline); it is never disabled. */
     autoConnect?: boolean;
-    /** Maps to {@link NetworkClient.State.autoSubscribe}. */
+    /** When `true`, opts into a subscription on connect; otherwise the node connects without subscribing. */
     autoSubscribe?: boolean;
     /** Maps to {@link NetworkClient.State.defaultSubscription}.minIntervalFloor. */
     subscribeMinIntervalFloorSeconds?: number;
@@ -174,6 +174,8 @@ export class MatterNode {
                 ble: false,
                 tcp: true,
                 transportPreference: this.#transportPreference,
+                // The shell connects peers strictly on demand, so opt out of the online-time bulk connect.
+                autoStartCommissionedPeers: false,
             },
             basicInformation: {
                 productName: ADMIN_FABRIC_LABEL,
@@ -281,32 +283,19 @@ export class MatterNode {
             if (connectOptions?.autoConnect === false) {
                 continue;
             }
-            if (node.stateOf(NetworkClient).isDisabled) {
-                await node.enable();
-            } else {
-                await node.start();
-            }
+            await node.start();
         }
 
         return nodes;
     }
 
     async #applyClientNodeNetworkOptions(node: ClientNode, options?: ConnectClientNodeOptions) {
-        if (options === undefined) {
-            return;
-        }
+        // connect ≠ subscribe: a plain connect must not subscribe, and a peer that persisted `autoSubscribe: true`
+        // from a prior session must not silently resume subscribing.  Only an explicit opt-in (the subscribe command)
+        // turns it on.
+        await node.setStateOf(NetworkClient, { autoSubscribe: options?.autoSubscribe === true });
 
-        // disable() drops any live subscription before persisting isDisabled; a bare setStateOf would leave a
-        // still-connected node reporting Connected while persisted disabled.  Enabling is handled by the caller's
-        // enable()/start() loop.
-        if (options.autoConnect === false) {
-            await node.disable();
-        }
-        if (options.autoSubscribe !== undefined) {
-            await node.setStateOf(NetworkClient, { autoSubscribe: options.autoSubscribe });
-        }
-
-        const { subscribeMinIntervalFloorSeconds, subscribeMaxIntervalCeilingSeconds } = options;
+        const { subscribeMinIntervalFloorSeconds, subscribeMaxIntervalCeilingSeconds } = options ?? {};
         if (subscribeMinIntervalFloorSeconds !== undefined || subscribeMaxIntervalCeilingSeconds !== undefined) {
             const defaultSubscription: { minIntervalFloor?: Duration; maxIntervalCeiling?: Duration } = {};
             if (subscribeMinIntervalFloorSeconds !== undefined) {
