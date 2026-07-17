@@ -174,10 +174,6 @@ export class MatterNode {
                 ble: false,
                 tcp: true,
                 transportPreference: this.#transportPreference,
-                // A controller is not commissionable and must not bind the standard Matter port (5540); use an
-                // ephemeral operational port (mDNS advertises the actual bound port).  Matches the legacy controller,
-                // which passed an undefined localPort.
-                port: 0,
                 // The shell connects peers strictly on demand, so opt out of the online-time bulk connect.
                 autoStartCommissionedPeers: false,
             },
