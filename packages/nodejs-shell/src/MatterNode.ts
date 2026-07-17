@@ -229,6 +229,15 @@ export class MatterNode {
 
         await node.start();
 
+        // The shell subscribes on demand (the `subscribe` command), never persistently. Clear any autoSubscribe
+        // carried over from a prior session or pre-migration commissioning once here, so a plain connect never
+        // resumes a subscription; the connect path then leaves autoSubscribe untouched (see below).
+        for (const peer of node.peers.commissioned) {
+            if (peer.stateOf(NetworkClient).autoSubscribe) {
+                await peer.setStateOf(NetworkClient, { autoSubscribe: false });
+            }
+        }
+
         await node.setStateOf(DclBehavior, {
             fetchTestCertificates: this.#dclFetchTestCertificates,
         });
@@ -290,10 +299,12 @@ export class MatterNode {
     }
 
     async #applyClientNodeNetworkOptions(node: ClientNode, options?: ConnectClientNodeOptions) {
-        // connect ≠ subscribe: a plain connect must not subscribe, and a peer that persisted `autoSubscribe: true`
-        // from a prior session must not silently resume subscribing.  Only an explicit opt-in (the subscribe command)
-        // turns it on.
-        await node.setStateOf(NetworkClient, { autoSubscribe: options?.autoSubscribe === true });
+        // connect ≠ subscribe: a plain connect leaves autoSubscribe untouched (it was normalized to false once at
+        // startup), so a subscription established this session via the `subscribe` command survives subsequent
+        // commands.  Only an explicit opt-in flips it here.
+        if (options?.autoSubscribe !== undefined) {
+            await node.setStateOf(NetworkClient, { autoSubscribe: options.autoSubscribe });
+        }
 
         const { subscribeMinIntervalFloorSeconds, subscribeMaxIntervalCeilingSeconds } = options ?? {};
         if (subscribeMinIntervalFloorSeconds !== undefined || subscribeMaxIntervalCeilingSeconds !== undefined) {
