@@ -132,6 +132,13 @@ for (const peer of serverNode.peers.commissioned) {
 }
 ```
 
+**Opting out of the automatic bulk connect.** The online-time bulk connect is gated by
+`NetworkServer.autoStartCommissionedPeers` (default `true` = auto-connect commissioned peers on online).
+Set it to `false` at `ServerNode.create` (`network: { autoStartCommissionedPeers: false }`) for manual /
+on-demand control — the node then connects no peer on online; start each explicitly with `peer.start()`.
+Peers stay enabled (not disabled), so this is distinct from per-node `disable()`. The nodejs-shell uses
+`false` so a debug session connects only the peers you ask for.
+
 ---
 
 ## Connection state
@@ -286,7 +293,7 @@ react to `connectionStateChanged`; drop any reconnect timers / availability debo
 **How do I get the `ClientNode`s to work with?** `await serverNode.start()` then read `serverNode.peers.commissioned`
 (the commissioned `ClientNode`s). Enabling a peer is `clientNode.enable()` (disabled) / `clientNode.start()`
 (already enabled). There is no `connectAndGetNodes` bulk call — enumerate `peers.commissioned` and enable as
-needed (bulk connect happens automatically on controller start; see above).
+needed (bulk connect happens automatically on controller start unless `autoStartCommissionedPeers` is `false`; see above).
 
 **How do I subscribe to a node's changes?** Register a listener on
 `serverNode.env.get(ChangeNotificationService).change` and filter to the node's endpoint subtree (see the
