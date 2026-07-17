@@ -91,7 +91,6 @@ jobs:
       - name: Patch Matter Yaml Files and PICS values
         shell: bash
         run: |
-          cp -r support/chip-testing/patched-controller-test-files/* connectedhomeip/src/app/tests/suites/
           sed -i 's/^SMOKECO\.S\.A000d=1$/SMOKECO.S.A000d=0/' connectedhomeip/src/app/tests/suites/certification/ci-pics-values
 
       - name: Chip-Apps execution with matter.js controller

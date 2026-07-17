@@ -150,6 +150,12 @@ export class NetworkClient extends NetworkBehavior {
                         this.events.subscriptionAlive.emit(); // Inform that subscription is alive
                     }
                 },
+                keepaliveReceived: () => {
+                    // Empty keepalives invoke keepaliveReceived, not updated(), so mirror the liveness emit here.
+                    if (this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION) {
+                        this.events.subscriptionAlive.emit();
+                    }
+                },
                 closed: () => {
                     if (!(this.internal.activeSubscription instanceof SustainedSubscription)) {
                         this.events.subscriptionStatusChanged.emit(false);

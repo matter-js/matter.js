@@ -24,7 +24,7 @@
         "clean": "nacho-build clean",
         "build": "nacho-build",
         "build-clean": "nacho-build --clean",
-        "test": "matter-test",
+        "test": "matter-test -w",
         "coverage": "c8 matter-test esm"
     },
     "dependencies": {

@@ -438,7 +438,7 @@ export class SustainedSubscription extends ClientSubscription {
     }
 
     get maxInterval() {
-        return this.#subscription?.maxInterval ?? Hours.one;
+        return this.#subscription?.maxInterval ?? Seconds.of(Hours.one);
     }
 }
 

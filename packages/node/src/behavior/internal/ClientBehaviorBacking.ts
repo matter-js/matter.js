@@ -56,6 +56,13 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         return options;
     }
 
+    protected override refreshForChangedType() {
+        // Elements are cached from the old schema; drop so they rebuild from the new type.  Base rebuilds the datasource.
+        this.#elements = undefined;
+
+        super.refreshForChangedType();
+    }
+
     /**
      * Map attribute ID keys back to property names before broadcasting.
      *
