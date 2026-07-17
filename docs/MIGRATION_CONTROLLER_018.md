@@ -67,6 +67,10 @@ Device info: `basicInformation` / `deviceInformation` → `new DeviceInformation
 > singular getters existed because the legacy controller was single-fabric. Pick a fabric explicitly, or
 > use `FabricAuthority.defaultFabric` for the single-fabric case.
 
+> Note: a controller (commissioning disabled) binds an **ephemeral** operational port automatically, matching
+> the legacy `CommissioningController` which assigned a random `localPort`. There is no need to set
+> `network: { port: 0 }`. Set `network: { port }` explicitly only if you require a fixed port.
+
 ---
 
 ## Subscriptions & reconnection are automatic now
