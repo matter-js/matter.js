@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-connecting commissioned peers when the node goes online
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
     - Feature: Added `NodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read at least once
     - Fix: `endpoints.size` no longer double-counts the root endpoint
