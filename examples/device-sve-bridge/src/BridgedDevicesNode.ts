@@ -276,7 +276,8 @@ async function getConfiguration() {
     console.log(
         'Use the parameter "--storage-path=NAME-OR-PATH" to specify a different storage location in this directory, use --storage-clear to start with an empty storage.',
     );
-    const deviceStorage = (await storageService.open("device")).createContext("data");
+    const storageManager = await storageService.open("device");
+    const deviceStorage = storageManager.createContext("data");
 
     const deviceName = "Matter test device";
     const vendorName = "matter.js";
@@ -309,6 +310,8 @@ async function getConfiguration() {
         uniqueid: uniqueId,
     });
 
+    await storageManager.close();
+
     return {
         deviceName,
         vendorName,
@@ -325,14 +328,3 @@ async function getConfiguration() {
         bridgedInfoConfigVersionTimerEnabled,
     };
 }
-
-/**
- * To correctly tear down the server we can use server.close().
- */
-process.on("SIGINT", () => {
-    // Clean up on CTRL-C
-    server
-        .close()
-        .then(() => process.exit(0))
-        .catch(err => console.error(err));
-});
