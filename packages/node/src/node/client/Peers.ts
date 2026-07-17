@@ -15,6 +15,7 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
 import { IcdManagementClient } from "#behaviors/icd-management";
@@ -126,15 +127,17 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     async #nodeOnline() {
-        for (const peer of this) {
-            if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
-                continue;
-            }
-            try {
-                await peer.start();
-            } catch (e) {
-                MatterError.accept(e);
-                logger.warn(`Error starting peer ${peer}:`, e);
+        if (this.owner.stateOf(NetworkServer).autoStartCommissionedPeers) {
+            for (const peer of this) {
+                if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
+                    continue;
+                }
+                try {
+                    await peer.start();
+                } catch (e) {
+                    MatterError.accept(e);
+                    logger.warn(`Error starting peer ${peer}:`, e);
+                }
             }
         }
         this.#manageExpiration();

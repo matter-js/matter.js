@@ -169,6 +169,12 @@ export namespace NetworkServer {
         transportPreference?: "tcp" | "udp";
 
         /**
+         * When false, the node does not auto-start (connect) commissioned peers when it goes online; peers must be
+         * started explicitly.  Defaults to true.
+         */
+        autoStartCommissionedPeers = true;
+
+        /**
          * Network profile describing our own (local) network — the sender-side MRP additive-delay
          * axis.  Defaults to "fast"; set to "thread" on a Thread device.
          */
