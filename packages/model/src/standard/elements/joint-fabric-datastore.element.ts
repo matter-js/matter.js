@@ -258,6 +258,31 @@ export const JointFabricDatastore = Cluster(
     ),
 
     Datatype(
+        { name: "DatastoreAccessControlEntryPrivilegeEnum", type: "enum8" },
+        Field({ name: "View", id: 0x1, conformance: "M" }),
+        Field({ name: "Operate", id: 0x3, conformance: "M" }),
+        Field({ name: "Manage", id: 0x4, conformance: "M" }),
+        Field({ name: "Administer", id: 0x5, conformance: "M" })
+    ),
+
+    Datatype(
+        { name: "DatastoreAccessControlEntryAuthModeEnum", type: "enum8" },
+        Field({ name: "Pase", id: 0x1, conformance: "M" }),
+        Field({ name: "Case", id: 0x2, conformance: "M" }),
+        Field({ name: "Group", id: 0x3, conformance: "M" })
+    ),
+
+    Datatype(
+        { name: "DatastoreGroupKeySecurityPolicyEnum", type: "enum8" },
+        Field({ name: "TrustFirst", id: 0x0, conformance: "M" })
+    ),
+    Datatype(
+        { name: "DatastoreGroupKeyMulticastPolicyEnum", type: "enum8" },
+        Field({ name: "PerGroupId", id: 0x0, conformance: "M" }),
+        Field({ name: "AllNodes", id: 0x1, conformance: "M" })
+    ),
+
+    Datatype(
         { name: "DatastoreStatusEntryStruct", type: "struct" },
         Field({ name: "State", id: 0x0, type: "DatastoreStateEnum", access: "R V", conformance: "M" }),
         Field({ name: "UpdateTimestamp", id: 0x1, type: "epoch-s", access: "R V", conformance: "M" }),
@@ -269,14 +294,6 @@ export const JointFabricDatastore = Cluster(
         Field({ name: "NodeId", id: 0x0, type: "node-id", access: "R V", conformance: "M" }),
         Field({ name: "GroupKeySetId", id: 0x1, type: "uint16", access: "R V", conformance: "M" }),
         Field({ name: "StatusEntry", id: 0x2, type: "DatastoreStatusEntryStruct", access: "R V", conformance: "M" })
-    ),
-
-    Datatype(
-        { name: "DatastoreAccessControlEntryPrivilegeEnum", type: "enum8" },
-        Field({ name: "View", id: 0x1, conformance: "M" }),
-        Field({ name: "Operate", id: 0x3, conformance: "M" }),
-        Field({ name: "Manage", id: 0x4, conformance: "M" }),
-        Field({ name: "Administer", id: 0x5, conformance: "M" })
     ),
 
     Datatype(
@@ -334,13 +351,6 @@ export const JointFabricDatastore = Cluster(
     ),
 
     Datatype(
-        { name: "DatastoreAccessControlEntryAuthModeEnum", type: "enum8" },
-        Field({ name: "Pase", id: 0x1, conformance: "M" }),
-        Field({ name: "Case", id: 0x2, conformance: "M" }),
-        Field({ name: "Group", id: 0x3, conformance: "M" })
-    ),
-
-    Datatype(
         { name: "DatastoreAccessControlTargetStruct", type: "struct" },
         Field({ name: "Cluster", id: 0x0, type: "cluster-id", conformance: "M", quality: "X" }),
         Field({ name: "Endpoint", id: 0x1, type: "endpoint-no", conformance: "M", quality: "X" }),
@@ -393,16 +403,6 @@ export const JointFabricDatastore = Cluster(
         Field({ name: "FriendlyName", id: 0x1, type: "string", conformance: "M", constraint: "max 32" }),
         Field({ name: "VendorId", id: 0x2, type: "vendor-id", conformance: "M" }),
         Field({ name: "Icac", id: 0x3, type: "octstr", conformance: "M", constraint: "max 400" })
-    ),
-
-    Datatype(
-        { name: "DatastoreGroupKeySecurityPolicyEnum", type: "enum8" },
-        Field({ name: "TrustFirst", id: 0x0, conformance: "M" })
-    ),
-    Datatype(
-        { name: "DatastoreGroupKeyMulticastPolicyEnum", type: "enum8" },
-        Field({ name: "PerGroupId", id: 0x0, conformance: "M" }),
-        Field({ name: "AllNodes", id: 0x1, conformance: "M" })
     ),
 
     Datatype(

@@ -53,10 +53,7 @@ export const ConcentrationMeasurement = Cluster(
         name: "AverageMeasuredValueWindow", id: 0x6, type: "elapsed-s", access: "R V", conformance: "AVG",
         constraint: "max 604800"
     }),
-    Attribute({
-        name: "Uncertainty", id: 0x7, type: "single", access: "R V", conformance: "[MEA]", constraint: "ms",
-        quality: "F"
-    }),
+    Attribute({ name: "Uncertainty", id: 0x7, type: "single", access: "R V", conformance: "[MEA]", quality: "F" }),
     Attribute({ name: "MeasurementUnit", id: 0x8, type: "MeasurementUnitEnum", access: "R V", conformance: "MEA", quality: "F" }),
     Attribute({
         name: "MeasurementMedium", id: 0x9, type: "MeasurementMediumEnum", access: "R V", conformance: "M",

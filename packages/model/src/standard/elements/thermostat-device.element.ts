@@ -24,7 +24,7 @@ export const ThermostatDt = DeviceType(
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" }),
-    Requirement({ name: "AmbientContextSensing", id: 0x431, conformance: "P, O", element: "clientCluster" })
+    Requirement({ name: "AmbientContextSensing", id: 0x431, conformance: "P, [Rev >= v6]", element: "clientCluster" })
 );
 
 MatterDefinition.children.push(ThermostatDt);

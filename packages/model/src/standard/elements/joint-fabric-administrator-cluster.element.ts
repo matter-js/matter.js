@@ -57,7 +57,7 @@ export const JointFabricAdministrator = Cluster(
         response: "TransferAnchorResponse"
     }),
     Command(
-        { name: "TransferAnchorResponse", id: 0x6, access: "A", conformance: "M", direction: "response" },
+        { name: "TransferAnchorResponse", id: 0x6, conformance: "M", direction: "response" },
         Field({ name: "StatusCode", id: 0x0, type: "TransferAnchorResponseStatusEnum", conformance: "M" })
     ),
     Command({

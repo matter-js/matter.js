@@ -21,7 +21,7 @@ export const SoftwareDiagnostics = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "WTRMRK", constraint: "0", title: "Watermarks" })
+        Field({ name: "WTRMRK", conformance: "O", constraint: "0", title: "Watermarks" })
     ),
 
     Attribute(

@@ -86,7 +86,7 @@ export const Groupcast = Cluster(
     ),
 
     Command(
-        { name: "LeaveGroupResponse", id: 0x2, access: "F", conformance: "P, M", direction: "response" },
+        { name: "LeaveGroupResponse", id: 0x2, conformance: "P, M", direction: "response" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
         Field(
             { name: "Endpoints", id: 0x1, type: "list", conformance: "M", constraint: "max 20" },

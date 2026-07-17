@@ -3429,43 +3429,6 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.6
-     */
-    export class AlarmMask {
-        constructor(values?: Partial<AlarmMask> | number);
-
-        /**
-         * Locking Mechanism Jammed
-         */
-        lockJammed?: boolean;
-
-        /**
-         * Lock Reset to Factory Defaults
-         */
-        lockFactoryReset?: boolean;
-
-        /**
-         * RF Module Power Cycled
-         */
-        lockRadioPowerCycled?: boolean;
-
-        /**
-         * Tamper Alarm - wrong code entry limit
-         */
-        wrongCodeEntryLimit?: boolean;
-
-        /**
-         * Tamper Alarm - front escutcheon removed from main
-         */
-        frontEscutcheonRemoved?: boolean;
-
-        /**
-         * Forced Door Open under Door Locked Condition
-         */
-        doorForcedOpen?: boolean;
-    }
-
-    /**
      * This enumeration shall indicate the alarm type.
      *
      * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.7

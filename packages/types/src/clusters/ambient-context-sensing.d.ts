@@ -161,7 +161,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.6
          */
-        objectCountReached: boolean;
+        objectCountThresholdReached: boolean;
 
         /**
          * Indicates configuration parameters to support an object counting feature. The attribute specifies the object
@@ -287,7 +287,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.6
          */
-        objectCountReached: boolean;
+        objectCountThresholdReached: boolean;
 
         /**
          * Indicates configuration parameters to support an object counting feature. The attribute specifies the object
@@ -633,7 +633,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1.2
          */
-        objectCountReached?: boolean;
+        objectCountThresholdReached?: boolean;
 
         /**
          * This field shall indicate the number of objects detected in the area covered by the sensor when
@@ -662,7 +662,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2.1
          */
-        eventStartTime?: number | bigint;
+        eventStartTimePos?: number | bigint;
     }
 
     /**

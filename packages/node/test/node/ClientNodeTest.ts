@@ -2624,7 +2624,7 @@ const PEER1_STATE = {
         generatedCommandList: [],
     },
     groupKeyManagement: {
-        clusterRevision: 3,
+        clusterRevision: 4,
         featureMap: { cacheAndSync: false, groupcast: false },
         groupKeyMap: [],
         groupTable: [],

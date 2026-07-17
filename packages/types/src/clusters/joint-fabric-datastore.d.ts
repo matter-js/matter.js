@@ -1879,6 +1879,51 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.3
+     */
+    export enum DatastoreAccessControlEntryAuthMode {
+        /**
+         * Passcode authenticated session
+         */
+        Pase = 1,
+
+        /**
+         * Certificate authenticated session
+         */
+        Case = 2,
+
+        /**
+         * Group authenticated session
+         */
+        Group = 3
+    }
+
+    /**
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.4
+     */
+    export enum DatastoreGroupKeySecurityPolicy {
+        /**
+         * Message counter synchronization using trust-first
+         */
+        TrustFirst = 0
+    }
+
+    /**
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.5
+     */
+    export enum DatastoreGroupKeyMulticastPolicy {
+        /**
+         * Indicates filtering of multicast messages for a specific Group ID
+         */
+        PerGroupId = 0,
+
+        /**
+         * Indicates not filtering of multicast messages
+         */
+        AllNodes = 1
+    }
+
+    /**
      * The DatastoreBindingTargetStruct represents a Binding on a specific Node (identified by the
      * DatastoreEndpointBindingEntryStruct) which is managed by the Datastore. Only bindings on a specific Node that are
      * fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are
@@ -1924,27 +1969,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.10
-     */
-    export enum DatastoreAccessControlEntryAuthMode {
-        /**
-         * Passcode authenticated session
-         */
-        Pase = 1,
-
-        /**
-         * Certificate authenticated session
-         */
-        Case = 2,
-
-        /**
-         * Group authenticated session
-         */
-        Group = 3
-    }
-
-    /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.11
+     * @see {@link MatterSpecification.v16.Core} § 11.24.5.13
      */
     export class DatastoreAccessControlTarget {
         constructor(values?: Partial<DatastoreAccessControlTarget>);
@@ -1967,31 +1992,6 @@ export declare namespace JointFabricDatastore {
         authMode: DatastoreAccessControlEntryAuthMode;
         subjects: SubjectId[] | null;
         targets: DatastoreAccessControlTarget[] | null;
-    }
-
-    /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.16
-     */
-    export enum DatastoreGroupKeySecurityPolicy {
-        /**
-         * Message counter synchronization using trust-first
-         */
-        TrustFirst = 0
-    }
-
-    /**
-     * @see {@link MatterSpecification.v16.Core} § 11.24.5.17
-     */
-    export enum DatastoreGroupKeyMulticastPolicy {
-        /**
-         * Indicates filtering of multicast messages for a specific Group ID
-         */
-        PerGroupId = 0,
-
-        /**
-         * Indicates not filtering of multicast messages
-         */
-        AllNodes = 1
     }
 
     /**

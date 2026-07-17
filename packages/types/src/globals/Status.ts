@@ -106,14 +106,7 @@ export enum Status {
     NotFound = 139,
 
     /**
-     * Reports cannot be issued for this attribute.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 8.10.1
-     */
-    UnreportableAttribute = 140,
-
-    /**
-     * The data type indicated is undefined or invalid for the indicated data field. Command or action not carried out.
+     * The data type indicated is undefined or invalid for the indicated data field. Command or action not carried out
      *
      * @see {@link MatterSpecification.v16.Core} § 8.10.1
      */
@@ -167,13 +160,6 @@ export enum Status {
      * @see {@link MatterSpecification.v16.Core} § 8.10.1
      */
     UnsupportedCluster = 195,
-
-    /**
-     * Used by proxies to convey to clients the lack of an upstream subscription to a source.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 8.10.1
-     */
-    NoUpstreamSubscription = 197,
 
     /**
      * A Untimed Write or Untimed Invoke interaction was used for an attribute or command that requires a Timed Write or

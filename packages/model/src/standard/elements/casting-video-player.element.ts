@@ -20,7 +20,7 @@ export const CastingVideoPlayerDt = DeviceType(
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 35, revision: 2 } ], element: "attribute" })
     ),
     Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "Messages", id: 0x97, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "Messages", id: 0x97, conformance: "[Rev >= v2]", element: "serverCluster" }),
     Requirement({ name: "WakeOnLan", id: 0x503, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Channel", id: 0x504, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TargetNavigator", id: 0x505, conformance: "O", element: "serverCluster" }),
@@ -35,7 +35,7 @@ export const CastingVideoPlayerDt = DeviceType(
         Requirement({ name: "APPLICATIONPLATFORM", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "ContentControl", id: 0x50f, conformance: "P, O", element: "serverCluster" }),
+    Requirement({ name: "ContentControl", id: 0x50f, conformance: "P, [Rev >= v2]", element: "serverCluster" }),
     Condition({ name: "ContentAppPlatform" }),
     Condition({ name: "PhysicalInputs" })
 );

@@ -43,7 +43,7 @@ export declare namespace GroupKeyManagement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the GroupKeyManagement cluster.
