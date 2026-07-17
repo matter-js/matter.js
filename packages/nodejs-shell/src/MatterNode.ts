@@ -56,6 +56,7 @@ export class MatterNode {
     #storageManager?: StorageManager;
     #storageContext?: StorageContext;
     readonly #environment: Environment;
+    #nodeEnvironment?: Environment;
     #node?: ServerNode;
     #fabric?: Fabric;
     #started = false;
@@ -64,6 +65,7 @@ export class MatterNode {
     #dclFetchTestCertificates = false;
     #allowTestOtaImages = false;
     #transportPreference?: "tcp" | "udp";
+    #bleEnabled = false;
     #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
@@ -97,18 +99,21 @@ export class MatterNode {
     }
 
     async otaService() {
+        await this.start();
         const service = await this.node.act(agent => agent.get(DclBehavior).otaUpdateService);
         await service.construction;
         return service;
     }
 
     async certificateService() {
+        await this.start();
         const service = await this.node.act(agent => agent.get(DclBehavior).certificateService);
         await service.construction;
         return service;
     }
 
     async vendorInfoService() {
+        await this.start();
         const service = await this.node.act(agent => agent.get(DclBehavior).vendorInfoService);
         await service.construction;
         return service;
@@ -123,6 +128,7 @@ export class MatterNode {
 
         // Scope the controller node's services (storage, mDNS) under its id, mirroring the legacy controller wrapper.
         const nodeEnvironment = new Environment(id, this.#environment);
+        this.#nodeEnvironment = nodeEnvironment;
 
         // Open storage up front so persisted settings are available before the controller node is built.
         this.#storageManager = await nodeEnvironment.get(StorageService).open(id);
@@ -133,10 +139,36 @@ export class MatterNode {
         const storedPref = await this.#storageContext.get<string>("TransportPreference", "");
         this.#transportPreference = storedPref === "tcp" || storedPref === "udp" ? storedPref : undefined;
 
-        const ble = (nodeEnvironment.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)) !== undefined;
+        this.#bleEnabled = (nodeEnvironment.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)) !== undefined;
 
-        this.#node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
-            environment: nodeEnvironment,
+        // storageLocation only reads the filesystem path; it neither creates nor onlines the node and is consumed at
+        // boot (shell history), so it stays out of the lazy #ensureNode() path.
+        if (nodeEnvironment.has(Filesystem)) {
+            this.#storageLocation = join(nodeEnvironment.get(Filesystem).path, id);
+        }
+
+        // Factory reset needs the node to clear its stores; accept eager creation only in this rare, explicit case.
+        // The node is created but not started, so it does not go operationally online here.
+        if (resetStorage) {
+            await (await this.#ensureNode()).erase();
+        }
+    }
+
+    /**
+     * Lazily creates the controller {@link ServerNode} on first real use. Creation runs the controller behaviors
+     * (binding the mDNS socket), which is why boot defers it until {@link start}.
+     */
+    async #ensureNode(): Promise<ServerNode> {
+        if (this.#node !== undefined) {
+            return this.#node;
+        }
+        if (this.#nodeEnvironment === undefined) {
+            throw new ImplementationError("Controller node accessed before initialize()");
+        }
+
+        const id = `shell-${this.#nodeNum.toString()}`;
+        const node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+            environment: this.#nodeEnvironment,
             id,
             network: {
                 ble: false,
@@ -148,7 +180,7 @@ export class MatterNode {
             },
             controller: {
                 adminFabricLabel: ADMIN_FABRIC_LABEL,
-                ble,
+                ble: this.#bleEnabled,
             },
             commissioning: {
                 enabled: false, // The controller node is never commissionable itself.
@@ -159,15 +191,10 @@ export class MatterNode {
         });
 
         // Pulls in SoftwareUpdateManager (and thereby DclBehavior on the root node) for OTA provider support.
-        await this.#node.add(new Endpoint(OtaProviderEndpoint, { id: "ota-provider" }));
+        await node.add(new Endpoint(OtaProviderEndpoint, { id: "ota-provider" }));
 
-        if (nodeEnvironment.has(Filesystem)) {
-            this.#storageLocation = join(nodeEnvironment.get(Filesystem).path, id);
-        }
-
-        if (resetStorage) {
-            await this.#node.erase();
-        }
+        this.#node = node;
+        return node;
     }
 
     get Store() {
@@ -192,7 +219,7 @@ export class MatterNode {
         }
         logger.info(`matter.js shell controller started for node ${this.#nodeNum}`);
 
-        const node = this.node;
+        const node = await this.#ensureNode();
 
         // Reuse the existing controller fabric (matched by CA) or create one, rotating the NOC once per runtime.
         const fabricAuthority = await node.env.load(FabricAuthority);
