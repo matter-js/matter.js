@@ -26,6 +26,7 @@ import { FabricAuthority, PeerSet } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
 
 const logger = Logger.get("cmd_nodes");
 
@@ -132,8 +133,8 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { nodeId } = argv;
                         const node = (await theNode.connectAndGetNodes(nodeId))[0];
-                        if (!node.lifecycle.isSeeded) {
-                            await node.lifecycle.seeded;
+                        if (!(await awaitSeeded(node))) {
+                            return;
                         }
 
                         console.log("Logging structure of Node ", node.peerAddress?.nodeId.toString());
@@ -240,10 +241,6 @@ export default function commands(theNode: MatterNode) {
                         const { nodeId: nodeIdStr, maxSubscriptionInterval, minSubscriptionInterval } = argv;
                         const autoSubscribe = minSubscriptionInterval !== undefined;
 
-                        // MIGRATION-GAP: shell-diagnostic-callbacks — the legacy per-connect attribute/event/state
-                        // diagnostic logging has no equivalent on ConnectClientNodeOptions; a
-                        // ChangeNotificationService-backed replacement is filed at
-                        // ~/.todos/matter.js/decease-legacy-controller/shell-diagnostic-callbacks.md
                         await theNode.connectAndGetNodes(nodeIdStr !== "all" ? nodeIdStr : undefined, {
                             autoSubscribe,
                             subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
@@ -484,8 +481,6 @@ export default function commands(theNode: MatterNode) {
 
                         const autoSubscribe = minSubscriptionInterval !== undefined;
 
-                        // MIGRATION-GAP: shell-diagnostic-callbacks — see the `connect` command above; same dropped
-                        // per-connect diagnostic logging, same filed todo.
                         await theNode.connectAndGetNodes(nodeIdStr, {
                             autoSubscribe,
                             subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,

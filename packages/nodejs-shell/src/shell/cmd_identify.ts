@@ -7,6 +7,7 @@
 import { IdentifyClient } from "@matter/node/behaviors/identify";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
 
 export default function commands(theNode: MatterNode) {
     return {
@@ -36,9 +37,7 @@ export default function commands(theNode: MatterNode) {
             const { nodeId, time = 10, endpointId } = argv;
             const nodes = await theNode.connectAndGetNodes(nodeId);
             for (const node of nodes) {
-                if (!node.lifecycle.isSeeded) {
-                    await node.lifecycle.seeded;
-                }
+                await awaitSeeded(node);
             }
             await theNode.iterateNodeDevices(
                 nodes,

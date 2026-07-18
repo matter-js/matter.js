@@ -12,6 +12,7 @@ import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, Qr
 import { GeneralCommissioning } from "@matter/types/clusters";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
 
 const logger = Logger.get("Commission");
 
@@ -197,12 +198,6 @@ export default function commands(theNode: MatterNode) {
                                         };
                                     }
 
-                                    // MIGRATION-GAP: shell-diagnostic-callbacks — the legacy per-connect attribute/event/state
-                                    // diagnostic logging has no equivalent for the new commission options; a
-                                    // ChangeNotificationService-backed replacement is filed at
-                                    // ~/.todos/matter.js/decease-legacy-controller/shell-diagnostic-callbacks.md (same gap as
-                                    // cmd_nodes.ts `connect`/`add`).
-
                                     let node: ClientNode;
                                     if (ip !== undefined && port !== undefined) {
                                         // Known address: locate/create the peer node directly instead of running mDNS
@@ -227,8 +222,8 @@ export default function commands(theNode: MatterNode) {
 
                                     console.log("Commissioned Node:", node.peerAddress?.nodeId.toString());
 
-                                    if (!node.lifecycle.isSeeded) {
-                                        await node.lifecycle.seeded;
+                                    if (!(await awaitSeeded(node))) {
+                                        return;
                                     }
 
                                     // Example to read cluster state directly instead of via a ClusterClient
@@ -270,8 +265,8 @@ export default function commands(theNode: MatterNode) {
                         const { nodeId, timeout } = argv;
                         await theNode.start();
                         const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
-                        if (!node.lifecycle.isSeeded) {
-                            await node.lifecycle.seeded;
+                        if (!(await awaitSeeded(node))) {
+                            return;
                         }
 
                         await node.openBasicCommissioningWindow(Seconds(timeout));
@@ -299,8 +294,8 @@ export default function commands(theNode: MatterNode) {
                         await theNode.start();
                         const { nodeId, timeout } = argv;
                         const node = (await theNode.connectAndGetNodes(nodeId, { autoSubscribe: false }))[0];
-                        if (!node.lifecycle.isSeeded) {
-                            await node.lifecycle.seeded;
+                        if (!(await awaitSeeded(node))) {
+                            return;
                         }
                         const { qrPairingCode, manualPairingCode } = await node.openEnhancedCommissioningWindow(
                             Seconds(timeout),
@@ -345,8 +340,8 @@ export default function commands(theNode: MatterNode) {
                             await node.delete();
                         } else {
                             const node = (await theNode.connectAndGetNodes(nodeIdStr, { autoSubscribe: false }))[0];
-                            if (!node.lifecycle.isSeeded) {
-                                await node.lifecycle.seeded;
+                            if (!(await awaitSeeded(node))) {
+                                return;
                             }
                             await node.decommission();
                         }
