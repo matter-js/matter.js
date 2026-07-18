@@ -32,7 +32,7 @@ export async function awaitSeeded(
         const isSeeded = await Promise.race([seeded.then(() => true), sleep.then(() => false)]);
         if (!isSeeded && !quiet) {
             console.log(
-                `Node ${node.peerAddress?.nodeId} did not become ready within ${Number(timeout) / 1000}s (offline?); giving up.`,
+                `Node ${node.peerAddress?.nodeId} did not become ready within ${Duration.format(timeout)} (offline?); giving up.`,
             );
         }
         return isSeeded;
