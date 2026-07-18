@@ -38,7 +38,9 @@ function findCommissionedNode(theNode: MatterNode, nodeId: NodeId): ClientNode |
 function parseFallbackAddress(input: string): ServerAddress {
     const match = /^(udp|tcp):\/\/(.+)$/i.exec(input);
     if (!match) {
-        throw new Error(`Invalid address "${input}". Expected udp://<host>:<port> or tcp://<host>:<port>`);
+        throw new ImplementationError(
+            `Invalid address "${input}". Expected udp://<host>:<port> or tcp://<host>:<port>`,
+        );
     }
     const type = match[1].toLowerCase() === "tcp" ? "tcp" : "udp";
     const rest = match[2];
@@ -48,14 +50,14 @@ function parseFallbackAddress(input: string): ServerAddress {
     if (rest.startsWith("[")) {
         const end = rest.indexOf("]");
         if (end === -1 || rest[end + 1] !== ":") {
-            throw new Error(`Invalid IPv6 address "${input}". Expected ${type}://[<ipv6>]:<port>`);
+            throw new ImplementationError(`Invalid IPv6 address "${input}". Expected ${type}://[<ipv6>]:<port>`);
         }
         ip = rest.slice(1, end);
         portStr = rest.slice(end + 2);
     } else {
         const idx = rest.lastIndexOf(":");
         if (idx === -1) {
-            throw new Error(`Missing port in "${input}". Expected ${type}://<host>:<port>`);
+            throw new ImplementationError(`Missing port in "${input}". Expected ${type}://<host>:<port>`);
         }
         ip = rest.slice(0, idx);
         portStr = rest.slice(idx + 1);
@@ -63,7 +65,9 @@ function parseFallbackAddress(input: string): ServerAddress {
 
     const port = Number(portStr);
     if (!ip.length || !Number.isInteger(port) || port < 1 || port > 65535) {
-        throw new Error(`Invalid host/port in "${input}". Expected ${type}://<host>:<port> with port 1-65535`);
+        throw new ImplementationError(
+            `Invalid host/port in "${input}". Expected ${type}://<host>:<port> with port 1-65535`,
+        );
     }
 
     return { ip, port, type };
@@ -582,6 +586,15 @@ export default function commands(theNode: MatterNode) {
                                             `Node ${nodeIdStr} has no basic information available`,
                                         );
                                     }
+                                    if (
+                                        basicInfo.vendorId === undefined ||
+                                        basicInfo.productId === undefined ||
+                                        basicInfo.softwareVersion === undefined
+                                    ) {
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} BasicInformation is incomplete; connect the node first`,
+                                        );
+                                    }
 
                                     console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
                                     console.log(`  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId, 4).toUpperCase()}`);
@@ -667,6 +680,15 @@ export default function commands(theNode: MatterNode) {
                                     if (basicInfo === undefined) {
                                         throw new ImplementationError(
                                             `Node ${nodeIdStr} has no basic information available`,
+                                        );
+                                    }
+                                    if (
+                                        basicInfo.vendorId === undefined ||
+                                        basicInfo.productId === undefined ||
+                                        basicInfo.softwareVersion === undefined
+                                    ) {
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} BasicInformation is incomplete; connect the node first`,
                                         );
                                     }
 
@@ -760,6 +782,15 @@ export default function commands(theNode: MatterNode) {
                                     if (basicInfo === undefined) {
                                         throw new ImplementationError(
                                             `Node ${nodeIdStr} has no basic information available`,
+                                        );
+                                    }
+                                    if (
+                                        basicInfo.vendorId === undefined ||
+                                        basicInfo.productId === undefined ||
+                                        basicInfo.softwareVersion === undefined
+                                    ) {
+                                        throw new ImplementationError(
+                                            `Node ${nodeIdStr} BasicInformation is incomplete; connect the node first`,
                                         );
                                     }
 
