@@ -19,6 +19,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
 
+- @matter/protocol
+    - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
+
 - @project-chip/matter.js
     - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is deprecated and will be removed in 0.19; migrate to @matter/node
 

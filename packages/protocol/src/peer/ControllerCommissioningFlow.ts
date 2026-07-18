@@ -294,6 +294,12 @@ const BTP_IDLE_ALIVE_INTERVAL = Seconds(25);
 /** Expected maximum time for CASE session establishment over the operational network. */
 const CASE_RECONNECT_TIMEOUT = Minutes(5);
 
+/**
+ * Send/retry slack added on top of the operation's own max wait when sizing the failsafe. Bounds the MRP worst-case
+ * round-trip, which for an idle ICD peer (huge advertised idle interval) can otherwise exceed the uint16 armFailSafe field.
+ */
+const FAILSAFE_PROCESSING_MARGIN = Seconds(10);
+
 /** Devices may report very low scan/connect timeouts that are not enough in practice */
 const MIN_NETWORK_SCAN_TIMEOUT_SECONDS = 60;
 const MIN_NETWORK_CONNECT_TIMEOUT_SECONDS = 60;
@@ -854,7 +860,12 @@ export class ControllerCommissioningFlow {
                 this.#commissioningStartedTime + Seconds(basicCommissioningInfo.maxCumulativeFailsafeSeconds),
             );
         }
-        const expiryLength = time ?? this.#defaultFailSafeTime;
+        // armFailSafe.expiryLengthSeconds must not exceed the device's mandatory (uint16) maximum cumulative failsafe.
+        const { basicCommissioningInfo } = this.collectedCommissioningData;
+        const maxExpiry = basicCommissioningInfo
+            ? Seconds(basicCommissioningInfo.maxCumulativeFailsafeSeconds)
+            : this.#defaultFailSafeTime;
+        const expiryLength = Duration.min(time ?? this.#defaultFailSafeTime, maxExpiry);
         this.#ensureGeneralCommissioningSuccess(
             "armFailSafe",
             await this.#invokeCommand({
@@ -882,7 +893,12 @@ export class ControllerCommissioningFlow {
     }
 
     async #ensureFailsafeTimerFor(maxProcessingTime: Duration) {
-        const minFailsafeTime = this.interaction.maximumPeerResponseTime(maxProcessingTime, true);
+        // We never wait longer than maxProcessingTime for the operation, so the failsafe only needs to outlive that
+        // plus send slack. The raw MRP worst-case can be far larger for an idle ICD peer and would overflow uint16.
+        const minFailsafeTime = Duration.min(
+            this.interaction.maximumPeerResponseTime(maxProcessingTime, true),
+            Millis(maxProcessingTime + FAILSAFE_PROCESSING_MARGIN),
+        );
 
         if (this.interaction.channelType === ChannelType.BLE) {
             this.#armFailsafeInterval?.stop();
