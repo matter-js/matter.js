@@ -186,7 +186,7 @@ describe("Rollback task integration (single peer)", () => {
         expect(status?.state).equals("completed");
     });
 
-    it("create-if-absent provisions membership when the key set already exists on the device", async () => {
+    it("provisions membership when a matching key set already exists on the device (idempotent re-apply)", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
@@ -195,7 +195,7 @@ describe("Rollback task integration (single peer)", () => {
 
         const peer = await subscribedPeer(controller, "peer1");
 
-        // Pre-seed key set 42 on the device via the fabric-scoped command so apply hits the create-if-absent skip.
+        // Pre-seed key set 42 with the same start-time set PARAMS will apply, so write-if-set-differs skips the re-write.
         await MockTime.resolve(
             peer.act(agent =>
                 agent.get(GroupKeyManagementClient).keySetWrite({

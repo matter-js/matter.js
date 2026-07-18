@@ -7,6 +7,7 @@
 import { GroupKeyGrant, GroupKeyItemKind } from "#reconcile/GroupKeyItemKind.js";
 import { ImplementationError } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemState, ManagedItem, itemMapKey } from "@matter/node";
+import { Status, StatusResponseError } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
@@ -24,28 +25,56 @@ function keySet(id: number): GroupKeyGrant {
     };
 }
 
-// Fake peer: in-memory keyset ids reachable via commandsOf.
-function fakePeer(initialIds: number[]) {
-    const ids = new Set(initialIds);
+// Non-null epochStartTime values of a struct, as bigint, sorted — the "set".
+function startsOf(g: GroupKeyGrant): bigint[] {
+    return [g.epochStartTime0, g.epochStartTime1, g.epochStartTime2]
+        .filter((t): t is number | bigint => t !== null && t !== undefined)
+        .map(t => BigInt(t))
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+function startsToStruct(id: number, starts: bigint[]): GroupKeyGrant {
+    const g = keySet(id);
+    g.epochKey0 = null;
+    g.epochStartTime0 = starts[0] ?? null;
+    g.epochKey1 = null;
+    g.epochStartTime1 = starts[1] ?? null;
+    g.epochKey2 = null;
+    g.epochStartTime2 = starts[2] ?? null;
+    return g;
+}
+
+// Fake peer carrying epochStartTime sets per keyset id.
+function fakePeer(initial: Array<{ id: number; starts: bigint[] }> = []) {
+    const sets = new Map<number, bigint[]>(initial.map(e => [e.id, [...e.starts]]));
     const calls = { wrote: new Array<number>(), removed: new Array<number>() };
     const node = {
         commandsOf() {
             return {
-                async keySetWrite(req: { groupKeySet: { groupKeySetId: number } }) {
-                    ids.add(req.groupKeySet.groupKeySetId);
+                async keySetReadAllIndices() {
+                    return { groupKeySetIDs: [...sets.keys()] };
+                },
+                async keySetRead({ groupKeySetId }: { groupKeySetId: number }) {
+                    const starts = sets.get(groupKeySetId);
+                    if (starts === undefined) {
+                        throw new StatusResponseError(`GroupKeySet ${groupKeySetId} not found`, Status.NotFound);
+                    }
+                    return {
+                        groupKeySet: startsToStruct(groupKeySetId, starts),
+                    };
+                },
+                async keySetWrite(req: { groupKeySet: GroupKeyGrant }) {
+                    sets.set(req.groupKeySet.groupKeySetId, startsOf(req.groupKeySet));
                     calls.wrote.push(req.groupKeySet.groupKeySetId);
                 },
                 async keySetRemove(req: { groupKeySetId: number }) {
-                    ids.delete(req.groupKeySetId);
+                    sets.delete(req.groupKeySetId);
                     calls.removed.push(req.groupKeySetId);
-                },
-                async keySetReadAllIndices() {
-                    return { groupKeySetIDs: [...ids] };
                 },
             };
         },
     } as unknown as ClientNode;
-    return { node, ids, calls };
+    return { node, calls, sets };
 }
 
 function item(g: GroupKeyGrant): ManagedItem<GroupKeyGrant> {
@@ -66,19 +95,19 @@ describe("GroupKeyItemKind", () => {
         expect(calls.wrote).deep.equals([3]);
     });
 
-    it("verify is true when the id is present, false when absent", async () => {
+    it("verify is true when the id is present and the start-time set matches, false when absent", async () => {
         const kind = new GroupKeyItemKind();
-        const { node } = fakePeer([3]);
+        const { node } = fakePeer([{ id: 3, starts: [1n] }]);
         expect(await kind.verify(node, item(keySet(3)))).equals(true);
         expect(await kind.verify(node, item(keySet(4)))).equals(false);
     });
 
     it("remove removes the key set", async () => {
         const kind = new GroupKeyItemKind();
-        const { node, calls, ids } = fakePeer([3]);
+        const { node, calls, sets } = fakePeer([{ id: 3, starts: [1n] }]);
         await kind.remove(node, item(keySet(3)));
         expect(calls.removed).deep.equals([3]);
-        expect(ids.has(3)).equals(false);
+        expect(sets.has(3)).equals(false);
     });
 
     it("apply rejects the IPK key set id 0", async () => {
@@ -91,6 +120,73 @@ describe("GroupKeyItemKind", () => {
             err = e;
         }
         expect(err).instanceOf(ImplementationError);
+    });
+});
+
+describe("GroupKeyItemKind write-if-set-differs", () => {
+    function itemWith(id: number, starts: bigint[]): ManagedItem<GroupKeyGrant> {
+        return item(startsToStruct(id, starts)); // existing item() helper; material irrelevant to set-diff
+    }
+
+    it("writes when the key set is absent", async () => {
+        const { node, calls } = fakePeer([]);
+        await new GroupKeyItemKind().apply(node, itemWith(42, [1n]));
+        expect(calls.wrote).deep.equals([42]);
+    });
+
+    it("skips when the start-time set matches", async () => {
+        const { node, calls } = fakePeer([{ id: 42, starts: [1n] }]);
+        await new GroupKeyItemKind().apply(node, itemWith(42, [1n]));
+        expect(calls.wrote).deep.equals([]);
+    });
+
+    it("writes when the start-time set grows (rotation)", async () => {
+        const { node, calls } = fakePeer([{ id: 42, starts: [1n] }]);
+        await new GroupKeyItemKind().apply(node, itemWith(42, [1n, 2n]));
+        expect(calls.wrote).deep.equals([42]);
+    });
+
+    it("writes when the start-time set shrinks", async () => {
+        const { node, calls } = fakePeer([{ id: 42, starts: [1n, 2n] }]);
+        await new GroupKeyItemKind().apply(node, itemWith(42, [1n]));
+        expect(calls.wrote).deep.equals([42]);
+    });
+
+    it("verify is true only when present and sets match", async () => {
+        const kind = new GroupKeyItemKind();
+        const { node } = fakePeer([{ id: 42, starts: [1n, 2n] }]);
+        expect(await kind.verify(node, itemWith(42, [1n, 2n]))).equals(true);
+        expect(await kind.verify(node, itemWith(42, [1n]))).equals(false); // set differs
+        expect(await kind.verify(node, itemWith(43, [1n]))).equals(false); // absent
+    });
+
+    it("propagates a non-NotFound keySetRead error instead of treating it as absent", async () => {
+        const node = {
+            commandsOf() {
+                return {
+                    async keySetRead() {
+                        throw new StatusResponseError("device busy", Status.Busy);
+                    },
+                };
+            },
+        } as unknown as ClientNode;
+        const kind = new GroupKeyItemKind();
+
+        let applyErr: unknown;
+        try {
+            await kind.apply(node, itemWith(42, [1n]));
+        } catch (e) {
+            applyErr = e;
+        }
+        expect(StatusResponseError.is(applyErr, Status.Busy)).equals(true);
+
+        let verifyErr: unknown;
+        try {
+            await kind.verify(node, itemWith(42, [1n]));
+        } catch (e) {
+            verifyErr = e;
+        }
+        expect(StatusResponseError.is(verifyErr, Status.Busy)).equals(true);
     });
 });
 
@@ -114,20 +210,6 @@ function mapItem(groupId: number, groupKeySetId: number, state: ItemState = "com
         status: { state, updateTimestamp: 0 },
     };
 }
-
-describe("GroupKeyItemKind.apply create-if-absent", () => {
-    it("writes when the key set is absent", async () => {
-        const { node, calls } = fakePeer([]);
-        await new GroupKeyItemKind().apply(node, item(keySet(42)));
-        expect(calls.wrote).deep.equals([42]);
-    });
-
-    it("skips the write when the key set already exists", async () => {
-        const { node, calls } = fakePeer([42]);
-        await new GroupKeyItemKind().apply(node, item(keySet(42)));
-        expect(calls.wrote).deep.equals([]);
-    });
-});
 
 describe("GroupKeyItemKind.isReferenced", () => {
     it("is referenced while a live groupKeyMap points at the key set", () => {
