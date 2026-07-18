@@ -310,6 +310,7 @@ export class TaskManagerBehavior extends Behavior {
             reconciler,
             setState,
             this.#gateFor(task.id),
+            () => [...this.#rootNode.peers],
         );
     }
 

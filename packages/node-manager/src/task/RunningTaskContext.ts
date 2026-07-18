@@ -35,6 +35,7 @@ export class RunningTaskContext implements TaskContext {
         protected readonly reconciler: ReconcilerBehavior,
         protected readonly setState: (state: TaskState) => void,
         protected readonly gate?: GateControl,
+        protected readonly peerLister: () => ClientNode[] = () => new Array<ClientNode>(),
     ) {}
 
     resolvePeer(peerId: string): ClientNode {
@@ -195,6 +196,14 @@ export class RunningTaskContext implements TaskContext {
 
     itemAbsent(peer: ClientNode, kind: string, key: string): boolean {
         return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)] === undefined;
+    }
+
+    peersWithIntent(kind: string, key: string): ClientNode[] {
+        const id = itemMapKey(kind, key);
+        return this.peerLister().filter(peer => {
+            const item = peer.stateOf(DesiredStateBehavior).items[id];
+            return item !== undefined && item.status.state !== "deletePending";
+        });
     }
 
     #itemState(peer: ClientNode, kind: string, key: string) {
