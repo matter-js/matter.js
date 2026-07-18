@@ -149,6 +149,12 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(revertId).equals(`revert:${FAILING_ID}`);
 
+        // revertOf must be in the revert's first persisted record (set at creation), not patched in later.
+        const revertOf = await controller.act(
+            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${FAILING_ID}`]?.revertOf,
+        );
+        expect(revertOf).equals(FAILING_ID);
+
         await awaitState(controller, `revert:${FAILING_ID}`, "completed");
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals(undefined);
@@ -174,6 +180,12 @@ describe("Rollback task integration (single peer)", () => {
             { macrotasks: true },
         );
         expect(handle?.id).equals(`revert:${TASK_ID}`);
+
+        // revertOf must be in the revert's first persisted record (set at creation), not patched in later.
+        const revertOf = await controller.act(
+            agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${TASK_ID}`]?.revertOf,
+        );
+        expect(revertOf).equals(TASK_ID);
 
         await awaitState(controller, `revert:${TASK_ID}`, "completed");
 

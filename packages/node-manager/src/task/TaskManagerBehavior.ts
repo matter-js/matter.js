@@ -125,12 +125,17 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     run(type: string, params: unknown, opts?: { externalId?: string }): TaskHandle {
+        return this.#spawn(type, params, { externalId: opts?.externalId });
+    }
+
+    /** Shared creation path so callers (e.g. #spawnRevert) can seed persisted fields before the first persist. */
+    #spawn(type: string, params: unknown, seed: Partial<TaskPersistence>): TaskHandle {
         const id = this.internal.registry.idFor(type, params);
         const existing = this.internal.live.get(id);
         if (existing !== undefined) {
             return this.#handle(existing);
         }
-        const task = this.internal.registry.create(type, id, params, { externalId: opts?.externalId });
+        const task = this.internal.registry.create(type, id, params, seed);
         this.internal.live.set(id, task);
         this.#track(task);
         return this.#handle(task);
@@ -199,11 +204,11 @@ export class TaskManagerBehavior extends Behavior {
         if (task.changeSet.length === 0) {
             return undefined;
         }
-        const handle = this.run(REVERT_TYPE, { originalId: task.id, entries: task.changeSet });
-        const revert = this.internal.live.get(handle.id);
-        if (revert !== undefined) {
-            revert.revertOf = task.id;
-        }
+        const handle = this.#spawn(
+            REVERT_TYPE,
+            { originalId: task.id, entries: task.changeSet },
+            { revertOf: task.id },
+        );
         task.revertTaskId = handle.id;
         return handle;
     }
