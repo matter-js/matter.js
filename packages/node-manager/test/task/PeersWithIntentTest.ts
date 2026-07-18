@@ -4,11 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { Task } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { FakePeer } from "./helpers.js";
+
+/** peersWithIntent never touches the reconciler; a no-op stand-in avoids depending on the whole behavior. */
+const unusedReconciler: ReconcilerSurface = {
+    itemKind: () => undefined,
+    reconcile: async () => {},
+};
 
 class PwiTask extends Task {
     override readonly type = "pwi-test";
@@ -34,7 +40,7 @@ describe("peersWithIntent", () => {
         const ctx = new RunningTaskContext(
             task,
             id => all.find(p => p.id === id)?.asNode(),
-            undefined as unknown as ReconcilerBehavior,
+            unusedReconciler,
             (_s: TaskState) => {},
             undefined,
             () => all.map(p => p.asNode()),

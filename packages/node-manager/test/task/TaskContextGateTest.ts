@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { Task } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
@@ -24,7 +23,7 @@ function makeContext(peer: FakePeer) {
         task.progress.state = s;
         states.push(s);
     };
-    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer as unknown as ReconcilerBehavior, setState);
+    const ctx = new RunningTaskContext(task, () => peer.asNode(), peer, setState);
     return { task, ctx, states };
 }
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { asError, Logger, ObserverGroup } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
 import { SustainedSubscription } from "@matter/protocol";
@@ -32,7 +32,7 @@ export class RunningTaskContext implements TaskContext {
     constructor(
         protected readonly task: Task,
         protected readonly peerResolver: (peerId: string) => ClientNode | undefined,
-        protected readonly reconciler: ReconcilerBehavior,
+        protected readonly reconciler: ReconcilerSurface,
         protected readonly setState: (state: TaskState) => void,
         protected readonly gate?: GateControl,
         protected readonly peerLister: () => ClientNode[] = () => new Array<ClientNode>(),

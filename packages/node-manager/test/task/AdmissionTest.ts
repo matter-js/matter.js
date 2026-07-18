@@ -7,7 +7,7 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
-import { CapacityInfo, ClientNode, ServerNode } from "@matter/node";
+import { CapacityInfo, ClientNode, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { FakePeer, SyntheticTask } from "./helpers.js";
 
@@ -37,9 +37,12 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
 /** A peer whose "cap" kind reports a fixed capacity, for admission tests. */
 function capPeer(id: string, capacity: CapacityInfo): FakePeer {
     const peer = new FakePeer(id);
-    peer.itemKind = (kind: string) =>
+    peer.itemKind = (kind: string): ItemKind | undefined =>
         kind === "cap"
             ? {
+                  kind: "cap",
+                  priority: 0,
+                  async apply() {},
                   async capacity() {
                       return capacity;
                   },
@@ -78,9 +81,12 @@ describe("capacity admission", () => {
         const environment = new Environment("test");
         const peer = new FakePeer("p");
         // Mirrors membership: capacity is exhausted, but the kind opts out of admission (a coarser kind gates it).
-        peer.itemKind = (kind: string) =>
+        peer.itemKind = (kind: string): ItemKind | undefined =>
             kind === "member"
                 ? {
+                      kind: "member",
+                      priority: 0,
+                      async apply() {},
                       excludeFromAdmission: true,
                       async capacity() {
                           return { limit: 4, used: 4 };
