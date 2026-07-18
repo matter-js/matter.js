@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
 
+- @matter/protocol
+    - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
+
 ## 0.17.6 (2026-07-16)
 
 - @matter/general
