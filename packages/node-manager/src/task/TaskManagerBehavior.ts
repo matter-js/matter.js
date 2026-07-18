@@ -11,6 +11,7 @@ import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, Se
 import { TaskCancelledSignal, TaskCapacityExceededError, TaskSuspendedSignal } from "./errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
+import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey } from "./groups/RotateGroupKey.js";
 import { Revert, REVERT_TYPE } from "./Revert.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { Task, TaskPersistence } from "./Task.js";
@@ -70,6 +71,7 @@ export class TaskManagerBehavior extends Behavior {
     protected registerBuiltins(): void {
         this.internal.registry.register(ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup);
         this.internal.registry.register(REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup);
+        this.internal.registry.register(ROTATE_GROUP_KEY_TYPE, RotateGroupKey);
         this.internal.registry.register(REVERT_TYPE, Revert);
     }
 
