@@ -31,6 +31,7 @@ import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
 import { Ble, Fabric, FabricAuthority } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { join } from "node:path";
+import { installDiagnosticLogging } from "./util/diagnosticLogging.js";
 
 const logger = Logger.get("Node");
 
@@ -285,6 +286,8 @@ export class MatterNode {
                 logger.info(`Update failed for peer`, peer);
             });
 
+            installDiagnosticLogging(node, this.#observers);
+
             this.#started = true;
         })();
 
@@ -297,8 +300,7 @@ export class MatterNode {
 
     /**
      * Returns the {@link ClientNode}s for the commissioned peers, connecting them (unless `autoConnect: false`).
-     * Nodes connect asynchronously; await `node.lifecycle.seeded` (guarded by `node.lifecycle.isSeeded`) before
-     * relying on the endpoint structure.
+     * Nodes connect asynchronously; use {@link awaitSeeded} before relying on the endpoint structure.
      */
     async connectAndGetNodes(nodeIdStr?: string, connectOptions?: ConnectClientNodeOptions): Promise<ClientNode[]> {
         await this.start();

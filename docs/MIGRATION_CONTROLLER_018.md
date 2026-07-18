@@ -171,13 +171,30 @@ await node.commission({ passcode: 20202021 /* ...same CommissioningOptions... */
 ```
 
 `peers.commission` runs discovery then commissions in one call; `peers.forDescriptor(...)` finds/creates the
-peer node for a known address, which you then `node.commission(options)`. Await `node.lifecycle.seeded`
-before reading the peer's structure.
+peer node for a known address, which you then `node.commission(options)`. Wait for the peer's structure
+before reading it, bounding the wait so an offline peer does not hang (see "Is the node ready?").
 
 `onAttestationFailure(findings)` replaces the legacy attestation callback — return `true`/`false` to accept
 or reject; each finding carries `level` (`"error"` / `"warn"` / `"info"`), `type` and `message`. To
 decommission, use `node.decommission()` (contacts the device) or `node.delete()` (force-drop locally when
 the peer is unreachable).
+
+### Delegated / split commissioning (legacy `PaseCommissioner`)
+
+Legacy `PaseCommissioner` performed the PASE phase to admit a device into an existing fabric, then handed
+off via a callback to complete the flow elsewhere. On the new API:
+
+- **Adding a device that is already commissioned by another admin into your fabric** (the common
+  "delegated" case) is the standard Matter multi-admin flow: the current admin opens a commissioning window
+  on the device (`node.openEnhancedCommissioningWindow(...)` → pairing code), then your controller
+  `serverNode.peers.commission({ /* the enhanced pairing code's passcode + discriminator */ })`. No
+  `PaseCommissioner` object is involved — each admin drives an ordinary commission against its own fabric
+  (the controller `ServerNode` is multi-fabric via `FabricAuthority`).
+- **Deciding whether to proceed after PASE** (e.g. a parallel-candidate race where only one PASE winner
+  should continue) is `CommissioningClient.CommissioningOptions.continueCommissioningAfterPase?: () => boolean`
+  — called immediately after PASE, before the main flow; return `false` to close the PASE session and stop.
+- A true **PASE-establish-here, complete-CASE-in-a-separate-process** handoff has no public convenience; it
+  is a lower-level composition over the protocol commissioning flow rather than a shipped API.
 
 ---
 
@@ -387,31 +404,29 @@ For a single specific value you can instead `reactTo` that behavior's `<attr>$Ch
 own event) directly — fault-isolated and torn down with the behavior. That is the exception, not the
 common case; reach for `ChangeNotificationService` when you need the whole node/peer change feed.
 
-### Verified shell idiom: watch one node's changes (`subscribe` command)
+### Verified shell idiom: node-wide diagnostic logging (all peers)
 
-The aggregate stream covers the controller node **and every peer**, so a per-node watcher filters to the
-target node's endpoint subtree. This is the proven replacement for the legacy per-`PairedNode` event bus
-(shell `cmd_subscribe.ts`):
+The legacy per-connect diagnostic callbacks (`attributeChangedCallback` / `eventTriggeredCallback` /
+`stateInformationCallback`, passed into every `PairedNode.connect`) map onto **one** node-wide listener,
+registered once, rather than a callback bundle per connect. The shell wires this in
+`MatterNode` (`installDiagnosticLogging`, `util/diagnosticLogging.ts`):
 
 ```ts
-import { ChangeNotificationService, ClusterBehavior, NetworkClient } from "@matter/node";
+import { ChangeNotificationService, ClusterBehavior, NodeConnectionState } from "@matter/node";
 
-// `node` is the target ClientNode; the node is its own root endpoint, so an endpoint belongs to it when
-// the node appears on the endpoint's owner chain.
-function ownedBy(endpoint, node) {
-    for (let e = endpoint; e !== undefined; e = e.owner) if (e === node) return true;
-    return false;
-}
+const observers = new ObserverGroup();
 
-const observers = new ObserverGroup(); // one group per watcher; close it to unsubscribe
+// attributeChangedCallback / eventTriggeredCallback: one aggregate stream for every peer. Map each change
+// back to its peer via the owner chain (a peer node is its own root endpoint).
 observers.on(serverNode.env.get(ChangeNotificationService).change, change => {
-    if (!ownedBy(change.endpoint, node)) return; // ignore other peers / the controller node
+    const peer = serverNode.peers.commissioned.find(p => ownedBy(change.endpoint, p));
+    if (peer === undefined) return; // a change on the controller node itself, not a peer
     switch (change.kind) {
         case "update": {
             if (!ClusterBehavior.is(change.behavior)) break;
             const state = change.endpoint.stateOf(change.behavior.id);
             const changed = change.properties?.reduce((o, n) => ((o[n] = state[n]), o), {}) ?? state;
-            // change.version carries the data version
+            // peer.peerAddress.nodeId, change.endpoint.number, change.behavior.cluster.id, change.version
             break;
         }
         case "event":  /* change.behavior/event/number/timestamp/priority/payload */ break;
@@ -419,19 +434,20 @@ observers.on(serverNode.env.get(ChangeNotificationService).change, change => {
     }
 });
 
-// Liveness (subscription established / dropped / re-established), replacing PairedNode connection events:
-observers.on(node.eventsOf(NetworkClient).subscriptionStatusChanged, isActive => { /* ... */ });
-
-// Establishing the sustained subscription is just a state write; changes then flow to the listener above:
-await node.set({ network: { autoSubscribe: true } });
-
-// Tear down when the node goes away, and when re-subscribing the same node:
-observers.on(node.lifecycle.destroyed, () => observers.close());
+// stateInformationCallback: each peer's connection-state transitions, for existing and future peers.
+const watch = peer =>
+    observers.on(peer.lifecycle.connectionStateChanged, state => {
+        /* NodeConnectionState.Connected / Disconnected / Reconnecting / WaitingForDeviceDiscovery */
+    });
+for (const peer of serverNode.peers.commissioned) watch(peer);
+observers.on(serverNode.peers.added, watch);
 ```
 
-The legacy per-connect diagnostic callbacks (`attributeChangedCallback` / `eventTriggeredCallback` /
-`stateInformationCallback`) map onto exactly this: register **one** `ChangeNotificationService` listener
-covering all peers rather than a callback bundle per connect.
+To watch a **single** node instead (e.g. the shell `subscribe` command establishing an on-demand
+subscription), filter the same aggregate stream to that node's endpoint subtree with `ownedBy`, and use
+`node.eventsOf(NetworkClient).subscriptionStatusChanged` for its subscription liveness. Establishing the
+sustained subscription is just a state write — `await node.set({ network: { autoSubscribe: true } })` — after
+which changes flow to the node-wide listener above.
 
 ---
 
@@ -453,6 +469,23 @@ discriminator/passcode/salt/iterations and PAKE verifier and returns the pairing
 Legacy `initialized` / `localInitializationDone` / `remoteInitializationDone` → `clientNode.lifecycle.isSeeded`
 (the peer's structure has been read: BasicInformation present and more than just the root endpoint), with
 `lifecycle.seeded` emitting once on the false→true transition.
+
+`await lifecycle.seeded` never resolves for a peer that is offline, so bound the wait — legacy
+`await node.events.initialized` had the same hang. Race it against a timeout and abort the command on
+expiry (the shell's `awaitSeeded` helper, `util/awaitSeeded.ts`):
+
+```ts
+if (clientNode.lifecycle.isSeeded) return true;
+const observers = new ObserverGroup();
+const sleep = Time.sleep("awaitSeeded", Seconds(60));
+try {
+    const seeded = new Promise(resolve => observers.on(clientNode.lifecycle.seeded, () => resolve()));
+    return await Promise.race([seeded.then(() => true), sleep.then(() => false)]);
+} finally {
+    sleep.cancel();
+    observers.close();
+}
+```
 
 ---
 
@@ -536,10 +569,19 @@ needed (bulk connect happens automatically on controller start unless `autoStart
 verified shell idiom above), then `await clientNode.set({ network: { autoSubscribe: true } })`. Do **not** look
 for a `subscribeAllAttributesAndEvents` — the sustained subscription is state-driven.
 
-**Where did the per-connect diagnostic callbacks go?** There is no per-connect callback bundle. Wire a single
-node-wide `ChangeNotificationService` listener (plus `NetworkClient.subscriptionStatusChanged` for liveness) that
-covers every peer — one registration instead of callbacks threaded through each connect call.
+**Where did the per-connect diagnostic callbacks go?** There is no per-connect callback bundle. Wire it once,
+node-wide: a single `ChangeNotificationService.change` listener (attribute/event/structure changes for every
+peer) plus, per peer, `lifecycle.connectionStateChanged` (attach to `serverNode.peers.commissioned` now and to
+`serverNode.peers.added` for future peers) — one registration set instead of callbacks threaded through each
+connect call. See the node-wide diagnostic-logging idiom above.
 
 **How do I wait until a node's structure is usable?** `if (!clientNode.lifecycle.isSeeded) await clientNode.lifecycle.seeded;`
 before reading its endpoints/behaviors. For an offline peer this can wait indefinitely, so bound it (timeout /
 abort on `WaitingForDeviceDiscovery`) if the caller must not hang.
+
+**I'm upgrading directly from a pre-0.13 (pre-`ServerNode`) install — is my controller storage migrated?**
+The legacy `CommissioningController` carried a one-time migration of the old on-disk layout
+(`credentials` → `certificates`/`fabrics`, plus per-node data) into the `ServerNode` stores. The new API has
+no equivalent hook. Anyone who has already run a 0.13+ (`ServerNode`-based) build is unaffected — that storage
+is already in the new format and is reused as-is via `FabricAuthority.defaultFabric`. Only a *direct* jump from
+a pre-0.13 layout to 0.18 needs a manual re-commission (or an interim run on a 0.13–0.17 build to migrate).

@@ -6,8 +6,9 @@
 
 import { ClientNode, ClusterBehavior, Endpoint } from "@matter/node";
 import { Read, ReadResult } from "@matter/protocol";
-import { AttributePath, ClusterId, EventPath } from "@matter/types";
+import { AttributePath, ClusterId, EventPath, Status } from "@matter/types";
 import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "./awaitSeeded.js";
 
 export interface ResolvedClusterEndpoint {
     node: ClientNode;
@@ -27,8 +28,8 @@ export async function resolveClusterEndpoint(
     clusterId: number,
 ): Promise<ResolvedClusterEndpoint | undefined> {
     const node = (await theNode.connectAndGetNodes(nodeIdStr))[0];
-    if (!node.lifecycle.isSeeded) {
-        await node.lifecycle.seeded;
+    if (!(await awaitSeeded(node))) {
+        return undefined;
     }
 
     const behaviorType = node.endpoints.has(endpointId)
@@ -39,6 +40,24 @@ export async function resolveClusterEndpoint(
         return undefined;
     }
     return { node, endpoint: node.endpoints.for(endpointId), behaviorType };
+}
+
+/**
+ * True only when `name` is a *known-absent* attribute/command of `behaviorType` on `endpoint`.
+ *
+ * The supported set derives from the behavior's global attribute/command list, which is EMPTY until that list has
+ * been read (a narrow window right after connect). An empty set is treated as "not yet known" — the caller proceeds
+ * to the live read/invoke rather than false-rejecting a genuinely supported element. Only a populated set that omits
+ * `name` is a real "unsupported" answer.
+ */
+export function elementKnownUnsupported(
+    endpoint: Endpoint,
+    behaviorType: ClusterBehavior.Type,
+    kind: "attributes" | "commands",
+    name: string,
+): boolean {
+    const elements = endpoint.behaviors.elementsOf(behaviorType)[kind];
+    return elements.size > 0 && !elements.has(name);
 }
 
 /**
@@ -55,6 +74,12 @@ export async function readAttributesRemote(
         for await (const report of chunk) {
             if (report.kind === "attr-value") {
                 values.push(report);
+            } else if (report.kind === "attr-status") {
+                // A device-declined read (e.g. UnsupportedAttribute/UnsupportedAccess) otherwise reads as empty.
+                const { path, status } = report;
+                console.log(
+                    `ERROR: ${path.endpointId}/${path.clusterId}/${path.attributeId}: ${Status[status] ?? status}`,
+                );
             }
         }
     }
@@ -72,6 +97,9 @@ export async function readEventsRemote(
         for await (const report of chunk) {
             if (report.kind === "event-value") {
                 values.push(report);
+            } else if (report.kind === "event-status") {
+                const { path, status } = report;
+                console.log(`ERROR: ${path.endpointId}/${path.clusterId}/${path.eventId}: ${Status[status] ?? status}`);
             }
         }
     }

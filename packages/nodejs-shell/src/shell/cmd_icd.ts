@@ -11,6 +11,7 @@ import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
+import { awaitSeeded } from "../util/awaitSeeded.js";
 
 const watchers = new Map<string, ObserverGroup>();
 
@@ -99,8 +100,8 @@ async function connectedIcdNode(theNode: MatterNode, nodeId: NodeId): Promise<Cl
         throw new ImplementationError(`Node ${nodeId} not found / not connected`);
     }
     // Behaviors populate as part of seeding; await it so a not-yet-seeded peer isn't misread as non-ICD.
-    if (!clientNode.lifecycle.isSeeded) {
-        await clientNode.lifecycle.seeded;
+    if (!(await awaitSeeded(clientNode, { quiet: true }))) {
+        throw new ImplementationError(`Node ${nodeId} did not become ready (offline?)`);
     }
     if (!clientNode.behaviors.has(IcdClient)) {
         throw new ImplementationError(`Node ${nodeId} is not an ICD device (no IcdManagement cluster)`);

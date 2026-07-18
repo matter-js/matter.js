@@ -9,7 +9,7 @@ import { ClusterModel, CommandModel, Matter } from "@matter/model";
 import { ValidationError } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
-import { resolveClusterEndpoint } from "../util/ClusterEndpoint.js";
+import { elementKnownUnsupported, resolveClusterEndpoint } from "../util/ClusterEndpoint.js";
 import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllCommandHandlersForCluster(yargs: Argv, theNode: MatterNode) {
@@ -130,7 +130,7 @@ async function executeCommand(
     }
     const { node, endpoint, behaviorType } = resolved;
 
-    if (!endpoint.behaviors.elementsOf(behaviorType).commands.has(commandName)) {
+    if (elementKnownUnsupported(endpoint, behaviorType, "commands", commandName)) {
         console.log(
             `ERROR: Command ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${command.id} not supported.`,
         );

@@ -9,7 +9,12 @@ import { AttributeModel, ClusterModel, Matter } from "@matter/model";
 import { AttributeId, ClusterId, ClusterLookup, EndpointNumber, ValidationError } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
-import { readAttributesRemote, resolveClusterEndpoint, ResolvedClusterEndpoint } from "../util/ClusterEndpoint.js";
+import {
+    elementKnownUnsupported,
+    readAttributesRemote,
+    resolveClusterEndpoint,
+    ResolvedClusterEndpoint,
+} from "../util/ClusterEndpoint.js";
 import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode) {
@@ -147,7 +152,7 @@ function generateClusterAttributeHandlers(yargs: Argv, cluster: ClusterModel, th
                                 const attributeName = attribute.propertyName;
                                 if (
                                     !remote &&
-                                    !endpoint.behaviors.elementsOf(behaviorType).attributes.has(attributeName)
+                                    elementKnownUnsupported(endpoint, behaviorType, "attributes", attributeName)
                                 ) {
                                     continue;
                                 }
@@ -274,7 +279,7 @@ function generateAttributeReadHandler(
             }
             const { node, endpoint, behaviorType } = resolved;
 
-            if (!remote && !endpoint.behaviors.elementsOf(behaviorType).attributes.has(attributeName)) {
+            if (!remote && elementKnownUnsupported(endpoint, behaviorType, "attributes", attributeName)) {
                 console.log(
                     `ERROR: Attribute ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
                 );
@@ -348,7 +353,7 @@ function generateAttributeWriteHandler(
             }
             const { node, endpoint, behaviorType } = resolved;
 
-            if (!force && !endpoint.behaviors.elementsOf(behaviorType).attributes.has(attributeName)) {
+            if (!force && elementKnownUnsupported(endpoint, behaviorType, "attributes", attributeName)) {
                 console.log(
                     `ERROR: Attribute ${node.peerAddress?.nodeId}/${endpointId}/${clusterId}/${attribute.id} not supported by the device.`,
                 );
