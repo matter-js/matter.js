@@ -149,7 +149,7 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(revertId).equals(`revert:${FAILING_ID}`);
 
-        // revertOf must be in the revert's first persisted record (set at creation), not patched in later.
+        // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
         const revertOf = await controller.act(
             agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${FAILING_ID}`]?.revertOf,
         );
@@ -181,7 +181,7 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(handle?.id).equals(`revert:${TASK_ID}`);
 
-        // revertOf must be in the revert's first persisted record (set at creation), not patched in later.
+        // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
         const revertOf = await controller.act(
             agent => agent.get(TaskManagerBehavior).state.tasks[`revert:${TASK_ID}`]?.revertOf,
         );
