@@ -86,7 +86,10 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
-    #establishmentUnresponsive = Observable<[]>();
+    // Emitted from the MRP retransmission path; swallow observer throws so a bad listener can't break CASE establishment.
+    #establishmentUnresponsive = Observable<[]>(error =>
+        logger.warn("Unhandled error in establishmentUnresponsive observer:", error),
+    );
     #addressMonitor?: PeerAddressMonitor;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {

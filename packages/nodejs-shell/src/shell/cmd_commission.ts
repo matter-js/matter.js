@@ -178,7 +178,19 @@ export default function commands(theNode: MatterNode) {
                                         },
                                     };
 
-                                    console.log(Diagnostic.json(commissioningOptions));
+                                    // Redact secrets from the debug dump (CodeQL: clear-text logging of sensitive info).
+                                    console.log(
+                                        Diagnostic.json({
+                                            ...commissioningOptions,
+                                            passcode: "<redacted>",
+                                            ...(commissioningOptions.wifiNetwork && {
+                                                wifiNetwork: {
+                                                    ...commissioningOptions.wifiNetwork,
+                                                    wifiCredentials: "<redacted>",
+                                                },
+                                            }),
+                                        }),
+                                    );
 
                                     await theNode.certificateService();
 
