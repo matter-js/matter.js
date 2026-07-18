@@ -101,6 +101,28 @@ To act as an OTA provider, add an `OtaProviderEndpoint` (`import { OtaProviderEn
 "@matter/node/endpoints/ota-provider"`); it pulls in `SoftwareUpdateManager` (query/check/download/apply
 updates) and `DclBehavior` (DCL services). This is a new controller capability rather than a legacy mapping.
 
+### Fabric label (and propagating it to peers) — interim recipe
+
+`controller.updateFabricLabel(label)` did two things: set the local admin fabric label **and** push the new
+label to every already-commissioned peer (`AdministratorCommissioning`/`OperationalCredentials` update per
+node). The new `fabric.setLabel(label)` only does the local half; the automatic per-peer fan-out is slated for
+a node-management layer that does not exist yet. Until it does, propagate it yourself:
+
+```ts
+import { OperationalCredentialsClient } from "@matter/node";
+
+await fabric.setLabel(label);                       // local fabric label
+for (const peer of serverNode.peers.commissioned) { // push to connected peers
+    if (!peer.lifecycle.isConnected) continue;       // skip offline; re-run on reconnect if you need them updated
+    await peer.act(agent => agent.get(OperationalCredentialsClient).updateFabricLabel({ label }));
+}
+```
+
+`UpdateFabricLabel` carries only `{ label }` — it targets the fabric of the accessing session, i.e. the
+controller's own fabric on that peer, so there is no fabric index to pass (and none to hardcode). Keep this
+small loop in your own code (guarding offline peers, optionally retrying on `connectionStateChanged` →
+`Connected`) until the node-management layer subsumes it.
+
 ---
 
 ## Discovering commissionable devices
@@ -135,6 +157,13 @@ const results = await discovery;      // ClientNode[] once the timeout elapses (
 Each discovered node is a `ClientNode`; its `state.commissioning` holds the identifier, `addresses` and
 `deviceName`. Without a `timeout` the awaited result is always empty — rely on the `discovered` event and
 `discovery.stop()`. For a single result use `serverNode.peers.locate(options)`.
+
+The full mDNS commissioning record (the legacy `discoverCommissionableDevices` fields) is the `DiscoveryData`
+type (`@matter/protocol`): `RI` (rotating id), `PH` (pairing hint), `PI` (pairing instructions), `T` (TCP
+support), `SII`/`SAI` (session idle/active intervals), plus `VP`/`DT`/`DN`/`CM`. It rides on the discovered
+node's commissioning record, and for an already-commissioned peer it is on `peer.descriptor.discoveryData`
+(`serverNode.env.get(PeerSet).for(peerAddress).descriptor`). So a rich discovery/descriptor response has no
+gap versus the legacy record.
 
 ---
 
@@ -225,6 +254,12 @@ Notes: a newly-commissioned node performs a one-time state read on start regardl
 (unless `autoStateInitialize` is false). With `autoSubscribe: false` the node holds no sustained
 subscription, so there is no persistent liveness signal. Read current status via `NetworkClient`
 (`subscriptionActive` / `subscriptionAlive`).
+
+Legacy `currentSubscriptionIntervalSeconds` (the *negotiated* interval, vs the requested `defaultSubscription`)
+is `ClientSubscription.maxInterval` on the active subscription, held in `NetworkClient` internal state. It is
+not surfaced publicly today — if a consumer needs to display it, add a one-line getter on a `NetworkClient`
+subclass (`get negotiatedMaxInterval() { … activeSubscription instanceof SustainedSubscription ? .maxInterval : undefined }`).
+Low effort, not a blocker.
 
 ---
 
