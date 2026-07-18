@@ -581,7 +581,7 @@ describe("MessageReceptionState", () => {
                 );
                 state.updateMessageCounter(0x1234);
                 expect(updateCalled).equal(true);
-                assertMessageWindowUpdate(prototype, state, 0x1235, 0b11111111111111111111111111111111, false, 1);
+                assertMessageWindowUpdate(prototype, state, 0x1235, 0b1, false, 1);
             });
 
             it("correct difference gets calculated and state gets updated after being initialized", () => {
@@ -786,6 +786,17 @@ describe("MessageReceptionState", () => {
                 assertMessageWindowUpdate(prototype, state, 94, 0b100000, false, -6);
                 assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
                 assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
+            });
+
+            it("accepts an in-window sub-max counter delivered right after the first counter", () => {
+                // Reproduces issue #4095: a StandaloneAck (af) arrives before the earlier-numbered
+                // PbkdfParamResponse (af-1). With an empty starting window the response is new, not a duplicate.
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                const af = 0x0e8288af;
+
+                state.updateMessageCounter(af); // first observed counter anchors max
+                expect(() => state.updateMessageCounter(af - 1)).not.throws(); // reordered response accepted
+                expect(() => state.updateMessageCounter(af - 1)).throws(DuplicateMessageError); // genuine replay rejected
             });
         });
     });

@@ -6,7 +6,7 @@
 
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { OtaUpdateStatus, SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
-import { BasicInformationServer } from "#behaviors/basic-information";
+import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import {
     OtaSoftwareUpdateRequestorClient,
@@ -14,10 +14,11 @@ import {
 } from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, Hours, MockFetch, Timestamp } from "@matter/general";
+import { Bytes, createPromise, Hours, MockFetch, Seconds, Timestamp } from "@matter/general";
 import {
     BdxProtocol,
     BdxSession,
+    ClientSubscriptions,
     FabricAuthority,
     PeerAddress,
     SessionManager,
@@ -27,6 +28,7 @@ import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { MockSite } from "../../node/mock-site.js";
+import { subscribedPeer } from "../../node/node-helpers.js";
 import {
     addTestOtaImage,
     initOtaSite,
@@ -190,6 +192,359 @@ describe("Ota", () => {
 
         await site[Symbol.asyncDispose]();
     }).timeout(10_000); // locally needs 1s, but CI might be slower
+
+    it("OTA reboot: closes older sessions and does not re-subscribe a device that feeds its subscription", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const {
+            queryImagePromise,
+            applyUpdateRequestPromise,
+            checkUpdateAvailablePromise,
+            notifyUpdateAppliedPromise,
+            TestOtaProviderServer,
+        } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // Spy on the collaborators the armer drives. No restore is needed: each initOtaSite test gets its
+        // own Environment, so these patches die with the site (same rationale as the BDX test below).
+        const shutdownCalls = new Array<{ address: PeerAddress; asOf?: Timestamp }>();
+        const closeForPeerCalls = new Array<PeerAddress>();
+        // A device-pushed (non-initiator) session for this peer is the reboot return the armer keys on; capturing
+        // its createdAt lets us prove the armer's Mechanism A fired (it passes session.createdAt), distinct from the
+        // Peers.#onStartUp reboot path that also calls handlePeerShutdown.
+        const rebootSessionCreatedAts = new Array<Timestamp>();
+        await otaProvider.act(agent => {
+            const sessionManager = agent.env.get(SessionManager);
+            const subscriptions = agent.env.get(ClientSubscriptions);
+            const originalShutdown = sessionManager.handlePeerShutdown.bind(sessionManager);
+            sessionManager.handlePeerShutdown = (address, asOf) => {
+                shutdownCalls.push({ address, asOf });
+                return originalShutdown(address, asOf);
+            };
+            const originalCloseForPeer = subscriptions.closeForPeer.bind(subscriptions);
+            subscriptions.closeForPeer = address => {
+                closeForPeerCalls.push(address);
+                return originalCloseForPeer(address);
+            };
+            sessionManager.sessions.added.on(session => {
+                if (!session.isInitiator && PeerAddress.is(session.peerAddress, peerAddress)) {
+                    rebootSessionCreatedAts.push(session.createdAt);
+                }
+            });
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+
+        await MockTime.resolve(announceOtaProviderPromise);
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+
+        // The armer specifically must have been armed for this peer at Applying — this disambiguates
+        // the shutdownCalls assertion below from the general Peers.#onStartUp reboot path, which also
+        // calls handlePeerShutdown independently of OTA.
+        const armerDefinedAfterApplying = await otaProvider.act(
+            agent => agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer !== undefined,
+        );
+        expect(armerDefinedAfterApplying).equals(true);
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate reboot with the new version — CASE resumes quickly, but the pre-reboot subscription was
+        // deleted server-side by the restart, and this harness's client subscription only notices that on its
+        // own ~1m47s liveness timeout (far outside the 30s grace). A persistent device that keeps feeding its
+        // subscription would refresh lastReportStartedAtFor well before that; simulate that here rather than
+        // waiting out the real timeout, so the test verifies the armer's grace-window decision deterministically.
+        await MockTime.resolve(device.stop());
+        await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(notifyUpdateAppliedPromise);
+
+        // Model a persistent, fed device and record every grace-window query. lastReportStartedAtFor is queried
+        // nowhere but the armer's #onGraceExpired, so a recorded query proves the grace path ran end-to-end.
+        const lastReportQueries = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            const subscriptions = agent.env.get(ClientSubscriptions);
+            subscriptions.lastReportStartedAtFor = address => {
+                if (PeerAddress.is(address, peerAddress)) {
+                    lastReportQueries.push(address);
+                    return Timestamp(MockTime.nowMs);
+                }
+                return undefined;
+            };
+        });
+
+        // Let the grace window elapse.
+        await MockTime.advance(Seconds(30));
+        await MockTime.macrotasks;
+
+        // The armer's grace-expiry path ran for the returning peer and reached its keep/re-subscribe decision.
+        // This is the anti-vacuous anchor: a no-op #onSessionAdded never arms the grace timer, so #onGraceExpired
+        // never runs and this stays empty — the whole test then fails rather than passing on the Peers.#onStartUp
+        // contribution alone.
+        expect(lastReportQueries.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+
+        // Mechanism A ran for the returning peer with the reboot session's createdAt (the armer's asOf), not merely
+        // the general Peers.#onStartUp shutdown.
+        expect(rebootSessionCreatedAts.length).greaterThan(0);
+        expect(
+            shutdownCalls.some(
+                c =>
+                    PeerAddress.is(c.address, peerAddress) &&
+                    c.asOf !== undefined &&
+                    rebootSessionCreatedAts.includes(c.asOf),
+            ),
+        ).equals(true);
+
+        // …and because the subscription was fed, the armer chose KEEP: no force re-subscribe.
+        expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("OTA reboot: force re-subscribes (Mechanism B) when the subscription is not fed within the grace window", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const {
+            queryImagePromise,
+            applyUpdateRequestPromise,
+            checkUpdateAvailablePromise,
+            notifyUpdateAppliedPromise,
+            TestOtaProviderServer,
+        } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // Complement of the sibling "does not re-subscribe" test: spy on the real closeForPeer while
+        // deliberately NOT patching lastReportStartedAtFor. This harness's ClientSubscriptions only
+        // notices a lost subscription on its own ~1m47s liveness timeout, far outside the 30s grace,
+        // so lastReportStartedAtFor still reflects the pre-reboot report and the armer's grace-window
+        // check should fire Mechanism B unassisted. No restore is needed: each initOtaSite test gets
+        // its own Environment, so this patch dies with the site.
+        const closeForPeerCalls = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            const subscriptions = agent.env.get(ClientSubscriptions);
+            const originalCloseForPeer = subscriptions.closeForPeer.bind(subscriptions);
+            subscriptions.closeForPeer = address => {
+                closeForPeerCalls.push(address);
+                return originalCloseForPeer(address);
+            };
+        });
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+
+        await MockTime.resolve(announceOtaProviderPromise);
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+
+        const armerDefinedAfterApplying = await otaProvider.act(
+            agent => agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer !== undefined,
+        );
+        expect(armerDefinedAfterApplying).equals(true);
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate reboot with the new version.
+        await MockTime.resolve(device.stop());
+        await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(notifyUpdateAppliedPromise);
+
+        // Nothing must fire before the grace elapses — this rules out a regression that force-re-subscribes
+        // on session-added rather than after the grace window.
+        expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        // Let the grace window elapse without ever refreshing lastReportStartedAtFor.
+        await MockTime.advance(Seconds(31));
+        await MockTime.macrotasks;
+
+        expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("a real inbound subscription report advances ClientSubscriptions.lastReportStartedAtFor", async () => {
+        // Exercises the actual stamp in ClientSubscriptionHandler and its aggregation in
+        // ClientSubscriptions, with no patch of either — the RebootResubscribeArmer's grace-window
+        // decision depends entirely on this real path staying correct.
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        // subscribedPeer waits for the sustained subscription to be genuinely active; without that wait, a
+        // state change made immediately after commissioning can race the initial bootstrap read and land via
+        // that read's response rather than a real subscription report.
+        const peer1 = await subscribedPeer(controller, "peer1");
+        // #peers is keyed by the interned PeerAddress instance (reference equality); state.commissioning.peerAddress
+        // is not itself interned, so it must be normalized before use as a lookup key here — same as production
+        // callers (e.g. SoftwareUpdateManager.forceUpdate) do via PeerAddress(peerAddress).
+        const peerAddress = PeerAddress(peer1.state.commissioning.peerAddress!);
+
+        const subscriptions = await otaProvider.act(agent => agent.env.get(ClientSubscriptions));
+
+        // Only device-pushed reports flow through ClientSubscriptionHandler (which does the stamp); the initial
+        // priming report comes back inline in the subscribe exchange and never touches that path. So we drive TWO
+        // successive device-pushed reports and assert the stamp strictly advances between them — a stamp written at
+        // the wrong time or held constant would fail even though a single report leaves it merely defined.
+        const firstReport = new Promise<void>(resolve => {
+            peer1.eventsOf(BasicInformationClient).softwareVersion$Changed.once(() => resolve());
+        });
+        await device.setStateOf(BasicInformationServer, { softwareVersion: 99 });
+        await MockTime.resolve(firstReport);
+        const afterFirst = subscriptions.lastReportStartedAtFor(peerAddress);
+        expect(afterFirst).not.undefined;
+
+        // Advance so the second report is stamped at a strictly later time than the first.
+        await MockTime.advance(Seconds(5));
+
+        const secondReport = new Promise<void>(resolve => {
+            peer1.eventsOf(BasicInformationClient).softwareVersion$Changed.once(() => resolve());
+        });
+        await device.setStateOf(BasicInformationServer, { softwareVersion: 100 });
+        await MockTime.resolve(secondReport);
+        const afterSecond = subscriptions.lastReportStartedAtFor(peerAddress);
+        expect(afterSecond).not.undefined;
+
+        expect(afterSecond!).greaterThan(afterFirst!);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("OTA reboot: the failed-apply detection path does not disarm the peer", async () => {
+        // The armer refreshes the subscription only when the returning device opens a device-initiated session; in
+        // this harness that session appears via notifyUpdateApplied, which a FAILED apply never sends (the device
+        // instead schedules a much-later retry query). So the observable proof here is the invariant the fix relies
+        // on: the failed-apply detection path must NOT disarm the peer, so a retry-query session arriving within the
+        // return-timeout window still finds the armer live and re-subscribes fast instead of falling back to the full
+        // liveness timeout. (A return slower than that window is recovered by the armer's own return-timeout backstop
+        // — a separate path exercised in RebootResubscribeArmerTest.) The sibling Mechanism-B test covers the
+        // closeForPeer behaviour once such a session exists.
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const { queryImagePromise, applyUpdateRequestPromise, checkUpdateAvailablePromise, TestOtaProviderServer } =
+            InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        const updateFailedEvents = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => {
+                updateFailedEvents.push(peer);
+            });
+        });
+
+        // Drive the update through to Applying, which arms the armer for this peer.
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion),
+        );
+        await MockTime.resolve(announceOtaProviderPromise);
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+
+        // Armed at Applying. Spy on disarm so we can assert the failed-apply path leaves the arming in place. No
+        // restore is needed: each initOtaSite test gets its own Environment, so the patch dies with the site.
+        const disarmCalls = new Array<PeerAddress>();
+        await otaProvider.act(agent => {
+            const armer = agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer;
+            expect(armer).not.undefined;
+            const originalDisarm = armer!.disarm.bind(armer);
+            armer!.disarm = address => {
+                disarmCalls.push(address);
+                return originalDisarm(address);
+            };
+        });
+
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate a FAILED apply: the device reboots reporting the OLD (unchanged) softwareVersion. startUp fires
+        // with the old version while the entry is still in Applying → apply-failure detection.
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        expect(subscription).not.undefined;
+        SustainedSubscription.assert(subscription);
+
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(subscription.inactive);
+
+        // While the device is down, the return-timeout backstop (#onReturnTimeout) elapses and recovers the peer
+        // (disarm + re-subscribe) — a separate path from the failed-apply detection this test guards, and one that
+        // cannot be confused with it because detection only runs once the device is back up. Wait for it here, then
+        // discard its disarm so the assertion below sees only disarm calls that could originate from the detection
+        // code. (This backstop is covered directly in RebootResubscribeArmerTest.)
+        while (!disarmCalls.some(a => PeerAddress.is(a, peerAddress))) {
+            await MockTime.advance(Seconds(10));
+        }
+        disarmCalls.length = 0;
+
+        // Keep the original softwareVersion (do NOT set it to targetSoftwareVersion).
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(subscription.active);
+        await MockTime.macrotasks;
+
+        // Failure detection still fires…
+        expect(updateFailedEvents.some(a => PeerAddress.is(a, peerAddress))).equals(true);
+        // …and — the invariant this test guards — the failed-apply path did NOT disarm the peer. Re-adding a
+        // disarm() to that branch would make this fail.
+        expect(disarmCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
 
     it("Cancel a software update before download by removing consent", async () => {
         // *** COMMISSIONING ***

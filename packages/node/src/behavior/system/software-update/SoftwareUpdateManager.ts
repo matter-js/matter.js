@@ -35,6 +35,7 @@ import {
 import type { Session } from "@matter/protocol";
 import {
     BdxProtocol,
+    ClientSubscriptions,
     DclOtaUpdateService,
     FabricAuthority,
     FileDesignator,
@@ -43,6 +44,7 @@ import {
     OtaUpdateSource,
     PeerAddress,
     PeerAddressMap,
+    RebootResubscribeArmer,
     SessionManager,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
@@ -234,6 +236,16 @@ export class SoftwareUpdateManager extends Behavior {
 
     get storage() {
         return this.internal.otaService.storage;
+    }
+
+    get #rebootResubscribeArmer() {
+        if (this.internal.rebootResubscribeArmer === undefined) {
+            this.internal.rebootResubscribeArmer = new RebootResubscribeArmer(
+                this.env.get(SessionManager),
+                this.env.get(ClientSubscriptions),
+            );
+        }
+        return this.internal.rebootResubscribeArmer;
     }
 
     /**
@@ -957,6 +969,9 @@ export class SoftwareUpdateManager extends Behavior {
             return;
         }
         this.internal.updateQueue.splice(entryIndex, 1);
+        // Disarm only on an actual cancel — a too-late (already Applying/Done) cancel returns above and must keep
+        // the peer armed so the imminent reboot still gets fast re-subscription.
+        this.internal.rebootResubscribeArmer?.disarm(peerAddress);
         // Clean up any pending startUp suppression for this peer — it will never arrive if the peer
         // is permanently removed from tracking (decommissioned / disconnected).
         this.internal.pendingStartUpSuppress.delete(peerAddress);
@@ -1063,6 +1078,11 @@ export class SoftwareUpdateManager extends Behavior {
      * messages, and triggers the necessary events.
      */
     onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number) {
+        if (this.internal.closed) {
+            // A post-dispose Applying would otherwise re-arm the already-disposed armer whose observers are
+            // closed, leaving an entry that never gets a grace timer nor self-cleans.
+            return;
+        }
         peerAddress = PeerAddress(peerAddress);
         const entryIndex = this.internal.updateQueue.findIndex(
             e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
@@ -1097,6 +1117,7 @@ export class SoftwareUpdateManager extends Behavior {
             // BDX transport interruption: reset the entry so it can be retried.
             // The intentional cancel path (#cancelUpdate) handles removal and updateFailed independently.
             logger.info(`OTA update BDX cancelled for node ${peerAddress.toString()}, resetting for retry`);
+            this.internal.rebootResubscribeArmer?.disarm(peerAddress);
             entry.lastProgressUpdateTime = undefined;
             entry.lastProgressStatus = OtaUpdateStatus.Unknown;
             this.#triggerQueuedUpdate();
@@ -1108,6 +1129,14 @@ export class SoftwareUpdateManager extends Behavior {
             );
             entry.lastProgressUpdateTime = Time.nowMs;
             entry.lastProgressStatus = status;
+
+            // Once the device asked for (and we allowed) the final apply, it will reboot and return — arm fast
+            // re-subscription so a non-persistent device is refreshed within the grace window rather than after the
+            // full subscription timeout. notifyUpdateApplied (Done) must NOT disarm this — the subscription may
+            // still be stale then; the armer resolves purely on new-session + data-flow.
+            if (status === OtaUpdateStatus.Applying) {
+                this.#rebootResubscribeArmer.arm(peerAddress);
+            }
         }
     }
 
@@ -1117,6 +1146,7 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.updateQueueTimer?.stop();
         await this.internal.announcements?.close();
         this.internal.versionUpdateObservers.close();
+        this.internal.rebootResubscribeArmer?.[Symbol.dispose]();
         await super[Symbol.asyncDispose]?.();
     }
 }
@@ -1163,6 +1193,8 @@ export namespace SoftwareUpdateManager {
          * or cleaned up in #cancelUpdate when the peer is permanently removed from tracking.
          */
         pendingStartUpSuppress = new PeerAddressMap<number>();
+
+        rebootResubscribeArmer?: RebootResubscribeArmer;
 
         closed = false;
     }

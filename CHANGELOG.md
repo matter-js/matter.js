@@ -17,19 +17,35 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added `NodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read at least once
     - Change: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: Optimize Cluster data updates when structures change for ClientNodes
+
+- @project-chip/matter.js
+    - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is deprecated and will be removed in 0.19; migrate to @matter/node
+
+## 0.17.6 (2026-07-16)
+
+- @matter/general
+    - Fix: `Observable.detachObservers()` now disarms the source observable (including active async iteration) and `attachObservers()` preserves once-semantics of the transferred observers
+    - Fix: Async iteration over an `Observable` now delivers emitted values (previously it ended immediately) and terminates cleanly on dispose instead of spinning
+
+- @matter/node
+    - Enhancement: After an approved OTA update, the controller re-subscribes to a rebooted device that does not persist subscriptions within ~30s instead of waiting out the previous subscription's timeout
     - Fix: Attributes added when a peer cluster gains features at runtime are now readable
+    - Fix: Event listeners now survive a behavior drop/re-inject cycle (observer transplant was silently dropping them) and the rebuilt events surface is correctly wired for event reporting
+
+- @matter/nodejs-ble
+    - Fix: Update noble dependency to fix some DBUS related issues
 
 - @matter/protocol
+    - Fix: Peer session selection now prefers the session the peer was last heard from and skips peer-lost sessions, so a dead session still retransmitting no longer outranks a freshly established one
     - Fix: `BleScanner.close()` no longer orphans a timeout-less continuous discovery, which previously blocked shutdown when a BLE commission was in flight
+    - Fix: Do not drop reordered unsecured/PASE messages with a counter just below the first one seen as duplicates
 
 - @matter/thread-br-client
     - Fix: Use the correct MeshCoP commissioner keep-alive URI (`c/ca`) and resign the session with a rejecting keep-alive instead of a nonexistent `c/cr` release URI that Border Routers answered with 4.04
 
 - @matter/types
     - Fix: `ObjectSchema.injectField`/`removeField` no longer crash on fabric-scoped commands that omit an optional nested struct field
-
-- @project-chip/matter.js
-    - Deprecation: The legacy controller/device API (CommissioningController, PairedNode, Device/Endpoint/Aggregator, cluster clients) is deprecated and will be removed in 0.19; migrate to @matter/node
 
 ## 0.17.5 (2026-07-13)
 
