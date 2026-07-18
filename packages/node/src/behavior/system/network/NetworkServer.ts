@@ -169,8 +169,16 @@ export namespace NetworkServer {
         transportPreference?: "tcp" | "udp";
 
         /**
-         * When false, the node does not auto-start (connect) commissioned peers when it goes online; peers must be
-         * started explicitly.  Defaults to true.
+         * Controller-level connection policy for commissioned peers.
+         *
+         * When true (default), the node auto-connects every commissioned, non-disabled peer as it goes online — the
+         * right choice for a headless controller or bridge that wants all peers live.
+         *
+         * When false, no peer is connected on online and the consumer starts peers on demand (`ClientNode.start()` /
+         * `ClientNode.enable()`).  Use this for interactive or debug controllers that manage connections themselves
+         * (e.g. the nodejs shell).  This is orthogonal to per-node `ClientNode.disable()`: this flag is a controller
+         * policy that leaves peers enabled, whereas disabling a peer is a persisted per-node "this node is off" state
+         * (a seasonal device, say) that the bulk connect skips regardless of this flag.
          */
         autoStartCommissionedPeers = true;
 

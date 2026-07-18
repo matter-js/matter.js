@@ -239,8 +239,14 @@ Per-node enable/disable is on `ClientNode`:
 | — (read) | `clientNode.state.network.isDisabled` |
 
 `disable()` sets the persisted `network.isDisabled` flag, so a node stays disabled across controller
-restarts. For a transient disconnect that keeps the node enabled for on-demand reconnect, use
+restarts. This is the "this node is intentionally off" state — a seasonal device (a christmas-light plug, a
+pool-pump socket) you want the controller to leave alone, and the bulk connect to skip, until you
+`enable()` it again. For a transient disconnect that keeps the node enabled for on-demand reconnect, use
 `clientNode.stop()` instead — it drops the connection without persisting a disabled flag.
+
+Two independent knobs, don't conflate them: per-node `disable()`/`enable()` is device *state* (seasonal
+off, persisted); `NetworkServer.autoStartCommissionedPeers` (below) is a controller *policy* (do I
+auto-connect at all) that leaves every node enabled.
 
 **Bulk "connect all nodes" is no longer a manual loop.** When the controller `ServerNode` comes online,
 its `Peers` container automatically starts every commissioned peer that is not disabled — disabled peers
