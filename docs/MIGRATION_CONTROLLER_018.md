@@ -266,6 +266,11 @@ off via a callback to complete the flow elsewhere. On the new API:
   The device's failsafe is armed from hand-off until `completeCommissioning` succeeds — finalize promptly, or
   the device reverts and the freshly issued NOC is discarded.
 
+  `commission()` still sets `peerAddress`/`commissionedAt` on `serverNode`'s local node even with
+  `finalizeCommissioning` set, so after handing off, `serverNode` is left believing it commissioned a node it
+  never finished — discard that local node (`node.delete()`) once `completingController` has taken over; treat
+  `completingController` as the source of truth for the peer going forward.
+
 ---
 
 ## Subscriptions & reconnection are automatic now

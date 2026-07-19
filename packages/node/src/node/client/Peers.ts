@@ -209,7 +209,19 @@ export class Peers extends EndpointContainer<ClientNode> {
         // rotateNoc=false: finalize over the fabric exactly as the initiating commissioner established it.
         const fabric = await this.owner.env.get(FabricAuthority).defaultFabric(config, false);
 
-        const node = await this.forAddress(fabric.addressOf(nodeId));
+        const address = fabric.addressOf(nodeId);
+
+        // forAddress() below returns the existing node for an already-commissioned address rather than creating one,
+        // and the catch block deletes that node on any failure (including a non-throwing CommissioningComplete
+        // errorCode). Without this guard a second completeCommissioning() call for the same peer — e.g. a duplicate
+        // hand-off or a retry — would resolve to the live peer and could delete it. Must check before forAddress()
+        // since that call sets peerAddress, which flips lifecycle.isCommissioned true immediately.
+        const existing = this.get(address);
+        if (existing?.lifecycle.isCommissioned) {
+            throw new ImplementationError(`${existing} is already commissioned`);
+        }
+
+        const node = await this.forAddress(address);
 
         // Serialize like commission() so parallel finalize attempts on the same node cannot both send
         // CommissioningComplete (the loser races on device failsafe state and would delete the winner's node).
