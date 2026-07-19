@@ -74,6 +74,16 @@ describe("Failsafe commissioning re-announcement", () => {
      */
     class CommissioningAdSpy extends Advertiser {
         count = 0;
+        #announced?: () => void;
+
+        // Resolves on the next commissioning advertisement after arm(). The re-announce is an async reaction to
+        // sessions.deleted, so tests must await this rather than a proxy signal (failsafe destroyed) that races it.
+        announced = Promise.resolve();
+
+        arm() {
+            this.count = 0;
+            this.announced = new Promise<void>(resolve => (this.#announced = resolve));
+        }
 
         protected getAdvertisement(_description: ServiceDescription) {
             return undefined;
@@ -82,6 +92,7 @@ describe("Failsafe commissioning re-announcement", () => {
         override advertise(description: ServiceDescription, _event: Advertiser.BroadcastEvent) {
             if (ServiceDescription.isCommissioning(description)) {
                 this.count++;
+                this.#announced?.();
             }
             return undefined;
         }
@@ -148,7 +159,7 @@ describe("Failsafe commissioning re-announcement", () => {
             const failsafeGone = waitForFailsafeDestroyed(commissioner);
 
             // Reset spy counter: we only care about advertisements triggered by the failsafe expiry.
-            adSpy.count = 0;
+            adSpy.arm();
 
             // Advance mock time step-by-step until the failsafe fires and rollback() completes.
             //
@@ -159,7 +170,11 @@ describe("Failsafe commissioning re-announcement", () => {
             // When the failsafe expires, rollback():
             //   1. No addNOC → fabricIndex is undefined → fabric step skipped.
             //   2. closePaseSession() → sessions.deleted (isPase=true) → DeviceAdvertiser re-announces ✓.
-            await MockTime.resolve(failsafeGone, { macrotasks: true });
+            //
+            // Await the advertisement itself (not just failsafeGone): the re-announce is an async reaction to
+            // sessions.deleted that can settle after the failsafe-destroyed signal, so asserting count on
+            // failsafeGone alone races.
+            await MockTime.resolve(Promise.all([failsafeGone, adSpy.announced]), { macrotasks: true });
 
             disableEntropy();
 
@@ -259,11 +274,12 @@ describe("Failsafe commissioning re-announcement", () => {
             const failsafeGone = waitForFailsafeDestroyed(commissioner);
 
             // Reset spy counter: we only want to count announcements triggered by the failsafe expiry.
-            adSpy.count = 0;
+            adSpy.arm();
 
             // Advance mock time step-by-step until the failsafe fires and rollback() completes.
-            // See scenario 1 comment above for why we use MockTime.resolve() rather than a single advance().
-            await MockTime.resolve(failsafeGone, { macrotasks: true });
+            // See scenario 1 comment above for why we use MockTime.resolve() rather than a single advance(),
+            // and why we await the advertisement itself alongside failsafeGone rather than failsafeGone alone.
+            await MockTime.resolve(Promise.all([failsafeGone, adSpy.announced]), { macrotasks: true });
 
             disableEntropy();
 
@@ -303,12 +319,18 @@ describe("Failsafe commissioning re-announcement", () => {
 
             const adSpy = new CommissioningAdSpy();
             device.env.get(DeviceAdvertiser).addAdvertiser(adSpy);
+            adSpy.arm();
 
+            // Await the recovery re-announcement alongside the (rejected) commission so the count assertion below
+            // does not race the async advertise triggered during rollback.
             let caughtError: unknown;
             await MockTime.resolve(
-                controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }).catch(err => {
-                    caughtError = err;
-                }),
+                Promise.all([
+                    controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }).catch(err => {
+                        caughtError = err;
+                    }),
+                    adSpy.announced,
+                ]),
                 { macrotasks: true },
             );
 
