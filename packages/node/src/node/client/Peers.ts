@@ -19,7 +19,6 @@ import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
-import { GeneralCommissioningClient } from "#behaviors/general-commissioning";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -46,18 +45,20 @@ import {
     UninitializedDependencyError,
 } from "@matter/general";
 import {
+    ClientInteraction,
     ClientSubscriptionHandler,
     ClientSubscriptions,
     CommissioningError,
     DiscoveryData,
     FabricAuthority,
     FabricManager,
+    Invoke,
     Peer,
     PeerAddress,
     PeerLeftError,
     SessionManager,
 } from "@matter/protocol";
-import { FabricIndex, NodeId } from "@matter/types";
+import { FabricIndex, NodeId, Status } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
@@ -237,13 +238,41 @@ export class Peers extends EndpointContainer<ClientNode> {
 
                 await node.start();
 
-                node.behaviors.require(GeneralCommissioningClient);
-                const { errorCode, debugText } = await node.act(agent =>
-                    agent.get(GeneralCommissioningClient).commissioningComplete(),
-                );
-                if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+                // Low-level invoke so the finalize round-trip gets the extended failsafe response timeout, exactly as
+                // ControllerCommissioningFlow does; the generated command method cannot pass invoke options.
+                const invoke = Invoke({
+                    commands: [
+                        Invoke.ConcreteCommandRequest({
+                            endpoint: node,
+                            cluster: GeneralCommissioning,
+                            command: "commissioningComplete",
+                            fields: undefined,
+                        }),
+                    ],
+                    useExtendedFailSafeMessageResponseTimeout: true,
+                });
+
+                let response: GeneralCommissioning.CommissioningCompleteResponse | undefined;
+                for await (const chunk of (node.interaction as ClientInteraction).invoke(invoke)) {
+                    for (const entry of chunk) {
+                        if (entry.kind === "cmd-status" && entry.status !== Status.Success) {
+                            throw new CommissioningError(
+                                `CommissioningComplete failed for ${nodeId}: status ${entry.status}`,
+                            );
+                        }
+                        if (entry.kind === "cmd-response") {
+                            // DecodedCommandResponse.data is `any`; CommissioningComplete answers with errorCode/debugText.
+                            response = entry.data as GeneralCommissioning.CommissioningCompleteResponse;
+                        }
+                    }
+                }
+
+                if (response === undefined) {
+                    throw new CommissioningError(`CommissioningComplete for ${nodeId} returned no response`);
+                }
+                if (response.errorCode !== GeneralCommissioning.CommissioningError.Ok) {
                     throw new CommissioningError(
-                        `CommissioningComplete failed for ${nodeId}: ${errorCode} ${debugText}`,
+                        `CommissioningComplete failed for ${nodeId}: ${response.errorCode} ${response.debugText}`,
                     );
                 }
             } catch (error) {
