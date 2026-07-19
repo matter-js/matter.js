@@ -289,4 +289,17 @@ describe("split commissioning", () => {
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
         expect(device.state.commissioning.commissioned).equals(false);
     });
+
+    it("rejects with ImplementationError when the controller does not hold the shared fabric", async () => {
+        await using site = new MockSite();
+
+        // A controller that never imported the shared fabric cannot complete a split commissioning.
+        const controller = await site.addController({ id: "controllerNoFabric", index: 1 });
+        await controller.start();
+
+        await expect(controller.peers.completeCommissioning(NodeId(0xdeadn))).rejectedWith(ImplementationError);
+
+        // Rejected before touching any device: no peer created.
+        expect(controller.peers.size).equals(0);
+    });
 });
