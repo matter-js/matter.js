@@ -140,20 +140,45 @@ describe("split commissioning", () => {
         await using site = new MockSite();
 
         const a = await site.addController({ id: "controllerA", index: 1 });
+        const device = await site.addDevice({ index: 2 });
+
         (a.env.get(Crypto) as MockCrypto).entropic = true;
+        (device.env.get(Crypto) as MockCrypto).entropic = true;
+
         await a.start();
 
-        // forAddress() only checks fabric membership, not that the node was ever discovered, so this address is
-        // accepted but never answers: commissioningComplete() throws (connection/exchange abort) instead of
-        // returning an errorCode.
+        // A commissions up to the hand-off so its fabric exists to share with B:
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(
+            a.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+                finalizeCommissioning: async () => {},
+            }),
+            { macrotasks: true },
+        );
+
+        const b = await addControllerSharingFabric(
+            site,
+            "controllerB",
+            3,
+            a.env.get(CertificateAuthority).config,
+            a.env.get(FabricAuthority).fabrics[0].config,
+        );
+
+        // B holds the shared fabric, so forAddress() accepts the address, but this node was never discovered and never
+        // answers: completeCommissioning() aborts instead of returning an errorCode, and must leave no phantom peer.
         const unreachableNodeId = NodeId(0xdeadn);
 
         await expect(
-            MockTime.resolve(a.peers.completeCommissioning(unreachableNodeId), { macrotasks: true }),
+            MockTime.resolve(b.peers.completeCommissioning(unreachableNodeId), { macrotasks: true }),
         ).rejectedWith(AbortedError);
 
-        expect(a.peers.commissioned).empty;
-        expect(a.peers.size).equals(0);
+        expect(b.peers.commissioned).empty;
+        expect(b.peers.size).equals(0);
     });
 
     it("throws CommissioningError and removes the peer when CommissioningComplete returns a non-Ok errorCode", async () => {

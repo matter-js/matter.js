@@ -8,7 +8,6 @@ import { type ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
@@ -28,6 +27,7 @@ import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
+    Bytes,
     CancelablePromise,
     Diagnostic,
     Duration,
@@ -202,13 +202,16 @@ export class Peers extends EndpointContainer<ClientNode> {
      * `CommissioningComplete` fails.
      */
     async completeCommissioning(nodeId: NodeId, discoveryData?: DiscoveryData): Promise<ClientNode> {
-        const config = await this.owner.act(async agent => {
-            await agent.load(ControllerBehavior);
-            return agent.get(ControllerBehavior).fabricAuthorityConfig;
-        });
-
-        // rotateNoc=false: finalize over the fabric exactly as the initiating commissioner established it.
-        const fabric = await this.owner.env.get(FabricAuthority).defaultFabric(config, false);
+        // Split commissioning can only finalize over THE fabric the initiating commissioner established (the one the
+        // device's NOC belongs to).  Require it to already exist rather than auto-creating an empty fabric, which would
+        // mask a misconfigured controller that can never succeed.  Match by CA root certificate, as FabricAuthority does.
+        const fabricAuthority = await this.owner.env.load(FabricAuthority);
+        const fabric = fabricAuthority.fabrics.find(f => Bytes.areEqual(f.rootCert, fabricAuthority.ca.rootCert));
+        if (fabric === undefined) {
+            throw new ImplementationError(
+                `Cannot complete commissioning for ${nodeId}: the controller does not hold the shared fabric it must be finalized on (import it first)`,
+            );
+        }
 
         const address = fabric.addressOf(nodeId);
 
