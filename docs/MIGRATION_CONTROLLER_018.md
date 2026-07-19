@@ -222,8 +222,49 @@ off via a callback to complete the flow elsewhere. On the new API:
 - **Deciding whether to proceed after PASE** (e.g. a parallel-candidate race where only one PASE winner
   should continue) is `CommissioningClient.CommissioningOptions.continueCommissioningAfterPase?: () => boolean`
   — called immediately after PASE, before the main flow; return `false` to close the PASE session and stop.
-- A true **PASE-establish-here, complete-CASE-in-a-separate-process** handoff has no public convenience; it
-  is a lower-level composition over the protocol commissioning flow rather than a shipped API.
+- **Legacy `PaseCommissioner` (PASE here, complete-CASE elsewhere)** is now: PASE-only commissioning via
+  `finalizeCommissioning`, handing the result off to a controller that shares the same fabric (same CA root +
+  NOC signing key), which finishes with `serverNode.peers.completeCommissioning(nodeId, discoveryData?)`.
+
+  ```ts
+  import { Crypto, Environment } from "@matter/general";
+  import { ControllerBehavior, ServerNode } from "@matter/node";
+  import { CertificateAuthority, DiscoveryData, Fabric, FabricAuthority, FabricManager } from "@matter/protocol";
+  import { NodeId } from "@matter/types";
+
+  // serverNode already owns the fabric (built as in "Controller construction" above) — export the CA + fabric
+  // config so a separate controller can reconstruct the identical fabric:
+  const caConfig = serverNode.env.get(FabricAuthority).ca.config;  // CertificateAuthority.Configuration
+  const fabricConfig = fabric.config;                              // Fabric.SyncConfig (`fabric` from defaultFabric())
+
+  // completingController — pre-seed a fresh environment (inheriting Crypto/Network from Environment.default) with
+  // the same CA *before* creating the node (fabric services are wired up during node construction), then import
+  // the fabric before starting:
+  const completingEnv = new Environment("completingController", Environment.default);
+  completingEnv.set(CertificateAuthority, await CertificateAuthority.create(completingEnv.get(Crypto), caConfig));
+  const completingController = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+      environment: completingEnv,
+      id: "completingController",
+      commissioning: { enabled: false },
+  });
+  completingController.env.get(FabricManager).addFabric(await Fabric.create(completingEnv.get(Crypto), fabricConfig));
+  await completingController.start();
+
+  // serverNode runs PASE-only commissioning and hands off instead of completing CASE itself:
+  let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
+  await serverNode.peers.commission({
+      passcode, discriminator,
+      finalizeCommissioning: async (address, discoveryData) => {
+          handoff = { nodeId: address.nodeId, discoveryData };  // do NOT connect operationally here
+      },
+  });
+
+  // completingController finalizes the handed-off node (operational connect + CommissioningComplete):
+  await completingController.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData);
+  ```
+
+  The device's failsafe is armed from hand-off until `completeCommissioning` succeeds — finalize promptly, or
+  the device reverts and the freshly issued NOC is discarded.
 
 ---
 

@@ -1107,13 +1107,15 @@ export namespace CommissioningClient {
         /**
          * Override the final commissioning step.
          *
-         * When provided, matter.js completes commissioning over PASE and then calls this function instead of performing
-         * the CASE reconnection and "CommissioningComplete" command internally.  The function must connect to the device
-         * operationally and invoke "CommissioningComplete" itself.
+         * The flow runs PASE, arm-failsafe, CSR and AddNOC as usual, then invokes this hook instead of connecting to
+         * the device operationally and sending "CommissioningComplete" itself.
          *
-         * This is used by {@link PaseCommissioner} so that a lightweight commissioner can perform the PASE phase and
-         * then hand off to a full controller to finish commissioning.
-         * TODO: Revisit when we decide how to continue with the PaseCommissioner approach at all
+         * Resolve without connecting to perform **PASE-only** commissioning for a delegated/split flow: the device
+         * now holds a NOC on the fabric with its failsafe still armed. Hand `address.nodeId` and `discoveryData` off
+         * to whichever controller will finish the flow — it must connect operationally and send
+         * "CommissioningComplete" (`serverNode.peers.completeCommissioning(nodeId, discoveryData)`) before the
+         * device's failsafe expires, or the device reverts and the freshly issued NOC is discarded. See
+         * docs/MIGRATION_CONTROLLER_018.md for the full recipe.
          */
         finalizeCommissioning?: (address: ProtocolPeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
 
