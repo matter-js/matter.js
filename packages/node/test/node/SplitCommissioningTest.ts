@@ -206,7 +206,7 @@ describe("split commissioning", () => {
         expect(device.state.commissioning.commissioned).equals(false);
     });
 
-    it("keeps the node commissioned if local persistence fails after CommissioningComplete succeeds", async () => {
+    it("aborts and leaves no node if the fabric cannot be persisted", async () => {
         await using site = new MockSite();
 
         const a = await site.addController({ id: "controllerA", index: 1 });
@@ -241,8 +241,8 @@ describe("split commissioning", () => {
             a.env.get(FabricAuthority).fabrics[0].config,
         );
 
-        // Simulate a local storage failure after the device has already disarmed its failsafe: the device is now
-        // genuinely commissioned, so completeCommissioning must not delete the node even though it rejects.
+        // A node is only valid alongside its fabric: persisting the fabric happens before any node is written and
+        // before the device is contacted, so a persist failure aborts cleanly leaving no node and an armed failsafe.
         const originalPersist = Fabric.prototype.persist;
         Fabric.prototype.persist = function () {
             throw new Error("simulated persistence failure");
@@ -257,7 +257,11 @@ describe("split commissioning", () => {
             Fabric.prototype.persist = originalPersist;
         }
 
-        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(false);
-        expect(b.peers.get(b.env.get(FabricAuthority).fabrics[0].addressOf(handoff!.nodeId))).not.equals(undefined);
+        expect(b.peers.commissioned).empty;
+        expect(b.peers.size).equals(0);
+
+        // The device was never contacted, so its failsafe is still armed and it is not committed.
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
+        expect(device.state.commissioning.commissioned).equals(false);
     });
 });
