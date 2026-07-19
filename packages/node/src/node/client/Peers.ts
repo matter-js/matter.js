@@ -8,6 +8,7 @@ import { type ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
+import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
@@ -18,6 +19,7 @@ import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
+import { GeneralCommissioningClient } from "#behaviors/general-commissioning";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -47,13 +49,16 @@ import {
     ClientSubscriptionHandler,
     ClientSubscriptions,
     CommissioningError,
+    DiscoveryData,
+    FabricAuthority,
     FabricManager,
     Peer,
     PeerAddress,
     PeerLeftError,
     SessionManager,
 } from "@matter/protocol";
-import { FabricIndex } from "@matter/types";
+import { FabricIndex, NodeId } from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
@@ -185,6 +190,49 @@ export class Peers extends EndpointContainer<ClientNode> {
      */
     pase(options: PaseDiscovery.Options) {
         return new PaseDiscovery(this.owner as ServerNode, options);
+    }
+
+    /**
+     * Complete a commissioning another commissioner started and handed off before the operational (CASE) step
+     * (see {@link CommissioningClient.CommissioningOptions.finalizeCommissioning}).  Operationally discovers and
+     * connects the node, sends {@link GeneralCommissioning} `CommissioningComplete` to disarm the failsafe and
+     * finalize, then registers it as a commissioned peer.  `discoveryData` (from the hand-off) seeds operational
+     * discovery.  Throws {@link CommissioningError} and removes the peer entry if `CommissioningComplete` fails.
+     */
+    async completeCommissioning(nodeId: NodeId, discoveryData?: DiscoveryData): Promise<ClientNode> {
+        const config = await this.owner.act(async agent => {
+            await agent.load(ControllerBehavior);
+            return agent.get(ControllerBehavior).fabricAuthorityConfig;
+        });
+
+        // rotateNoc=false: finalize over the fabric exactly as the initiating commissioner established it.
+        const fabric = await this.owner.env.get(FabricAuthority).defaultFabric(config, false);
+
+        const node = await this.forAddress(fabric.addressOf(nodeId));
+        if (discoveryData !== undefined) {
+            await node.act(agent => {
+                agent.get(CommissioningClient).descriptor = discoveryData;
+            });
+        }
+
+        // Serialize like commission() so parallel finalize attempts on the same node cannot both send
+        // CommissioningComplete (the loser races on device failsafe state and would delete the winner's node).
+        return this.runCommissioning(node, async () => {
+            await node.start();
+
+            node.behaviors.require(GeneralCommissioningClient);
+            const { errorCode, debugText } = await node.act(agent =>
+                agent.get(GeneralCommissioningClient).commissioningComplete(),
+            );
+            if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+                await node.delete();
+                throw new CommissioningError(`CommissioningComplete failed for ${nodeId}: ${errorCode} ${debugText}`);
+            }
+
+            await node.setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
+            await fabric.persist();
+            return node;
+        });
     }
 
     /**
