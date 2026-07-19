@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
+import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
 import { AbortedError, Crypto, Entropy, Environment, MockCrypto, Seconds } from "@matter/general";
 import {
     CertificateAuthority,
+    CommissioningError,
     DeviceCommissioner,
     DiscoveryData,
     Fabric,
@@ -15,8 +18,21 @@ import {
     FabricManager,
 } from "@matter/protocol";
 import { NodeId } from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
+
+/** A device whose CommissioningComplete command always answers with a non-Ok errorCode. */
+class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
+    override async commissioningComplete() {
+        return {
+            errorCode: GeneralCommissioning.CommissioningError.ValueOutsideRange,
+            debugText: "mock device rejects CommissioningComplete",
+        };
+    }
+}
+
+const NonOkCommissioningCompleteRoot = MockServerNode.RootEndpoint.with(NonOkCommissioningCompleteServer);
 
 /**
  * Build a controller {@link ServerNode} that shares an existing controller's fabric.
@@ -124,6 +140,56 @@ describe("split commissioning", () => {
 
         expect(a.peers.commissioned).empty;
         expect(a.peers.size).equals(0);
+    });
+
+    it("throws CommissioningError and removes the peer when CommissioningComplete returns a non-Ok errorCode", async () => {
+        await using site = new MockSite();
+
+        const a = await site.addController({ id: "controllerA", index: 1 });
+        const device = await site.addNode(NonOkCommissioningCompleteRoot, { device: OnOffLightDevice, index: 2 });
+
+        (a.env.get(Crypto) as MockCrypto).entropic = true;
+        (device.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await a.start();
+
+        const { passcode, discriminator } = device.state.commissioning;
+        let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
+        await MockTime.resolve(
+            a.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+                finalizeCommissioning: async (address, discoveryData) => {
+                    handoff = { nodeId: address.nodeId, discoveryData };
+                },
+            }),
+            { macrotasks: true },
+        );
+        expect(handoff).not.equals(undefined);
+
+        const b = await addControllerSharingFabric(
+            site,
+            "controllerB",
+            3,
+            a.env.get(CertificateAuthority).config,
+            a.env.get(FabricAuthority).fabrics[0].config,
+        );
+
+        await expect(
+            MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
+                macrotasks: true,
+            }),
+        ).rejectedWith(CommissioningError);
+
+        expect(b.peers.commissioned).empty;
+        expect(b.peers.size).equals(0);
+
+        // The device never actually disarmed: it answered with an error instead of running completeCommission().
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
+        expect(device.state.commissioning.commissioned).equals(false);
     });
 
     it("keeps the node commissioned if local persistence fails after CommissioningComplete succeeds", async () => {
