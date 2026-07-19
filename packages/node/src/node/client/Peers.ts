@@ -222,6 +222,10 @@ export class Peers extends EndpointContainer<ClientNode> {
             throw new ImplementationError(`${existing} is already commissioned`);
         }
 
+        // Both-or-nothing: persist the fabric before forAddress() durably writes the node, so a persist failure aborts
+        // cleanly and never leaves a node referencing an unpersisted fabric.
+        await fabric.persist();
+
         const node = await this.forAddress(address);
 
         // Serialize like commission() so parallel finalize attempts on the same node cannot both send
@@ -290,7 +294,6 @@ export class Peers extends EndpointContainer<ClientNode> {
             }
 
             await node.setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
-            await fabric.persist();
             return node;
         });
     }
