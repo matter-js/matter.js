@@ -197,7 +197,8 @@ export class Peers extends EndpointContainer<ClientNode> {
      * (see {@link CommissioningClient.CommissioningOptions.finalizeCommissioning}).  Operationally discovers and
      * connects the node, sends {@link GeneralCommissioning} `CommissioningComplete` to disarm the failsafe and
      * finalize, then registers it as a commissioned peer.  `discoveryData` (from the hand-off) seeds operational
-     * discovery.  Throws {@link CommissioningError} and removes the peer entry if `CommissioningComplete` fails.
+     * discovery.  Throws {@link CommissioningError} and removes the peer entry if discovery, connection, or
+     * `CommissioningComplete` fails.
      */
     async completeCommissioning(nodeId: NodeId, discoveryData?: DiscoveryData): Promise<ClientNode> {
         const config = await this.owner.act(async agent => {
@@ -209,24 +210,42 @@ export class Peers extends EndpointContainer<ClientNode> {
         const fabric = await this.owner.env.get(FabricAuthority).defaultFabric(config, false);
 
         const node = await this.forAddress(fabric.addressOf(nodeId));
-        if (discoveryData !== undefined) {
-            await node.act(agent => {
-                agent.get(CommissioningClient).descriptor = discoveryData;
-            });
-        }
 
         // Serialize like commission() so parallel finalize attempts on the same node cannot both send
         // CommissioningComplete (the loser races on device failsafe state and would delete the winner's node).
         return this.runCommissioning(node, async () => {
-            await node.start();
+            try {
+                if (discoveryData !== undefined) {
+                    // forAddress() already bound the live Peer (CommissioningClient#bindPeer fires as soon as
+                    // peerAddress is set), snapshotting an empty descriptor.  Seed the Peer directly so operational
+                    // discovery sees it; writing CommissioningClient.descriptor only updates state that nothing
+                    // re-reads.
+                    node.env.get(Peer).descriptor.discoveryData = discoveryData;
+                }
 
-            node.behaviors.require(GeneralCommissioningClient);
-            const { errorCode, debugText } = await node.act(agent =>
-                agent.get(GeneralCommissioningClient).commissioningComplete(),
-            );
-            if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
-                await node.delete();
-                throw new CommissioningError(`CommissioningComplete failed for ${nodeId}: ${errorCode} ${debugText}`);
+                await node.start();
+
+                node.behaviors.require(GeneralCommissioningClient);
+                const { errorCode, debugText } = await node.act(agent =>
+                    agent.get(GeneralCommissioningClient).commissioningComplete(),
+                );
+                if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+                    throw new CommissioningError(
+                        `CommissioningComplete failed for ${nodeId}: ${errorCode} ${debugText}`,
+                    );
+                }
+            } catch (error) {
+                // lifecycle.isCommissioned flips true the moment forAddress() sets peerAddress, before start() or
+                // CommissioningComplete run, so any failure up to this point (thrown or via CommissioningError above)
+                // would otherwise leave a phantom commissioned-looking node behind.  Once CommissioningComplete
+                // returns Ok below, the device has genuinely disarmed its failsafe and joined the fabric, so a
+                // failure persisting that fact locally must NOT delete the node.
+                try {
+                    await node.delete();
+                } catch (deleteError) {
+                    logger.warn(`Error deleting ${node} after failed commissioning completion:`, deleteError);
+                }
+                throw error;
             }
 
             await node.setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
