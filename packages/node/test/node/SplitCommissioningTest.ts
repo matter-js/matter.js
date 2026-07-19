@@ -7,7 +7,7 @@
 import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
-import { AbortedError, Crypto, Entropy, Environment, MockCrypto, Seconds } from "@matter/general";
+import { AbortedError, Crypto, Entropy, Environment, ImplementationError, MockCrypto, Seconds } from "@matter/general";
 import {
     CertificateAuthority,
     CommissioningError,
@@ -120,6 +120,20 @@ describe("split commissioning", () => {
         // Device must NOT have reverted: CommissioningComplete disarmed the failsafe:
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(false);
         expect(device.state.commissioning.commissioned).equals(true);
+
+        // A second completion attempt for the same node (duplicate hand-off, or a caller retrying after some
+        // unrelated error) must not touch the peer we just committed. Without the guard, forAddress() below would
+        // resolve to the already-commissioned live node, the device would answer CommissioningComplete with a
+        // non-Ok NoFailSafe errorCode (its failsafe is disarmed), and the catch block would delete the live peer.
+        await expect(
+            MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
+                macrotasks: true,
+            }),
+        ).rejectedWith(ImplementationError);
+
+        expect(b.peers.get(b.env.get(FabricAuthority).fabrics[0].addressOf(handoff!.nodeId))).equals(node);
+        expect(node.lifecycle.isCommissioned).equals(true);
+        expect(b.peers.commissioned.map(p => p.peerAddress?.nodeId)).contains(handoff!.nodeId);
     });
 
     it("leaves no phantom peer when the node cannot be reached", async () => {
