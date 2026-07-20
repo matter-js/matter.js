@@ -6,7 +6,13 @@
 
 import type { ServerNode } from "#node/ServerNode.js";
 import { EventEmitter, Observable } from "@matter/general";
-import { ExposedFabricInformation, NodeSession, SessionManager, Subscription } from "@matter/protocol";
+import {
+    ExposedFabricInformation,
+    NodeSession,
+    SessionIntervals,
+    SessionManager,
+    Subscription,
+} from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { NodeLifecycle } from "../../../node/NodeLifecycle.js";
 import { Behavior } from "../../Behavior.js";
@@ -106,6 +112,13 @@ export namespace SessionsBehavior {
 
     export class State {
         sessions: Record<number, Session> = {};
+
+        /**
+         * Session intervals this node uses and advertises.  Applied when the node starts; values you omit fall back to
+         * the Matter defaults.  Non-default values are also carried in the operational DNS-SD advertisement
+         * (SII/SAI/SAT).
+         */
+        intervals?: Partial<SessionIntervals>;
     }
 
     export class Events extends EventEmitter {
