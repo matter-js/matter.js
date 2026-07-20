@@ -11,11 +11,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
+
 - @matter/node
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
 
 - @matter/protocol
+    - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
 
 ## 0.17.6 (2026-07-16)
