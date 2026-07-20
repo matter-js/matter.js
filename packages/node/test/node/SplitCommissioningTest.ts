@@ -22,7 +22,6 @@ import { GeneralCommissioning } from "@matter/types/clusters/general-commissioni
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 
-/** A device whose CommissioningComplete command always answers with a non-Ok errorCode. */
 class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
     override async commissioningComplete() {
         return {
@@ -35,9 +34,7 @@ class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
 const NonOkCommissioningCompleteRoot = MockServerNode.RootEndpoint.with(NonOkCommissioningCompleteServer);
 
 /**
- * Build a controller {@link ServerNode} that shares an existing controller's fabric.
- *
- * The certificate authority is reconstructed from the owner's exported config and the fabric is imported directly, so
+ * Reconstruct the CA from the owner's exported config, then import the fabric directly, so
  * {@link FabricAuthority.defaultFabric} resolves the same fabric via the shared CA root certificate.
  */
 async function addControllerSharingFabric(
@@ -79,7 +76,6 @@ describe("split commissioning", () => {
 
         await a.start();
 
-        // A commissions up to operational, then hands off instead of doing CASE:
         const { passcode, discriminator } = device.state.commissioning;
         let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
         await MockTime.resolve(
@@ -96,11 +92,8 @@ describe("split commissioning", () => {
             { macrotasks: true },
         );
         expect(handoff).not.equals(undefined);
-
-        // The device holds an armed failsafe until someone completes commissioning:
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
 
-        // Build B on the same fabric from A's exported CA + fabric config:
         const b = await addControllerSharingFabric(
             site,
             "controllerB",
@@ -109,22 +102,16 @@ describe("split commissioning", () => {
             a.env.get(FabricAuthority).fabrics[0].config,
         );
 
-        // B finalizes over its own operational session:
         const node = await MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
             macrotasks: true,
         });
 
         expect(node.lifecycle.isCommissioned).equals(true);
         expect(b.peers.commissioned.map(p => p.peerAddress?.nodeId)).contains(handoff!.nodeId);
-
-        // Device must NOT have reverted: CommissioningComplete disarmed the failsafe:
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(false);
         expect(device.state.commissioning.commissioned).equals(true);
 
-        // A second completion attempt for the same node (duplicate hand-off, or a caller retrying after some
-        // unrelated error) must not touch the peer we just committed. Without the guard, forAddress() below would
-        // resolve to the already-commissioned live node, the device would answer CommissioningComplete with a
-        // non-Ok NoFailSafe errorCode (its failsafe is disarmed), and the catch block would delete the live peer.
+        // A second completion for an already-committed peer must reject without touching it (see the guard in Peers.completeCommissioning).
         await expect(
             MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
                 macrotasks: true,
@@ -225,8 +212,6 @@ describe("split commissioning", () => {
 
         expect(b.peers.commissioned).empty;
         expect(b.peers.size).equals(0);
-
-        // The device never actually disarmed: it answered with an error instead of running completeCommission().
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
         expect(device.state.commissioning.commissioned).equals(false);
     });
@@ -284,8 +269,6 @@ describe("split commissioning", () => {
 
         expect(b.peers.commissioned).empty;
         expect(b.peers.size).equals(0);
-
-        // The device was never contacted, so its failsafe is still armed and it is not committed.
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
         expect(device.state.commissioning.commissioned).equals(false);
     });
@@ -293,13 +276,10 @@ describe("split commissioning", () => {
     it("rejects with ImplementationError when the controller does not hold the shared fabric", async () => {
         await using site = new MockSite();
 
-        // A controller that never imported the shared fabric cannot complete a split commissioning.
         const controller = await site.addController({ id: "controllerNoFabric", index: 1 });
         await controller.start();
 
         await expect(controller.peers.completeCommissioning(NodeId(0xdeadn))).rejectedWith(ImplementationError);
-
-        // Rejected before touching any device: no peer created.
         expect(controller.peers.size).equals(0);
     });
 });
