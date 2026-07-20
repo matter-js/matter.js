@@ -19,6 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
+    - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
 
 ## 0.17.6 (2026-07-16)
 
