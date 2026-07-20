@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
+    - Fix: Prevent subscriptions from being activated on a closing session
 
 - @matter/protocol
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
