@@ -171,9 +171,7 @@ describe("Failsafe commissioning re-announcement", () => {
             //   1. No addNOC → fabricIndex is undefined → fabric step skipped.
             //   2. closePaseSession() → sessions.deleted (isPase=true) → DeviceAdvertiser re-announces ✓.
             //
-            // Await the advertisement itself (not just failsafeGone): the re-announce is an async reaction to
-            // sessions.deleted that can settle after the failsafe-destroyed signal, so asserting count on
-            // failsafeGone alone races.
+            // Await the advertisement itself, not just failsafeGone — see CommissioningAdSpy.announced (races otherwise).
             await MockTime.resolve(Promise.all([failsafeGone, adSpy.announced]), { macrotasks: true });
 
             disableEntropy();
@@ -321,8 +319,7 @@ describe("Failsafe commissioning re-announcement", () => {
             device.env.get(DeviceAdvertiser).addAdvertiser(adSpy);
             adSpy.arm();
 
-            // Await the recovery re-announcement alongside the (rejected) commission so the count assertion below
-            // does not race the async advertise triggered during rollback.
+            // Await the re-announcement alongside the rejected commission — see CommissioningAdSpy.announced.
             let caughtError: unknown;
             await MockTime.resolve(
                 Promise.all([
