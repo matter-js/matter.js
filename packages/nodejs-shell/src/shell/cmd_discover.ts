@@ -120,7 +120,14 @@ export default function commands(theNode: MatterNode) {
                         const seen = new Set<string>();
                         discovery.discovered.on(node => {
                             const { deviceIdentifier, addresses } = node.state.commissioning;
-                            const id = deviceIdentifier || JSON.stringify(addresses ?? []);
+                            // Prefer the stable device identifier; the address fallback is sorted so re-advertisement
+                            // in a different order does not read as a new device (ServerAddress carries no volatile fields).
+                            const id =
+                                deviceIdentifier ||
+                                (addresses ?? [])
+                                    .map(a => JSON.stringify(a))
+                                    .sort()
+                                    .join("|");
                             if (seen.has(id)) {
                                 return;
                             }

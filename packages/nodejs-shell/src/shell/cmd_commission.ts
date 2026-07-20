@@ -178,16 +178,15 @@ export default function commands(theNode: MatterNode) {
                                         },
                                     };
 
-                                    // Redact secrets from the debug dump (CodeQL: clear-text logging of sensitive info).
+                                    // Keep secrets out of the debug dump (CodeQL: clear-text logging of sensitive
+                                    // info). Omit the passcode entirely — spreading then overriding still flows it
+                                    // into the logged object — and mask network credentials.
+                                    const { passcode: _passcode, wifiNetwork, ...loggable } = commissioningOptions;
                                     console.log(
                                         Diagnostic.json({
-                                            ...commissioningOptions,
-                                            passcode: "<redacted>",
-                                            ...(commissioningOptions.wifiNetwork && {
-                                                wifiNetwork: {
-                                                    ...commissioningOptions.wifiNetwork,
-                                                    wifiCredentials: "<redacted>",
-                                                },
+                                            ...loggable,
+                                            ...(wifiNetwork && {
+                                                wifiNetwork: { ...wifiNetwork, wifiCredentials: "<redacted>" },
                                             }),
                                         }),
                                     );

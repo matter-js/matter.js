@@ -435,14 +435,21 @@ export class CommissioningClient extends Behavior {
     /**
      * Open an Enhanced Commissioning Window using a freshly generated random passcode.
      *
-     * Requires the peer's BasicInformation to already be seeded, else the QR pairing code's vendor/product ID
-     * fields are absent (the passcode and discriminator, and thus pairing, remain unaffected).
+     * The peer's BasicInformation must be seeded — its vendor/product IDs are encoded into the QR pairing code — so
+     * this throws (before opening any window) if it is not.
      *
      * @returns the manual and QR pairing codes encoding the generated passcode.
      */
     async openEnhancedCommissioningWindow(
         commissioningTimeout: Duration = Seconds(900),
     ): Promise<{ manualPairingCode: string; qrPairingCode: string }> {
+        const basicInformation = this.endpoint.maybeStateOf(BasicInformationClient);
+        if (basicInformation === undefined) {
+            throw new ImplementationError(
+                `${this.endpoint} must be seeded (BasicInformation) before opening an enhanced commissioning window; its vendor/product IDs are encoded in the QR pairing code`,
+            );
+        }
+
         const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
         await this.#revokeStaleCommissioningWindow(adminCommissioning);
 
@@ -464,7 +471,7 @@ export class CommissioningClient extends Behavior {
             discriminator,
         });
 
-        const { vendorId, productId } = this.agent.get(BasicInformationClient).state;
+        const { vendorId, productId } = basicInformation;
 
         // TODO: If the timeout is shorter than 15 minutes, also encode it in the QR code's TLV data.
         const qrPairingCode = QrPairingCodeCodec.encode([
