@@ -1105,17 +1105,19 @@ export namespace CommissioningClient {
         regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
 
         /**
-         * Override the final commissioning step.
+         * Override the final operational step of commissioning.
          *
-         * The flow runs PASE, arm-failsafe, CSR and AddNOC as usual, then invokes this hook instead of connecting to
-         * the device operationally and sending "CommissioningComplete" itself.
+         * The flow runs PASE, arm-failsafe, CSR and AddNOC as usual, then invokes this hook **instead of** connecting
+         * to the device operationally and sending "CommissioningComplete" itself, and awaits it. The hook owns the
+         * finalization and must drive it to completion before resolving: resolve on success, throw on failure.
+         * `commission()` resolves or rejects with this hook's outcome — a throw rolls the commissioning back.
          *
-         * Resolve without connecting to perform **PASE-only** commissioning for a delegated/split flow: the device
-         * now holds a NOC on the fabric with its failsafe still armed. Hand `address.nodeId` and `discoveryData` off
-         * to whichever controller will finish the flow — it must connect operationally and send
-         * "CommissioningComplete" (`serverNode.peers.completeCommissioning(nodeId, discoveryData)`) before the
-         * device's failsafe expires, or the device reverts and the freshly issued NOC is discarded. See
-         * docs/MIGRATION_CONTROLLER_018.md for the full recipe.
+         * For a delegated/split flow, hand `address.nodeId` and `discoveryData` to the controller that will finish
+         * (typically a separate, network-side controller sharing this fabric) and **await** its
+         * `serverNode.peers.completeCommissioning(nodeId, discoveryData)` from within this hook. Do not return before
+         * that completes: the PASE session is held open across the hook and the device's failsafe stays armed until
+         * "CommissioningComplete" arrives, so returning early leaves the device mid-commission and it reverts,
+         * discarding the freshly issued NOC. See docs/MIGRATION_CONTROLLER_018.md for the full recipe.
          */
         finalizeCommissioning?: (address: ProtocolPeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
 
