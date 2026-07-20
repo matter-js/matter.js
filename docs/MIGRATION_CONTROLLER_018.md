@@ -250,21 +250,22 @@ off via a callback to complete the flow elsewhere. On the new API:
   completingController.env.get(FabricManager).addFabric(await Fabric.create(completingEnv.get(Crypto), fabricConfig));
   await completingController.start();
 
-  // serverNode runs PASE-only commissioning and hands off instead of completing CASE itself:
-  let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
+  // serverNode runs PASE-only commissioning; the finalize hook triggers the completing controller and AWAITS it,
+  // so commission() resolves only once the device is fully committed (resolve on success, throw on failure):
   await serverNode.peers.commission({
       passcode, discriminator,
       finalizeCommissioning: async (address, discoveryData) => {
-          handoff = { nodeId: address.nodeId, discoveryData };  // do NOT connect operationally here
+          // Across processes this hands the nodeId + discoveryData to the other controller and awaits its result
+          // over your own channel; the operational connect + CommissioningComplete happen there, not here.
+          await completingController.peers.completeCommissioning(address.nodeId, discoveryData);
       },
   });
-
-  // completingController finalizes the handed-off node (operational connect + CommissioningComplete):
-  await completingController.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData);
   ```
 
-  The device's failsafe is armed from hand-off until `completeCommissioning` succeeds — finalize promptly, or
-  the device reverts and the freshly issued NOC is discarded.
+  `finalizeCommissioning` is awaited: it must drive the completion to done before returning (throwing rolls the
+  commissioning back). Do not just capture the hand-off and return — that closes the PASE session while the
+  device is still mid-commission. The device's failsafe is armed until `completeCommissioning` succeeds, so
+  finalize promptly, or the device reverts and the freshly issued NOC is discarded.
 
   `commission()` still sets `peerAddress`/`commissionedAt` on `serverNode`'s local node even with
   `finalizeCommissioning` set, so after handing off, `serverNode` is left believing it commissioned a node it

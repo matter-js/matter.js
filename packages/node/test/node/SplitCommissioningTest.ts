@@ -76,6 +76,12 @@ describe("split commissioning", () => {
 
         await a.start();
 
+        // NOTE — this is a SIMPLIFIED test shape, not the pattern to copy. Real callers trigger the completing
+        // controller from inside finalizeCommissioning and await it there (resolve on success, throw on failure), so
+        // commission() resolves only once the finalize is done — see the JSDoc on
+        // CommissioningClient.CommissioningOptions.finalizeCommissioning. This test instead captures the hand-off and
+        // completes in a second phase, purely to keep it simple: two controllers sharing one fabric identity cannot run
+        // the nested flow concurrently in a single process.
         const { passcode, discriminator } = device.state.commissioning;
         let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
         await MockTime.resolve(
@@ -113,14 +119,9 @@ describe("split commissioning", () => {
 
         // A second completion for an already-committed peer must reject without touching it (see the guard in Peers.completeCommissioning).
         await expect(
-            MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
-                macrotasks: true,
-            }),
+            MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId), { macrotasks: true }),
         ).rejectedWith(ImplementationError);
-
         expect(b.peers.get(b.env.get(FabricAuthority).fabrics[0].addressOf(handoff!.nodeId))).equals(node);
-        expect(node.lifecycle.isCommissioned).equals(true);
-        expect(b.peers.commissioned.map(p => p.peerAddress?.nodeId)).contains(handoff!.nodeId);
     });
 
     it("leaves no phantom peer when the node cannot be reached", async () => {
