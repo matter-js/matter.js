@@ -349,7 +349,7 @@ export class BorderRouterRegistry {
                 const nn = params.get("nn");
                 const vn = params.get("vn");
                 logger.debug(
-                    `BR instance skipped (no xa yet) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
+                    `BR instance skipped (missing or malformed xa) qname="${name.qname}" source=${source} xa=${xaInfo} nn="${nn ?? ""}" vn="${vn ?? ""}"`,
                 );
                 return;
             }
