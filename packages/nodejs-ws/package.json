@@ -31,7 +31,7 @@
     "dependencies": {
         "@matter/general": "*",
         "@matter/nodejs": "*",
-        "ws": "^8.21.0"
+        "ws": "^8.21.1"
     },
     "devDependencies": {
         "@matter/node": "*"
