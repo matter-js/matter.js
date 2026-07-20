@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
+
 - @matter/node
     - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-connecting commissioned peers when the node goes online
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
@@ -18,8 +21,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Change: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
+    - Fix: Prevent subscriptions from being activated on a closing session
 
 - @matter/protocol
+    - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay
     - Fix: Ensure the commissioning failsafe timer stays within the device's maximum cumulative failsafe
 
 - @project-chip/matter.js

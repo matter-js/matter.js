@@ -42,7 +42,7 @@
         "@matter/protocol": "*",
         "@matter/types": "*",
         "@project-chip/matter.js": "*",
-        "ws": "^8.21.0",
+        "ws": "^8.21.1",
         "yargs": "^18.0.0"
     },
     "engines": {

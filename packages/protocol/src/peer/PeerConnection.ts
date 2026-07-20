@@ -173,8 +173,15 @@ export async function PeerConnection(
     // Scoped to this PeerConnection call so all concurrent address attempts share one rate-limit clock.
     let lastRestartAt: Timestamp | undefined;
 
+    // Wakes the attempt scheduler when the delay budget changes out-of-band (e.g. fallback retirement resetting
+    // lastAttemptAt).
+    const rescheduled = new Observable<[]>();
+
     // Start the attempt scheduler
     workers.add(scheduleAttempts());
+
+    // Retire the speculative fallback once discovery proves it stale
+    workers.add(retireStaleFallback());
 
     // Enqueue the "fallback" address if the service is undiscovered
     maybeAttemptFallback();
@@ -231,19 +238,19 @@ export async function PeerConnection(
                 if (delayInterval > 0) {
                     using _delaying = scheduling.join("delaying");
 
-                    const changed = await overallAbort.race<ServerAddressIp | void>(
+                    await overallAbort.race<ServerAddressIp | void>(
                         Abort.sleep("connection delay", overallAbort, delayInterval),
                         pendingAddresses.added,
                         pendingAddresses.deleted,
+                        rescheduled,
                     );
                     if (overallAbort.aborted) {
                         return;
                     }
 
-                    // If there was an address change then restart the loop
-                    if (changed !== undefined) {
-                        continue;
-                    }
+                    // Re-evaluate from the top: the delay may now be satisfied, the queue may have changed, or the
+                    // fallback may have been retired (which resets lastAttemptAt so the replacement starts at once).
+                    continue;
                 }
             }
 
@@ -253,6 +260,64 @@ export async function PeerConnection(
                 initiateAttempt(address);
             }
         }
+    }
+
+    /**
+     * Retire the speculative fallback once discovery proves it stale.
+     *
+     * The fallback is a guess — the last-known-good operational address we attempt while awaiting discovery.  If mDNS
+     * surfaces a set of current addresses that never includes the fallback, the guess is stale.  Once the set settles
+     * we abort the fallback attempt (both transport variants) and let the discovered address start without the
+     * inter-address stagger, rather than hammering a dead address and delaying the real one behind it.
+     *
+     * A fallback that is still valid is instead promoted by {@link addAddress} (clearing {@link attemptingFallback}),
+     * so reaching the retirement below means discovery genuinely dropped it.
+     */
+    async function retireStaleFallback() {
+        using _retiring = lifetime.join("retiring fallback");
+
+        while (!overallAbort.aborted) {
+            // Only meaningful once discovery has settled on addresses that exclude the fallback.
+            if (!fallbackSuperseded()) {
+                await overallAbort.race(service.changed);
+                continue;
+            }
+
+            // Let the address set settle before acting; mDNS may still deliver the fallback in a later packet.
+            await Abort.sleep("fallback stabilization", overallAbort, timing.addressChangeStabilizationDelay);
+
+            // Re-check: the fallback may have been re-advertised (or promoted) during the wait.
+            if (overallAbort.aborted || !fallbackSuperseded()) {
+                continue;
+            }
+
+            const stale = attemptingFallback!;
+            attemptingFallback = undefined;
+
+            // The fallback occupied the attempt slot speculatively, never as real concurrent load on the peer, so the
+            // discovered replacement inherits no inter-address stagger.
+            lastAttemptAt = undefined;
+
+            deleteAddress(stale, "Aborting fallback: no longer advertised, switching to discovered address", true);
+            rescheduled.emit();
+        }
+    }
+
+    /**
+     * True when we are attempting a fallback that discovery has superseded: at least one address is known and none of
+     * them is the fallback.  A re-advertised fallback (matched by IP, ignoring transport) is not superseded even if
+     * {@link addAddress} has not yet promoted it out of the pending queue.
+     */
+    function fallbackSuperseded() {
+        if (attemptingFallback === undefined || service.addresses.size === 0) {
+            return false;
+        }
+        for (const address of service.addresses) {
+            if (ServerAddress.isEqual(address, attemptingFallback)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -350,14 +415,16 @@ export async function PeerConnection(
      * transport type; expand into the same variants `addAddress` enqueued so the typed
      * entries in `attempts`/`pendingAddresses` actually match.
      */
-    function deleteAddress(address: ServerAddressIp, why: string) {
+    function deleteAddress(address: ServerAddressIp, why: string, force = false) {
         const variants = expandAddresses(address).map(v => addresses.add(v));
         const operationalAddress = peer.descriptor.operationalAddress;
         const isOperational = operationalAddress !== undefined && ServerAddress.isEqual(operationalAddress, address);
 
-        // If only operational-address attempts remain, keep them alive as fallback.
+        // Keep the operational address alive as fallback when it is the last thread to the peer (e.g. mDNS expired
+        // every discovered address).  Skipped when forced: retirement deletes a fallback discovery has superseded, so
+        // a discovered alternative already exists and re-arming it would strand us on a dead address.
         const remainingNonOperational = attempts.size - variants.filter(v => attempts.has(v)).length;
-        if (isOperational && remainingNonOperational === 0) {
+        if (!force && isOperational && remainingNonOperational === 0) {
             attemptingFallback = variants[0];
             return;
         }
