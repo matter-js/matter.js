@@ -180,7 +180,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find a specific commissionable node and commission.
      */
     commission(options: CommissioningDiscovery.Options) {
-        return new CommissioningDiscovery(this.owner as ServerNode, options);
+        return new CommissioningDiscovery(this.owner, options);
     }
 
     /**
@@ -190,18 +190,27 @@ export class Peers extends EndpointContainer<ClientNode> {
      * performs the commissioning flow, or for raw PASE channel establishment.
      */
     pase(options: PaseDiscovery.Options) {
-        return new PaseDiscovery(this.owner as ServerNode, options);
+        return new PaseDiscovery(this.owner, options);
     }
 
     /**
      * Complete a commissioning another commissioner started and handed off before the operational (CASE) step
      * (see {@link CommissioningClient.CommissioningOptions.finalizeCommissioning}).  Operationally discovers and
      * connects the node, sends {@link GeneralCommissioning} `CommissioningComplete` to disarm the failsafe and
-     * finalize, then registers it as a commissioned peer.  `discoveryData` (from the hand-off) seeds operational
-     * discovery.  Throws {@link CommissioningError} and removes the peer entry if discovery, connection, or
-     * `CommissioningComplete` fails.
+     * finalize, reads the node's structure and (unless `autoSubscribe` is false) subscribes — exactly as
+     * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
+     * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
+     * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
+     * connection, or `CommissioningComplete` fails.
      */
-    async completeCommissioning(nodeId: NodeId, discoveryData?: DiscoveryData): Promise<ClientNode> {
+    async completeCommissioning(
+        nodeId: NodeId,
+        discoveryData?: DiscoveryData,
+        options?: Pick<
+            CommissioningClient.CommissioningOptions,
+            "autoSubscribe" | "defaultSubscription" | "autoStateInitialize"
+        >,
+    ): Promise<ClientNode> {
         // Split commissioning can only finalize over THE fabric the initiating commissioner established (the one the
         // device's NOC belongs to).  Require it to already exist rather than auto-creating an empty fabric, which would
         // mask a misconfigured controller that can never succeed.  Match by CA root certificate, as FabricAuthority does.
@@ -242,6 +251,17 @@ export class Peers extends EndpointContainer<ClientNode> {
                     // re-reads.
                     node.env.get(Peer).descriptor.discoveryData = discoveryData;
                 }
+
+                // Mirror commission()'s post-commission setup so start() reads the node's structure (latching
+                // `seeded`) and, unless opted out, establishes the sustained subscription — otherwise the finalized
+                // peer would be commissioned but blind, and `lifecycle.seeded` would never emit.
+                await node.act(agent => {
+                    const network = agent.get(NetworkClient);
+                    network.state.defaultSubscription = options?.defaultSubscription;
+                    network.state.autoSubscribe = options?.autoSubscribe !== false;
+                    network.state.autoStateInitialize = options?.autoStateInitialize;
+                    network.internal.isNewlyCommissioned = true;
+                });
 
                 await node.start();
 
@@ -346,13 +366,14 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Emits when fixed attributes
+     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
+     * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
      */
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                if (node.behaviors.active.some(({ id }) => id === "commissioning")) {
+                if (node.behaviors.active.some(behavior => behavior.id === "commissioning")) {
                     const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
                     if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
                         return node;
@@ -704,7 +725,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             // The reason is that we saw such cases and should prevent discarding a node directly after commissioning.
             // This solution still has some holes that could prevent removing nodes automatically, but best-effort
             // variant for now until we know how often that happens in practice.
-            if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+            if (!(await node.act(agent => agent.get(NetworkClient).subscriptionActive))) {
                 logger.info(
                     "Leave event for peer",
                     Diagnostic.strong(node.id),
@@ -731,7 +752,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Ignore shutdown events received during initial subscription establishment as they may be stale events
         // from before the device was restarted.  This mirrors the same guard in #onLeave.
-        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+        if (!(await node.act(agent => agent.get(NetworkClient).subscriptionActive))) {
             logger.debug(
                 "Shutdown event for peer",
                 Diagnostic.strong(node.id),
@@ -761,7 +782,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Ignore startup events received during the initial subscription establishment
         // as they may be stale events from before the device was restarted.
-        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+        if (!(await node.act(agent => agent.get(NetworkClient).subscriptionActive))) {
             logger.debug(
                 "Startup event for peer",
                 Diagnostic.strong(node.id),
@@ -795,19 +816,15 @@ class Factory extends ClientNodeFactory {
     create(options: ClientNode.Options, peerAddress?: PeerAddress) {
         let node: ClientNode;
         if (peerAddress !== undefined && PeerAddress.isGroup(peerAddress)) {
-            if (options.id === undefined) {
-                options.id = `group${++this.#groupIdCounter}`;
-            }
             node = new ClientGroup({
                 ...options,
+                id: options.id ?? `group${++this.#groupIdCounter}`,
                 owner: this.#owner.owner,
             });
         } else {
-            if (options.id === undefined) {
-                options.id = this.#owner.owner.env.get(ServerNodeStore).clientStores.allocateId();
-            }
             node = new ClientNode({
                 ...options,
+                id: options.id ?? this.#owner.owner.env.get(ServerNodeStore).clientStores.allocateId(),
                 owner: this.#owner.owner,
             });
         }

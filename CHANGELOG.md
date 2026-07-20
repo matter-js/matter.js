@@ -15,13 +15,22 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Heap` now stores each item at most once and maintains its position index eagerly, so deleting an item added after an earlier deletion works reliably
 
 - @matter/node
-    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-connecting commissioned peers when the node goes online
+    - Feature: Added the controller `ClientNode` API for managing commissioned peers via `ServerNode.peers`, deprecating `CommissioningController`/`PairedNode`
+    - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
+    - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
+    - Feature: Added the `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
+    - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read at least once
+    - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
     - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
-    - Feature: Added `NodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read at least once
+    - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
+    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-connecting commissioned peers when the node goes online
     - Change: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: Optimize Cluster data updates when structures change for ClientNodes
     - Fix: Prevent subscriptions from being activated on a closing session
+
+- @matter/types
+    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
 
 - @matter/protocol
     - Enhancement: Connect to a newly discovered address as soon as it supersedes the previously cached address instead of waiting out the connection retry delay

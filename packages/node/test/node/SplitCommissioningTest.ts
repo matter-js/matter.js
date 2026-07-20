@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BasicInformationClient } from "#behaviors/basic-information";
 import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
@@ -116,6 +117,10 @@ describe("split commissioning", () => {
         expect(b.peers.commissioned.map(p => p.peerAddress?.nodeId)).contains(handoff!.nodeId);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(false);
         expect(device.state.commissioning.commissioned).equals(true);
+
+        // The finalized peer must have read its structure — a blind commissioned node would hang the `seeded` wait.
+        expect(node.lifecycle.isSeeded).equals(true);
+        expect(node.stateOf(BasicInformationClient).vendorId).not.equals(undefined);
 
         // A second completion for an already-committed peer must reject without touching it (see the guard in Peers.completeCommissioning).
         await expect(
