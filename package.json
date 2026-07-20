@@ -89,7 +89,7 @@
         "prettier": "^3.9.5",
         "prettier-plugin-organize-imports": "^4.3.0",
         "semver": "^7.8.5",
-        "typescript": "~6.0.3"
+        "typescript": "~7.0.2"
     },
     "overrides": {
         "brorand": "npm:@matter.js/brorand@1.1.0",
