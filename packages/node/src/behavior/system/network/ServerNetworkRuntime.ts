@@ -347,6 +347,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // mDNS) so peers learn it during PASE/CASE and can select TCP for sessions they initiate to us.
         env.get(SessionManager).sessionParameters = {
             maxPathsPerInvoke: this.owner.state.basicInformation.maxPathsPerInvoke,
+            ...this.owner.state.sessions.intervals,
             ...(tcpConfig.incoming || tcpConfig.outgoing
                 ? { supportedTransports: { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming } }
                 : {}),

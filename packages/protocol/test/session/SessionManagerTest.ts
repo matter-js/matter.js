@@ -333,4 +333,26 @@ describe("SessionManager", () => {
             expect(sessionManager.sessionParameters.activeThreshold).equal(Millis(65535));
         });
     });
+
+    describe("session parameter setter", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("ignores undefined values and retains current values", async () => {
+            const sessionManager = newManager({ idleInterval: Millis(1000), activeInterval: Millis(700) });
+            await sessionManager.construction.ready;
+
+            sessionManager.sessionParameters = { idleInterval: undefined, activeInterval: Millis(600) };
+
+            expect(sessionManager.sessionParameters.idleInterval).equal(Millis(1000));
+            expect(sessionManager.sessionParameters.activeInterval).equal(Millis(600));
+        });
+    });
 });

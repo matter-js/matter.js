@@ -19,7 +19,9 @@ import { Observable } from "./Observable.js";
  *
  * * O(log(n)) enqueue and dequeue
  *
- * * O(1) deletion of arbitrary position, but will add expense of maintaining index of positions
+ * * Holds each item at most once (a priority set); re-adding a queued item is a no-op
+ *
+ * * O(1) lookup + O(log(n)) removal of an arbitrary item via a maintained position index
  *
  * * {@link added}, {@link deleted} and {@link firstChanged} events
  */
@@ -33,7 +35,7 @@ export class Heap<T> {
     #firstChanged?: Observable<[T | undefined]>;
     #deleted?: Observable<[T]>;
     #added?: Observable<[T]>;
-    #positions?: Map<T, number>;
+    readonly #positions = new Map<T, number>();
 
     /**
      * Create new heap.
@@ -78,7 +80,7 @@ export class Heap<T> {
      * Is the heap empty?
      */
     get isEmpty() {
-        return !!this.#buffer.length;
+        return !this.#buffer.length;
     }
 
     /**
@@ -120,31 +122,26 @@ export class Heap<T> {
                 item = this.#normalize(item);
             }
 
+            // The heap holds each item at most once; a re-add of a queued item is a no-op.  #positions maps an item
+            // to a single index, so a second copy could not be tracked and would orphan on delete.
+            if (this.#positions.has(item)) {
+                continue;
+            }
+
             this.#buffer.push(item);
-            this.#bubbleUp(this.#buffer.length - 1);
+            // #bubbleUp updates positions for elements it swaps; record the final resting index for the item itself,
+            // which is the only element not covered when it does not move.
+            const index = this.#bubbleUp(this.#buffer.length - 1);
+            this.#positions.set(item, index);
 
             this.#added?.emit(item);
         }
     }
 
     /**
-     * Delete an item.
-     *
-     * The first delete is O(n); subsequent deletes are O(1) but insertions and deletions will have additional cost
-     * associated.
+     * Delete an item.  Returns false if the item is not present.
      */
     delete(item: T) {
-        if (this.#buffer === undefined) {
-            return false;
-        }
-
-        if (!this.#positions) {
-            this.#positions = new Map();
-            for (let i = 0; i < this.#buffer.length; i++) {
-                this.#positions.set(this.#buffer[i], i);
-            }
-        }
-
         if (this.#normalize) {
             item = this.#normalize(item);
         }
@@ -163,6 +160,7 @@ export class Heap<T> {
      */
     clear() {
         if (this.#buffer.length) this.#buffer.length = 0;
+        this.#positions.clear();
     }
 
     /**
@@ -244,7 +242,7 @@ export class Heap<T> {
         } else {
             const lastIndex = this.#buffer.length - 1;
             this.#buffer[index] = this.#buffer[lastIndex];
-            this.#positions?.set(this.#buffer[index], index);
+            this.#positions.set(this.#buffer[index], index);
             this.#buffer.length = lastIndex;
             if (index < this.#buffer.length) {
                 if (index) {
@@ -254,7 +252,7 @@ export class Heap<T> {
             }
         }
 
-        this.#positions?.delete(item);
+        this.#positions.delete(item);
 
         this.#deleted?.emit(item);
         if (!index) {
@@ -312,10 +310,8 @@ export class Heap<T> {
 
     #swap(index1: number, index2: number) {
         [this.#buffer[index1], this.#buffer[index2]] = [this.#buffer[index2], this.#buffer[index1]];
-        if (this.#positions) {
-            this.#positions.set(this.#buffer[index1], index1);
-            this.#positions.set(this.#buffer[index2], index2);
-        }
+        this.#positions.set(this.#buffer[index1], index1);
+        this.#positions.set(this.#buffer[index2], index2);
     }
 
     #leftChildOf(index: number) {

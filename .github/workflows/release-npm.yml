@@ -94,7 +94,7 @@ jobs:
 
       - name: Use Node.js 24.x
         if: steps.automerge.outputs.mergeResult == 'merged'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24.x
 

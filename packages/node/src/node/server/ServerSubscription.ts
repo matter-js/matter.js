@@ -398,7 +398,16 @@ export class ServerSubscription implements Subscription {
         );
     }
 
+    /** @returns true if the subscription became active, false if it was dropped because its session is closing. */
     activate() {
+        if (this.session.isClosing) {
+            // The owning session is already tearing down and its subscriptions have been swept, so registering here
+            // would orphan us on a dead session and spin the update timer against a closing session manager.  Drop the
+            // change handlers registered while seeding and stay inert; the controller re-subscribes on reconnect.
+            this.#changeHandlers.close();
+            this.#isClosed = true;
+            return false;
+        }
         this.session.subscriptions.add(this);
         logger.debug(this.session.via, "New subscription", Diagnostic.strong(this.idStr));
         this.#lifetime = this.#context.session.join("subscription", Diagnostic.strong(this.#id));
@@ -426,6 +435,7 @@ export class ServerSubscription implements Subscription {
         this.#updateTimer = Time.getTimer("Subscription update", this.#sendInterval, () =>
             this.#prepareDataUpdate(),
         ).start();
+        return true;
     }
 
     /**
