@@ -101,6 +101,13 @@ export default function commands(theNode: MatterNode) {
                                     const { pairingCode, qrCode, nodeId: nodeIdStr, port, ip, ble, instanceId } = argv;
                                     let { setupPinCode, discriminator, shortDiscriminator, qrCodeIndex } = argv;
 
+                                    if ((ip === undefined) !== (port === undefined)) {
+                                        console.log(
+                                            "Known-address commissioning requires both <ip> and <port>; provide both or neither (to use discovery).",
+                                        );
+                                        return;
+                                    }
+
                                     if (typeof pairingCode === "string" && pairingCode.length > 0) {
                                         const { shortDiscriminator: pairingCodeShortDiscriminator, passcode } =
                                             ManualPairingCodeCodec.decode(pairingCode);
